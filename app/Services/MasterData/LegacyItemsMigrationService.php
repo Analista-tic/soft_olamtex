@@ -309,7 +309,10 @@ class LegacyItemsMigrationService
         $attributes['model']       = $this->val($mapped, 'model', self::DEFAULTS['model']);
 
         // --- Subgrupo ---
-        $attributes['category_sub_group_id'] = $this->resolveSubGroupId($mapped['_subgroup_name'] ?? '');
+        $attributes['category_sub_group_id'] = $this->resolveSubGroupId(
+            $mapped['_subgroup_name'] ?? '',
+            $mapped['_group_name'] ?? ''
+        );
 
         // --- Impuesto ---
         $attributes['tax_id'] = $this->resolveTaxId($mapped['_tax_pct'] ?? '');
@@ -319,11 +322,15 @@ class LegacyItemsMigrationService
         $attributes['status']            = $this->resolveStatus($mapped['_status_label'] ?? '');
         $attributes['tracks_inventory']  = self::DEFAULTS['tracks_inventory'];
         $attributes['negative_movement'] = $this->resolveNegativeMovement($mapped['_negative_movement_label'] ?? '');
+        $attributes['origin_type']        = Item::ORIGIN_MIGRATION;
+        $attributes['was_edited_after_import'] = false;
+        $attributes['imported_at']        = now();
+        $attributes['import_batch_id']    = $batchId;
 
         // --- extra_fields: campos adicionales + trazabilidad legacy ---
         $extraFields = $this->resolveExtraFields($mapped);
 
-        // Inyectar trazabilidad dentro de extra_fields (sin columnas nuevas)
+        // Conservar trazabilidad legacy detallada dentro de extra_fields.
         $extraFields['legacy_import']     = true;
         $extraFields['legacy_source']     = $sourceName;
         $extraFields['migration_batch']   = $batchId;
@@ -352,27 +359,57 @@ class LegacyItemsMigrationService
     // Resolvers
     // ─────────────────────────────────────────────────────
 
-    protected function resolveSubGroupId(string $name): int
+    protected function resolveSubGroupId(string $name, string $groupName = ''): int
     {
-        $normalized = $this->normalizeHeader($name);
+        $nameUpper  = mb_strtoupper(trim($name), 'UTF-8');
+        $groupUpper = mb_strtoupper(trim($groupName), 'UTF-8');
 
-        if ($normalized === '' || $normalized === '-') {
+        if ($nameUpper === '' || $nameUpper === '-') {
             return $this->getFallbackSubGroupId();
         }
 
-        if (isset($this->subGroupCache[$normalized])) {
-            return $this->subGroupCache[$normalized];
+        // Intentar primero con grupo (clave combinada)
+        if ($groupUpper !== '') {
+            $cacheKey = $nameUpper . '|' . $groupUpper;
+            if (isset($this->subGroupCache[$cacheKey])) {
+                return $this->subGroupCache[$cacheKey];
+            }
+
+            // Buscar en BD con JOIN directo (no depende de relación Eloquent)
+            $subGroup = CategorySubGroup::query()
+                ->join('category_groups', 'category_groups.id', '=', 'category_sub_groups.category_group_id')
+                ->whereRaw('UPPER(category_sub_groups.name) COLLATE utf8mb4_unicode_ci = UPPER(?) COLLATE utf8mb4_unicode_ci', [$nameUpper])
+                ->whereRaw('UPPER(category_groups.name) COLLATE utf8mb4_unicode_ci = UPPER(?) COLLATE utf8mb4_unicode_ci', [$groupUpper])
+                ->select('category_sub_groups.id')
+                ->first();
+
+            if ($subGroup) {
+                $this->subGroupCache[$cacheKey] = $subGroup->id;
+                $this->subGroupCache[$nameUpper] = $subGroup->id;
+                return $subGroup->id;
+            }
         }
 
-        // Búsqueda case-insensitive
-        $subGroup = CategorySubGroup::whereRaw('UPPER(name) = ?', [$normalized])->first();
+        // Segundo intento: solo por nombre (sin grupo)
+        if (isset($this->subGroupCache[$nameUpper])) {
+            return $this->subGroupCache[$nameUpper];
+        }
+
+        $subGroup = CategorySubGroup::whereRaw(
+            'UPPER(name) COLLATE utf8mb4_unicode_ci = UPPER(?) COLLATE utf8mb4_unicode_ci',
+            [$nameUpper]
+        )->first();
+
         if ($subGroup) {
-            $this->subGroupCache[$normalized] = $subGroup->id;
+            $this->subGroupCache[$nameUpper] = $subGroup->id;
             return $subGroup->id;
         }
 
-        // No existe → usar fallback (no crear subgrupos del CSV para mantener catálogo limpio)
-        Log::info('legacy_import.subgroup_not_found', ['name' => $name, 'using_fallback' => self::FALLBACK_SUBGROUP]);
+        Log::info('legacy_import.subgroup_not_found', [
+            'name'           => $name,
+            'group'          => $groupName,
+            'using_fallback' => self::FALLBACK_SUBGROUP,
+        ]);
         return $this->getFallbackSubGroupId();
     }
 
@@ -528,6 +565,10 @@ class LegacyItemsMigrationService
         } else {
             $wh = \App\Models\Inventory\Warehouse::whereRaw('UPPER(name) = ?', [$normalizedWh])->first();
             if (!$wh) {
+                Log::warning('legacy_import.warehouse_not_found', [
+                    'warehouse_name' => $whName,
+                    'hint' => 'Crear la bodega en la tabla warehouses antes de correr el seeder',
+                ]);
                 return [];
             }
             $this->warehouseCache[$normalizedWh] = $wh->id;
@@ -555,10 +596,15 @@ class LegacyItemsMigrationService
     protected function warmCaches(): void
     {
         // Pre-cargar subgrupos existentes
-        CategorySubGroup::all(['id', 'name'])->each(function ($sg) {
-            $key = $this->normalizeHeader($sg->name);
-            if ($key !== '') {
-                $this->subGroupCache[$key] = $sg->id;
+        CategorySubGroup::with('categoryGroup')->get()->each(function ($sg) {
+            $nameKey  = mb_strtoupper(trim($sg->name), 'UTF-8');
+            $groupKey = $sg->categoryGroup
+                ? mb_strtoupper(trim($sg->categoryGroup->name), 'UTF-8')
+                : '';
+            $combined = $nameKey . '|' . $groupKey;
+            if ($nameKey !== '') {
+                $this->subGroupCache[$nameKey]  = $sg->id;
+                $this->subGroupCache[$combined] = $sg->id;
             }
         });
 

@@ -25,8 +25,8 @@ class LegacyItemsSeeder extends Seeder
     {
         // Busca primero en storage/app/legacy/, luego en db/ como fallback
         $csvFiles = [
-            storage_path('app/legacy/Base de datos normalizada 1 - Items.csv'),
-            storage_path('app/legacy/Base de datos normalizada 2 - Items.csv'),
+            storage_path('app\legacy\Base de datos normalizada 1 - Items.csv'),
+            storage_path('app\legacy\Base de datos normalizada 2 - Items.csv'),
         ];
 
         // Si no existen en storage/, intentar desde db/

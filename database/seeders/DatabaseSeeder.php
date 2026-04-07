@@ -9,7 +9,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            // ── Configuración base ──────────────────────────────
+            // ── Configuración base ──────────────────────────────────────
             CompanySettingSeeder::class,
             SettingsFieldParametersSeeder::class,
             CategorySeeder::class,
@@ -17,16 +17,16 @@ class DatabaseSeeder extends Seeder
             WarehousesSeeder::class,
             RolesAndPermissionsSeeder::class,
 
-            // ── Operaciones de producción ───────────────────────
+            // ── Producción ────────────────────────────────────────────
             OperationsSeeder::class,
-            AccountingAccountSeeder::class,
-            FabricItemsDemoSeeder::class,
-            SupplyItemsDemoSeeder::class,
             ProductionListingOperationsSeeder::class,
+            
+            // ── Contabilidad ────────────────────────────────────────────
+            AccountingAccountSeeder::class,
 
-            // ── Datos legacy reales (CSV) ───────────────────────
+            // ── Datos legacy reales (XLS → CSV) ─────────────────────────
             // LegacyItemsSeeder primero: sus ítems deben existir para que
-            // FabricRollsLegacySeeder los encuentre por referencia (col 19 del CSV).
+            // FabricRollsLegacySeeder los encuentre por referencia.
             LegacyItemsSeeder::class,
             FabricRollsLegacySeeder::class,
         ]);

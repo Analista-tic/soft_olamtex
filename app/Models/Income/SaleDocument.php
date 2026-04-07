@@ -56,7 +56,7 @@ class SaleDocument extends Model implements HasAuditLabel
         'due_date' => 'date',
         'delivery_date' => 'date',
         'payment_days' => 'integer',
-        'amount_paid' => 'float',
+        'amount_paid' => 'decimal:2',
         'withholdings' => 'array',
         'invoiced_at' => 'datetime',
     ];

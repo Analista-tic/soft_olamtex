@@ -8,10 +8,15 @@ use App\Models\Inventory\Warehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Item extends Model implements \App\Contracts\HasAuditLabel
 {
-    use \App\Models\Concerns\HasAuditLabel;
+    use \App\Models\Concerns\HasAuditLabel, SoftDeletes;
+
+    public const ORIGIN_SYSTEM = 'system';
+    public const ORIGIN_MIGRATION = 'migration';
+
     protected $fillable = [
         'category_sub_group_id',
         'tax_id', // Nuevo campo
@@ -25,6 +30,10 @@ class Item extends Model implements \App\Contracts\HasAuditLabel
         'item_type',
         'tracks_inventory',
         'status',
+        'origin_type',
+        'was_edited_after_import',
+        'imported_at',
+        'import_batch_id',
         'unit_measure', // EN: unidad de medida
         'income_account_id',
         'inventory_account_id',
@@ -36,6 +45,8 @@ class Item extends Model implements \App\Contracts\HasAuditLabel
         'negative_movement' => 'integer',
         'tracks_inventory' => 'boolean',
         'status' => 'boolean',
+        'was_edited_after_import' => 'boolean',
+        'imported_at' => 'datetime',
     ];
 
     protected $appends = ['img_url'];
@@ -118,7 +129,12 @@ class Item extends Model implements \App\Contracts\HasAuditLabel
     {
         return $this->belongsToMany(Warehouse::class, 'warehouse_items', 'item_id', 'warehouse_id')
             ->withPivot(['quantity', 'stock_min', 'stock_max'])
-            ->withTimestamps();
+            ->withTimestamps()
+            ->withCasts([
+                'quantity' => 'decimal:4',
+                'stock_min' => 'decimal:4',
+                'stock_max' => 'decimal:4',
+            ]);
     }
 
     public function getImgUrlAttribute(): ?string
@@ -131,5 +147,15 @@ class Item extends Model implements \App\Contracts\HasAuditLabel
         $path = preg_replace('/^storage\//', '', $path);
 
         return "/storage/{$path}";
+    }
+
+    public function isMigrationOrigin(): bool
+    {
+        return $this->origin_type === self::ORIGIN_MIGRATION;
+    }
+
+    public function shouldHighlightAsImported(): bool
+    {
+        return $this->isMigrationOrigin() && !$this->was_edited_after_import;
     }
 }

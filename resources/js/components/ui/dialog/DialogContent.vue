@@ -17,6 +17,7 @@ const props = defineProps<
     DialogContentProps & {
         class?: HTMLAttributes['class'];
         closeClass?: HTMLAttributes['class'];
+        contentClass?: HTMLAttributes['class'];
         overlayClass?: HTMLAttributes['class'];
         scrollable?: boolean;
     }
@@ -24,7 +25,14 @@ const props = defineProps<
 const emits = defineEmits<DialogContentEmits>();
 
 const delegatedProps = computed(() => {
-    const { class: _, closeClass: __, overlayClass: ___, ...delegated } = props;
+    const {
+        class: _class,
+        closeClass: _closeClass,
+        contentClass: _contentClass,
+        overlayClass: _overlayClass,
+        scrollable: _scrollable,
+        ...delegated
+    } = props;
 
     return delegated;
 });
@@ -70,16 +78,18 @@ function handleInteractOutside(event: unknown) {
             @interact-outside="handleInteractOutside"
             :class="
                 cn(
-                    'fixed inset-0 z-50 m-auto h-fit max-h-[calc(100vh-2rem)] w-[calc(100%-2rem)] max-w-4xl border border-border bg-background shadow-[0_25px_70px_rgba(15,23,42,0.35)] duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 sm:rounded-[28px]',
+                    'h-fit max-h-[90vh] w-[calc(100%-2rem)] max-w-4xl overflow-y-auto border border-border bg-background shadow-[0_25px_70px_rgba(15,23,42,0.35)] sm:rounded-[28px]',
                     props.class,
+                    'fixed left-1/2 top-1/2 z-[51] -translate-x-1/2 -translate-y-1/2',
                 )
             "
         >
-            <div class="flex h-full max-h-[calc(100vh-3rem)] flex-col overflow-hidden rounded-[10px]">
+            <div class="flex max-h-[calc(100vh-3rem)] flex-col overflow-hidden rounded-[10px]">
                 <div
                     :class="cn(
                         'dialog-scroll-area flex min-h-0 flex-1 flex-col scroll-smooth',
                         isScrollable ? 'overflow-y-auto px-3 py-4' : 'px-3 py-2',
+                        props.contentClass,
                     )"
                 >
                     <slot />
@@ -111,4 +121,3 @@ function handleInteractOutside(event: unknown) {
     height: 6px;
 }
 </style>
-

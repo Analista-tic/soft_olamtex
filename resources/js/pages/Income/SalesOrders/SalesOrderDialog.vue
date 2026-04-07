@@ -1,20 +1,22 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
-import FormDialogContent from '@/components/FormDialogContent.vue';
-import QuoteItemsTable from '@/pages/Income/Quotes/QuoteItemsTable.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
+import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import { mapToCreateSalesOrderDto, type Quote, type SalesOrder, type SalesOrderItem } from '@/domain/Income';
 import type { Contact } from '@/domain/MasterData';
-import { Plus } from 'lucide-vue-next';
+import QuoteItemsTable from '@/pages/Income/Quotes/QuoteItemsTable.vue';
 import { useIncomeStore } from '@/stores/income';
 import axios from 'axios';
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { Plus } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{
     open: boolean;
@@ -30,9 +32,6 @@ const emit = defineEmits<{
 
 const incomeStore = useIncomeStore();
 
-const isLoading = ref(false);
-const allowOverlay = ref(false);
-const loadingCounter = ref(0);
 const isSaving = ref(false);
 const contacts = ref<Contact[]>([]);
 const localSalesOrder = ref<Partial<SalesOrder>>(createDefaultSalesOrder());
@@ -41,11 +40,6 @@ const successMessage = ref('');
 const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const confirmConvertOpen = ref(false);
-const previousBodyOverflow = ref<string | null>(null);
-const showOverlay = ref(false);
-
-let overlayDelayTimer: ReturnType<typeof setTimeout> | null = null;
-const OVERLAY_DELAY_MS = 150;
 
 function getToday(): string {
     const today = new Date();
@@ -169,7 +163,9 @@ const dialogOpen = computed({
     get: () => props.open,
     set: (value: boolean) => emit('update:open', value),
 });
-const shouldShowOverlay = computed(() => dialogOpen.value && allowOverlay.value && isLoading.value);
+
+const { isBootstrapping, isHydrating, isBlockingLoading, canRenderForm, startLoadingRun, isCurrentLoadingRun, cancelLoadingRun } =
+    useDialogLoadingState(dialogOpen);
 
 const isViewMode = computed(() => props.mode === 'view');
 const salesOrderStatus = computed(() => localSalesOrder.value.status ?? 'draft');
@@ -204,9 +200,7 @@ const discountAmount = computed(() =>
     }, 0),
 );
 
-const taxesAmount = computed(() =>
-    salesOrderItems.value.reduce((total, item) => total + roundCurrency(Number(item.total_tax) || 0), 0),
-);
+const taxesAmount = computed(() => salesOrderItems.value.reduce((total, item) => total + roundCurrency(Number(item.total_tax) || 0), 0));
 
 const totalAmount = computed(() => roundCurrency(subtotalAmount.value - discountAmount.value + taxesAmount.value));
 
@@ -248,36 +242,6 @@ function formatCurrency(value: number): string {
     });
 }
 
-function clearOverlayDelay() {
-    if (overlayDelayTimer) {
-        clearTimeout(overlayDelayTimer);
-        overlayDelayTimer = null;
-    }
-}
-
-function hideOverlay() {
-    clearOverlayDelay();
-    showOverlay.value = false;
-}
-
-function handleLoadingState(state: boolean) {
-    isLoading.value = state;
-    if (state) {
-        allowOverlay.value = true;
-    }
-}
-
-function updateLoadingState(delta: number) {
-    loadingCounter.value = Math.max(0, loadingCounter.value + delta);
-    handleLoadingState(loadingCounter.value > 0);
-}
-
-function trackLoading<T>(work: () => Promise<T>): Promise<T> {
-    updateLoadingState(1);
-    const promise = Promise.resolve().then(work);
-    return promise.finally(() => updateLoadingState(-1));
-}
-
 async function fetchContacts() {
     const response = await axios.get('/contactos/data', {
         params: { per_page: 1000 },
@@ -304,36 +268,69 @@ function preloadFromQuote(quote: Quote) {
 }
 
 async function loadDialogData() {
+    const currentRun = startLoadingRun();
     successMessage.value = '';
     errorMessage.value = '';
 
-    await trackLoading(async () => {
-        try {
-            await fetchContacts();
+    try {
+        isBootstrapping.value = true;
+        await fetchContacts();
+    } catch (error: any) {
+        if (isCurrentLoadingRun(currentRun)) {
+            setError(normalizeErrorMessage(error, 'No se pudieron cargar los clientes.'));
+        }
+    } finally {
+        if (isCurrentLoadingRun(currentRun)) {
+            isBootstrapping.value = false;
+        }
+    }
 
-            if (props.mode === 'create') {
-                localSalesOrder.value = createDefaultSalesOrder();
-                originQuote.value = null;
+    if (!isCurrentLoadingRun(currentRun)) return;
 
-                if (props.fromQuoteId) {
-                    const quote = await incomeStore.fetchQuote(props.fromQuoteId);
-                    preloadFromQuote(quote);
+    if (props.mode === 'create') {
+        localSalesOrder.value = createDefaultSalesOrder();
+        originQuote.value = null;
+
+        if (props.fromQuoteId) {
+            isHydrating.value = true;
+            try {
+                const quote = await incomeStore.fetchQuote(props.fromQuoteId);
+                if (!isCurrentLoadingRun(currentRun)) return;
+                preloadFromQuote(quote);
+            } catch (error: any) {
+                if (isCurrentLoadingRun(currentRun)) {
+                    setError(normalizeErrorMessage(error, 'No se pudo cargar la cotizacion de origen.'));
                 }
-
-                return;
+            } finally {
+                if (isCurrentLoadingRun(currentRun)) {
+                    isHydrating.value = false;
+                }
             }
+        }
 
-            if (!props.salesOrderId) {
-                throw new Error('No se recibio el identificador del pedido de venta.');
-            }
+        return;
+    }
 
-            const salesOrder = await incomeStore.fetchSalesOrder(props.salesOrderId);
-            localSalesOrder.value = cloneSalesOrder(salesOrder);
-            originQuote.value = salesOrder.quote ?? null;
-        } catch (error: any) {
+    if (!props.salesOrderId) {
+        setError('No se recibio el identificador del pedido de venta.');
+        return;
+    }
+
+    isHydrating.value = true;
+    try {
+        const salesOrder = await incomeStore.fetchSalesOrder(props.salesOrderId);
+        if (!isCurrentLoadingRun(currentRun)) return;
+        localSalesOrder.value = cloneSalesOrder(salesOrder);
+        originQuote.value = salesOrder.quote ?? null;
+    } catch (error: any) {
+        if (isCurrentLoadingRun(currentRun)) {
             setError(normalizeErrorMessage(error, 'No se pudo cargar el pedido de venta.'));
         }
-    });
+    } finally {
+        if (isCurrentLoadingRun(currentRun)) {
+            isHydrating.value = false;
+        }
+    }
 }
 
 function validateForm(): boolean {
@@ -436,66 +433,16 @@ watch(
     () => props.open,
     (open) => {
         if (open) {
-            allowOverlay.value = true;
             void loadDialogData();
         } else {
             successMessage.value = '';
             errorMessage.value = '';
             confirmConvertOpen.value = false;
-            allowOverlay.value = false;
-            isLoading.value = false;
-            hideOverlay();
-            loadingCounter.value = 0;
+            cancelLoadingRun();
         }
     },
     { immediate: true },
 );
-
-watch(
-    shouldShowOverlay,
-    (value) => {
-        if (!value) {
-            hideOverlay();
-            return;
-        }
-
-        clearOverlayDelay();
-        overlayDelayTimer = setTimeout(() => {
-            overlayDelayTimer = null;
-            if (shouldShowOverlay.value) {
-                showOverlay.value = true;
-            }
-        }, OVERLAY_DELAY_MS);
-    },
-    { immediate: true },
-);
-
-watch(showOverlay, (value) => {
-    if (typeof document === 'undefined') {
-        return;
-    }
-
-    if (value) {
-        if (previousBodyOverflow.value === null) {
-            previousBodyOverflow.value = document.body.style.overflow;
-        }
-        document.body.style.overflow = 'hidden';
-        return;
-    }
-
-    if (previousBodyOverflow.value !== null) {
-        document.body.style.overflow = previousBodyOverflow.value;
-        previousBodyOverflow.value = null;
-    }
-});
-
-onBeforeUnmount(() => {
-    clearOverlayDelay();
-    if (typeof document !== 'undefined') {
-        document.body.style.overflow = previousBodyOverflow.value ?? '';
-    }
-    previousBodyOverflow.value = null;
-});
 
 watch(
     () => localSalesOrder.value.payment_terms,
@@ -509,19 +456,7 @@ watch(
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <div
-            v-if="showOverlay"
-            class="fixed inset-0 z-[2000] grid cursor-wait place-items-center bg-background/60 backdrop-blur-sm"
-        >
-            <div class="rounded-xl border border-border bg-card px-6 py-5 shadow-xl">
-                <div class="flex items-center gap-3">
-                    <span class="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
-                    <p class="text-sm font-medium text-foreground">Cargando información...</p>
-                </div>
-            </div>
-        </div>
-
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
+        <FormDialogContent class="flex max-h-[95vh] max-w-[95vw] flex-col px-2 py-2">
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
@@ -535,12 +470,20 @@ watch(
                 <DialogDescription>{{ dialogDescription }}</DialogDescription>
             </DialogHeader>
 
-            <div class="min-h-0 flex-1 space-y-6 overflow-y-auto p-5">
-                <div v-if="hasOriginQuote" class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                    {{ originLabel }}
-                </div>
+            <div class="relative min-h-0 flex-1 space-y-6 overflow-y-auto p-5" :class="{ 'min-h-[420px]': isBlockingLoading }">
+                <FormLoadingOverlay
+                    :active="isBlockingLoading"
+                    :delay-ms="0"
+                    message="Cargando pedido de venta..."
+                    description="Preparando clientes y datos iniciales necesarios."
+                />
 
-                <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <template v-if="canRenderForm">
+                    <div v-if="hasOriginQuote" class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                        {{ originLabel }}
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
                         <div class="lg:order-1">
                             <div>
                                 <label class="text-sm font-medium text-foreground">N° Pedido de Venta</label>
@@ -570,7 +513,13 @@ watch(
                             <DatePickerField v-model="localSalesOrder.date" label="Fecha" :disabled="isReadOnly" :show-today="true" />
                         </div>
                         <div class="lg:order-4">
-                            <DatePickerField v-model="localSalesOrder.due_date" label="Fecha vencimiento" :disabled="isReadOnly" :clearable="true" :show-today="true" />
+                            <DatePickerField
+                                v-model="localSalesOrder.due_date"
+                                label="Fecha vencimiento"
+                                :disabled="isReadOnly"
+                                :clearable="true"
+                                :show-today="true"
+                            />
                         </div>
                         <div class="lg:order-5">
                             <InputField
@@ -602,58 +551,59 @@ watch(
                                 </div>
                             </div>
                         </div>
-                </div>
-
-                <section class="space-y-3">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h3 class="text-sm font-semibold text-foreground">Items</h3>
-                            <p class="text-xs text-muted-foreground">Agrega los productos o servicios del pedido.</p>
-                        </div>
-                        <Button
-                            v-if="!isReadOnly"
-                            type="button"
-                            variant="outline"
-                            size="pill"
-                            class="border-primary/40 bg-background text-primary hover:bg-primary/10 hover:text-primary"
-                            @click="localSalesOrder.items = [...normalizeItems(localSalesOrder.items), createEmptyItem()]"
-                        >
-                            <Plus class="h-2 w-2" />
-                            Agregar item
-                        </Button>
                     </div>
 
-                    <QuoteItemsTable :items="salesOrderItems" :readonly="isReadOnly" @update:items="(items) => (localSalesOrder.items = items)" />
-                </section>
+                    <section class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-sm font-semibold text-foreground">Items</h3>
+                                <p class="text-xs text-muted-foreground">Agrega los productos o servicios del pedido.</p>
+                            </div>
+                            <Button
+                                v-if="!isReadOnly"
+                                type="button"
+                                variant="outline"
+                                size="pill"
+                                class="border-primary/40 bg-background text-primary hover:bg-primary/10 hover:text-primary"
+                                @click="localSalesOrder.items = [...normalizeItems(localSalesOrder.items), createEmptyItem()]"
+                            >
+                                <Plus class="h-2 w-2" />
+                                Agregar item
+                            </Button>
+                        </div>
 
-                <div class="flex justify-end">
-                    <div class="w-full max-w-sm space-y-2 rounded-lg border border-border bg-muted/20 p-4">
-                        <div class="flex items-center justify-between text-sm">
-                            <span class="text-muted-foreground">Subtotal</span>
-                            <span class="font-medium">{{ formatCurrency(subtotalAmount) }}</span>
-                        </div>
-                        <div class="flex items-center justify-between text-sm">
-                            <span class="text-muted-foreground">Descuentos</span>
-                            <span class="font-medium">{{ formatCurrency(discountAmount) }}</span>
-                        </div>
-                        <div class="flex items-center justify-between text-sm">
-                            <span class="text-muted-foreground">Impuestos</span>
-                            <span class="font-medium">{{ formatCurrency(taxesAmount) }}</span>
-                        </div>
-                        <div class="flex items-center justify-between border-t border-border pt-2 text-sm">
-                            <span class="font-semibold text-foreground">Total</span>
-                            <span class="text-base font-semibold text-foreground">{{ formatCurrency(totalAmount) }}</span>
+                        <QuoteItemsTable :items="salesOrderItems" :readonly="isReadOnly" @update:items="(items) => (localSalesOrder.items = items)" />
+                    </section>
+
+                    <div class="flex justify-end">
+                        <div class="w-full max-w-sm space-y-2 rounded-lg border border-border bg-muted/20 p-4">
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-muted-foreground">Subtotal</span>
+                                <span class="font-medium">{{ formatCurrency(subtotalAmount) }}</span>
+                            </div>
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-muted-foreground">Descuentos</span>
+                                <span class="font-medium">{{ formatCurrency(discountAmount) }}</span>
+                            </div>
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-muted-foreground">Impuestos</span>
+                                <span class="font-medium">{{ formatCurrency(taxesAmount) }}</span>
+                            </div>
+                            <div class="flex items-center justify-between border-t border-border pt-2 text-sm">
+                                <span class="font-semibold text-foreground">Total</span>
+                                <span class="text-base font-semibold text-foreground">{{ formatCurrency(totalAmount) }}</span>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <TextareaField
-                    :model-value="localSalesOrder.description ?? undefined"
-                    label="Notas"
-                    placeholder="Agrega observaciones para el pedido"
-                    :readonly="isReadOnly"
-                    @update:modelValue="localSalesOrder.description = $event"
-                />
+                    <TextareaField
+                        :model-value="localSalesOrder.description ?? undefined"
+                        label="Notas"
+                        placeholder="Agrega observaciones para el pedido"
+                        :readonly="isReadOnly"
+                        @update:modelValue="localSalesOrder.description = $event"
+                    />
+                </template>
             </div>
 
             <DialogFooter class="flex-shrink-0 justify-end gap-2 border-t border-sidebar-border/70 px-5 py-4 dark:border-sidebar-border">
@@ -666,7 +616,7 @@ watch(
                     type="button"
                     variant="outline"
                     size="pill"
-                    :disabled="isSaving || isLoading"
+                    :disabled="isSaving || isBlockingLoading"
                     @click="saveSalesOrder('draft')"
                 >
                     {{ isSaving ? 'Guardando...' : 'Guardar borrador' }}
@@ -677,7 +627,7 @@ watch(
                     type="button"
                     size="pill"
                     class="shadow-sm"
-                    :disabled="isSaving || isLoading"
+                    :disabled="isSaving || isBlockingLoading"
                     @click="saveSalesOrder('confirmed')"
                 >
                     {{ isSaving ? 'Guardando...' : 'Confirmar pedido' }}
@@ -688,7 +638,7 @@ watch(
                     type="button"
                     size="pill"
                     class="shadow-sm"
-                    :disabled="isSaving || isLoading"
+                    :disabled="isSaving || isBlockingLoading"
                     @click="confirmConvertOpen = true"
                 >
                     Convertir a Factura

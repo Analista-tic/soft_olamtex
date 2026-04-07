@@ -159,7 +159,8 @@ const isShowMode = computed(() => mode.value === 'show');
 const isEditMode = computed(() => mode.value === 'edit');
 const isVoucherEditable = computed(() => {
     if (!isEditMode.value) return true;
-    return voucher.value?.status !== 'recorded';
+    return voucher.value?.status !== 'recorded'
+        && voucher.value?.status !== 'voided';
 });
 const isFormMode = computed(() => isCreateMode.value || isEditMode.value);
 

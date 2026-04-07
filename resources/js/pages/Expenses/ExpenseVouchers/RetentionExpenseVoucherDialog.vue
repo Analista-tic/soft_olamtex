@@ -1,19 +1,21 @@
 ﻿<script setup lang="ts">
+import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import SelectField from '@/components/SelectField.vue';
 import Button from '@/components/ui/button/Button.vue';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import { Switch } from '@/components/ui/switch';
-import FormDialogContent from '@/components/FormDialogContent.vue';
-import RetentionDialog from '@/pages/Finance/Retention/RetentionDialog.vue';
+import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import {
-    createRetention as createRetentionRequest,
     createRetentionForm,
+    createRetention as createRetentionRequest,
     fetchRetentionsPage,
     mapRetentionFormToPayload,
     type Retention,
     type RetentionForm,
 } from '@/domain/Finance';
+import RetentionDialog from '@/pages/Finance/Retention/RetentionDialog.vue';
 import { Plus, X } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
@@ -100,14 +102,20 @@ const emit = defineEmits<{
     (e: 'error', message: string): void;
 }>();
 
+const dialogOpen = computed({
+    get: () => props.open,
+    set: (value: boolean) => emit('update:open', value),
+});
+
+const { isBootstrapping, isBlockingLoading, canRenderForm, startLoadingRun, isCurrentLoadingRun, cancelLoadingRun } =
+    useDialogLoadingState(dialogOpen);
+
 // ─── Lines state ──────────────────────────────────────────────────────────────
 
 const lines = ref<RetentionExpenseVoucherLine[]>([]);
 const rowSeed = ref(1);
 
-const total = computed(() =>
-    lines.value.reduce((acc, line) => acc + parseAmountOrZero(line.value), 0),
-);
+const total = computed(() => lines.value.reduce((acc, line) => acc + parseAmountOrZero(line.value), 0));
 
 function nextRowId(): number {
     return rowSeed.value++;
@@ -134,9 +142,7 @@ function cloneLine(line: RetentionExpenseVoucherLine): RetentionExpenseVoucherLi
 }
 
 function seedDialogState(): void {
-    lines.value = props.initialLines.length > 0
-        ? props.initialLines.map(cloneLine)
-        : [createLine()];
+    lines.value = props.initialLines.length > 0 ? props.initialLines.map(cloneLine) : [createLine()];
 }
 
 function addLine(): void {
@@ -208,20 +214,17 @@ function updateLineBase(rowId: number, rawValue: string): void {
 
 function updateLineValue(rowId: number, rawValue: string): void {
     const parsed = parseIntegerAmountInput(rawValue);
-    lines.value = lines.value.map((line) =>
-        line.row_id === rowId ? { ...line, value: String(parsed ?? 0) } : line,
-    );
+    lines.value = lines.value.map((line) => (line.row_id === rowId ? { ...line, value: String(parsed ?? 0) } : line));
 }
 
 function updateLineAssumed(rowId: number, checked: boolean): void {
-    lines.value = lines.value.map((line) =>
-        line.row_id === rowId ? { ...line, assumed: checked } : line,
-    );
+    lines.value = lines.value.map((line) => (line.row_id === rowId ? { ...line, assumed: checked } : line));
 }
 
 // Model-value bridge handlers (normalize incoming value types from components)
-function onLineTypeUpdate(rowId: number, value: string | number | null | undefined): void {
-    updateLineType(rowId, value == null ? null : Number(value));
+function onLineTypeUpdate(rowId: number, value: string | number | boolean | (string | number | boolean)[] | null | undefined): void {
+    const rawValue = Array.isArray(value) ? value[0] : value;
+    updateLineType(rowId, typeof rawValue === 'string' || typeof rawValue === 'number' ? Number(rawValue) : null);
 }
 
 function onLineBaseUpdate(rowId: number, value: string | number | null | undefined): void {
@@ -288,7 +291,7 @@ function onRetentionDialogOpenChange(open: boolean): void {
 
 // ─── Dialog actions ───────────────────────────────────────────────────────────
 
-const isDisabled = computed(() => props.submitting || loadingRetentions.value);
+const isDisabled = computed(() => props.submitting || loadingRetentions.value || isBlockingLoading.value);
 
 function closeDialog(): void {
     emit('update:open', false);
@@ -323,25 +326,36 @@ function saveDialog(): void {
 // ─── Initialisation ───────────────────────────────────────────────────────────
 
 async function initializeDialog(): Promise<void> {
-    seedDialogState();
-    await loadRetentionOptions();
+    const currentRun = startLoadingRun();
+    isBootstrapping.value = true;
+    try {
+        seedDialogState();
+        await loadRetentionOptions();
+    } finally {
+        if (isCurrentLoadingRun(currentRun)) {
+            isBootstrapping.value = false;
+        }
+    }
 }
 
 watch(
     () => props.open,
-    (open) => { if (open) void initializeDialog(); },
+    (open) => {
+        if (open) {
+            void initializeDialog();
+        } else {
+            cancelLoadingRun();
+        }
+    },
 );
 </script>
 
 <template>
-    <Dialog :open="props.open" @update:open="emit('update:open', $event)">
+    <Dialog v-model:open="dialogOpen">
         <FormDialogContent class="flex max-h-[95vh] max-w-2xl flex-col overflow-hidden p-0">
-
             <!-- Header -->
             <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
-                <DialogTitle class="text-xl font-semibold tracking-tight text-foreground">
-                    Retenciones aplicadas
-                </DialogTitle>
+                <DialogTitle class="text-xl font-semibold tracking-tight text-foreground"> Retenciones aplicadas </DialogTitle>
                 <DialogDescription class="text-sm text-muted-foreground">
                     Número de factura:
                     <strong class="font-semibold text-foreground">{{ props.documentNumber || '-' }}</strong>
@@ -352,138 +366,136 @@ watch(
             </DialogHeader>
 
             <!-- Body -->
-            <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
-                <p v-if="loadingRetentions" class="text-sm text-muted-foreground">
-                    Cargando tipos de retención...
-                </p>
+            <div class="relative min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5" :class="{ 'min-h-[420px]': isBlockingLoading }">
+                <FormLoadingOverlay
+                    :active="isBlockingLoading"
+                    :delay-ms="0"
+                    message="Cargando retenciones..."
+                    description="Preparando el catalogo de retenciones disponibles."
+                />
 
-                <div class="grid gap-2 rounded-lg border border-border/70 bg-muted/20 p-3 sm:grid-cols-3">
-                    <div>
-                        <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Retención total</p>
-                        <p class="text-sm font-semibold text-foreground tabular-nums">{{ formatCurrency(total) }}</p>
+                <template v-if="canRenderForm">
+                    <div class="grid gap-2 rounded-lg border border-border/70 bg-muted/20 p-3 sm:grid-cols-3">
+                        <div>
+                            <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Retención total</p>
+                            <p class="text-sm font-semibold tabular-nums text-foreground">{{ formatCurrency(total) }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Máximo permitido</p>
+                            <p class="text-sm font-semibold tabular-nums text-foreground">{{ formatCurrency(props.maxWithholding) }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Estado</p>
+                            <p
+                                class="text-sm font-semibold"
+                                :class="total > props.maxWithholding ? 'text-destructive' : 'text-emerald-600 dark:text-emerald-400'"
+                            >
+                                {{ total > props.maxWithholding ? 'Excede el máximo' : 'Dentro del límite' }}
+                            </p>
+                        </div>
                     </div>
-                    <div>
-                        <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Máximo permitido</p>
-                        <p class="text-sm font-semibold text-foreground tabular-nums">{{ formatCurrency(props.maxWithholding) }}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Estado</p>
-                        <p
-                            class="text-sm font-semibold"
-                            :class="total > props.maxWithholding ? 'text-destructive' : 'text-emerald-600 dark:text-emerald-400'"
-                        >
-                            {{ total > props.maxWithholding ? 'Excede el máximo' : 'Dentro del límite' }}
-                        </p>
-                    </div>
-                </div>
 
-                <!-- Retention lines -->
-                <div v-for="line in lines" :key="line.row_id">
-                    <div class="rounded-lg border border-border/70 bg-background/80 p-3 shadow-sm">
-                        <div class="flex items-end gap-3">
-                            <div class="grid flex-1 grid-cols-1 gap-3 md:grid-cols-10">
-
-                                <!-- Type -->
-                                <div class="md:col-span-4">
-                                    <p class="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                        Tipo de retención <span class="text-primary">*</span>
-                                    </p>
-                                    <SelectField
-                                        :key="`${line.row_id}-${retentionSelectKey}`"
-                                        :model-value="line.retention_id"
-                                        label=""
-                                        :options="retentionOptions"
-                                        placeholder="Selecciona"
-                                        :disabled="isDisabled"
-                                        action-label="Nueva retención"
-                                        :action-disabled="isDisabled"
-                                        @action="openRetentionDialogFromDropdown(line.row_id)"
-                                        @update:model-value="onLineTypeUpdate(line.row_id, $event)"
-                                    />
-                                </div>
-
-                                <!-- Base amount -->
-                                <div class="md:col-span-3">
-                                    <p class="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                        Base <span class="text-primary">*</span>
-                                    </p>
-                                    <div class="relative">
-                                        <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">$</span>
-                                        <Input
-                                            :model-value="formatAmountInput(line.base_amount)"
-                                            type="text"
-                                            inputmode="numeric"
-                                            class="h-9 pl-7 text-right tabular-nums"
+                    <!-- Retention lines -->
+                    <div v-for="line in lines" :key="line.row_id">
+                        <div class="rounded-lg border border-border/70 bg-background/80 p-3 shadow-sm">
+                            <div class="flex items-end gap-3">
+                                <div class="grid flex-1 grid-cols-1 gap-3 md:grid-cols-10">
+                                    <!-- Type -->
+                                    <div class="md:col-span-4">
+                                        <p class="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                            Tipo de retención <span class="text-primary">*</span>
+                                        </p>
+                                        <SelectField
+                                            :key="`${line.row_id}-${retentionSelectKey}`"
+                                            :model-value="line.retention_id"
+                                            label=""
+                                            :options="retentionOptions"
+                                            placeholder="Selecciona"
                                             :disabled="isDisabled"
-                                            @update:model-value="onLineBaseUpdate(line.row_id, $event)"
+                                            action-label="Nueva retención"
+                                            :action-disabled="isDisabled"
+                                            @action="openRetentionDialogFromDropdown(line.row_id)"
+                                            @update:model-value="onLineTypeUpdate(line.row_id, $event)"
                                         />
+                                    </div>
+
+                                    <!-- Base amount -->
+                                    <div class="md:col-span-3">
+                                        <p class="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                            Base <span class="text-primary">*</span>
+                                        </p>
+                                        <div class="relative">
+                                            <span
+                                                class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground"
+                                                >$</span
+                                            >
+                                            <Input
+                                                :model-value="formatAmountInput(line.base_amount)"
+                                                type="text"
+                                                inputmode="numeric"
+                                                class="h-9 pl-7 text-right tabular-nums"
+                                                :disabled="isDisabled"
+                                                @update:model-value="onLineBaseUpdate(line.row_id, $event)"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <!-- Value -->
+                                    <div class="md:col-span-3">
+                                        <p class="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Valor</p>
+                                        <div class="relative">
+                                            <span
+                                                class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground"
+                                                >$</span
+                                            >
+                                            <Input
+                                                :model-value="formatAmountInput(line.value)"
+                                                type="text"
+                                                inputmode="numeric"
+                                                class="h-9 pl-7 text-right tabular-nums"
+                                                :disabled="isDisabled"
+                                                @update:model-value="onLineValueUpdate(line.row_id, $event)"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
 
-                                <!-- Value -->
-                                <div class="md:col-span-3">
-                                    <p class="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Valor</p>
-                                    <div class="relative">
-                                        <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">$</span>
-                                        <Input
-                                            :model-value="formatAmountInput(line.value)"
-                                            type="text"
-                                            inputmode="numeric"
-                                            class="h-9 pl-7 text-right tabular-nums"
-                                            :disabled="isDisabled"
-                                            @update:model-value="onLineValueUpdate(line.row_id, $event)"
-                                        />
-                                    </div>
-                                </div>
+                                <!-- Remove line -->
+                                <button
+                                    type="button"
+                                    class="mb-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-40"
+                                    :disabled="lines.length <= 1 || isDisabled"
+                                    aria-label="Eliminar retención"
+                                    @click="removeLine(line.row_id)"
+                                >
+                                    <X class="h-4 w-4" />
+                                </button>
                             </div>
 
-                            <!-- Remove line -->
-                            <button
-                                type="button"
-                                class="mb-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-40"
-                                :disabled="lines.length <= 1 || isDisabled"
-                                aria-label="Eliminar retención"
-                                @click="removeLine(line.row_id)"
-                            >
-                                <X class="h-4 w-4" />
-                            </button>
-                        </div>
-
-                        <!-- Assumed toggle -->
-                        <div class="mt-3 inline-flex items-center gap-2 text-sm text-muted-foreground">
-                            <Switch
-                                :checked="line.assumed"
-                                :disabled="isDisabled"
-                                @update:checked="onLineAssumedUpdate(line.row_id, $event)"
-                            />
-                            <span>Retención asumida</span>
+                            <!-- Assumed toggle -->
+                            <div class="mt-3 inline-flex items-center gap-2 text-sm text-muted-foreground">
+                                <Switch :checked="line.assumed" :disabled="isDisabled" @update:checked="onLineAssumedUpdate(line.row_id, $event)" />
+                                <span>Retención asumida</span>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Add line -->
-                <button
-                    type="button"
-                    class="inline-flex h-8 items-center gap-1.5 rounded-md border border-dashed border-border/80 bg-background px-3 text-xs font-medium text-muted-foreground transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50"
-                    :disabled="isDisabled"
-                    @click="addLine"
-                >
-                    <Plus class="h-3.5 w-3.5" />
-                    Agregar retención
-                </button>
+                    <!-- Add line -->
+                    <button
+                        type="button"
+                        class="inline-flex h-8 items-center gap-1.5 rounded-md border border-dashed border-border/80 bg-background px-3 text-xs font-medium text-muted-foreground transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50"
+                        :disabled="isDisabled"
+                        @click="addLine"
+                    >
+                        <Plus class="h-3.5 w-3.5" />
+                        Agregar retención
+                    </button>
+                </template>
             </div>
 
             <!-- Footer -->
             <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border/70 bg-muted/30 px-6 py-3">
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="pill"
-                    :disabled="isDisabled"
-                    @click="closeDialog"
-                >
-                    Cancelar
-                </Button>
+                <Button type="button" variant="outline" size="pill" :disabled="isDisabled" @click="closeDialog"> Cancelar </Button>
                 <Button type="button" size="pill" :disabled="isDisabled" @click="saveDialog">Guardar</Button>
             </DialogFooter>
         </FormDialogContent>

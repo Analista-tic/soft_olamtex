@@ -7,115 +7,136 @@ use Illuminate\Support\Facades\DB;
 
 class CategorySeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-        // Insertar grupos
+        DB::statement('SET NAMES utf8mb4');
+        DB::statement('SET CHARACTER SET utf8mb4');
+
+        $now = now();
+
         $groups = [
-            ['name' => 'Materia Prima'],
-            ['name' => 'Insumos'],
-            ['name' => 'Suministros'],
-            ['name' => 'Aditamentos'],
-            ['name' => 'Herramientas'],
-            ['name' => 'Repuestos'],
-            ['name' => 'Papelería y Aseo'],
-            ['name' => 'EPP'],
-            ['name' => 'Servicios'],
+            ['name' => 'Materia Prima', 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Insumos', 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Suministros', 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Aditamentos', 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Herramientas', 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Repuestos', 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Papelería y Aseo', 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'EPP', 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Servicios', 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Maquinaria', 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Producto Terminado', 'created_at' => $now, 'updated_at' => $now],
+
         ];
 
         DB::table('category_groups')->insert($groups);
 
-        // Obtener los IDs de los grupos
         $groupIds = DB::table('category_groups')->pluck('id', 'name');
 
-        // Insertar subgrupos
         $subGroups = [
-            // Subgrupos para "Materia Prima"
-            ['name' => 'Tela', 'category_group_id' => $groupIds['Materia Prima']],
-            ['name' => 'Hilaza', 'category_group_id' => $groupIds['Materia Prima']],
+            // Materia Prima
+            ['name' => 'Tela', 'category_group_id' => $groupIds['Materia Prima'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Hilaza', 'category_group_id' => $groupIds['Materia Prima'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Hilo', 'category_group_id' => $groupIds['Materia Prima'], 'created_at' => $now, 'updated_at' => $now],
 
-            // Subgrupos para "Insumos"
-            ['name' => 'Etiqueta', 'category_group_id' => $groupIds['Insumos']],
-            ['name' => 'Botón', 'category_group_id' => $groupIds['Insumos']],
-            ['name' => 'Código', 'category_group_id' => $groupIds['Insumos']],
-            ['name' => 'Cierre', 'category_group_id' => $groupIds['Insumos']],
-            ['name' => 'Resina', 'category_group_id' => $groupIds['Insumos']],
-            ['name' => 'Elástico', 'category_group_id' => $groupIds['Insumos']],
-            ['name' => 'Cinta', 'category_group_id' => $groupIds['Insumos']],
-            ['name' => 'Cordón', 'category_group_id' => $groupIds['Insumos']],
-            ['name' => 'Aplique', 'category_group_id' => $groupIds['Insumos']],
-            ['name' => 'Bolsa', 'category_group_id' => $groupIds['Insumos']],
-            ['name' => 'Tache', 'category_group_id' => $groupIds['Insumos']],
-            ['name' => 'Herraje', 'category_group_id' => $groupIds['Insumos']],
-            ['name' => 'Marquilla', 'category_group_id' => $groupIds['Insumos']],
-            ['name' => 'Remache', 'category_group_id' => $groupIds['Insumos']],
-            ['name' => 'Hilo', 'category_group_id' => $groupIds['Insumos']],
+            // Insumos
+            ['name' => 'Accesorios', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Adorno', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Aguja', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Aplique', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Bolsa', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Botón', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Cierre', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Cinta', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Código', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Cordón', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Correa', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Cremallera', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Elástico', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Etiqueta', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Garra', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'General', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Hebilla', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Herraje', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Hiladilla', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Hilaza', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Instrucción', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Marquilla', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Ojalete', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Placa', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Remache', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Varios', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
 
-            // Subgrupos para "Suministros"
-            ['name' => 'Plastiflecha', 'category_group_id' => $groupIds['Suministros']],
-            ['name' => 'Papel', 'category_group_id' => $groupIds['Suministros']],
-            ['name' => 'Aceite', 'category_group_id' => $groupIds['Suministros']],
-            ['name' => 'Caja', 'category_group_id' => $groupIds['Suministros']],
-            ['name' => 'Cinta', 'category_group_id' => $groupIds['Suministros']],
-            ['name' => 'Crema', 'category_group_id' => $groupIds['Suministros']],
-            ['name' => 'Código', 'category_group_id' => $groupIds['Suministros']],
-            ['name' => 'Tinta', 'category_group_id' => $groupIds['Suministros']],
+            // Suministros
+            ['name' => 'Caja', 'category_group_id' => $groupIds['Suministros'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Cinta', 'category_group_id' => $groupIds['Suministros'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Consumibles', 'category_group_id' => $groupIds['Suministros'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Empaque', 'category_group_id' => $groupIds['Suministros'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Rollo', 'category_group_id' => $groupIds['Suministros'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Varios', 'category_group_id' => $groupIds['Suministros'], 'created_at' => $now, 'updated_at' => $now],
 
-            // Subgrupos para "Herramientas"
-            ['name' => 'Teclado', 'category_group_id' => $groupIds['Herramientas']],
+            // Aditamentos
+            ['name' => 'Accesorios maquina', 'category_group_id' => $groupIds['Aditamentos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Cuchilla', 'category_group_id' => $groupIds['Aditamentos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Paño', 'category_group_id' => $groupIds['Aditamentos'], 'created_at' => $now, 'updated_at' => $now],
 
-            // Subgrupos para "Repuestos"
-            ['name' => 'Looper', 'category_group_id' => $groupIds['Repuestos']],
-            ['name' => 'Fusible', 'category_group_id' => $groupIds['Repuestos']],
-            ['name' => 'Caja', 'category_group_id' => $groupIds['Repuestos']],
-            ['name' => 'Bobina', 'category_group_id' => $groupIds['Repuestos']],
-            ['name' => 'Correa', 'category_group_id' => $groupIds['Repuestos']],
-            ['name' => 'Motor', 'category_group_id' => $groupIds['Repuestos']],
+            // Herramientas
+            ['name' => 'Chequeador', 'category_group_id' => $groupIds['Herramientas'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Destornillador', 'category_group_id' => $groupIds['Herramientas'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Encintador', 'category_group_id' => $groupIds['Herramientas'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Grapadora', 'category_group_id' => $groupIds['Herramientas'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Herramientas varias', 'category_group_id' => $groupIds['Herramientas'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Medición', 'category_group_id' => $groupIds['Herramientas'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Pistola', 'category_group_id' => $groupIds['Herramientas'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Tijera', 'category_group_id' => $groupIds['Herramientas'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Troquel', 'category_group_id' => $groupIds['Herramientas'], 'created_at' => $now, 'updated_at' => $now],
 
-            // Subgrupos para "Papelería y Aseo"
-            ['name' => 'Bolígrafo', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Bolsa de basura', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Borrador', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Calculadora', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Candela', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Carpeta', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Cepillo', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Clip', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Corrector', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Cosedora', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Cuaderno', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Escoba', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Gancho', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Guante', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Guía', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Lápiz', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Envase', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Marcador', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Resaltador', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Minas', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Pega notas', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Colbon', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Recogedor', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Bisturí', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Resma', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Saca ganchos', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Talonario', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Tinta', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Toalla', 'category_group_id' => $groupIds['Papelería y Aseo']],
-            ['name' => 'Trapero', 'category_group_id' => $groupIds['Papelería y Aseo']],
+            // Repuestos
+            ['name' => 'General', 'category_group_id' => $groupIds['Repuestos'], 'created_at' => $now, 'updated_at' => $now],
 
-            // Subgrupos para "EPP"
-            ['name' => 'Dedale', 'category_group_id' => $groupIds['EPP']],
-            ['name' => 'Guante', 'category_group_id' => $groupIds['EPP']],
-            ['name' => 'Tapón', 'category_group_id' => $groupIds['EPP']],
+            // Papelería y Aseo
+            ['name' => 'Bolsa de basura', 'category_group_id' => $groupIds['Papelería y Aseo'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Bolígrafo', 'category_group_id' => $groupIds['Papelería y Aseo'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Carpeta', 'category_group_id' => $groupIds['Papelería y Aseo'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Cinta adhesiva', 'category_group_id' => $groupIds['Papelería y Aseo'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Cosedora', 'category_group_id' => $groupIds['Papelería y Aseo'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Desinfectante', 'category_group_id' => $groupIds['Papelería y Aseo'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Envase', 'category_group_id' => $groupIds['Papelería y Aseo'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Escritorio', 'category_group_id' => $groupIds['Papelería y Aseo'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Esponja', 'category_group_id' => $groupIds['Papelería y Aseo'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Jabón y detergente', 'category_group_id' => $groupIds['Papelería y Aseo'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Limpieza pisos', 'category_group_id' => $groupIds['Papelería y Aseo'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Marcador', 'category_group_id' => $groupIds['Papelería y Aseo'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Resma', 'category_group_id' => $groupIds['Papelería y Aseo'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Talonario', 'category_group_id' => $groupIds['Papelería y Aseo'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Tecnología', 'category_group_id' => $groupIds['Papelería y Aseo'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Tijera', 'category_group_id' => $groupIds['Papelería y Aseo'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Tinta', 'category_group_id' => $groupIds['Papelería y Aseo'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Toalla', 'category_group_id' => $groupIds['Papelería y Aseo'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Varios aseo', 'category_group_id' => $groupIds['Papelería y Aseo'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Varios papelería', 'category_group_id' => $groupIds['Papelería y Aseo'], 'created_at' => $now, 'updated_at' => $now],
 
-            // Subgrupos para "Servicios"
-            ['name' => 'Mantenimiento', 'category_group_id' => $groupIds['Servicios']],
-            ['name' => 'Transporte', 'category_group_id' => $groupIds['Servicios']],
-            ['name' => 'Consultoría', 'category_group_id' => $groupIds['Servicios']],
-            ['name' => 'Capacitación', 'category_group_id' => $groupIds['Servicios']],
+            // EPP
+            ['name' => 'Botiquín', 'category_group_id' => $groupIds['EPP'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Calzado', 'category_group_id' => $groupIds['EPP'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Guantes', 'category_group_id' => $groupIds['EPP'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Primeros auxilios', 'category_group_id' => $groupIds['EPP'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Protección auditiva', 'category_group_id' => $groupIds['EPP'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Protección visual', 'category_group_id' => $groupIds['EPP'], 'created_at' => $now, 'updated_at' => $now],
+
+            // Servicios
+            ['name' => 'Confección', 'category_group_id' => $groupIds['Servicios'], 'created_at' => $now, 'updated_at' => $now],
+
+            // Maquinaria
+            ['name' => 'Máquina', 'category_group_id' => $groupIds['Maquinaria'], 'created_at' => $now, 'updated_at' => $now],
+
+            // Producto Terminado
+            ['name' => 'Bermuda', 'category_group_id' => $groupIds['Producto Terminado'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Blusa', 'category_group_id' => $groupIds['Producto Terminado'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Buzo', 'category_group_id' => $groupIds['Producto Terminado'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Chaleco', 'category_group_id' => $groupIds['Producto Terminado'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Pantalón', 'category_group_id' => $groupIds['Producto Terminado'], 'created_at' => $now, 'updated_at' => $now],
+
         ];
 
         DB::table('category_sub_groups')->insert($subGroups);

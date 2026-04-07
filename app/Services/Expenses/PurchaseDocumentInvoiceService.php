@@ -216,28 +216,28 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
             // Aceptar parent_document_id o purchase_order_id (frontend histórico)
             $parentId = $data['parent_document_id'] ?? $data['purchase_order_id'] ?? null;
             $parentId = $parentId ? (int) $parentId : null;
-            
+
             // Validar que no exista ya una factura para esta orden
             if (!empty($parentId)) {
                 $parentOrder = PurchaseDocument::find($parentId);
                 if (!$parentOrder) {
                     throw new \RuntimeException('La orden de compra especificada no existe.');
                 }
-                
+
                 if ($parentOrder->document_type !== PurchaseDocument::TYPE_ORDER) {
                     throw new \RuntimeException('El documento padre debe ser una orden de compra.');
                 }
-                
+
                 // Verificar si ya existe una factura para esta orden
                 $existingInvoice = PurchaseDocument::where('parent_document_id', $parentId)
                     ->where('document_type', PurchaseDocument::TYPE_INVOICE)
                     ->whereNull('deleted_at')
                     ->first();
-                
+
                 if ($existingInvoice) {
                     throw new \RuntimeException('Ya existe una factura de compra para esta orden. No se pueden crear múltiples facturas desde la misma orden.');
                 }
-                
+
                 // Validar que la orden esté aprobada
                 if (!$parentOrder->isApproved()) {
                     throw new \RuntimeException('Solo se pueden crear facturas desde órdenes aprobadas.');

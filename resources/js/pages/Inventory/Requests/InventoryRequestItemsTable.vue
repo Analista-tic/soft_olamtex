@@ -1,3 +1,10 @@
+<script lang="ts">
+import type { Item as CachedItem } from '@/domain/MasterData';
+
+let cachedCatalogItems: CachedItem[] | null = null;
+let catalogItemsPromise: Promise<CachedItem[]> | null = null;
+</script>
+
 <script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
@@ -43,8 +50,22 @@ watch(
 );
 
 async function fetchItems() {
-    const res = await axios.get('/item/data', { params: { per_page: 1000 } });
-    catalogItems.value = res.data.data || [];
+    if (cachedCatalogItems) {
+        catalogItems.value = cachedCatalogItems;
+        return;
+    }
+
+    if (!catalogItemsPromise) {
+        catalogItemsPromise = axios
+            .get('/item/data', { params: { per_page: 1000 } })
+            .then((res) => (res.data.data || []) as Item[])
+            .finally(() => {
+                catalogItemsPromise = null;
+            });
+    }
+
+    cachedCatalogItems = await catalogItemsPromise;
+    catalogItems.value = cachedCatalogItems;
 }
 
 onMounted(() => {
@@ -138,14 +159,22 @@ defineExpose({ addItem });
         <div style="overflow: visible; max-height: none">
             <Table class="min-w-full table-fixed text-sm">
                 <TableHeader>
-                    <TableRow class="bg-muted/50 border-b border-border">
-                        <TableHead class="min-w-[200px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Item</TableHead>
-                        <TableHead class="min-w-[120px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Cantidad</TableHead>
+                    <TableRow class="border-b border-border bg-muted/50">
+                        <TableHead class="min-w-[200px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"
+                            >Item</TableHead
+                        >
+                        <TableHead class="min-w-[120px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"
+                            >Cantidad</TableHead
+                        >
                         <TableHead class="w-[60px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"></TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    <TableRow v-for="(item, idx) in localItems" :key="idx" class="border-b border-border/40 transition-colors hover:bg-muted/20 last:border-0">
+                    <TableRow
+                        v-for="(item, idx) in localItems"
+                        :key="idx"
+                        class="border-b border-border/40 transition-colors last:border-0 hover:bg-muted/20"
+                    >
                         <TableCell class="min-w-[200px] p-2 text-left">
                             <SelectField
                                 :modelValue="getSelectionValue(item)"

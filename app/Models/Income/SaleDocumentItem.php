@@ -29,13 +29,13 @@ class SaleDocumentItem extends Model
     ];
 
     protected $casts = [
-        'quantity' => 'float',
-        'price' => 'float',
-        'discount' => 'float',
-        'tax' => 'float',
-        'total' => 'float',
-        'total_tax' => 'float',
-        'order_width' => 'float',
+        'quantity' => 'decimal:3',
+        'price' => 'decimal:2',
+        'discount' => 'decimal:2',
+        'tax' => 'decimal:2',
+        'total' => 'decimal:2',
+        'total_tax' => 'decimal:2',
+        'order_width' => 'decimal:3',
     ];
 
     public function document()

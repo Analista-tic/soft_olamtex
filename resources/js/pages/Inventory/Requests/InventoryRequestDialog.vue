@@ -1,11 +1,16 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
+import FormDialogBody from '@/components/FormDialogBody.vue';
+import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormDialogFooter from '@/components/FormDialogFooter.vue';
+import FormDialogHeader from '@/components/FormDialogHeader.vue';
+import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import InputField from '@/components/InputField.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog } from '@/components/ui/dialog';
 import axios from 'axios';
 import { Image, Plus } from 'lucide-vue-next';
 import { computed, onUnmounted, ref, watch } from 'vue';
@@ -46,22 +51,19 @@ const props = defineProps<{
     dialogType: 'create' | 'edit' | 'view';
     requestId: number | null;
     initialDraft?: InitialDraftPayload | null;
-    deferContent?: boolean;
 }>();
 
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'saved', message?: string): void;
     (e: 'saved', message: string, requestId: number | null): void;
-    (e: 'loading-state', value: boolean): void;
 }>();
 
 const dialogOpen = ref(props.isOpen);
 const localForm = ref<InventoryRequestForm>(createDefaultForm());
 const isLoading = ref(false);
-const isInitializingDialog = ref(false);
+const isHydrationLoading = ref(false);
 const isSubmittingDialog = ref(false);
-const showFullscreenOverlay = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
 const itemsTableRef = ref<{ addItem: () => void } | null>(null);
@@ -69,14 +71,10 @@ const nextDocumentNumber = ref('');
 const isLoadingNumber = ref(false);
 const imagePreview = ref<string | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
-const previousBodyOverflow = ref<string | null>(null);
-
-const OVERLAY_DELAY_MS = 150;
-let overlayDelayTimer: ReturnType<typeof setTimeout> | null = null;
 
 const isReadonly = computed(() => props.dialogType === 'view');
-const shouldShowOverlayRaw = computed(() => dialogOpen.value && !props.deferContent && (isSubmittingDialog.value || isInitializingDialog.value));
-const footerContainerClass = 'mt-4 flex flex-shrink-0 flex-wrap justify-end gap-2 border-t px-4 pb-4 pt-4';
+const shouldBlockBody = computed(() => dialogOpen.value && isHydrationLoading.value);
+const canRenderForm = computed(() => !shouldBlockBody.value);
 const primaryPillButtonClass = 'shadow-sm';
 const secondaryPillButtonClass = 'border-primary/40 text-primary shadow-sm hover:bg-primary/10';
 const actionPillButtonClass = 'border-primary/40 text-primary shadow-sm hover:bg-primary/10';
@@ -86,13 +84,6 @@ const statusLabels: Record<string, string> = {
     rechazado: 'Rechazado',
     entregado: 'Entregado',
 };
-
-function clearOverlayDelay() {
-    if (overlayDelayTimer) {
-        clearTimeout(overlayDelayTimer);
-        overlayDelayTimer = null;
-    }
-}
 
 const safeDocumentNumber = computed({
     get: () => localForm.value.document_number ?? '',
@@ -205,18 +196,24 @@ function formatDateValue(value: string) {
     return parsed.toISOString().split('T')[0];
 }
 
-async function initializeDialog() {
-    isInitializingDialog.value = true;
+function initializeDialog() {
+    resetForm();
+
+    if ((props.dialogType === 'edit' || props.dialogType === 'view') && props.requestId) {
+        void hydrateRequest(props.requestId);
+        return;
+    }
+
+    applyInitialDraft(props.initialDraft);
+    void fetchNextNumber();
+}
+
+async function hydrateRequest(requestId: number) {
+    isHydrationLoading.value = true;
     try {
-        resetForm();
-        if ((props.dialogType === 'edit' || props.dialogType === 'view') && props.requestId) {
-            await fetchRequest(props.requestId);
-            return;
-        }
-        await fetchNextNumber();
-        applyInitialDraft(props.initialDraft);
+        await fetchRequest(requestId);
     } finally {
-        isInitializingDialog.value = false;
+        isHydrationLoading.value = false;
     }
 }
 
@@ -361,67 +358,22 @@ async function handleSubmit() {
 
 watch(
     () => props.isOpen,
-    async (isOpen) => {
+    (isOpen) => {
         dialogOpen.value = isOpen;
         if (isOpen) {
-            await initializeDialog();
+            initializeDialog();
         } else {
-            isInitializingDialog.value = false;
+            isHydrationLoading.value = false;
             isSubmittingDialog.value = false;
-            showFullscreenOverlay.value = false;
-            clearOverlayDelay();
         }
     },
 );
 
 watch(dialogOpen, (isOpen) => {
     if (!isOpen) {
-        isInitializingDialog.value = false;
+        isHydrationLoading.value = false;
         isSubmittingDialog.value = false;
-        showFullscreenOverlay.value = false;
-        clearOverlayDelay();
         emit('close');
-    }
-});
-
-watch(
-    shouldShowOverlayRaw,
-    (value) => {
-        emit('loading-state', value);
-
-        if (!value) {
-            clearOverlayDelay();
-            showFullscreenOverlay.value = false;
-            return;
-        }
-
-        clearOverlayDelay();
-        overlayDelayTimer = setTimeout(() => {
-            overlayDelayTimer = null;
-            if (shouldShowOverlayRaw.value) {
-                showFullscreenOverlay.value = true;
-            }
-        }, OVERLAY_DELAY_MS);
-    },
-    { immediate: true },
-);
-
-watch(showFullscreenOverlay, (value) => {
-    if (typeof document === 'undefined') {
-        return;
-    }
-
-    if (value) {
-        if (previousBodyOverflow.value === null) {
-            previousBodyOverflow.value = document.body.style.overflow;
-        }
-        document.body.style.overflow = 'hidden';
-        return;
-    }
-
-    if (previousBodyOverflow.value !== null) {
-        document.body.style.overflow = previousBodyOverflow.value;
-        previousBodyOverflow.value = null;
     }
 });
 
@@ -436,37 +388,16 @@ watch(
 
 onUnmounted(() => {
     revokePreview();
-    clearOverlayDelay();
-    if (typeof document !== 'undefined') {
-        document.body.style.overflow = previousBodyOverflow.value ?? '';
-    }
-    previousBodyOverflow.value = null;
 });
 </script>
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <div
-            v-if="showFullscreenOverlay"
-            class="fixed inset-0 z-[2000] grid place-items-center bg-background/60 backdrop-blur-sm"
-            role="status"
-            aria-live="polite"
-        >
-            <div class="rounded-xl border border-border bg-card px-6 py-5 shadow-xl">
-                <div class="flex items-center gap-3">
-                    <span class="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
-                    <p class="text-sm font-medium text-foreground">Cargando información...</p>
-                </div>
-            </div>
-        </div>
-
-        <DialogContent v-if="!props.deferContent" class="flex max-h-[90vh] max-w-[200vh] flex-col p-0">
-            <DialogHeader class="relative flex-shrink-0 px-4 pt-4">
-                <div class="flex flex-col gap-1">
-                    <DialogTitle> {{ dialogType === 'edit' ? 'Editar' : dialogType === 'view' ? 'Ver' : 'Nueva' }} Solicitud Interna </DialogTitle>
-                    <DialogDescription class="pb-2"> Registro de solicitudes internas de insumos o materiales. </DialogDescription>
-                </div>
-            </DialogHeader>
+        <FormDialogContent size="lg" class="p-0" content-class="p-0" :scrollable="false">
+            <FormDialogHeader
+                :title="`${dialogType === 'edit' ? 'Editar' : dialogType === 'view' ? 'Ver' : 'Nueva'} Solicitud Interna`"
+                description="Registro de solicitudes internas de insumos o materiales."
+            />
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
@@ -475,21 +406,30 @@ onUnmounted(() => {
                 @close-success="successMessage = ''"
                 @close-error="errorMessage = ''"
             />
-            <div class="flex-1 overflow-y-auto scroll-smooth px-4 pr-2" style="scrollbar-width: thin">
-                <form @submit.prevent="handleSubmit()" class="space-y-6">
-                    <div class="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+            <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="handleSubmit">
+                <FormDialogBody class="relative" :class="{ 'min-h-[420px]': shouldBlockBody }">
+                    <FormLoadingOverlay
+                        :active="shouldBlockBody"
+                        :delay-ms="0"
+                        message="Cargando solicitud..."
+                        description="Consultando el detalle de la solicitud seleccionada."
+                    />
+
+                    <div v-if="canRenderForm" class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
                         <div class="space-y-4">
-                            <div class="grid grid-cols-2 gap-4">
-                                <InputField
-                                    label="# Solicitud"
-                                    v-model="safeDocumentNumber"
-                                    placeholder="SINT-001"
-                                    :readonly="true"
-                                    :disabled="true"
-                                />
-                                <span v-if="props.dialogType === 'create' && isLoadingNumber" class="text-xs text-muted-foreground">
-                                    Generando consecutivo...
-                                </span>
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div class="space-y-1">
+                                    <InputField
+                                        v-model="safeDocumentNumber"
+                                        label="# Solicitud"
+                                        placeholder="SINT-001"
+                                        :readonly="true"
+                                        :disabled="true"
+                                    />
+                                    <p v-if="props.dialogType === 'create' && isLoadingNumber" class="text-xs text-muted-foreground">
+                                        Generando consecutivo...
+                                    </p>
+                                </div>
                                 <DatePickerField
                                     v-model="localForm.date"
                                     label="Fecha de solicitud"
@@ -499,7 +439,7 @@ onUnmounted(() => {
                                 />
                             </div>
 
-                            <div v-if="props.dialogType !== 'create'" class="grid grid-cols-2 gap-4">
+                            <div v-if="props.dialogType !== 'create'" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                 <DatePickerField
                                     v-if="localForm.status === 'entregado'"
                                     v-model="localForm.delivery_date"
@@ -555,12 +495,12 @@ onUnmounted(() => {
                             />
                         </div>
 
-                        <div class="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border lg:sticky lg:top-4">
+                        <div class="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
                             <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-200">Imagen</label>
                             <input ref="fileInputRef" type="file" accept="image/*" class="hidden" :disabled="isReadonly" @change="onImageChange" />
                             <div
                                 :class="[
-                                    'group relative flex h-56 w-full flex-col items-center justify-center overflow-hidden rounded-lg border-2 border-dashed bg-muted/50 text-center transition-all duration-200',
+                                    'group relative flex h-48 w-full flex-col items-center justify-center overflow-hidden rounded-lg border-2 border-dashed bg-muted/50 text-center transition-all duration-200',
                                     isReadonly ? 'cursor-default opacity-90' : 'cursor-pointer hover:border-primary hover:shadow-md',
                                 ]"
                                 @click="triggerFileInput"
@@ -584,22 +524,22 @@ onUnmounted(() => {
                             </div>
                         </div>
                     </div>
+                </FormDialogBody>
 
-                    <DialogFooter :class="footerContainerClass">
-                        <template v-if="isReadonly">
-                            <Button type="button" size="pill" :class="primaryPillButtonClass" @click="dialogOpen = false"> Cerrar </Button>
-                        </template>
-                        <template v-else>
-                            <Button type="button" variant="outline" size="pill" :class="secondaryPillButtonClass" @click="dialogOpen = false">
-                                Cancelar
-                            </Button>
-                            <Button type="button" size="pill" :disabled="isLoading" :class="primaryPillButtonClass" @click.prevent="handleSubmit">
-                                {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
-                            </Button>
-                        </template>
-                    </DialogFooter>
-                </form>
-            </div>
-        </DialogContent>
+                <FormDialogFooter>
+                    <template v-if="isReadonly">
+                        <Button type="button" size="pill" :class="primaryPillButtonClass" @click="dialogOpen = false"> Cerrar </Button>
+                    </template>
+                    <template v-else>
+                        <Button type="button" variant="outline" size="pill" :class="secondaryPillButtonClass" @click="dialogOpen = false">
+                            Cancelar
+                        </Button>
+                        <Button type="submit" size="pill" :disabled="isLoading || shouldBlockBody" :class="primaryPillButtonClass">
+                            {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
+                        </Button>
+                    </template>
+                </FormDialogFooter>
+            </form>
+        </FormDialogContent>
     </Dialog>
 </template>

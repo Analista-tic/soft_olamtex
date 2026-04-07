@@ -1,3 +1,12 @@
+<script lang="ts">
+import type { Tax as CachedTax } from '@/domain/Finance';
+import type { AdditionalField as CachedAdditionalField, CategorySubGroup as CachedCategorySubGroup } from '@/domain/MasterData';
+
+let cachedCategorySubGroups: CachedCategorySubGroup[] | null = null;
+let cachedTaxes: CachedTax[] | null = null;
+let cachedAdditionalFields: CachedAdditionalField[] | null = null;
+</script>
+
 <script setup lang="ts">
 import axios from 'axios';
 import { ExternalLink, Image, Plus, Trash } from 'lucide-vue-next';
@@ -5,6 +14,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import AlertBox from '@/components/AlertBox.vue';
 import FormHeader from '@/components/FormHeader.vue';
+import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import InputIntegerField from '@/components/InputIntegerField.vue';
@@ -26,7 +36,7 @@ import ExtraFieldsForm from '@/pages/MasterData/Item/ExtraFieldsForm.vue';
 import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
 
 import type { Tax } from '@/domain/Finance';
-import type { Warehouse } from '@/domain/inventory';
+import type { Warehouse } from '@/domain/Inventory';
 import type {
     AdditionalField,
     AdditionalFieldPayload,
@@ -53,10 +63,14 @@ const props = withDefaults(
         form: Partial<Item>;
         showAdvancedLink?: boolean;
         showAdvancedSections?: boolean;
+        showInternalLoadingOverlay?: boolean;
+        preloadedSubGroups?: any[];
+        preloadedTaxes?: any[];
     }>(),
     {
         showAdvancedLink: true,
         showAdvancedSections: false,
+        showInternalLoadingOverlay: true,
     },
 );
 
@@ -68,23 +82,11 @@ const emit = defineEmits<{
     (e: 'loading-state', value: boolean): void;
 }>();
 
-const loadingCounter = ref(0);
-const isLoadingState = ref(false);
-
-function updateLoadingState(delta: number) {
-    loadingCounter.value = Math.max(0, loadingCounter.value + delta);
-    const nextState = loadingCounter.value > 0;
-    if (isLoadingState.value !== nextState) {
-        isLoadingState.value = nextState;
-        emit('loading-state', nextState);
-    }
-}
-
-function trackLoading<T>(work: () => Promise<T>): Promise<T> {
-    updateLoadingState(1);
-    const promise = Promise.resolve().then(work);
-    return promise.finally(() => updateLoadingState(-1));
-}
+const isCatalogBootstrapLoading = ref(false);
+const isItemHydrationLoading = ref(false);
+const isSecondaryLoading = ref(false);
+const isBlockingLoading = computed(() => isCatalogBootstrapLoading.value || isItemHydrationLoading.value);
+const canRenderForm = computed(() => !isBlockingLoading.value);
 
 type ItemType = 'product' | 'service';
 
@@ -99,12 +101,6 @@ type ItemFormSource = Partial<Item> & {
 
 type ItemForm = Omit<Partial<Item>, 'tax_id'> & {
     tax_id?: Item['tax_id'] | 'none';
-    income_account?: string;
-    inventory_account?: string;
-    cost_of_sale_account?: string;
-    export_tariff_code?: string;
-    export_brand?: string;
-    export_model?: string;
 };
 
 const normalizeItemType = (value?: string | null): ItemType => (value === 'service' ? 'service' : 'product');
@@ -122,7 +118,7 @@ const itemTypeLabelMap: Record<ItemType, string> = itemTypeOptions.reduce(
     {} as Record<ItemType, string>,
 );
 
-function prepareLocalForm(source: ItemFormSource): ItemForm {
+function mapItemToFormState(source: ItemFormSource): ItemForm {
     const resolvedTaxId = source.tax_id ?? (typeof source.tax === 'object' && source.tax !== null ? source.tax.id : undefined);
 
     return {
@@ -131,12 +127,9 @@ function prepareLocalForm(source: ItemFormSource): ItemForm {
         bar_code: source.bar_code ?? '',
         tax_id: resolvedTaxId,
         item_type: normalizeItemType(source.item_type),
-        income_account: source.income_account || '',
-        inventory_account: source.inventory_account || '',
-        cost_of_sale_account: source.cost_of_sale_account || '',
-        export_tariff_code: source.export_tariff_code || '',
-        export_brand: source.export_brand || '',
-        export_model: source.export_model || '',
+        export_tariff_code: source.export_tariff_code ?? '',
+        export_brand: source.export_brand ?? '',
+        export_model: source.export_model ?? '',
     } as ItemForm;
 }
 
@@ -146,7 +139,7 @@ const isTaxIdBlank = (value: unknown): boolean => {
     return trimmed === '' || trimmed === 'none';
 };
 
-const localForm = ref<ItemForm>(prepareLocalForm(props.form));
+const localForm = ref<ItemForm>(mapItemToFormState(props.form));
 
 const warehouses = ref<Warehouse[]>([]);
 const categorySubGroups = ref<CategorySubGroup[]>([]);
@@ -367,6 +360,8 @@ function normalizeExtraFieldsValue(value: unknown): Record<string, unknown> {
     return {};
 }
 
+const LEGACY_META_KEYS = new Set(['legacy_import', 'legacy_source', 'migration_batch', 'legacy_row_number', 'legacy_raw_row']);
+
 function fillExtraFields(obj: unknown) {
     extraFields.value = {};
     const normalized = normalizeExtraFieldsValue(obj);
@@ -374,12 +369,20 @@ function fillExtraFields(obj: unknown) {
     Object.entries(normalized).forEach(([key, value]) => {
         const fieldName = String(key ?? '').trim();
         if (!fieldName) return;
+        if (LEGACY_META_KEYS.has(fieldName)) return;
         if (value === undefined || value === null) return;
 
         const stringValue = (typeof value === 'string' ? value : String(value)).trim();
         if (!stringValue) return;
 
         extraFields.value[fieldName] = stringValue;
+    });
+
+    const currentNames = new Set(extraFieldNames.value);
+    Object.keys(extraFields.value).forEach((key) => {
+        if (!currentNames.has(key)) {
+            extraFieldNames.value = [...extraFieldNames.value, key];
+        }
     });
 }
 
@@ -416,7 +419,7 @@ function syncGroupFromSubgroup() {
 }
 
 function applyFormData(source: ItemFormSource) {
-    localForm.value = prepareLocalForm(source);
+    localForm.value = mapItemToFormState(source);
     unitMeasure.value = getInitialUnitMeasure(source);
     fillExtraFields(source.extra_fields);
 
@@ -447,14 +450,25 @@ async function fetchWarehouses() {
     }
 }
 
-async function fetchCategorySubGroups() {
+async function fetchCategorySubGroups(force = false) {
     try {
-        const { data } = await axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } });
-        categorySubGroups.value = data.data;
+        const raw: any[] =
+            !force && props.preloadedSubGroups && props.preloadedSubGroups.length > 0
+                ? props.preloadedSubGroups
+                : !force && cachedCategorySubGroups
+                  ? cachedCategorySubGroups
+                  : (
+                        await axios.get('/categorias/subgrupos-data', {
+                            params: { per_page: 1000 },
+                        })
+                    ).data.data;
 
-        // Derive groups from the eager-loaded relation — avoids a second HTTP request
+        cachedCategorySubGroups = raw;
+
+        categorySubGroups.value = [...raw];
+
         const seen = new Set<number>();
-        categoryGroups.value = (data.data as any[])
+        categoryGroups.value = (raw as any[])
             .map((sg: any) => sg.category_group)
             .filter((g: any) => g && !seen.has(g.id) && seen.add(g.id))
             .sort((a: any, b: any) => a.name.localeCompare(b.name));
@@ -465,9 +479,21 @@ async function fetchCategorySubGroups() {
     }
 }
 
-async function fetchTaxes() {
-    const { data } = await axios.get('/impuestos/data', { params: { per_page: 100, status: true } });
-    taxes.value = (data.data ?? []).filter((t: any) => t.status);
+async function fetchTaxes(force = false) {
+    try {
+        const raw: Tax[] =
+            !force && props.preloadedTaxes && props.preloadedTaxes.length > 0
+                ? props.preloadedTaxes
+                : !force && cachedTaxes
+                  ? cachedTaxes
+                  : (await axios.get('/impuestos/data', { params: { per_page: 100, status: true } })).data.data;
+
+        cachedTaxes = (raw ?? []).filter((t: any) => t.status);
+        taxes.value = [...cachedTaxes];
+    } catch (error) {
+        console.warn('fetchTaxes error:', error);
+        taxes.value = [];
+    }
 }
 
 async function fetchAccountingAccounts() {
@@ -476,16 +502,37 @@ async function fetchAccountingAccounts() {
             params: { account_type: 'income,asset,cost', allows_entries: true },
         });
         const all: AccountingAccountOption[] = data.data ?? [];
-        accountingIncomeOptions.value    = all.filter((a) => a.account_type === 'income');
+        accountingIncomeOptions.value = all.filter((a) => a.account_type === 'income');
         accountingInventoryOptions.value = all.filter((a) => a.account_type === 'asset');
-        accountingCostOptions.value      = all.filter((a) => a.account_type === 'cost');
-    } catch (error) {
-        console.error('Error al cargar cuentas contables:', error);
+        accountingCostOptions.value = all.filter((a) => a.account_type === 'cost');
+    } catch {
+        // Endpoint puede no existir en todos los contextos — no bloquear el dialog
+        accountingIncomeOptions.value = [];
+        accountingInventoryOptions.value = [];
+        accountingCostOptions.value = [];
     }
 }
 
-async function fetchAdditionalFields() {
+function applyAdditionalFields(normalizedFields: AdditionalField[]) {
+    const fields = [...normalizedFields];
+    extraFieldNames.value = fields.map((f) => f.name);
+    additionalFieldsMeta.value = fields;
+
+    additionalFieldOptions.value = fields.reduce((acc: Record<string, string[]>, field: any) => {
+        if (field?.name) {
+            acc[field.name] = Array.isArray(field.options) ? field.options.map((opt: any) => String(opt)) : [];
+        }
+        return acc;
+    }, {});
+}
+
+async function fetchAdditionalFields(force = false) {
     try {
+        if (!force && cachedAdditionalFields) {
+            applyAdditionalFields(cachedAdditionalFields);
+            return;
+        }
+
         const { data } = await axios.get('/campos-adicionales/options');
         const payload: any[] = Array.isArray(data?.data ?? data) ? (data?.data ?? data) : [];
 
@@ -514,15 +561,8 @@ async function fetchAdditionalFields() {
             return aPos - bPos;
         });
 
-        extraFieldNames.value = normalizedFields.map((f) => f.name);
-        additionalFieldsMeta.value = normalizedFields;
-
-        additionalFieldOptions.value = normalizedFields.reduce((acc: Record<string, string[]>, field: any) => {
-            if (field?.name) {
-                acc[field.name] = Array.isArray(field.options) ? field.options.map((opt: any) => String(opt)) : [];
-            }
-            return acc;
-        }, {});
+        cachedAdditionalFields = normalizedFields;
+        applyAdditionalFields(normalizedFields);
     } catch (error) {
         console.error('Error al cargar campos adicionales:', error);
         extraFieldNames.value = [];
@@ -556,6 +596,62 @@ async function refreshWarehouseStocksForCurrentItem(itemId?: number) {
     await fetchWarehouseStocks(resolvedItemId);
 }
 
+let catalogsLoadPromise: Promise<void> | null = null;
+
+function loadFormCatalogs(): Promise<void> {
+    if (!catalogsLoadPromise) {
+        isCatalogBootstrapLoading.value = true;
+        catalogsLoadPromise = Promise.all([fetchCategorySubGroups(), fetchTaxes(), fetchAdditionalFields()])
+            .then(() => undefined)
+            .finally(() => {
+                isCatalogBootstrapLoading.value = false;
+            });
+    }
+
+    return catalogsLoadPromise;
+}
+
+async function loadSecondaryFormData(itemId?: number): Promise<void> {
+    isSecondaryLoading.value = true;
+    try {
+        await Promise.all([
+            fetchWarehouses(),
+            ...(props.showAdvancedSections ? [fetchAccountingAccounts()] : []),
+            itemId ? refreshWarehouseStocksForCurrentItem(itemId) : Promise.resolve(),
+        ]);
+    } finally {
+        isSecondaryLoading.value = false;
+    }
+}
+
+async function hydrateOpenForm() {
+    const itemId = Number(props.form.id);
+    const shouldLoadItemDetails = props.dialogType !== 'create' && Number.isFinite(itemId) && itemId > 0;
+
+    if (!shouldLoadItemDetails) {
+        applyFormData(props.form);
+        await loadFormCatalogs();
+        warehouseStocks.value = [];
+        void loadSecondaryFormData();
+        updateNameField();
+        syncGroupFromSubgroup();
+        return;
+    }
+
+    isItemHydrationLoading.value = true;
+    try {
+        await loadFormCatalogs();
+        await loadItemDetails(itemId);
+    } finally {
+        isItemHydrationLoading.value = false;
+    }
+
+    void loadSecondaryFormData(itemId);
+
+    updateNameField();
+    syncGroupFromSubgroup();
+}
+
 function openGroupDialog() {
     isGroupDialogOpen.value = true;
 }
@@ -585,7 +681,7 @@ async function handleGroupCreated(newGroup: Partial<CategoryGroup>) {
 async function handleSubGroupSubmit(formData: Partial<CategorySubGroup>) {
     try {
         await axios.post('/categorias/subgrupos', formData);
-        await fetchCategorySubGroups();
+        await fetchCategorySubGroups(true);
     } catch (error) {
         console.error('Error al crear el subgrupo:', error);
     } finally {
@@ -602,7 +698,7 @@ async function handleTaxDialogSubmit(formData: TaxDialogSubmitPayload) {
     taxDialogLoading.value = true;
     try {
         await axios.post('/impuestos', formData);
-        await fetchTaxes();
+        await fetchTaxes(true);
         isTaxDialogOpen.value = false;
     } catch (error) {
         console.error('Error creando impuesto', error);
@@ -629,7 +725,7 @@ async function handleAdditionalFieldDialogSubmit(field: AdditionalFieldPayload) 
         };
         delete payload.label;
         await axios.post('/campos-adicionales', payload);
-        await fetchAdditionalFields();
+        await fetchAdditionalFields(true);
         additionalFieldDialogOpen.value = false;
     } catch (error) {
         console.error('Error creando campo adicional', error);
@@ -660,6 +756,12 @@ function addWarehouseStock() {
 }
 
 function handleAddWarehouseStock() {
+    if (isSecondaryLoading.value) {
+        alertType.value = 'info';
+        alertMessage.value = 'Espera a que terminen de cargar las bodegas.';
+        return;
+    }
+
     const available = availableWarehouses().length;
     if (available === 0) {
         alertType.value = 'warning';
@@ -831,6 +933,36 @@ async function checkDuplicateName(): Promise<string | null> {
     return null;
 }
 
+function mapFormStateToPayload(orderedExtraFields: Record<string, string>): Record<string, any> {
+    const resolvedTaxId = localForm.value.tax_id === 'none' ? null : localForm.value.tax_id;
+    const selectedTax = taxes.value.find((tax) => String(tax.id) === String(resolvedTaxId));
+    const selectedTaxPercentage = selectedTax ? Number(selectedTax.percentage) : 0;
+
+    return {
+        ...localForm.value,
+        category_sub_group_id: Number(localForm.value.category_sub_group_id) || undefined,
+        tax_id: resolvedTaxId !== undefined && resolvedTaxId !== null && String(resolvedTaxId) !== '' ? Number(resolvedTaxId) : undefined,
+        tax: Number.isFinite(selectedTaxPercentage) ? selectedTaxPercentage : 0,
+        negative_movement: localForm.value.negative_movement,
+        bar_code: localForm.value.bar_code || '',
+        description: (localForm.value.description || '').trim() || 'N/A',
+        reference: localForm.value.reference || '',
+        extra_fields: JSON.stringify(orderedExtraFields),
+        name: nameField.value,
+        unit_measure: unitMeasure.value,
+        item_type: normalizeItemType(localForm.value.item_type),
+        tracks_inventory: localForm.value.tracks_inventory ?? normalizeItemType(localForm.value.item_type) !== 'service',
+        status:
+            typeof localForm.value.status === 'boolean'
+                ? localForm.value.status
+                    ? 1
+                    : 0
+                : localForm.value.status === 1 || localForm.value.status === '1' || localForm.value.status === true
+                  ? 1
+                  : 0,
+    };
+}
+
 async function handleSubmit() {
     resetErrors();
     alertMessage.value = '';
@@ -895,33 +1027,7 @@ async function handleSubmit() {
 
     updateNameField(orderedExtraFields);
 
-    const resolvedTaxId = localForm.value.tax_id === 'none' ? null : localForm.value.tax_id;
-    const selectedTax = taxes.value.find((tax) => String(tax.id) === String(resolvedTaxId));
-    const selectedTaxPercentage = selectedTax ? Number(selectedTax.percentage) : 0;
-
-    const cleanForm: any = {
-        ...localForm.value,
-        category_sub_group_id: Number(localForm.value.category_sub_group_id) || undefined,
-        tax_id: resolvedTaxId !== undefined && resolvedTaxId !== null && String(resolvedTaxId) !== '' ? Number(resolvedTaxId) : undefined,
-        tax: Number.isFinite(selectedTaxPercentage) ? selectedTaxPercentage : 0,
-        negative_movement: localForm.value.negative_movement,
-        bar_code: localForm.value.bar_code || '',
-        description: (localForm.value.description || '').trim() || 'N/A',
-        reference: localForm.value.reference || '',
-        extra_fields: JSON.stringify(orderedExtraFields),
-        name: nameField.value,
-        unit_measure: unitMeasure.value,
-        item_type: normalizeItemType(localForm.value.item_type),
-        tracks_inventory: localForm.value.tracks_inventory ?? normalizeItemType(localForm.value.item_type) !== 'service',
-        status:
-            typeof localForm.value.status === 'boolean'
-                ? localForm.value.status
-                    ? 1
-                    : 0
-                : localForm.value.status === 1 || localForm.value.status === '1' || localForm.value.status === true
-                  ? 1
-                  : 0,
-    };
+    const cleanForm = mapFormStateToPayload(orderedExtraFields);
 
     const formData = new FormData();
 
@@ -934,12 +1040,25 @@ async function handleSubmit() {
 
     // Scalar fields — only sent when not null/undefined; skips objects/arrays to avoid "[object Object]"
     const scalarFields = [
-        'name', 'reference', 'description', 'bar_code', 'unit_measure',
-        'item_type', 'extra_fields', 'tax', 'tax_id',
-        'category_sub_group_id', 'img',
-        'income_account_id', 'inventory_account_id', 'cost_of_sale_account_id',
-        'export_tariff_code', 'export_brand', 'export_model',
-        'weighted_average_price', 'cost_price',
+        'name',
+        'reference',
+        'description',
+        'bar_code',
+        'unit_measure',
+        'item_type',
+        'extra_fields',
+        'tax',
+        'tax_id',
+        'category_sub_group_id',
+        'img',
+        'income_account_id',
+        'inventory_account_id',
+        'cost_of_sale_account_id',
+        'export_tariff_code',
+        'export_brand',
+        'export_model',
+        'weighted_average_price',
+        'cost_price',
     ];
     for (const key of scalarFields) {
         const v = cleanForm[key];
@@ -1049,7 +1168,13 @@ watch(
 
 watch(
     () => props.form,
-    (newVal) => applyFormData(newVal),
+    (newVal) => {
+        if (props.isOpen && props.dialogType !== 'create' && newVal.id) {
+            return;
+        }
+
+        applyFormData(newVal);
+    },
     { deep: true, immediate: true },
 );
 
@@ -1058,7 +1183,9 @@ watch(
     (newVal) => {
         if (!newVal) return;
         const subGroup = categorySubGroups.value.find((sg) => String(sg.id) === String(newVal));
-        if (subGroup?.category_group_id) selectedGroupId.value = String(subGroup.category_group_id);
+        if (subGroup?.category_group_id) {
+            selectedGroupId.value = String(subGroup.category_group_id);
+        }
     },
 );
 
@@ -1112,19 +1239,22 @@ watch(
     () => props.isOpen,
     async (value) => {
         if (value) {
-            emit('loading-state', isLoadingState.value);
-            if (props.dialogType !== 'create' && props.form.id) {
-                await trackLoading(() => loadItemDetails(Number(props.form.id)));
-            }
-            if (props.form.id) {
-                await trackLoading(() => refreshWarehouseStocksForCurrentItem(Number(props.form.id)));
-            } else {
-                warehouseStocks.value = [];
-            }
+            await hydrateOpenForm();
         } else {
+            isItemHydrationLoading.value = false;
+            isSecondaryLoading.value = false;
             warehouseStocks.value = [];
         }
     },
+    { immediate: true },
+);
+
+watch(
+    isBlockingLoading,
+    (value) => {
+        emit('loading-state', value);
+    },
+    { immediate: true },
 );
 
 const INVENTORY_ADJUSTMENT_SAVED_EVENT = 'inventory-adjustment-saved';
@@ -1141,20 +1271,6 @@ const handleInventoryAdjustmentSaved = (event: Event) => {
 };
 
 onMounted(() => {
-    void trackLoading(async () => {
-        await Promise.all([fetchWarehouses(), fetchCategorySubGroups(), fetchTaxes(), fetchAdditionalFields(), fetchAccountingAccounts()]);
-
-        fillExtraFields(props.form.extra_fields);
-
-        if (props.form.id) {
-            await fetchWarehouseStocks(props.form.id);
-        }
-
-        imagePreview.value = resolveImageUrl(localForm.value.img, localForm.value.img_url);
-        updateNameField();
-        syncGroupFromSubgroup();
-    });
-
     if (typeof window !== 'undefined') {
         window.addEventListener(INVENTORY_ADJUSTMENT_SAVED_EVENT, handleInventoryAdjustmentSaved);
     }
@@ -1169,11 +1285,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div class="-mx-6 -my-10 flex min-h-0 flex-1 flex-col">
+    <div class="flex min-h-0 flex-1 flex-col">
         <transition name="fade">
             <div
                 v-if="alertMessage"
-                class="pointer-events-none absolute left-1/2 top-20 z-20 flex w-full max-w-xl -translate-x-1/2 justify-center px-6"
+                class="pointer-events-none absolute left-1/2 top-4 z-20 flex w-full max-w-xl -translate-x-1/2 justify-center px-5"
             >
                 <AlertBox
                     :type="alertType"
@@ -1187,8 +1303,7 @@ onBeforeUnmount(() => {
 
         <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="handleSubmit">
             <FormHeader
-                class="flex-shrink-0 px-6 pt-10"
-                headerClass="mb-4"
+                class="shrink-0 border-b px-5 py-4 pr-12"
                 :title="dialogType === 'create' ? 'Crear ítem' : dialogType === 'edit' ? 'Editar ítem' : 'Detalle del ítem'"
                 :description="
                     dialogType === 'create'
@@ -1199,12 +1314,25 @@ onBeforeUnmount(() => {
                 "
             />
 
-            <div ref="dialogInnerRef" class="flex-1 overflow-y-auto scroll-smooth px-6" style="scrollbar-width: thin">
-                <fieldset :disabled="isViewMode" class="space-y-4">
-                    <div class="grid grid-cols-1 gap-5 md:grid-cols-4">
-                        <div class="flex flex-col gap-4 md:col-span-3">
+            <div
+                ref="dialogInnerRef"
+                class="relative min-h-0 flex-1 overflow-y-auto scroll-smooth px-5 py-4"
+                :class="{ 'min-h-[420px]': isBlockingLoading }"
+                style="scrollbar-width: thin"
+            >
+                <FormLoadingOverlay
+                    v-if="showInternalLoadingOverlay"
+                    :active="isBlockingLoading"
+                    :delay-ms="0"
+                    message="Cargando formulario de item..."
+                    description="Preparando catalogos y datos iniciales necesarios."
+                />
+
+                <fieldset v-if="canRenderForm" :disabled="isViewMode" class="space-y-3">
+                    <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+                        <div class="flex min-w-0 flex-col gap-3">
                             <div>
-                                <div class="mb-2 flex items-center gap-1">
+                                <div class="mb-1.5 flex items-center gap-1">
                                     <span class="text-sm font-semibold text-card-foreground"> Tipo de ítem </span>
                                     <HelpTooltip
                                         text="Elige producto o servicio para que el sistema active los campos e inventario correspondientes."
@@ -1218,7 +1346,7 @@ onBeforeUnmount(() => {
                                 </template>
 
                                 <template v-else>
-                                    <div class="mt-2 grid grid-cols-2 gap-2">
+                                    <div class="grid grid-cols-2 gap-2">
                                         <button
                                             v-for="option in itemTypeOptions"
                                             :key="option.value"
@@ -1244,7 +1372,7 @@ onBeforeUnmount(() => {
                                 <Input v-model="nameField" label="Nombre" readonly class="mt-1" placeholder="Nombre autocompletado" />
                             </div>
 
-                            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                            <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
                                 <template v-if="isViewMode">
                                     <div class="flex flex-col gap-1">
                                         <Label>Grupo</Label>
@@ -1346,7 +1474,7 @@ onBeforeUnmount(() => {
                                 </template>
                             </div>
 
-                            <div v-if="currentItemType !== 'service'" class="mt-2 rounded-lg border border-border bg-card p-3">
+                            <div v-if="currentItemType !== 'service'" class="rounded-lg border border-border bg-card p-3">
                                 <div class="mb-2 flex items-center justify-between">
                                     <p class="flex items-center gap-1 text-sm font-semibold">
                                         <span>Detalle de Inventario</span>
@@ -1359,7 +1487,8 @@ onBeforeUnmount(() => {
                                         v-if="!isViewMode"
                                         type="button"
                                         class="rounded-full p-1 transition hover:bg-muted"
-                                        :class="availableWarehouses().length === 0 ? 'cursor-not-allowed opacity-50' : ''"
+                                        :class="isSecondaryLoading || availableWarehouses().length === 0 ? 'cursor-not-allowed opacity-50' : ''"
+                                        :disabled="isSecondaryLoading"
                                         @click="handleAddWarehouseStock"
                                         title="Agregar Bodega"
                                     >
@@ -1368,8 +1497,10 @@ onBeforeUnmount(() => {
                                 </div>
 
                                 <div v-for="(ws, idx) in warehouseStocks" :key="idx" class="mb-2 rounded-md bg-muted/50 p-2">
-                                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-[220px,1fr,1fr,1fr,auto] sm:items-end">
-                                        <div class="flex h-full flex-col justify-between gap-1">
+                                    <div
+                                        class="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(180px,1.2fr)_repeat(3,minmax(90px,1fr))_auto] sm:items-end"
+                                    >
+                                        <div class="space-y-1">
                                             <Label class="text-xs">Bodega</Label>
                                             <SelectField
                                                 v-model="ws.warehouse_id"
@@ -1400,7 +1531,7 @@ onBeforeUnmount(() => {
                                             </SelectField>
                                         </div>
 
-                                        <div class="flex h-full flex-col justify-between gap-1">
+                                        <div class="space-y-1">
                                             <Label class="text-xs">Cantidad</Label>
                                             <InputIntegerField
                                                 v-model="ws.quantity"
@@ -1412,21 +1543,21 @@ onBeforeUnmount(() => {
                                             />
                                         </div>
 
-                                        <div class="flex h-full flex-col justify-between gap-1">
+                                        <div class="space-y-1">
                                             <Label class="text-xs">Cantidad Min</Label>
                                             <InputIntegerField v-model="ws.stock_min" label="" type="number" class="w-full" placeholder="Min" />
                                         </div>
 
-                                        <div class="flex h-full flex-col justify-between gap-1">
+                                        <div class="space-y-1">
                                             <Label class="text-xs">Cantidad Max</Label>
                                             <InputIntegerField v-model="ws.stock_max" label="" type="number" class="w-full" placeholder="Max" />
                                         </div>
 
-                                        <div class="items-base flex justify-end">
+                                        <div class="flex items-end justify-end">
                                             <button
                                                 v-if="!isViewMode"
                                                 type="button"
-                                                class="rounded-full p-3 transition hover:bg-red-100 dark:hover:bg-red-900"
+                                                class="rounded-full p-2 transition hover:bg-red-100 dark:hover:bg-red-900"
                                                 @click="removeWarehouseStock(idx)"
                                                 title="Quitar"
                                             >
@@ -1436,69 +1567,57 @@ onBeforeUnmount(() => {
                                     </div>
                                 </div>
 
-                                <div v-if="warehouseStocks.length === 0" class="px-2 py-1 text-xs text-gray-400">No hay bodegas asociadas.</div>
+                                <div v-if="isSecondaryLoading" class="px-2 py-1 text-xs text-muted-foreground">Cargando bodegas e inventario...</div>
+                                <div v-else-if="warehouseStocks.length === 0" class="px-2 py-1 text-xs text-gray-400">No hay bodegas asociadas.</div>
                             </div>
                         </div>
 
-                        <div class="flex flex-col gap-2 md:col-span-1">
-                            <div class="flex w-full flex-col items-start gap-2">
-                                <Label class="mb-1 block text-left text-sm font-medium">Imagen</Label>
-                                <div class="w-full">
-                                    <input
-                                        ref="fileInputRef"
-                                        type="file"
-                                        accept="image/*"
-                                        class="hidden"
-                                        :disabled="isViewMode"
-                                        @change="handleFileChange"
-                                    />
+                        <div class="min-w-0">
+                            <Label class="mb-1.5 block text-left text-sm font-medium">Imagen</Label>
+                            <input ref="fileInputRef" type="file" accept="image/*" class="hidden" :disabled="isViewMode" @change="handleFileChange" />
 
-                                    <div
-                                        :class="[
-                                            'group relative flex h-52 w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-muted/50 transition-all duration-200',
-                                            isViewMode ? 'cursor-default opacity-100' : 'cursor-pointer hover:border-primary hover:shadow-lg',
-                                        ]"
-                                        @click="!isViewMode && triggerFileInput()"
-                                        style="min-width: 0; position: relative"
-                                    >
-                                        <template v-if="imagePreview">
-                                            <div class="relative h-52 w-full">
-                                                <img
-                                                    :src="imagePreview"
-                                                    alt="Previsualización"
-                                                    class="h-57 w-full rounded object-contain transition-transform duration-200 group-hover:scale-105"
-                                                    style="display: block; position: absolute; top: 0; left: 0; right: 0; margin: 0; z-index: 10"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    class="absolute right-2 top-2 rounded-full border border-white bg-black/70 px-3 py-1 text-xs font-semibold text-white shadow-md transition hover:bg-black"
-                                                    @click.stop="openImageZoom"
-                                                    aria-label="Ver imagen ampliada"
-                                                >
-                                                    Ver imagen
-                                                </button>
-                                            </div>
-                                            <div class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white">
-                                                {{ isViewMode ? 'Imagen del ítem' : 'Cambiar imagen' }}
-                                            </div>
-                                        </template>
-
-                                        <template v-else>
-                                            <div class="z-10 flex h-full w-full flex-col items-center justify-center">
-                                                <Image class="mb-2 h-12 w-12 text-gray-400" />
-                                                <span class="text-sm text-gray-500">
-                                                    {{ isViewMode ? 'Sin imagen' : 'Haz clic para subir imagen' }}
-                                                </span>
-                                            </div>
-                                        </template>
+                            <div
+                                :class="[
+                                    'group relative flex h-40 w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-muted/50 transition-all duration-200',
+                                    isViewMode ? 'cursor-default opacity-100' : 'cursor-pointer hover:border-primary hover:shadow-md',
+                                ]"
+                                @click="!isViewMode && triggerFileInput()"
+                            >
+                                <template v-if="imagePreview">
+                                    <div class="relative h-full w-full">
+                                        <img
+                                            :src="imagePreview"
+                                            alt="Previsualización"
+                                            class="absolute inset-0 h-full w-full rounded object-contain transition-transform duration-200 group-hover:scale-105"
+                                        />
+                                        <button
+                                            type="button"
+                                            class="absolute right-2 top-2 rounded-full border border-white bg-black/70 px-3 py-1 text-xs font-semibold text-white shadow-md transition hover:bg-black"
+                                            @click.stop="openImageZoom"
+                                            aria-label="Ver imagen ampliada"
+                                        >
+                                            Ver imagen
+                                        </button>
                                     </div>
-                                </div>
+                                    <div class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white">
+                                        {{ isViewMode ? 'Imagen del ítem' : 'Cambiar imagen' }}
+                                    </div>
+                                </template>
+
+                                <template v-else>
+                                    <div class="z-10 flex h-full w-full flex-col items-center justify-center px-3 text-center">
+                                        <Image class="mb-2 h-10 w-10 text-gray-400" />
+                                        <span class="text-sm text-gray-500">
+                                            {{ isViewMode ? 'Sin imagen' : 'Haz clic para subir imagen' }}
+                                        </span>
+                                    </div>
+                                </template>
                             </div>
                         </div>
                     </div>
 
                     <!-- SEGUNDA SECCIÓN -->
-                    <div class="mb-3 grid grid-cols-1 gap-4 md:grid-cols-4">
+                    <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
                         <div class="md:col-span-1">
                             <template v-if="isViewMode">
                                 <Label>Unidad de Medida</Label>
@@ -1624,36 +1743,30 @@ onBeforeUnmount(() => {
                 </fieldset>
             </div>
 
-            <!-- FOOTER -->
-            <DialogFooter class="mt-4 flex flex-shrink-0 flex-col-reverse gap-2 border-t px-6 pb-10 pt-4 md:flex-row md:justify-end">
-                <div v-if="dialogType !== 'view' && showAdvancedLink" class="w-full md:w-auto">
-                    <button
-                        type="button"
-                        class="mx-auto flex w-full max-w-[250px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                        @click="redirectToAdvancedForm"
-                    >
-                        <ExternalLink class="h-4 w-4" />
-                        Ir al formulario avanzado
-                    </button>
-                </div>
+            <DialogFooter class="shrink-0 border-t px-5 py-3 md:justify-end">
+                <button
+                    v-if="dialogType !== 'view' && showAdvancedLink"
+                    type="button"
+                    class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 md:w-auto"
+                    @click="redirectToAdvancedForm"
+                >
+                    <ExternalLink class="h-4 w-4" />
+                    Ir al formulario avanzado
+                </button>
 
-                <div class="w-full md:w-auto">
-                    <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="handleClose">
-                        {{ dialogType === 'view' ? 'Cerrar' : 'Cancelar' }}
-                    </Button>
-                </div>
+                <Button type="button" variant="outline" size="pill" class="w-full justify-center md:w-auto" @click="handleClose">
+                    {{ dialogType === 'view' ? 'Cerrar' : 'Cancelar' }}
+                </Button>
 
-                <div class="w-full md:w-auto">
-                    <Button
-                        v-if="dialogType !== 'view'"
-                        variant="default"
-                        type="submit"
-                        class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
-                        :disabled="isLoadingState"
-                    >
-                        {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
-                    </Button>
-                </div>
+                <Button
+                    v-if="dialogType !== 'view'"
+                    variant="default"
+                    type="submit"
+                    class="w-full justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm md:w-auto"
+                    :disabled="isBlockingLoading"
+                >
+                    {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
+                </Button>
             </DialogFooter>
         </form>
     </div>

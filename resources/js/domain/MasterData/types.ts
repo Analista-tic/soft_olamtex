@@ -19,6 +19,8 @@ export interface ExtraFields {
     [key: string]: string;
 }
 
+export type ItemOriginType = 'system' | 'migration';
+
 export interface AdditionalContact {
     name: string;
     phone: string;
@@ -95,6 +97,10 @@ export interface Item extends Timestamps {
     description: string;
     extra_fields?: ExtraFields | string;
     status: boolean;
+    origin_type?: ItemOriginType;
+    was_edited_after_import?: boolean;
+    imported_at?: string | null;
+    import_batch_id?: string | null;
     item_type: 'product' | 'service' | 'draft';
     tracks_inventory?: boolean;
     unit_measure?: string;

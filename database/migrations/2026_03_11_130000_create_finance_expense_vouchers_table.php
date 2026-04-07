@@ -24,6 +24,9 @@ return new class extends Migration
             $table->string('payment_method', 50)->nullable();
             $table->string('reference', 120)->nullable();
             $table->text('notes')->nullable();
+            $table->timestamp('voided_at')->nullable();
+            $table->string('void_reason', 255)->nullable();
+            $table->softDeletes();
 
             $table->unsignedBigInteger('created_by_user_id')->nullable()->index();
             $table->foreign('created_by_user_id')

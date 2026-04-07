@@ -85,6 +85,35 @@ class ProductionOrder extends Model
         return $this->source === 'manual';
     }
 
+    /**
+     * Construye la referencia de display combinando sample_reference y product_reference.
+     */
+    public function getDisplayReference(): string
+    {
+        $sampleRef  = trim($this->productSheet?->sample_reference ?? '');
+        $productRef = trim($this->productSheet?->product_reference ?? '');
+
+        if ($sampleRef && $productRef) {
+            return $sampleRef === $productRef ? $sampleRef : "{$sampleRef} - {$productRef}";
+        }
+
+        return $sampleRef ?: ($productRef ?: 'Sin referencia');
+    }
+
+    /**
+     * Extrae el tipo de OP (MU, MUT, MF, MFT) del código de la orden.
+     */
+    public function getOpType(): string
+    {
+        $code = strtoupper(trim($this->op_code ?? ''));
+
+        if (str_starts_with($code, 'MUT')) return 'MUT';
+        if (str_starts_with($code, 'MU'))  return 'MU';
+        if (str_starts_with($code, 'MFT')) return 'MFT';
+
+        return 'MF';
+    }
+
     // ─── Relaciones ───────────────────────────────────────
 
     /**

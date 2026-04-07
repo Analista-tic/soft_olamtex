@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { PurchaseInvoice } from '@/domain/Expenses';
 import { formatDateDDMMYYYY } from '@/lib/date';
-import { Loader2 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
 export type PurchaseInvoiceAssociatedNote = {
@@ -41,6 +41,7 @@ const emit = defineEmits<{
 }>();
 
 const dialogOpen = ref(props.isOpen);
+const isBlockingLoading = computed(() => dialogOpen.value && Boolean(props.loading) && props.notes.length === 0 && !props.error);
 
 watch(
     () => props.isOpen,
@@ -141,76 +142,81 @@ function canOpenNote(documentType: string): boolean {
                 </DialogDescription>
             </DialogHeader>
 
-            <section class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                <div class="rounded-lg border border-sidebar-border/70 p-3 dark:border-sidebar-border">
-                    <p class="text-xs text-muted-foreground">Total factura</p>
-                    <p class="text-sm font-semibold">{{ formatCurrency(resolvedSummary.invoice_total) }}</p>
-                </div>
-                <div class="rounded-lg border border-sidebar-border/70 p-3 dark:border-sidebar-border">
-                    <p class="text-xs text-muted-foreground">Notas credito</p>
-                    <p class="text-sm font-semibold">{{ formatCurrency(resolvedSummary.credit_total) }}</p>
-                </div>
-                <div class="rounded-lg border border-sidebar-border/70 p-3 dark:border-sidebar-border">
-                    <p class="text-xs text-muted-foreground">Notas debito</p>
-                    <p class="text-sm font-semibold">{{ formatCurrency(resolvedSummary.debit_total) }}</p>
-                </div>
-                <div class="rounded-lg border border-sidebar-border/70 p-3 dark:border-sidebar-border">
-                    <p class="text-xs text-muted-foreground">Saldo</p>
-                    <p class="text-sm font-semibold">{{ formatCurrency(resolvedSummary.balance_after_notes) }}</p>
-                </div>
-            </section>
+            <div class="relative min-h-0 flex-1 space-y-4 overflow-y-auto" :class="{ 'min-h-[420px]': isBlockingLoading }">
+                <FormLoadingOverlay
+                    :active="isBlockingLoading"
+                    :delay-ms="0"
+                    message="Cargando notas asociadas..."
+                    description="Preparando notas credito, notas debito y saldos de la factura."
+                />
 
-            <div class="rounded-lg border border-sidebar-border/70 dark:border-sidebar-border">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead># Nota</TableHead>
-                            <TableHead>Tipo</TableHead>
-                            <TableHead>Fecha</TableHead>
-                            <TableHead>Motivo</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead class="text-right">Total</TableHead>
-                            <TableHead class="text-center">Acción</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <TableRow v-if="loading">
-                            <TableCell colspan="7" class="py-6">
-                                <div class="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                                    <Loader2 class="h-4 w-4 animate-spin" />
-                                    Cargando notas asociadas...
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                        <TableRow v-else-if="error">
-                            <TableCell colspan="7" class="py-6 text-center text-sm text-red-600">
-                                {{ error }}
-                            </TableCell>
-                        </TableRow>
-                        <TableRow v-else-if="!notes.length">
-                            <TableCell colspan="7" class="py-6 text-center text-sm text-muted-foreground"> No hay notas asociadas. </TableCell>
-                        </TableRow>
-                        <TableRow v-for="note in notes" v-else :key="note.id">
-                            <TableCell>{{ note.document_number || `N-${note.id}` }}</TableCell>
-                            <TableCell>{{ formatType(note.document_type) }}</TableCell>
-                            <TableCell>{{ formatDate(note.date) }}</TableCell>
-                            <TableCell class="max-w-72 truncate">{{ note.reason || '-' }}</TableCell>
-                            <TableCell>{{ formatStatus(note.status) }}</TableCell>
-                            <TableCell class="text-right">{{ formatCurrency(note.total) }}</TableCell>
-                            <TableCell class="text-center">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    :disabled="!canOpenNote(note.document_type)"
-                                    @click="emit('open-note', note)"
-                                >
-                                    Abrir
-                                </Button>
-                            </TableCell>
-                        </TableRow>
-                    </TableBody>
-                </Table>
+                <template v-if="!isBlockingLoading">
+                    <section class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                        <div class="rounded-lg border border-sidebar-border/70 p-3 dark:border-sidebar-border">
+                            <p class="text-xs text-muted-foreground">Total factura</p>
+                            <p class="text-sm font-semibold">{{ formatCurrency(resolvedSummary.invoice_total) }}</p>
+                        </div>
+                        <div class="rounded-lg border border-sidebar-border/70 p-3 dark:border-sidebar-border">
+                            <p class="text-xs text-muted-foreground">Notas credito</p>
+                            <p class="text-sm font-semibold">{{ formatCurrency(resolvedSummary.credit_total) }}</p>
+                        </div>
+                        <div class="rounded-lg border border-sidebar-border/70 p-3 dark:border-sidebar-border">
+                            <p class="text-xs text-muted-foreground">Notas debito</p>
+                            <p class="text-sm font-semibold">{{ formatCurrency(resolvedSummary.debit_total) }}</p>
+                        </div>
+                        <div class="rounded-lg border border-sidebar-border/70 p-3 dark:border-sidebar-border">
+                            <p class="text-xs text-muted-foreground">Saldo</p>
+                            <p class="text-sm font-semibold">{{ formatCurrency(resolvedSummary.balance_after_notes) }}</p>
+                        </div>
+                    </section>
+
+                    <div class="rounded-lg border border-sidebar-border/70 dark:border-sidebar-border">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead># Nota</TableHead>
+                                    <TableHead>Tipo</TableHead>
+                                    <TableHead>Fecha</TableHead>
+                                    <TableHead>Motivo</TableHead>
+                                    <TableHead>Estado</TableHead>
+                                    <TableHead class="text-right">Total</TableHead>
+                                    <TableHead class="text-center">Acción</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow v-if="error">
+                                    <TableCell colspan="7" class="py-6 text-center text-sm text-red-600">
+                                        {{ error }}
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow v-else-if="!notes.length">
+                                    <TableCell colspan="7" class="py-6 text-center text-sm text-muted-foreground">
+                                        No hay notas asociadas.
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow v-for="note in notes" v-else :key="note.id">
+                                    <TableCell>{{ note.document_number || `N-${note.id}` }}</TableCell>
+                                    <TableCell>{{ formatType(note.document_type) }}</TableCell>
+                                    <TableCell>{{ formatDate(note.date) }}</TableCell>
+                                    <TableCell class="max-w-72 truncate">{{ note.reason || '-' }}</TableCell>
+                                    <TableCell>{{ formatStatus(note.status) }}</TableCell>
+                                    <TableCell class="text-right">{{ formatCurrency(note.total) }}</TableCell>
+                                    <TableCell class="text-center">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            :disabled="!canOpenNote(note.document_type)"
+                                            @click="emit('open-note', note)"
+                                        >
+                                            Abrir
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </div>
+                </template>
             </div>
         </FormDialogContent>
     </Dialog>

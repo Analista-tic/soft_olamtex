@@ -2,7 +2,7 @@
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Ban, CheckCircle, Download, FileSpreadsheet, Pencil, PlusCircle, Search, Trash, Upload } from 'lucide-vue-next';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
@@ -35,15 +35,16 @@ import BulkUploadDialog from './BulkUploadDialog.vue';
 import ItemDialog from './ItemDialog.vue';
 
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
 
 const breadcrumbs = [{ title: 'Catálogo de ítem', href: '/inventario/item' }];
 
 type DialogType = 'create' | 'edit';
 type StatusFilter = 'all' | boolean;
+type OriginFilter = 'all' | 'system' | 'migration';
 
 const ITEMS_PER_PAGE = 10;
 const DEFAULT_STATUS_FILTER: StatusFilter = 'all';
+const DEFAULT_ORIGIN_FILTER: OriginFilter = 'all';
 
 const actionButtonClass =
     'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
@@ -57,18 +58,26 @@ const statusOptions = [
     { id: false as const, name: 'Deshabilitados' },
 ];
 
+const originOptions = [
+    { id: 'all' as const, name: 'Todos los orígenes' },
+    { id: 'migration' as const, name: 'Migrados' },
+    { id: 'system' as const, name: 'Sistema' },
+];
+
 const items = ref<Item[]>([]);
 const totalItems = ref(0);
 const currentPage = ref(1);
 
 const searchQuery = ref('');
 const statusFilter = ref<StatusFilter>(DEFAULT_STATUS_FILTER);
+const originFilter = ref<OriginFilter>(DEFAULT_ORIGIN_FILTER);
 
 const isDialogOpen = ref(false);
 const dialogType = ref<DialogType>('create');
 const form = ref<Partial<Item>>({});
-const isPreparingDialog = ref(false);
-const isDialogBootstrapping = ref(false);
+// Precarga de catálogos para el dialog de ítems
+const preloadedSubGroups = ref<any[]>([]);
+const preloadedTaxes = ref<any[]>([]);
 
 const isDeleteDialogOpen = ref(false);
 const itemToDelete = ref<Item | null>(null);
@@ -84,13 +93,10 @@ const errorMessage = ref('');
 
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
+const isOriginFilterActive = computed(() => originFilter.value !== DEFAULT_ORIGIN_FILTER);
+const originButtonClasses = useFilterButtonClasses(isOriginFilterActive);
 
-const DIALOG_PREPARE_FALLBACK_MS = 10000;
-let dialogPrepareToken = 0;
-let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
-let dialogPreparationLoadingId: SmartLoadingTaskId | null = null;
 let activeFetchController: AbortController | null = null;
-const smartLoading = useSmartLoading();
 
 function getEmptyForm(): Partial<Item> {
     return {
@@ -115,32 +121,6 @@ function setSuccess(message: string) {
 function setError(message: string) {
     errorMessage.value = message;
     successMessage.value = '';
-}
-
-function clearDialogPrepareFallbackTimer() {
-    if (dialogPrepareFallbackTimer) {
-        clearTimeout(dialogPrepareFallbackTimer);
-        dialogPrepareFallbackTimer = null;
-    }
-}
-
-function startDialogPreparationLoading() {
-    if (dialogPreparationLoadingId) return;
-    dialogPreparationLoadingId = smartLoading.start({ label: 'Cargando información...' });
-}
-
-function stopDialogPreparationLoading() {
-    if (!dialogPreparationLoadingId) return;
-    smartLoading.stop(dialogPreparationLoadingId);
-    dialogPreparationLoadingId = null;
-}
-
-function finishDialogPreparation(token: number) {
-    if (token !== dialogPrepareToken) return;
-    isPreparingDialog.value = false;
-    isDialogBootstrapping.value = false;
-    clearDialogPrepareFallbackTimer();
-    stopDialogPreparationLoading();
 }
 
 function getErrorMessage(err: unknown, fallback: string) {
@@ -179,6 +159,10 @@ async function fetchItems(page = 1) {
 
     if (statusFilter.value !== 'all') {
         params.status = statusFilter.value; // boolean
+    }
+
+    if (originFilter.value !== 'all') {
+        params.origin_type = originFilter.value;
     }
 
     try {
@@ -274,39 +258,15 @@ async function downloadTemplate() {
     }
 }
 
-async function openDialog(type: DialogType, item: Item | null = null) {
-    if (isPreparingDialog.value) return;
-
-    const token = ++dialogPrepareToken;
-    isPreparingDialog.value = true;
-    isDialogBootstrapping.value = true;
-    startDialogPreparationLoading();
-
+function openDialog(type: DialogType, item: Item | null = null) {
+    if (isDialogOpen.value) return;
     dialogType.value = type;
     form.value = item ? { ...item } : getEmptyForm();
-
-    await nextTick();
-    if (token !== dialogPrepareToken) return;
-
     isDialogOpen.value = true;
-
-    clearDialogPrepareFallbackTimer();
-    dialogPrepareFallbackTimer = setTimeout(() => {
-        finishDialogPreparation(token);
-    }, DIALOG_PREPARE_FALLBACK_MS);
 }
 
 function closeDialog() {
     isDialogOpen.value = false;
-    finishDialogPreparation(dialogPrepareToken);
-}
-
-function handleDialogLoadingState(value: boolean) {
-    if (!isDialogBootstrapping.value) return;
-
-    if (value) return;
-
-    finishDialogPreparation(dialogPrepareToken);
 }
 
 async function handleDialogRefresh() {
@@ -331,6 +291,10 @@ function openStatusDialog(item: Item) {
 
 function openBulkDialog() {
     isBulkDialogOpen.value = true;
+}
+
+function shouldHighlightImportedItem(item: Item): boolean {
+    return item.origin_type === 'migration' && !item.was_edited_after_import;
 }
 
 function closeBulkDialog() {
@@ -358,13 +322,29 @@ watch(statusFilter, async () => {
     await fetchItems(1);
 });
 
+watch(originFilter, async () => {
+    currentPage.value = 1;
+    await fetchItems(1);
+});
+
 onMounted(async () => {
     await fetchItems(currentPage.value);
+
+    // Precargar subgrupos y taxes para que estén listos
+    // cuando el usuario abra el dialog de edición
+    try {
+        const [sgRes, taxRes] = await Promise.all([
+            axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } }),
+            axios.get('/impuestos/data', { params: { per_page: 100, status: true } }),
+        ]);
+        preloadedSubGroups.value = sgRes.data?.data ?? [];
+        preloadedTaxes.value = (taxRes.data?.data ?? []).filter((t: any) => t.status);
+    } catch (e) {
+        // silencioso — el dialog los cargará por su cuenta si falla
+    }
 });
 
 onBeforeUnmount(() => {
-    clearDialogPrepareFallbackTimer();
-    stopDialogPreparationLoading();
     if (activeFetchController) {
         activeFetchController.abort();
         activeFetchController = null;
@@ -396,7 +376,7 @@ onBeforeUnmount(() => {
                         @click="openDialog('create')"
                         variant="default"
                         size="sm"
-                        :disabled="isPreparingDialog"
+                        :disabled="isDialogOpen"
                         class="flex h-10 items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
                     >
                         <PlusCircle class="h-4 w-4" /> Crear nuevo ítem
@@ -461,6 +441,10 @@ onBeforeUnmount(() => {
                 <FilterField label="Estado" :active="statusFilter !== 'all'" class="min-w-[180px]">
                     <SelectField v-model="statusFilter" label="" :options="statusOptions" placeholder="Estado" :button-class="statusButtonClasses" />
                 </FilterField>
+
+                <FilterField label="Origen" :active="originFilter !== 'all'" class="min-w-[180px]">
+                    <SelectField v-model="originFilter" label="" :options="originOptions" placeholder="Origen" :button-class="originButtonClasses" />
+                </FilterField>
             </FilterBar>
 
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
@@ -478,7 +462,16 @@ onBeforeUnmount(() => {
                         </TableHeader>
 
                         <TableBody>
-                            <TableRow v-for="item in items" :key="item.id" class="text-center">
+                            <TableRow
+                                v-for="item in items"
+                                :key="item.id"
+                                :class="[
+                                    'text-center',
+                                    shouldHighlightImportedItem(item)
+                                        ? 'bg-red-50/70 transition-colors hover:bg-red-50 dark:bg-red-950/20 dark:hover:bg-red-950/30'
+                                        : '',
+                                ]"
+                            >
                                 <TableCell>{{ item.id }}</TableCell>
                                 <TableCell>{{ item.name }}</TableCell>
                                 <TableCell>{{ item.reference }}</TableCell>
@@ -581,10 +574,10 @@ onBeforeUnmount(() => {
             :isOpen="isDialogOpen"
             :dialogType="dialogType"
             :form="form"
-            :defer-content="isPreparingDialog"
+            :preloaded-sub-groups="preloadedSubGroups"
+            :preloaded-taxes="preloadedTaxes"
             @close="closeDialog"
             @refresh="handleDialogRefresh"
-            @loading-state="handleDialogLoadingState"
         />
 
         <ConfirmDialog

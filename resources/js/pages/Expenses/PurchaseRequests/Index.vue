@@ -14,13 +14,12 @@ import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
 import type { PurchaseRequest } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { CheckCircle, Eye, MoreVertical, PlusCircle, Search, Send, X, XCircle } from 'lucide-vue-next';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseRequestDialog from './PurchaseRequestDialog.vue';
 
 const breadcrumbs = [{ title: 'Solicitud de compra', href: '/solicitudes-compra' }];
@@ -143,146 +142,37 @@ const isDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
 const dialogForm = ref<Partial<PurchaseRequest>>({});
 const dialogReadonly = ref(false);
-const isPreparingDialog = ref(false);
-const isDialogBootstrapping = ref(false);
-const hasDialogLoadingStarted = ref(false);
 const isDeleteDialogOpen = ref(false);
 const requestToDelete = ref<PurchaseRequest | null>(null);
 const isRejectDialogOpen = ref(false);
 const requestToReject = ref<PurchaseRequest | null>(null);
-const DIALOG_PREPARE_FALLBACK_MS = 1500;
-let dialogPrepareToken = 0;
-let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
-let dialogPreparationLoadingId: SmartLoadingTaskId | null = null;
-const smartLoading = useSmartLoading();
-
-function clearDialogPrepareFallbackTimer() {
-    if (dialogPrepareFallbackTimer) {
-        clearTimeout(dialogPrepareFallbackTimer);
-        dialogPrepareFallbackTimer = null;
-    }
-}
-
-function startDialogPreparationLoading() {
-    if (dialogPreparationLoadingId) return;
-    dialogPreparationLoadingId = smartLoading.start({ label: 'Cargando información...' });
-}
-
-function stopDialogPreparationLoading() {
-    if (!dialogPreparationLoadingId) return;
-    smartLoading.stop(dialogPreparationLoadingId);
-    dialogPreparationLoadingId = null;
-}
-
-function finishDialogPreparation(token: number) {
-    if (token !== dialogPrepareToken) return;
-    isPreparingDialog.value = false;
-    isDialogBootstrapping.value = false;
-    hasDialogLoadingStarted.value = false;
-    clearDialogPrepareFallbackTimer();
-    stopDialogPreparationLoading();
-}
-
-async function startDialogPreparationContext() {
-    if (isPreparingDialog.value) return null;
-
-    const token = ++dialogPrepareToken;
-    isPreparingDialog.value = true;
-    isDialogBootstrapping.value = true;
-    hasDialogLoadingStarted.value = false;
-    clearDialogPrepareFallbackTimer();
-    startDialogPreparationLoading();
-
-    return token;
-}
-
-function armDialogPreparationFallback(token: number) {
-    clearDialogPrepareFallbackTimer();
-    dialogPrepareFallbackTimer = setTimeout(() => {
-        finishDialogPreparation(token);
-    }, DIALOG_PREPARE_FALLBACK_MS);
-}
-
 function closeDialog() {
     isDialogOpen.value = false;
-    finishDialogPreparation(dialogPrepareToken);
 }
 
-async function openCreateRequest() {
-    const token = await startDialogPreparationContext();
-    if (token === null) return;
-
+function openCreateRequest() {
     dialogType.value = 'create';
     dialogForm.value = {};
     dialogReadonly.value = false;
-
-    await nextTick();
-    if (token !== dialogPrepareToken) return;
-
     isDialogOpen.value = true;
-    armDialogPreparationFallback(token);
 }
 
-async function viewRequest(request: PurchaseRequest) {
+function viewRequest(request: PurchaseRequest) {
     if (!request.id) return;
 
-    const token = await startDialogPreparationContext();
-    if (token === null) return;
-
     dialogType.value = 'edit';
-    try {
-        const response = await axios.get(`/gastos/solicitudes-compra/${request.id}`);
-        if (token !== dialogPrepareToken) return;
-        dialogForm.value = response.data?.data || {};
-        dialogReadonly.value = true;
-
-        await nextTick();
-        if (token !== dialogPrepareToken) return;
-
-        isDialogOpen.value = true;
-        armDialogPreparationFallback(token);
-    } catch (error) {
-        finishDialogPreparation(token);
-        showError('No se pudo cargar la solicitud para edición.');
-        console.error('Error al obtener solicitud', error);
-    }
+    dialogForm.value = { ...request };
+    dialogReadonly.value = true;
+    isDialogOpen.value = true;
 }
 
-async function editRequest(request: PurchaseRequest) {
+function editRequest(request: PurchaseRequest) {
     if (!request.id) return;
 
-    const token = await startDialogPreparationContext();
-    if (token === null) return;
-
     dialogType.value = 'edit';
-    try {
-        const response = await axios.get(`/gastos/solicitudes-compra/${request.id}`);
-        if (token !== dialogPrepareToken) return;
-        dialogForm.value = response.data?.data || {};
-        dialogReadonly.value = false;
-
-        await nextTick();
-        if (token !== dialogPrepareToken) return;
-
-        isDialogOpen.value = true;
-        armDialogPreparationFallback(token);
-    } catch (error) {
-        finishDialogPreparation(token);
-        showError('No se pudo cargar la solicitud para edición.');
-        console.error('Error al obtener solicitud', error);
-    }
-}
-
-function handleDialogLoadingState(value: boolean) {
-    if (!isDialogBootstrapping.value) return;
-
-    if (value) {
-        hasDialogLoadingStarted.value = true;
-        return;
-    }
-
-    if (!hasDialogLoadingStarted.value) return;
-    finishDialogPreparation(dialogPrepareToken);
+    dialogForm.value = { ...request };
+    dialogReadonly.value = false;
+    isDialogOpen.value = true;
 }
 
 function confirmDeleteRequest(request: PurchaseRequest) {
@@ -473,11 +363,6 @@ watch(searchQuery, () => {
 onMounted(() => {
     fetchRequests();
 });
-
-onBeforeUnmount(() => {
-    clearDialogPrepareFallbackTimer();
-    stopDialogPreparationLoading();
-});
 </script>
 
 <template>
@@ -498,7 +383,6 @@ onBeforeUnmount(() => {
                 </div>
                 <button
                     type="button"
-                    :disabled="isPreparingDialog"
                     class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     @click="openCreateRequest"
                 >
@@ -643,10 +527,8 @@ onBeforeUnmount(() => {
                 :dialogType="dialogType"
                 :form="dialogForm"
                 :readonly="dialogReadonly"
-                :defer-content="isPreparingDialog"
                 @close="closeDialog"
                 @refresh="handleDialogRefresh"
-                @loading-state="handleDialogLoadingState"
             />
         </div>
     </AppLayout>

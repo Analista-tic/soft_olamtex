@@ -1,12 +1,13 @@
 <?php
 
-namespace App\Services\Finance;
+namespace App\Services\Expenses;
 
+use App\Models\Expenses\ExpenseVoucher;
 use App\Models\Inventory\InventoryPeriodLock;
-use App\Models\Finance\ExpenseVoucher;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchasePayment;
-use App\Services\Expenses\PurchasePaymentService;
+use App\Services\Finance\AccountingPostingService;
+use App\Services\Finance\TreasuryVoucherService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -62,8 +63,11 @@ class ExpenseVoucherService
         }
 
         if ($status === 'recorded') {
-            // Fase 1: todos los comprobantes persistidos se consideran registrados.
-            $matchingVoucherKeys->whereNotNull('purchase_payments.id');
+            $matchingVoucherKeys->whereNull('vouchers.voided_at');
+        }
+
+        if ($status === 'voided') {
+            $matchingVoucherKeys->whereNotNull('vouchers.voided_at');
         }
 
         if ($dateFrom) {
@@ -95,6 +99,7 @@ class ExpenseVoucherService
             ->selectRaw('MAX(vouchers.payment_method) AS payment_method')
             ->selectRaw('COALESCE(MAX(vouchers.reference), MAX(purchase_payments.reference)) AS reference')
             ->selectRaw('COALESCE(MAX(vouchers.notes), MAX(purchase_payments.notes)) AS notes')
+            ->selectRaw('MAX(vouchers.voided_at) AS voided_at')
             ->selectRaw('MIN(purchase_payments.purchase_invoice_id) AS invoice_id')
             ->selectRaw('MAX(purchase_documents.document_number) AS invoice_number')
             ->selectRaw('COUNT(*) AS applications_count')
@@ -427,6 +432,26 @@ class ExpenseVoucherService
         });
     }
 
+    public function void(int $voucherId, string $reason): void
+    {
+        $voucher = $this->resolveVoucherForMutation($voucherId);
+
+        if ($voucher->isVoided()) {
+            throw ValidationException::withMessages([
+                'voucher' => 'Este comprobante ya está anulado.',
+            ]);
+        }
+
+        DB::transaction(function () use ($voucher, $reason) {
+            $voucher->update([
+                'voided_at' => now(),
+                'void_reason' => trim($reason),
+            ]);
+            // Si existe asiento contable asociado, agregar aquí
+            // la lógica de reversión. Por ahora solo marca el voucher.
+        });
+    }
+
     private function normalizeApplications(array $rows): Collection
     {
         return collect($rows)
@@ -525,12 +550,68 @@ class ExpenseVoucherService
         return $key;
     }
 
+    private function resolveVoucherStatus(?string $voidedAt): array
+    {
+        if ($voidedAt !== null) {
+            return [
+                'status' => 'voided',
+                'status_label' => 'Anulado',
+                'status_tone' => 'red',
+            ];
+        }
+
+        return [
+            'status' => 'recorded',
+            'status_label' => 'Registrado',
+            'status_tone' => 'green',
+        ];
+    }
+
+    private function resolveVoucherForMutation(int $voucherId): ExpenseVoucher
+    {
+        $payment = PurchasePayment::query()->whereKey($voucherId)->first();
+
+        if ($payment) {
+            $voucherNumber = $payment->voucher_number ?? (int) $payment->id;
+            $voucher = ExpenseVoucher::query()
+                ->where('voucher_number', $voucherNumber)
+                ->first();
+
+            if ($voucher instanceof ExpenseVoucher) {
+                return $voucher;
+            }
+        }
+
+        $voucher = ExpenseVoucher::query()
+            ->whereKey($voucherId)
+            ->orWhere('voucher_number', $voucherId)
+            ->first();
+
+        if ($voucher instanceof ExpenseVoucher) {
+            return $voucher;
+        }
+
+        throw (new ModelNotFoundException())->setModel(ExpenseVoucher::class, [$voucherId]);
+    }
+
+    private function resolvePaymentVoucherVoidedAt(PurchasePayment $payment): ?string
+    {
+        $voucherNumber = $payment->voucher_number ?? (int) $payment->id;
+
+        $voidedAt = ExpenseVoucher::query()
+            ->where('voucher_number', $voucherNumber)
+            ->value('voided_at');
+
+        return $voidedAt !== null ? (string) $voidedAt : null;
+    }
+
     private function mapPaymentRow(PurchasePayment $payment): array
     {
         $supplierName = $payment->invoice?->supplier?->full_name ?? '-';
         $invoiceNumber = $payment->invoice?->document_number;
         $reference = $payment->reference;
         $notes = $payment->notes;
+        $status = $this->resolveVoucherStatus($this->resolvePaymentVoucherVoidedAt($payment));
 
         $details = collect([
             $invoiceNumber ? "Factura: {$invoiceNumber}" : null,
@@ -555,9 +636,7 @@ class ExpenseVoucherService
             'reference' => $reference,
             'notes' => $notes,
             'total_applied' => round((float) $payment->amount, 2),
-            'status' => 'recorded',
-            'status_label' => 'Registrado',
-            'status_tone' => 'green',
+            ...$status,
             'created_by' => $payment->creator?->name,
         ];
     }
@@ -571,6 +650,7 @@ class ExpenseVoucherService
         $paymentMethod = $row->payment_method ? (string) $row->payment_method : null;
         $paymentMethodLabel = $this->resolvePaymentMethodLabel($paymentMethod);
         $accountLabel = $this->resolveAccountLabel($accountId);
+        $status = $this->resolveVoucherStatus($row->voided_at ? (string) $row->voided_at : null);
 
         $details = collect([
             $applicationsCount > 1
@@ -601,9 +681,7 @@ class ExpenseVoucherService
             'reference' => $reference,
             'notes' => $row->notes ? (string) $row->notes : null,
             'total_applied' => round((float) ($row->total_applied ?? 0), 2),
-            'status' => 'recorded',
-            'status_label' => 'Registrado',
-            'status_tone' => 'green',
+            ...$status,
             'created_by' => $row->created_by ? (string) $row->created_by : null,
         ];
     }
@@ -633,6 +711,7 @@ class ExpenseVoucherService
         $invoiceNumber = $primary->invoice?->document_number;
         $reference = $voucherHeader?->reference ?? $primary->reference;
         $notes = $voucherHeader?->notes ?? $primary->notes;
+        $status = $this->resolveVoucherStatus($voucherHeader?->voided_at?->format('Y-m-d H:i:s'));
 
         $details = collect([
             $invoiceNumber ? "Factura: {$invoiceNumber}" : null,
@@ -663,9 +742,7 @@ class ExpenseVoucherService
             'reference' => $reference,
             'notes' => $notes,
             'total_applied' => round((float) $rows->sum(fn (PurchasePayment $row) => (float) $row->amount), 2),
-            'status' => 'recorded',
-            'status_label' => 'Registrado',
-            'status_tone' => 'green',
+            ...$status,
             'created_by' => $primary->creator?->name,
             'applications' => $rows->map(function (PurchasePayment $row) use ($financialByDocumentId) {
                 $documentId = (int) $row->purchase_invoice_id;

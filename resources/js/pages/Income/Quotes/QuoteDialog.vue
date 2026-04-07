@@ -1,20 +1,22 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
-import FormDialogContent from '@/components/FormDialogContent.vue';
-import QuoteItemsTable from '@/pages/Income/Quotes/QuoteItemsTable.vue';
-import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
+import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import InputField from '@/components/InputField.vue';
+import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import { mapToCreateQuoteDto, type Quote, type QuoteItem } from '@/domain/Income';
 import type { Contact } from '@/domain/MasterData';
+import QuoteItemsTable from '@/pages/Income/Quotes/QuoteItemsTable.vue';
 import { useIncomeStore } from '@/stores/income';
 import axios from 'axios';
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{
     open: boolean;
@@ -29,9 +31,6 @@ const emit = defineEmits<{
 
 const incomeStore = useIncomeStore();
 
-const isLoading = ref(false);
-const allowOverlay = ref(false);
-const loadingCounter = ref(0);
 const isSaving = ref(false);
 const contacts = ref<Contact[]>([]);
 const localQuote = ref<Partial<Quote>>(createDefaultQuote());
@@ -40,11 +39,6 @@ const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const confirmConvertOpen = ref(false);
 const quoteItemsTableRef = ref<{ addItem: () => void } | null>(null);
-const previousBodyOverflow = ref<string | null>(null);
-const showOverlay = ref(false);
-
-let overlayDelayTimer: ReturnType<typeof setTimeout> | null = null;
-const OVERLAY_DELAY_MS = 150;
 
 function getToday(): string {
     const today = new Date();
@@ -141,7 +135,9 @@ const dialogOpen = computed({
     get: () => props.open,
     set: (value: boolean) => emit('update:open', value),
 });
-const shouldShowOverlay = computed(() => dialogOpen.value && allowOverlay.value && isLoading.value);
+
+const { isBootstrapping, isHydrating, isBlockingLoading, canRenderForm, startLoadingRun, isCurrentLoadingRun, cancelLoadingRun } =
+    useDialogLoadingState(dialogOpen);
 
 const isViewMode = computed(() => props.mode === 'view');
 const quoteStatus = computed(() => localQuote.value.status ?? 'draft');
@@ -174,9 +170,7 @@ const discountAmount = computed(() =>
     }, 0),
 );
 
-const taxesAmount = computed(() =>
-    quoteItems.value.reduce((total, item) => total + roundCurrency(Number(item.total_tax) || 0), 0),
-);
+const taxesAmount = computed(() => quoteItems.value.reduce((total, item) => total + roundCurrency(Number(item.total_tax) || 0), 0));
 
 const totalAmount = computed(() => roundCurrency(subtotalAmount.value - discountAmount.value + taxesAmount.value));
 
@@ -213,36 +207,6 @@ function formatCurrency(value: number): string {
     });
 }
 
-function clearOverlayDelay() {
-    if (overlayDelayTimer) {
-        clearTimeout(overlayDelayTimer);
-        overlayDelayTimer = null;
-    }
-}
-
-function hideOverlay() {
-    clearOverlayDelay();
-    showOverlay.value = false;
-}
-
-function handleLoadingState(state: boolean) {
-    isLoading.value = state;
-    if (state) {
-        allowOverlay.value = true;
-    }
-}
-
-function updateLoadingState(delta: number) {
-    loadingCounter.value = Math.max(0, loadingCounter.value + delta);
-    handleLoadingState(loadingCounter.value > 0);
-}
-
-function trackLoading<T>(work: () => Promise<T>): Promise<T> {
-    updateLoadingState(1);
-    const promise = Promise.resolve().then(work);
-    return promise.finally(() => updateLoadingState(-1));
-}
-
 async function fetchContacts() {
     const response = await axios.get('/contactos/data', {
         params: { per_page: 1000 },
@@ -252,28 +216,49 @@ async function fetchContacts() {
 }
 
 async function loadDialogData() {
+    const currentRun = startLoadingRun();
     successMessage.value = '';
     errorMessage.value = '';
 
-    await trackLoading(async () => {
-        try {
-            await fetchContacts();
+    try {
+        isBootstrapping.value = true;
+        await fetchContacts();
+    } catch (error: any) {
+        if (isCurrentLoadingRun(currentRun)) {
+            setError(normalizeErrorMessage(error, 'No se pudieron cargar los clientes.'));
+        }
+    } finally {
+        if (isCurrentLoadingRun(currentRun)) {
+            isBootstrapping.value = false;
+        }
+    }
 
-            if (props.mode === 'create') {
-                localQuote.value = createDefaultQuote();
-                return;
-            }
+    if (!isCurrentLoadingRun(currentRun)) return;
 
-            if (!props.quoteId) {
-                throw new Error('No se recibio el identificador de la cotizacion.');
-            }
+    if (props.mode === 'create') {
+        localQuote.value = createDefaultQuote();
+        return;
+    }
 
-            const quote = await incomeStore.fetchQuote(props.quoteId);
-            localQuote.value = cloneQuote(quote);
-        } catch (error: any) {
+    if (!props.quoteId) {
+        setError('No se recibio el identificador de la cotizacion.');
+        return;
+    }
+
+    isHydrating.value = true;
+    try {
+        const quote = await incomeStore.fetchQuote(props.quoteId);
+        if (!isCurrentLoadingRun(currentRun)) return;
+        localQuote.value = cloneQuote(quote);
+    } catch (error: any) {
+        if (isCurrentLoadingRun(currentRun)) {
             setError(normalizeErrorMessage(error, 'No se pudo cargar la cotizacion.'));
         }
-    });
+    } finally {
+        if (isCurrentLoadingRun(currentRun)) {
+            isHydrating.value = false;
+        }
+    }
 }
 
 function normalizeErrorMessage(error: unknown, fallback: string): string {
@@ -409,66 +394,16 @@ watch(
     () => props.open,
     (open) => {
         if (open) {
-            allowOverlay.value = true;
             void loadDialogData();
         } else {
             successMessage.value = '';
             errorMessage.value = '';
             confirmConvertOpen.value = false;
-            allowOverlay.value = false;
-            isLoading.value = false;
-            hideOverlay();
-            loadingCounter.value = 0;
+            cancelLoadingRun();
         }
     },
     { immediate: true },
 );
-
-watch(
-    shouldShowOverlay,
-    (value) => {
-        if (!value) {
-            hideOverlay();
-            return;
-        }
-
-        clearOverlayDelay();
-        overlayDelayTimer = setTimeout(() => {
-            overlayDelayTimer = null;
-            if (shouldShowOverlay.value) {
-                showOverlay.value = true;
-            }
-        }, OVERLAY_DELAY_MS);
-    },
-    { immediate: true },
-);
-
-watch(showOverlay, (value) => {
-    if (typeof document === 'undefined') {
-        return;
-    }
-
-    if (value) {
-        if (previousBodyOverflow.value === null) {
-            previousBodyOverflow.value = document.body.style.overflow;
-        }
-        document.body.style.overflow = 'hidden';
-        return;
-    }
-
-    if (previousBodyOverflow.value !== null) {
-        document.body.style.overflow = previousBodyOverflow.value;
-        previousBodyOverflow.value = null;
-    }
-});
-
-onBeforeUnmount(() => {
-    clearOverlayDelay();
-    if (typeof document !== 'undefined') {
-        document.body.style.overflow = previousBodyOverflow.value ?? '';
-    }
-    previousBodyOverflow.value = null;
-});
 
 watch(
     () => localQuote.value.payment_terms,
@@ -482,19 +417,7 @@ watch(
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <div
-            v-if="showOverlay"
-            class="fixed inset-0 z-[2000] grid cursor-wait place-items-center bg-background/60 backdrop-blur-sm"
-        >
-            <div class="rounded-xl border border-border bg-card px-6 py-5 shadow-xl">
-                <div class="flex items-center gap-3">
-                    <span class="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
-                    <p class="text-sm font-medium text-foreground">Cargando información...</p>
-                </div>
-            </div>
-        </div>
-
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
+        <FormDialogContent class="flex max-h-[95vh] max-w-[95vw] flex-col px-2 py-2">
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
@@ -508,8 +431,16 @@ watch(
                 <DialogDescription>{{ dialogDescription }}</DialogDescription>
             </DialogHeader>
 
-            <div class="min-h-0 flex-1 space-y-6 overflow-y-auto p-5">
-                <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div class="relative min-h-0 flex-1 space-y-6 overflow-y-auto p-5" :class="{ 'min-h-[420px]': isBlockingLoading }">
+                <FormLoadingOverlay
+                    :active="isBlockingLoading"
+                    :delay-ms="0"
+                    message="Cargando cotización..."
+                    description="Preparando clientes y datos iniciales necesarios."
+                />
+
+                <template v-if="canRenderForm">
+                    <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
                         <div>
                             <label class="text-sm font-medium text-foreground">N° Cotización</label>
                             <div class="mt-1 flex h-9 items-center rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
@@ -529,7 +460,13 @@ watch(
                             search-placeholder="Buscar cliente..."
                         />
                         <DatePickerField v-model="localQuote.date" label="Fecha emision" :disabled="isReadOnly" :show-today="true" />
-                        <DatePickerField v-model="localQuote.due_date" label="Fecha vencimiento" :disabled="isReadOnly" :clearable="true" :show-today="true" />
+                        <DatePickerField
+                            v-model="localQuote.due_date"
+                            label="Fecha vencimiento"
+                            :disabled="isReadOnly"
+                            :clearable="true"
+                            :show-today="true"
+                        />
                         <InputField
                             v-model="localQuote.customer_order_number"
                             label="Referencia cliente"
@@ -556,47 +493,53 @@ watch(
                                 />
                             </div>
                         </div>
-                </div>
+                    </div>
 
-                <InventoryDetailTableLayout
-                    title="Items"
-                    description="Agrega los productos o servicios de la cotizacion."
-                    :show-create-line-button="!isReadOnly"
-                    :create-line-button-disabled="isReadOnly"
-                    button-label="Crear item"
-                    @create-line="handleAddLine"
-                >
-                    <QuoteItemsTable ref="quoteItemsTableRef" :items="quoteItems" :readonly="isReadOnly" @update:items="(items) => (localQuote.items = items)" />
-                </InventoryDetailTableLayout>
+                    <InventoryDetailTableLayout
+                        title="Items"
+                        description="Agrega los productos o servicios de la cotizacion."
+                        :show-create-line-button="!isReadOnly"
+                        :create-line-button-disabled="isReadOnly"
+                        button-label="Crear item"
+                        @create-line="handleAddLine"
+                    >
+                        <QuoteItemsTable
+                            ref="quoteItemsTableRef"
+                            :items="quoteItems"
+                            :readonly="isReadOnly"
+                            @update:items="(items) => (localQuote.items = items)"
+                        />
+                    </InventoryDetailTableLayout>
 
-                <div class="flex justify-end">
-                    <div class="w-full max-w-sm space-y-2 rounded-lg border border-border bg-muted/20 p-4">
-                        <div class="flex items-center justify-between text-sm">
-                            <span class="text-muted-foreground">Subtotal</span>
-                            <span class="font-medium">{{ formatCurrency(subtotalAmount) }}</span>
-                        </div>
-                        <div class="flex items-center justify-between text-sm">
-                            <span class="text-muted-foreground">Descuentos</span>
-                            <span class="font-medium">{{ formatCurrency(discountAmount) }}</span>
-                        </div>
-                        <div class="flex items-center justify-between text-sm">
-                            <span class="text-muted-foreground">Impuestos</span>
-                            <span class="font-medium">{{ formatCurrency(taxesAmount) }}</span>
-                        </div>
-                        <div class="flex items-center justify-between border-t border-border pt-2 text-sm">
-                            <span class="font-semibold text-foreground">Total</span>
-                            <span class="text-base font-semibold text-foreground">{{ formatCurrency(totalAmount) }}</span>
+                    <div class="flex justify-end">
+                        <div class="w-full max-w-sm space-y-2 rounded-lg border border-border bg-muted/20 p-4">
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-muted-foreground">Subtotal</span>
+                                <span class="font-medium">{{ formatCurrency(subtotalAmount) }}</span>
+                            </div>
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-muted-foreground">Descuentos</span>
+                                <span class="font-medium">{{ formatCurrency(discountAmount) }}</span>
+                            </div>
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-muted-foreground">Impuestos</span>
+                                <span class="font-medium">{{ formatCurrency(taxesAmount) }}</span>
+                            </div>
+                            <div class="flex items-center justify-between border-t border-border pt-2 text-sm">
+                                <span class="font-semibold text-foreground">Total</span>
+                                <span class="text-base font-semibold text-foreground">{{ formatCurrency(totalAmount) }}</span>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <TextareaField
-                    :model-value="localQuote.description ?? undefined"
-                    label="Notas"
-                    placeholder="Agrega observaciones para la cotizacion"
-                    :readonly="isReadOnly"
-                    @update:modelValue="localQuote.description = $event"
-                />
+                    <TextareaField
+                        :model-value="localQuote.description ?? undefined"
+                        label="Notas"
+                        placeholder="Agrega observaciones para la cotizacion"
+                        :readonly="isReadOnly"
+                        @update:modelValue="localQuote.description = $event"
+                    />
+                </template>
             </div>
 
             <DialogFooter class="flex-shrink-0 justify-end gap-2 border-t border-sidebar-border/70 px-5 py-4 dark:border-sidebar-border">
@@ -609,7 +552,7 @@ watch(
                     type="button"
                     variant="outline"
                     size="pill"
-                    :disabled="isSaving || isLoading"
+                    :disabled="isSaving || isBlockingLoading"
                     @click="saveQuote('draft')"
                 >
                     {{ isSaving ? 'Guardando...' : 'Guardar borrador' }}
@@ -620,7 +563,7 @@ watch(
                     type="button"
                     size="pill"
                     class="shadow-sm"
-                    :disabled="isSaving || isLoading"
+                    :disabled="isSaving || isBlockingLoading"
                     @click="saveQuote('sent')"
                 >
                     {{ isSaving ? 'Guardando...' : 'Emitir' }}
@@ -631,7 +574,7 @@ watch(
                     type="button"
                     size="pill"
                     class="shadow-sm"
-                    :disabled="isSaving || isLoading"
+                    :disabled="isSaving || isBlockingLoading"
                     @click="confirmConvertOpen = true"
                 >
                     Convertir a Pedido
