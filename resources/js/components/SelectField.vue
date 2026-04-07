@@ -46,6 +46,7 @@ const props = withDefaults(
         actionSticky?: boolean;
         invalid?: boolean;
         errorMessage?: string;
+        loading?: boolean;
     }>(),
     {
         required: false,
@@ -66,6 +67,7 @@ const props = withDefaults(
         actionSticky: true,
         invalid: false,
         errorMessage: '',
+        loading: false,
     },
 );
 
@@ -371,7 +373,7 @@ watch(
                 :modelValue="comboboxValue"
                 :multiple="multiple"
                 :disabled="disabled"
-                :by="getOptionId"
+                by="id"
                 @update:modelValue="handleComboboxChange"
             >
                 <template #default="{ open }">
@@ -513,7 +515,10 @@ watch(
                                             </ComboboxOption>
                                         </template>
                                     </template>
-                                    <div v-if="filteredOptions.length === 0 && !customOption" class="px-3 py-2 text-sm text-muted-foreground/70">
+                                    <div v-if="loading" class="px-3 py-2 text-sm text-muted-foreground/70">
+                                        Buscando...
+                                    </div>
+                                    <div v-else-if="filteredOptions.length === 0 && !customOption" class="px-3 py-2 text-sm text-muted-foreground/70">
                                         <slot name="empty" :search-term="normalizedSearchTerm"> No se encontraron opciones. </slot>
                                     </div>
                                     <div v-if="$slots.footer" class="border-t border-border/70 bg-popover px-2 pb-2 pt-2">

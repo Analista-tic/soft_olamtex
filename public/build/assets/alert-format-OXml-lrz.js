@@ -1,0 +1,1 @@
+function o(n,t){if(!(t!=null&&t.length))return n;const m=t.map(r=>r.trim()).filter(Boolean).map(r=>r.endsWith("*")?r:`${r}*`);return m.length?`${n.trim().replace(/[:.]+$/,"")}: ${m.join(", ")}.`:n}export{o as f};

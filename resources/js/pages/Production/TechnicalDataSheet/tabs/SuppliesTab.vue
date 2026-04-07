@@ -379,12 +379,17 @@ function cloneCatalogOptions(options: SupplyCatalogOption[]): SupplyCatalogOptio
     return options.map((item) => ({ ...item }));
 }
 
-function mergeCatalogItems(incoming: SupplyCatalogOption[]): void {
-    const existingIds = new Set(catalogItems.value.map((i) => i.id));
-    const toAdd = incoming.filter((i) => !existingIds.has(i.id));
-    if (toAdd.length > 0) {
-        catalogItems.value = [...catalogItems.value, ...toAdd];
-    }
+function replaceCatalogItems(incoming: SupplyCatalogOption[]): void {
+    // Preservar items que están seleccionados en filas actuales pero no vienen en el nuevo resultado
+    const incomingIds = new Set(incoming.map((i) => i.id));
+    const selectedIds = new Set(
+        rows.value
+            .filter((r) => r.itemId !== null)
+            .map((r) => Number(r.itemId))
+            .filter((id) => Number.isFinite(id)),
+    );
+    const preserved = catalogItems.value.filter((i) => selectedIds.has(i.id) && !incomingIds.has(i.id));
+    catalogItems.value = [...preserved, ...incoming];
 }
 
 async function loadCatalog(search = ''): Promise<void> {
@@ -398,11 +403,7 @@ async function loadCatalog(search = ''): Promise<void> {
         const cached = catalogCache.get(cacheKey);
         if (cached) {
             if (requestId !== catalogRequestSequence.value) return;
-            if (isSearchQuery) {
-                mergeCatalogItems(cloneCatalogOptions(cached));
-            } else {
-                catalogItems.value = cloneCatalogOptions(cached);
-            }
+            replaceCatalogItems(cloneCatalogOptions(cached));
             preserveDraftCatalogOptions();
             return;
         }
@@ -426,17 +427,13 @@ async function loadCatalog(search = ''): Promise<void> {
         if (requestId !== catalogRequestSequence.value) {
             // Si la carga inicial llega tarde pero el catálogo está vacío, igual poblar.
             if (!isSearchQuery && catalogItems.value.length === 0) {
-                catalogItems.value = cloneCatalogOptions(mappedItems);
+                replaceCatalogItems(cloneCatalogOptions(mappedItems));
                 preserveDraftCatalogOptions();
             }
             return;
         }
 
-        if (isSearchQuery) {
-            mergeCatalogItems(mappedItems);
-        } else {
-            catalogItems.value = mappedItems;
-        }
+        replaceCatalogItems(mappedItems);
         preserveDraftCatalogOptions();
     } catch (err) {
         if (requestId !== catalogRequestSequence.value) return;
@@ -955,6 +952,7 @@ watch(
                                         :options="getItemOptions(meta.row)"
                                         :searchable="true"
                                         :allow-custom="false"
+                                        :loading="isLoadingCatalog"
                                         search-placeholder="Buscar insumo..."
                                         placeholder="Selecciona item"
                                         :disabled="isSaving"

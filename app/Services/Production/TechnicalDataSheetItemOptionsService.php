@@ -31,9 +31,16 @@ class TechnicalDataSheetItemOptionsService
                 if ($groupLike !== null) {
                     $builder->whereRaw('LOWER(name) LIKE ?', [$groupLike]);
                 } else {
-                    // Sin grupo específico: retornar ítems de insumos y materia prima
+                    // Sin grupo específico: retornar ítems de categorías de suministro
+                    // Incluye: Insumos, Materia Prima, Suministros, Papelería y Aseo, Repuestos, Herramientas, EPP
+                    // Excluye: Servicios, Migración Legacy, Aditamentos
                     $builder->whereRaw('LOWER(name) LIKE ?', ['%insumo%'])
-                            ->orWhereRaw('LOWER(name) LIKE ?', ['%materia prima%']);
+                            ->orWhereRaw('LOWER(name) LIKE ?', ['%materia prima%'])
+                            ->orWhereRaw('LOWER(name) LIKE ?', ['%suministro%'])
+                            ->orWhereRaw('LOWER(name) LIKE ?', ['%papelería%'])
+                            ->orWhereRaw('LOWER(name) LIKE ?', ['%repuesto%'])
+                            ->orWhereRaw('LOWER(name) LIKE ?', ['%herramienta%'])
+                            ->orWhereRaw('LOWER(name) LIKE ?', ['%epp%']);
                 }
             })
             ->orderBy('name')
@@ -75,6 +82,26 @@ class TechnicalDataSheetItemOptionsService
 
         if (str_contains($group, 'materia prima')) {
             return '%materia prima%';
+        }
+
+        if (str_contains($group, 'suministro')) {
+            return '%suministro%';
+        }
+
+        if (str_contains($group, 'papelería') || str_contains($group, 'aseo')) {
+            return '%papelería%';
+        }
+
+        if (str_contains($group, 'repuesto')) {
+            return '%repuesto%';
+        }
+
+        if (str_contains($group, 'herramienta')) {
+            return '%herramienta%';
+        }
+
+        if (str_contains($group, 'epp')) {
+            return '%epp%';
         }
 
         return null;

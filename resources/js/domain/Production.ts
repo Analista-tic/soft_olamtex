@@ -1,72 +1,18 @@
 import axios from 'axios';
 
-export type SupplyStage = 'GENERAL' | 'CORTE' | 'CONFECCION' | 'TERMINACION' | 'OTRO';
-export type SupplyModaLinea = 'MODA' | 'LINEA' | 'NA';
+export type {
+    SupplyStage,
+    SupplyModaLinea,
+    SupplyItem,
+    SupplyRequestResult,
+    Grain,
+    Side,
+    CuttingPiece,
+    SizeUnit,
+    FabricType,
+} from './Production/types';
 
-export type SupplyItem = {
-    id?: string;
-    name: string;
-    stage: SupplyStage;
-    sequence?: number | null;
-    displayLabel?: string;
-    itemId?: number | null;
-    requestedName?: string | null;
-    supplier?: string | null;
-    description?: string | null;
-    modaLinea?: SupplyModaLinea;
-    uom?: string | null;
-    qtyPerUnit: number;
-    unitCost: number;
-    internalRequestId?: number | null;
-    purchaseRequestId?: number | null;
-    documentUrl?: string | null;
-    notes?: string | null;
-    isDraft?: boolean;
-    sizeMeasurements?: Record<string, { corte: number; termi: number }> | null;
-};
-
-export type SupplyRequestResult = {
-    message?: string;
-    item?: { id: number; name: string; description?: string | null };
-    request?: { id: number; document_number?: string; status?: string };
-    purchase_request?: { id: number; request_number?: string; status?: string; document_url?: string | null };
-};
-
-export type { Grain, Side, TraceLocation, FabricPieceType, CuttingPiece, SizeUnit } from './Production/types';
-
-export async function fetchOpSupplies(opId: string | number): Promise<SupplyItem[]> {
-    const { data } = await axios.get(`/produccion/ficha-tecnica/${opId}/insumos`);
-    return Array.isArray(data) ? data : [];
-}
-
-export async function saveOpSupplies(opId: string | number, items: SupplyItem[]): Promise<SupplyItem[]> {
-    const { data } = await axios.put(`/produccion/ficha-tecnica/${opId}/insumos`, { items });
-    return Array.isArray(data) ? data : [];
-}
-
-
-export async function fetchSupplyCatalogItems(search = ''): Promise<
-    Array<{ id: number; label: string; description?: string | null; supplier?: string | null; suggestedPrice?: number | null; is_draft?: boolean; imageUrl?: string | null }>
-> {
-    const { data } = await axios.get('/produccion/ficha-tecnica/insumos/opciones', {
-        params: { group: 'insumos', search: search || undefined, status: 'habilitado' },
-    });
-    const raw = Array.isArray(data) ? data : [];
-    return raw.map((item: { id: number; name?: string; reference?: string | null; is_draft?: boolean; item_type?: string; img_url?: string | null }) => {
-        const name = String(item.name ?? '').trim();
-        const reference = item.reference ? String(item.reference).trim() : null;
-        const label = reference ? `${name} (${reference})` : name;
-        return {
-            id: Number(item.id),
-            label,
-            description: null,
-            supplier: null,
-            suggestedPrice: null,
-            is_draft: item.is_draft === true || item.item_type === 'draft',
-            imageUrl: item.img_url ?? null,
-        };
-    });
-}
+// fetchOpSupplies, saveOpSupplies, fetchSupplyCatalogItems → re-exported from service below
 
 export async function fetchSettingsParameters(keys: string[]): Promise<Record<string, Array<{ id: string | number; name: string }>>> {
     const { data } = await axios.get('/settings/parameters', { params: { keys } });
@@ -275,4 +221,7 @@ export {
     requestSupplyItem,
     fetchOpThreads,
     saveOpThreads,
+    fetchOpSupplies,
+    saveOpSupplies,
+    fetchSupplyCatalogItems,
 } from './Production/service';
