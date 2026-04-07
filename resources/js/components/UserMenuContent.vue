@@ -3,7 +3,8 @@ import UserInfo from '@/components/UserInfo.vue';
 import { DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import type { User } from '@/domain/Settings';
 import type { NavItem } from '@/domain/shared';
-import { Link } from '@inertiajs/vue3';
+import { useAuthStore } from '@/stores/auth';
+import { Link, router } from '@inertiajs/vue3';
 import { LogOut, Pencil } from 'lucide-vue-next';
 
 interface Props {
@@ -14,6 +15,18 @@ interface Props {
 withDefaults(defineProps<Props>(), {
     items: () => [],
 });
+
+const auth = useAuthStore();
+
+function logout() {
+    router.post(
+        route('logout'),
+        {},
+        {
+            onSuccess: () => auth.$reset(),
+        },
+    );
+}
 </script>
 
 <template>
@@ -43,9 +56,9 @@ withDefaults(defineProps<Props>(), {
     </template>
     <DropdownMenuSeparator v-if="items.length" />
     <DropdownMenuItem :as-child="true">
-        <Link class="block w-full" method="post" :href="route('logout')" as="button">
+        <button type="button" class="flex w-full items-center" @click="logout">
             <LogOut class="mr-2 h-4 w-4" />
             Cerrar sesión
-        </Link>
+        </button>
     </DropdownMenuItem>
 </template>

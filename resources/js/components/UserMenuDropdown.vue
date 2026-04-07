@@ -11,11 +11,13 @@ import {
 import { useInitials } from '@/composables/useInitials';
 import type { User } from '@/domain/Settings/types';
 import type { SharedData } from '@/domain/shared';
+import { useAuthStore } from '@/stores/auth';
 import { router, usePage } from '@inertiajs/vue3';
 import { ChevronDown, LogOut, Settings, User as UserIcon } from 'lucide-vue-next';
 import { computed } from 'vue';
 
 const page = usePage<SharedData>();
+const auth = useAuthStore();
 const { getInitials } = useInitials();
 
 const user = computed(() => page.props.auth.user as User);
@@ -41,7 +43,13 @@ function goConfig() {
 }
 
 function logout() {
-    router.post(route('logout'));
+    router.post(
+        route('logout'),
+        {},
+        {
+            onSuccess: () => auth.$reset(),
+        },
+    );
 }
 </script>
 
