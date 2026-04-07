@@ -40,9 +40,11 @@ const breadcrumbs = [{ title: 'Catálogo de ítem', href: '/inventario/item' }];
 
 type DialogType = 'create' | 'edit';
 type StatusFilter = 'all' | boolean;
+type OriginFilter = 'all' | 'system' | 'migration';
 
 const ITEMS_PER_PAGE = 10;
 const DEFAULT_STATUS_FILTER: StatusFilter = 'all';
+const DEFAULT_ORIGIN_FILTER: OriginFilter = 'all';
 
 const actionButtonClass =
     'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
@@ -56,12 +58,19 @@ const statusOptions = [
     { id: false as const, name: 'Deshabilitados' },
 ];
 
+const originOptions = [
+    { id: 'all' as const, name: 'Todos los orígenes' },
+    { id: 'migration' as const, name: 'Migrados' },
+    { id: 'system' as const, name: 'Sistema' },
+];
+
 const items = ref<Item[]>([]);
 const totalItems = ref(0);
 const currentPage = ref(1);
 
 const searchQuery = ref('');
 const statusFilter = ref<StatusFilter>(DEFAULT_STATUS_FILTER);
+const originFilter = ref<OriginFilter>(DEFAULT_ORIGIN_FILTER);
 
 const isDialogOpen = ref(false);
 const dialogType = ref<DialogType>('create');
@@ -84,6 +93,8 @@ const errorMessage = ref('');
 
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
+const isOriginFilterActive = computed(() => originFilter.value !== DEFAULT_ORIGIN_FILTER);
+const originButtonClasses = useFilterButtonClasses(isOriginFilterActive);
 
 let activeFetchController: AbortController | null = null;
 
@@ -148,6 +159,10 @@ async function fetchItems(page = 1) {
 
     if (statusFilter.value !== 'all') {
         params.status = statusFilter.value; // boolean
+    }
+
+    if (originFilter.value !== 'all') {
+        params.origin_type = originFilter.value;
     }
 
     try {
@@ -278,6 +293,10 @@ function openBulkDialog() {
     isBulkDialogOpen.value = true;
 }
 
+function shouldHighlightImportedItem(item: Item): boolean {
+    return item.origin_type === 'migration' && !item.was_edited_after_import;
+}
+
 function closeBulkDialog() {
     isBulkDialogOpen.value = false;
 }
@@ -299,6 +318,11 @@ watch(searchQuery, () => {
 });
 
 watch(statusFilter, async () => {
+    currentPage.value = 1;
+    await fetchItems(1);
+});
+
+watch(originFilter, async () => {
     currentPage.value = 1;
     await fetchItems(1);
 });
@@ -417,6 +441,10 @@ onBeforeUnmount(() => {
                 <FilterField label="Estado" :active="statusFilter !== 'all'" class="min-w-[180px]">
                     <SelectField v-model="statusFilter" label="" :options="statusOptions" placeholder="Estado" :button-class="statusButtonClasses" />
                 </FilterField>
+
+                <FilterField label="Origen" :active="originFilter !== 'all'" class="min-w-[180px]">
+                    <SelectField v-model="originFilter" label="" :options="originOptions" placeholder="Origen" :button-class="originButtonClasses" />
+                </FilterField>
             </FilterBar>
 
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
@@ -434,7 +462,16 @@ onBeforeUnmount(() => {
                         </TableHeader>
 
                         <TableBody>
-                            <TableRow v-for="item in items" :key="item.id" class="text-center">
+                            <TableRow
+                                v-for="item in items"
+                                :key="item.id"
+                                :class="[
+                                    'text-center',
+                                    shouldHighlightImportedItem(item)
+                                        ? 'bg-red-50/70 transition-colors hover:bg-red-50 dark:bg-red-950/20 dark:hover:bg-red-950/30'
+                                        : '',
+                                ]"
+                            >
                                 <TableCell>{{ item.id }}</TableCell>
                                 <TableCell>{{ item.name }}</TableCell>
                                 <TableCell>{{ item.reference }}</TableCell>

@@ -11,6 +11,7 @@ import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import type { AdditionalField, AdditionalFieldPayload, AdditionalFieldType } from '@/domain/MasterData';
+import { normalizeTitleCaseWords } from '@/lib/textNormalizer';
 import { Plus } from 'lucide-vue-next';
 import { computed, nextTick, ref, watch } from 'vue';
 
@@ -63,9 +64,7 @@ const localOptions = ref<string[]>([]);
 const newOptionInput = ref('');
 
 function normalizeOptionEntry(value: unknown): string {
-    return String(value ?? '')
-        .trim()
-        .toUpperCase();
+    return normalizeTitleCaseWords(value);
 }
 
 const hasOptionValues = computed(() => {
@@ -73,7 +72,7 @@ const hasOptionValues = computed(() => {
 });
 
 const hasDuplicateOptions = computed(() => {
-    const normalized = localOptions.value.map((value) => normalizeOptionEntry(value)).filter(Boolean);
+    const normalized = localOptions.value.map((value) => normalizeOptionEntry(value).toLocaleLowerCase('es-CO')).filter(Boolean);
     return new Set(normalized).size !== normalized.length;
 });
 const shouldEmitLoadingState = computed(() => props.open && isInitializingDialog.value);
@@ -220,15 +219,7 @@ function buildPayload(preparedOptions: string[]): AdditionalFieldPayload {
 }
 
 function handleSubmit() {
-    const preparedOptions = isSelectField.value
-        ? localOptions.value
-              .map((value) =>
-                  String(value ?? '')
-                      .trim()
-                      .toUpperCase(),
-              )
-              .filter((value) => value)
-        : [];
+    const preparedOptions = isSelectField.value ? localOptions.value.map((value) => normalizeOptionEntry(value)).filter((value) => value) : [];
 
     emit('submit', buildPayload(preparedOptions));
 }

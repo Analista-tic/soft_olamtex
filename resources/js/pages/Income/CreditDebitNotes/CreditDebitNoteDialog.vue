@@ -1,18 +1,20 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
-import FormDialogContent from '@/components/FormDialogContent.vue';
-import QuoteItemsTable from '@/pages/Income/Quotes/QuoteItemsTable.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
+import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import { mapToCreateSaleCreditDebitNoteDto, type SaleCreditDebitNote, type SaleNoteItem, type SalesInvoice } from '@/domain/Income';
+import QuoteItemsTable from '@/pages/Income/Quotes/QuoteItemsTable.vue';
 import { useIncomeStore } from '@/stores/income';
 import axios from 'axios';
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{
     open: boolean;
@@ -30,10 +32,8 @@ const emit = defineEmits<{
 
 const incomeStore = useIncomeStore();
 
-const isLoading = ref(false);
-const allowOverlay = ref(false);
-const loadingCounter = ref(0);
 const isSaving = ref(false);
+const isLoadingReferencedInvoice = ref(false);
 const invoiceOptions = ref<Array<{ id: number; name: string }>>([]);
 const referencedInvoice = ref<SalesInvoice | null>(null);
 const localNote = ref<Partial<SaleCreditDebitNote>>(createDefaultNote());
@@ -43,11 +43,6 @@ const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const confirmEmitOpen = ref(false);
 const confirmVoidOpen = ref(false);
 const voidReason = ref('');
-const previousBodyOverflow = ref<string | null>(null);
-const showOverlay = ref(false);
-
-let overlayDelayTimer: ReturnType<typeof setTimeout> | null = null;
-const OVERLAY_DELAY_MS = 150;
 
 type ReferencedInvoiceRow = {
     id: number | string;
@@ -164,7 +159,9 @@ const dialogOpen = computed({
     get: () => props.open,
     set: (value: boolean) => emit('update:open', value),
 });
-const shouldShowOverlay = computed(() => dialogOpen.value && allowOverlay.value && isLoading.value);
+
+const { isBootstrapping, isHydrating, isBlockingLoading, canRenderForm, startLoadingRun, isCurrentLoadingRun, cancelLoadingRun } =
+    useDialogLoadingState(dialogOpen);
 
 const isViewMode = computed(() => props.mode === 'view');
 const noteStatus = computed(() => localNote.value.status ?? 'draft');
@@ -202,36 +199,6 @@ function formatCurrency(value: number): string {
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
     });
-}
-
-function clearOverlayDelay() {
-    if (overlayDelayTimer) {
-        clearTimeout(overlayDelayTimer);
-        overlayDelayTimer = null;
-    }
-}
-
-function hideOverlay() {
-    clearOverlayDelay();
-    showOverlay.value = false;
-}
-
-function handleLoadingState(state: boolean) {
-    isLoading.value = state;
-    if (state) {
-        allowOverlay.value = true;
-    }
-}
-
-function updateLoadingState(delta: number) {
-    loadingCounter.value = Math.max(0, loadingCounter.value + delta);
-    handleLoadingState(loadingCounter.value > 0);
-}
-
-function trackLoading<T>(work: () => Promise<T>): Promise<T> {
-    updateLoadingState(1);
-    const promise = Promise.resolve().then(work);
-    return promise.finally(() => updateLoadingState(-1));
 }
 
 function computeWithholdingsTotal(invoice: SalesInvoice | null): number {
@@ -274,7 +241,8 @@ async function preloadInvoice(invoiceId: number) {
     referencedInvoice.value = await incomeStore.fetchSalesInvoice(invoiceId);
 
     localNote.value.parent_document_id = referencedInvoice.value.id ?? invoiceId;
-    localNote.value.contact_id = referencedInvoice.value.contact_id ?? referencedInvoice.value.client?.id ?? referencedInvoice.value.contact?.id ?? null;
+    localNote.value.contact_id =
+        referencedInvoice.value.contact_id ?? referencedInvoice.value.client?.id ?? referencedInvoice.value.contact?.id ?? null;
 
     const optionExists = invoiceOptions.value.some((option) => option.id === invoiceId);
     if (!optionExists && referencedInvoice.value.id) {
@@ -291,51 +259,85 @@ function syncType(type: 'credit' | 'debit') {
 }
 
 async function loadDialogData() {
+    const currentRun = startLoadingRun();
     successMessage.value = '';
     errorMessage.value = '';
 
-    await trackLoading(async () => {
-        try {
-            await fetchInvoiceOptions();
+    isBootstrapping.value = true;
+    try {
+        await fetchInvoiceOptions();
+    } catch (error: unknown) {
+        if (isCurrentLoadingRun(currentRun)) {
+            setError(normalizeErrorMessage(error, 'No se pudieron cargar las facturas disponibles.'));
+        }
+    } finally {
+        if (isCurrentLoadingRun(currentRun)) {
+            isBootstrapping.value = false;
+        }
+    }
 
-            if (props.mode === 'create') {
-                localNote.value = createDefaultNote();
-                syncType(props.noteType ?? 'credit');
-                referencedInvoice.value = null;
+    if (!isCurrentLoadingRun(currentRun)) return;
 
-                if (props.fromInvoiceId) {
-                    await preloadInvoice(props.fromInvoiceId);
+    if (props.mode === 'create') {
+        localNote.value = createDefaultNote();
+        syncType(props.noteType ?? 'credit');
+        referencedInvoice.value = null;
+
+        if (props.fromInvoiceId) {
+            isHydrating.value = true;
+            try {
+                await preloadInvoice(props.fromInvoiceId);
+            } catch (error: unknown) {
+                if (isCurrentLoadingRun(currentRun)) {
+                    setError(normalizeErrorMessage(error, 'No se pudo cargar la factura referenciada.'));
                 }
-
-                return;
+            } finally {
+                if (isCurrentLoadingRun(currentRun)) {
+                    isHydrating.value = false;
+                }
             }
+        }
 
-            if (!props.noteId) throw new Error('No se recibio el identificador de la nota.');
+        return;
+    }
 
-            const note = await incomeStore.fetchNote(props.noteId);
-            localNote.value = cloneNote(note);
-            syncType(note.note_type);
+    if (!props.noteId) {
+        setError('No se recibio el identificador de la nota.');
+        return;
+    }
 
-            if (note.parent_document_id) {
-                await preloadInvoice(note.parent_document_id);
-            }
-        } catch (error: unknown) {
+    isHydrating.value = true;
+    try {
+        const note = await incomeStore.fetchNote(props.noteId);
+        if (!isCurrentLoadingRun(currentRun)) return;
+        localNote.value = cloneNote(note);
+        syncType(note.note_type);
+
+        if (note.parent_document_id) {
+            await preloadInvoice(note.parent_document_id);
+        }
+    } catch (error: unknown) {
+        if (isCurrentLoadingRun(currentRun)) {
             setError(normalizeErrorMessage(error, 'No se pudo cargar la nota de venta.'));
         }
-    });
+    } finally {
+        if (isCurrentLoadingRun(currentRun)) {
+            isHydrating.value = false;
+        }
+    }
 }
 
 function validateForm(): boolean {
-    if (!localNote.value.note_type) return setError('Debes seleccionar el tipo de nota.', 'warning'), false;
-    if (!localNote.value.parent_document_id) return setError('Debes seleccionar una factura referenciada.', 'warning'), false;
-    if (!localNote.value.contact_id) return setError('No se pudo resolver el cliente de la factura.', 'warning'), false;
-    if (!localNote.value.date) return setError('La fecha de la nota es obligatoria.', 'warning'), false;
+    if (!localNote.value.note_type) return (setError('Debes seleccionar el tipo de nota.', 'warning'), false);
+    if (!localNote.value.parent_document_id) return (setError('Debes seleccionar una factura referenciada.', 'warning'), false);
+    if (!localNote.value.contact_id) return (setError('No se pudo resolver el cliente de la factura.', 'warning'), false);
+    if (!localNote.value.date) return (setError('La fecha de la nota es obligatoria.', 'warning'), false);
 
     const items = normalizeItems(localNote.value.items);
-    if (!items.length) return setError('Debes agregar al menos un item.', 'warning'), false;
+    if (!items.length) return (setError('Debes agregar al menos un item.', 'warning'), false);
 
     const invalidItem = items.find((item) => !item.item_id || Number(item.quantity) < 0.01 || Number(item.unit_price) < 0);
-    if (invalidItem) return setError('Cada item debe tener producto, cantidad valida y precio unitario valido.', 'warning'), false;
+    if (invalidItem) return (setError('Cada item debe tener producto, cantidad valida y precio unitario valido.', 'warning'), false);
 
     localNote.value.items = items;
     return true;
@@ -350,7 +352,7 @@ async function persistDraft(): Promise<SaleCreditDebitNote | null> {
 }
 
 async function saveNote() {
-    if (isReadOnly.value || isSaving.value) return;
+    if (isReadOnly.value || isSaving.value || isBlockingLoading.value || isLoadingReferencedInvoice.value) return;
     isSaving.value = true;
     successMessage.value = '';
     errorMessage.value = '';
@@ -370,7 +372,7 @@ async function saveNote() {
 }
 
 async function emitNote() {
-    if (isSaving.value) return;
+    if (isSaving.value || isBlockingLoading.value || isLoadingReferencedInvoice.value) return;
     isSaving.value = true;
     successMessage.value = '';
     errorMessage.value = '';
@@ -392,7 +394,7 @@ async function emitNote() {
 }
 
 async function voidNote() {
-    if (!props.noteId || !canVoid.value || isSaving.value) return;
+    if (!props.noteId || !canVoid.value || isSaving.value || isBlockingLoading.value) return;
     isSaving.value = true;
     successMessage.value = '';
     errorMessage.value = '';
@@ -415,7 +417,6 @@ watch(
     () => props.open,
     (open) => {
         if (open) {
-            allowOverlay.value = true;
             void loadDialogData();
         } else {
             successMessage.value = '';
@@ -423,10 +424,8 @@ watch(
             confirmEmitOpen.value = false;
             confirmVoidOpen.value = false;
             voidReason.value = '';
-            allowOverlay.value = false;
-            isLoading.value = false;
-            hideOverlay();
-            loadingCounter.value = 0;
+            isLoadingReferencedInvoice.value = false;
+            cancelLoadingRun();
         }
     },
     { immediate: true },
@@ -442,9 +441,9 @@ watch(
 );
 
 watch(
-    [() => props.open, () => props.openVoidDialog, canVoid, isLoading],
-    ([open, shouldOpenVoidDialog, noteCanVoid, loading]) => {
-        if (open && shouldOpenVoidDialog && noteCanVoid && !loading) {
+    [() => props.open, () => props.openVoidDialog, canVoid, isBlockingLoading],
+    ([open, shouldOpenVoidDialog, noteCanVoid, blockingLoading]) => {
+        if (open && shouldOpenVoidDialog && noteCanVoid && !blockingLoading) {
             confirmVoidOpen.value = true;
         }
     },
@@ -453,75 +452,23 @@ watch(
 
 watch(
     () => localNote.value.parent_document_id,
-    (invoiceId) => {
+    async (invoiceId) => {
+        if (isBlockingLoading.value) return;
         if (invoiceId && (!referencedInvoice.value || referencedInvoice.value.id !== invoiceId)) {
-            void trackLoading(() => preloadInvoice(Number(invoiceId)));
-        }
-    },
-);
-
-watch(
-    shouldShowOverlay,
-    (value) => {
-        if (!value) {
-            hideOverlay();
-            return;
-        }
-
-        clearOverlayDelay();
-        overlayDelayTimer = setTimeout(() => {
-            overlayDelayTimer = null;
-            if (shouldShowOverlay.value) {
-                showOverlay.value = true;
+            isLoadingReferencedInvoice.value = true;
+            try {
+                await preloadInvoice(Number(invoiceId));
+            } finally {
+                isLoadingReferencedInvoice.value = false;
             }
-        }, OVERLAY_DELAY_MS);
-    },
-    { immediate: true },
-);
-
-watch(showOverlay, (value) => {
-    if (typeof document === 'undefined') {
-        return;
-    }
-
-    if (value) {
-        if (previousBodyOverflow.value === null) {
-            previousBodyOverflow.value = document.body.style.overflow;
         }
-        document.body.style.overflow = 'hidden';
-        return;
-    }
-
-    if (previousBodyOverflow.value !== null) {
-        document.body.style.overflow = previousBodyOverflow.value;
-        previousBodyOverflow.value = null;
-    }
-});
-
-onBeforeUnmount(() => {
-    clearOverlayDelay();
-    if (typeof document !== 'undefined') {
-        document.body.style.overflow = previousBodyOverflow.value ?? '';
-    }
-    previousBodyOverflow.value = null;
-});
+    },
+);
 </script>
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <div
-            v-if="showOverlay"
-            class="fixed inset-0 z-[2000] grid cursor-wait place-items-center bg-background/60 backdrop-blur-sm"
-        >
-            <div class="rounded-xl border border-border bg-card px-6 py-5 shadow-xl">
-                <div class="flex items-center gap-3">
-                    <span class="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
-                    <p class="text-sm font-medium text-foreground">Cargando información...</p>
-                </div>
-            </div>
-        </div>
-
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
+        <FormDialogContent class="flex max-h-[95vh] max-w-[95vw] flex-col px-2 py-2">
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
@@ -535,8 +482,15 @@ onBeforeUnmount(() => {
                 <DialogDescription>{{ dialogDescription }}</DialogDescription>
             </DialogHeader>
 
-            <div class="min-h-0 flex-1 space-y-6 overflow-y-auto p-5">
-                
+            <div class="relative min-h-0 flex-1 space-y-6 overflow-y-auto p-5" :class="{ 'min-h-[420px]': isBlockingLoading }">
+                <FormLoadingOverlay
+                    :active="isBlockingLoading"
+                    :delay-ms="0"
+                    message="Cargando nota de venta..."
+                    description="Preparando facturas relacionadas y datos de la nota."
+                />
+
+                <template v-if="canRenderForm">
                     <div v-if="props.fromInvoiceId" class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
                         Factura referenciada bloqueada por contexto de creación.
                     </div>
@@ -544,7 +498,9 @@ onBeforeUnmount(() => {
                     <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
                         <SelectField v-model="localNote.note_type" label="Tipo" :options="noteTypeOptions" :disabled="props.mode !== 'create'" />
                         <div>
-                            <label class="text-sm font-medium text-foreground">{{ localNote.note_type === 'debit' ? 'N° Nota Débito' : 'N° Nota Crédito' }}</label>
+                            <label class="text-sm font-medium text-foreground">{{
+                                localNote.note_type === 'debit' ? 'N° Nota Débito' : 'N° Nota Crédito'
+                            }}</label>
                             <div class="mt-1 flex h-9 items-center rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
                                 <span v-if="localNote.document_number" class="font-mono font-medium text-foreground">
                                     {{ localNote.document_number }}
@@ -564,7 +520,8 @@ onBeforeUnmount(() => {
                         />
                         <InputField
                             label="Cliente"
-                            :model-value="referencedInvoice?.client?.full_name || referencedInvoice?.contact?.full_name || '-'" readonly
+                            :model-value="referencedInvoice?.client?.full_name || referencedInvoice?.contact?.full_name || '-'"
+                            readonly
                         />
                         <DatePickerField v-model="localNote.date" label="Fecha" :disabled="isReadOnly" :show-today="true" />
                     </div>
@@ -606,9 +563,17 @@ onBeforeUnmount(() => {
 
                     <div class="flex justify-end">
                         <div class="w-full max-w-sm space-y-2 rounded-lg border border-border bg-muted/20 p-4">
-                            <div class="flex items-center justify-between text-sm"><span class="text-muted-foreground">Subtotal</span><span class="font-medium">{{ formatCurrency(subtotalAmount) }}</span></div>
-                            <div class="flex items-center justify-between text-sm"><span class="text-muted-foreground">Impuestos</span><span class="font-medium">{{ formatCurrency(taxesAmount) }}</span></div>
-                            <div class="flex items-center justify-between border-t border-border pt-2 text-sm"><span class="font-semibold text-foreground">Total</span><span class="text-base font-semibold text-foreground">{{ formatCurrency(totalAmount) }}</span></div>
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-muted-foreground">Subtotal</span
+                                ><span class="font-medium">{{ formatCurrency(subtotalAmount) }}</span>
+                            </div>
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-muted-foreground">Impuestos</span><span class="font-medium">{{ formatCurrency(taxesAmount) }}</span>
+                            </div>
+                            <div class="flex items-center justify-between border-t border-border pt-2 text-sm">
+                                <span class="font-semibold text-foreground">Total</span
+                                ><span class="text-base font-semibold text-foreground">{{ formatCurrency(totalAmount) }}</span>
+                            </div>
                         </div>
                     </div>
 
@@ -619,20 +584,42 @@ onBeforeUnmount(() => {
                         :readonly="isReadOnly"
                         @update:modelValue="localNote.description = $event"
                     />
+                </template>
             </div>
 
             <DialogFooter class="flex-shrink-0 justify-end gap-2 border-t border-sidebar-border/70 px-5 py-4 dark:border-sidebar-border">
                 <Button variant="outline" size="pill" @click="dialogOpen = false">{{ isViewMode ? 'Cerrar' : 'Cancelar' }}</Button>
 
-                <Button v-if="!isReadOnly" type="button" variant="outline" size="pill" :disabled="isSaving || isLoading" @click="saveNote">
+                <Button
+                    v-if="!isReadOnly"
+                    type="button"
+                    variant="outline"
+                    size="pill"
+                    :disabled="isSaving || isBlockingLoading || isLoadingReferencedInvoice"
+                    @click="saveNote"
+                >
                     {{ isSaving ? 'Guardando...' : 'Guardar borrador' }}
                 </Button>
 
-                <Button v-if="canEmit" type="button" size="pill" class="shadow-sm" :disabled="isSaving || isLoading" @click="confirmEmitOpen = true">
+                <Button
+                    v-if="canEmit"
+                    type="button"
+                    size="pill"
+                    class="shadow-sm"
+                    :disabled="isSaving || isBlockingLoading || isLoadingReferencedInvoice"
+                    @click="confirmEmitOpen = true"
+                >
                     Emitir
                 </Button>
 
-                <Button v-if="canVoid" type="button" variant="destructive" size="pill" :disabled="isSaving || isLoading" @click="confirmVoidOpen = true">
+                <Button
+                    v-if="canVoid"
+                    type="button"
+                    variant="destructive"
+                    size="pill"
+                    :disabled="isSaving || isBlockingLoading"
+                    @click="confirmVoidOpen = true"
+                >
                     Anular
                 </Button>
             </DialogFooter>

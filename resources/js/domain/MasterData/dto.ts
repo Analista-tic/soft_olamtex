@@ -59,6 +59,10 @@ export interface ItemDto {
     description: string;
     extra_fields?: string | Record<string, string>;
     status: boolean;
+    origin_type?: 'system' | 'migration';
+    was_edited_after_import?: boolean | number;
+    imported_at?: string | null;
+    import_batch_id?: string | null;
     item_type: 'product' | 'service' | 'draft';
     tracks_inventory?: boolean;
     unit_measure?: string;

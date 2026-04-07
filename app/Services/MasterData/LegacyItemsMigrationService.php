@@ -322,11 +322,15 @@ class LegacyItemsMigrationService
         $attributes['status']            = $this->resolveStatus($mapped['_status_label'] ?? '');
         $attributes['tracks_inventory']  = self::DEFAULTS['tracks_inventory'];
         $attributes['negative_movement'] = $this->resolveNegativeMovement($mapped['_negative_movement_label'] ?? '');
+        $attributes['origin_type']        = Item::ORIGIN_MIGRATION;
+        $attributes['was_edited_after_import'] = false;
+        $attributes['imported_at']        = now();
+        $attributes['import_batch_id']    = $batchId;
 
         // --- extra_fields: campos adicionales + trazabilidad legacy ---
         $extraFields = $this->resolveExtraFields($mapped);
 
-        // Inyectar trazabilidad dentro de extra_fields (sin columnas nuevas)
+        // Conservar trazabilidad legacy detallada dentro de extra_fields.
         $extraFields['legacy_import']     = true;
         $extraFields['legacy_source']     = $sourceName;
         $extraFields['migration_batch']   = $batchId;

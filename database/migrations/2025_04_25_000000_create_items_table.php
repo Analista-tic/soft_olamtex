@@ -21,6 +21,10 @@ class CreateItemsTable extends Migration
             $table->json('extra_fields')->nullable();
             $table->string('unit_measure')->nullable();
             $table->boolean('status')->default(true);
+            $table->string('origin_type', 20)->default('system')->index();
+            $table->boolean('was_edited_after_import')->default(false);
+            $table->timestamp('imported_at')->nullable();
+            $table->string('import_batch_id', 80)->nullable()->index();
             $table->string('item_type')->default('product');
             $table->boolean('tracks_inventory')->default(true);
             $table->unsignedBigInteger('income_account_id')->nullable();

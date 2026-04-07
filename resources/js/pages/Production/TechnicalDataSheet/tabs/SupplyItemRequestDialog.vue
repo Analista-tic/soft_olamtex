@@ -2,18 +2,19 @@
 import AlertBox from '@/components/AlertBox.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormHeader from '@/components/FormHeader.vue';
+import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import SelectField from '@/components/SelectField.vue';
 import Button from '@/components/ui/button/Button.vue';
 import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
 import Textarea from '@/components/ui/textarea/Textarea.vue';
+import unitMeasureData from '@/data/unitMeasures.json';
 import type { SupplyRequestPayload, SupplyRequestResult, SupplySubGroup } from '@/domain/Production';
 import { fetchSettingsParameters, fetchSupplySubGroups, requestSupplyItem } from '@/domain/Production';
 import type { Option } from '@/domain/shared';
 import { FileText, ImageIcon, Loader2, Send, Upload, X } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
-import unitMeasureData from '@/data/unitMeasures.json';
 
 /* ── Props & Emits ───────────────────────────────────────────── */
 
@@ -54,6 +55,7 @@ const subGroups = ref<SupplySubGroup[]>([]);
 const isLoadingSubGroups = ref(false);
 const unitMeasureOptions = ref<Option[]>([...fallbackUnitMeasures]);
 const isLoadingUnitMeasures = ref(false);
+const isHydrating = ref(false);
 
 /* Formulario con campos de orden de compra */
 const form = ref({
@@ -74,11 +76,13 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 
 /* ── Computed ────────────────────────────────────────────────── */
 
-const subGroupOptions = computed<Option[]>(() =>
-    subGroups.value.map((sg) => ({ id: sg.id, name: sg.name })),
-);
+const subGroupOptions = computed<Option[]>(() => subGroups.value.map((sg) => ({ id: sg.id, name: sg.name })));
+
+const isBootstrapping = computed(() => dialogOpen.value && (isLoadingSubGroups.value || isLoadingUnitMeasures.value));
+const canRenderForm = computed(() => !isBootstrapping.value && !isHydrating.value);
 
 const canSubmit = computed(() => {
+    if (!canRenderForm.value) return false;
     if (isSubmitting.value) return false;
     if (!form.value.name.trim()) return false;
     if (!String(form.value.unit_measure ?? '').trim()) return false;
@@ -260,10 +264,7 @@ async function handleSubmit(): Promise<void> {
         emit('saved', result);
         handleClose();
     } catch (err: any) {
-        const message =
-            err?.response?.data?.message ??
-            err?.response?.data?.error ??
-            'Error al crear la solicitud de insumo.';
+        const message = err?.response?.data?.message ?? err?.response?.data?.error ?? 'Error al crear la solicitud de insumo.';
         errorMessage.value = message;
         errorType.value = 'error';
     } finally {
@@ -289,7 +290,14 @@ function formatCurrency(value: number): string {
 </script>
 
 <template>
-    <Dialog :open="dialogOpen" @update:open="(value: boolean) => { if (!value) handleClose(); }">
+    <Dialog
+        :open="dialogOpen"
+        @update:open="
+            (value: boolean) => {
+                if (!value) handleClose();
+            }
+        "
+    >
         <FormDialogContent class="flex max-h-[95vh] max-w-[1100px] flex-col px-2 py-2" :scrollable="false">
             <FormHeader
                 title="Solicitar insumo"
@@ -299,10 +307,7 @@ function formatCurrency(value: number): string {
             </FormHeader>
 
             <!-- Alerta de error dentro del dialog -->
-            <div
-                v-if="errorMessage"
-                class="pointer-events-none fixed left-1/2 top-6 z-[99999] flex -translate-x-1/2 justify-center px-4 sm:px-0"
-            >
+            <div v-if="errorMessage" class="pointer-events-none fixed left-1/2 top-6 z-[99999] flex -translate-x-1/2 justify-center px-4 sm:px-0">
                 <AlertBox
                     :type="errorType"
                     :title="errorType === 'warning' ? 'Advertencia' : 'Error'"
@@ -313,8 +318,15 @@ function formatCurrency(value: number): string {
                 />
             </div>
 
-            <div class="min-h-0 flex-1 overflow-y-auto pr-1 pt-4">
-                <form class="grid gap-6 lg:grid-cols-[minmax(0,1.45fr)_320px]" @submit.prevent="handleSubmit">
+            <div class="relative min-h-0 flex-1 overflow-y-auto pr-1 pt-4" :class="{ 'min-h-[420px]': !canRenderForm }">
+                <FormLoadingOverlay
+                    :active="!canRenderForm"
+                    :delay-ms="0"
+                    message="Cargando solicitud de insumo..."
+                    description="Preparando categorías y unidades de medida necesarias."
+                />
+
+                <form v-if="canRenderForm" class="grid gap-6 lg:grid-cols-[minmax(0,1.45fr)_320px]" @submit.prevent="handleSubmit">
                     <div class="space-y-6">
                         <section class="rounded-xl border border-border bg-card p-4">
                             <div class="mb-4">
@@ -397,7 +409,11 @@ function formatCurrency(value: number): string {
                                         min="1"
                                         step="1"
                                         :disabled="isSubmitting"
-                                        @update:model-value="(v: string | number) => { form.quantity = Math.max(1, Number(v) || 1); }"
+                                        @update:model-value="
+                                            (v: string | number) => {
+                                                form.quantity = Math.max(1, Number(v) || 1);
+                                            }
+                                        "
                                     />
                                 </div>
 
@@ -410,7 +426,11 @@ function formatCurrency(value: number): string {
                                         min="0"
                                         step="0.01"
                                         :disabled="isSubmitting"
-                                        @update:model-value="(v: string | number) => { form.unit_price = Math.max(0, Number(v) || 0); }"
+                                        @update:model-value="
+                                            (v: string | number) => {
+                                                form.unit_price = Math.max(0, Number(v) || 0);
+                                            }
+                                        "
                                     />
                                 </div>
 
@@ -462,14 +482,7 @@ function formatCurrency(value: number): string {
                                 <ImageIcon class="mb-3 h-10 w-10 text-muted-foreground" />
                                 <p class="text-sm font-medium">Sin referencia adjunta</p>
                                 <p class="mt-1 text-xs text-muted-foreground">JPEG, PNG, WebP o PDF. Tamaño máximo 10MB.</p>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    class="mt-4"
-                                    :disabled="isSubmitting"
-                                    @click="triggerFileInput"
-                                >
+                                <Button type="button" variant="outline" size="sm" class="mt-4" :disabled="isSubmitting" @click="triggerFileInput">
                                     <Upload class="mr-1.5 h-4 w-4" />
                                     Cargar archivo
                                 </Button>
@@ -530,9 +543,7 @@ function formatCurrency(value: number): string {
             </div>
 
             <DialogFooter class="mt-4 justify-end gap-2 border-t px-1 pt-4">
-                <Button type="button" variant="outline" :disabled="isSubmitting" @click="handleClose">
-                    Cancelar
-                </Button>
+                <Button type="button" variant="outline" :disabled="isSubmitting" @click="handleClose"> Cancelar </Button>
                 <Button type="button" :disabled="!canSubmit" @click="handleSubmit">
                     <Loader2 v-if="isSubmitting" class="mr-1.5 h-4 w-4 animate-spin" />
                     <Send v-else class="mr-1.5 h-4 w-4" />

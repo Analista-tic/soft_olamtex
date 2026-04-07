@@ -10,6 +10,7 @@ use App\Models\Inventory\Warehouse;
 use App\Models\MasterData\CategorySubGroup;
 use App\Models\MasterData\Item;
 use App\Models\Settings\Setting;
+use App\Support\TextNormalizer;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
 use Illuminate\Validation\ValidationException;
@@ -33,6 +34,10 @@ class ItemService
             'reference',
             'description',
             'status',
+            'origin_type',
+            'was_edited_after_import',
+            'imported_at',
+            'import_batch_id',
         ]);
 
         if (!empty($filters['search'])) {
@@ -57,6 +62,10 @@ class ItemService
 
         if (!empty($filters['item_type'])) {
             $query->where('item_type', $filters['item_type']);
+        }
+
+        if (!empty($filters['origin_type']) && in_array($filters['origin_type'], [Item::ORIGIN_SYSTEM, Item::ORIGIN_MIGRATION], true)) {
+            $query->where('origin_type', $filters['origin_type']);
         }
 
         return $query
@@ -209,7 +218,24 @@ class ItemService
         }
 
         if (is_array($value)) {
-            return $value;
+            $normalized = [];
+
+            foreach ($value as $key => $fieldValue) {
+                if (!is_string($key)) {
+                    continue;
+                }
+
+                $fieldName = preg_replace('/\s+/u', ' ', trim($key));
+                if ($fieldName === null || $fieldName === '') {
+                    continue;
+                }
+
+                $normalized[$fieldName] = is_string($fieldValue)
+                    ? TextNormalizer::titleCaseWords($fieldValue)
+                    : $fieldValue;
+            }
+
+            return $normalized;
         }
 
         return $fallback;
@@ -235,6 +261,8 @@ class ItemService
 
         $inserted = 0;
         $errors = [];
+        $importedAt = now();
+        $importBatchId = 'bulk_' . $importedAt->format('Ymd_His');
 
         $extraFieldsKeys = [
             'COLOR',
@@ -360,6 +388,10 @@ class ItemService
                     'status' => $this->resolveRowStatus($normalizedRow),
                     'item_type' => $this->resolveItemTypeFromRow($normalizedRow),
                     'unit_measure' => $this->resolveUnitMeasureValue($normalizedRow['UNIDAD DE MEDIDA'] ?? null) ?? ($normalizedRow['UNIDAD DE MEDIDA'] ?? null),
+                    'origin_type' => Item::ORIGIN_MIGRATION,
+                    'was_edited_after_import' => false,
+                    'imported_at' => $importedAt,
+                    'import_batch_id' => $importBatchId,
                 ];
                 // debug logs removed
 
@@ -798,6 +830,7 @@ class ItemService
         $extraFields = $this->normalizeExtraFields($data['extra_fields'] ?? []);
         $itemType = $this->normalizeItemType($data['item_type'] ?? 'product');
         $tracksInventory = $this->normalizeTracksInventory($data['tracks_inventory'] ?? null, $itemType);
+        $originType = $this->normalizeOriginType($data['origin_type'] ?? Item::ORIGIN_SYSTEM);
         $payload = [
             'category_sub_group_id' => $data['category_sub_group_id'],
             'img' => $data['img'] ?? null,
@@ -811,6 +844,10 @@ class ItemService
             'status' => array_key_exists('status', $data) ? (bool) $data['status'] : true,
             'item_type' => $itemType,
             'tracks_inventory' => $tracksInventory,
+            'origin_type' => $originType,
+            'was_edited_after_import' => false,
+            'imported_at' => $originType === Item::ORIGIN_MIGRATION ? ($data['imported_at'] ?? now()) : null,
+            'import_batch_id' => $originType === Item::ORIGIN_MIGRATION ? ($data['import_batch_id'] ?? null) : null,
             'unit_measure' => $data['unit_measure'] ?? null,
             'income_account_id' => $this->normalizeAccountId($data['income_account_id'] ?? null),
             'inventory_account_id' => $tracksInventory
@@ -897,7 +934,23 @@ class ItemService
             $payload['inventory_account_id'] = null;
         }
 
+        if ($this->shouldMarkEditedAfterImport($item)) {
+            $payload['was_edited_after_import'] = true;
+        }
+
         return $payload;
+    }
+
+    protected function shouldMarkEditedAfterImport(Item $item): bool
+    {
+        return $item->origin_type === Item::ORIGIN_MIGRATION && !(bool) $item->was_edited_after_import;
+    }
+
+    protected function normalizeOriginType(mixed $value): string
+    {
+        return $value === Item::ORIGIN_MIGRATION
+            ? Item::ORIGIN_MIGRATION
+            : Item::ORIGIN_SYSTEM;
     }
 
     protected function normalizeAccountId(mixed $value): ?int

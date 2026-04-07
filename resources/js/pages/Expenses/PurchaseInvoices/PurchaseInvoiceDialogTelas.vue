@@ -9,6 +9,7 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
+import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import type { PurchaseInvoice } from '@/domain/Expenses';
 import type { Contact } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
@@ -36,7 +37,6 @@ type PurchaseInvoiceWithProviderName = Partial<PurchaseInvoice> & { provider_nam
 const localForm = ref<PurchaseInvoiceWithProviderName>(createDefaultForm());
 const contacts = ref<Contact[]>([]);
 const isLoading = ref(false);
-const isInitializingDialog = ref(false);
 const isSubmittingDialog = ref(false);
 const isSendingMail = ref(false);
 const nextInvoiceId = ref<number | null>(null);
@@ -51,8 +51,8 @@ const originalFormSnapshot = ref<string>('');
 const invoiceItemsTableRef = ref<{ addItem: () => void } | null>(null);
 const invoiceDate = ref<Date | null>(null);
 const deliveryDate = ref<Date | null>(null);
-const isBootstrapping = computed(() => dialogOpen.value && isInitializingDialog.value);
-const canRenderForm = computed(() => !isBootstrapping.value);
+const { isBootstrapping, isHydrating, isBlockingLoading, canRenderForm, startLoadingRun, isCurrentLoadingRun, cancelLoadingRun } =
+    useDialogLoadingState(dialogOpen);
 
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
@@ -187,7 +187,9 @@ function resetForm() {
 }
 
 async function initializeDialog() {
-    isInitializingDialog.value = true;
+    const currentRun = startLoadingRun();
+    isBootstrapping.value = true;
+    isHydrating.value = props.dialogType === 'edit';
     try {
         resetForm();
         await Promise.all([fetchContacts(), fetchPendingPurchaseOrders()]);
@@ -196,7 +198,10 @@ async function initializeDialog() {
             void fetchNextInvoiceId();
         }
     } finally {
-        isInitializingDialog.value = false;
+        if (isCurrentLoadingRun(currentRun)) {
+            isBootstrapping.value = false;
+            isHydrating.value = false;
+        }
     }
 }
 
@@ -512,16 +517,16 @@ watch(
         if (isOpen) {
             await initializeDialog();
         } else {
-            isInitializingDialog.value = false;
             isSubmittingDialog.value = false;
+            cancelLoadingRun();
         }
     },
 );
 
 watch(dialogOpen, (isOpen) => {
     if (!isOpen) {
-        isInitializingDialog.value = false;
         isSubmittingDialog.value = false;
+        cancelLoadingRun();
         emit('close');
     }
 });
@@ -570,11 +575,11 @@ watch(dialogOpen, (isOpen) => {
             </DialogHeader>
             <div
                 class="relative flex-1 overflow-y-auto scroll-smooth px-4 pr-2"
-                :class="{ 'min-h-[420px]': isBootstrapping }"
+                :class="{ 'min-h-[420px]': isBlockingLoading }"
                 style="scrollbar-width: thin"
             >
                 <FormLoadingOverlay
-                    :active="isBootstrapping"
+                    :active="isBlockingLoading"
                     :delay-ms="0"
                     message="Cargando factura de compra tela..."
                     description="Preparando proveedores, ordenes de tela pendientes y datos iniciales."

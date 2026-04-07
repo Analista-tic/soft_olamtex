@@ -3,6 +3,7 @@
 namespace App\Services\MasterData;
 
 use App\Models\Settings\Setting;
+use App\Support\TextNormalizer;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -122,7 +123,7 @@ class AdditionalFieldService
             'label' => $data['name'],
             'field_type' => $data['field_type'],
             'options' => $this->normalizeOptions($data['options'] ?? null),
-            'default_value' => $data['default_value'] ?? null,
+            'default_value' => $this->normalizeDefaultValue($data['default_value'] ?? null, $data['field_type'] ?? null),
             'description' => $data['description'] ?? null,
             'is_required' => array_key_exists('is_required', $data)
                 ? (bool) $data['is_required']
@@ -178,10 +179,25 @@ class AdditionalFieldService
             if ($value === null) {
                 return null;
             }
-            return trim((string) $value);
+            return TextNormalizer::titleCaseWords($value);
         }, $options), fn($value) => $value !== ''));
 
+        $sanitized = array_values(array_unique($sanitized));
+
         return $sanitized ?: null;
+    }
+
+    protected function normalizeDefaultValue(mixed $value, ?string $fieldType): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = in_array($fieldType, ['text', 'textarea', 'select'], true)
+            ? TextNormalizer::titleCaseWords($value)
+            : preg_replace('/\s+/u', ' ', trim((string) $value));
+
+        return $normalized !== null && $normalized !== '' ? $normalized : null;
     }
 
     protected function nextPosition(): int

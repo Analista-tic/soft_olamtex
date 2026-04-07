@@ -2,6 +2,7 @@
 import AlertStack from '@/components/common/AlertStack.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
@@ -9,10 +10,11 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import type { CashReceipt, CashReceiptApplication } from '@/domain/Income';
 import { useIncomeStore } from '@/stores/income';
 import axios from 'axios';
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 type SelectOption = {
     id: number | string;
@@ -41,10 +43,8 @@ const emit = defineEmits<{
 
 const incomeStore = useIncomeStore();
 
-const isLoading = ref(false);
-const allowOverlay = ref(false);
-const loadingCounter = ref(0);
 const isSaving = ref(false);
+const isLoadingPendingInvoices = ref(false);
 const customerOptions = ref<SelectOption[]>([]);
 const accountOptions = ref<SelectOption[]>([]);
 const paymentMethodOptions = ref<SelectOption[]>([]);
@@ -56,11 +56,6 @@ const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const isVoidDialogOpen = ref(false);
 const voidReason = ref('');
-const previousBodyOverflow = ref<string | null>(null);
-const showOverlay = ref(false);
-
-let overlayDelayTimer: ReturnType<typeof setTimeout> | null = null;
-const OVERLAY_DELAY_MS = 150;
 
 function getToday(): string {
     const today = new Date();
@@ -122,58 +117,30 @@ function formatReceiptNumber(receipt?: CashReceiptForm | Partial<CashReceipt> | 
     return `RC-${String(receipt.receipt_number).padStart(4, '0')}`;
 }
 
-function handleLoadingState(state: boolean) {
-    isLoading.value = state;
-    if (state) {
-        allowOverlay.value = true;
-    }
-}
-
-function updateLoadingState(delta: number) {
-    loadingCounter.value = Math.max(0, loadingCounter.value + delta);
-    handleLoadingState(loadingCounter.value > 0);
-}
-
-function trackLoading<T>(work: () => Promise<T>): Promise<T> {
-    updateLoadingState(1);
-    const promise = Promise.resolve().then(work);
-    return promise.finally(() => updateLoadingState(-1));
-}
-
-function clearOverlayDelay() {
-    if (overlayDelayTimer) {
-        clearTimeout(overlayDelayTimer);
-        overlayDelayTimer = null;
-    }
-}
-
-function hideOverlay() {
-    clearOverlayDelay();
-    showOverlay.value = false;
-}
-
 const dialogOpen = computed({
     get: () => props.open,
     set: (value: boolean) => emit('update:open', value),
 });
-const shouldShowOverlay = computed(() => dialogOpen.value && allowOverlay.value && isLoading.value);
+
+const { isBootstrapping, isHydrating, isBlockingLoading, canRenderForm, startLoadingRun, isCurrentLoadingRun, cancelLoadingRun } =
+    useDialogLoadingState(dialogOpen);
 
 const isViewMode = computed(() => props.mode === 'view');
 const isReadOnly = computed(() => isViewMode.value);
 const isClientLocked = computed(() => isReadOnly.value || Boolean(props.fromInvoiceId));
 const pendingInvoices = computed(() => incomeStore.pendingInvoicesForReceipt);
-const totalApplied = computed(() =>
-    selectedApplications.value.reduce((sum, application) => sum + Number(application.amount_to_apply || 0), 0),
-);
+const totalApplied = computed(() => selectedApplications.value.reduce((sum, application) => sum + Number(application.amount_to_apply || 0), 0));
 const canSubmit = computed(
     () =>
         !isReadOnly.value &&
+        !isBlockingLoading.value &&
+        !isLoadingPendingInvoices.value &&
         Boolean(localReceipt.value.contact_id) &&
         Boolean(localReceipt.value.account_id) &&
         selectedApplications.value.length > 0 &&
         totalApplied.value > 0,
 );
-const currentApplications = computed(() => (isViewMode.value ? currentReceipt.value?.payments ?? [] : []));
+const currentApplications = computed(() => (isViewMode.value ? (currentReceipt.value?.payments ?? []) : []));
 
 async function loadCustomerOptions(search = '') {
     const response = await axios.get<{ data?: Array<{ id: number; full_name?: string; name?: string }> }>('/finanzas/recibos-caja/customers', {
@@ -283,41 +250,73 @@ async function preloadFromInvoice(invoiceId: number) {
 }
 
 async function loadDialogData() {
+    const currentRun = startLoadingRun();
     successMessage.value = '';
     errorMessage.value = '';
 
-    await trackLoading(async () => {
-        try {
-            await Promise.all([loadCustomerOptions(), loadAccountOptions(), loadPaymentMethodOptions()]);
+    isBootstrapping.value = true;
+    try {
+        await Promise.all([loadCustomerOptions(), loadAccountOptions(), loadPaymentMethodOptions()]);
+    } catch (error: unknown) {
+        if (isCurrentLoadingRun(currentRun)) {
+            setError(normalizeErrorMessage(error, 'No se pudieron cargar los catalogos del recibo de caja.'));
+        }
+    } finally {
+        if (isCurrentLoadingRun(currentRun)) {
+            isBootstrapping.value = false;
+        }
+    }
 
-            if (props.mode === 'create') {
-                localReceipt.value = createDefaultReceipt();
-                currentReceipt.value = null;
-                selectedApplications.value = [];
-                incomeStore.pendingInvoicesForReceipt = [];
+    if (!isCurrentLoadingRun(currentRun)) return;
 
-                if (props.fromInvoiceId) {
-                    await preloadFromInvoice(props.fromInvoiceId);
+    if (props.mode === 'create') {
+        localReceipt.value = createDefaultReceipt();
+        currentReceipt.value = null;
+        selectedApplications.value = [];
+        incomeStore.pendingInvoicesForReceipt = [];
+
+        if (props.fromInvoiceId) {
+            isHydrating.value = true;
+            try {
+                await preloadFromInvoice(props.fromInvoiceId);
+            } catch (error: unknown) {
+                if (isCurrentLoadingRun(currentRun)) {
+                    setError(normalizeErrorMessage(error, 'No se pudo cargar la factura de origen.'));
                 }
-
-                return;
+            } finally {
+                if (isCurrentLoadingRun(currentRun)) {
+                    isHydrating.value = false;
+                }
             }
+        }
 
-            if (!props.receiptId) {
-                throw new Error('No se recibio el identificador del recibo de caja.');
-            }
+        return;
+    }
 
-            const receipt = await incomeStore.fetchCashReceipt(props.receiptId);
-            currentReceipt.value = receipt;
-            localReceipt.value = {
-                ...receipt,
-                payments: receipt.payments,
-            };
-            ensureCustomerOption(receipt);
-        } catch (error: unknown) {
+    if (!props.receiptId) {
+        setError('No se recibio el identificador del recibo de caja.');
+        return;
+    }
+
+    isHydrating.value = true;
+    try {
+        const receipt = await incomeStore.fetchCashReceipt(props.receiptId);
+        if (!isCurrentLoadingRun(currentRun)) return;
+        currentReceipt.value = receipt;
+        localReceipt.value = {
+            ...receipt,
+            payments: receipt.payments,
+        };
+        ensureCustomerOption(receipt);
+    } catch (error: unknown) {
+        if (isCurrentLoadingRun(currentRun)) {
             setError(normalizeErrorMessage(error, 'No se pudo cargar el recibo de caja.'));
         }
-    });
+    } finally {
+        if (isCurrentLoadingRun(currentRun)) {
+            isHydrating.value = false;
+        }
+    }
 }
 
 function validateBeforeSubmit(): boolean {
@@ -356,7 +355,7 @@ function validateBeforeSubmit(): boolean {
 }
 
 async function createReceipt() {
-    if (!canSubmit.value || isSaving.value) return;
+    if (!canSubmit.value || isSaving.value || isBlockingLoading.value || isLoadingPendingInvoices.value) return;
     if (!validateBeforeSubmit()) return;
 
     isSaving.value = true;
@@ -388,7 +387,7 @@ async function createReceipt() {
 }
 
 async function voidReceipt() {
-    if (!props.receiptId || isSaving.value) return;
+    if (!props.receiptId || isSaving.value || isBlockingLoading.value) return;
 
     isSaving.value = true;
     successMessage.value = '';
@@ -412,7 +411,6 @@ watch(
     () => props.open,
     (open) => {
         if (open) {
-            allowOverlay.value = true;
             void loadDialogData();
             return;
         }
@@ -421,10 +419,8 @@ watch(
         errorMessage.value = '';
         isVoidDialogOpen.value = false;
         voidReason.value = '';
-        allowOverlay.value = false;
-        isLoading.value = false;
-        hideOverlay();
-        loadingCounter.value = 0;
+        isLoadingPendingInvoices.value = false;
+        cancelLoadingRun();
     },
     { immediate: true },
 );
@@ -432,76 +428,23 @@ watch(
 watch(
     () => localReceipt.value.contact_id,
     async (contactId, previousContactId) => {
-        if (isReadOnly.value || isLoading.value) return;
+        if (isReadOnly.value || isBlockingLoading.value) return;
         if (!contactId || contactId === previousContactId) return;
 
         selectedApplications.value = [];
-        await trackLoading(() => loadPendingInvoices(Number(contactId)));
+        isLoadingPendingInvoices.value = true;
+        try {
+            await loadPendingInvoices(Number(contactId));
+        } finally {
+            isLoadingPendingInvoices.value = false;
+        }
     },
 );
-
-watch(
-    shouldShowOverlay,
-    (value) => {
-        if (!value) {
-            hideOverlay();
-            return;
-        }
-
-        clearOverlayDelay();
-        overlayDelayTimer = setTimeout(() => {
-            overlayDelayTimer = null;
-            if (shouldShowOverlay.value) {
-                showOverlay.value = true;
-            }
-        }, OVERLAY_DELAY_MS);
-    },
-    { immediate: true },
-);
-
-watch(showOverlay, (value) => {
-    if (typeof document === 'undefined') {
-        return;
-    }
-
-    if (value) {
-        if (previousBodyOverflow.value === null) {
-            previousBodyOverflow.value = document.body.style.overflow;
-        }
-        document.body.style.overflow = 'hidden';
-        return;
-    }
-
-    if (previousBodyOverflow.value !== null) {
-        document.body.style.overflow = previousBodyOverflow.value;
-        previousBodyOverflow.value = null;
-    }
-});
-
-onBeforeUnmount(() => {
-    clearOverlayDelay();
-    if (typeof document !== 'undefined') {
-        document.body.style.overflow = previousBodyOverflow.value ?? '';
-    }
-    previousBodyOverflow.value = null;
-});
 </script>
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <div
-            v-if="showOverlay"
-            class="fixed inset-0 z-[2000] grid cursor-wait place-items-center bg-background/60 backdrop-blur-sm"
-        >
-            <div class="rounded-xl border border-border bg-card px-6 py-5 shadow-xl">
-                <div class="flex items-center gap-3">
-                    <span class="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
-                    <p class="text-sm font-medium text-foreground">Cargando información...</p>
-                </div>
-            </div>
-        </div>
-
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
+        <FormDialogContent class="flex max-h-[95vh] max-w-[95vw] flex-col px-2 py-2">
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
@@ -513,14 +456,30 @@ onBeforeUnmount(() => {
             <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle>{{ isViewMode ? 'Detalle de recibo de caja' : 'Nuevo recibo de caja' }}</DialogTitle>
                 <DialogDescription>
-                    {{ isViewMode ? 'Consulta el cobro registrado y sus aplicaciones sobre facturas de venta.' : 'Registra el cobro y aplicalo a una o varias facturas pendientes del cliente.' }}
+                    {{
+                        isViewMode
+                            ? 'Consulta el cobro registrado y sus aplicaciones sobre facturas de venta.'
+                            : 'Registra el cobro y aplicalo a una o varias facturas pendientes del cliente.'
+                    }}
                 </DialogDescription>
             </DialogHeader>
 
-            <div class="min-h-0 flex-1 space-y-6 overflow-y-auto p-5">
-                <div v-if="props.fromInvoiceId && !isViewMode" class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                        El recibo se esta generando desde una factura especifica. El cliente queda bloqueado para mantener consistencia en la aplicacion.
-                </div>
+            <div class="relative min-h-0 flex-1 space-y-6 overflow-y-auto p-5" :class="{ 'min-h-[420px]': isBlockingLoading }">
+                <FormLoadingOverlay
+                    :active="isBlockingLoading"
+                    :delay-ms="0"
+                    message="Cargando recibo de caja..."
+                    description="Preparando clientes, cuentas y datos del cobro."
+                />
+
+                <template v-if="canRenderForm">
+                    <div
+                        v-if="props.fromInvoiceId && !isViewMode"
+                        class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700"
+                    >
+                        El recibo se esta generando desde una factura especifica. El cliente queda bloqueado para mantener consistencia en la
+                        aplicacion.
+                    </div>
 
                     <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
                         <div>
@@ -572,7 +531,11 @@ onBeforeUnmount(() => {
                         <div>
                             <h3 class="text-sm font-semibold text-foreground">{{ isViewMode ? 'Pagos aplicados' : 'Facturas a aplicar' }}</h3>
                             <p class="text-xs text-muted-foreground">
-                                {{ isViewMode ? 'Detalle de las aplicaciones registradas en el recibo.' : 'Selecciona las facturas pendientes del cliente e indica el monto a aplicar en cada una.' }}
+                                {{
+                                    isViewMode
+                                        ? 'Detalle de las aplicaciones registradas en el recibo.'
+                                        : 'Selecciona las facturas pendientes del cliente e indica el monto a aplicar en cada una.'
+                                }}
                             </p>
                         </div>
 
@@ -592,11 +555,15 @@ onBeforeUnmount(() => {
                                 <TableBody>
                                     <template v-if="isViewMode">
                                         <TableRow v-if="!currentApplications.length">
-                                            <TableCell colspan="6" class="py-8 text-center text-sm text-muted-foreground">Este recibo no tiene pagos aplicados.</TableCell>
+                                            <TableCell colspan="6" class="py-8 text-center text-sm text-muted-foreground"
+                                                >Este recibo no tiene pagos aplicados.</TableCell
+                                            >
                                         </TableRow>
 
                                         <TableRow v-for="payment in currentApplications" :key="payment.id">
-                                            <TableCell class="font-medium">{{ payment.invoice?.document_number || `Factura #${payment.sale_invoice_id}` }}</TableCell>
+                                            <TableCell class="font-medium">{{
+                                                payment.invoice?.document_number || `Factura #${payment.sale_invoice_id}`
+                                            }}</TableCell>
                                             <TableCell>{{ formatDate(payment.invoice?.date) }}</TableCell>
                                             <TableCell>-</TableCell>
                                             <TableCell>-</TableCell>
@@ -657,26 +624,41 @@ onBeforeUnmount(() => {
                         </div>
                     </section>
 
-                <div class="flex justify-end">
-                    <div class="w-full max-w-sm space-y-2 rounded-lg border border-border bg-muted/20 p-4">
-                        <div class="flex items-center justify-between border-t-0 pt-0 text-sm">
-                            <span class="font-semibold text-foreground">Total aplicado</span>
-                            <span class="text-base font-semibold text-foreground">
-                                {{ formatCurrency(isViewMode ? currentReceipt?.total ?? 0 : totalApplied) }}
-                            </span>
+                    <div class="flex justify-end">
+                        <div class="w-full max-w-sm space-y-2 rounded-lg border border-border bg-muted/20 p-4">
+                            <div class="flex items-center justify-between border-t-0 pt-0 text-sm">
+                                <span class="font-semibold text-foreground">Total aplicado</span>
+                                <span class="text-base font-semibold text-foreground">
+                                    {{ formatCurrency(isViewMode ? (currentReceipt?.total ?? 0) : totalApplied) }}
+                                </span>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </template>
             </div>
 
             <DialogFooter class="flex-shrink-0 justify-end gap-2 border-t border-sidebar-border/70 px-5 py-4 dark:border-sidebar-border">
                 <Button variant="outline" size="pill" @click="dialogOpen = false">{{ isViewMode ? 'Cerrar' : 'Cancelar' }}</Button>
 
-                <Button v-if="!isReadOnly" type="button" size="pill" class="shadow-sm" :disabled="isSaving || isLoading || !canSubmit" @click="createReceipt">
+                <Button
+                    v-if="!isReadOnly"
+                    type="button"
+                    size="pill"
+                    class="shadow-sm"
+                    :disabled="isSaving || isBlockingLoading || isLoadingPendingInvoices || !canSubmit"
+                    @click="createReceipt"
+                >
                     {{ isSaving ? 'Registrando...' : 'Registrar cobro' }}
                 </Button>
 
-                <Button v-if="isViewMode && currentReceipt?.id" type="button" variant="destructive" size="pill" :disabled="isSaving || isLoading" @click="isVoidDialogOpen = true">
+                <Button
+                    v-if="isViewMode && currentReceipt?.id"
+                    type="button"
+                    variant="destructive"
+                    size="pill"
+                    :disabled="isSaving || isBlockingLoading"
+                    @click="isVoidDialogOpen = true"
+                >
                     Anular
                 </Button>
             </DialogFooter>
@@ -687,7 +669,9 @@ onBeforeUnmount(() => {
         <DialogContent class="max-w-md border border-border p-8">
             <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle>Anular recibo de caja</DialogTitle>
-                <DialogDescription>Se revertira el asiento contable y se eliminaran los pagos aplicados a las facturas relacionadas.</DialogDescription>
+                <DialogDescription
+                    >Se revertira el asiento contable y se eliminaran los pagos aplicados a las facturas relacionadas.</DialogDescription
+                >
             </DialogHeader>
 
             <div class="space-y-4">
