@@ -121,7 +121,6 @@ const submit = () => {
                 <div class="blob-2"></div>
                 <div class="geo-1"></div>
                 <div class="geo-2"></div>
-                <div class="accent-dot"></div>
 
                 <div class="right-content">
                     <p class="right-eyebrow">Software de gestión</p>
@@ -396,6 +395,8 @@ const submit = () => {
     border-radius: 60% 40% 55% 45% / 50% 60% 40% 50%;
     opacity: 0.7;
     pointer-events: none;
+    animation: floatBlobPrimary 24s ease-in-out infinite;
+    will-change: transform, opacity;
 }
 
 .blob-2 {
@@ -408,6 +409,8 @@ const submit = () => {
     border-radius: 40% 60% 45% 55% / 55% 45% 60% 40%;
     opacity: 0.5;
     pointer-events: none;
+    animation: floatBlobSecondary 28s ease-in-out infinite;
+    will-change: transform, opacity;
 }
 
 .geo-1 {
@@ -420,6 +423,8 @@ const submit = () => {
     border-radius: 24px;
     transform: rotate(20deg);
     pointer-events: none;
+    animation: driftGeoPrimary 32s ease-in-out infinite;
+    will-change: transform, opacity;
 }
 
 .geo-2 {
@@ -431,18 +436,6 @@ const submit = () => {
     border: 1px solid rgba(255, 255, 255, 0.04);
     border-radius: 16px;
     transform: rotate(20deg);
-    pointer-events: none;
-}
-
-.accent-dot {
-    position: absolute;
-    top: 52px;
-    left: 44px;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: #3b82f6;
-    opacity: 0.85;
     pointer-events: none;
 }
 
@@ -494,5 +487,58 @@ const submit = () => {
     letter-spacing: 1.5px;
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.15);
+}
+
+@keyframes floatBlobPrimary {
+    0%,
+    100% {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 0.68;
+    }
+
+    50% {
+        transform: translate3d(-57px, 43px, 0) scale(1.075);
+        opacity: 0.76;
+    }
+}
+
+@keyframes floatBlobSecondary {
+    0%,
+    100% {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 0.46;
+    }
+
+    45% {
+        transform: translate3d(51px, -41px, 0) scale(0.945);
+        opacity: 0.56;
+    }
+
+    75% {
+        transform: translate3d(36px, 44px, 0) scale(1.06);
+        opacity: 0.5;
+    }
+}
+
+@keyframes driftGeoPrimary {
+    0%,
+    100% {
+        transform: translate3d(0, 0, 0) rotate(20deg) scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: translate3d(-39px, -54px, 0) rotate(25deg) scale(1.075);
+        opacity: 0.76;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .blob-1,
+    .blob-2,
+    .geo-1 {
+        animation: none;
+        will-change: auto;
+    }
 }
 </style>
