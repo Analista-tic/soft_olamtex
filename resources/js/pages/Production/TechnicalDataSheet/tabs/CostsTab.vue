@@ -181,7 +181,7 @@ const profitabilityCards = computed<ProfitabilityCard[]>(() => {
             key: 'rentability',
             label: 'Rentabilidad',
             value: hasRentabilityData.value ? formatCOP(summary.value.profitability.olamtex.value) : NO_DATA,
-            tooltipText: 'Rentabilidad = Precio facturacion - Costo fijo',
+            tooltipText: 'Rentabilidad = Precio facturación − Costo total',
             cardClass: rentCardClass,
             percentagePill: rentPill,
         },

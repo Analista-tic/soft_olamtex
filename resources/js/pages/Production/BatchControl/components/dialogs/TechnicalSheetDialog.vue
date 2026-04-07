@@ -2,13 +2,17 @@
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormHeader from '@/components/FormHeader.vue';
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
+import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { OpBasicInfo } from '@/domain/Production/types';
-import { fetchOpBasicInfo, fetchOpRawMaterials } from '@/domain/Production/service';
-import { Box, ChevronDown, ChevronUp, ClipboardList, DollarSign, FilePlus2, Package, Volleyball, Workflow } from 'lucide-vue-next';
+import { fetchOpBasicInfo, fetchOpRawMaterials, fetchOpOperationalListDetail } from '@/domain/Production/service';
+import type { FabricBaseOption, MachineOption, OperationOption, OperationSection, ProductOperationPayload } from '@/domain/product-sheet/types';
+import axios from 'axios';
+import { Box, ChevronDown, ChevronUp, ClipboardList, DollarSign, FilePlus2, Package, Pencil, Volleyball, Workflow } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import type { BatchControlRow } from '../../types';
+import ProductOperationListDialog from '@/pages/Production/ProductOperationList/ProductOperationListDialog.vue';
 
 import AdditionalInfoTab from '@/pages/Production/TechnicalDataSheet/tabs/AdditionalInfoTab/index.vue';
 import CostsTab from '@/pages/Production/TechnicalDataSheet/tabs/CostsTab.vue';
@@ -34,6 +38,7 @@ const hasOperationalList = ref(false);
 const activeTab = ref<string>('lista_operacional');
 const isBasicInfoCollapsed = ref(true);
 const isDrawingOpen = ref(false);
+const dialogKey = ref(0);
 
 type RawMaterialsInfoRow = {
     uid: string;
@@ -88,6 +93,80 @@ const drawingUrl = computed(() => {
     return raw ? resolveDrawingUrl(raw) : null;
 });
 const drawingLoadFailed = ref(false);
+
+/* ── Edición de operaciones (solo muestras) ── */
+const editOpsOpen = ref(false);
+const refreshKey = ref(0);
+const catalogLoading = ref(false);
+const isSavingOps = ref(false);
+const catalogSections = ref<OperationSection[]>([]);
+const catalogOperations = ref<OperationOption[]>([]);
+const catalogMachines = ref<MachineOption[]>([]);
+const catalogFabricBases = ref<FabricBaseOption[]>([]);
+const opsInitialData = ref<{
+    productSheetId: null;
+    operations: {
+        section_id: number | null;
+        operation_id: number | null;
+        machine_id: number | null;
+        optimal_time: string;
+        quantity: number;
+        fabric_base_id: null;
+        operator_efficiency_factor: number;
+    }[];
+    operatorEfficiencyFactor: number;
+    notes: string;
+} | null>(null);
+
+async function openEditOpsDialog() {
+    if (!props.row?.id) return;
+    catalogLoading.value = true;
+    try {
+        const [catalogRes, opsRes] = await Promise.all([
+            axios.get(route('control-de-lotes.catalog-options')),
+            fetchOpOperationalListDetail(props.row.id),
+        ]);
+        catalogSections.value = catalogRes.data.sections;
+        catalogOperations.value = catalogRes.data.operations;
+        catalogMachines.value = catalogRes.data.machines;
+        catalogFabricBases.value = catalogRes.data.fabric_bases;
+        opsInitialData.value = {
+            productSheetId: null,
+            operations: opsRes.data.map((op) => ({
+                section_id: op.operation_section_id ?? op.operation_section?.id ?? null,
+                operation_id: op.operation?.id ?? null,
+                machine_id: op.machine?.id ?? null,
+                optimal_time: Number(op.sam_base ?? 0).toFixed(2),
+                quantity: op.quantity ?? 1,
+                fabric_base_id: null,
+                operator_efficiency_factor: op.operator_efficiency_factor ?? 1,
+            })),
+            operatorEfficiencyFactor: 1,
+            notes: '',
+        };
+        editOpsOpen.value = true;
+    } catch (e) {
+        console.error('Error cargando opciones de catálogo:', e);
+    } finally {
+        catalogLoading.value = false;
+    }
+}
+
+async function handleSaveOps(payload: ProductOperationPayload[]) {
+    if (!props.row?.id) return;
+    isSavingOps.value = true;
+    try {
+        await axios.put(route('control-de-lotes.sync-operations', { order: props.row.id }), {
+            operations: payload,
+        });
+        editOpsOpen.value = false;
+        refreshKey.value += 1;
+    } catch (e) {
+        console.error('Error guardando operaciones:', e);
+    } finally {
+        isSavingOps.value = false;
+    }
+}
 
 function onDrawingError() {
     drawingLoadFailed.value = true;
@@ -223,6 +302,7 @@ watch(
     () => props.open,
     async (isOpen) => {
         if (isOpen && props.row) {
+            dialogKey.value += 1;
             activeTab.value = 'lista_operacional';
             hasOperationalList.value = false;
             rawMaterialsInfo.value = [];
@@ -240,7 +320,7 @@ watch(
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <FormDialogContent class="flex h-[90vh] max-h-[90vh] flex-col overflow-hidden px-2 py-2 sm:max-w-[90vw]" :scrollable="false">
+        <FormDialogContent class="flex w-[calc(100vw-2rem)] h-[calc(100vh-2rem)] max-w-none max-h-none flex-col overflow-hidden rounded-xl px-3 py-3" :scrollable="false">
             <FormHeader title="Ficha técnica" :description="`Orden ${row?.op_code ?? ''} — ${row?.referencia ?? ''}`" />
 
             <div v-if="isLoadingDetail" class="flex items-center justify-center py-12 text-sm text-muted-foreground">Cargando ficha técnica...</div>
@@ -371,7 +451,18 @@ watch(
 
                     <div class="min-h-0 flex-1 overflow-y-auto">
                         <TabsContent value="lista_operacional" class="mt-0">
-                            <OperationalListTab :op-id="row!.id" :op-label="opHeaderLabel" @has-data="hasOperationalList = $event" />
+                            <div v-if="isSampleOp" class="mb-3 flex justify-end">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    :disabled="catalogLoading"
+                                    @click="openEditOpsDialog"
+                                >
+                                    <Pencil class="mr-1.5 h-3.5 w-3.5" />
+                                    {{ catalogLoading ? 'Cargando...' : 'Editar operaciones' }}
+                                </Button>
+                            </div>
+                            <OperationalListTab :key="refreshKey" :op-id="row!.id" :op-label="opHeaderLabel" @has-data="hasOperationalList = $event" />
                         </TabsContent>
 
                         <TabsContent value="procesos" class="mt-0">
@@ -379,11 +470,11 @@ watch(
                         </TabsContent>
 
                         <TabsContent value="materia_prima" class="mt-0">
-                            <FabricMaterialTab :op-id="row!.id" :units="opDetail?.units ?? null" />
+                            <FabricMaterialTab :key="`fabric-${dialogKey}`" :op-id="row!.id" :units="opDetail?.units ?? null" />
                         </TabsContent>
 
                         <TabsContent value="hilos" class="mt-0">
-                            <ThreadsTab :op-id="row!.id" :units="opDetail?.units ?? null" />
+                            <ThreadsTab :key="`hilos-${dialogKey}`" :op-id="row!.id" :units="opDetail?.units ?? null" />
                         </TabsContent>
 
                         <TabsContent value="insumos" class="mt-0">
@@ -415,4 +506,19 @@ watch(
             </div>
         </FormDialogContent>
     </Dialog>
+
+    <!-- Dialog de edición de operaciones (solo muestras) -->
+    <ProductOperationListDialog
+        v-if="isSampleOp"
+        :open="editOpsOpen"
+        mode="edit"
+        :initial-data="opsInitialData"
+        :product-sheets="[]"
+        :sections="catalogSections"
+        :operations="catalogOperations"
+        :machines="catalogMachines"
+        :fabric-bases="catalogFabricBases"
+        @save="handleSaveOps"
+        @close="editOpsOpen = false"
+    />
 </template>

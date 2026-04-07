@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import SelectField from '@/components/SelectField.vue';
+import Button from '@/components/ui/button/Button.vue';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { OpBasicInfo } from '@/domain/Production';
 import { fetchOpBasicInfo, fetchOpOptions, fetchOpRawMaterials, fetchOpRolls } from '@/domain/Production';
 import type { BreadcrumbItem, Option } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
-import { Box, ChevronDown, ChevronUp, ClipboardList, DollarSign, FilePlus2, Package, Volleyball, Workflow } from 'lucide-vue-next';
+import { Box, ChevronDown, ChevronUp, ClipboardList, DollarSign, FilePlus2, Package, Printer, Volleyball, Workflow } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AdditionalInfoTab from './tabs/AdditionalInfoTab/index.vue';
 import CostsTab from './tabs/CostsTab.vue';
@@ -35,6 +36,34 @@ const isLoadingDetail = ref(false);
 const isDrawingOpen = ref(false);
 const isBasicInfoCollapsed = ref(false);
 const hasOperationalList = ref(false);
+const isPrinting = ref(false);
+const isPrintingH = ref(false);
+
+function printSummary(): void {
+    if (!selectedOpId.value || isPrinting.value) return;
+    isPrinting.value = true;
+    const url = `/produccion/ficha-tecnica/${selectedOpId.value}/imprimir`;
+    const pdfWindow = window.open(url, '_blank', 'noopener,noreferrer');
+    if (pdfWindow) {
+        pdfWindow.opener = null;
+    }
+    setTimeout(() => {
+        isPrinting.value = false;
+    }, 2000);
+}
+
+function printSummaryH(): void {
+    if (!selectedOpId.value || isPrintingH.value) return;
+    isPrintingH.value = true;
+    const url = `/produccion/ficha-tecnica/${selectedOpId.value}/imprimir-h`;
+    const pdfWindow = window.open(url, '_blank', 'noopener,noreferrer');
+    if (pdfWindow) {
+        pdfWindow.opener = null;
+    }
+    setTimeout(() => {
+        isPrintingH.value = false;
+    }, 2000);
+}
 type RawMaterialsInfoRow = {
     uid: string;
     telaItemId: number | null;
@@ -48,7 +77,30 @@ type RawMaterialsInfoRow = {
     proveedor: string | null;
     programmedColors: string[];
 };
+type ProducedColorSummary = {
+    name: string;
+    code: string | null;
+};
 const rawMaterialsInfo = ref<RawMaterialsInfoRow[]>([]);
+
+function parseProgrammedColorLabel(value: string | null | undefined): ProducedColorSummary | null {
+    const label = String(value ?? '').trim();
+    if (label === '') return null;
+
+    const matched = label.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+    if (!matched) {
+        return { name: label, code: null };
+    }
+
+    const name = matched[1]?.trim() ?? '';
+    const code = matched[2]?.trim() ?? '';
+    if (name === '' && code === '') return null;
+
+    return {
+        name: name || code,
+        code: code || null,
+    };
+}
 
 function resolveDrawingUrl(raw: string | null | undefined): string | null {
     const path = typeof raw === 'string' ? raw.trim() : '';
@@ -115,6 +167,28 @@ const opHeaderLabel = computed(() => {
     const opCode = String(selectedOp.value?.opCode ?? '').trim() || '-';
     const ref = displayedSecondReference.value || '-';
     return `${opCode} - ${ref}`;
+});
+
+const producedFabricColors = computed<ProducedColorSummary[]>(() => {
+    const map = new Map<string, ProducedColorSummary>();
+
+    for (const row of rawMaterialsInfo.value) {
+        for (const colorLabel of row.programmedColors ?? []) {
+            const parsed = parseProgrammedColorLabel(colorLabel);
+            if (!parsed) continue;
+
+            const key = `${parsed.name.toLocaleLowerCase('es-CO')}|${(parsed.code ?? '').toLocaleLowerCase('es-CO')}`;
+            if (!map.has(key)) {
+                map.set(key, parsed);
+            }
+        }
+    }
+
+    return [...map.values()].sort((a, b) => {
+        const byName = a.name.localeCompare(b.name, 'es-CO', { sensitivity: 'base' });
+        if (byName !== 0) return byName;
+        return (a.code ?? '').localeCompare(b.code ?? '', 'es-CO', { sensitivity: 'base' });
+    });
 });
 
 const tabs = [
@@ -357,20 +431,46 @@ onBeforeUnmount(() => {
                 Selecciona una orden de produccion para consultar su informacion basica y revisar el dibujo plano de referencia en vista ampliada.
             </p>
 
-            <div class="max-w-md">
-                <SelectField
-                    v-model="selectedOpId"
-                    label="Orden de produccion"
-                    :options="opOptions"
-                    :get-option-label="formatOpOptionLabel"
-                    placeholder="Selecciona una OP"
-                    :searchable="true"
-                    search-placeholder="Buscar OP..."
-                    :allow-custom="true"
-                    @search="loadOpOptions"
-                />
-                <p v-if="isLoadingOptions" class="mt-2 text-sm text-muted-foreground">Cargando opciones...</p>
-                <p v-else-if="opOptions.length === 0" class="mt-2 text-sm text-muted-foreground">No hay resultados</p>
+            <div class="flex items-end gap-3">
+                <div class="max-w-md flex-1">
+                    <SelectField
+                        v-model="selectedOpId"
+                        label="Orden de produccion"
+                        :options="opOptions"
+                        :get-option-label="formatOpOptionLabel"
+                        placeholder="Selecciona una OP"
+                        :searchable="true"
+                        search-placeholder="Buscar OP..."
+                        :allow-custom="true"
+                        @search="loadOpOptions"
+                    />
+                    <p v-if="isLoadingOptions" class="mt-2 text-sm text-muted-foreground">Cargando opciones...</p>
+                    <p v-else-if="opOptions.length === 0" class="mt-2 text-sm text-muted-foreground">No hay resultados</p>
+                </div>
+                <Button
+                    v-if="selectedOpId && selectedOp"
+                    variant="outline"
+                    size="sm"
+                    :disabled="isPrinting"
+                    class="mb-[2px] shrink-0"
+                    title="Imprimir resumen completo de la ficha técnica"
+                    @click="printSummary"
+                >
+                    <Printer class="mr-2 h-4 w-4" />
+                    {{ isPrinting ? 'Generando...' : 'Imprimir ficha' }}
+                </Button>
+                <Button
+                    v-if="selectedOpId && selectedOp"
+                    variant="outline"
+                    size="sm"
+                    :disabled="isPrintingH"
+                    class="mb-[2px] shrink-0"
+                    title="Imprimir ficha en formato horizontal (2 páginas, 3 columnas) — prueba"
+                    @click="printSummaryH"
+                >
+                    <Printer class="mr-2 h-4 w-4" />
+                    {{ isPrintingH ? 'Generando...' : 'Imprimir H (prueba)' }}
+                </Button>
             </div>
 
             <div v-if="isLoadingDetail" class="rounded-lg border border-border px-4 py-8 text-center text-sm text-muted-foreground">
@@ -521,7 +621,12 @@ onBeforeUnmount(() => {
                         </TabsContent>
 
                         <TabsContent value="hilos" class="mt-0">
-                            <ThreadsTab v-if="selectedOpId" :op-id="selectedOpId" :units="selectedOp?.units ?? null" />
+                            <ThreadsTab
+                                v-if="selectedOpId"
+                                :op-id="selectedOpId"
+                                :units="selectedOp?.units ?? null"
+                                :produced-colors="producedFabricColors"
+                            />
                         </TabsContent>
 
                         <TabsContent value="insumos" class="mt-0">

@@ -10,7 +10,7 @@ class TechnicalDataSheetItemOptionsService
     /**
      * @return array<int, array{id:int,name:string,reference:?string,unit:?string}>
      */
-    public function getOptions(string $group, string $search = '', string $status = 'habilitado', int $limit = 100): array
+    public function getOptions(string $group, string $search = '', string $status = 'habilitado', int $limit = 300): array
     {
         $normalizedGroup = $this->normalizeText($group);
 

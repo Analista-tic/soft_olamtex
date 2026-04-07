@@ -87,6 +87,8 @@ const snapshot = ref<string>('[]');
 const catalogItems = ref<SupplyCatalogOption[]>([]);
 const draftItemIds = ref<Set<number>>(new Set());
 const isLoadingCatalog = ref(false);
+const catalogRequestSequence = ref(0);
+const catalogCache = new Map<string, SupplyCatalogOption[]>();
 const purchaseDialogOpen = ref(false);
 const purchasePrefillName = ref('');
 const purchaseRowIndex = ref<number | null>(null);
@@ -373,11 +375,41 @@ function preserveDraftCatalogOptions(): void {
     });
 }
 
+function cloneCatalogOptions(options: SupplyCatalogOption[]): SupplyCatalogOption[] {
+    return options.map((item) => ({ ...item }));
+}
+
+function mergeCatalogItems(incoming: SupplyCatalogOption[]): void {
+    const existingIds = new Set(catalogItems.value.map((i) => i.id));
+    const toAdd = incoming.filter((i) => !existingIds.has(i.id));
+    if (toAdd.length > 0) {
+        catalogItems.value = [...catalogItems.value, ...toAdd];
+    }
+}
+
 async function loadCatalog(search = ''): Promise<void> {
+    const normalizedSearch = String(search ?? '').trim();
+    const isSearchQuery = normalizedSearch !== '';
+    const cacheKey = normalizedSearch.toLocaleLowerCase('es-CO');
+    const requestId = ++catalogRequestSequence.value;
     isLoadingCatalog.value = true;
+
     try {
-        const result = await fetchSupplyCatalogItems(search);
-        catalogItems.value = result.map((item) => ({
+        const cached = catalogCache.get(cacheKey);
+        if (cached) {
+            if (requestId !== catalogRequestSequence.value) return;
+            if (isSearchQuery) {
+                mergeCatalogItems(cloneCatalogOptions(cached));
+            } else {
+                catalogItems.value = cloneCatalogOptions(cached);
+            }
+            preserveDraftCatalogOptions();
+            return;
+        }
+
+        const result = await fetchSupplyCatalogItems(normalizedSearch);
+
+        const mappedItems = result.map((item) => ({
             id: item.id,
             label: item.label,
             description: item.description ?? null,
@@ -386,10 +418,32 @@ async function loadCatalog(search = ''): Promise<void> {
             is_draft: item.is_draft === true,
             imageUrl: item.imageUrl ?? null,
         }));
+
+        // Cachear siempre, incluso si el request quedó obsoleto,
+        // para que limpiar el buscador pueda restaurar los items iniciales.
+        catalogCache.set(cacheKey, cloneCatalogOptions(mappedItems));
+
+        if (requestId !== catalogRequestSequence.value) {
+            // Si la carga inicial llega tarde pero el catálogo está vacío, igual poblar.
+            if (!isSearchQuery && catalogItems.value.length === 0) {
+                catalogItems.value = cloneCatalogOptions(mappedItems);
+                preserveDraftCatalogOptions();
+            }
+            return;
+        }
+
+        if (isSearchQuery) {
+            mergeCatalogItems(mappedItems);
+        } else {
+            catalogItems.value = mappedItems;
+        }
         preserveDraftCatalogOptions();
     } catch (err) {
+        if (requestId !== catalogRequestSequence.value) return;
         console.error('Error al cargar catalogo de insumos:', err);
-        catalogItems.value = [];
+        if (!isSearchQuery) {
+            catalogItems.value = [];
+        }
     } finally {
         isLoadingCatalog.value = false;
     }

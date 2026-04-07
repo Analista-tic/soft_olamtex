@@ -12,9 +12,21 @@ import { computed, onMounted, ref, watch } from 'vue';
 const props = defineProps<{
     opId: string | number;
     units: number | null;
+    producedColors?: Array<{
+        name: string;
+        code: string | null;
+    }>;
 }>();
 
 type ColorOption = Option & { code?: string };
+
+type RowColor = {
+    id: string | null;
+    color: string;
+    colorCode: string;
+};
+
+const FIXED_COLOR_SLOTS = 6;
 
 type LocalThreadRow = {
     uid: string;
@@ -22,8 +34,7 @@ type LocalThreadRow = {
     threadName: string;
     gauge: string | number | null;
     brand: string;
-    color: string;
-    colorCode: string;
+    colors: RowColor[];
     stitchesPerInch: string | number | null;
     defaultThreadCost: string | number | null;
 };
@@ -39,7 +50,7 @@ const isLoadingParameterOptions = ref(false);
 const gaugeOptions = ref<Option[]>([]);
 const stitchesPerInchOptions = ref<Option[]>([]);
 const brandOptions = ref<Option[]>([]);
-const colorOptions = ref<ColorOption[]>([]);
+const settingsColorOptions = ref<ColorOption[]>([]);
 
 function generateUid(): string {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -62,6 +73,99 @@ function formatCOP(value: number): string {
 const totalHilos = computed(() => rows.value.reduce((sum, row) => sum + (Number(row.defaultThreadCost) || 0), 0));
 const costoHilos = computed(() => formatCOP(totalHilos.value));
 
+function normalizeText(value: string | null | undefined): string {
+    return String(value ?? '')
+        .trim()
+        .toLocaleLowerCase('es-CO');
+}
+
+function buildColorKey(name: string | null | undefined, code: string | null | undefined): string {
+    return `${normalizeText(name)}|${normalizeText(code)}`;
+}
+
+function mapColorEntryToOption(color: { name: string; code?: string | null; id?: string | number | null }): ColorOption | null {
+    const name = String(color.name ?? '').trim();
+    const code = String(color.code ?? '').trim();
+    const id = color.id != null && String(color.id).trim() !== '' ? String(color.id) : code || name;
+
+    if (name === '' && code === '') return null;
+
+    return {
+        id,
+        name: name || code,
+        ...(code !== '' && { code }),
+    };
+}
+
+function findColorInSettings(name: string | null | undefined, code: string | null | undefined): ColorOption | null {
+    const normalizedName = normalizeText(name);
+    const normalizedCode = normalizeText(code);
+
+    return (
+        settingsColorOptions.value.find((option) => {
+            const optionName = normalizeText(option.name);
+            const optionCode = normalizeText(option.code);
+
+            if (normalizedCode && optionCode === normalizedCode) return true;
+            if (normalizedName && optionName === normalizedName) return true;
+            return false;
+        }) ?? null
+    );
+}
+
+function getColorOptionLabel(option: Option): string {
+    const colorOption = option as ColorOption;
+    const name = String(colorOption.name ?? '').trim();
+    const code = String(colorOption.code ?? '').trim();
+    return code ? `${name} (${code})` : name;
+}
+
+const producedColorOptions = computed<ColorOption[]>(() => {
+    const map = new Map<string, ColorOption>();
+
+    for (const color of props.producedColors ?? []) {
+        const matched = findColorInSettings(color.name, color.code);
+        const option = matched ?? mapColorEntryToOption({ name: color.name, code: color.code });
+        if (!option) continue;
+
+        const key = buildColorKey(option.name, option.code);
+        if (!map.has(key)) {
+            map.set(key, option);
+        }
+    }
+
+    return [...map.values()].sort((a, b) => getColorOptionLabel(a).localeCompare(getColorOptionLabel(b), 'es-CO', { sensitivity: 'base' }));
+});
+
+const selectableColorOptions = computed<ColorOption[]>(() => {
+    const map = new Map<string, ColorOption>();
+
+    for (const option of producedColorOptions.value) {
+        map.set(buildColorKey(option.name, option.code), option);
+    }
+
+    for (const row of rows.value) {
+        for (const colorEntry of row.colors) {
+            const matched = findColorInSettings(colorEntry.color, colorEntry.colorCode);
+            const option =
+                matched ??
+                mapColorEntryToOption({
+                    name: colorEntry.color,
+                    code: colorEntry.colorCode,
+                    id: colorEntry.colorCode || colorEntry.color,
+                });
+            if (!option) continue;
+
+            const key = buildColorKey(option.name, option.code);
+            if (!map.has(key)) {
+                map.set(key, option);
+            }
+        }
+    }
+
+    return [...map.values()].sort((a, b) => getColorOptionLabel(a).localeCompare(getColorOptionLabel(b), 'es-CO', { sensitivity: 'base' }));
+});
+
 function toNullableText(value: string): string | null {
     const clean = value.trim();
     return clean === '' ? null : clean;
@@ -76,14 +180,22 @@ function toNullableNumber(value: unknown): number | null {
 }
 
 function mapApiLineToLocal(line: ThreadLine): LocalThreadRow {
+    const colors: RowColor[] = Array.from({ length: FIXED_COLOR_SLOTS }, () => ({ id: null, color: '', colorCode: '' }));
+    if (String(line.color ?? '').trim() !== '' || String(line.colorCode ?? '').trim() !== '') {
+        colors[0] = {
+            id: line.id ? String(line.id) : null,
+            color: String(line.color ?? ''),
+            colorCode: String(line.colorCode ?? ''),
+        };
+    }
+
     return {
         uid: generateUid(),
         id: line.id ? String(line.id) : null,
         threadName: String(line.threadName ?? ''),
         gauge: line.gauge !== null && line.gauge !== undefined ? Number(line.gauge) : null,
         brand: String(line.brand ?? ''),
-        color: String(line.color ?? ''),
-        colorCode: String(line.colorCode ?? ''),
+        colors,
         stitchesPerInch: line.stitchesPerInch !== null && line.stitchesPerInch !== undefined ? Number(line.stitchesPerInch) : null,
         defaultThreadCost: line.defaultThreadCost != null ? Number(line.defaultThreadCost) : null,
     };
@@ -96,24 +208,94 @@ function createEmptyRow(): LocalThreadRow {
         threadName: '',
         gauge: null,
         brand: '',
-        color: '',
-        colorCode: '',
+        colors: Array.from({ length: FIXED_COLOR_SLOTS }, () => ({ id: null, color: '', colorCode: '' })),
         stitchesPerInch: null,
         defaultThreadCost: null,
     };
 }
 
+function buildThreadGroupKey(line: ThreadLine): string {
+    const threadName = String(line.threadName ?? '').trim().toLocaleLowerCase('es-CO');
+    const gauge = line.gauge != null ? String(Number(line.gauge)) : '';
+    const brand = String(line.brand ?? '').trim().toLocaleLowerCase('es-CO');
+    const stitches = line.stitchesPerInch != null ? String(Number(line.stitchesPerInch)) : '';
+    const cost = line.defaultThreadCost != null ? String(Number(line.defaultThreadCost)) : '';
+
+    return [threadName, gauge, brand, stitches, cost].join('|');
+}
+
+function groupApiLines(lines: ThreadLine[]): LocalThreadRow[] {
+    const grouped = new Map<string, LocalThreadRow>();
+
+    for (const line of lines) {
+        const key = buildThreadGroupKey(line);
+        const current = grouped.get(key);
+
+        if (!current) {
+            grouped.set(key, mapApiLineToLocal(line));
+            continue;
+        }
+
+        const color = String(line.color ?? '').trim();
+        const colorCode = String(line.colorCode ?? '').trim();
+        const colorKey = buildColorKey(color, colorCode);
+        const exists = current.colors.some((entry) => buildColorKey(entry.color, entry.colorCode) === colorKey);
+        if (!exists && (color !== '' || colorCode !== '')) {
+            const emptyIndex = current.colors.findIndex((entry) => String(entry.color).trim() === '' && String(entry.colorCode).trim() === '');
+            if (emptyIndex >= 0 && emptyIndex < FIXED_COLOR_SLOTS) {
+                current.colors[emptyIndex] = {
+                    id: line.id ? String(line.id) : null,
+                    color,
+                    colorCode,
+                };
+            }
+        }
+    }
+
+    return [...grouped.values()];
+}
+
 function normalizeRowsForSave(): ThreadLine[] {
-    return rows.value.map((row) => ({
-        id: row.id ?? '',
-        threadName: row.threadName.trim(),
-        gauge: toNullableNumber(row.gauge),
-        brand: toNullableText(row.brand),
-        color: toNullableText(row.color),
-        colorCode: toNullableText(row.colorCode),
-        stitchesPerInch: toNullableNumber(row.stitchesPerInch),
-        defaultThreadCost: toNullableNumber(row.defaultThreadCost),
-    }));
+    const normalized: ThreadLine[] = [];
+
+    for (const row of rows.value) {
+        const threadName = row.threadName.trim();
+        const gauge = toNullableNumber(row.gauge);
+        const brand = toNullableText(row.brand);
+        const stitchesPerInch = toNullableNumber(row.stitchesPerInch);
+        const defaultThreadCost = toNullableNumber(row.defaultThreadCost);
+
+        const rowColors = row.colors.filter((entry) => String(entry.color).trim() !== '' || String(entry.colorCode).trim() !== '');
+
+        if (rowColors.length === 0) {
+            normalized.push({
+                id: row.id ?? '',
+                threadName,
+                gauge,
+                brand,
+                color: null,
+                colorCode: null,
+                stitchesPerInch,
+                defaultThreadCost,
+            });
+            continue;
+        }
+
+        for (const colorEntry of rowColors) {
+            normalized.push({
+                id: colorEntry.id ?? '',
+                threadName,
+                gauge,
+                brand,
+                color: toNullableText(colorEntry.color),
+                colorCode: toNullableText(colorEntry.colorCode),
+                stitchesPerInch,
+                defaultThreadCost,
+            });
+        }
+    }
+
+    return normalized;
 }
 
 function serializeState(): string {
@@ -128,7 +310,7 @@ const hasInvalidRows = computed(() => rows.value.some((row) => row.threadName.tr
 const canSave = computed(() => !isLoading.value && !isSaving.value && dirty.value && !hasInvalidRows.value);
 
 function applyState(state: ThreadState): void {
-    const loadedRows = Array.isArray(state.lines) ? state.lines.map(mapApiLineToLocal) : [];
+    const loadedRows = Array.isArray(state.lines) ? groupApiLines(state.lines) : [];
     rows.value = loadedRows.length > 0 ? loadedRows : [createEmptyRow()];
     deletedIds.value = [];
     snapshot.value = serializeState();
@@ -138,37 +320,77 @@ function addThread(): void {
     rows.value.push(createEmptyRow());
 }
 
-function onColorSelected(rowIndex: number, value: string | number | null): void {
-    const row = rows.value[rowIndex];
-    if (!row) return;
-    if (value === null || value === '') {
-        row.color = '';
-        row.colorCode = '';
-        return;
+function pushDeletedIdIfNeeded(id: string | null | undefined): void {
+    const normalized = String(id ?? '').trim();
+    if (normalized === '') return;
+    if (!deletedIds.value.includes(normalized)) {
+        deletedIds.value.push(normalized);
     }
-    const opt = colorOptions.value.find((o) => String(o.id) === String(value) || String(o.name) === String(value));
-    if (opt) {
-        row.color = String(opt.name ?? '');
-        row.colorCode = String(opt.code ?? opt.name ?? '');
-        return;
-    }
-
-    row.color = String(value);
-    row.colorCode = '';
 }
 
-function getColorSelectionValue(row: LocalThreadRow): string | null {
-    if (!row.color) return null;
-    const opt = colorOptions.value.find((o) => String(o.name) === row.color || String(o.id) === row.color);
-    return opt ? String(opt.id) : row.color;
+function onColorSelected(
+    rowIndex: number,
+    slotIndex: number,
+    value: string | number | boolean | null | undefined,
+): void {
+    const row = rows.value[rowIndex];
+    if (!row || !row.colors[slotIndex]) return;
+
+    const slot = row.colors[slotIndex];
+    const selectedValue = Array.isArray(value) ? value[0] : value;
+
+    if (selectedValue === null || selectedValue === undefined || selectedValue === '') {
+        pushDeletedIdIfNeeded(slot.id);
+        row.colors[slotIndex] = { id: null, color: '', colorCode: '' };
+        return;
+    }
+
+    const opt = selectableColorOptions.value.find((o) => String(o.id) === String(selectedValue) || String(o.name) === String(selectedValue));
+    if (!opt) return;
+
+    const nextColor = String(opt.name ?? '').trim();
+    const nextColorCode = String(opt.code ?? opt.name ?? '').trim();
+    const prevKey = buildColorKey(slot.color, slot.colorCode);
+    const nextKey = buildColorKey(nextColor, nextColorCode);
+
+    if (prevKey !== '' && prevKey !== nextKey) {
+        pushDeletedIdIfNeeded(slot.id);
+    }
+
+    row.colors[slotIndex] = {
+        id: prevKey === nextKey ? slot.id : null,
+        color: nextColor,
+        colorCode: nextColorCode,
+    };
+}
+
+function getColorSelectionValue(row: LocalThreadRow, slotIndex: number): string | number | boolean | null {
+    const entry = row.colors[slotIndex];
+    if (!entry) return null;
+    if (String(entry.color).trim() === '' && String(entry.colorCode).trim() === '') return null;
+
+    const opt = selectableColorOptions.value.find((o) => buildColorKey(o.name, o.code) === buildColorKey(entry.color, entry.colorCode));
+    return opt?.id ?? null;
 }
 
 function removeThread(uid: string): void {
     const target = rows.value.find((row) => row.uid === uid);
     if (!target) return;
 
-    if (target.id && !deletedIds.value.includes(target.id)) {
-        deletedIds.value.push(target.id);
+    const idsToDelete = new Set<string>();
+    if (target.id) {
+        idsToDelete.add(target.id);
+    }
+    for (const colorEntry of target.colors) {
+        if (colorEntry.id) {
+            idsToDelete.add(colorEntry.id);
+        }
+    }
+
+    for (const id of idsToDelete) {
+        if (!deletedIds.value.includes(id)) {
+            deletedIds.value.push(id);
+        }
     }
 
     rows.value = rows.value.filter((row) => row.uid !== uid);
@@ -208,7 +430,7 @@ async function loadThreadParameterOptions(): Promise<void> {
         gaugeOptions.value = (data.calibre ?? []).map(mapNumericOption);
         stitchesPerInchOptions.value = (data.puntada_por_pulgada ?? []).map(mapNumericOption);
         brandOptions.value = (data.thread_brands ?? []).map(mapTextOption);
-        colorOptions.value = (data.fabric_colors ?? []).map((opt: Option & { code?: string }) => ({
+        settingsColorOptions.value = (data.fabric_colors ?? []).map((opt: Option & { code?: string }) => ({
             id: String(opt.id ?? opt.name ?? ''),
             name: String(opt.name ?? opt.id ?? ''),
             ...(opt.code != null && { code: String(opt.code) }),
@@ -218,7 +440,7 @@ async function loadThreadParameterOptions(): Promise<void> {
         gaugeOptions.value = [];
         stitchesPerInchOptions.value = [];
         brandOptions.value = [];
-        colorOptions.value = [];
+        settingsColorOptions.value = [];
     } finally {
         isLoadingParameterOptions.value = false;
     }
@@ -284,7 +506,7 @@ onMounted(() => {
             <div>
                 <h2 class="text-lg font-semibold text-foreground">Hilos</h2>
                 <p class="text-sm text-muted-foreground">
-                    Selecciona los colores del catálogo; se guardan nombre y código. Costo estimado informativo por prenda. No afecta inventario.
+                    Los colores disponibles se toman de las telas programadas en la ficha y el nombre/código se resuelven desde settings.
                 </p>
             </div>
             <div class="w-fit rounded-full border border-border bg-muted/30 px-3 py-1.5 text-sm font-medium text-foreground">
@@ -306,9 +528,19 @@ onMounted(() => {
                             <TableHead class="min-w-[170px] text-left">Hilo</TableHead>
                             <TableHead class="min-w-[120px] text-left">Calibre</TableHead>
                             <TableHead class="min-w-[160px] text-left">Marca</TableHead>
-                            <TableHead class="min-w-[140px] text-left">Color</TableHead>
-                            <TableHead class="min-w-[120px] text-left">Cod. color</TableHead>
                             <TableHead class="min-w-[180px] text-left">Puntada por pulgada</TableHead>
+                            <TableHead class="min-w-[170px] text-left">Color 1</TableHead>
+                            <TableHead class="min-w-[120px] text-left">Código</TableHead>
+                            <TableHead class="min-w-[170px] text-left">Color 2</TableHead>
+                            <TableHead class="min-w-[120px] text-left">Código</TableHead>
+                            <TableHead class="min-w-[170px] text-left">Color 3</TableHead>
+                            <TableHead class="min-w-[120px] text-left">Código</TableHead>
+                            <TableHead class="min-w-[170px] text-left">Color 4</TableHead>
+                            <TableHead class="min-w-[120px] text-left">Código</TableHead>
+                            <TableHead class="min-w-[170px] text-left">Color 5</TableHead>
+                            <TableHead class="min-w-[120px] text-left">Código</TableHead>
+                            <TableHead class="min-w-[170px] text-left">Color 6</TableHead>
+                            <TableHead class="min-w-[120px] text-left">Código</TableHead>
                             <TableHead class="min-w-[120px] text-right">Costo hilo por defecto</TableHead>
                             <TableHead class="w-[80px] text-center">Accion</TableHead>
                         </TableRow>
@@ -341,26 +573,95 @@ onMounted(() => {
                             </TableCell>
                             <TableCell>
                                 <SelectField
-                                    :model-value="getColorSelectionValue(row)"
-                                    label=""
-                                    placeholder="Selecciona color"
-                                    :options="colorOptions"
-                                    :disabled="isSaving || isLoadingParameterOptions"
-                                    :searchable="true"
-                                    :allow-custom="false"
-                                    @update:model-value="(v) => onColorSelected(index, v as string | number | null)"
-                                />
-                            </TableCell>
-                            <TableCell class="text-muted-foreground">
-                                <span class="text-sm">{{ row.colorCode || '—' }}</span>
-                            </TableCell>
-                            <TableCell>
-                                <SelectField
                                     v-model="rows[index].stitchesPerInch"
                                     label=""
                                     placeholder="Selecciona"
                                     :options="stitchesPerInchOptions"
                                     :disabled="isSaving || isLoadingParameterOptions"
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <Input
+                                    v-model="rows[index].colors[0].color"
+                                    placeholder="Color 1"
+                                    :disabled="isSaving"
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <Input
+                                    v-model="rows[index].colors[0].colorCode"
+                                    placeholder="Código"
+                                    :disabled="isSaving"
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <Input
+                                    v-model="rows[index].colors[1].color"
+                                    placeholder="Color 2"
+                                    :disabled="isSaving"
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <Input
+                                    v-model="rows[index].colors[1].colorCode"
+                                    placeholder="Código"
+                                    :disabled="isSaving"
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <Input
+                                    v-model="rows[index].colors[2].color"
+                                    placeholder="Color 3"
+                                    :disabled="isSaving"
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <Input
+                                    v-model="rows[index].colors[2].colorCode"
+                                    placeholder="Código"
+                                    :disabled="isSaving"
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <Input
+                                    v-model="rows[index].colors[3].color"
+                                    placeholder="Color 4"
+                                    :disabled="isSaving"
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <Input
+                                    v-model="rows[index].colors[3].colorCode"
+                                    placeholder="Código"
+                                    :disabled="isSaving"
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <Input
+                                    v-model="rows[index].colors[4].color"
+                                    placeholder="Color 5"
+                                    :disabled="isSaving"
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <Input
+                                    v-model="rows[index].colors[4].colorCode"
+                                    placeholder="Código"
+                                    :disabled="isSaving"
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <Input
+                                    v-model="rows[index].colors[5].color"
+                                    placeholder="Color 6"
+                                    :disabled="isSaving"
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <Input
+                                    v-model="rows[index].colors[5].colorCode"
+                                    placeholder="Código"
+                                    :disabled="isSaving"
                                 />
                             </TableCell>
                             <TableCell class="text-right">

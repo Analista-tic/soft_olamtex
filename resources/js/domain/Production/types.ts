@@ -355,6 +355,7 @@ export type RollLine = {
     rawMaterialUid?: string | null;
     fabricItemId?: string | number | null;
     rollId?: string | number | null;
+    location?: string | null;
     createdAt?: string;
     updatedAt?: string;
 };

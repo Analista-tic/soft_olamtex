@@ -2,7 +2,6 @@
 import SelectField from '@/components/SelectField.vue';
 import Button from '@/components/ui/button/Button.vue';
 import Input from '@/components/ui/input/Input.vue';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { AvailableFabricRoll, RawMaterialItemMeta, RollLine } from '@/domain/Production';
 import {
     fetchAvailableFabricRolls,
@@ -24,11 +23,8 @@ const props = defineProps<{
     units: number | null;
 }>();
 
-// ── Types ────────────────────────────────────────────────
-
 type DisplayRoll = {
     rollId: string;
-    lineId: string | null;
     label: string;
     fabricName: string;
     location: string | null;
@@ -38,14 +34,19 @@ type DisplayRoll = {
     color: string | null;
     colorCode: string | null;
     supplier: string | null;
-    metersProgrammed: string;
 };
 
-type ItemGroup = {
+type AssignedRoll = {
+    uid: string;
+    roll: DisplayRoll;
+    metersProgrammed: string;
+    lineId: string | null;
+};
+
+type FabricLine = {
     uid: string;
     telaItemId: number | null;
     tela: string;
-    trazo: string;
     supplierId: number | null;
     lastSupplierName: string | null;
     lastUnitPriceCop: number | null;
@@ -53,49 +54,36 @@ type ItemGroup = {
     lastInvoiceNumber: string | null;
     ancho: number | null;
     anchoUnit: 'm' | 'cm' | null;
+    loadingMeta: boolean;
+    loadingRolls: boolean;
+    rollSearch: string;
+    rollsOpen: boolean;
+    availableRolls: DisplayRoll[];
+    assignedRolls: AssignedRoll[];
+};
+
+type TrazoGroup = {
+    uid: string;
+    trazo: string;
     promTrazo: number;
     largoTrazo: number;
     largoLiq: number;
-    consumo: number;
-    expanded: boolean;
-    loadingMeta: boolean;
-    loadingRolls: boolean;
-    rolls: DisplayRoll[];
+    lines: FabricLine[];
+    open: boolean;
 };
 
-// ── State ────────────────────────────────────────────────
+// consumo = calculado; no es campo editable
 
-const groups = ref<ItemGroup[]>([]);
+const trazos = ref<TrazoGroup[]>([]);
 const itemOptions = ref<Option[]>([]);
 const isLoading = ref(false);
 const isSaving = ref(false);
 const isLoadingItems = ref(false);
 const error = ref<string | null>(null);
-const warning = ref<string | null>(null);
 const saveMessage = ref<string | null>(null);
 const snapshot = ref('');
 const deletedRollLineIds = ref<string[]>([]);
-const rollSearch = ref<Map<string, string>>(new Map());
 const metaCache = new Map<number, RawMaterialItemMeta | null>();
-const sharedMetricFields: Array<'promTrazo' | 'largoTrazo' | 'largoLiq' | 'consumo'> = ['promTrazo', 'largoTrazo', 'largoLiq', 'consumo'];
-
-// ── Helpers ──────────────────────────────────────────────
-
-function getRollSearch(uid: string): string {
-    return rollSearch.value.get(uid) ?? '';
-}
-
-function setRollSearch(uid: string, value: string): void {
-    const updated = new Map(rollSearch.value);
-    updated.set(uid, value);
-    rollSearch.value = updated;
-}
-
-function filteredRolls(group: ItemGroup): DisplayRoll[] {
-    const query = getRollSearch(group.uid).trim().toLowerCase();
-    if (!query) return group.rolls;
-    return group.rolls.filter((r) => r.label.toLowerCase().includes(query));
-}
 
 function generateUid(): string {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
@@ -113,23 +101,15 @@ function toNullableNumber(v: unknown): number | null {
 }
 
 function resolvePricePerMeter(preferred: unknown, fallback: unknown): number {
-    const preferredNumber = Number(preferred);
-    if (Number.isFinite(preferredNumber) && preferredNumber >= 0) {
-        return preferredNumber;
+    if (preferred !== null && preferred !== undefined && preferred !== '') {
+        const p = Number(preferred);
+        if (Number.isFinite(p) && p >= 0) return p;
     }
-
-    const fallbackNumber = Number(fallback);
-    if (Number.isFinite(fallbackNumber) && fallbackNumber >= 0) {
-        return fallbackNumber;
+    if (fallback !== null && fallback !== undefined && fallback !== '') {
+        const f = Number(fallback);
+        if (Number.isFinite(f) && f >= 0) return f;
     }
-
     return 0;
-}
-
-function normalizeTrazo(value: unknown): string {
-    return String(value ?? '')
-        .trim()
-        .toLowerCase();
 }
 
 function formatCOP(value: number | null): string {
@@ -138,10 +118,10 @@ function formatCOP(value: number | null): string {
         .replace(/\u00A0/g, ' ');
 }
 
-function formatWidth(group: ItemGroup): string {
-    if (group.ancho === null) return '-';
-    const v = Number.isInteger(group.ancho) ? String(group.ancho) : group.ancho.toFixed(2).replace(/\.00$/, '');
-    return group.anchoUnit ? `${v} ${group.anchoUnit}` : v;
+function formatWidth(ancho: number | null, anchoUnit: 'm' | 'cm' | null): string {
+    if (ancho === null) return '-';
+    const v = Number.isInteger(ancho) ? String(ancho) : ancho.toFixed(2).replace(/\.00$/, '');
+    return anchoUnit ? `${v} ${anchoUnit}` : v;
 }
 
 function formatDate(value: string | null): string {
@@ -152,9 +132,7 @@ function formatDate(value: string | null): string {
 }
 
 function formatSaveError(err: unknown): string {
-    if (!axios.isAxiosError(err) || !err.response?.data) {
-        return 'No se pudieron guardar los cambios.';
-    }
+    if (!axios.isAxiosError(err) || !err.response?.data) return 'No se pudieron guardar los cambios.';
     const data = err.response.data as { message?: string; errors?: Record<string, string[]> };
     if (err.response.status === 422 && data.errors) {
         const first = Object.values(data.errors).flat()[0];
@@ -163,14 +141,20 @@ function formatSaveError(err: unknown): string {
     return data.message ?? 'Error al guardar.';
 }
 
-// ── Item management ──────────────────────────────────────
+function filteredRolls(line: FabricLine): DisplayRoll[] {
+    const q = line.rollSearch.trim().toLowerCase();
+    if (!q) return line.availableRolls;
+    return line.availableRolls.filter((r) => {
+        const haystack = [r.label, r.fabricName, r.location ?? '', r.color ?? '', r.supplier ?? ''].join(' ').toLowerCase();
+        return haystack.includes(q);
+    });
+}
 
-function createEmptyGroup(): ItemGroup {
+function createEmptyLine(): FabricLine {
     return {
         uid: generateUid(),
         telaItemId: null,
         tela: '',
-        trazo: '',
         supplierId: null,
         lastSupplierName: null,
         lastUnitPriceCop: null,
@@ -178,207 +162,224 @@ function createEmptyGroup(): ItemGroup {
         lastInvoiceNumber: null,
         ancho: null,
         anchoUnit: null,
-        promTrazo: 0,
-        largoTrazo: 0,
-        largoLiq: 0,
-        consumo: 0,
-        expanded: true,
         loadingMeta: false,
         loadingRolls: false,
-        rolls: [],
+        rollSearch: '',
+        rollsOpen: true,
+        availableRolls: [],
+        assignedRolls: [],
     };
 }
 
-function addGroup(): void {
-    groups.value.push(createEmptyGroup());
+function createEmptyTrazo(): TrazoGroup {
+    return { uid: generateUid(), trazo: '', promTrazo: 0, largoTrazo: 0, largoLiq: 0, lines: [createEmptyLine()], open: true };
 }
 
-function removeGroup(uid: string): void {
-    const group = groups.value.find((g) => g.uid === uid);
-    if (!group) return;
+function addTrazo(): void {
+    trazos.value.push(createEmptyTrazo());
+}
 
-    for (const roll of group.rolls) {
-        if (roll.lineId && !deletedRollLineIds.value.includes(roll.lineId)) {
-            deletedRollLineIds.value.push(roll.lineId);
+function removeTrazo(trazoUid: string): void {
+    const trazo = trazos.value.find((t) => t.uid === trazoUid);
+    if (!trazo) return;
+    for (const line of trazo.lines) {
+        for (const assignment of line.assignedRolls) {
+            if (assignment.lineId && !deletedRollLineIds.value.includes(assignment.lineId)) {
+                deletedRollLineIds.value.push(assignment.lineId);
+            }
         }
     }
-
-    groups.value = groups.value.filter((g) => g.uid !== uid);
+    trazos.value = trazos.value.filter((t) => t.uid !== trazoUid);
 }
 
-function toggleExpand(uid: string): void {
-    const group = groups.value.find((g) => g.uid === uid);
-    if (group) group.expanded = !group.expanded;
+function addLineToTrazo(trazoUid: string): void {
+    trazos.value.find((t) => t.uid === trazoUid)?.lines.push(createEmptyLine());
 }
 
-function syncMetricsFromSource(target: ItemGroup, source: ItemGroup): void {
-    for (const field of sharedMetricFields) {
-        target[field] = source[field];
-    }
-}
-
-function onTrazoChanged(groupUid: string, value: string | number | boolean | Array<string | number | boolean> | null | undefined): void {
-    const group = groups.value.find((g) => g.uid === groupUid);
-    if (!group) return;
-
-    const raw = String(Array.isArray(value) ? value[0] ?? '' : value ?? '').trim();
-    group.trazo = raw;
-
-    const trazoKey = normalizeTrazo(raw);
-    if (!trazoKey) return;
-
-    const source = groups.value.find((g) => g.uid !== group.uid && normalizeTrazo(g.trazo) === trazoKey);
-    if (!source) return;
-
-    group.trazo = source.trazo || raw;
-    syncMetricsFromSource(group, source);
-}
-
-function updateTrazoMetric(groupUid: string, field: 'promTrazo' | 'largoTrazo' | 'largoLiq' | 'consumo', value: unknown): void {
-    const group = groups.value.find((g) => g.uid === groupUid);
-    if (!group) return;
-
-    const numeric = toNumber(value);
-    group[field] = numeric;
-
-    const trazoKey = normalizeTrazo(group.trazo);
-    if (!trazoKey) return;
-
-    for (const peer of groups.value) {
-        if (peer.uid === group.uid) continue;
-        if (normalizeTrazo(peer.trazo) === trazoKey) {
-            peer[field] = numeric;
+function removeLineFromTrazo(trazoUid: string, lineUid: string): void {
+    const trazo = trazos.value.find((t) => t.uid === trazoUid);
+    if (!trazo) return;
+    const line = trazo.lines.find((l) => l.uid === lineUid);
+    if (line) {
+        for (const assignment of line.assignedRolls) {
+            if (assignment.lineId && !deletedRollLineIds.value.includes(assignment.lineId)) {
+                deletedRollLineIds.value.push(assignment.lineId);
+            }
         }
     }
+    trazo.lines = trazo.lines.filter((l) => l.uid !== lineUid);
 }
 
-function linkedTrazoCount(group: ItemGroup): number {
-    const trazoKey = normalizeTrazo(group.trazo);
-    if (!trazoKey) return 1;
-    return groups.value.filter((g) => normalizeTrazo(g.trazo) === trazoKey).length;
+function updateTrazoMetric(trazoUid: string, field: 'promTrazo' | 'largoTrazo' | 'largoLiq', value: unknown): void {
+    const trazo = trazos.value.find((t) => t.uid === trazoUid);
+    if (trazo) trazo[field] = toNumber(value);
 }
 
-// ── Item selection & metadata ────────────────────────────
-
-function clearGroupMeta(group: ItemGroup): void {
-    group.supplierId = null;
-    group.lastSupplierName = null;
-    group.lastUnitPriceCop = null;
-    group.lastPurchaseDate = null;
-    group.lastInvoiceNumber = null;
-    group.ancho = null;
-    group.anchoUnit = null;
+function clearLineMeta(line: FabricLine): void {
+    line.supplierId = null;
+    line.lastSupplierName = null;
+    line.lastUnitPriceCop = null;
+    line.lastPurchaseDate = null;
+    line.lastInvoiceNumber = null;
+    line.ancho = null;
+    line.anchoUnit = null;
 }
 
-async function loadItemMeta(group: ItemGroup): Promise<void> {
-    if (!group.telaItemId) return;
-    group.loadingMeta = true;
+async function loadLineMeta(line: FabricLine): Promise<void> {
+    if (!line.telaItemId) return;
+    line.loadingMeta = true;
     try {
-        let meta = metaCache.get(group.telaItemId) ?? null;
-        if (!metaCache.has(group.telaItemId)) {
-            meta = await fetchRawMaterialItemMeta(group.telaItemId);
-            metaCache.set(group.telaItemId, meta);
+        let meta = metaCache.get(line.telaItemId) ?? null;
+        if (!metaCache.has(line.telaItemId)) {
+            meta = await fetchRawMaterialItemMeta(line.telaItemId);
+            metaCache.set(line.telaItemId, meta);
         }
         if (meta) {
-            group.supplierId = meta.provider?.id ?? null;
-            group.lastSupplierName = meta.provider?.name?.trim() || null;
-            group.lastUnitPriceCop = meta.price != null ? Math.max(0, Number(meta.price)) : null;
-            group.lastPurchaseDate = meta.date ?? null;
-            group.lastInvoiceNumber = meta.invoiceNumber ?? null;
-            group.ancho = meta.width != null ? Math.max(0, Number(meta.width)) : null;
-            group.anchoUnit = meta.widthUnit ?? null;
+            line.supplierId = meta.provider?.id ?? null;
+            line.lastSupplierName = meta.provider?.name?.trim() || null;
+            line.lastUnitPriceCop = meta.price != null ? Math.max(0, Number(meta.price)) : null;
+            line.lastPurchaseDate = meta.date ?? null;
+            line.lastInvoiceNumber = meta.invoiceNumber ?? null;
+            line.ancho = meta.width != null ? Math.max(0, Number(meta.width)) : null;
+            line.anchoUnit = meta.widthUnit ?? null;
         }
     } catch (e) {
         console.error('Error al cargar metadata del item:', e);
     } finally {
-        group.loadingMeta = false;
+        line.loadingMeta = false;
     }
 }
 
-async function loadRollsForGroup(group: ItemGroup): Promise<void> {
-    if (!group.telaItemId) {
-        group.rolls = [];
+async function loadRollsForLine(line: FabricLine): Promise<void> {
+    if (!line.telaItemId) {
+        line.availableRolls = [];
         return;
     }
-    group.loadingRolls = true;
+    line.loadingRolls = true;
     try {
-        const allRolls = await fetchAvailableFabricRolls([group.telaItemId], props.opId);
-        const itemRolls = allRolls.filter((r) => r.fabricItemId === group.telaItemId);
-
-        const existingByRollId = new Map(group.rolls.map((r) => [r.rollId, r]));
-
-        group.rolls = itemRolls
-            .map((roll) => {
-                const existing = existingByRollId.get(roll.id);
-                return {
-                    rollId: roll.id,
-                    lineId: existing?.lineId ?? null,
-                    label: roll.label,
-                    fabricName: roll.fabricName,
-                    location: roll.location,
-                    widthCm: roll.widthCm,
-                    availableMeters: roll.availableMeters,
-                    pricePerMeter: resolvePricePerMeter(existing?.pricePerMeter, roll.pricePerMeter),
-                    color: roll.color,
-                    colorCode: roll.colorCode,
-                    supplier: roll.supplier,
-                    metersProgrammed: existing?.metersProgrammed ?? '',
-                };
-            })
+        const allRolls = await fetchAvailableFabricRolls([line.telaItemId], props.opId);
+        line.availableRolls = allRolls
+            .filter((r) => r.fabricItemId === line.telaItemId)
+            .map((r) => ({
+                rollId: r.id,
+                label: r.label,
+                fabricName: r.fabricName,
+                location: r.location,
+                widthCm: r.widthCm,
+                availableMeters: r.availableMeters,
+                pricePerMeter: resolvePricePerMeter(null, r.pricePerMeter),
+                color: r.color,
+                colorCode: r.colorCode,
+                supplier: r.supplier,
+            }))
             .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }));
+
+        if (line.assignedRolls.length > 0) {
+            line.assignedRolls = line.assignedRolls.map((assignment) => {
+                const fresh = line.availableRolls.find((r) => r.rollId === assignment.roll.rollId);
+                if (!fresh) return assignment;
+                return { ...assignment, roll: { ...assignment.roll, pricePerMeter: fresh.pricePerMeter } };
+            });
+        }
     } catch (e) {
-        console.error('Error al cargar rollos para item:', e);
-        group.rolls = [];
+        console.error('Error al cargar rollos:', e);
+        line.availableRolls = [];
     } finally {
-        group.loadingRolls = false;
+        line.loadingRolls = false;
     }
 }
 
 async function onItemSelected(
-    groupUid: string,
+    trazoUid: string,
+    lineUid: string,
     value: string | number | boolean | Array<string | number | boolean> | null | undefined,
 ): Promise<void> {
-    const group = groups.value.find((g) => g.uid === groupUid);
-    if (!group) return;
+    const line = trazos.value.find((t) => t.uid === trazoUid)?.lines.find((l) => l.uid === lineUid);
+    if (!line) return;
 
     const normalized = Array.isArray(value) ? value[0] : value;
     const itemId = normalized === null || normalized === undefined || normalized === '' ? null : Number(normalized);
 
     if (itemId === null || !Number.isFinite(itemId)) {
-        group.telaItemId = null;
-        group.tela = '';
-        clearGroupMeta(group);
-        group.rolls = [];
+        line.telaItemId = null;
+        line.tela = '';
+        clearLineMeta(line);
+        line.availableRolls = [];
+        line.assignedRolls = [];
         return;
     }
 
     const option = itemOptions.value.find((o) => Number(o.id) === itemId);
-    group.telaItemId = itemId;
-    group.tela = option?.name ?? `Item ${itemId}`;
-    clearGroupMeta(group);
-    group.rolls = [];
-    group.expanded = true;
+    line.telaItemId = itemId;
+    line.tela = option?.name ?? `Item ${itemId}`;
+    clearLineMeta(line);
+    line.availableRolls = [];
+    line.assignedRolls = [];
 
-    await Promise.all([loadItemMeta(group), loadRollsForGroup(group)]);
+    await Promise.all([loadLineMeta(line), loadRollsForLine(line)]);
 }
 
-function getItemOptions(group: ItemGroup): Option[] {
-    const options = itemOptions.value.filter((o) => Number.isFinite(Number(o.id)));
+function addRollToLine(trazoUid: string, lineUid: string, roll: DisplayRoll): void {
+    const line = trazos.value.find((t) => t.uid === trazoUid)?.lines.find((l) => l.uid === lineUid);
+    if (!line) return;
+    if (line.assignedRolls.some((a) => a.roll.rollId === roll.rollId)) return;
 
-    if (group.telaItemId !== null) {
-        const exists = options.some((o) => Number(o.id) === group.telaItemId);
-        if (!exists) {
-            options.unshift({
-                id: group.telaItemId,
-                name: group.tela || `Item ${group.telaItemId}`,
-            });
-        }
+    line.assignedRolls.push({
+        uid: generateUid(),
+        roll: { ...roll },
+        metersProgrammed: '',
+        lineId: null,
+    });
+}
+
+function removeAssignedRoll(trazoUid: string, lineUid: string, assignmentUid: string): void {
+    const line = trazos.value.find((t) => t.uid === trazoUid)?.lines.find((l) => l.uid === lineUid);
+    if (!line) return;
+
+    const assignment = line.assignedRolls.find((a) => a.uid === assignmentUid);
+    if (assignment?.lineId && !deletedRollLineIds.value.includes(assignment.lineId)) {
+        deletedRollLineIds.value.push(assignment.lineId);
     }
 
-    return options;
+    line.assignedRolls = line.assignedRolls.filter((a) => a.uid !== assignmentUid);
 }
 
-// ── Item options loading ─────────────────────────────────
+function isRollAssigned(line: FabricLine, rollId: string): boolean {
+    return line.assignedRolls.some((assignment) => assignment.roll.rollId === rollId);
+}
+
+function getPartialAvailability(rollId: string): number {
+    const totalProgrammed = rollTotalProgrammed.value.get(rollId) ?? 0;
+    // Encontrar el rollo para obtener su disponibilidad total
+    for (const trazo of trazos.value) {
+        for (const line of trazo.lines) {
+            for (const assignment of line.assignedRolls) {
+                if (assignment.roll.rollId === rollId && assignment.roll.availableMeters !== null) {
+                    return Math.max(0, assignment.roll.availableMeters - totalProgrammed);
+                }
+            }
+        }
+    }
+    // Si no está en asignados, buscarlo en disponibles
+    for (const trazo of trazos.value) {
+        for (const line of trazo.lines) {
+            for (const roll of line.availableRolls) {
+                if (roll.rollId === rollId && roll.availableMeters !== null) {
+                    return Math.max(0, roll.availableMeters - totalProgrammed);
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+function getItemOptions(line: FabricLine): Option[] {
+    const options = itemOptions.value.filter((o) => Number.isFinite(Number(o.id)));
+    if (line.telaItemId !== null && !options.some((o) => Number(o.id) === line.telaItemId)) {
+        options.unshift({ id: line.telaItemId, name: line.tela || `Item ${line.telaItemId}` });
+    }
+    return options;
+}
 
 async function loadItemOptions(search = ''): Promise<void> {
     isLoadingItems.value = true;
@@ -391,110 +392,90 @@ async function loadItemOptions(search = ''): Promise<void> {
     }
 }
 
-// ── Cost calculations ────────────────────────────────────
-
-function rollCost(roll: DisplayRoll): number {
-    return toNumber(roll.metersProgrammed) * toNumber(roll.pricePerMeter);
+function lineCost(line: FabricLine): number {
+    return line.assignedRolls.reduce(
+        (sum, assignment) => sum + toNumber(assignment.metersProgrammed) * toNumber(assignment.roll.pricePerMeter),
+        0,
+    );
 }
 
-function groupRollsCost(group: ItemGroup): number {
-    return group.rolls.reduce((sum, r) => sum + rollCost(r), 0);
+function trazoCost(trazo: TrazoGroup): number {
+    return trazo.lines.reduce((sum, l) => sum + lineCost(l), 0);
 }
 
-function groupAssignedRollsCount(group: ItemGroup): number {
-    return group.rolls.filter((r) => toNumber(r.metersProgrammed) > 0).length;
+function trazoProgrammedMeters(trazo: TrazoGroup): number {
+    return trazo.lines.reduce(
+        (sum, line) => sum + line.assignedRolls.reduce((lineSum, assignment) => lineSum + toNumber(assignment.metersProgrammed), 0),
+        0,
+    );
 }
 
-/**
- * Suma de metros programados para un rollId en TODOS los grupos.
- * Computed reactivo: se recalcula cada vez que cambia metersProgrammed en cualquier grupo.
- */
+
 const rollTotalProgrammed = computed<Map<string, number>>(() => {
     const map = new Map<string, number>();
-    for (const group of groups.value) {
-        for (const roll of group.rolls) {
-            const meters = toNumber(roll.metersProgrammed);
-            if (meters > 0) {
-                map.set(roll.rollId, (map.get(roll.rollId) ?? 0) + meters);
+    for (const trazo of trazos.value) {
+        for (const line of trazo.lines) {
+            for (const assignment of line.assignedRolls) {
+                const meters = toNumber(assignment.metersProgrammed);
+                if (meters > 0) map.set(assignment.roll.rollId, (map.get(assignment.roll.rollId) ?? 0) + meters);
             }
         }
     }
     return map;
 });
 
-/**
- * Disponibilidad efectiva de un rollo dentro de un grupo:
- * availableMeters original - metros usados por OTROS grupos para el mismo rollId.
- */
-function effectiveAvailableMeters(roll: DisplayRoll): number | null {
-    if (roll.availableMeters === null) return null;
-    const totalForRoll = rollTotalProgrammed.value.get(roll.rollId) ?? 0;
-    const metersHere = toNumber(roll.metersProgrammed);
-    const usedByOthers = totalForRoll - metersHere;
-    return Math.max(0, roll.availableMeters - usedByOthers);
-}
-
-/**
- * Valor a mostrar en la columna "Mt disponibles".
- * Muestra el remanente global real del rollo:
- * availableMeters original - total programado en TODOS los grupos.
- */
-function displayAvailableMeters(roll: DisplayRoll): number | null {
-    if (roll.availableMeters === null) return null;
-    const totalForRoll = rollTotalProgrammed.value.get(roll.rollId) ?? 0;
-    return Math.max(0, roll.availableMeters - totalForRoll);
-}
-
-function hasOverAllocation(roll: DisplayRoll, groupUid: string): boolean {
-    void groupUid;
-    const meters = toNumber(roll.metersProgrammed);
+function hasOverAllocation(assignment: AssignedRoll): boolean {
+    if (assignment.roll.availableMeters === null) return false;
+    const meters = toNumber(assignment.metersProgrammed);
     if (meters <= 0) return false;
-    const effective = effectiveAvailableMeters(roll);
-    if (effective === null) return false;
+    const total = rollTotalProgrammed.value.get(assignment.roll.rollId) ?? 0;
+    const effective = Math.max(0, assignment.roll.availableMeters - (total - meters));
     return meters > effective;
 }
 
-const anyOverAllocation = computed(() => groups.value.some((g) => g.rolls.some((r) => hasOverAllocation(r, g.uid))));
+const anyOverAllocation = computed(() =>
+    trazos.value.some((t) => t.lines.some((line) => line.assignedRolls.some((assignment) => hasOverAllocation(assignment)))),
+);
 
 const usedRolls = computed(() =>
-    groups.value.flatMap((group) =>
-        group.rolls
-            .map((roll) => ({
-                meters: toNumber(roll.metersProgrammed),
-                pricePerMeter: toNumber(roll.pricePerMeter),
-            }))
-            .filter((roll) => roll.meters > 0),
+    trazos.value.flatMap((t) =>
+        t.lines.flatMap((line) =>
+            line.assignedRolls
+                .filter((assignment) => toNumber(assignment.metersProgrammed) > 0)
+                .map((assignment) => ({
+                    meters: toNumber(assignment.metersProgrammed),
+                    pricePerMeter: toNumber(assignment.roll.pricePerMeter),
+                })),
+        ),
     ),
 );
 
-const totalCost = computed(() => usedRolls.value.reduce((sum, roll) => sum + roll.meters * roll.pricePerMeter, 0));
-
-const totalMetersProgrammed = computed(() => usedRolls.value.reduce((sum, roll) => sum + roll.meters, 0));
-
+const totalCost = computed(() => usedRolls.value.reduce((s, r) => s + r.meters * r.pricePerMeter, 0));
+const totalMetersProgrammed = computed(() => usedRolls.value.reduce((s, r) => s + r.meters, 0));
 const weightedCopPerMeter = computed(() => (totalMetersProgrammed.value > 0 ? totalCost.value / totalMetersProgrammed.value : 0));
-
-// ── Serialization / Dirty tracking ───────────────────────
+const totalProgrammedRolls = computed(() => usedRolls.value.length);
+const warningMessage = computed(() =>
+    anyOverAllocation.value ? 'Un rollo tiene más metros programados que su disponibilidad.' : null,
+);
 
 function serializeState(): string {
     return JSON.stringify({
-        groups: groups.value.map((g) => ({
-            uid: g.uid,
-            telaItemId: g.telaItemId,
-            tela: g.tela,
-            trazo: g.trazo,
-            supplierId: g.supplierId,
-            lastSupplierName: g.lastSupplierName,
-            lastUnitPriceCop: g.lastUnitPriceCop,
-            ancho: g.ancho,
-            anchoUnit: g.anchoUnit,
-            promTrazo: g.promTrazo,
-            largoTrazo: g.largoTrazo,
-            largoLiq: g.largoLiq,
-            consumo: g.consumo,
-            rolls: g.rolls.map((r) => ({
-                rollId: r.rollId,
-                lineId: r.lineId,
-                metersProgrammed: r.metersProgrammed,
+        trazos: trazos.value.map((t) => ({
+            uid: t.uid,
+            trazo: t.trazo,
+            promTrazo: t.promTrazo,
+            largoTrazo: t.largoTrazo,
+            largoLiq: t.largoLiq,
+            lines: t.lines.map((l) => ({
+                uid: l.uid,
+                telaItemId: l.telaItemId,
+                assignedRolls: l.assignedRolls
+                    .map((assignment) => ({
+                        rollId: assignment.roll.rollId,
+                        metersProgrammed: assignment.metersProgrammed,
+                        lineId: assignment.lineId,
+                    }))
+                    .sort((a, b) => a.rollId.localeCompare(b.rollId, undefined, { numeric: true, sensitivity: 'base' })),
             })),
         })),
         deletedIds: [...deletedRollLineIds.value].sort(),
@@ -508,239 +489,251 @@ function resetSnapshot(): void {
     snapshot.value = serializeState();
 }
 
-// ── Load all data ────────────────────────────────────────
-
 async function loadAll(): Promise<void> {
     isLoading.value = true;
     error.value = null;
-    warning.value = null;
     saveMessage.value = null;
     metaCache.clear();
     deletedRollLineIds.value = [];
 
     try {
-        const [, rawMaterials, rollState] = await Promise.all([loadItemOptions(), fetchOpRawMaterials(props.opId), fetchOpRolls(props.opId)]);
+        const [, rawMaterials, rollState] = await Promise.all([
+            loadItemOptions(),
+            fetchOpRawMaterials(props.opId),
+            fetchOpRolls(props.opId),
+        ]);
 
-        const hasRawMaterials = Array.isArray(rawMaterials) && rawMaterials.length > 0;
+        if (!Array.isArray(rawMaterials) || rawMaterials.length === 0) {
+            trazos.value = [createEmptyTrazo()];
+            return;
+        }
 
-        const rawGroups: ItemGroup[] = hasRawMaterials
-            ? rawMaterials.map((rm) => ({
-                  uid: rm.uid || generateUid(),
-                  telaItemId: toNullableNumber(rm.telaItemId),
-                  tela: String(rm.tela ?? '').trim(),
-                                    trazo: String(rm.trazo ?? '').trim(),
-                  supplierId: toNullableNumber(rm.supplierId),
-                  lastSupplierName: rm.lastSupplierName ? String(rm.lastSupplierName).trim() : null,
-                  lastUnitPriceCop: toNullableNumber(rm.lastUnitPriceCop),
-                  lastPurchaseDate: null,
-                  lastInvoiceNumber: null,
-                  ancho: toNullableNumber(rm.ancho),
-                  anchoUnit: rm.anchoUnit === 'cm' || rm.anchoUnit === 'm' ? rm.anchoUnit : null,
-                  promTrazo: toNumber(rm.promTrazo),
-                  largoTrazo: toNumber(rm.largoTrazo),
-                  largoLiq: toNumber(rm.largoLiq),
-                  consumo: toNumber(rm.consumo),
-                  expanded: false,
-                  loadingMeta: false,
-                  loadingRolls: false,
-                  rolls: [],
-              }))
-            : [createEmptyGroup()];
-
-        // Build map of saved roll lines by item
         const savedRollLines = rollState.lines ?? [];
-        const allItemIds = rawGroups.map((g) => g.telaItemId).filter((id): id is number => id !== null && id > 0);
+        const savedByLineUid = new Map<string, RollLine[]>();
+        const savedByItemId = new Map<number, RollLine[]>();
 
-        // Fetch available rolls for all selected items
-        let availableRolls: AvailableFabricRoll[] = [];
-        if (allItemIds.length > 0) {
-            availableRolls = await fetchAvailableFabricRolls(allItemIds, props.opId);
-        }
-
-        // Map available rolls by ID for reverse lookup
-        const availableRollMap = new Map<string, AvailableFabricRoll>();
-        for (const roll of availableRolls) {
-            availableRollMap.set(roll.id, roll);
-        }
-
-        // Group saved roll lines by rawMaterialUid (nuevo) y por fabricItemId (fallback legacy)
-        const rollsByGroupUid = new Map<string, Map<string, RollLine>>();
-        const rollsByItemId = new Map<number, RollLine[]>();
-        for (const line of savedRollLines) {
-            const groupUid = String(line.rawMaterialUid ?? '').trim();
-            if (groupUid !== '' && line.rollId != null) {
-                const byRoll = rollsByGroupUid.get(groupUid) ?? new Map<string, RollLine>();
-                byRoll.set(String(line.rollId), line);
-                rollsByGroupUid.set(groupUid, byRoll);
+        for (const rl of savedRollLines) {
+            const uid = String(rl.rawMaterialUid ?? '').trim();
+            if (uid !== '' && rl.rollId != null) {
+                const list = savedByLineUid.get(uid) ?? [];
+                list.push(rl);
+                savedByLineUid.set(uid, list);
                 continue;
             }
+            if (rl.fabricItemId != null) {
+                const id = Number(rl.fabricItemId);
+                if (Number.isFinite(id)) {
+                    const list = savedByItemId.get(id) ?? [];
+                    list.push(rl);
+                    savedByItemId.set(id, list);
+                }
+            }
+        }
 
-            let itemId: number | null = null;
+        const allItemIds = rawMaterials
+            .map((rm) => toNullableNumber(rm.telaItemId))
+            .filter((id): id is number => id !== null);
 
-            if (line.fabricItemId != null) {
-                itemId = Number(line.fabricItemId);
+        let availableRolls: AvailableFabricRoll[] = [];
+        let catalogRolls: AvailableFabricRoll[] = [];
+        if (allItemIds.length > 0) {
+            const [available, catalog] = await Promise.all([
+                fetchAvailableFabricRolls(allItemIds, props.opId),
+                fetchAvailableFabricRolls(allItemIds),
+            ]);
+            availableRolls = available;
+            catalogRolls = catalog;
+        }
+
+        const availableRollMap = new Map<string, AvailableFabricRoll>();
+        for (const r of availableRolls) availableRollMap.set(r.id, r);
+        const catalogRollMap = new Map<string, AvailableFabricRoll>();
+        for (const r of catalogRolls) catalogRollMap.set(r.id, r);
+
+        const trazoMap = new Map<string, TrazoGroup>();
+
+        for (const rm of rawMaterials) {
+            const trazoKey = String(rm.trazo ?? '').trim();
+            if (!trazoMap.has(trazoKey)) {
+                trazoMap.set(trazoKey, {
+                    uid: generateUid(),
+                    trazo: trazoKey,
+                    promTrazo: toNumber(rm.promTrazo),
+                    largoTrazo: toNumber(rm.largoTrazo),
+                    largoLiq: toNumber(rm.largoLiq),
+                    lines: [],
+                    open: true,
+                });
             }
 
-            if ((itemId === null || !Number.isFinite(itemId)) && line.rollId != null) {
-                const available = availableRollMap.get(String(line.rollId));
-                if (available?.fabricItemId) {
-                    itemId = available.fabricItemId;
+            const trazo = trazoMap.get(trazoKey)!;
+            const lineUid = String(rm.uid ?? '').trim() || generateUid();
+            const itemId = toNullableNumber(rm.telaItemId);
+
+            let savedRls = [...(savedByLineUid.get(lineUid) ?? [])];
+            if (savedRls.length === 0 && itemId) {
+                const list = savedByItemId.get(itemId);
+                if (list?.length) {
+                    const fallback = list.shift();
+                    if (fallback) savedRls = [fallback];
                 }
             }
 
-            if (itemId && Number.isFinite(itemId)) {
-                const existing = rollsByItemId.get(itemId) ?? [];
-                existing.push(line);
-                rollsByItemId.set(itemId, existing);
-            }
-        }
-
-        // Populate available rolls for each group + merge saved assignments
-        for (const group of rawGroups) {
-            if (!group.telaItemId) continue;
-
-            const itemRolls = availableRolls.filter((r) => r.fabricItemId === group.telaItemId);
-            const savedForGroup = rollsByGroupUid.get(group.uid) ?? new Map<string, RollLine>();
-            const savedForItemFallback = rollsByItemId.get(group.telaItemId) ?? [];
-
-            group.rolls = itemRolls
-                .map((roll) => {
-                    let saved = savedForGroup.get(roll.id);
-
-                    if (!saved) {
-                        const fallbackIndex = savedForItemFallback.findIndex((sl) => sl.rollId != null && String(sl.rollId) === roll.id);
-                        if (fallbackIndex >= 0) {
-                            saved = savedForItemFallback[fallbackIndex];
-                            savedForItemFallback.splice(fallbackIndex, 1);
-                        }
-                    }
-
+            const assignedRolls: AssignedRoll[] = savedRls
+                .filter((savedRl) => savedRl.rollId != null)
+                .map((savedRl) => {
+                    const avail = availableRollMap.get(String(savedRl.rollId));
+                    const catalog = catalogRollMap.get(String(savedRl.rollId));
                     return {
-                        rollId: roll.id,
-                        lineId: saved?.id ?? null,
-                        label: roll.label,
-                        fabricName: roll.fabricName,
-                        location: roll.location,
-                        widthCm: roll.widthCm,
-                        availableMeters: roll.availableMeters,
-                        pricePerMeter: resolvePricePerMeter(saved?.pricePerMeter, roll.pricePerMeter),
-                        color: roll.color,
-                        colorCode: roll.colorCode,
-                        supplier: roll.supplier,
-                        metersProgrammed: saved?.programmedMeters != null ? String(saved.programmedMeters) : '',
+                        uid: generateUid(),
+                        lineId: savedRl.id ?? null,
+                        metersProgrammed: savedRl.programmedMeters != null ? String(savedRl.programmedMeters) : '',
+                        roll: {
+                            rollId: String(savedRl.rollId),
+                            label: avail?.label ?? catalog?.label ?? String(savedRl.rollId),
+                            fabricName: avail?.fabricName ?? catalog?.fabricName ?? savedRl.fabricName ?? String(rm.tela ?? ''),
+                            location: avail?.location ?? catalog?.location ?? null,
+                            widthCm: avail?.widthCm ?? catalog?.widthCm ?? savedRl.widthCm ?? null,
+                            availableMeters: avail?.availableMeters ?? catalog?.availableMeters ?? savedRl.availableMeters ?? null,
+                            pricePerMeter: resolvePricePerMeter(savedRl.pricePerMeter, avail?.pricePerMeter ?? catalog?.pricePerMeter),
+                            color: avail?.color ?? catalog?.color ?? savedRl.color ?? null,
+                            colorCode: avail?.colorCode ?? catalog?.colorCode ?? savedRl.colorCode ?? null,
+                            supplier: avail?.supplier ?? catalog?.supplier ?? savedRl.supplier ?? null,
+                        },
                     };
-                })
-                .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }));
+                });
+
+            const itemRolls: DisplayRoll[] = itemId
+                ? availableRolls
+                      .filter((r) => r.fabricItemId === itemId)
+                      .map((r) => ({
+                          rollId: r.id,
+                          label: r.label,
+                          fabricName: r.fabricName,
+                          location: r.location,
+                          widthCm: r.widthCm,
+                          availableMeters: r.availableMeters,
+                          pricePerMeter: resolvePricePerMeter(null, r.pricePerMeter),
+                          color: r.color,
+                          colorCode: r.colorCode,
+                          supplier: r.supplier,
+                      }))
+                      .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }))
+                : [];
+
+            trazo.lines.push({
+                uid: lineUid,
+                telaItemId: itemId,
+                tela: String(rm.tela ?? '').trim(),
+                supplierId: toNullableNumber(rm.supplierId),
+                lastSupplierName: rm.lastSupplierName ? String(rm.lastSupplierName).trim() : null,
+                lastUnitPriceCop: toNullableNumber(rm.lastUnitPriceCop),
+                lastPurchaseDate: null,
+                lastInvoiceNumber: null,
+                ancho: toNullableNumber(rm.ancho),
+                anchoUnit: rm.anchoUnit === 'cm' || rm.anchoUnit === 'm' ? rm.anchoUnit : null,
+                loadingMeta: false,
+                loadingRolls: false,
+                rollSearch: '',
+                rollsOpen: true,
+                availableRolls: itemRolls,
+                assignedRolls,
+            });
         }
 
-        groups.value = rawGroups;
+        trazos.value = trazoMap.size > 0 ? [...trazoMap.values()] : [createEmptyTrazo()];
 
-        // Load metadata for each item with telaItemId
-        for (const group of groups.value) {
-            if (group.telaItemId && group.telaItemId > 0) {
-                void loadItemMeta(group);
-            }
-        }
+        for (const trazo of trazos.value)
+            for (const line of trazo.lines)
+                if (line.telaItemId && line.telaItemId > 0) void loadLineMeta(line);
     } catch (e) {
         console.error('Error al cargar materia prima:', e);
         error.value = 'No se pudo cargar la materia prima.';
-        groups.value = [createEmptyGroup()];
+        trazos.value = [createEmptyTrazo()];
     } finally {
         isLoading.value = false;
         resetSnapshot();
     }
 }
 
-// ── Save ─────────────────────────────────────────────────
-
 async function handleSave(): Promise<void> {
     if (!canSave.value) return;
-
     isSaving.value = true;
     error.value = null;
-    warning.value = null;
     saveMessage.value = null;
 
     try {
-        // 1. Save raw material items
-        const rawMaterialRows = groups.value.map((g) => ({
-            uid: g.uid,
-            telaItemId: g.telaItemId,
-            tela: g.tela,
-            trazo: g.trazo,
-            supplierId: g.supplierId,
-            lastSupplierName: g.lastSupplierName,
-            lastUnitPriceCop: g.lastUnitPriceCop,
-            ancho: g.ancho,
-            anchoUnit: g.anchoUnit,
-            promTrazo: g.promTrazo,
-            largoTrazo: g.largoTrazo,
-            largoLiq: g.largoLiq,
-            consumo: g.consumo,
-        }));
-        await saveOpRawMaterials(props.opId, rawMaterialRows);
+        await saveOpRawMaterials(
+            props.opId,
+            trazos.value.flatMap((t) =>
+                t.lines.map((l) => ({
+                    uid: l.uid,
+                    telaItemId: l.telaItemId,
+                    tela: l.tela,
+                    trazo: t.trazo,
+                    supplierId: l.supplierId,
+                    lastSupplierName: l.lastSupplierName,
+                    lastUnitPriceCop: l.lastUnitPriceCop,
+                    ancho: l.ancho,
+                    anchoUnit: l.anchoUnit,
+                    promTrazo: t.promTrazo,
+                    largoTrazo: t.largoTrazo,
+                    largoLiq: t.largoLiq,
+                    consumo: trazoProgrammedMeters(t),
+                })),
+            ),
+        );
 
-        // 2. Collect roll lines + deletions
         const rollLines: RollLine[] = [];
         const currentDeletedIds = [...deletedRollLineIds.value];
 
-        for (const group of groups.value) {
-            for (const roll of group.rolls) {
-                const meters = toNumber(roll.metersProgrammed);
-
-                if (meters > 0) {
-                    rollLines.push({
-                        id: roll.lineId ?? '',
-                        consecutive: null,
-                        type: 'PRINCIPAL',
-                        fabricName: roll.fabricName || 'Tela',
-                        averageTrace: null,
-                        factor: null,
-                        consumptionBase: 0,
-                        extraMeters: 0,
-                        pricePerMeter: toNumber(roll.pricePerMeter),
-                        programmedMeters: meters,
-                        colors: roll.color,
-                        availableMeters: roll.availableMeters,
-                        balanceMeters: roll.availableMeters != null ? roll.availableMeters - meters : null,
-                        color: roll.color,
-                        colorCode: roll.colorCode,
-                        widthCm: roll.widthCm,
-                        supplier: roll.supplier,
-                        notes: null,
-                        rawMaterialUid: group.uid,
-                        fabricItemId: group.telaItemId,
-                        rollId: roll.rollId,
-                    });
-                } else if (roll.lineId) {
-                    if (!currentDeletedIds.includes(roll.lineId)) {
-                        currentDeletedIds.push(roll.lineId);
+        for (const trazo of trazos.value) {
+            for (const line of trazo.lines) {
+                for (const assignment of line.assignedRolls) {
+                    const meters = toNumber(assignment.metersProgrammed);
+                    if (meters > 0) {
+                        rollLines.push({
+                            id: assignment.lineId ?? '',
+                            consecutive: null,
+                            type: 'PRINCIPAL',
+                            fabricName: assignment.roll.fabricName || 'Tela',
+                            averageTrace: null,
+                            factor: null,
+                            consumptionBase: 0,
+                            extraMeters: 0,
+                            pricePerMeter: toNumber(assignment.roll.pricePerMeter),
+                            programmedMeters: meters,
+                            colors: assignment.roll.color,
+                            availableMeters: assignment.roll.availableMeters,
+                            balanceMeters: assignment.roll.availableMeters != null ? assignment.roll.availableMeters - meters : null,
+                            color: assignment.roll.color,
+                            colorCode: assignment.roll.colorCode,
+                            widthCm: assignment.roll.widthCm,
+                            supplier: assignment.roll.supplier,
+                            notes: null,
+                            rawMaterialUid: line.uid,
+                            fabricItemId: line.telaItemId,
+                            rollId: assignment.roll.rollId,
+                        });
+                    } else if (assignment.lineId && !currentDeletedIds.includes(assignment.lineId)) {
+                        currentDeletedIds.push(assignment.lineId);
                     }
                 }
             }
         }
 
-        const rollState = await saveOpRolls(props.opId, {
-            rolls: rollLines,
-            deletedIds: currentDeletedIds,
-        });
+        const rollState = await saveOpRolls(props.opId, { rolls: rollLines, deletedIds: currentDeletedIds });
 
-        // Update lineIds from response
         const savedLines = rollState.lines ?? [];
-        for (const group of groups.value) {
-            for (const roll of group.rolls) {
-                const matched = savedLines.find((sl) => {
-                    if (sl.rollId == null || String(sl.rollId) !== roll.rollId) return false;
-
-                    const lineGroupUid = String(sl.rawMaterialUid ?? '').trim();
-                    if (lineGroupUid !== '') {
-                        return lineGroupUid === group.uid;
-                    }
-
-                    return Number(sl.fabricItemId ?? 0) === Number(group.telaItemId ?? 0);
-                });
-                if (matched) {
-                    roll.lineId = matched.id ?? null;
+        for (const trazo of trazos.value) {
+            for (const line of trazo.lines) {
+                for (const assignment of line.assignedRolls) {
+                    const matched = savedLines.find((sl) => {
+                        if (sl.rollId == null || String(sl.rollId) !== assignment.roll.rollId) return false;
+                        const uid = String(sl.rawMaterialUid ?? '').trim();
+                        return uid !== '' ? uid === line.uid : Number(sl.fabricItemId ?? 0) === Number(line.telaItemId ?? 0);
+                    });
+                    if (matched) assignment.lineId = matched.id ?? null;
                 }
             }
         }
@@ -749,13 +742,8 @@ async function handleSave(): Promise<void> {
         saveMessage.value = 'Guardado correctamente.';
         resetSnapshot();
 
-        // Dispatch event for inter-tab communication
         if (typeof window !== 'undefined') {
-            window.dispatchEvent(
-                new CustomEvent('tds-raw-material-saved', {
-                    detail: { opId: props.opId },
-                }),
-            );
+            window.dispatchEvent(new CustomEvent('tds-raw-material-saved', { detail: { opId: props.opId } }));
         }
     } catch (err: unknown) {
         error.value = formatSaveError(err);
@@ -764,324 +752,272 @@ async function handleSave(): Promise<void> {
     }
 }
 
-// ── Watchers ─────────────────────────────────────────────
-
-watch(
-    () => anyOverAllocation.value,
-    (value) => {
-        warning.value = value ? 'Hay rollos donde los metros a usar superan la disponibilidad.' : null;
-    },
-    { immediate: true },
-);
-
 watch(
     () => props.opId,
-    () => {
-        void loadAll();
-    },
+    () => void loadAll(),
     { immediate: true },
 );
 </script>
 
 <template>
-    <div class="space-y-4 rounded-xl border border-border/80 bg-card p-3 shadow-sm">
-        <div class="rounded-lg bg-muted/20 p-3">
-            <h1 class="text-lg font-semibold">Materia prima</h1>
-            <p class="text-sm text-muted-foreground">Selecciona items de tela y asigna rollos disponibles por item.</p>
-            <p class="text-xs text-muted-foreground">Si varias telas usan el mismo trazo, coloca el mismo nombre de trazo y los valores se comparten.</p>
-            <p v-if="isLoading" class="mt-1 text-sm text-muted-foreground">Cargando...</p>
+    <div class="space-y-4">
+
+        <!-- Cabecera -->
+        <div class="flex flex-col gap-3 p-2 md:flex-row md:items-start md:justify-between">
+            <div>
+                <h2 class="text-lg font-semibold text-foreground">Materia prima</h2>
+                <p class="text-sm text-muted-foreground">Trazos de corte, telas y rollos programados.</p>
+            </div>
+            <div v-if="totalCost > 0 || totalMetersProgrammed > 0" class="w-fit rounded-full border border-border bg-muted/30 px-3 py-1.5 text-sm font-medium text-foreground">
+                <div class="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-4">
+                    <span><span class="font-semibold">Total:</span> {{ formatCOP(totalCost) }}</span>
+                    <span><span class="font-semibold">Metros programados:</span> {{ formatMeters(totalMetersProgrammed) }} m</span>
+                    <span v-if="weightedCopPerMeter > 0"><span class="font-semibold">Costo promedio:</span> {{ formatCOP(weightedCopPerMeter) }}/m</span>
+                </div>
+            </div>
         </div>
 
-        <!-- Item groups -->
-        <div v-for="(group, groupIndex) in groups" :key="group.uid" class="overflow-hidden rounded-lg border border-border bg-background shadow-sm">
-            <!-- Group header -->
-            <div
-                class="flex cursor-pointer items-center gap-3 bg-muted/30 px-4 py-3 transition-colors hover:bg-muted/40"
-                @click="toggleExpand(group.uid)"
-            >
-                <ChevronDown v-if="group.expanded" class="h-4 w-4 shrink-0 text-muted-foreground transition-transform" />
-                <ChevronRight v-else class="h-4 w-4 shrink-0 text-muted-foreground transition-transform" />
+        <!-- Loading -->
+        <div v-if="isLoading" class="px-2 py-6 text-sm text-muted-foreground">Cargando...</div>
 
-                <div class="flex min-w-0 flex-1 items-center gap-4">
-                    <span class="w-6 shrink-0 text-sm font-medium text-foreground">{{ groupIndex + 1 }}</span>
+        <!-- Trazos -->
+        <div v-else class="space-y-3">
 
-                    <div class="min-w-[250px] max-w-[350px]" @click.stop>
-                        <SelectField
-                            :model-value="group.telaItemId"
-                            :options="getItemOptions(group)"
-                            placeholder="Selecciona tela"
-                            :searchable="true"
-                            search-placeholder="Buscar tela..."
-                            :disabled="isSaving || isLoading"
-                            @search="loadItemOptions"
-                            @update:model-value="(v) => onItemSelected(group.uid, v)"
-                        />
-                    </div>
-
-                    <span v-if="group.trazo" class="shrink-0 rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
-                        Trazo: {{ group.trazo }}
-                    </span>
-
-                    <!-- Metadata summary -->
-                    <div class="flex items-center gap-3 text-sm text-muted-foreground">
-                        <span v-if="group.loadingMeta" class="text-xs">Cargando...</span>
-                        <template v-else-if="group.telaItemId">
-                            <span v-if="group.lastSupplierName" class="truncate">{{ group.lastSupplierName }}</span>
-                            <span v-if="group.ancho !== null" class="shrink-0">{{ formatWidth(group) }}</span>
-                            <span
-                                v-if="group.lastUnitPriceCop !== null"
-                                class="shrink-0 font-medium text-foreground"
-                                :title="
-                                    group.lastPurchaseDate
-                                        ? `Ultima compra: ${formatDate(group.lastPurchaseDate)}${group.lastInvoiceNumber ? ` (${group.lastInvoiceNumber})` : ''}`
-                                        : ''
-                                "
-                            >
-                                {{ formatCOP(group.lastUnitPriceCop) }}
-                            </span>
-                        </template>
-                    </div>
-
-                    <!-- Group roll summary + cost -->
-                    <div class="ml-auto flex shrink-0 items-center gap-3">
-                        <span v-if="groupAssignedRollsCount(group) > 0" class="text-xs text-muted-foreground">
-                            {{ groupAssignedRollsCount(group) }} rollo{{ groupAssignedRollsCount(group) > 1 ? 's' : '' }}
-                        </span>
-                        <span v-if="groupRollsCost(group) > 0" class="text-sm font-semibold tabular-nums text-foreground">
-                            {{ formatCOP(groupRollsCost(group)) }}
-                        </span>
-                    </div>
-                </div>
-
-                <button
-                    type="button"
-                    class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40"
-                    :disabled="isSaving"
-                    @click.stop="removeGroup(group.uid)"
-                >
-                    <Trash class="h-4 w-4" />
-                </button>
+            <!-- Empty -->
+            <div v-if="trazos.length === 0" class="rounded-lg border border-dashed border-border bg-background px-4 py-8 text-center">
+                <p class="text-sm text-muted-foreground">Sin trazos. Agrega uno para comenzar.</p>
             </div>
 
-            <!-- Group expanded content -->
-            <div v-show="group.expanded" class="border-t border-border">
-                <!-- Consumption params -->
-                <div class="grid grid-cols-1 gap-4 bg-background px-4 py-3 sm:grid-cols-2 lg:grid-cols-5">
-                    <div class="space-y-1">
-                        <label class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Trazo</label>
-                        <Input
-                            :model-value="group.trazo"
-                            type="text"
-                            placeholder="Ej: Principal, Bolsillo"
-                            :disabled="isSaving"
-                            @update:model-value="(v) => onTrazoChanged(group.uid, v)"
-                        />
-                        <p v-if="group.trazo" class="text-[11px] text-muted-foreground">
-                            {{ linkedTrazoCount(group) > 1 ? `Compartido con ${linkedTrazoCount(group) - 1} tela(s)` : 'Trazo individual' }}
-                        </p>
+            <!-- Cada trazo -->
+            <div v-for="(trazo, trazoIndex) in trazos" :key="trazo.uid" class="rounded-lg border border-border bg-background">
+
+                <!-- Cabecera del trazo -->
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border bg-muted/30 px-3 py-2">
+                    <button type="button" class="flex items-center gap-1.5" @click="trazo.open = !trazo.open">
+                        <component :is="trazo.open ? ChevronDown : ChevronRight" class="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span class="text-sm font-semibold text-foreground">Trazo {{ trazoIndex + 1 }}</span>
+                    </button>
+
+                    <span class="h-4 w-px bg-border" />
+
+                    <div class="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-4">
+                        <label class="flex items-center gap-1.5 text-xs text-muted-foreground" @click.stop>
+                            <span class="font-semibold">Promedio trazo:</span>
+                            <Input :model-value="trazo.promTrazo === 0 ? '' : String(trazo.promTrazo)" type="number" min="0" step="0.01" placeholder="0" class="h-7 w-24 text-xs" :disabled="isSaving" @update:model-value="(v) => updateTrazoMetric(trazo.uid, 'promTrazo', v)" />
+                        </label>
+                        <label class="flex items-center gap-1.5 text-xs text-muted-foreground" @click.stop>
+                            <span class="font-semibold">Largo trazo:</span>
+                            <Input :model-value="trazo.largoTrazo === 0 ? '' : String(trazo.largoTrazo)" type="number" min="0" step="0.01" placeholder="0" class="h-7 w-24 text-xs" :disabled="isSaving" @update:model-value="(v) => updateTrazoMetric(trazo.uid, 'largoTrazo', v)" />
+                        </label>
+                        <label class="flex items-center gap-1.5 text-xs text-muted-foreground" @click.stop>
+                            <span class="font-semibold">Liq.:</span>
+                            <Input :model-value="trazo.largoLiq === 0 ? '' : String(trazo.largoLiq)" type="number" min="0" step="0.01" placeholder="0" class="h-7 w-24 text-xs" :disabled="isSaving" @update:model-value="(v) => updateTrazoMetric(trazo.uid, 'largoLiq', v)" />
+                        </label>
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Prom. trazo</label>
-                        <Input
-                            :model-value="group.promTrazo === 0 ? '' : String(group.promTrazo)"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="1.1"
-                            :disabled="isSaving"
-                            @update:model-value="(v) => updateTrazoMetric(group.uid, 'promTrazo', v)"
-                        />
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Largo trazo</label>
-                        <Input
-                            :model-value="group.largoTrazo === 0 ? '' : String(group.largoTrazo)"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="1.4"
-                            :disabled="isSaving"
-                            @update:model-value="(v) => updateTrazoMetric(group.uid, 'largoTrazo', v)"
-                        />
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Largo liq</label>
-                        <Input
-                            :model-value="group.largoLiq === 0 ? '' : String(group.largoLiq)"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="1.35"
-                            :disabled="isSaving"
-                            @update:model-value="(v) => updateTrazoMetric(group.uid, 'largoLiq', v)"
-                        />
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Consumo</label>
-                        <Input
-                            :model-value="group.consumo === 0 ? '' : String(group.consumo)"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="Segun trazo"
-                            :disabled="isSaving"
-                            @update:model-value="(v) => updateTrazoMetric(group.uid, 'consumo', v)"
-                        />
+
+                    <div class="ml-auto flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-4">
+                        <span v-if="trazoProgrammedMeters(trazo) > 0" class="text-xs text-muted-foreground">
+                            <span class="font-semibold">Consumo:</span> <span class="font-medium text-foreground">{{ formatMeters(trazoProgrammedMeters(trazo)) }} m</span>
+                        </span>
+                        <span v-if="trazoCost(trazo) > 0" class="text-xs text-muted-foreground">
+                            <span class="font-semibold">Subtotal:</span> <span class="font-semibold tabular-nums text-foreground">{{ formatCOP(trazoCost(trazo)) }}</span>
+                        </span>
+                        <span class="text-xs text-muted-foreground"><span class="font-semibold">Telas:</span> {{ trazo.lines.length }}</span>
+                        <button type="button" class="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition hover:bg-muted hover:text-destructive disabled:pointer-events-none disabled:opacity-40" :disabled="isSaving" @click="removeTrazo(trazo.uid)">
+                            <Trash class="h-3.5 w-3.5" />
+                        </button>
                     </div>
                 </div>
 
-                <!-- Rolls section -->
-                <div class="px-4 py-3">
-                    <div class="mb-2 flex items-center gap-3">
-                        <p class="text-sm font-semibold text-foreground">Rollos disponibles</p>
-                        <Input
-                            v-if="group.telaItemId && group.rolls.length > 0"
-                            :model-value="getRollSearch(group.uid)"
-                            type="text"
-                            placeholder="Buscar RL..."
-                            class="h-7 w-36 text-xs"
-                            @update:model-value="(v) => setRollSearch(group.uid, String(v ?? ''))"
-                        />
-                        <span v-if="getRollSearch(group.uid) && group.telaItemId" class="text-xs text-muted-foreground">
-                            {{ filteredRolls(group).length }} de {{ group.rolls.length }}
-                        </span>
-                    </div>
+                <!-- Cuerpo colapsable -->
+                <div v-if="trazo.open" class="divide-y divide-border/40">
 
-                    <div v-if="group.loadingRolls" class="py-3 text-sm text-muted-foreground">Cargando rollos...</div>
+                    <!-- Tela row -->
+                    <div v-for="line in trazo.lines" :key="line.uid">
 
-                    <div v-else-if="!group.telaItemId" class="py-3 text-sm text-muted-foreground">
-                        Selecciona una tela para ver rollos disponibles.
-                    </div>
+                        <!-- Fila de tela -->
+                        <div class="flex flex-wrap items-center gap-2 px-3 py-2.5">
+                            <div class="flex min-w-0 shrink-0 items-center gap-2">
+                                <button v-if="line.telaItemId" type="button" class="shrink-0 text-muted-foreground hover:text-foreground" @click="line.rollsOpen = !line.rollsOpen">
+                                    <component :is="line.rollsOpen ? ChevronDown : ChevronRight" class="h-3.5 w-3.5" />
+                                </button>
+                                <span v-else class="h-3.5 w-3.5 shrink-0" />
 
-                    <div v-else-if="group.rolls.length === 0" class="py-3 text-sm text-muted-foreground">
-                        No hay rollos disponibles para esta tela.
-                    </div>
+                                <SelectField
+                                    :model-value="line.telaItemId"
+                                    :options="getItemOptions(line)"
+                                    placeholder="Seleccionar tela..."
+                                    :searchable="true"
+                                    search-placeholder="Buscar por nombre..."
+                                    class="w-56"
+                                    :disabled="isSaving || isLoading"
+                                    @search="loadItemOptions"
+                                    @update:model-value="(v) => onItemSelected(trazo.uid, line.uid, v)"
+                                />
 
-                    <div v-else class="overflow-auto rounded-md border border-border">
-                        <Table>
-                            <TableHeader class="bg-background">
-                                <TableRow>
-                                    <TableHead class="min-w-[180px]">Rollo</TableHead>
-                                    <TableHead class="min-w-[100px]">Ubicacion</TableHead>
-                                    <TableHead class="min-w-[80px]">Ancho</TableHead>
-                                    <TableHead class="min-w-[100px] text-right">Mt disponibles</TableHead>
-                                    <TableHead class="min-w-[100px] text-right">Precio COP/m</TableHead>
-                                    <TableHead class="min-w-[130px]">Usar (mt)</TableHead>
-                                    <TableHead class="min-w-[100px] text-right">Costo</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                <TableRow
-                                    v-for="roll in filteredRolls(group)"
-                                    :key="roll.rollId"
-                                    :class="hasOverAllocation(roll, group.uid) ? 'bg-amber-50/60' : toNumber(roll.metersProgrammed) > 0 ? 'bg-primary/5' : ''"
-                                >
-                                    <TableCell class="text-sm text-foreground">{{ roll.label }}</TableCell>
-                                    <TableCell class="text-sm text-foreground/80">{{ roll.location ?? '-' }}</TableCell>
-                                    <TableCell class="text-sm text-foreground/80">{{ formatWidthToMeters(roll.widthCm) }}</TableCell>
-                                    <TableCell class="text-right text-sm">
-                                        <!-- Disponibilidad parcial reactiva -->
-                                        <span
+                                <Input
+                                    v-if="line.telaItemId && line.availableRolls.length > 0"
+                                    :model-value="line.rollSearch"
+                                    type="text"
+                                    placeholder="Buscar rollo..."
+                                    class="h-7 w-56 text-xs"
+                                    @update:model-value="(v) => (line.rollSearch = String(v ?? ''))"
+                                />
+                            </div>
+
+                            <template v-if="line.telaItemId">
+                                <span v-if="line.loadingMeta" class="text-xs text-muted-foreground">cargando...</span>
+                                <template v-else>
+                                    <span v-if="line.lastSupplierName" class="inline-flex items-center rounded-full border border-border bg-muted/30 px-2 py-0.5 text-xs text-muted-foreground">{{ line.lastSupplierName }}</span>
+                                    <span v-if="line.ancho !== null" class="text-xs text-muted-foreground">{{ formatWidth(line.ancho, line.anchoUnit) }}</span>
+                                    <span v-if="line.lastUnitPriceCop !== null" class="text-xs text-muted-foreground">ref. {{ formatCOP(line.lastUnitPriceCop) }}/m</span>
+                                </template>
+                                <span v-if="line.assignedRolls.length > 0" class="inline-flex items-center rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary">
+                                    {{ line.assignedRolls.length }} rollo{{ line.assignedRolls.length !== 1 ? 's' : '' }}
+                                </span>
+                            </template>
+
+                            <div class="ml-auto flex items-center gap-2">
+                                <span v-if="lineCost(line) > 0" class="text-xs font-semibold tabular-nums text-foreground">{{ formatCOP(lineCost(line)) }}</span>
+                                <button type="button" class="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition hover:bg-muted hover:text-destructive disabled:pointer-events-none disabled:opacity-40" :disabled="isSaving" @click="removeLineFromTrazo(trazo.uid, line.uid)">
+                                    <Trash class="h-3.5 w-3.5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Rollos (colapsable) -->
+                        <div v-if="line.telaItemId && (line.rollsOpen || line.rollSearch.trim())" class="space-y-2 border-t border-border/30 px-5 pb-3 pt-2">
+
+                            <p v-if="line.loadingRolls" class="text-xs text-muted-foreground">Cargando rollos...</p>
+
+                            <template v-else>
+
+                                <!-- Sin rollos disponibles pero sí asignados: mostrar tabla igualmente -->
+                                <p v-if="line.availableRolls.length === 0 && line.assignedRolls.length === 0" class="text-xs text-muted-foreground">Sin rollos disponibles para esta tela.</p>
+
+                                <!-- Rollos asignados (siempre visible si existen, independiente de disponibles) -->
+                                <div v-if="line.assignedRolls.length > 0" class="overflow-x-auto rounded-md border border-border">
+                                    <table class="w-full text-xs">
+                                        <thead class="bg-muted/30">
+                                            <tr>
+                                                <th class="px-2 py-1 text-left font-semibold text-muted-foreground">Rollo</th>
+                                                <th class="px-2 py-1 text-left font-semibold text-muted-foreground">Ubicación</th>
+                                                <th class="px-2 py-1 text-left font-semibold text-muted-foreground">Color</th>
+                                                <th class="px-2 py-1 text-left font-semibold text-muted-foreground">Ancho</th>
+                                                <th class="px-2 py-1 text-left font-semibold text-muted-foreground">Precio</th>
+                                                <th class="px-2 py-1 text-left font-semibold text-muted-foreground">Disponible</th>
+                                                <th class="px-2 py-1 text-left font-semibold text-muted-foreground">Metros</th>
+                                                <th class="px-2 py-1 text-left font-semibold text-muted-foreground">Subtotal</th>
+                                                <th class="px-2 py-1 text-left font-semibold text-muted-foreground">Acción</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr v-for="assignment in line.assignedRolls" :key="assignment.uid" :class="hasOverAllocation(assignment) ? 'bg-destructive/5' : ''">
+                                                <td class="px-2 py-1 font-medium text-foreground">{{ assignment.roll.label }}</td>
+                                                <td class="px-2 py-1 text-muted-foreground">{{ assignment.roll.location || '-' }}</td>
+                                                <td class="px-2 py-1">
+                                                    <span v-if="assignment.roll.color" class="inline-flex items-center gap-1 text-muted-foreground">
+                                                        <span class="h-2.5 w-2.5 rounded-full border border-border/50" :style="`background-color: ${assignment.roll.colorCode ?? assignment.roll.color}`" />
+                                                        {{ assignment.roll.color }}
+                                                    </span>
+                                                    <span v-else class="text-muted-foreground">-</span>
+                                                </td>
+                                                <td class="px-2 py-1 text-muted-foreground">{{ assignment.roll.widthCm !== null ? assignment.roll.widthCm + ' mm' : '-' }}</td>
+                                                <td class="px-2 py-1 tabular-nums text-muted-foreground">{{ formatCOP(assignment.roll.pricePerMeter) }}/m</td>
+                                                <td class="px-2 py-1 tabular-nums" :class="hasOverAllocation(assignment) ? 'font-medium text-destructive' : 'text-muted-foreground'">
+                                                    {{ assignment.roll.availableMeters !== null ? formatMeters(getPartialAvailability(assignment.roll.rollId)) + '/' + formatMeters(assignment.roll.availableMeters) + ' m' : '-' }}
+                                                </td>
+                                                <td class="px-2 py-1">
+                                                    <Input
+                                                        :model-value="assignment.metersProgrammed"
+                                                        type="number" min="0" step="0.01" placeholder="metros"
+                                                        :class="['h-7 w-20 text-xs tabular-nums', hasOverAllocation(assignment) ? 'border-destructive focus-visible:ring-destructive' : '']"
+                                                        :disabled="isSaving"
+                                                        @update:model-value="(v) => (assignment.metersProgrammed = String(v ?? ''))"
+                                                    />
+                                                </td>
+                                                <td class="px-2 py-1 w-24 text-right tabular-nums text-foreground font-semibold">
+                                                    <span v-if="toNumber(assignment.metersProgrammed) > 0">
+                                                        {{ formatCOP(toNumber(assignment.metersProgrammed) * toNumber(assignment.roll.pricePerMeter)) }}
+                                                    </span>
+                                                    <span v-else>-</span>
+                                                </td>
+                                                <td class="px-2 py-1">
+                                                    <button type="button" class="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition hover:bg-muted hover:text-destructive disabled:pointer-events-none disabled:opacity-40" :disabled="isSaving" @click="removeAssignedRoll(trazo.uid, line.uid, assignment.uid)">
+                                                        <Trash class="h-3.5 w-3.5" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Resultados de búsqueda -->
+                                <div v-if="line.rollSearch.trim()" class="space-y-1.5">
+                                    <div class="max-h-52 overflow-y-auto rounded-md border border-border bg-background">
+                                        <p v-if="filteredRolls(line).length === 0" class="px-3 py-2 text-xs text-muted-foreground">Sin resultados.</p>
+                                        <button
+                                            v-for="roll in filteredRolls(line)"
+                                            :key="roll.rollId"
+                                            type="button"
+                                            class="flex w-full flex-wrap items-center gap-2 border-b border-border/30 px-3 py-2 text-xs last:border-b-0 disabled:pointer-events-none disabled:opacity-40"
                                             :class="[
-                                                displayAvailableMeters(roll) !== roll.availableMeters
-                                                    ? 'font-semibold text-amber-700'
-                                                    : 'text-foreground/80',
+                                                isRollAssigned(line, roll.rollId)
+                                                    ? 'cursor-default bg-muted/20 text-muted-foreground'
+                                                    : getPartialAvailability(roll.rollId) <= 0
+                                                    ? 'cursor-not-allowed opacity-50'
+                                                    : 'cursor-pointer hover:bg-muted/40'
                                             ]"
-                                            :title="
-                                                displayAvailableMeters(roll) !== roll.availableMeters
-                                                    ? `Disponibilidad original: ${formatMeters(roll.availableMeters)} — Programado total: ${formatMeters((roll.availableMeters ?? 0) - (displayAvailableMeters(roll) ?? 0))}`
-                                                    : ''
-                                            "
+                                            :disabled="isSaving || isRollAssigned(line, roll.rollId) || getPartialAvailability(roll.rollId) <= 0"
+                                            @click="addRollToLine(trazo.uid, line.uid, roll)"
                                         >
-                                            {{ formatMeters(displayAvailableMeters(roll)) }}
-                                            <span
-                                                v-if="displayAvailableMeters(roll) !== roll.availableMeters"
-                                                class="ml-1 text-[10px] text-amber-600"
-                                            >
-                                                (de {{ formatMeters(roll.availableMeters) }})
+                                            <span class="font-medium text-foreground">{{ roll.label }}</span>
+                                            <span v-if="roll.location" class="text-muted-foreground">{{ roll.location }}</span>
+                                            <span v-if="roll.color" class="inline-flex items-center gap-1 text-muted-foreground">
+                                                <span class="h-2 w-2 rounded-full border border-border/50" :style="`background-color: ${roll.color}`" />
+                                                {{ roll.color }}
                                             </span>
-                                        </span>
-                                    </TableCell>
-                                    <TableCell class="text-right text-sm font-medium text-foreground">
-                                        {{ roll.pricePerMeter > 0 ? formatCOP(roll.pricePerMeter) : '-' }}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Input
-                                            :model-value="roll.metersProgrammed"
-                                            type="number"
-                                            min="0"
-                                            step="0.01"
-                                            placeholder="0"
-                                            :disabled="isSaving"
-                                            :class="hasOverAllocation(roll, group.uid) ? 'border-amber-400 focus-visible:ring-amber-400' : ''"
-                                            @update:model-value="(v) => (roll.metersProgrammed = String(v ?? ''))"
-                                        />
-                                    </TableCell>
-                                    <TableCell class="text-right">
-                                        <span
-                                            class="text-sm font-semibold tabular-nums"
-                                            :class="rollCost(roll) > 0 ? 'text-foreground' : 'text-muted-foreground'"
-                                        >
-                                            {{ rollCost(roll) > 0 ? formatCOP(rollCost(roll)) : '-' }}
-                                        </span>
-                                    </TableCell>
-                                </TableRow>
-                            </TableBody>
-                        </Table>
+                                            <span v-if="roll.supplier" class="text-muted-foreground">{{ roll.supplier }}</span>
+                                            <div class="ml-auto flex items-center gap-3">
+                                                <span :class="['tabular-nums font-medium', getPartialAvailability(roll.rollId) <= 0 ? 'text-destructive' : 'text-foreground']">
+                                                    {{ formatMeters(getPartialAvailability(roll.rollId)) }} m
+                                                </span>
+                                                <span class="tabular-nums text-muted-foreground">{{ formatCOP(roll.pricePerMeter) }}/m</span>
+                                                <span v-if="isRollAssigned(line, roll.rollId)" class="text-muted-foreground">Agregado</span>
+                                            </div>
+                                        </button>
+                                    </div>
+                                </div>
+
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Agregar tela -->
+                    <div class="px-3 py-2">
+                        <button type="button" class="flex items-center gap-1.5 text-xs text-muted-foreground transition hover:text-foreground disabled:pointer-events-none disabled:opacity-40" :disabled="isSaving" @click="addLineToTrazo(trazo.uid)">
+                            <Plus class="h-3.5 w-3.5" /> Agregar tela
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Empty state -->
-        <div v-if="groups.length === 0 && !isLoading" class="rounded-lg border border-dashed border-border bg-background px-4 py-8 text-center">
-            <p class="text-sm font-medium text-foreground">No hay items registrados. Agrega una tela para iniciar.</p>
+        <!-- Acciones -->
+        <div class="flex flex-wrap items-center gap-3 pt-1">
+            <Button type="button" variant="outline" class="h-9 rounded-full border border-input bg-background px-4 hover:bg-muted/40" :disabled="isSaving || isLoading" @click="addTrazo">
+                <Plus class="mr-1 h-4 w-4" /> Agregar trazo
+            </Button>
+            <Button type="button" class="h-9 rounded-full px-4" :disabled="!canSave" @click="handleSave">
+                <Save class="mr-1 h-4 w-4" /> {{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
+            </Button>
+            <span v-if="isLoadingItems" class="text-xs text-muted-foreground">Cargando items...</span>
+            <span v-if="saveMessage" class="text-sm text-emerald-700">{{ saveMessage }}</span>
         </div>
 
-        <!-- Actions -->
-        <div class="flex items-center justify-between gap-3">
-            <div class="flex items-center gap-2">
-                <Button
-                    type="button"
-                    variant="outline"
-                    class="h-9 rounded-full border border-input bg-background px-4 hover:bg-muted/40"
-                    :disabled="isSaving"
-                    @click="addGroup"
-                >
-                    <Plus class="mr-1 h-4 w-4" />
-                    Agregar tela
-                </Button>
-                <Button type="button" class="h-9 rounded-full px-4" :disabled="!canSave" @click="handleSave">
-                    <Save class="mr-1 h-4 w-4" />
-                    {{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
-                </Button>
-            </div>
+        <!-- Mensajes -->
+        <div v-if="warningMessage" class="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{{ warningMessage }}</div>
+        <div v-if="error" class="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{{ error }}</div>
 
-            <div class="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
-                <div class="space-y-1 text-right">
-                    <p class="text-xs uppercase tracking-wide text-muted-foreground">
-                        Total metros: <span class="font-semibold text-foreground">{{ formatMeters(totalMetersProgrammed) }}</span>
-                    </p>
-                    <p class="text-xs uppercase tracking-wide text-muted-foreground">
-                        Total costo: <span class="font-semibold text-foreground">{{ formatCOP(totalCost) }}</span>
-                    </p>
-                    <p v-if="weightedCopPerMeter > 0" class="text-xs uppercase tracking-wide text-muted-foreground">
-                        Ponderado COP/m: <span class="font-semibold text-foreground">{{ formatCOP(weightedCopPerMeter) }}</span>
-                    </p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Messages -->
-        <p v-if="saveMessage" class="text-sm text-emerald-700">{{ saveMessage }}</p>
-        <p v-if="isLoadingItems" class="text-sm text-muted-foreground">Cargando items de materia prima...</p>
-
-        <div v-if="warning" class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            {{ warning }}
-        </div>
-
-        <div v-if="error" class="rounded-lg border-0 bg-destructive/10 px-4 py-3 text-sm text-destructive shadow-none">
-            {{ error }}
-        </div>
     </div>
 </template>

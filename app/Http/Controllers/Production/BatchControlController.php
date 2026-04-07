@@ -2,14 +2,20 @@
 
 namespace App\Http\Controllers\Production;
 
+use App\Enums\EstatusOperacionOrden;
 use App\Helpers\MonthLabel;
 use App\Http\Controllers\Controller;
 use App\Models\Production\BatchControlDelivery;
 use App\Models\Production\BatchControlNovelty;
 use App\Models\Production\ProductionOrder;
 use App\Models\Production\TechnicalDataSheetSupply;
+use App\Models\Production\TechnicalSheet;
+use App\Models\Production\TechnicalSheetOperation;
 use App\Models\Textil\FabricRoll;
 use App\Services\Inventory\InventoryMovementService;
+use App\Services\Production\MachineService;
+use App\Services\Production\OperationSectionService;
+use App\Services\Production\OperationService;
 use App\Services\Settings\SettingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -46,6 +52,9 @@ class BatchControlController extends Controller
     public function __construct(
         private SettingService $settingService,
         private InventoryMovementService $movementService,
+        private OperationSectionService $sectionService,
+        private OperationService $operationService,
+        private MachineService $machineService,
     ) {
     }
 
@@ -932,5 +941,119 @@ class BatchControlController extends Controller
             'processed' => $processed,
             'errors'    => $errors,
         ]);
+    }
+
+    /**
+     * Retorna opciones de catálogo (secciones, operaciones, máquinas, bases de tela)
+     * necesarias para el dialog de edición de operaciones en fichas de muestras.
+     */
+    public function catalogOptions(): JsonResponse
+    {
+        return response()->json([
+            'sections'    => $this->sectionService->options()->map(fn ($s) => [
+                'id'   => $s->id,
+                'name' => $s->name ?? '',
+                'type' => $s->type ?? '',
+            ])->values()->all(),
+            'operations'  => $this->operationService->options()->map(fn ($o) => [
+                'id'           => $o->id,
+                'name'         => trim(($o->action ?? '') . ' ' . ($o->garment_part ?? '')),
+                'action'       => $o->action ?? '',
+                'garment_part' => $o->garment_part ?? '',
+                'section_id'   => $o->section_id ?? null,
+                'sam_base'     => $o->sam_base !== null ? (float) $o->sam_base : null,
+            ])->values()->all(),
+            'machines'    => $this->machineService->options()->map(fn ($m) => [
+                'id'                => $m->id,
+                'code'              => $m->code ?? '',
+                'name'              => $m->name ?? '',
+                'supplement_factor' => $m->supplement_factor !== null ? (float) $m->supplement_factor : 1.0,
+            ])->values()->all(),
+            'fabric_bases' => $this->settingService->getFabricBasesWithFactor()->map(fn ($f) => [
+                'id'     => $f['id'],
+                'name'   => $f['name'] ?? $f['nombre'] ?? $f['codigo'] ?? (string) $f['id'],
+                'factor' => $f['factor'] ?? $f['factor_base'] ?? $f['factor_base_tela'] ?? 1.0,
+            ])->values()->all(),
+        ]);
+    }
+
+    /**
+     * Sincroniza (reemplaza) las operaciones del snapshot TechnicalSheet de una orden.
+     * Solo permitido para órdenes de tipo muestra.
+     */
+    public function syncOperations(Request $request, ProductionOrder $order): JsonResponse
+    {
+        $validated = $request->validate([
+            'operations'                                => ['required', 'array'],
+            'operations.*.operation_id'                 => ['nullable', 'integer', 'exists:operations,id'],
+            'operations.*.machine_id'                   => ['nullable', 'integer', 'exists:machines,id'],
+            'operations.*.section_id'                   => ['nullable', 'integer'],
+            'operations.*.sequence'                     => ['required', 'integer', 'min:1'],
+            'operations.*.optimal_time'                 => ['required', 'numeric', 'min:0'],
+            'operations.*.machine_supplement_factor'    => ['required', 'numeric', 'min:1'],
+            'operations.*.operator_efficiency_factor'   => ['required', 'numeric', 'between:1,2'],
+            'operations.*.quantity'                     => ['nullable', 'integer', 'min:1'],
+            'operations.*.fabric_base_id'               => ['nullable', 'integer'],
+        ]);
+
+        $quantityLote = max(1, (int) ($order->units ?? 1));
+
+        DB::transaction(function () use ($order, $validated, $quantityLote) {
+            $technicalSheet = TechnicalSheet::firstOrCreate(
+                ['production_order_id' => $order->id],
+                ['status' => TechnicalSheet::STATUS_DRAFT],
+            );
+
+            TechnicalSheetOperation::where('technical_sheet_id', $technicalSheet->id)->forceDelete();
+
+            foreach ($validated['operations'] as $op) {
+                $samBase                 = (float) $op['optimal_time'];
+                $machineSupplementFactor = (float) $op['machine_supplement_factor'];
+                $fabricBaseFactor        = $this->resolveFabricBaseFactor($op['fabric_base_id'] ?? null);
+                $operatorEffFactor       = (float) $op['operator_efficiency_factor'];
+                $quantity                = (int) ($op['quantity'] ?? 1);
+
+                $samTotalUnitario  = round($samBase * $machineSupplementFactor * $fabricBaseFactor * $operatorEffFactor, 4);
+                $samTotalOperacion = round($samTotalUnitario * $quantity, 4);
+                $samTotalLote      = round($samTotalOperacion * $quantityLote, 4);
+
+                TechnicalSheetOperation::create([
+                    'technical_sheet_id'         => $technicalSheet->id,
+                    'product_sheet_operation_id' => null,
+                    'sequence'                   => $op['sequence'],
+                    'operation_id'               => $op['operation_id'] ?? null,
+                    'machine_id'                 => $op['machine_id'] ?? null,
+                    'quantity'                   => $quantity,
+                    'sam_base'                   => $samBase,
+                    'machine_supplement_factor'  => $machineSupplementFactor,
+                    'fabric_base_factor'         => $fabricBaseFactor,
+                    'operator_efficiency_factor' => $operatorEffFactor,
+                    'sam_total_unitario'         => $samTotalUnitario,
+                    'sam_total_operacion'        => $samTotalOperacion,
+                    'sam_total_lote'             => $samTotalLote,
+                    'quantity_progressed'        => 0,
+                    'status'                     => EstatusOperacionOrden::PENDIENTE,
+                ]);
+            }
+        });
+
+        return response()->json(['ok' => true]);
+    }
+
+    private function resolveFabricBaseFactor(int|string|null $fabricBaseId): float
+    {
+        if ($fabricBaseId === null || $fabricBaseId === '') {
+            return 1.0;
+        }
+
+        $option = $this->settingService->getCatalogOptionById('fabric_bases', $fabricBaseId);
+        if (! $option) {
+            return 1.0;
+        }
+
+        $factor = $option['factor'] ?? $option['factor_base'] ?? $option['factor_base_tela'] ?? null;
+        $value  = is_numeric($factor) ? (float) $factor : 1.0;
+
+        return $value > 0 ? $value : 1.0;
     }
 }

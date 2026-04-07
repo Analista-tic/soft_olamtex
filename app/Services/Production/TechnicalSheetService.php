@@ -67,15 +67,20 @@ class TechnicalSheetService
         $rawMaterialWeightedFabric = $this->calculateRollsWeightedPrice($opId, $units ?? 0.0);
         $supplies        = $this->calculateSuppliesTotal($opId);
         $processesTotal  = $processes['total'];
-        $total           = $rawMaterialPerUnit + $supplies + $processesTotal;
+
+        // ── Costo fijo (debe calcularse antes del total) ──
+        $fixedCost = $priceInvoicing !== null
+            ? $priceInvoicing * self::FIXED_COST_RATE
+            : null;
+
+        // total = fixedCost + rawMaterial + supplies + processes
+        $total = ($fixedCost ?? 0.0) + $rawMaterialTotal + $supplies + $processesTotal;
 
         // ── Rentabilidad ──
-        $fixedCost      = null;
         $olamtexValue   = null;
         $olamtexPercent = null;
         if ($priceInvoicing !== null) {
-            $fixedCost      = $priceInvoicing * self::FIXED_COST_RATE;
-            $olamtexValue   = $priceInvoicing - $fixedCost;
+            $olamtexValue   = $priceInvoicing - $total;
             $olamtexPercent = $priceInvoicing > 0
                 ? ($olamtexValue / $priceInvoicing) * 100
                 : 0.0;
@@ -97,7 +102,7 @@ class TechnicalSheetService
             ],
             'units' => $units,
             'costs' => [
-                'rawMaterial' => round($rawMaterialWeightedFabric, 4),
+                'rawMaterial' => round($rawMaterialTotal, 4),
                 'rawMaterialPerUnit' => round($rawMaterialPerUnit, 4),
                 'supplies'    => round($supplies, 4),
                 'processes'   => round($processesTotal, 4),

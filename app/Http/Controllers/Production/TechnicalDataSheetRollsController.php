@@ -58,6 +58,7 @@ class TechnicalDataSheetRollsController extends Controller
             'rolls.*.rawMaterialUid' => ['nullable', 'string', 'max:100'],
             'rolls.*.fabricItemId' => ['nullable'],
             'rolls.*.rollId' => ['nullable'],
+            'rolls.*.location' => ['nullable', 'string', 'max:100'],
             'deletedIds' => ['nullable', 'array'],
             'deletedIds.*' => ['string', 'max:100'],
         ]);
@@ -114,6 +115,7 @@ class TechnicalDataSheetRollsController extends Controller
                 'rawMaterialUid' => $this->nullableText($row['rawMaterialUid'] ?? null),
                 'fabricItemId' => $row['fabricItemId'] ?? null,
                 'rollId' => $row['rollId'] ?? null,
+                'location' => $this->nullableText($row['location'] ?? null),
                 'updatedAt' => $now,
                 'createdAt' => $previous['createdAt'] ?? $now,
             ];
@@ -294,6 +296,7 @@ class TechnicalDataSheetRollsController extends Controller
             'rawMaterialUid' => $this->nullableText($line['rawMaterialUid'] ?? null),
             'fabricItemId' => $line['fabricItemId'] ?? null,
             'rollId' => $line['rollId'] ?? null,
+            'location' => $this->nullableText($line['location'] ?? null),
             'createdAt' => $line['createdAt'] ?? null,
             'updatedAt' => $line['updatedAt'] ?? null,
         ];

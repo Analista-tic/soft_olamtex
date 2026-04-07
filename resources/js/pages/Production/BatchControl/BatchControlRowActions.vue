@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Activity, ClipboardList, Eye, Flag, MessageSquareWarning, MoreVertical, PackageCheck, Scissors, Send } from 'lucide-vue-next';
+import { Activity, ClipboardList, Eye, Flag, MessageSquareWarning, MoreVertical, PackageCheck, Scissors, Send, Shirt, Stamp } from 'lucide-vue-next';
 import type { BatchControlRow } from './types';
 
 const props = withDefaults(
@@ -25,6 +25,8 @@ const emit = defineEmits<{
     (e: 'view-info'): void;
     (e: 'cut-consumption'): void;
     (e: 'logistics-supply-exit'): void;
+    (e: 'stamping-info'): void;
+    (e: 'laundry-info'): void;
 }>();
 
 const actionBtn =
@@ -94,6 +96,34 @@ const iconCls = 'h-4 w-4';
         >
             <PackageCheck :class="iconCls" />
             <span class="sr-only">{{ isActiveRow ? 'Salida de insumos' : 'Ver salida de insumos' }}</span>
+        </Button>
+
+        <!-- Info estampado (Estampado/Bordado): visible para todos -->
+        <Button
+            v-if="activeProcess === 'Estampado' || activeProcess === 'Bordado'"
+            variant="ghost"
+            size="icon"
+            :class="[actionBtn, 'text-violet-600 hover:bg-violet-50 hover:text-violet-700']"
+            title="Ver información de estampado"
+            @click.stop="emit('stamping-info')"
+            @pointerdown.stop
+        >
+            <Stamp :class="iconCls" />
+            <span class="sr-only">Ver información de estampado</span>
+        </Button>
+
+        <!-- Info lavandería (Lavandería): visible para todos -->
+        <Button
+            v-if="activeProcess === 'Lavandería' || activeProcess === 'Lavanderia'"
+            variant="ghost"
+            size="icon"
+            :class="[actionBtn, 'text-cyan-600 hover:bg-cyan-50 hover:text-cyan-700']"
+            title="Ver instrucciones de lavandería"
+            @click.stop="emit('laundry-info')"
+            @pointerdown.stop
+        >
+            <Shirt :class="iconCls" />
+            <span class="sr-only">Ver instrucciones de lavandería</span>
         </Button>
 
         <!-- Menú de acciones: solo para filas activas -->

@@ -8,6 +8,7 @@ use App\Models\Production\ProductionOrder;
 use App\Models\Production\ProductOperationList;
 use App\Services\Production\OperationSectionService;
 use App\Services\Production\ProductionOrderService;
+use App\Services\Production\TechnicalDataSheetPdfService;
 use App\Services\Production\TechnicalDataSheetProcessesStore;
 use App\Services\Production\TechnicalDataSheetRawMaterialsStore;
 use App\Services\Production\TechnicalSheetService;
@@ -41,6 +42,7 @@ class TechnicalDataSheetController extends Controller
         private TechnicalSheetService $technicalSheetService,
         private TechnicalDataSheetProcessesStore $processesStore,
         private TechnicalDataSheetRawMaterialsStore $rawMaterialsStore,
+        private TechnicalDataSheetPdfService $pdfService,
     ) {}
 
     /**
@@ -547,6 +549,25 @@ class TechnicalDataSheetController extends Controller
         ]);
         $this->rawMaterialsStore->write($opId, $validated['rows']);
         return response()->json(['rows' => $this->rawMaterialsStore->read($opId)]);
+    }
+
+    /**
+     * Genera el PDF resumen completo de la ficha técnica para una OP.
+     */
+    public function printSummary(int $opId): \Illuminate\Http\Response
+    {
+        $basicInfoResponse = $this->basicInfo($opId);
+        $basicInfo = json_decode($basicInfoResponse->getContent(), true);
+
+        return $this->pdfService->generate($opId, $basicInfo);
+    }
+
+    public function printSummaryH(int $opId): \Illuminate\Http\Response
+    {
+        $basicInfoResponse = $this->basicInfo($opId);
+        $basicInfo = json_decode($basicInfoResponse->getContent(), true);
+
+        return $this->pdfService->generateH($opId, $basicInfo);
     }
 
     // ─── Helpers privados (solo presentación) ─────────────

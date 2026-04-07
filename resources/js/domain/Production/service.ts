@@ -633,6 +633,7 @@ function normalizeRollState(data: RollStateDto | null | undefined): RollState {
                   rawMaterialUid: line.rawMaterialUid ?? null,
                   fabricItemId: line.fabricItemId ?? null,
                   rollId: line.rollId ?? null,
+                  location: (line as Record<string, unknown>).location != null ? String((line as Record<string, unknown>).location) : null,
                   createdAt: line.createdAt,
                   updatedAt: line.updatedAt,
               }))
@@ -694,6 +695,7 @@ export async function fetchAvailableFabricRolls(
         params: {
             fabricItemIds: fabricItemIds.length > 0 ? fabricItemIds : undefined,
             excludeOpId: excludeOpId != null ? excludeOpId : undefined,
+            per_page: 500,
         },
     });
     const raw = Array.isArray(response.data) ? response.data : Array.isArray(response.data?.data) ? response.data.data : [];

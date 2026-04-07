@@ -35,6 +35,8 @@ const emit = defineEmits<{
     (e: 'open-basic-info', row: BatchControlRow): void;
     (e: 'open-cut-consumption', row: BatchControlRow): void;
     (e: 'open-logistics-supply-exit', row: BatchControlRow): void;
+    (e: 'open-stamping-info', row: BatchControlRow): void;
+    (e: 'open-laundry-info', row: BatchControlRow): void;
 }>();
 
 function setSort(column: string) {
@@ -373,6 +375,8 @@ function dimmedCellClass(row: BatchControlRow): string {
                             @view-info="emit('open-basic-info', row)"
                             @cut-consumption="emit('open-cut-consumption', row)"
                             @logistics-supply-exit="emit('open-logistics-supply-exit', row)"
+                            @stamping-info="emit('open-stamping-info', row)"
+                            @laundry-info="emit('open-laundry-info', row)"
                             @timeline="emit('open-timeline', row)"
                             @novelty="emit('open-novelty', row)"
                             @deliver="emit('open-deliver', row)"

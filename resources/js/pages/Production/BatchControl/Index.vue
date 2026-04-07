@@ -17,12 +17,16 @@ import {
     CutFabricConsumptionDialog,
     DeliverDialog,
     EstimatedDateDialog,
+    LaundryInfoDialog,
     LogisticsSupplyExitDialog,
     OrderBasicInfoDialog,
     OrderTimelineDialog,
     ReportNoveltyDialog,
+    StampingInfoDialog,
     TechnicalSheetDialog,
 } from './components/dialogs';
+import type { AdditionalInfo } from '@/domain/Production';
+import { fetchOpAdditionalInfo } from '@/domain/Production';
 import type { BatchControlRow, CutCurves, CutFabricConsumptionLine, CutSizeCurves, LogisticsSupplyItem, TimelineEvent } from './types';
 
 /* ── Types ──────────────────────────────────────────────── */
@@ -151,6 +155,18 @@ const cutLargoEspiga = ref<number | null>(null);
 const cutConsumptionViewOnly = ref(false);
 const isLoadingCutConsumption = ref(false);
 const isSavingCutConsumption = ref(false);
+
+// Dialog: información de estampado
+const stampingInfoDialogOpen = ref(false);
+const stampingInfoRow = ref<BatchControlRow | null>(null);
+const stampingInfoData = ref<AdditionalInfo['stamping']>({ designNotes: null, attachments: [] });
+const isLoadingStampingInfo = ref(false);
+
+// Dialog: información de lavandería
+const laundryInfoDialogOpen = ref(false);
+const laundryInfoRow = ref<BatchControlRow | null>(null);
+const laundryInfoData = ref<AdditionalInfo['laundry']>({ type: null, instructions: null });
+const isLoadingLaundryInfo = ref(false);
 
 // Dialog: salida de insumos (Logística)
 const logisticsExitDialogOpen = ref(false);
@@ -956,6 +972,52 @@ async function saveLogisticsExit() {
     }
 }
 
+/* ── Estampado: info dialog ─────────────────────────── */
+
+async function openStampingInfoDialog(row: BatchControlRow) {
+    stampingInfoRow.value = row;
+    stampingInfoData.value = { designNotes: null, attachments: [] };
+    stampingInfoDialogOpen.value = true;
+    isLoadingStampingInfo.value = true;
+    try {
+        const info = await fetchOpAdditionalInfo(row.id);
+        stampingInfoData.value = info.stamping;
+    } catch {
+        showError('No se pudo cargar la información de estampado.');
+    } finally {
+        isLoadingStampingInfo.value = false;
+    }
+}
+
+function closeStampingInfoDialog() {
+    stampingInfoDialogOpen.value = false;
+    stampingInfoRow.value = null;
+    stampingInfoData.value = { designNotes: null, attachments: [] };
+}
+
+/* ── Lavandería: info dialog ────────────────────────── */
+
+async function openLaundryInfoDialog(row: BatchControlRow) {
+    laundryInfoRow.value = row;
+    laundryInfoData.value = { type: null, instructions: null };
+    laundryInfoDialogOpen.value = true;
+    isLoadingLaundryInfo.value = true;
+    try {
+        const info = await fetchOpAdditionalInfo(row.id);
+        laundryInfoData.value = info.laundry;
+    } catch {
+        showError('No se pudo cargar la información de lavandería.');
+    } finally {
+        isLoadingLaundryInfo.value = false;
+    }
+}
+
+function closeLaundryInfoDialog() {
+    laundryInfoDialogOpen.value = false;
+    laundryInfoRow.value = null;
+    laundryInfoData.value = { type: null, instructions: null };
+}
+
 onMounted(() => {
     void fetchData();
 });
@@ -1063,6 +1125,8 @@ onMounted(() => {
                                             @open-basic-info="openBasicInfoDialog"
                                             @open-cut-consumption="openCutConsumptionDialog"
                                             @open-logistics-supply-exit="openLogisticsExitDialog"
+                                            @open-stamping-info="openStampingInfoDialog"
+                                            @open-laundry-info="openLaundryInfoDialog"
                                         />
                                     </div>
                                 </TabsContent>
@@ -1177,6 +1241,21 @@ onMounted(() => {
             @update:lines="logisticsSupplyLines = $event"
             @save="saveLogisticsExit"
             @close="closeLogisticsExitDialog"
+        />
+
+        <StampingInfoDialog
+            :open="stampingInfoDialogOpen"
+            :data="stampingInfoData"
+            :display-name="isLoadingStampingInfo ? 'Cargando...' : 'Estampado'"
+            @close="closeStampingInfoDialog"
+        />
+
+        <LaundryInfoDialog
+            :open="laundryInfoDialogOpen"
+            :data="laundryInfoData"
+            :op-code="laundryInfoRow?.op_code ?? null"
+            :referencia="laundryInfoRow?.referencia ?? null"
+            @close="closeLaundryInfoDialog"
         />
     </AppLayout>
 </template>

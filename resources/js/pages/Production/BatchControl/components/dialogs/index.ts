@@ -10,3 +10,5 @@ export { default as OrderTimelineDialog } from './OrderTimelineDialog.vue';
 export { default as ReportNoveltyDialog } from './ReportNoveltyDialog.vue';
 export { default as TechnicalSheetDialog } from './TechnicalSheetDialog.vue';
 export { default as LogisticsSupplyExitDialog } from './LogisticsSupplyExitDialog.vue';
+export { default as StampingInfoDialog } from './StampingInfoDialog.vue';
+export { default as LaundryInfoDialog } from './LaundryInfoDialog.vue';

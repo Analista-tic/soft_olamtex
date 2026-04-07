@@ -111,6 +111,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('ficha-tecnica.processes.save');
         Route::get('ficha-tecnica/{opId}/costos', [TechnicalDataSheetController::class, 'costsSummary'])
             ->name('ficha-tecnica.costs-summary');
+        Route::get('ficha-tecnica/{opId}/imprimir', [TechnicalDataSheetController::class, 'printSummary'])
+            ->name('ficha-tecnica.print-summary');
+        Route::get('ficha-tecnica/{opId}/imprimir-h', [TechnicalDataSheetController::class, 'printSummaryH'])
+            ->name('ficha-tecnica.print-summary-h');
         Route::get('ficha-tecnica/{opId}/materia-prima', [TechnicalDataSheetController::class, 'rawMaterialsSummary'])
             ->name('ficha-tecnica.raw-materials.index');
         Route::put('ficha-tecnica/{opId}/materia-prima', [TechnicalDataSheetController::class, 'saveRawMaterials'])
@@ -336,6 +340,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('control-de-lotes')->name('control-de-lotes.')->group(function () {
         Route::get('/', [BatchControlController::class, 'index'])->name('index');
         Route::get('/data', [BatchControlController::class, 'getData'])->name('data');
+        Route::get('/opciones-operaciones', [BatchControlController::class, 'catalogOptions'])->name('catalog-options');
         Route::post('/{order}/entregar', [BatchControlController::class, 'deliver'])->name('deliver');
         Route::patch('/prioridades', [BatchControlController::class, 'updatePriorities'])->name('update-priorities');
         Route::patch('/{order}/fecha-estimada', [BatchControlController::class, 'updateEstimatedDate'])->name('update-estimated-date');
@@ -347,6 +352,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/{order}/novedades', [BatchControlController::class, 'reportNovelty'])->name('report-novelty');
         Route::patch('/{order}/novedades/{novelty}/resolver', [BatchControlController::class, 'resolveNovelty'])->name('resolve-novelty');
         Route::get('/{order}/novedades', [BatchControlController::class, 'novelties'])->name('novelties');
+
+        // Operaciones de ficha técnica (muestras)
+        Route::put('/{order}/operaciones', [BatchControlController::class, 'syncOperations'])->name('sync-operations');
 
         // Logística: salida de insumos
         Route::get('/{order}/logistica-insumos', [BatchControlController::class, 'getLogisticsSupplies'])->name('logistics-supplies');
