@@ -26,7 +26,8 @@ class FabricRollsAbrilSeeder extends Seeder
         $csvPath = base_path('db/rollos abril.csv');
 
         if (! file_exists($csvPath)) {
-            $this->command->error("CSV no encontrado en: {$csvPath}");
+            $this->command->warn("FabricRollsAbrilSeeder: CSV no encontrado en {$csvPath}. Se omite importación legacy.");
+
             return;
         }
 
