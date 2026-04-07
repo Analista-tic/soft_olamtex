@@ -339,7 +339,7 @@ onMounted(async () => {
         ]);
         preloadedSubGroups.value = sgRes.data?.data ?? [];
         preloadedTaxes.value = (taxRes.data?.data ?? []).filter((t: any) => t.status);
-    } catch (e) {
+    } catch {
         // silencioso — el dialog los cargará por su cuenta si falla
     }
 });
