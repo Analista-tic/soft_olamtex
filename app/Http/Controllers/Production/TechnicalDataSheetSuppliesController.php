@@ -131,7 +131,7 @@ class TechnicalDataSheetSuppliesController extends Controller
         $purchaseRequest = $result['purchase_request'];
 
         $documentUrl = $purchaseRequest->document_path
-            ? asset('storage/' . $purchaseRequest->document_path)
+            ? route('storage.file.show', ['path' => ltrim((string) $purchaseRequest->document_path, '/')])
             : null;
 
         return response()->json([

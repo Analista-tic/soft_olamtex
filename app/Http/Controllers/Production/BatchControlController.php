@@ -837,16 +837,11 @@ class BatchControlController extends Controller
                 ->get(['id', 'name', 'reference', 'unit_measure', 'img']);
 
             foreach ($itemModels as $item) {
-                $imgUrl = null;
-                if ($item->img) {
-                    $path = ltrim((string) $item->img, '/');
-                    $imgUrl = str_starts_with($path, 'http') ? $path : asset('storage/' . $path);
-                }
                 $items[$item->id] = [
                     'name'         => trim((string) $item->name),
                     'reference'    => $item->reference ?? null,
                     'unit_measure' => $item->unit_measure ?? null,
-                    'img_url'      => $imgUrl,
+                    'img_url'      => $item->img_url,
                 ];
             }
         }

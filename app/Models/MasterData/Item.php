@@ -146,7 +146,7 @@ class Item extends Model implements \App\Contracts\HasAuditLabel
         $path = ltrim((string) $this->img, '/');
         $path = preg_replace('/^storage\//', '', $path);
 
-        return "/storage/{$path}";
+        return route('storage.file.show', ['path' => $path]);
     }
 
     public function isMigrationOrigin(): bool

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\AvatarController;
 use App\Http\Controllers\Settings\CompanySettingsController;
+use App\Http\Controllers\StorageFileController;
 use App\Http\Controllers\Settings\NotificationsController;
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
@@ -107,6 +108,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('profile/avatar-file/{path}', [AvatarController::class, 'show'])
         ->where('path', '.*')
         ->name('profile.avatar.show');
+
+    // Ruta genérica para servir archivos del disco public sin depender del symlink
+    Route::get('storage-file/{path}', [StorageFileController::class, 'show'])
+        ->where('path', '.*')
+        ->name('storage.file.show');
 
     // Avatar routes (legacy aliases to avoid breaking existing integrations)
     Route::post('settings/avatar', [AvatarController::class, 'upload'])->name('avatar.upload');

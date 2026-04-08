@@ -4,7 +4,7 @@
 namespace App\Models\Settings;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Route;
 
 class CompanySetting extends Model implements \App\Contracts\HasAuditLabel
 {
@@ -26,9 +26,14 @@ class CompanySetting extends Model implements \App\Contracts\HasAuditLabel
 
     public function getLogoUrlAttribute(): ?string
     {
-        return $this->logo_path
-            ? Storage::url($this->logo_path)
-            : null;
+        if (!$this->logo_path) {
+            return null;
+        }
+
+        $path = ltrim((string) $this->logo_path, '/');
+        $path = preg_replace('/^storage\//', '', $path);
+
+        return route('storage.file.show', ['path' => $path]);
     }
 
     public static function auditLabel(): string
