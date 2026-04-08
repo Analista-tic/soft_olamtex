@@ -83,8 +83,9 @@ function resolveDrawingUrl(raw: string | null | undefined): string | null {
     const path = typeof raw === 'string' ? raw.trim() : '';
     if (!path) return null;
     if (/^https?:\/\//i.test(path) || /^(data:|blob:)/i.test(path)) return path;
-    if (path.startsWith('/')) return path;
-    return `/storage/${path.replace(/^\/?storage\//, '')}`;
+    if (path.startsWith('/storage-file/')) return path;
+    if (path.startsWith('/')) return `/storage-file/${path.replace(/^\/+(?:storage\/)?/, '')}`;
+    return `/storage-file/${path.replace(/^\/?storage\//, '')}`;
 }
 
 const drawingUrl = computed(() => {

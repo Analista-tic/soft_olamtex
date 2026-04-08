@@ -159,7 +159,7 @@ async function fetchRequest(id: number) {
         const { data } = await axios.get(`/inventario/solicitudes-internas/${id}`);
         const payload = data?.data ?? {};
         const rawImagePath = typeof payload.image === 'string' ? payload.image.trim() : '';
-        const normalizedImagePath = rawImagePath ? `/storage/${rawImagePath.replace(/^\/?storage\//, '')}` : null;
+        const normalizedImagePath = rawImagePath ? `/storage-file/${rawImagePath.replace(/^\/?storage\//, '')}` : null;
         const resolvedImageUrl = normalizedImagePath || payload.image_url || null;
         localForm.value = {
             id: payload.id,

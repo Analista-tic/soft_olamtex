@@ -86,7 +86,8 @@ const hasDocument = computed(() => {
 const documentUrl = computed(() => {
     if (documentPreview.value) return documentPreview.value;
     if (localForm.value.document_path) {
-        return `/storage/${localForm.value.document_path}`;
+        const dp = localForm.value.document_path.replace(/^\/?storage\//, '');
+        return `/storage-file/${dp}`;
     }
     return null;
 });

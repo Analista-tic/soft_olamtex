@@ -122,8 +122,9 @@ function resolveImageUrl(rawPath?: string | null): string | null {
     const path = typeof rawPath === 'string' ? rawPath.trim() : '';
     if (!path) return null;
     if (/^https?:\/\//i.test(path)) return path;
-    if (path.startsWith('/')) return path;
-    return `/storage/${path.replace(/^\/?storage\//, '')}`;
+    if (path.startsWith('/storage-file/')) return path;
+    if (path.startsWith('/')) return `/storage-file/${path.replace(/^\/+(?:storage\/)?/, '')}`;
+    return `/storage-file/${path.replace(/^\/?storage\//, '')}`;
 }
 
 const drawingUrl = computed(() => {

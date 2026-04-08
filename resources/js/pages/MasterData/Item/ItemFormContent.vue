@@ -331,15 +331,17 @@ function resolveImageUrl(rawImg?: string | null, rawUrl?: string | null): string
     const url = typeof rawUrl === 'string' ? rawUrl.trim() : '';
     if (url) {
         if (/^https?:\/\//i.test(url)) return url;
-        if (url.startsWith('/')) return url;
-        return `/storage/${url.replace(/^\/?storage\//, '')}`;
+        if (url.startsWith('/storage-file/')) return url;
+        if (url.startsWith('/')) return `/storage-file/${url.replace(/^\/+(?:storage\/)?/, '')}`;
+        return `/storage-file/${url.replace(/^\/?storage\//, '')}`;
     }
 
     const img = typeof rawImg === 'string' ? rawImg.trim() : '';
     if (!img) return undefined;
     if (/^https?:\/\//i.test(img)) return img;
-    if (img.startsWith('/')) return img;
-    return `/storage/${img.replace(/^\/?storage\//, '')}`;
+    if (img.startsWith('/storage-file/')) return img;
+    if (img.startsWith('/')) return `/storage-file/${img.replace(/^\/+(?:storage\/)?/, '')}`;
+    return `/storage-file/${img.replace(/^\/?storage\//, '')}`;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
