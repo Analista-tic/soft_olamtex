@@ -64,6 +64,10 @@ class AppServiceProvider extends ServiceProvider
     {
         Schema::defaultStringLength(191); // Limita las cadenas a 191 caracteres
 
+        if (app()->isProduction()) {
+            \Illuminate\Support\Facades\URL::forceScheme('https');
+        }
+
         Route::model('purchaseDocument', PurchaseDocument::class);
         Route::model('programador', ProductionOrder::class);
         Route::model('listItem', ProductOperationList::class);
