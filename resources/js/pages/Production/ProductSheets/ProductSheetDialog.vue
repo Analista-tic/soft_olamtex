@@ -284,6 +284,32 @@ const form = ref<FormState>(createInitialFormState());
 const collectionOptions = ref<OptionParams[]>([]);
 const collectionSearchTerm = ref('');
 const creatingCollection = ref(false);
+const FABRIC_BASE_NA_OPTION: OptionParams = {
+    id: 0,
+    name: 'N/A - No aplica',
+};
+
+const fabricBaseOptions = computed<OptionParams[]>(() => {
+    const bases = Array.isArray(props.fabricBases) ? props.fabricBases : [];
+
+    if (!form.value.woven_product) {
+        return bases;
+    }
+
+    const hasEquivalentNaOption = bases.some((option) => {
+        const normalizedName = String(option?.name ?? '')
+            .trim()
+            .toLocaleLowerCase('es-CO');
+
+        return Number(option?.id) === 0 || normalizedName.includes('no aplica') || normalizedName === 'na' || normalizedName === 'n/a';
+    });
+
+    if (hasEquivalentNaOption) {
+        return bases;
+    }
+
+    return [FABRIC_BASE_NA_OPTION, ...bases];
+});
 
 function normalizeCollectionName(value: string): string {
     return value.trim().replace(/\s+/g, ' ');
@@ -1528,7 +1554,7 @@ function handleClose() {
                                         class="w-full"
                                         v-model="form.fabric_base_id"
                                         label=""
-                                        :options="props.fabricBases"
+                                        :options="fabricBaseOptions"
                                         :required="!form.woven_product"
                                         placeholder="Seleccione base tela"
                                         :disabled="isReadonly"
