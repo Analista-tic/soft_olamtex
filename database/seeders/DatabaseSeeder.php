@@ -3,13 +3,17 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Database\Seeders\ProductOperationList\BermudaShortOperationsSeeder;
+use Database\Seeders\ProductOperationList\BlouseCamisaBuzosOperationsSeeder;
+use Database\Seeders\ProductOperationList\JoggerKidsOperationsSeeder;
+use Database\Seeders\ProductOperationList\JoggerPantalonOperationsSeeder;
+use Database\Seeders\ProductOperationList\KnitwearOperationsSeeder;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
         $this->call([
-            // ── Configuración base ──────────────────────────────────────
             CompanySettingSeeder::class,
             SettingsFieldParametersSeeder::class,
             CategorySeeder::class,
@@ -17,16 +21,16 @@ class DatabaseSeeder extends Seeder
             WarehousesSeeder::class,
             RolesAndPermissionsSeeder::class,
 
-            // ── Producción ────────────────────────────────────────────
             OperationsSeeder::class,
             ProductionListingOperationsSeeder::class,
-            
-            // ── Contabilidad ────────────────────────────────────────────
+            BermudaShortOperationsSeeder::class,
+            BlouseCamisaBuzosOperationsSeeder::class,
+            JoggerKidsOperationsSeeder::class,
+            JoggerPantalonOperationsSeeder::class,
+            KnitwearOperationsSeeder::class,
+
             AccountingAccountSeeder::class,
 
-            // ── Datos legacy reales (XLS → CSV) ─────────────────────────
-            // LegacyItemsSeeder primero: sus ítems deben existir para que
-            // FabricRollsLegacySeeder los encuentre por referencia.
             LegacyItemsSeeder::class,
             FabricRollsLegacySeeder::class,
         ]);
