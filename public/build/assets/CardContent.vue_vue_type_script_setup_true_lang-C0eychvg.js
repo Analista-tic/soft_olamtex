@@ -1,0 +1,1 @@
+import{c as n}from"./utils-CytzSlOG.js";import{d as o,e as r,f as t,n as c,u as p,B as l}from"./app-BBKii1Go.js";const i=o({__name:"CardContent",props:{class:{}},setup(s){const e=s;return(a,m)=>(t(),r("div",{class:c(p(n)("p-6 pt-0",e.class))},[l(a.$slots,"default")],2))}});export{i as _};

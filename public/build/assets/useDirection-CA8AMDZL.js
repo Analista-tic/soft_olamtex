@@ -1,0 +1,1 @@
+import{i as r}from"./ConfigProvider-Dynejb71.js";import{a as n,c as a}from"./app-BBKii1Go.js";function u(t){const e=r({dir:n("ltr")});return a(()=>{var o;return(t==null?void 0:t.value)||((o=e.dir)==null?void 0:o.value)||"ltr"})}export{u};

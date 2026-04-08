@@ -1,1 +1,0 @@
-import{b as r}from"./useForwardExpose-WcxQY_KP.js";import{a as i,c as l}from"./app-CCiTEv7d.js";function a(){const e=i(),m=l(()=>{var t,n;return["#text","#comment"].includes((t=e.value)==null?void 0:t.$el.nodeName)?(n=e.value)==null?void 0:n.$el.nextElementSibling:r(e)});return{primitiveElement:e,currentElement:m}}export{a as u};
