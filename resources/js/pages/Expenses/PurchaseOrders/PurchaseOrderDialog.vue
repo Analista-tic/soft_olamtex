@@ -22,6 +22,7 @@ import type { Contact } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import axios from 'axios';
+import { Plus } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import PurchaseOrderItemsTable from './PurchaseOrderItemsTable.vue';
 
@@ -50,7 +51,7 @@ const isLoadingOrderId = ref(false);
 const isSendingMail = ref(false);
 const { successMessage, errorMessage, errorType, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const originalFormSnapshot = ref<string>('');
-const itemsTableRef = ref<{ addItem: () => void; validateFabricFields: () => string | null } | null>(null);
+const itemsTableRef = ref<{ addItem: () => void; openItemDialog: () => void; validateFabricFields: () => string | null } | null>(null);
 const { isBootstrapping, isHydrating, isBlockingLoading, canRenderForm, startLoadingRun, isCurrentLoadingRun, cancelLoadingRun } =
     useDialogLoadingState(dialogOpen);
 
@@ -176,6 +177,80 @@ const orderDocumentNumber = computed(() => {
     return `ORD-${String(nextOrderId.value).padStart(3, '0')}`;
 });
 
+function normalizeRequestItems(rawItems: unknown): any[] {
+    if (Array.isArray(rawItems)) {
+        return rawItems;
+    }
+
+    if (typeof rawItems === 'string') {
+        try {
+            const parsed = JSON.parse(rawItems);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+
+    return [];
+}
+
+function getAssociatedPurchaseRequestId(source: unknown = localForm.value): number | null {
+    const rawId = (source as any)?.purchase_request_id ?? null;
+    const numericId = Number(rawId);
+    return Number.isFinite(numericId) && numericId > 0 ? numericId : null;
+}
+
+const effectivePurchaseRequestId = computed<number | null>(() => {
+    if (selectedPurchaseRequestId.value) {
+        return Number(selectedPurchaseRequestId.value);
+    }
+
+    const selectedId = Number(selectedPurchaseRequest.value?.id);
+    if (Number.isFinite(selectedId) && selectedId > 0) {
+        return selectedId;
+    }
+
+    return getAssociatedPurchaseRequestId(localForm.value);
+});
+
+const requestItemsForTable = computed(() => {
+    if (selectedPurchaseRequest.value) {
+        return normalizeRequestItems(selectedPurchaseRequest.value.items);
+    }
+
+    return normalizeRequestItems((localForm.value as any)?.purchase_request?.items);
+});
+
+async function ensureAssociatedPurchaseRequestLoaded() {
+    const requestId = effectivePurchaseRequestId.value;
+    if (!requestId || selectedPurchaseRequestId.value === requestId) {
+        return;
+    }
+
+    if (selectedPurchaseRequest.value && Number(selectedPurchaseRequest.value.id) === requestId) {
+        return;
+    }
+
+    const embeddedRequest = (localForm.value as any)?.purchase_request;
+    if (embeddedRequest && Number(embeddedRequest.id) === requestId) {
+        selectedPurchaseRequest.value = embeddedRequest;
+        return;
+    }
+
+    const optionRequest = purchaseRequests.value.find((request) => Number(request?.id) === requestId);
+    if (optionRequest) {
+        selectedPurchaseRequest.value = optionRequest;
+        return;
+    }
+
+    try {
+        const { data } = await axios.get(`/gastos/solicitudes-compra/${requestId}`);
+        selectedPurchaseRequest.value = data?.data ?? null;
+    } catch (error) {
+        console.error('Error fetching associated purchase request:', error);
+    }
+}
+
 async function initializeDialog() {
     const currentRun = startLoadingRun();
     isBootstrapping.value = true;
@@ -192,6 +267,7 @@ async function initializeDialog() {
             const { data } = await axios.get(`/gastos/ordenes-compra/${props.form.id}`);
             if (isCurrentLoadingRun(currentRun)) {
                 resetForm(data?.data || props.form);
+                await ensureAssociatedPurchaseRequestLoaded();
             }
         }
         if (props.dialogType === 'create') {
@@ -356,16 +432,7 @@ function applyRequestSuggestion() {
     localForm.value.supplier_order_number = request.request_number || '';
 
     // Mapear items de la solicitud a items de la orden
-    let requestItems: any[] = [];
-    if (Array.isArray(request.items)) {
-        requestItems = request.items;
-    } else if (typeof request.items === 'string') {
-        try {
-            requestItems = JSON.parse(request.items);
-        } catch {
-            requestItems = [];
-        }
-    }
+    const requestItems = normalizeRequestItems(request.items);
 
     if (requestItems.length > 0) {
         localForm.value.items = requestItems.map((item: any) => ({
@@ -383,21 +450,6 @@ function applyRequestSuggestion() {
     }
 
     originalFormSnapshot.value = stableStringify(localForm.value);
-}
-
-function getRequestItems() {
-    if (!selectedPurchaseRequest.value) return [];
-    const request = selectedPurchaseRequest.value;
-    if (Array.isArray(request.items)) {
-        return request.items;
-    } else if (typeof request.items === 'string') {
-        try {
-            return JSON.parse(request.items);
-        } catch {
-            return [];
-        }
-    }
-    return [];
 }
 
 function formatCurrency(value: number) {
@@ -779,11 +831,38 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                 </div>
 
                                 <!-- Items -->
-                                <InventoryDetailTableLayout @create-line="handleAddLine">
+                                <InventoryDetailTableLayout :show-create-line-button="false">
+                                    <template #actions>
+                                        <div class="flex items-center gap-2">
+                                            <Button
+                                                v-if="!isReadOnly"
+                                                type="button"
+                                                variant="outline"
+                                                size="pill"
+                                                class="border-primary/40 bg-background text-primary hover:bg-primary/10 hover:text-primary"
+                                                @click="itemsTableRef?.openItemDialog()"
+                                            >
+                                                <Plus class="h-2 w-2" />
+                                                Crear item
+                                            </Button>
+                                            <Button
+                                                v-if="!isReadOnly"
+                                                type="button"
+                                                variant="outline"
+                                                size="pill"
+                                                class="border-primary/40 bg-background text-primary hover:bg-primary/10 hover:text-primary"
+                                                @click="handleAddLine"
+                                            >
+                                                <Plus class="h-2 w-2" />
+                                                Agregar linea
+                                            </Button>
+                                        </div>
+                                    </template>
                                     <PurchaseOrderItemsTable
                                         ref="itemsTableRef"
                                         :items="localForm.items || []"
-                                        :suggested-items="getRequestItems()"
+                                        :suggested-items="requestItemsForTable"
+                                        :purchase-request-id="effectivePurchaseRequestId"
                                         :readonly="isReadOnly"
                                         @update:items="(items) => (localForm.items = items)"
                                     />

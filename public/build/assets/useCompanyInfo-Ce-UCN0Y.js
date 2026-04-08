@@ -1,1 +1,0 @@
-import{s,c as n}from"./app-CCiTEv7d.js";function c(){const a=s(),o=n(()=>a.props.company??null),e=n(()=>{var p;return((p=o.value)==null?void 0:p.logo_url)??"/images/empty-picture.jpg"});return{company:o,logoUrl:e}}export{c as u};

@@ -79,6 +79,7 @@ export interface PurchaseInvoiceDto {
 }
 
 export interface PurchaseRequestItemDto {
+    uid?: string;
     item_id: number | string | null;
     price: number | string;
     quantity: number | string;
@@ -88,6 +89,7 @@ export interface PurchaseRequestItemDto {
     item?: number | null;
     item_name?: string;
     total_tax?: number;
+    image_url?: string | null;
 }
 
 export interface PurchaseRequestDto {

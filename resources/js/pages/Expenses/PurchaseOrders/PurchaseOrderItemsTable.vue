@@ -3,6 +3,7 @@ import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { PurchaseOrderItem } from '@/domain/Expenses';
 import type { Tax } from '@/domain/Finance';
 import type { Item } from '@/domain/MasterData';
@@ -10,16 +11,19 @@ import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/tax
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 import ItemDialog from '@/pages/MasterData/Item/ItemDialog.vue';
 import axios from 'axios';
-import { computed, onMounted, ref, watch } from 'vue';
+import { Lightbulb, PlusCircle } from 'lucide-vue-next';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
 const props = defineProps<{
     items: PurchaseOrderItem[];
     suggestedItems?: any[];
+    purchaseRequestId?: number | null;
+    readonly?: boolean;
 }>();
 const emit = defineEmits(['update:items']);
 
 const localItems = ref<PurchaseOrderItem[]>([]);
-const catalogItems = ref<Item[]>([]); // renombrado desde `items`
+const catalogItems = ref<Item[]>([]);
 const taxes = ref<Tax[]>([]);
 const isTaxDialogOpen = ref(false);
 const taxDialogLoading = ref(false);
@@ -33,8 +37,16 @@ const itemDialogForm = ref<Partial<Item>>({
     negative_movement: false,
     status: true,
 });
+const itemDialogTargetRowIndex = ref<number | null>(null);
+const itemCatalogSnapshotBeforeCreate = ref<number[]>([]);
+const createdItemCandidateId = ref<number | null>(null);
+const pendingItemDialogRefresh = ref<Promise<void> | null>(null);
+const shouldPrefillItemDialogFromRequest = ref(false);
 
-const itemMap = computed(() => new Map<number, Item>(catalogItems.value.map((a) => [a.id, a])));
+const isReadOnly = computed(() => !!props.readonly);
+const hasPurchaseRequestContext = computed(() => props.purchaseRequestId != null);
+const itemMap = computed(() => new Map<number, Item>(catalogItems.value.map((item) => [item.id, item])));
+const itemOptions = computed(() => catalogItems.value.map((item) => ({ id: item.id, name: item.name })));
 const taxById = computed(() => new Map<number, Tax>(taxes.value.map((tax) => [Number(tax.id), tax])));
 const taxOptions = computed(() => [
     { id: 0, name: DEFAULT_TAX_LABEL },
@@ -48,7 +60,7 @@ const taxOptions = computed(() => [
 const shouldShowFabricColumns = computed(() => localItems.value.some(isTela));
 const showActionsColumn = computed(() => localItems.value.length > 1);
 const totalColumns = computed(() => {
-    let cols = 6; // Item, Precio, Impuesto, Cantidad, Descripcion, Total
+    let cols = 6;
     if (shouldShowFabricColumns.value) {
         cols += 3;
     }
@@ -85,7 +97,7 @@ async function fetchItems() {
 
 async function fetchTaxes() {
     const res = await axios.get('/impuestos/data', { params: { per_page: 1000, status: true } });
-    taxes.value = Array.isArray(res.data?.data) ? res.data.data.filter((t: any) => t.status) : [];
+    taxes.value = Array.isArray(res.data?.data) ? res.data.data.filter((tax: any) => tax.status) : [];
 }
 
 onMounted(() => {
@@ -98,19 +110,142 @@ function openTaxDialog() {
     isTaxDialogOpen.value = true;
 }
 
-function openItemDialog() {
-    itemDialogForm.value = {
+function createDefaultItemDialogForm(): Partial<Item> {
+    return {
         reference: '',
         description: '',
         extra_fields: {},
         negative_movement: false,
         status: true,
     };
-    isItemDialogOpen.value = true;
+}
+
+function resolveSuggestedImagePath(rawImageUrl: unknown): string | undefined {
+    if (typeof rawImageUrl !== 'string') {
+        return undefined;
+    }
+
+    const trimmed = rawImageUrl.trim();
+    if (!trimmed) {
+        return undefined;
+    }
+
+    let normalizedPath = trimmed;
+
+    try {
+        if (/^https?:\/\//i.test(trimmed)) {
+            normalizedPath = new URL(trimmed).pathname || trimmed;
+        }
+    } catch {
+        normalizedPath = trimmed;
+    }
+
+    const storageMatch = normalizedPath.match(/\/storage\/(.+)$/i);
+    if (storageMatch?.[1]) {
+        return storageMatch[1];
+    }
+
+    return undefined;
+}
+
+function getSuggestedItemForRow(rowIdx: number) {
+    if (!props.suggestedItems || props.suggestedItems.length === 0) return null;
+    return props.suggestedItems[rowIdx] || null;
+}
+
+function buildItemDialogForm(rowIdx: number): Partial<Item> {
+    const baseForm = createDefaultItemDialogForm();
+    const suggestedItem = getSuggestedItemForRow(rowIdx);
+
+    if (!suggestedItem) {
+        return baseForm;
+    }
+
+    const description = typeof suggestedItem.description === 'string' ? suggestedItem.description.trim() : '';
+    const suggestedImagePath = resolveSuggestedImagePath(suggestedItem.image_url);
+
+    if (description) {
+        baseForm.description = description;
+    }
+
+    if (suggestedImagePath) {
+        baseForm.img = suggestedImagePath;
+    }
+
+    return baseForm;
+}
+
+function detectCreatedItemId(previousIds: number[], items: Item[]): number | null {
+    const previousIdSet = new Set(previousIds.filter((id) => Number.isFinite(id)));
+    const createdItems = items
+        .map((item) => Number(item.id))
+        .filter((itemId) => Number.isFinite(itemId) && !previousIdSet.has(itemId))
+        .sort((a, b) => b - a);
+
+    return createdItems[0] ?? null;
+}
+
+function openItemDialog(targetRowIdx: number | null = null, prefillFromRequest = false) {
+    itemDialogTargetRowIndex.value = targetRowIdx;
+    shouldPrefillItemDialogFromRequest.value = prefillFromRequest;
+    itemCatalogSnapshotBeforeCreate.value = catalogItems.value
+        .map((item) => Number(item.id))
+        .filter((itemId) => Number.isFinite(itemId));
+    createdItemCandidateId.value = null;
+    itemDialogForm.value =
+        targetRowIdx != null && shouldPrefillItemDialogFromRequest.value ? buildItemDialogForm(targetRowIdx) : createDefaultItemDialogForm();
+
+    if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+    }
+
+    nextTick(() => {
+        isItemDialogOpen.value = true;
+    });
+}
+
+function openItemDialogForRow(rowIdx: number) {
+    openItemDialog(rowIdx, false);
+}
+
+function openItemDialogFromRequest(rowIdx: number) {
+    openItemDialog(rowIdx, true);
 }
 
 async function handleItemDialogRefresh() {
-    await fetchItems();
+    const previousIds = [...itemCatalogSnapshotBeforeCreate.value];
+    pendingItemDialogRefresh.value = fetchItems()
+        .then(() => {
+            createdItemCandidateId.value = detectCreatedItemId(previousIds, catalogItems.value);
+        })
+        .finally(() => {
+            pendingItemDialogRefresh.value = null;
+        });
+
+    await pendingItemDialogRefresh.value;
+}
+
+async function handleItemDialogSaved(mode: 'create' | 'edit') {
+    if (mode !== 'create') {
+        return;
+    }
+
+    if (pendingItemDialogRefresh.value) {
+        await pendingItemDialogRefresh.value;
+    } else {
+        await handleItemDialogRefresh();
+    }
+
+    const rowIdx = itemDialogTargetRowIndex.value;
+    if (rowIdx == null || rowIdx < 0 || rowIdx >= localItems.value.length || createdItemCandidateId.value == null) {
+        return;
+    }
+
+    const targetItem = localItems.value[rowIdx];
+    targetItem.item_id = createdItemCandidateId.value;
+    setTaxFromItem(targetItem);
+    calcTotals(targetItem);
+    emit('update:items', localItems.value);
 }
 
 async function handleTaxDialogSubmit(formData: TaxDialogForm) {
@@ -132,13 +267,12 @@ function isTela(item: PurchaseOrderItem) {
     return article?.category_sub_group?.name?.toLowerCase() === 'tela';
 }
 
-/** Valida que los ítems de tela tengan ancho obligatorio. Devuelve mensaje de error o null si es válido. */
 function validateFabricFields(): string | null {
     for (let idx = 0; idx < localItems.value.length; idx++) {
         const item = localItems.value[idx];
         if (!isTela(item)) continue;
-        const w = item.order_width;
-        if (w === undefined || w === null || (typeof w === 'string' && String(w).trim() === '') || Number(w) <= 0) {
+        const width = item.order_width;
+        if (width === undefined || width === null || (typeof width === 'string' && String(width).trim() === '') || Number(width) <= 0) {
             const name = itemMap.value.get(Number(item.item_id))?.name || `Ítem ${idx + 1}`;
             return `El ítem "${name}" es tela: el ancho pedido (cm) es obligatorio. En recepción se compara el ancho real del rollo con este valor para validar tolerancias.`;
         }
@@ -165,7 +299,6 @@ function addItem() {
 
 function removeItem(idx: number) {
     if (localItems.value.length <= 1) {
-        // Mantener al menos un ítem obligatorio
         return;
     }
     localItems.value.splice(idx, 1);
@@ -240,7 +373,6 @@ watch(
             item.price = Number(item.price) || 0;
             item.quantity = Number(item.quantity) || 0;
 
-            // Evitar múltiples watchers por ítem
             if (!(item as any).__watching) {
                 (item as any).__watching = true;
                 watch(
@@ -264,30 +396,11 @@ watch(
     { deep: true, immediate: true },
 );
 
-function getSuggestedItemForRow(rowIdx: number) {
-    if (!props.suggestedItems || props.suggestedItems.length === 0) return null;
-    // Retornar el item sugerido correspondiente al índice de la fila
-    return props.suggestedItems[rowIdx] || null;
+function shouldShowRequestCreateAction(_item: PurchaseOrderItem, rowIdx: number) {
+    return hasPurchaseRequestContext.value && Boolean(getSuggestedItemForRow(rowIdx));
 }
 
-function applySuggestedItem(suggestedItem: any, targetIdx: number) {
-    if (!suggestedItem || targetIdx >= localItems.value.length) return;
-
-    const targetItem = localItems.value[targetIdx];
-    targetItem.item_id = suggestedItem.item_id || null;
-    targetItem.price = Number(suggestedItem.price) || 0;
-    targetItem.quantity = Number(suggestedItem.quantity) || 1;
-    targetItem.description = suggestedItem.description || suggestedItem.name || '';
-    targetItem.tax = suggestedItem.tax || 0;
-    targetItem.supplier_code = suggestedItem.supplier_code || '';
-    targetItem.supplier_color = suggestedItem.supplier_color || '';
-    targetItem.order_width = Number(suggestedItem.order_width) || 0;
-
-    calcTotals(targetItem);
-    emit('update:items', localItems.value);
-}
-
-defineExpose({ addItem, validateFabricFields });
+defineExpose({ addItem, validateFabricFields, openItemDialog });
 </script>
 
 <template>
@@ -315,27 +428,43 @@ defineExpose({ addItem, validateFabricFields });
                 <TableBody>
                     <TableRow v-for="(item, idx) in localItems" :key="idx">
                         <TableCell class="min-w-[150px] p-1 text-left">
-                            <div class="space-y-1.5">
+                            <div class="flex items-center gap-1.5">
                                 <SelectField
                                     v-model="item.item_id"
-                                    :options="catalogItems.map((a) => ({ id: a.id, name: a.name }))"
+                                    :options="itemOptions"
                                     label=""
-                                    class="w-full"
-                                    action-label="Nuevo item"
-                                    @action="openItemDialog"
+                                    placeholder="Selecciona item"
+                                    class="w-full flex-1"
+                                    :disabled="isReadOnly"
+                                    :action-label="!isReadOnly ? 'Nuevo item' : undefined"
+                                    :action-disabled="isReadOnly"
+                                    @action="openItemDialogForRow(idx)"
                                 />
-                                <!-- Item sugerido de la solicitud para esta fila -->
-                                <div v-if="getSuggestedItemForRow(idx)" class="mt-1.5 text-xs">
-                                    <div
-                                        class="group flex cursor-pointer items-center gap-1.5 rounded-md border border-border/40 bg-accent/30 px-2 py-1 text-xs transition-colors hover:bg-accent/50"
-                                        @click="applySuggestedItem(getSuggestedItemForRow(idx), idx)"
-                                        title="Clic para aplicar este item sugerido de la solicitud"
-                                    >
-                                        <span class="text-[10px] opacity-60 group-hover:opacity-100">💡</span>
-                                        <span class="flex-1 font-medium text-foreground/90">{{
-                                            getSuggestedItemForRow(idx)?.name || getSuggestedItemForRow(idx)?.description || `Item sugerido`
-                                        }}</span>
-                                    </div>
+
+                                <div v-if="shouldShowRequestCreateAction(item, idx)" class="flex shrink-0 items-center gap-1">
+                                    <Tooltip>
+                                        <TooltipTrigger as-child>
+                                            <span class="inline-flex h-7 w-7 items-center justify-center rounded-full text-amber-500">
+                                                <Lightbulb class="h-4 w-4" />
+                                            </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top" class="max-w-[240px]">
+                                            Este ítem viene de la solicitud. Puedes crearlo con la información de referencia usando el botón +.
+                                        </TooltipContent>
+                                    </Tooltip>
+
+                                    <Tooltip>
+                                        <TooltipTrigger as-child>
+                                            <button
+                                                type="button"
+                                                class="inline-flex h-7 w-7 items-center justify-center rounded-full text-primary transition hover:bg-primary/10"
+                                                @click.stop="openItemDialogFromRequest(idx)"
+                                            >
+                                                <PlusCircle class="h-4 w-4" />
+                                            </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top">Crear ítem con datos de la solicitud</TooltipContent>
+                                    </Tooltip>
                                 </div>
                             </div>
                         </TableCell>
@@ -407,7 +536,7 @@ defineExpose({ addItem, validateFabricFields });
                     </TableRow>
 
                     <TableRow v-if="localItems.length === 0">
-                        <TableCell :colspan="totalColumns" class="text-center text-muted-foreground"> No hay items agregados. </TableCell>
+                        <TableCell :colspan="totalColumns" class="text-center text-muted-foreground">No hay items agregados.</TableCell>
                     </TableRow>
                 </TableBody>
             </Table>
@@ -417,6 +546,7 @@ defineExpose({ addItem, validateFabricFields });
             dialog-type="create"
             :form="itemDialogForm"
             @refresh="handleItemDialogRefresh"
+            @saved="handleItemDialogSaved"
             @close="isItemDialogOpen = false"
         />
         <TaxDialog

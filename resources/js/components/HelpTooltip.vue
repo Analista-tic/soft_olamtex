@@ -78,19 +78,19 @@ function handleFocus() {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    color: rgba(15, 23, 42, 0.5);
+    color: hsl(var(--muted-foreground));
     transition: color 0.15s ease;
     cursor: pointer;
 }
 
 .help-tooltip-trigger:hover {
-    color: rgba(15, 23, 42, 0.85);
+    color: hsl(var(--foreground));
 }
 
 :global(.help-tooltip-content) {
-    background-color: #fff;
-    border: 1px solid #cbd5f5;
-    color: #0f172a;
+    background-color: hsl(var(--popover));
+    border: 1px solid hsl(var(--border));
+    color: hsl(var(--popover-foreground));
     padding: 0.4rem 0.85rem;
     font-size: 0.85rem;
     border-radius: 0.75rem;
@@ -98,7 +98,7 @@ function handleFocus() {
         0 20px 25px -5px rgba(15, 23, 42, 0.2),
         0 8px 10px -6px rgba(15, 23, 42, 0.1);
     position: relative;
-    z-index: 50;
+    z-index: 60;
 }
 
 :global(.help-tooltip-content::after),
@@ -115,11 +115,11 @@ function handleFocus() {
 }
 
 :global(.help-tooltip-content::after) {
-    border-top: 0.45rem solid #fff;
+    border-top: 0.45rem solid hsl(var(--popover));
 }
 
 :global(.help-tooltip-content::before) {
-    border-top: 0.45rem solid #cbd5f5;
+    border-top: 0.45rem solid hsl(var(--border));
     bottom: -0.72rem;
 }
 </style>

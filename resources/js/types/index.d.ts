@@ -434,6 +434,7 @@ export interface PurchaseInvoice {
 }
 
 export interface PurchaseRequestItem {
+    uid?: string;
     item_id: number | string | null;
     price: number | string;
     quantity: number | string;
@@ -443,6 +444,9 @@ export interface PurchaseRequestItem {
     item?: Item;
     item_name?: string;
     total_tax?: number;
+    image_url?: string | null;
+    image_file?: File | null;
+    _delete_image?: boolean;
 }
 
 export interface PurchaseRequest {
