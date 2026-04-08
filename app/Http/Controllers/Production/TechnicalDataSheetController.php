@@ -636,9 +636,8 @@ class TechnicalDataSheetController extends Controller
     private function storageUrl(string $path): string
     {
         $path = ltrim(str_replace('\\', '/', $path), '/');
-        $base = request()->getSchemeAndHttpHost();
 
-        return rtrim($base, '/') . '/storage/' . ltrim($path, '/');
+        return route('storage.file.show', ['path' => $path]);
     }
 
     private function nullableText(mixed $value): ?string

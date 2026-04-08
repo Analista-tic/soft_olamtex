@@ -241,7 +241,9 @@ class TechnicalDataSheetPdfService
 
         // Intentar leer desde storage público
         $path = $url;
-        if (str_contains($path, '/storage/')) {
+        if (str_contains($path, '/storage-file/')) {
+            $path = preg_replace('#^.*/storage-file/#', '', $path);
+        } elseif (str_contains($path, '/storage/')) {
             $path = preg_replace('#^.*/storage/#', '', $path);
         }
         $path = ltrim($path, '/');

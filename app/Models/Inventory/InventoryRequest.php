@@ -66,6 +66,6 @@ class InventoryRequest extends Model
         $path = ltrim($this->image, '/');
         $path = preg_replace('/^storage\\//', '', $path);
 
-        return "/storage/{$path}";
+        return route('storage.file.show', ['path' => $path]);
     }
 }
