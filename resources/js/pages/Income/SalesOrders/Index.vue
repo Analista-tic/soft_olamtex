@@ -290,7 +290,7 @@ onMounted(() => {
                     <p :class="uiPatterns.pageIndex.subtitle">Controla pedidos directos o generados desde cotizaciones y su conversion a factura.</p>
                 </div>
 
-                <Button class="rounded-full" @click="openCreateDialog()">
+                <Button size="pill" @click="openCreateDialog()">
                     <PlusCircle class="mr-2 h-4 w-4" />
                     Nuevo pedido
                 </Button>

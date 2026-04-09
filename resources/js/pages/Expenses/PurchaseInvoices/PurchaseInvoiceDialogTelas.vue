@@ -103,10 +103,12 @@ const selectedPurchaseOrderValue = computed<Option['id'] | ''>({
 });
 
 const id = computed(() => {
-    if (props.dialogType === 'edit') return props.form?.id?.toString() || '';
+    if (props.dialogType === 'edit') {
+        return props.form?.document_number || (props.form?.id ? `FAC-${String(props.form.id).padStart(3, '0')}` : '');
+    }
     if (isLoadingInvoiceId.value) return 'Cargando...';
     if (nextInvoiceId.value == null) return '';
-    return nextInvoiceId.value.toString();
+    return `FAC-${String(nextInvoiceId.value).padStart(3, '0')}`;
 });
 
 function createDefaultForm(): PurchaseInvoiceWithProviderName {
@@ -278,7 +280,7 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     if (!contacts.value.length) await fetchContacts();
     const foundContact = contacts.value.find((c) => Number(c.id) === Number(order.contact_id));
     localForm.value.contact_id = foundContact ? Number(order.contact_id) : null;
-    localForm.value.supplier_invoice_number = order.supplier_order_number || '';
+    localForm.value.supplier_invoice_number = '';
     localForm.value.date = normalizeIsoDate(order.date, toIsoDateString(new Date()));
     localForm.value.delivery_date = normalizeIsoDate(order.delivery_date, '');
     localForm.value.description = order.description || '';
@@ -435,6 +437,9 @@ function validateForm(): boolean {
     }
     if (!deliveryDate.value) {
         missingFields.push('Fecha entrega');
+    }
+    if (!String(localForm.value.supplier_invoice_number || '').trim()) {
+        missingFields.push('N° factura proveedor');
     }
 
     if (missingFields.length) {
@@ -595,7 +600,7 @@ watch(dialogOpen, (isOpen) => {
                         <div class="grid grid-cols-3 items-start gap-4">
                             <div>
                                 <InputField
-                                    label="# Factura de Compra Tela"
+                                    label="N° Factura de Compra Tela"
                                     :modelValue="id"
                                     readonly
                                     v-if="dialogType === 'edit' || (dialogType === 'create' && !isLoadingInvoiceId && id)"
@@ -664,7 +669,7 @@ watch(dialogOpen, (isOpen) => {
                                 :show-today="true"
                                 required
                             />
-                            <InputField v-model="localForm.supplier_invoice_number" label="# factura proveedor" />
+                            <InputField v-model="localForm.supplier_invoice_number" label="N° factura proveedor" required />
                         </div>
                         <InventoryDetailTableLayout @create-line="handleInvoiceAddLine" :createLineButtonDisabled="isReadOnly">
                             <PurchaseInvoiceItemsTable

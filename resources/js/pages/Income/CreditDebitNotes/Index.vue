@@ -285,7 +285,7 @@ onMounted(() => {
 
                 <DropdownMenu>
                     <DropdownMenuTrigger as-child>
-                        <Button class="rounded-full">
+                        <Button size="pill">
                             <PlusCircle class="mr-2 h-4 w-4" />
                             Nueva nota
                             <ChevronDown class="ml-2 h-4 w-4" />

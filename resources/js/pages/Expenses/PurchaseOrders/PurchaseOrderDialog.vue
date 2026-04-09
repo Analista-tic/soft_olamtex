@@ -721,7 +721,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                 <div class="grid grid-cols-3 items-start gap-4">
                                     <div>
                                         <InputField
-                                            label="# Orden de Compra"
+                                            label="N° Orden de Compra"
                                             :modelValue="orderDocumentNumber"
                                             readonly
                                             v-if="dialogType === 'edit' || (dialogType === 'create' && !isLoadingOrderId && orderDocumentNumber)"
@@ -819,7 +819,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                     <div class="flex flex-col gap-1">
                                         <div class="flex items-center gap-2">
                                             <Label class="text-sm font-medium">
-                                                # orden de compra proveedor<span class="text-destructive">*</span>
+                                                N° Orden de proveedor<span class="text-destructive">*</span>
                                             </Label>
                                             <HelpTooltip
                                                 text="Número de orden de compra asignado por el proveedor para seguimiento."

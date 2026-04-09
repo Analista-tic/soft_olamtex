@@ -1,1 +1,0 @@
-import{i as r}from"./ConfigProvider-oFtj01I_.js";import{a as n,c as a}from"./app-DWTK7JpM.js";function u(t){const e=r({dir:n("ltr")});return a(()=>{var o;return(t==null?void 0:t.value)||((o=e.dir)==null?void 0:o.value)||"ltr"})}export{u};

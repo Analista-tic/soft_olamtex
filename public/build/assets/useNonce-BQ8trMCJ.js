@@ -1,1 +1,0 @@
-import{i as a}from"./ConfigProvider-oFtj01I_.js";import{a as o,c as u}from"./app-DWTK7JpM.js";function n(t,e=Number.NEGATIVE_INFINITY,r=Number.POSITIVE_INFINITY){return Math.min(r,Math.max(e,t))}function I(t){const e=a({nonce:o()});return u(()=>{var r;return(t==null?void 0:t.value)||((r=e.nonce)==null?void 0:r.value)})}export{n as c,I as u};

@@ -227,8 +227,8 @@ onMounted(() => {
                 </div>
 
                 <Button
-                    size="sm"
-                    class="flex h-10 items-center gap-1 rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+                    size="pill"
+                    class="flex items-center gap-1 shadow-sm"
                     @click="openCreateAdjustment"
                 >
                     <PlusCircle class="h-4 w-4" /> Crear ajuste
