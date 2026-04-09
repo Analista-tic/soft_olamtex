@@ -12,7 +12,7 @@ import axios from 'axios';
 import { ExternalLink, Image, Plus, Trash } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import FormHeader from '@/components/FormHeader.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
@@ -152,8 +152,8 @@ const imagePreview = ref<string | undefined>(undefined);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
 const errors = ref<Record<string, string[]>>({});
-const alertMessage = ref('');
-const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
+const errorMessage = ref('');
+const errorType = ref<'error' | 'info' | 'warning'>('error');
 
 const extraFieldNames = ref<string[]>([]);
 const extraFields = ref<ExtraFields>({});
@@ -757,15 +757,15 @@ function addWarehouseStock() {
 
 function handleAddWarehouseStock() {
     if (isSecondaryLoading.value) {
-        alertType.value = 'info';
-        alertMessage.value = 'Espera a que terminen de cargar las bodegas.';
+        errorType.value = 'info';
+        errorMessage.value = 'Espera a que terminen de cargar las bodegas.';
         return;
     }
 
     const available = availableWarehouses().length;
     if (available === 0) {
-        alertType.value = 'warning';
-        alertMessage.value = 'No hay más bodegas disponibles para agregar.';
+        errorType.value = 'warning';
+        errorMessage.value = 'No hay más bodegas disponibles para agregar.';
         return;
     }
     addWarehouseStock();
@@ -832,14 +832,14 @@ const negativeMovementBool = computed(() => localForm.value.negative_movement ==
 const negativeMovementToggleDisabled = computed(() => isViewMode.value || (!hasInventoryDetails.value && !negativeMovementBool.value));
 
 function showNegativeMovementWarning() {
-    alertType.value = 'warning';
-    alertMessage.value = NEGATIVE_STOCK_WARNING;
+    errorType.value = 'warning';
+    errorMessage.value = NEGATIVE_STOCK_WARNING;
     scrollDialogToTop();
 }
 
 function showNegativeMovementInventoryWarning() {
-    alertType.value = 'warning';
-    alertMessage.value = NEGATIVE_MOVEMENT_INVENTORY_WARNING;
+    errorType.value = 'warning';
+    errorMessage.value = NEGATIVE_MOVEMENT_INVENTORY_WARNING;
     scrollDialogToTop();
 }
 
@@ -965,8 +965,8 @@ function mapFormStateToPayload(orderedExtraFields: Record<string, string>): Reco
 
 async function handleSubmit() {
     resetErrors();
-    alertMessage.value = '';
-    alertType.value = 'error';
+    errorMessage.value = '';
+    errorType.value = 'error';
 
     const requiredErrors: string[] = [];
 
@@ -990,16 +990,16 @@ async function handleSubmit() {
     });
 
     if (requiredErrors.length > 0) {
-        alertType.value = 'warning';
-        alertMessage.value = formatRequiredFieldsMessage('Por favor, completa todos los campos obligatorios', requiredErrors);
+        errorType.value = 'warning';
+        errorMessage.value = formatRequiredFieldsMessage('Por favor, completa todos los campos obligatorios', requiredErrors);
         scrollDialogToTop();
         return;
     }
 
     const duplicateMessageResult = await checkDuplicateName();
     if (duplicateMessageResult) {
-        alertType.value = 'warning';
-        alertMessage.value = duplicateMessageResult;
+        errorType.value = 'warning';
+        errorMessage.value = duplicateMessageResult;
         scrollDialogToTop();
         return;
     }
@@ -1105,8 +1105,8 @@ async function handleSubmit() {
     } catch (error: any) {
         console.error('Error al guardar el item:', error, error?.response?.data);
         const msg = buildErrorMessage(error);
-        alertType.value = error?.response?.data?.errors ? 'warning' : 'error';
-        alertMessage.value = msg;
+        errorType.value = error?.response?.data?.errors ? 'warning' : 'error';
+        errorMessage.value = msg;
         scrollDialogToTop();
         emit('error', msg);
     }
@@ -1286,20 +1286,11 @@ onBeforeUnmount(() => {
 
 <template>
     <div class="flex min-h-0 flex-1 flex-col">
-        <transition name="fade">
-            <div
-                v-if="alertMessage"
-                class="pointer-events-none absolute left-1/2 top-4 z-20 flex w-full max-w-xl -translate-x-1/2 justify-center px-5"
-            >
-                <AlertBox
-                    :type="alertType"
-                    :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
-                    :message="alertMessage"
-                    class="pointer-events-auto w-full max-w-xl"
-                    @close="alertMessage = ''"
-                />
-            </div>
-        </transition>
+        <AlertStack
+            :error-message="errorMessage"
+            :error-type="errorType"
+            @close-error="errorMessage = ''"
+        />
 
         <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="handleSubmit">
             <FormHeader

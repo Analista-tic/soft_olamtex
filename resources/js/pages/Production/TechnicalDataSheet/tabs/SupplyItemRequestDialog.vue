@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormHeader from '@/components/FormHeader.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
@@ -306,17 +306,7 @@ function formatCurrency(value: number): string {
                 <div v-if="opCode" class="pt-1 text-xs font-medium text-primary">OP {{ opCode }}</div>
             </FormHeader>
 
-            <!-- Alerta de error dentro del dialog -->
-            <div v-if="errorMessage" class="pointer-events-none fixed left-1/2 top-6 z-[99999] flex -translate-x-1/2 justify-center px-4 sm:px-0">
-                <AlertBox
-                    :type="errorType"
-                    :title="errorType === 'warning' ? 'Advertencia' : 'Error'"
-                    :message="errorMessage"
-                    :auto-close-ms="errorType === 'error' ? 0 : 4000"
-                    class="pointer-events-auto"
-                    @close="errorMessage = ''"
-                />
-            </div>
+            <AlertStack :error-message="errorMessage" :error-type="errorType" @close-error="errorMessage = ''" />
 
             <div class="relative min-h-0 flex-1 overflow-y-auto pr-1 pt-4" :class="{ 'min-h-[420px]': !canRenderForm }">
                 <FormLoadingOverlay

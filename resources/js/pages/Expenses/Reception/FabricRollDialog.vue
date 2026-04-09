@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import InputDate from '@/components/InputDate.vue';
 import InputField from '@/components/InputField.vue';
 import TextareaField from '@/components/TextareaField.vue';
@@ -40,15 +40,20 @@ const emit = defineEmits<{
 
 const dialogOpen = ref(props.isOpen);
 const isLoading = ref(false);
-const alertMessage = ref('');
-const alertType = ref<'success' | 'error' | 'info' | 'warning'>('info');
-const showAlert = ref(false);
+const successMessage = ref('');
+const errorMessage = ref('');
+const errorType = ref<'error' | 'info' | 'warning'>('error');
 const dialogInnerRef = ref<HTMLElement | null>(null);
 
 function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
-    alertMessage.value = message;
-    alertType.value = type;
-    showAlert.value = true;
+    if (type === 'success') {
+        successMessage.value = message;
+        errorMessage.value = '';
+    } else {
+        errorMessage.value = message;
+        successMessage.value = '';
+        errorType.value = type;
+    }
     if (dialogInnerRef.value?.scrollTo) {
         dialogInnerRef.value.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
@@ -57,8 +62,8 @@ function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning
 }
 
 function clearAlert() {
-    alertMessage.value = '';
-    showAlert.value = false;
+    successMessage.value = '';
+    errorMessage.value = '';
 }
 
 const form = ref<FabricRollForm>({
@@ -322,24 +327,13 @@ onMounted(() => {
                 </DialogHeader>
             </div>
 
-            <transition name="fade">
-                <div v-if="showAlert && alertMessage" class="mx-6 mt-2">
-                    <AlertBox
-                        :type="alertType"
-                        :title="
-                            alertType === 'warning'
-                                ? 'Advertencia'
-                                : alertType === 'success'
-                                  ? 'Éxito'
-                                  : alertType === 'info'
-                                    ? 'Información'
-                                    : 'Error'
-                        "
-                        :message="alertMessage"
-                        @close="clearAlert"
-                    />
-                </div>
-            </transition>
+            <AlertStack
+                :success-message="successMessage"
+                :error-message="errorMessage"
+                :error-type="errorType"
+                @close-success="successMessage = ''"
+                @close-error="errorMessage = ''"
+            />
 
             <div class="flex-1 overflow-y-auto px-6 py-4" style="scrollbar-width: thin">
                 <div ref="dialogInnerRef" class="space-y-5">

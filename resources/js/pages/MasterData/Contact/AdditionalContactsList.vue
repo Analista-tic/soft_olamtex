@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import InputField from '@/components/InputField.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import { PlusCircle } from 'lucide-vue-next';
@@ -105,16 +105,11 @@ defineExpose({
 
 <template>
     <div class="relative mt-2">
-        <transition name="fade">
-            <div v-if="alertMessage" class="-top-26 absolute left-1/2 z-20 w-full max-w-xl -translate-x-1/2">
-                <AlertBox
-                    :type="alertType"
-                    :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
-                    :message="alertMessage"
-                    @close="alertMessage = ''"
-                />
-            </div>
-        </transition>
+        <AlertStack
+            :error-message="alertMessage"
+            :error-type="alertType"
+            @close-error="alertMessage = ''"
+        />
 
         <div class="mb-2 flex justify-end">
             <button

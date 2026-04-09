@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -86,7 +86,6 @@ async function initializeDialog() {
     try {
         await nextTick();
         resetForm();
-        showEmptyAlert.value = false;
         alertMessage.value = '';
         errors.value = {};
     } finally {
@@ -99,7 +98,6 @@ const closeDialog = () => {
 };
 
 const errors = ref<Record<string, string[]>>({}); // Manejo de errores
-const showEmptyAlert = ref(false);
 const alertMessage = ref('');
 const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
@@ -192,7 +190,8 @@ const submitForm = async () => {
     try {
         // Aviso temprano si todos los campos obligatorios están vacíos
         if (areRequiredFieldsEmpty()) {
-            showEmptyAlert.value = true;
+            alertMessage.value = emptyFieldsMessage;
+            alertType.value = 'warning';
             const dialogEl = document.querySelector('[role="dialog"]');
             dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
             return;
@@ -316,21 +315,8 @@ const updateBranches = (branches: any[]) => {
                 </DialogDescription>
             </DialogHeader>
 
-            <transition name="fade">
-                <div v-if="alertMessage" class="pointer-events-none absolute left-1/2 top-4 z-20 w-full max-w-xl -translate-x-1/2">
-                    <AlertBox
-                        :type="alertType"
-                        :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
-                        :message="alertMessage"
-                        class="pointer-events-auto"
-                        @close="alertMessage = ''"
-                    />
-                </div>
-            </transition>
+            <AlertStack :error-message="alertMessage" :error-type="alertType" @close-error="alertMessage = ''" />
 
-            <div v-if="showEmptyAlert" class="-top-26 absolute left-1/2 z-20 w-full max-w-xl -translate-x-1/2">
-                <AlertBox type="warning" title="Campos obligatorios" :message="emptyFieldsMessage" @close="showEmptyAlert = false" />
-            </div>
             <div class="flex-1 overflow-y-auto scroll-smooth pr-2" style="scrollbar-width: thin">
                 <!-- Pestañas -->
                 <Tabs defaultValue="basic-info" class="px-2 pt-1">

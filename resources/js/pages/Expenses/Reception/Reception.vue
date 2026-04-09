@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import InputDate from '@/components/InputDate.vue';
@@ -83,10 +83,9 @@ function getInvoiceContact(
     return c ? { id: c.id, full_name: c.full_name, id_number: c.id_number, phone: c.phone, email: c.email } : null;
 }
 
-// Estado para AlertBox
-const alertMessage = ref('');
-const alertType = ref<'success' | 'error' | 'info' | 'warning'>('info');
-const showAlert = ref(false);
+const successMessage = ref('');
+const errorMessage = ref('');
+const errorType = ref<'error' | 'info' | 'warning'>('error');
 
 // Ref al contenedor principal para poder hacer scroll cuando muestre alertas
 const pageContentRef = ref<HTMLElement | null>(null);
@@ -96,9 +95,14 @@ const isRejectDialogOpen = ref(false);
 const invoiceToReject = ref<PurchaseInvoice | null>(null);
 
 function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
-    alertMessage.value = message;
-    alertType.value = type;
-    showAlert.value = true;
+    if (type === 'success') {
+        successMessage.value = message;
+        errorMessage.value = '';
+    } else {
+        errorMessage.value = message;
+        successMessage.value = '';
+        errorType.value = type;
+    }
     // Scroll al inicio del contenedor si existe
     if (pageContentRef.value && typeof pageContentRef.value.scrollTo === 'function') {
         pageContentRef.value.scrollTo({ top: 0, behavior: 'smooth' });
@@ -108,8 +112,8 @@ function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning
 }
 
 function clearAlert() {
-    alertMessage.value = '';
-    showAlert.value = false;
+    successMessage.value = '';
+    errorMessage.value = '';
 }
 
 const DEFAULT_STATUS_FILTER = 'all';
@@ -563,25 +567,13 @@ function onFabricRollSuccess() {
     <Head :title="specificInvoiceId ? `Recepción - Factura #${specificInvoiceId}` : 'Recepción'" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div ref="pageContentRef" class="flex h-full flex-col gap-4 rounded-xl p-3">
-            <transition name="fade">
-                <div v-if="showAlert && alertMessage" class="pointer-events-none fixed left-1/2 top-4 z-50 w-full max-w-md -translate-x-1/2">
-                    <AlertBox
-                        :type="alertType"
-                        :title="
-                            alertType === 'warning'
-                                ? 'Advertencia'
-                                : alertType === 'success'
-                                  ? 'Éxito'
-                                  : alertType === 'info'
-                                    ? 'Información'
-                                    : 'Error'
-                        "
-                        :message="alertMessage"
-                        class="pointer-events-auto"
-                        @close="clearAlert"
-                    />
-                </div>
-            </transition>
+            <AlertStack
+                :success-message="successMessage"
+                :error-message="errorMessage"
+                :error-type="errorType"
+                @close-success="successMessage = ''"
+                @close-error="errorMessage = ''"
+            />
             <!-- Header principal -->
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-4">

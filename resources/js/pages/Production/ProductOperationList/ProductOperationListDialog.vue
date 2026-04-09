@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import DialogActionButtons from '@/components/common/DialogActionButtons.vue';
 import DraggableTableRow from '@/components/DraggableTableRow.vue';
@@ -502,11 +502,7 @@ function resetForm() {
 </script>
 
 <template>
-    <div v-if="validationError" class="mb-4 flex">
-        <div class="mx-auto w-full max-w-[1300px] px-4">
-            <AlertBox type="warning" title="Validación" :message="validationError" :auto-close-ms="0" @close="clearValidationError" />
-        </div>
-    </div>
+    <AlertStack :error-message="validationError" error-type="warning" @close-error="clearValidationError" />
     <Dialog v-model:open="localOpen">
         <FormDialogContent class="flex max-h-[95vh] w-full max-w-[1300px] flex-col px-6 py-5">
             <DialogHeader class="flex-shrink-0 space-y-1">

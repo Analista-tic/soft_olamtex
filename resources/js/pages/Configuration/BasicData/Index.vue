@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -48,7 +48,6 @@ const currentAvatarUrl = computed(() => {
     return version ? `${rawAvatarUrl.value}${separator}v=${version}` : rawAvatarUrl.value;
 });
 const hasAvatar = computed(() => Boolean(rawAvatarUrl.value));
-const ALERT_AUTO_CLOSE_MS = 3000;
 
 // Avatar state
 const avatarFileInputRef = ref<HTMLInputElement | null>(null);
@@ -411,37 +410,6 @@ const setError = (message: string, type: 'error' | 'warning' | 'info' = 'error')
     showErrorAlert(message, type);
 };
 
-const alertTitleForType = (type: 'success' | 'error' | 'info' | 'warning') => {
-    switch (type) {
-        case 'success':
-            return '¡Listo!';
-        case 'warning':
-            return 'Advertencia';
-        case 'info':
-            return 'Información';
-        default:
-            return 'Error';
-    }
-};
-
-const activeAlert = computed(() => {
-    if (successMessage.value) {
-        return {
-            message: successMessage.value,
-            type: 'success' as const,
-            title: alertTitleForType('success'),
-        };
-    }
-    if (errorMessage.value) {
-        return {
-            message: errorMessage.value,
-            type: errorType.value,
-            title: alertTitleForType(errorType.value),
-        };
-    }
-    return null;
-});
-
 function resetForm(): void {
     isApplyingServerData.value = true;
     Object.assign(companyInfo, savedCompanyState.value);
@@ -605,18 +573,13 @@ onBeforeUnmount(() => {
 <template>
     <Head title="Datos Básicos" />
     <AppLayout :breadcrumbs="breadcrumbs">
-        <transition name="fade">
-            <div v-if="activeAlert" class="pointer-events-none fixed left-1/2 top-4 z-[9999] flex w-full max-w-xl -translate-x-1/2 px-3">
-                <AlertBox
-                    class="pointer-events-auto w-full"
-                    :type="activeAlert.type"
-                    :title="activeAlert.title"
-                    :message="activeAlert.message"
-                    :auto-close-ms="ALERT_AUTO_CLOSE_MS"
-                    @close="clearAlerts"
-                />
-            </div>
-        </transition>
+        <AlertStack
+            :success-message="successMessage"
+            :error-message="errorMessage"
+            :error-type="errorType"
+            @close-success="clearAlerts"
+            @close-error="clearAlerts"
+        />
         <div class="flex flex-1 flex-col gap-6 rounded-xl p-3">
             <div class="space-y-1">
                 <h1 class="text-2xl font-semibold text-card-foreground">Datos Básicos</h1>

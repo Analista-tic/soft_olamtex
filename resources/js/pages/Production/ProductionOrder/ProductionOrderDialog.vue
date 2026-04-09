@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
@@ -88,10 +88,7 @@ const emit = defineEmits<{
 }>();
 
 const isLoading = ref(false);
-const fetchError = ref('');
-function clearFetchError() {
-    fetchError.value = '';
-}
+const errorMessage = ref('');
 const payload = ref<ProductionOrderDetailResponse | null>(null);
 const flatSketchLoadFailed = ref(false);
 const isDrawingOpen = ref(false);
@@ -99,7 +96,6 @@ let activeController: AbortController | null = null;
 
 const estimatedDateInput = ref('');
 const isSavingDate = ref(false);
-const dateSaveError = ref('');
 
 const openModel = computed({
     get: () => props.open,
@@ -166,7 +162,7 @@ async function saveEstimatedDate() {
     const value = raw ? raw : null;
 
     isSavingDate.value = true;
-    dateSaveError.value = '';
+    errorMessage.value = '';
 
     try {
         await axios.put(`/comercial/programador/${orderId}`, {
@@ -184,9 +180,9 @@ async function saveEstimatedDate() {
         }
     } catch (error) {
         if (axios.isAxiosError(error)) {
-            dateSaveError.value = error.response?.data?.message ?? 'No se pudo guardar la fecha.';
+            errorMessage.value = error.response?.data?.message ?? 'No se pudo guardar la fecha.';
         } else {
-            dateSaveError.value = 'Error inesperado al guardar.';
+            errorMessage.value = 'Error inesperado al guardar.';
         }
         return;
     } finally {
@@ -349,12 +345,11 @@ function formatSizes(value: unknown): string {
 }
 
 function clearState() {
-    fetchError.value = '';
+    errorMessage.value = '';
     payload.value = null;
     flatSketchLoadFailed.value = false;
     isDrawingOpen.value = false;
     estimatedDateInput.value = '';
-    dateSaveError.value = '';
 }
 
 async function fetchDetail(id: number) {
@@ -366,7 +361,7 @@ async function fetchDetail(id: number) {
     activeController = controller;
 
     isLoading.value = true;
-    fetchError.value = '';
+    errorMessage.value = '';
 
     try {
         const response = await axios.get<ProductionOrderDetailResponse>(`/produccion/ordenes-produccion/${id}/detalle`, {
@@ -378,7 +373,7 @@ async function fetchDetail(id: number) {
         if (axios.isCancel(error)) return;
 
         payload.value = null;
-        fetchError.value = 'No se pudo cargar la información de la orden de producción.';
+        errorMessage.value = 'No se pudo cargar la información de la orden de producción.';
     } finally {
         if (activeController === controller) {
             activeController = null;
@@ -397,7 +392,7 @@ watch(
 
         if (!id) {
             payload.value = null;
-            fetchError.value = 'No se recibió un identificador válido para consultar el detalle.';
+            errorMessage.value = 'No se recibió un identificador válido para consultar el detalle.';
             return;
         }
 
@@ -420,11 +415,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div v-if="fetchError" class="mb-4 flex">
-        <div class="mx-auto w-full max-w-[1240px] px-4">
-            <AlertBox type="error" title="Error" :message="fetchError" :auto-close-ms="0" @close="clearFetchError" />
-        </div>
-    </div>
+    <AlertStack :error-message="errorMessage" @close-error="errorMessage = ''" />
     <Dialog v-model:open="openModel">
         <FormDialogContent class="flex max-h-[92vh] min-h-0 max-w-[1240px] flex-col p-0">
             <DialogHeader class="shrink-0 space-y-0.5 px-4 pb-2 pt-4">
@@ -488,15 +479,6 @@ onUnmounted(() => {
                                                 {{ isSavingDate ? 'Guardando...' : 'Guardar' }}
                                             </Button>
                                         </div>
-                                        <AlertBox
-                                            v-if="dateSaveError"
-                                            type="error"
-                                            title="Error al guardar"
-                                            :message="dateSaveError"
-                                            :auto-close-ms="0"
-                                            class="mt-2"
-                                            @close="dateSaveError = ''"
-                                        />
                                     </div>
                                 </div>
 

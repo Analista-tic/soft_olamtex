@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
@@ -211,6 +211,18 @@ watch(
     { immediate: true },
 );
 
+const localErrorMessage = computed(() =>
+    props.errorMessage || (validationAlertVisible.value && validationAlert.value ? validationAlert.value.message : ''),
+);
+const localErrorType = computed<'error' | 'warning' | 'info'>(
+    () => (props.errorMessage ? 'error' : ((validationAlert.value?.type ?? 'error') as 'error' | 'warning' | 'info')),
+);
+
+function handleCloseError() {
+    if (props.errorMessage) emit('clear-error');
+    else validationAlertVisible.value = false;
+}
+
 function initializeForm() {
     itemRowRefs.value = [];
     const activeTransfer = props.transfer;
@@ -409,26 +421,11 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
                 </DialogDescription>
             </DialogHeader>
             <div class="relative flex-1 overflow-y-auto pr-2">
-                <div class="pointer-events-auto absolute left-1/2 top-5 z-30 flex -translate-x-1/2 flex-col gap-2" style="max-width: 400px">
-                    <AlertBox
-                        v-if="errorMessage"
-                        type="error"
-                        title="Error al guardar"
-                        :message="errorMessage"
-                        class="px-2 shadow-lg"
-                        :autoCloseMs="2000"
-                        @close="emit('clear-error')"
-                    />
-                    <AlertBox
-                        v-if="validationAlert && validationAlertVisible"
-                        :type="validationAlert.type"
-                        :title="validationAlert.title"
-                        :message="validationAlert.message"
-                        class="px-2 shadow-lg"
-                        :autoCloseMs="2000"
-                        @close="validationAlertVisible = false"
-                    />
-                </div>
+                <AlertStack
+                    :error-message="localErrorMessage"
+                    :error-type="localErrorType"
+                    @close-error="handleCloseError"
+                />
                 <TooltipProvider>
                     <div class="space-y-4 pt-4">
                         <div>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormHeader from '@/components/FormHeader.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
@@ -677,30 +677,13 @@ watch(
         >
             <FormHeader class="pb-2" title="Corte" description="Configura unidades por talla, curvas, despiece y notas generales." />
 
-            <!-- Alertas flotantes tipo dialog (patrón estándar) -->
-            <div
-                v-if="infoMessage || successMessage"
-                class="pointer-events-none fixed left-1/2 top-6 z-[99999] flex -translate-x-1/2 justify-center px-4 sm:px-0"
-            >
-                <AlertBox
-                    v-if="infoMessage"
-                    type="info"
-                    title="Información"
-                    :message="infoMessage"
-                    :auto-close-ms="4000"
-                    class="pointer-events-auto"
-                    @close="infoMessage = null"
-                />
-                <AlertBox
-                    v-if="successMessage && !infoMessage"
-                    type="success"
-                    title="Éxito"
-                    :message="successMessage"
-                    :auto-close-ms="4000"
-                    class="pointer-events-auto"
-                    @close="successMessage = null"
-                />
-            </div>
+            <AlertStack
+                :success-message="successMessage || ''"
+                :error-message="infoMessage || ''"
+                error-type="info"
+                @close-success="successMessage = null"
+                @close-error="infoMessage = null"
+            />
 
             <div class="min-h-0 flex-1 overflow-y-auto pr-2 pt-4">
                 <div

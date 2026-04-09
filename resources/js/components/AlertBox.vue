@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AlertTriangle, CheckCircle2, Info, X, XCircle } from 'lucide-vue-next';
+import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, watch } from 'vue';
 
 const props = defineProps<{
@@ -7,7 +7,6 @@ const props = defineProps<{
     title?: string;
     message: string;
     autoCloseMs?: number;
-    closeable?: boolean; // Si es true, muestra botón X (default: false para tipos que se auto-cierran)
 }>();
 
 const emit = defineEmits<{
@@ -53,18 +52,42 @@ const config = computed(() => typeConfig[props.type ?? 'info'] ?? typeConfig.inf
 const IconComponent = computed(() => config.value.icon);
 
 const defaultTitles: Record<string, string> = {
-    success: 'Operación exitosa',
+    success: 'Éxito',
     error: 'Error',
     info: 'Información',
     warning: 'Advertencia',
 };
 
-// Determinar si mostrar botón cerrar
-// Solo mostrar si explícitamente se pasa closeable=true o si es error (que no se auto-cierra)
-const showCloseButton = computed(() => {
-    if (props.closeable === true) return true;
-    if (props.type === 'error' && (props.autoCloseMs === undefined || props.autoCloseMs === 0)) return true;
-    return false;
+const defaultAutoCloseMs: Record<string, number> = {
+    success: 4000,
+    error: 6000,
+    warning: 5000,
+    info: 4000,
+};
+
+const sanitizedMessage = computed(() => {
+    const msg = props.message ?? '';
+    const isTechnical =
+        msg.length > 300 ||
+        msg.includes('Exception') ||
+        msg.includes('Stack trace') ||
+        msg.includes('at line') ||
+        msg.includes('/var/www') ||
+        msg.includes('\\App\\') ||
+        msg.includes('<br>') ||
+        msg.includes('SQLSTATE') ||
+        /^\s*</.test(msg);
+
+    if (isTechnical) {
+        const fallbacks: Record<string, string> = {
+            success: 'La operación se realizó correctamente.',
+            error: 'Ocurrió un error al procesar la solicitud. Por favor intenta de nuevo.',
+            warning: 'Verifica la información antes de continuar.',
+            info: 'Operación procesada.',
+        };
+        return fallbacks[props.type ?? 'info'] ?? 'Ocurrió un error inesperado.';
+    }
+    return msg;
 });
 
 let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -75,10 +98,8 @@ watch(
         if (!val) return;
         if (timeoutId) clearTimeout(timeoutId);
 
-        const ms = props.autoCloseMs ?? 4000;
-        if (ms > 0) {
-            timeoutId = setTimeout(() => emit('close'), ms);
-        }
+        const ms = props.autoCloseMs ?? defaultAutoCloseMs[props.type ?? 'info'] ?? 4000;
+        timeoutId = setTimeout(() => emit('close'), ms);
     },
     { immediate: true },
 );
@@ -101,18 +122,9 @@ onBeforeUnmount(() => {
                 {{ title || defaultTitles[props.type ?? 'info'] }}
             </p>
             <p :class="`${config.textColor} mt-0.5 text-sm leading-relaxed`">
-                <slot>{{ message }}</slot>
+                <slot>{{ sanitizedMessage }}</slot>
             </p>
         </div>
-        <button
-            v-if="showCloseButton"
-            type="button"
-            :class="`${config.colors} ml-2 flex-shrink-0 transition-opacity hover:opacity-70`"
-            @click="emit('close')"
-            aria-label="Cerrar alerta"
-        >
-            <X class="h-5 w-5" />
-        </button>
     </div>
 </template>
 

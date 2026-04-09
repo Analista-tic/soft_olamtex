@@ -12,91 +12,51 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    (e: 'close-success'): void;
-    (e: 'close-error'): void;
+    'close-success': [];
+    'close-error': [];
 }>();
 
-const hasAny = computed(() => !!props.successMessage || !!props.errorMessage);
+const activeAlert = computed(() => {
+    if (props.errorMessage) {
+        return {
+            type: props.errorType || 'error',
+            message: props.errorMessage,
+            title: props.errorTitle || 'Error',
+            closeEvent: 'close-error' as const,
+        };
+    }
+    if (props.successMessage) {
+        return {
+            type: 'success' as const,
+            message: props.successMessage,
+            title: props.successTitle || 'Éxito',
+            closeEvent: 'close-success' as const,
+        };
+    }
+    return null;
+});
+
+function handleAlertClose() {
+    if (activeAlert.value?.closeEvent === 'close-error') {
+        emit('close-error');
+    } else {
+        emit('close-success');
+    }
+}
 </script>
 
 <template>
     <div
-        v-if="hasAny"
         class="pointer-events-none fixed left-1/2 top-6 z-[9999] flex max-w-2xl -translate-x-1/2 flex-col gap-3 px-4 sm:px-0"
         :class="props.class"
     >
-        <Transition
-            name="alert"
-            @enter="
-                (el) => {
-                    (el as HTMLElement).style.opacity = '0';
-                    (el as HTMLElement).style.transform = 'translateY(-1rem)';
-                }
-            "
-            @after-enter="
-                (el) => {
-                    (el as HTMLElement).style.opacity = '1';
-                    (el as HTMLElement).style.transform = 'translateY(0)';
-                }
-            "
-            @leave="
-                (el) => {
-                    (el as HTMLElement).style.opacity = '1';
-                    (el as HTMLElement).style.transform = 'translateY(0)';
-                }
-            "
-            @after-leave="
-                (el) => {
-                    (el as HTMLElement).style.opacity = '0';
-                    (el as HTMLElement).style.transform = 'translateY(-1rem)';
-                }
-            "
-        >
-            <div v-if="props.successMessage" key="success" class="transition-all duration-300">
+        <Transition name="alert">
+            <div v-if="activeAlert" key="alert" class="pointer-events-auto">
                 <AlertBox
-                    type="success"
-                    :title="successTitle || 'Éxito'"
-                    :message="props.successMessage"
-                    class="pointer-events-auto"
-                    @close="emit('close-success')"
-                />
-            </div>
-        </Transition>
-
-        <Transition
-            name="alert"
-            @enter="
-                (el) => {
-                    (el as HTMLElement).style.opacity = '0';
-                    (el as HTMLElement).style.transform = 'translateY(-1rem)';
-                }
-            "
-            @after-enter="
-                (el) => {
-                    (el as HTMLElement).style.opacity = '1';
-                    (el as HTMLElement).style.transform = 'translateY(0)';
-                }
-            "
-            @leave="
-                (el) => {
-                    (el as HTMLElement).style.opacity = '1';
-                    (el as HTMLElement).style.transform = 'translateY(0)';
-                }
-            "
-            @after-leave="
-                (el) => {
-                    (el as HTMLElement).style.opacity = '0';
-                    (el as HTMLElement).style.transform = 'translateY(-1rem)';
-                }
-            "
-        >
-            <div v-if="props.errorMessage" key="error" class="transition-all duration-300">
-                <AlertBox
-                    :type="props.errorType || 'error'"
-                    :title="errorTitle || 'Error'"
-                    :message="props.errorMessage"
-                    class="pointer-events-auto"
-                    @close="emit('close-error')"
+                    :type="activeAlert.type"
+                    :title="activeAlert.title"
+                    :message="activeAlert.message"
+                    @close="handleAlertClose"
                 />
             </div>
         </Transition>
@@ -104,18 +64,21 @@ const hasAny = computed(() => !!props.successMessage || !!props.errorMessage);
 </template>
 
 <style scoped>
-.alert-enter-active,
+.alert-enter-active {
+    transition: all 0.25s ease-out;
+}
+
 .alert-leave-active {
-    transition: all 0.3s ease;
+    transition: all 0.2s ease-in;
 }
 
 .alert-enter-from {
     opacity: 0;
-    transform: translateY(-1rem);
+    transform: translateY(-0.75rem);
 }
 
 .alert-leave-to {
     opacity: 0;
-    transform: translateY(-1rem);
+    transform: translateY(-0.75rem);
 }
 </style>

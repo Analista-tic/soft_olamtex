@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
@@ -69,9 +69,10 @@ const items = ref<Item[]>([]);
 const warehouses = ref<Warehouse[]>([]);
 const selectedWarehouseId = ref<number | null>(null);
 const lastSelectedWarehouseId = ref<number | null>(null);
-const alertMessage = ref<string>('');
+const successMessage = ref('');
+const errorMessage = ref('');
 const alertDetails = ref<string[]>([]);
-const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
+const errorType = ref<'error' | 'info' | 'warning'>('error');
 const isSubmitting = ref(false);
 
 const lines = ref<Line[]>([
@@ -201,9 +202,9 @@ function resetForm() {
             description: '',
         },
     ];
-    alertMessage.value = '';
+    errorMessage.value = '';
+    successMessage.value = '';
     alertDetails.value = [];
-    alertType.value = 'error';
 }
 
 async function loadDocumentNumber() {
@@ -257,16 +258,17 @@ watch(
         if (!open) return;
         fetchTaxes();
         fetchWarehouses();
-        alertMessage.value = '';
+        errorMessage.value = '';
+        successMessage.value = '';
         alertDetails.value = [];
-        alertType.value = 'error';
         if (props.dialogType === 'edit' && props.adjustment?.id) {
             try {
                 const { data } = await axios.get(`/ajustes-inventario/${props.adjustment.id}`);
                 fillFromAdjustment(data);
             } catch {
-                alertType.value = 'error';
-                alertMessage.value = 'No se pudo cargar el ajuste seleccionado.';
+                errorType.value = 'error';
+                errorMessage.value = 'No se pudo cargar el ajuste seleccionado.';
+                successMessage.value = '';
                 resetForm();
             }
         } else {
@@ -339,9 +341,9 @@ function notifyInventoryAdjustmentSaved(itemIds: number[]) {
 }
 
 async function handleSubmit() {
-    alertMessage.value = '';
+    errorMessage.value = '';
+    successMessage.value = '';
     alertDetails.value = [];
-    alertType.value = 'error';
     const requiredErrors: string[] = [];
 
     if (!date.value) {
@@ -380,8 +382,9 @@ async function handleSubmit() {
 
     if (requiredErrors.length > 0) {
         const unique = Array.from(new Set(requiredErrors));
-        alertType.value = 'warning';
-        alertMessage.value = formatRequiredFieldsMessage('Por favor completa todos los campos obligatorios', unique);
+        errorType.value = 'warning';
+        errorMessage.value = formatRequiredFieldsMessage('Por favor completa todos los campos obligatorios', unique);
+        successMessage.value = '';
         alertDetails.value = [];
         const dialogEl = document.querySelector('[role="dialog"]');
         dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -416,12 +419,12 @@ async function handleSubmit() {
         isSubmitting.value = true;
         if (props.dialogType === 'edit' && props.adjustment?.id) {
             response = await axios.put(`/ajustes-inventario/${props.adjustment.id}`, payload);
-            alertType.value = 'success';
-            alertMessage.value = 'Ajuste actualizado correctamente.';
+            successMessage.value = 'Ajuste actualizado correctamente.';
+            errorMessage.value = '';
         } else {
             response = await axios.post('/ajustes-inventario', payload);
-            alertType.value = 'success';
-            alertMessage.value = 'Ajuste creado correctamente.';
+            successMessage.value = 'Ajuste creado correctamente.';
+            errorMessage.value = '';
         }
         const savedLines = response?.data?.data?.lines;
         if (Array.isArray(savedLines)) {
@@ -435,7 +438,7 @@ async function handleSubmit() {
         const responseMessage = error?.response?.data?.message || 'No se pudo guardar el ajuste.';
         const responseErrors = error?.response?.data?.errors;
         // Si hay validaciones del backend, mostramos solo un bloque de advertencia con la lista
-        alertType.value = 'warning';
+        errorType.value = 'warning';
         const mergedErrors = responseErrors
             ? Array.from(
                   new Set(
@@ -445,7 +448,8 @@ async function handleSubmit() {
                   ),
               )
             : [];
-        alertMessage.value = mergedErrors.length ? `${responseMessage}: ${mergedErrors.join(', ')}` : responseMessage;
+        errorMessage.value = mergedErrors.length ? `${responseMessage}: ${mergedErrors.join(', ')}` : responseMessage;
+        successMessage.value = '';
         alertDetails.value = [];
         const dialogEl = document.querySelector('[role="dialog"]');
         dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -463,22 +467,13 @@ async function handleSubmit() {
                 <DialogDescription> Registra un movimiento de entrada o salida de inventario. </DialogDescription>
             </DialogHeader>
 
-            <transition name="fade">
-                <div v-if="alertMessage" class="pointer-events-none absolute left-1/2 top-6 z-30 w-full max-w-xl -translate-x-1/2">
-                    <AlertBox
-                        :type="alertType"
-                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : 'Error'"
-                        :message="alertMessage"
-                        class="pointer-events-auto"
-                        @close="alertMessage = ''"
-                    />
-                    <div v-if="alertDetails.length" class="pointer-events-auto mt-2 p-1 text-sm text-amber-900">
-                        <ul class="list-disc ps-5">
-                            <li v-for="(item, idx) in alertDetails" :key="idx">{{ item }}</li>
-                        </ul>
-                    </div>
-                </div>
-            </transition>
+            <AlertStack
+                :success-message="successMessage"
+                :error-message="errorMessage"
+                :error-type="errorType"
+                @close-success="successMessage = ''"
+                @close-error="errorMessage = ''"
+            />
 
             <div class="flex-1 overflow-y-auto scroll-smooth px-4" style="scrollbar-width: thin">
                 <form class="space-y-4" novalidate @submit.prevent="handleSubmit">

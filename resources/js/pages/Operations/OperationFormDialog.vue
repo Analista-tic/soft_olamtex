@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import DialogActionButtons from '@/components/common/DialogActionButtons.vue';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import axios from 'axios';
@@ -54,9 +54,6 @@ watch(localOpen, (v) => {
 const isEditing = computed(() => !!props.operation);
 const isSaving = ref(false);
 const error = ref('');
-function clearError() {
-    error.value = '';
-}
 const formRef = ref<InstanceType<typeof OperationFormContent> | null>(null);
 
 const operationForForm = ref<OperationFormData | null>(null);
@@ -132,11 +129,10 @@ function handleSubmit(payload: Record<string, unknown>) {
 </script>
 
 <template>
-    <div v-if="error" class="mb-4 flex">
-        <div class="mx-auto w-full max-w-2xl px-4">
-            <AlertBox type="error" title="Error" :message="error" :auto-close-ms="0" @close="clearError" />
-        </div>
-    </div>
+    <AlertStack
+        :error-message="error"
+        @close-error="error = ''"
+    />
     <Dialog v-model:open="localOpen">
         <DialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
             <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
