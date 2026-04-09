@@ -3,7 +3,6 @@ import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { PurchaseOrderItem } from '@/domain/Expenses';
 import type { Tax } from '@/domain/Finance';
 import type { Item } from '@/domain/MasterData';
@@ -204,10 +203,6 @@ function openItemDialog(targetRowIdx: number | null = null, prefillFromRequest =
     });
 }
 
-function openItemDialogForRow(rowIdx: number) {
-    openItemDialog(rowIdx, false);
-}
-
 function openItemDialogFromRequest(rowIdx: number) {
     openItemDialog(rowIdx, true);
 }
@@ -400,6 +395,70 @@ function shouldShowRequestCreateAction(_item: PurchaseOrderItem, rowIdx: number)
     return hasPurchaseRequestContext.value && Boolean(getSuggestedItemForRow(rowIdx));
 }
 
+function getSuggestedItemLabel(rowIdx: number) {
+    const suggestedItem = getSuggestedItemForRow(rowIdx);
+    if (!suggestedItem) return '';
+
+    const name = typeof suggestedItem.name === 'string' ? suggestedItem.name.trim() : '';
+    if (name) return name;
+
+    const itemName = typeof suggestedItem.item_name === 'string' ? suggestedItem.item_name.trim() : '';
+    if (itemName) return itemName;
+
+    const description = typeof suggestedItem.description === 'string' ? suggestedItem.description.trim() : '';
+    return description;
+}
+
+function selectSuggestedItemInRow(rowIdx: number) {
+    const suggestedItem = getSuggestedItemForRow(rowIdx);
+
+    if (!localItems.value[rowIdx] || !suggestedItem) {
+        return;
+    }
+
+    // Prioridad 1: usar item_id directo si existe en la solicitud
+    const suggestedItemId = suggestedItem.item_id != null ? Number(suggestedItem.item_id) : null;
+
+    if (suggestedItemId && Number.isFinite(suggestedItemId)) {
+        const matchedCatalogItem = catalogItems.value.find((c) => Number(c.id) === suggestedItemId);
+        if (matchedCatalogItem) {
+            localItems.value = localItems.value.map((item, i) => {
+                if (i !== rowIdx) return item;
+                const updated = { ...item, item_id: matchedCatalogItem.id };
+                setTaxFromItem(updated);
+                calcTotals(updated);
+                return updated;
+            });
+            emit('update:items', localItems.value);
+            return;
+        }
+    }
+
+    // Prioridad 2: fallback por nombre si item_id no existe o no matchea
+    const suggestedLabel = getSuggestedItemLabel(rowIdx).trim().toLowerCase();
+    if (!suggestedLabel) {
+        return;
+    }
+
+    const matchedByName = catalogItems.value.find((c) => c.name?.trim().toLowerCase() === suggestedLabel);
+
+    if (matchedByName) {
+        localItems.value = localItems.value.map((item, i) => {
+            if (i !== rowIdx) return item;
+            const updated = { ...item, item_id: matchedByName.id };
+            setTaxFromItem(updated);
+            calcTotals(updated);
+            return updated;
+        });
+        emit('update:items', localItems.value);
+        return;
+    }
+
+    const label = getSuggestedItemLabel(rowIdx).trim();
+    localItems.value = localItems.value.map((item, i) => (i === rowIdx ? { ...item, item_id: label as never } : item));
+    emit('update:items', localItems.value);
+}
+
 defineExpose({ addItem, validateFabricFields, openItemDialog });
 </script>
 
@@ -427,48 +486,43 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
 
                 <TableBody>
                     <TableRow v-for="(item, idx) in localItems" :key="idx">
-                        <TableCell class="min-w-[150px] p-1 text-left">
-                            <div class="flex items-center gap-1.5">
-                                <SelectField
-                                    v-model="item.item_id"
-                                    :options="itemOptions"
-                                    label=""
-                                    placeholder="Selecciona item"
-                                    class="w-full flex-1"
-                                    :disabled="isReadOnly"
-                                    :action-label="!isReadOnly ? 'Nuevo item' : undefined"
-                                    :action-disabled="isReadOnly"
-                                    @action="openItemDialogForRow(idx)"
-                                />
+                        <TableCell class="min-w-[150px] p-1 text-left align-top">
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-1.5">
+                                    <div class="min-w-0 flex-1">
+                                        <SelectField
+                                            v-model="item.item_id"
+                                            :options="itemOptions"
+                                            label=""
+                                            placeholder="Selecciona item"
+                                            class="w-full"
+                                            :disabled="isReadOnly"
+                                        />
+                                    </div>
 
-                                <div v-if="shouldShowRequestCreateAction(item, idx)" class="flex shrink-0 items-center gap-1">
-                                    <Tooltip>
-                                        <TooltipTrigger as-child>
-                                            <span class="inline-flex h-7 w-7 items-center justify-center rounded-full text-amber-500">
-                                                <Lightbulb class="h-4 w-4" />
-                                            </span>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top" class="max-w-[240px]">
-                                            Este ítem viene de la solicitud. Puedes crearlo con la información de referencia usando el botón +.
-                                        </TooltipContent>
-                                    </Tooltip>
-
-                                    <Tooltip>
-                                        <TooltipTrigger as-child>
-                                            <button
-                                                type="button"
-                                                class="inline-flex h-7 w-7 items-center justify-center rounded-full text-primary transition hover:bg-primary/10"
-                                                @click.stop="openItemDialogFromRequest(idx)"
-                                            >
-                                                <PlusCircle class="h-4 w-4" />
-                                            </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top">Crear ítem con datos de la solicitud</TooltipContent>
-                                    </Tooltip>
+                                    <button
+                                        v-if="shouldShowRequestCreateAction(item, idx)"
+                                        type="button"
+                                        class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-primary transition hover:text-primary/80"
+                                        @click.stop="openItemDialogFromRequest(idx)"
+                                    >
+                                        <PlusCircle class="h-3.5 w-3.5" />
+                                    </button>
                                 </div>
+
+                                <button
+                                    v-if="shouldShowRequestCreateAction(item, idx)"
+                                    type="button"
+                                    class="mt-1 flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-xs text-muted-foreground transition hover:bg-accent hover:text-accent-foreground"
+                                    title="Seleccionar este ítem en la fila"
+                                    @click.stop="selectSuggestedItemInRow(idx)"
+                                >
+                                    <Lightbulb class="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                                    <span class="min-w-0 flex-1 truncate">{{ getSuggestedItemLabel(idx) }}</span>
+                                </button>
                             </div>
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 120px">
+                        <TableCell class="p-1 text-left align-top" style="width: 120px">
                             <InputField
                                 v-model="item.price"
                                 type="currency"
@@ -479,7 +533,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                                 @input="calcTotals(item)"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 160px">
+                        <TableCell class="p-1 text-left align-top" style="width: 160px">
                             <SelectField
                                 v-model="item.tax"
                                 :options="taxOptions"
@@ -495,19 +549,19 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                                 "
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 110px">
+                        <TableCell class="p-1 text-left align-top" style="width: 110px">
                             <InputField v-model="item.quantity" type="number" label="" class="h-10 w-full" @input="calcTotals(item)" />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 160px">
+                        <TableCell class="p-1 text-left align-top" style="width: 160px">
                             <InputField v-model="item.description" label="" class="h-10 w-full" />
                         </TableCell>
-                        <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px">
+                        <TableCell v-if="isTela(item)" class="p-1 text-left align-top" style="width: 150px">
                             <InputField v-model="item.supplier_code" label="" placeholder="Código proveedor" class="h-10 w-full" />
                         </TableCell>
-                        <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px">
+                        <TableCell v-if="isTela(item)" class="p-1 text-left align-top" style="width: 150px">
                             <InputField v-model="item.supplier_color" label="" placeholder="Color proveedor" class="h-10 w-full" />
                         </TableCell>
-                        <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px">
+                        <TableCell v-if="isTela(item)" class="p-1 text-left align-top" style="width: 150px">
                             <InputField
                                 v-model="item.order_width"
                                 type="number"
@@ -518,7 +572,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                                 :required="true"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 90px">
+                        <TableCell class="p-1 text-left align-top" style="width: 90px">
                             {{
                                 Number(item.total || 0).toLocaleString('es-CO', {
                                     style: 'currency',
@@ -528,7 +582,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                                 })
                             }}
                         </TableCell>
-                        <TableCell v-if="showActionsColumn" class="p-1 text-center">
+                        <TableCell v-if="showActionsColumn" class="p-1 text-center align-top">
                             <div class="flex justify-center">
                                 <DeleteButton v-if="localItems.length > 1" @click="removeItem(idx)" />
                             </div>
@@ -559,3 +613,4 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
         />
     </div>
 </template>
+

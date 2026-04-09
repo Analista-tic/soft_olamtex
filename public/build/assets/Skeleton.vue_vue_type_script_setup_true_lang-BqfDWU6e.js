@@ -1,1 +1,0 @@
-import{c as n}from"./utils-CytzSlOG.js";import{d as a,e as o,f as r,n as t,u as c}from"./app-Bplcqh17.js";const d=a({__name:"Skeleton",props:{class:{}},setup(e){const s=e;return(l,m)=>(r(),o("div",{class:t(c(n)("animate-pulse rounded-md bg-muted",s.class))},null,2))}});export{d as _};

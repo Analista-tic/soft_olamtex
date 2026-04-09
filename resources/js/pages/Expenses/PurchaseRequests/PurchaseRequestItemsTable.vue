@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -457,27 +458,11 @@ defineExpose({ addItem });
             <option v-for="itemOption in catalogItems" :key="itemOption.id" :value="itemOption.name" />
         </datalist>
 
-        <Teleport to="body">
-            <div
-                v-if="showLightbox && lightboxUrl"
-                class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 p-4"
-                @click.stop="closeLightbox"
-                @mousedown.stop
-                @pointerdown.stop
-            >
-                <div class="relative flex max-h-[80vh] max-w-lg items-center justify-center" @click.stop @mousedown.stop @pointerdown.stop>
-                    <button
-                        type="button"
-                        class="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-black/80"
-                        @click.stop="closeLightbox"
-                        @mousedown.stop
-                        @pointerdown.stop
-                    >
-                        <X class="h-5 w-5" />
-                    </button>
-                    <img :src="lightboxUrl" alt="Imagen ampliada del item" class="max-h-[80vh] max-w-full object-contain" />
-                </div>
-            </div>
-        </Teleport>
+        <ImagePreviewDialog
+            :open="showLightbox"
+            :src="lightboxUrl"
+            alt="Imagen ampliada del item"
+            @update:open="(value) => (value ? (showLightbox = value) : closeLightbox())"
+        />
     </div>
 </template>

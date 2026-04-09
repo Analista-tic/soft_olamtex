@@ -549,7 +549,7 @@ watch(dialogOpen, (isOpen) => {
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div class="flex flex-col gap-1.5">
                                         <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium"># Solicitud</Label>
+                                            <Label class="text-sm font-medium">N° Solicitud</Label>
                                             <HelpTooltip text="Numero unico de la solicitud de compra." aria-label="Ayuda sobre numero de solicitud" />
                                         </div>
                                         <InputField
