@@ -183,7 +183,7 @@ const totalAmount = computed(() => roundCurrency(subtotalAmount.value + taxesAmo
 
 const dialogTitle = computed(() => {
     if (props.mode === 'create') return 'Nueva nota de venta';
-    if (props.mode === 'view') return 'Detalle de nota de venta';
+    if (props.mode === 'view') return 'Ver Nota de Credito/Debito';
     return 'Editar nota de venta';
 });
 
@@ -581,7 +581,7 @@ watch(
                         :model-value="localNote.description ?? undefined"
                         label="Motivo / descripcion"
                         placeholder="Describe el ajuste de la nota"
-                        :readonly="isReadOnly"
+                        :disabled="isReadOnly"
                         @update:modelValue="localNote.description = $event"
                     />
                 </template>

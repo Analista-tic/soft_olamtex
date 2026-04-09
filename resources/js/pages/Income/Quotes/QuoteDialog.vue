@@ -180,7 +180,7 @@ const dialogTitle = computed(() => {
     }
 
     if (props.mode === 'view') {
-        return 'Detalle de cotizacion';
+        return 'Ver Cotizacion';
     }
 
     return 'Editar cotizacion';
@@ -471,7 +471,7 @@ watch(
                             v-model="localQuote.customer_order_number"
                             label="Referencia cliente"
                             placeholder="Referencia del cliente"
-                            :readonly="isReadOnly"
+                            :disabled="isReadOnly"
                         />
                         <div class="flex gap-3">
                             <div :class="localQuote.payment_terms === 'credit' ? 'w-1/2' : 'w-full'">
@@ -489,7 +489,7 @@ watch(
                                     label="Dias de credito"
                                     type="number"
                                     placeholder="0"
-                                    :readonly="isReadOnly"
+                                    :disabled="isReadOnly"
                                 />
                             </div>
                         </div>
@@ -536,7 +536,7 @@ watch(
                         :model-value="localQuote.description ?? undefined"
                         label="Notas"
                         placeholder="Agrega observaciones para la cotizacion"
-                        :readonly="isReadOnly"
+                        :disabled="isReadOnly"
                         @update:modelValue="localQuote.description = $event"
                     />
                 </template>

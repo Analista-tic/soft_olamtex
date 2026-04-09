@@ -168,7 +168,7 @@ function submitForm() {
                 <DialogDescription> Completa los largos, consumos, retazos y tallas antes de procesar el rollo. </DialogDescription>
             </DialogHeader>
 
-            <div class="flex-1 overflow-y-auto scroll-smooth pr-2 pt-5" style="scrollbar-width: thin">
+            <div class="flex-1 overflow-y-auto scroll-smooth px-2 pt-5" style="scrollbar-width: thin">
                 <div class="space-y-6">
                     <!-- RESUMEN DEL ROLLO -->
                     <section class="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">

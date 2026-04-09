@@ -39,6 +39,10 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
         $items = $payload['items'] ?? [];
         $withholdings = $payload['withholdings'] ?? [];
 
+        if (empty($payload['document_number'])) {
+            $payload['document_number'] = $this->invoiceService()->generateFabricInvoiceNumber();
+        }
+
         $invoice = $this->invoiceService()->createInvoice($payload, $items, $withholdings);
 
         return response()->json(['data' => $invoice], 201);

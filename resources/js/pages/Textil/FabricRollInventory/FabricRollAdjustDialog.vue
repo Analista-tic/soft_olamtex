@@ -65,7 +65,7 @@ function submitAdjust() {
                 class="mb-4 flex-shrink-0"
             />
 
-            <div class="flex-1 overflow-y-auto scroll-smooth pr-2" style="scrollbar-width: thin">
+            <div class="flex-1 overflow-y-auto scroll-smooth px-2" style="scrollbar-width: thin">
                 <div class="space-y-5">
                     <div v-if="props.roll" class="rounded-2xl border border-muted-foreground/40 bg-muted/30 p-4">
                         <div class="grid grid-cols-3 justify-items-center gap-4 text-center text-sm">

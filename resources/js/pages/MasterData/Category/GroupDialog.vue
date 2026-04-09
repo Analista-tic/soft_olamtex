@@ -52,7 +52,7 @@ function submitForm() {
                 <DialogTitle>Crear Grupo</DialogTitle>
                 <DialogDescription> Completa los campos para crear un nuevo grupo. </DialogDescription>
             </DialogHeader>
-            <div class="flex-1 overflow-y-auto scroll-smooth pr-2" style="scrollbar-width: thin">
+            <div class="flex-1 overflow-y-auto scroll-smooth px-2" style="scrollbar-width: thin">
                 <div class="space-y-4 pt-5">
                     <InputField v-model="form.name" label="Nombre" placeholder="Nombre del grupo" required />
                 </div>

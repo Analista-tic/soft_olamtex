@@ -215,7 +215,7 @@ const dialogTitle = computed(() => {
     }
 
     if (props.mode === 'view') {
-        return 'Detalle de pedido de venta';
+        return 'Ver Pedido de Venta';
     }
 
     return 'Editar pedido de venta';
@@ -526,7 +526,7 @@ watch(
                                 v-model="localSalesOrder.customer_order_number"
                                 label="Referencia cliente"
                                 placeholder="Referencia del cliente"
-                                :readonly="isReadOnly"
+                                :disabled="isReadOnly"
                             />
                         </div>
                         <div class="lg:order-6">
@@ -546,7 +546,7 @@ watch(
                                         label="Dias de credito"
                                         type="number"
                                         placeholder="0"
-                                        :readonly="isReadOnly"
+                                        :disabled="isReadOnly"
                                     />
                                 </div>
                             </div>
@@ -600,7 +600,7 @@ watch(
                         :model-value="localSalesOrder.description ?? undefined"
                         label="Notas"
                         placeholder="Agrega observaciones para el pedido"
-                        :readonly="isReadOnly"
+                        :disabled="isReadOnly"
                         @update:modelValue="localSalesOrder.description = $event"
                     />
                 </template>

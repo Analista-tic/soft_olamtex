@@ -424,6 +424,8 @@ export interface PurchaseInvoice {
     supplier_invoice_number?: string;
     description?: string;
     status?: string;
+    approval_status?: 'pending' | 'approved' | 'rejected' | null;
+    has_difference?: boolean;
     items: PurchaseInvoiceItem[];
     created_at?: string;
     updated_at?: string;

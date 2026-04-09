@@ -259,6 +259,7 @@ function handleSubmit() {
             <DialogFooter class="mt-6 justify-end gap-2">
                 <Button variant="outline" size="pill" @click="handleClose"> Cancelar </Button>
                 <button
+                    v-if="!isViewMode"
                     type="button"
                     :disabled="loading || hasDuplicateOptions"
                     class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"

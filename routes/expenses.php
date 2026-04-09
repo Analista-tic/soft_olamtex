@@ -55,6 +55,8 @@ Route::prefix('gastos')->name('gastos.')->group(function () {
         Route::put('/{purchaseDocument}', [PurchaseInvoiceController::class, 'update'])->name('update')->middleware('permission:editar facturas compra');
         Route::delete('/{purchaseDocument}', [PurchaseInvoiceController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar facturas compra');
         Route::post('/{purchaseDocument}/justificar', [PurchaseInvoiceController::class, 'justify'])->name('justify')->middleware('permission:editar facturas compra');
+        Route::post('/{purchaseDocument}/aprobar-diferencia', [PurchaseInvoiceController::class, 'approveDifference'])->name('approve-difference')->middleware('permission:aprobar facturas compra');
+        Route::post('/{purchaseDocument}/rechazar-diferencia', [PurchaseInvoiceController::class, 'rejectDifference'])->name('reject-difference')->middleware('permission:aprobar facturas compra');
         Route::patch('/{purchaseDocument}/recibir', [PurchaseInvoiceController::class, 'receive'])->name('receive')->middleware('permission:editar facturas compra');
         Route::patch('/{purchaseDocument}/rechazar', [PurchaseInvoiceController::class, 'reject'])->name('reject')->middleware('permission:editar facturas compra');
     });

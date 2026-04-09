@@ -629,7 +629,7 @@ watch(dialogOpen, (isOpen) => {
                 <FormDialogHeader class="px-4 pb-3 pr-12 pt-4">
                     <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                         <div class="flex min-w-0 flex-col gap-1">
-                            <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra</DialogTitle>
+                            <DialogTitle>{{ isReadOnly ? 'Ver' : dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra</DialogTitle>
                             <DialogDescription>
                                 {{
                                     isReadOnly
@@ -638,20 +638,71 @@ watch(dialogOpen, (isOpen) => {
                                 }}
                             </DialogDescription>
                         </div>
-                        <div v-if="!isReadOnly" class="w-full shrink-0 sm:w-[280px]">
-                            <SelectField
-                                v-model="selectedPurchaseOrderValue"
-                                :options="pendingPurchaseOrderOptions"
-                                label="Cargar desde orden pendiente"
-                                placeholder="Selecciona una orden existente"
-                                :readonly="isReadOnly"
-                                :searchable="pendingPurchaseOrderOptions.length >= 6"
-                                search-placeholder="Buscar orden de compra..."
-                                tooltip-text="Selecciona una orden de compra aprobada para pre-llenar automáticamente los ítems de esta factura."
-                            />
+                        <div v-if="!isReadOnly" class="w-full shrink-0 sm:w-[340px]">
+                            <div class="flex items-end gap-2">
+                                <div class="min-w-0 flex-1">
+                                    <SelectField
+                                        v-model="selectedPurchaseOrderValue"
+                                        :options="pendingPurchaseOrderOptions"
+                                        label="Cargar desde orden pendiente"
+                                        placeholder="Selecciona una orden existente"
+                                        :disabled="isReadOnly"
+                                        :readonly="isReadOnly"
+                                        :searchable="pendingPurchaseOrderOptions.length >= 6"
+                                        search-placeholder="Buscar orden de compra..."
+                                        tooltip-text="Selecciona una orden de compra aprobada para pre-llenar automáticamente los ítems de esta factura."
+                                    />
+                                </div>
+                                <div class="shrink-0">
+                                    <button
+                                        type="button"
+                                        class="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-4 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        :disabled="!selectedPurchaseOrderId || isReadOnly"
+                                        @click="selectedPurchaseOrderId = null; resetForm()"
+                                    >
+                                        Limpiar
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </FormDialogHeader>
+
+                <!-- Banner de estado de aprobación de diferencia -->
+                <div v-if="localForm.approval_status === 'pending'" class="mx-4 flex items-center gap-3 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+                    <span class="text-lg">⏳</span>
+                    <div>
+                        <p class="font-semibold">Diferencia pendiente de aprobación</p>
+                        <p class="text-xs text-yellow-700">Esta factura tiene una diferencia registrada que requiere aprobación por un usuario autorizado.</p>
+                    </div>
+                </div>
+                <div v-else-if="localForm.approval_status === 'approved'" class="mx-4 flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+                    <span class="text-lg">✓</span>
+                    <div>
+                        <p class="font-semibold">Diferencia aprobada</p>
+                        <p class="text-xs text-green-700">
+                            Aprobado por <strong>{{ localForm.approved_by?.name ?? 'Usuario' }}</strong>
+                            <template v-if="localForm.approved_at">
+                                el {{ new Date(localForm.approved_at).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' }) }}
+                            </template>
+                            <template v-if="localForm.approval_notes">— {{ localForm.approval_notes }}</template>
+                        </p>
+                    </div>
+                </div>
+                <div v-else-if="localForm.approval_status === 'rejected'" class="mx-4 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                    <span class="text-lg">✗</span>
+                    <div>
+                        <p class="font-semibold">Diferencia rechazada</p>
+                        <p class="text-xs text-red-700">
+                            Rechazado por <strong>{{ localForm.approved_by?.name ?? 'Usuario' }}</strong>
+                            <template v-if="localForm.approved_at">
+                                el {{ new Date(localForm.approved_at).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' }) }}
+                            </template>
+                            <template v-if="localForm.approval_notes">— {{ localForm.approval_notes }}</template>
+                        </p>
+                    </div>
+                </div>
+
                 <FormDialogBody class="relative px-4 pr-2" :class="{ 'min-h-[420px]': isBlockingLoading }" style="scrollbar-width: thin">
                     <form
                         @submit.prevent="handleSubmit()"
@@ -702,7 +753,7 @@ watch(dialogOpen, (isOpen) => {
                                             v-model="localForm.contact_id"
                                             label=""
                                             :options="contacts.map((c) => ({ id: Number(c.id), name: c.full_name }))"
-                                            :readonly="isReadOnly"
+                                            :disabled="isReadOnly"
                                             required
                                             :key="contacts.length + '-' + localForm.contact_id"
                                         />
@@ -753,12 +804,16 @@ watch(dialogOpen, (isOpen) => {
                                             <label class="text-sm font-medium">N° factura proveedor<span class="text-red-500">*</span></label>
                                             <HelpTooltip text="Número que aparece impreso en la factura física del proveedor. Es obligatorio para la trazabilidad." aria-label="Ayuda sobre número de factura proveedor" />
                                         </div>
-                                        <InputField v-model="localForm.supplier_invoice_number" label="" :readonly="isReadOnly" required />
+                                        <InputField v-model="localForm.supplier_invoice_number" label="" :readonly="isReadOnly" :disabled="isReadOnly" required />
                                     </div>
                                 </div>
 
                                 <!-- Items -->
-                                <InventoryDetailTableLayout @create-line="handleInvoiceAddLine" :createLineButtonDisabled="isReadOnly">
+                                <InventoryDetailTableLayout
+                                    @create-line="handleInvoiceAddLine"
+                                    :showCreateLineButton="!isReadOnly"
+                                    :createLineButtonDisabled="isReadOnly"
+                                >
                                     <PurchaseInvoiceItemsTable
                                         ref="invoiceItemsTableRef"
                                         :items="localForm.items || []"
@@ -853,7 +908,7 @@ watch(dialogOpen, (isOpen) => {
                                         v-model="localForm.description"
                                         label=""
                                         placeholder="Agrega aquí observaciones adicionales para la factura de compra"
-                                        :readonly="isReadOnly"
+                                        :disabled="isReadOnly"
                                     />
                                 </div>
                             </div>

@@ -110,11 +110,11 @@ const selectedPurchaseOrderValue = computed<Option['id'] | ''>({
 
 const id = computed(() => {
     if (props.dialogType === 'edit') {
-        return props.form?.document_number || (props.form?.id ? `FAC-${String(props.form.id).padStart(3, '0')}` : '');
+        return props.form?.document_number || (props.form?.id ? `FAC-T-${String(props.form.id).padStart(3, '0')}` : '');
     }
     if (isLoadingInvoiceId.value) return 'Cargando...';
     if (nextInvoiceId.value == null) return '';
-    return `FAC-${String(nextInvoiceId.value).padStart(3, '0')}`;
+    return `FAC-T-${String(nextInvoiceId.value).padStart(3, '0')}`;
 });
 
 function createDefaultForm(): PurchaseInvoiceWithProviderName {
@@ -564,7 +564,7 @@ watch(dialogOpen, (isOpen) => {
             <FormDialogHeader class="px-4 pb-3 pr-12 pt-4">
                 <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                     <div class="flex min-w-0 flex-col gap-1">
-                    <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra Tela</DialogTitle>
+                    <DialogTitle>{{ isReadOnly ? 'Ver' : dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra Tela</DialogTitle>
                     <DialogDescription> Completa los campos y añade los ítems de la factura. </DialogDescription>
                     </div>
                 <div v-if="!isReadOnly" class="w-full shrink-0 sm:w-[380px]">
@@ -575,6 +575,7 @@ watch(dialogOpen, (isOpen) => {
                             :options="pendingPurchaseOrderOptions"
                             label="Cargar desde orden pendiente"
                             placeholder="Selecciona una orden existente"
+                            :disabled="isReadOnly"
                             :readonly="isReadOnly"
                             :searchable="pendingPurchaseOrderOptions.length >= 6"
                             search-placeholder="Buscar orden de compra..."
@@ -651,7 +652,7 @@ watch(dialogOpen, (isOpen) => {
                                 v-model="localForm.contact_id"
                                 label=""
                                 :options="contacts.map((c) => ({ id: Number(c.id), name: c.full_name }))"
-                                :readonly="isReadOnly"
+                                :disabled="isReadOnly"
                                 required
                                 :key="contacts.length + '-' + localForm.contact_id"
                             />
@@ -697,10 +698,14 @@ watch(dialogOpen, (isOpen) => {
                                     <label class="text-sm font-medium">N° factura proveedor<span class="text-red-500">*</span></label>
                                     <HelpTooltip text="Número que aparece impreso en la factura física del proveedor. Es obligatorio para la trazabilidad." aria-label="Ayuda sobre número de factura proveedor" />
                                 </div>
-                                <InputField v-model="localForm.supplier_invoice_number" label="" required />
+                                <InputField v-model="localForm.supplier_invoice_number" label="" :disabled="isReadOnly" required />
                             </div>
                         </div>
-                        <InventoryDetailTableLayout @create-line="handleInvoiceAddLine" :createLineButtonDisabled="isReadOnly">
+                        <InventoryDetailTableLayout
+                            @create-line="handleInvoiceAddLine"
+                            :showCreateLineButton="!isReadOnly"
+                            :createLineButtonDisabled="isReadOnly"
+                        >
                             <PurchaseInvoiceItemsTable
                                 ref="invoiceItemsTableRef"
                                 :items="localForm.items || []"
@@ -784,7 +789,7 @@ watch(dialogOpen, (isOpen) => {
                             </div>
                         </div>
                         <div>
-                            <TextareaField v-model="localForm.description" label="Observación" />
+                            <TextareaField v-model="localForm.description" label="Observación" :disabled="isReadOnly" />
                         </div>
                     </div>
                     </fieldset>

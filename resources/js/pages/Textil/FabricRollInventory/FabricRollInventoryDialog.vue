@@ -42,7 +42,7 @@ function closeDialog() {
         <FormDialogContent class="flex max-h-[95vh] max-w-[85vh] flex-col px-2 py-2">
             <FormHeader title="Detalle del rollo" description="Verifica medidas clave, origen y disponibilidad real." class="mb-4 flex-shrink-0" />
 
-            <div class="flex-1 overflow-y-auto scroll-smooth pr-2" style="scrollbar-width: thin">
+            <div class="flex-1 overflow-y-auto scroll-smooth px-2" style="scrollbar-width: thin">
                 <div v-if="props.roll" class="space-y-5 text-sm text-muted-foreground">
                     <div class="space-y-6 rounded-2xl border border-muted-foreground/40 bg-card p-4 shadow-sm">
                         <div>

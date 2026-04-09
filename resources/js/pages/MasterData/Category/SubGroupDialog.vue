@@ -187,7 +187,7 @@ async function confirmDeleteGroup() {
                         Completa los campos para {{ dialogType === 'create' ? 'crear un nuevo subgrupo' : 'editar el subgrupo' }}.
                     </DialogDescription>
                 </DialogHeader>
-                <div class="flex-1 overflow-y-auto scroll-smooth pr-2" style="scrollbar-width: thin">
+                <div class="flex-1 overflow-y-auto scroll-smooth px-2" style="scrollbar-width: thin">
                     <div class="space-y-4">
                         <div class="space-y-2 pt-5">
                             <div class="flex items-center gap-2">

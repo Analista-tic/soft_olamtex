@@ -4,6 +4,8 @@ namespace App\Services\Expenses;
 
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
+use App\Models\Settings\User;
+use App\Notifications\PurchaseInvoiceDifferenceNotification;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
@@ -229,10 +231,15 @@ class PurchaseDocumentService
             'rejection_reason'        => $reason,
             'rejection_evidence_image'=> $this->prepareEvidencePath($evidencePath),
             'rejection_notes'         => $notes,
-            'approval_status'         => $invoice->approval_status ?? 'pending',
+            'approval_status'         => PurchaseDocument::APPROVAL_PENDING_DIFFERENCE,
+            'has_difference'          => true,
             'rejected_by_user_id'     => Auth::id(),
             'rejected_at'             => now(),
         ]);
+
+        /** @var \App\Models\Settings\User|null $currentUser */
+        $currentUser = Auth::user();
+        $this->notifyDifference($invoice, $currentUser);
 
         return $this->loadWithRelations($invoice);
     }
@@ -319,6 +326,11 @@ class PurchaseDocumentService
     protected function generateInvoiceNumber(): string
     {
         return $this->generateDocumentNumber('FAC', PurchaseDocument::TYPE_INVOICE);
+    }
+
+    public function generateFabricInvoiceNumber(): string
+    {
+        return $this->generateDocumentNumber('FAC-T', PurchaseDocument::TYPE_INVOICE);
     }
 
     protected function generateDocumentNumber(string $prefix, string $documentType): string
@@ -469,6 +481,76 @@ class PurchaseDocumentService
             'ordered_at',
             'invoiced_at',
             'approved_at',
+            'approval_notes',
         ];
+    }
+
+    /**
+     * Notificar a usuarios con permiso 'aprobar facturas compra' sobre una diferencia registrada.
+     */
+    protected function notifyDifference(PurchaseDocument $invoice, ?User $requester): void
+    {
+        $requesterName = $requester?->name;
+        $notification = new PurchaseInvoiceDifferenceNotification($invoice, $requesterName);
+
+        $approvers = User::permission('aprobar facturas compra')->get();
+        foreach ($approvers as $approver) {
+            // No notificar al mismo usuario que registró la diferencia
+            if ($approver->id !== $requester?->id) {
+                $approver->notify($notification);
+            }
+        }
+    }
+
+    /**
+     * Aprobar la diferencia de una factura.
+     */
+    public function approveDifference(PurchaseDocument $invoice, ?string $notes, int $approverId): PurchaseDocument
+    {
+        if (! $invoice->isInvoice()) {
+            throw new \InvalidArgumentException('Solo las facturas pueden ser aprobadas.');
+        }
+
+        if ($invoice->approval_status !== PurchaseDocument::APPROVAL_PENDING_DIFFERENCE) {
+            throw ValidationException::withMessages([
+                'approval_status' => 'La factura no está en estado pendiente de aprobación de diferencia.',
+            ]);
+        }
+
+        $invoice->update([
+            'approval_status'     => PurchaseDocument::APPROVAL_PENDING,
+            'difference_status'   => 'approved',
+            'approval_notes'      => $notes,
+            'approved_by_user_id' => $approverId,
+            'approved_at'         => now(),
+        ]);
+
+        return $this->loadWithRelations($invoice);
+    }
+
+    /**
+     * Rechazar la diferencia de una factura (requiere notas).
+     */
+    public function rejectDifference(PurchaseDocument $invoice, string $notes, int $rejectorId): PurchaseDocument
+    {
+        if (! $invoice->isInvoice()) {
+            throw new \InvalidArgumentException('Solo las facturas pueden ser rechazadas.');
+        }
+
+        if ($invoice->approval_status !== PurchaseDocument::APPROVAL_PENDING_DIFFERENCE) {
+            throw ValidationException::withMessages([
+                'approval_status' => 'La factura no está en estado pendiente de aprobación de diferencia.',
+            ]);
+        }
+
+        $invoice->update([
+            'approval_status'     => PurchaseDocument::APPROVAL_DIFFERENCE_REJECTED,
+            'difference_status'   => 'rejected',
+            'approval_notes'      => $notes,
+            'approved_by_user_id' => $rejectorId,
+            'approved_at'         => now(),
+        ]);
+
+        return $this->loadWithRelations($invoice);
     }
 }

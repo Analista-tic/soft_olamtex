@@ -407,7 +407,7 @@ defineExpose({ addItem });
 
                 <TableBody>
                     <TableRow v-for="(item, idx) in localItems" :key="idx">
-                        <TableCell :class="[props.telaMode === true ? 'min-w-[220px]' : 'min-w-[150px]', 'p-1 text-left']">
+                        <TableCell :class="[props.telaMode === true ? 'min-w-[220px]' : 'min-w-[150px]', 'p-1 text-left align-top']">
                             <SelectField
                                 v-model="item.item_id"
                                 :options="itemOptions"
@@ -420,7 +420,7 @@ defineExpose({ addItem });
                                 @action="openItemDialog"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" :style="{ width: props.telaMode === true ? '150px' : '120px' }">
+                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '150px' : '120px' }">
                             <InputField
                                 v-model="item.price"
                                 type="currency"
@@ -446,7 +446,7 @@ defineExpose({ addItem });
                                 }}
                             </div>
                         </TableCell>
-                        <TableCell class="p-1 text-left" :style="{ width: props.telaMode === true ? '170px' : '160px' }">
+                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '170px' : '160px' }">
                             <SelectField
                                 v-model="item.tax"
                                 :options="taxOptions"
@@ -464,7 +464,7 @@ defineExpose({ addItem });
                                 "
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 110px">
+                        <TableCell class="p-1 text-left align-top" style="width: 110px">
                             <InputField
                                 v-model="item.quantity"
                                 type="number"
@@ -479,7 +479,7 @@ defineExpose({ addItem });
                                 Cantidad real: {{ Number(getSuggestedQuantity(item)).toLocaleString('es-CO') }}
                             </div>
                         </TableCell>
-                        <TableCell class="p-1 text-left" :style="{ width: props.telaMode === true ? '220px' : '160px' }">
+                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '220px' : '160px' }">
                             <InputField v-model="item.description" label="" class="h-10 w-full" :readonly="isReadOnly" :disabled="isReadOnly" />
                         </TableCell>
                         <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left" style="width: 160px">
@@ -514,7 +514,7 @@ defineExpose({ addItem });
                                 :required="isTela(item)"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" :style="{ width: props.telaMode === true ? '120px' : '90px' }">
+                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '120px' : '90px' }">
                             {{
                                 Number(item.total || 0).toLocaleString('es-CO', {
                                     style: 'currency',

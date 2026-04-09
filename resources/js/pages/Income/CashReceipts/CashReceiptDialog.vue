@@ -454,7 +454,7 @@ watch(
             />
 
             <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
-                <DialogTitle>{{ isViewMode ? 'Detalle de recibo de caja' : 'Nuevo recibo de caja' }}</DialogTitle>
+                <DialogTitle>{{ isViewMode ? 'Ver Recibo de Caja' : 'Nuevo recibo de caja' }}</DialogTitle>
                 <DialogDescription>
                     {{
                         isViewMode
@@ -516,14 +516,14 @@ watch(
                             placeholder="Selecciona un metodo"
                             :disabled="isReadOnly"
                         />
-                        <InputField v-model="localReceipt.reference" label="Referencia" placeholder="Numero de referencia" :readonly="isReadOnly" />
+                        <InputField v-model="localReceipt.reference" label="Referencia" placeholder="Numero de referencia" :disabled="isReadOnly" />
                     </div>
 
                     <TextareaField
                         :model-value="localReceipt.notes ?? undefined"
                         label="Notas"
                         placeholder="Observaciones del cobro"
-                        :readonly="isReadOnly"
+                        :disabled="isReadOnly"
                         @update:modelValue="localReceipt.notes = $event ?? null"
                     />
 

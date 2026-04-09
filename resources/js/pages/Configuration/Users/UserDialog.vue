@@ -184,7 +184,7 @@ function submitForm() {
                               : 'Consulta la información del usuario.'
                     "
                 />
-                <div class="flex-1 overflow-y-auto scroll-smooth pr-2" style="scrollbar-width: thin">
+                <div class="flex-1 overflow-y-auto scroll-smooth px-2" style="scrollbar-width: thin">
                     <div class="space-y-4">
                         <div class="flex flex-col gap-1">
                             <div class="flex items-center gap-2">

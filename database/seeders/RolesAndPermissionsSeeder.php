@@ -113,6 +113,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'crear facturas compra',
             'editar facturas compra',
             'eliminar facturas compra',
+            'aprobar facturas compra',
         ];
 
         foreach ($financePermissions as $permission) {
@@ -176,6 +177,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'crear facturas compra',
             'editar facturas compra',
             'eliminar facturas compra',
+            'aprobar facturas compra',
         ]);
 
         // Rol Logistica: atender solicitudes de insumos

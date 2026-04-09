@@ -47,7 +47,7 @@ function calcTotals(item: PurchaseRequestItem) {
     item.total = roundCurrency(price * quantity);
 }
 
-function normalizeItem(item: Partial<PurchaseRequestItem>, index: number): PurchaseRequestItem {
+function normalizeItem(item: Partial<PurchaseRequestItem>): PurchaseRequestItem {
     const uid = typeof item.uid === 'string' && item.uid.trim() ? item.uid.trim() : generateItemUid();
     const imageUrl = typeof item.image_url === 'string' && item.image_url.trim() ? item.image_url : null;
 
@@ -218,7 +218,7 @@ function removeItemImage(item: PurchaseRequestItem, index: number) {
 }
 
 function syncLocalItemsFromProps(items: PurchaseRequestItem[]) {
-    const normalizedItems = Array.isArray(items) ? items.map((item, index) => normalizeItem(item, index)) : [];
+    const normalizedItems = Array.isArray(items) ? items.map((item) => normalizeItem(item)) : [];
 
     if (itemsSignature(normalizedItems) === itemsSignature(localItems.value)) {
         return;
@@ -290,8 +290,8 @@ watch(
             return;
         }
 
-        const normalizedItems = items.map((item, index) => {
-            const normalized = normalizeItem(item, index);
+        const normalizedItems = items.map((item) => {
+            const normalized = normalizeItem(item);
             const match = catalogItems.value.find((entry) => entry.name?.toLowerCase() === (normalized.name || '').toLowerCase());
             normalized.item_id = match ? Number(match.id) : normalized.name && normalized.name.trim() ? normalized.name.trim() : null;
             calcTotals(normalized);

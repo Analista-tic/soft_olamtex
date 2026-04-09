@@ -214,7 +214,7 @@ const originLabel = computed(() => {
 
 const dialogTitle = computed(() => {
     if (props.mode === 'create') return 'Nueva factura de venta';
-    if (props.mode === 'view') return 'Detalle de factura de venta';
+    if (props.mode === 'view') return 'Ver Factura de Venta';
     return 'Editar factura de venta';
 });
 
@@ -558,7 +558,7 @@ watch(
                                 v-model="localSalesInvoice.customer_order_number"
                                 label="Referencia cliente"
                                 placeholder="Referencia del cliente"
-                                :readonly="isReadOnly"
+                                :disabled="isReadOnly"
                             />
                         </div>
                         <div class="lg:order-6">
@@ -578,7 +578,7 @@ watch(
                                         label="Dias de credito"
                                         type="number"
                                         placeholder="0"
-                                        :readonly="isReadOnly"
+                                        :disabled="isReadOnly"
                                     />
                                 </div>
                             </div>
@@ -657,7 +657,7 @@ watch(
                         :model-value="localSalesInvoice.description ?? undefined"
                         label="Notas"
                         placeholder="Agrega observaciones para la factura"
-                        :readonly="isReadOnly"
+                        :disabled="isReadOnly"
                         @update:modelValue="localSalesInvoice.description = $event"
                     />
                 </template>

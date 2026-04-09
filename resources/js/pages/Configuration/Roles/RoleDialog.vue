@@ -180,7 +180,7 @@ function handleCheckboxChange(event: Event, module: string): void {
                     </DialogDescription>
                 </DialogHeader>
 
-                <div class="flex-1 overflow-y-auto scroll-smooth pr-2" style="scrollbar-width: thin">
+                <div class="flex-1 overflow-y-auto scroll-smooth px-2" style="scrollbar-width: thin">
                     <form @submit.prevent="submit">
                         <!-- Eliminado campo de área -->
                         <div class="mb-4 flex flex-col gap-1">

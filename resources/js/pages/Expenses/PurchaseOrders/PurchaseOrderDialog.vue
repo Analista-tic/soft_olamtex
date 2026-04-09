@@ -671,19 +671,36 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                 <FormDialogHeader class="px-4 pb-3 pr-12 pt-4">
                     <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                         <div class="flex min-w-0 flex-col gap-1">
-                            <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Orden de Compra</DialogTitle>
+                            <DialogTitle>
+                                {{ isReadOnly ? 'Ver' : dialogType === 'edit' ? 'Editar' : 'Nueva' }}
+                                Orden de Compra
+                            </DialogTitle>
                             <DialogDescription> Completa los campos y añade los ítems de la orden. </DialogDescription>
                         </div>
-                        <div class="w-full shrink-0 sm:w-[280px]">
-                            <SelectField
-                                v-model="selectedPurchaseRequestValue"
-                                :options="pendingPurchaseRequestOptions"
-                                label="Cargar desde solicitud aprobada"
-                                placeholder="Selecciona una solicitud aprobada para autocompletar"
-                                :disabled="!pendingPurchaseRequestOptions.length || dialogType === 'edit'"
-                                :searchable="pendingPurchaseRequestOptions.length >= 6"
-                                search-placeholder="Buscar solicitud..."
-                            />
+                        <div class="w-full shrink-0 sm:w-[340px]">
+                            <div class="flex items-end gap-2">
+                                <div class="min-w-0 flex-1">
+                                    <SelectField
+                                        v-model="selectedPurchaseRequestValue"
+                                        :options="pendingPurchaseRequestOptions"
+                                        label="Cargar desde solicitud aprobada"
+                                        placeholder="Selecciona una solicitud aprobada para autocompletar"
+                                        :disabled="isReadOnly || !pendingPurchaseRequestOptions.length || dialogType === 'edit'"
+                                        :searchable="pendingPurchaseRequestOptions.length >= 6"
+                                        search-placeholder="Buscar solicitud..."
+                                    />
+                                </div>
+                                <div class="shrink-0">
+                                    <button
+                                        type="button"
+                                        class="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-4 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        :disabled="!selectedPurchaseRequestId || isReadOnly || dialogType === 'edit'"
+                                        @click="selectedPurchaseRequestId = null; resetForm()"
+                                    >
+                                        Limpiar
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </FormDialogHeader>
@@ -762,7 +779,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                             v-model="localForm.contact_id"
                                             label=""
                                             :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
-                                            :readonly="!canEdit || isReadOnly"
+                                            :disabled="isReadOnly || !canEdit"
                                             required
                                         />
                                     </div>
@@ -770,12 +787,14 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                         :key="String(localForm.contact_id ?? '')"
                                         label="Numero de identificacion"
                                         :modelValue="contactIdNumber"
+                                        :disabled="isReadOnly"
                                         readonly
                                     />
                                     <InputField
                                         :key="String(localForm.contact_id ?? '') + '-phone'"
                                         label="Numero de contacto"
                                         :modelValue="contactPhone"
+                                        :disabled="isReadOnly"
                                         readonly
                                     />
                                 </div>
@@ -826,7 +845,13 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                                 aria-label="Ayuda sobre orden proveedor"
                                             />
                                         </div>
-                                        <InputField v-model="localForm.supplier_order_number" label="" :readonly="isReadOnly" required />
+                                        <InputField
+                                            v-model="localForm.supplier_order_number"
+                                            label=""
+                                            :disabled="isReadOnly"
+                                            :readonly="isReadOnly"
+                                            required
+                                        />
                                     </div>
                                 </div>
 
@@ -901,6 +926,8 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                         v-model="localForm.description"
                                         label=""
                                         placeholder="Agrega aquí observaciones adicionales para la orden de compra"
+                                        :disabled="isReadOnly"
+                                        :readonly="isReadOnly"
                                     />
                                 </div>
                             </div>
@@ -910,6 +937,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                 <FormDialogFooter class="justify-end gap-4 bg-background px-4 py-4">
                     <Button variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
                     <button
+                        v-if="!isReadOnly"
                         type="button"
                         :disabled="isLoading || isSendingMail || isBlockingLoading"
                         class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
@@ -918,6 +946,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                         {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
                     </button>
                     <button
+                        v-if="!isReadOnly"
                         type="button"
                         :disabled="isLoading || isSendingMail || isBlockingLoading"
                         class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"

@@ -1330,7 +1330,7 @@ function handleClose() {
             <DialogHeader class="flex-shrink-0 px-6 pb-4 pt-6">
                 <div class="flex items-start justify-between gap-4">
                     <div class="min-w-0 flex-1">
-                        <DialogTitle> {{ isViewMode ? 'Visualizar' : isEditMode ? 'Editar' : 'Crear' }} Sabana de Productos </DialogTitle>
+                        <DialogTitle> {{ isViewMode ? 'Ver' : isEditMode ? 'Editar' : 'Crear' }} Sabana de Productos </DialogTitle>
                         <DialogDescription>
                             {{
                                 isViewMode

@@ -48,7 +48,7 @@ const itemMap = computed(() => new Map<number, Item>(catalogItems.value.map((ite
 const itemOptions = computed(() => catalogItems.value.map((item) => ({ id: item.id, name: item.name })));
 const taxById = computed(() => new Map<number, Tax>(taxes.value.map((tax) => [Number(tax.id), tax])));
 const taxOptions = computed(() => [
-    { id: null as null, name: DEFAULT_TAX_LABEL },
+    { id: 0, name: DEFAULT_TAX_LABEL },
     ...taxes.value
         .filter((tax): tax is Tax => !isDefaultTax(tax))
         .map((tax) => ({
@@ -515,7 +515,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                                     </div>
 
                                     <button
-                                        v-if="shouldShowRequestCreateAction(item, idx)"
+                                        v-if="!isReadOnly && shouldShowRequestCreateAction(item, idx)"
                                         type="button"
                                         class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-primary transition hover:text-primary/80"
                                         @click.stop="openItemDialogFromRequest(idx)"
@@ -525,7 +525,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                                 </div>
 
                                 <button
-                                    v-if="shouldShowRequestCreateAction(item, idx)"
+                                    v-if="!isReadOnly && shouldShowRequestCreateAction(item, idx)"
                                     type="button"
                                     class="mt-1 flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-xs text-muted-foreground transition hover:bg-accent hover:text-accent-foreground"
                                     title="Seleccionar este ítem en la fila"
@@ -544,6 +544,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                                 :decimals="2"
                                 :min="0"
                                 class="h-10 w-full"
+                                :disabled="isReadOnly"
                                 @input="calcTotals(item)"
                             />
                         </TableCell>
@@ -553,8 +554,9 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                                 :options="taxOptions"
                                 label=""
                                 class="w-full"
-                                action-label="Nuevo impuesto"
-                                @action="openTaxDialog"
+                                :disabled="isReadOnly"
+                                :action-label="!isReadOnly ? 'Nuevo impuesto' : undefined"
+                                @action="!isReadOnly && openTaxDialog()"
                                 @update:modelValue="
                                     (val) => {
                                         item.tax = val === null ? null : (Number(val) || 0);
@@ -564,16 +566,35 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                             />
                         </TableCell>
                         <TableCell class="p-1 text-left align-top" style="width: 110px">
-                            <InputField v-model="item.quantity" type="number" label="" class="h-10 w-full" @input="calcTotals(item)" />
+                            <InputField
+                                v-model="item.quantity"
+                                type="number"
+                                label=""
+                                class="h-10 w-full"
+                                :disabled="isReadOnly"
+                                @input="calcTotals(item)"
+                            />
                         </TableCell>
                         <TableCell class="p-1 text-left align-top" style="width: 160px">
-                            <InputField v-model="item.description" label="" class="h-10 w-full" />
+                            <InputField v-model="item.description" label="" class="h-10 w-full" :disabled="isReadOnly" />
                         </TableCell>
                         <TableCell v-if="isTela(item)" class="p-1 text-left align-top" style="width: 150px">
-                            <InputField v-model="item.supplier_code" label="" placeholder="Código proveedor" class="h-10 w-full" />
+                            <InputField
+                                v-model="item.supplier_code"
+                                label=""
+                                placeholder="Código proveedor"
+                                class="h-10 w-full"
+                                :disabled="isReadOnly"
+                            />
                         </TableCell>
                         <TableCell v-if="isTela(item)" class="p-1 text-left align-top" style="width: 150px">
-                            <InputField v-model="item.supplier_color" label="" placeholder="Color proveedor" class="h-10 w-full" />
+                            <InputField
+                                v-model="item.supplier_color"
+                                label=""
+                                placeholder="Color proveedor"
+                                class="h-10 w-full"
+                                :disabled="isReadOnly"
+                            />
                         </TableCell>
                         <TableCell v-if="isTela(item)" class="p-1 text-left align-top" style="width: 150px">
                             <InputField
@@ -583,6 +604,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                                 placeholder="Ancho pedido (cm) *"
                                 step="any"
                                 class="h-10 w-full"
+                                :disabled="isReadOnly"
                                 :required="true"
                             />
                         </TableCell>
@@ -598,7 +620,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                         </TableCell>
                         <TableCell v-if="showActionsColumn" class="p-1 text-center align-top">
                             <div class="flex justify-center">
-                                <DeleteButton v-if="localItems.length > 1" @click="removeItem(idx)" />
+                                <DeleteButton v-if="!isReadOnly && localItems.length > 1" @click="removeItem(idx)" />
                             </div>
                         </TableCell>
                     </TableRow>

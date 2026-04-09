@@ -317,7 +317,7 @@ const updateBranches = (branches: any[]) => {
 
             <AlertStack :error-message="alertMessage" :error-type="alertType" @close-error="alertMessage = ''" />
 
-            <div class="flex-1 overflow-y-auto scroll-smooth pr-2" style="scrollbar-width: thin">
+            <div class="flex-1 overflow-y-auto scroll-smooth px-2" style="scrollbar-width: thin">
                 <!-- Pestañas -->
                 <Tabs defaultValue="basic-info" class="px-2 pt-1">
                     <TabsList class="flex justify-center space-x-4">

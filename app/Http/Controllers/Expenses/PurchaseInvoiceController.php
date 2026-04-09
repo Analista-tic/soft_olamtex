@@ -141,6 +141,40 @@ class PurchaseInvoiceController extends PurchaseDocumentController
         return response()->json(['data' => $invoice]);
     }
 
+    public function approveDifference(Request $request, PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+
+        $validated = $request->validate([
+            'approval_notes' => 'nullable|string|max:1000',
+        ]);
+
+        $invoice = $this->service->approveDifference(
+            $purchaseDocument,
+            $validated['approval_notes'] ?? null,
+            Auth::id()
+        );
+
+        return response()->json(['data' => $invoice]);
+    }
+
+    public function rejectDifference(Request $request, PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+
+        $validated = $request->validate([
+            'approval_notes' => 'required|string|max:1000',
+        ]);
+
+        $invoice = $this->service->rejectDifference(
+            $purchaseDocument,
+            $validated['approval_notes'],
+            Auth::id()
+        );
+
+        return response()->json(['data' => $invoice]);
+    }
+
     protected function buildFilters(Request $request): array
     {
         $filters = $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id', 'contact_id']);
