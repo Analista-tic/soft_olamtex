@@ -22,7 +22,7 @@ trait ValidatesPurchaseInvoiceRequest
             'purchase_order_id' => ['nullable', $parentOrderRule],
             'date' => 'required|date',
             'delivery_date' => 'nullable|date',
-            'supplier_invoice_number' => 'nullable|string|max:255',
+            'supplier_invoice_number' => ($isUpdate ? 'sometimes|' : '') . 'required|string|max:255',
             'description' => 'nullable|string',
             'reason' => 'nullable|string',
             'difference_reason' => 'nullable|string',

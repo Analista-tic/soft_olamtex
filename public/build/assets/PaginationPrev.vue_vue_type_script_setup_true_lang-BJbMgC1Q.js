@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:public/build/assets/PaginationPrev.vue_vue_type_script_setup_true_lang-BJbMgC1Q.js
 import{u as m,a as M}from"./useForwardExpose-BNtVCQn4.js";import{P}from"./Primitive-BAgSyPdm.js";import{d,m as p,f as c,i as l,B as f,k as C,X as y,u as o,Y as F,c as i,U as q,V as $,t as S,g as v,n as I}from"./app-BBKii1Go.js";import{c as w}from"./utils-CytzSlOG.js";import{c as E}from"./createLucideIcon-dN_oecrn.js";import{_ as L}from"./index-ARjiqzT6.js";import{C as V}from"./chevron-right-Ce-COCbG.js";import{c as j}from"./useForwardPropsEmits-CMxgV1ST.js";import{C as z}from"./chevron-left-UR_s9-Ya.js";/**
+========
+import{u as m,a as M}from"./useForwardExpose-4ioDa0Ty.js";import{P}from"./Primitive-o-MNagdL.js";import{d,m as p,f as c,i as l,B as f,k as C,X as y,u as o,Y as F,c as i,U as q,V as $,t as S,g as v,n as I}from"./app-HequdLu-.js";import{c as w}from"./utils-CytzSlOG.js";import{c as E}from"./createLucideIcon-BWbhHrEP.js";import{_ as L}from"./index-CinoXSOD.js";import{C as V}from"./chevron-right-CO4g9KaQ.js";import{c as j}from"./useForwardPropsEmits-Bead6OK0.js";import{C as z}from"./chevron-left-fuWofQQT.js";/**
+>>>>>>>> origin/ManuArroyoG:public/build/assets/PaginationPrev.vue_vue_type_script_setup_true_lang-DsYLENl2.js
  * @license lucide-vue-next v0.513.0 - ISC
  *
  * This source code is licensed under the ISC license.

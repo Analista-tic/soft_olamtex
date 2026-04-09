@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:public/build/assets/stamp-DD8Pyx3e.js
 import{c}from"./createLucideIcon-dN_oecrn.js";/**
+========
+import{c}from"./createLucideIcon-BWbhHrEP.js";/**
+>>>>>>>> origin/ManuArroyoG:public/build/assets/stamp-C34ASNOG.js
  * @license lucide-vue-next v0.513.0 - ISC
  *
  * This source code is licensed under the ISC license.

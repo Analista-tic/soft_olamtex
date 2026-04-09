@@ -331,7 +331,7 @@ function handleDialogError(message?: string) {
                     <button
                         type="button"
                         :disabled="isPreparingDialog"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-black shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                         @click="openDialogWithPreparation('create')"
                     >
                         <PlusCircle class="h-4 w-4" />
@@ -391,11 +391,10 @@ function handleDialogError(message?: string) {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>#Factura</TableHead>
+                            <TableHead>N° Factura</TableHead>
                             <TableHead>Fecha de creación</TableHead>
                             <TableHead>Fecha de entrega</TableHead>
                             <TableHead>Proveedor</TableHead>
-                            <TableHead>Item</TableHead>
                             <TableHead>Total</TableHead>
                             <TableHead>Descripción</TableHead>
                             <TableHead>Estado</TableHead>
@@ -410,7 +409,6 @@ function handleDialogError(message?: string) {
                             <TableCell>{{ formatDate(invoice.date) }}</TableCell>
                             <TableCell>{{ formatDate(invoice.delivery_date) }}</TableCell>
                             <TableCell>{{ invoice.supplier?.full_name || invoice.contact?.full_name || '-' }}</TableCell>
-                            <TableCell class="text-start">{{ getInvoiceItemsPreview(invoice) }}</TableCell>
                             <TableCell>{{ formatCurrency(computeInvoiceTotal(invoice)) }}</TableCell>
                             <TableCell class="max-w-32 truncate text-start">{{ invoice.description || '-' }}</TableCell>
                             <TableCell>

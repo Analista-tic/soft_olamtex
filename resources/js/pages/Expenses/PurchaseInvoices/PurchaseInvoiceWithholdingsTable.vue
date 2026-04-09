@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -133,9 +133,10 @@ async function handleRetentionSubmit(formData: RetentionForm) {
 
 <template>
     <div class="relative">
-        <div v-if="successMessage" class="pointer-events-none absolute left-1/2 top-2 z-10 w-full max-w-xl -translate-x-1/2">
-            <AlertBox type="success" :message="successMessage" class="pointer-events-auto shadow-lg" @close="successMessage = ''" />
-        </div>
+        <AlertStack
+            :success-message="successMessage"
+            @close-success="successMessage = ''"
+        />
         <div class="mb-2 flex items-center justify-between">
             <span class="text-xs font-semibold">Retenciones</span>
             <div class="flex items-center gap-2">

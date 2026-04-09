@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class PurchaseRequest extends Model implements \App\Contracts\HasAuditLabel
 {
@@ -28,7 +29,6 @@ class PurchaseRequest extends Model implements \App\Contracts\HasAuditLabel
         'estimated_amount',
         'description',
         'items',
-        'document_path',
         'status',
         'approved_by_user_id',
         'approved_at',
@@ -78,8 +78,42 @@ class PurchaseRequest extends Model implements \App\Contracts\HasAuditLabel
         if (isset($this->status) && $this->status instanceof PurchaseRequestStatus) {
             $array['status'] = $this->status->value;
         }
+
+        $array['items'] = $this->serializeItemsForResponse($this->items);
         
         return $array;
+    }
+
+    protected function serializeItemsForResponse(mixed $items): array
+    {
+        if (is_string($items)) {
+            $decoded = json_decode($items, true);
+            $items = json_last_error() === JSON_ERROR_NONE && is_array($decoded) ? $decoded : [];
+        }
+
+        if (!is_array($items)) {
+            return [];
+        }
+
+        return array_values(array_map(function ($item, $index) {
+            if (!is_array($item)) {
+                return [];
+            }
+
+            $imagePath = isset($item['image_path']) && is_string($item['image_path']) && trim($item['image_path']) !== ''
+                ? trim($item['image_path'])
+                : null;
+
+            $serialized = $item;
+            $serialized['uid'] = isset($item['uid']) && is_string($item['uid']) && trim($item['uid']) !== ''
+                ? trim($item['uid'])
+                : sprintf('legacy-%s-%s', $this->getKey() ?? 'new', $index);
+            $serialized['image_url'] = $imagePath ? Storage::url($imagePath) : null;
+
+            unset($serialized['image_path']);
+
+            return $serialized;
+        }, $items, array_keys($items)));
     }
 
     /**

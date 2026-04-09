@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:public/build/assets/mail-5Yz8Zpa6.js
 import{c as a}from"./createLucideIcon-dN_oecrn.js";/**
+========
+import{c as a}from"./createLucideIcon-BWbhHrEP.js";/**
+>>>>>>>> origin/ManuArroyoG:public/build/assets/mail-CIWNKQaX.js
  * @license lucide-vue-next v0.513.0 - ISC
  *
  * This source code is licensed under the ISC license.

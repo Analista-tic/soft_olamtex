@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import DialogActionButtons from '@/components/common/DialogActionButtons.vue';
 import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
@@ -1349,17 +1349,7 @@ function handleClose() {
 </script>
 
 <template>
-    <!-- Alerta flotante en la parte superior central - Sobrepuesta a todo -->
-    <div v-if="errorMessage" class="pointer-events-none fixed left-1/2 top-6 z-[99999] flex -translate-x-1/2 justify-center px-4 sm:px-0">
-        <AlertBox
-            :type="errorType"
-            :title="errorType === 'warning' ? 'Advertencia' : errorType === 'info' ? 'Información' : 'Error'"
-            :message="errorMessage"
-            :auto-close-ms="errorType === 'error' ? 0 : 4000"
-            class="pointer-events-auto"
-            @close.stop.prevent="errorMessage = ''"
-        />
-    </div>
+    <AlertStack :error-message="errorMessage" :error-type="errorType" @close-error="errorMessage = ''" />
 
     <Dialog v-model:open="localOpen">
         <FormDialogContent class="flex max-h-[95vh] max-w-[190vh] flex-col px-2 py-2">

@@ -1,0 +1,5 @@
+<<<<<<<< HEAD:public/build/assets/useCompanyInfo-Cl5Tgvlx.js
+import{s,c as n}from"./app-BBKii1Go.js";function c(){const a=s(),o=n(()=>a.props.company??null),e=n(()=>{var p;return((p=o.value)==null?void 0:p.logo_url)??"/images/empty-picture.jpg"});return{company:o,logoUrl:e}}export{c as u};
+========
+import{s,c as n}from"./app-HequdLu-.js";function c(){const a=s(),o=n(()=>a.props.company??null),e=n(()=>{var p;return((p=o.value)==null?void 0:p.logo_url)??"/images/empty-picture.jpg"});return{company:o,logoUrl:e}}export{c as u};
+>>>>>>>> origin/ManuArroyoG:public/build/assets/useCompanyInfo-BaVFUoh7.js

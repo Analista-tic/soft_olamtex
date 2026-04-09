@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:public/build/assets/loader-circle-wgzQi6pc.js
 import{c as e}from"./createLucideIcon-dN_oecrn.js";/**
+========
+import{c as e}from"./createLucideIcon-BWbhHrEP.js";/**
+>>>>>>>> origin/ManuArroyoG:public/build/assets/loader-circle-Ckcl3w1-.js
  * @license lucide-vue-next v0.513.0 - ISC
  *
  * This source code is licensed under the ISC license.

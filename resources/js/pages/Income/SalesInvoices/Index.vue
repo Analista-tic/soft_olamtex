@@ -308,7 +308,7 @@ onMounted(() => {
                     <p :class="uiPatterns.pageIndex.subtitle">Administra la emisión, el estado de cobro y la trazabilidad contable de las facturas.</p>
                 </div>
 
-                <Button class="rounded-full" @click="openCreateDialog()">
+                <Button size="pill" @click="openCreateDialog()">
                     <PlusCircle class="mr-2 h-4 w-4" />
                     Nueva factura
                 </Button>

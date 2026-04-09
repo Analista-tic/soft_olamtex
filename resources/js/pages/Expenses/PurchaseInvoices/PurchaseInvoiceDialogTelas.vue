@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import DateField from '@/components/DateField.vue';
+import FormDialogBody from '@/components/FormDialogBody.vue';
+import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormDialogFooter from '@/components/FormDialogFooter.vue';
+import FormDialogHeader from '@/components/FormDialogHeader.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import InputField from '@/components/InputField.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
@@ -7,7 +11,7 @@ import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import type { PurchaseInvoice } from '@/domain/Expenses';
@@ -103,10 +107,12 @@ const selectedPurchaseOrderValue = computed<Option['id'] | ''>({
 });
 
 const id = computed(() => {
-    if (props.dialogType === 'edit') return props.form?.id?.toString() || '';
+    if (props.dialogType === 'edit') {
+        return props.form?.document_number || (props.form?.id ? `FAC-${String(props.form.id).padStart(3, '0')}` : '');
+    }
     if (isLoadingInvoiceId.value) return 'Cargando...';
     if (nextInvoiceId.value == null) return '';
-    return nextInvoiceId.value.toString();
+    return `FAC-${String(nextInvoiceId.value).padStart(3, '0')}`;
 });
 
 function createDefaultForm(): PurchaseInvoiceWithProviderName {
@@ -278,7 +284,7 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     if (!contacts.value.length) await fetchContacts();
     const foundContact = contacts.value.find((c) => Number(c.id) === Number(order.contact_id));
     localForm.value.contact_id = foundContact ? Number(order.contact_id) : null;
-    localForm.value.supplier_invoice_number = order.supplier_order_number || '';
+    localForm.value.supplier_invoice_number = '';
     localForm.value.date = normalizeIsoDate(order.date, toIsoDateString(new Date()));
     localForm.value.delivery_date = normalizeIsoDate(order.delivery_date, '');
     localForm.value.description = order.description || '';
@@ -436,6 +442,9 @@ function validateForm(): boolean {
     if (!deliveryDate.value) {
         missingFields.push('Fecha entrega');
     }
+    if (!String(localForm.value.supplier_invoice_number || '').trim()) {
+        missingFields.push('N° factura proveedor');
+    }
 
     if (missingFields.length) {
         setErrorMessage(formatRequiredFieldsMessage('Por favor completa todos los campos obligatorios', missingFields), 'warning');
@@ -534,7 +543,12 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="flex max-h-[90vh] max-w-[200vh] flex-col p-0">
+        <FormDialogContent
+            class="flex h-[95vh] max-h-[95vh] w-full max-w-[95vw] flex-col overflow-hidden p-0"
+            content-class="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+            :scrollable="false"
+        >
+            <div class="relative flex min-h-0 flex-1 flex-col">
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
@@ -544,58 +558,57 @@ watch(dialogOpen, (isOpen) => {
                 @close-success="successMessage = ''"
                 @close-error="errorMessage = ''"
             />
-            <DialogHeader class="relative flex-shrink-0 px-4 pb-4 pt-4">
-                <div class="flex flex-col gap-1">
+            <FormDialogHeader class="px-4 pb-3 pr-12 pt-4">
+                <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                    <div class="flex min-w-0 flex-col gap-1">
                     <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra Tela</DialogTitle>
                     <DialogDescription> Completa los campos y añade los ítems de la factura. </DialogDescription>
-                </div>
-                <div class="absolute right-12 top-4 flex w-full max-w-[520px] items-end justify-end gap-2">
-                    <div class="w-[280px]">
+                    </div>
+                <div v-if="!isReadOnly" class="w-full shrink-0 sm:w-[380px]">
+                    <div class="flex items-end gap-2">
+                    <div class="min-w-0 flex-1">
                         <SelectField
                             v-model="selectedPurchaseOrderValue"
                             :options="pendingPurchaseOrderOptions"
                             label="Cargar desde orden pendiente"
                             placeholder="Selecciona una orden existente"
-                            :disabled="isReadOnly"
+                            :readonly="isReadOnly"
                             :searchable="pendingPurchaseOrderOptions.length >= 6"
                             search-placeholder="Buscar orden de compra..."
                         />
                     </div>
-                    <div class="w-[100px]">
+                    <div class="shrink-0">
                         <button
                             type="button"
-                            class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-3 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            class="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-4 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                             :disabled="!selectedPurchaseOrderId || isReadOnly"
                             @click="clearSelectedPurchaseOrder()"
                         >
                             Limpiar
                         </button>
                     </div>
+                    </div>
                 </div>
-            </DialogHeader>
-            <div
-                class="relative flex-1 overflow-y-auto scroll-smooth px-4 pr-2"
+                </div>
+            </FormDialogHeader>
+            <FormDialogBody
+                class="relative px-4 pr-2"
                 :class="{ 'min-h-[420px]': isBlockingLoading }"
                 style="scrollbar-width: thin"
             >
-                <FormLoadingOverlay
-                    :active="isBlockingLoading"
-                    :delay-ms="0"
-                    message="Cargando factura de compra tela..."
-                    description="Preparando proveedores, ordenes de tela pendientes y datos iniciales."
-                />
                 <form
                     v-if="canRenderForm"
                     @submit.prevent="handleSubmit()"
                     :class="{ 'pointer-events-none opacity-50': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly }"
-                    class="space-y-6"
+                    class="space-y-6 pb-4"
                 >
-                    <div class="mt-8 space-y-4 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
+                    <fieldset v-if="canRenderForm" class="space-y-6">
+                    <div class="space-y-4 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
                         <!-- Cabecera -->
                         <div class="grid grid-cols-3 items-start gap-4">
                             <div>
                                 <InputField
-                                    label="# Factura de Compra Tela"
+                                    label="N° Factura de Compra Tela"
                                     :modelValue="id"
                                     readonly
                                     v-if="dialogType === 'edit' || (dialogType === 'create' && !isLoadingInvoiceId && id)"
@@ -624,27 +637,28 @@ watch(dialogOpen, (isOpen) => {
 
                         <!-- Proveedor -->
                         <div class="grid grid-cols-3 gap-4">
+                            <div class="flex flex-col gap-1">
+                            <label class="text-sm font-medium">Proveedor<span class="text-red-500">*</span></label>
                             <SelectField
                                 v-model="localForm.contact_id"
-                                label="Proveedor"
+                                label=""
                                 :options="contacts.map((c) => ({ id: Number(c.id), name: c.full_name }))"
-                                :disabled="isReadOnly"
+                                :readonly="isReadOnly"
                                 required
                                 :key="contacts.length + '-' + localForm.contact_id"
                             />
+                            </div>
                             <InputField
                                 :key="`idnumber-${localForm.contact_id ?? ''}`"
                                 label="Número de identificación"
                                 :modelValue="contactIdNumber"
                                 readonly
-                                :disabled="true"
                             />
                             <InputField
                                 :key="`phone-${localForm.contact_id ?? ''}`"
                                 label="Número de contacto"
                                 :modelValue="contactPhone"
                                 readonly
-                                :disabled="true"
                             />
                         </div>
                         <div class="grid grid-cols-3 gap-4">
@@ -664,7 +678,7 @@ watch(dialogOpen, (isOpen) => {
                                 :show-today="true"
                                 required
                             />
-                            <InputField v-model="localForm.supplier_invoice_number" label="# factura proveedor" />
+                            <InputField v-model="localForm.supplier_invoice_number" label="N° factura proveedor" required />
                         </div>
                         <InventoryDetailTableLayout @create-line="handleInvoiceAddLine" :createLineButtonDisabled="isReadOnly">
                             <PurchaseInvoiceItemsTable
@@ -753,27 +767,37 @@ watch(dialogOpen, (isOpen) => {
                             <TextareaField v-model="localForm.description" label="Observación" />
                         </div>
                     </div>
-                    <DialogFooter class="mt-4 flex flex-shrink-0 justify-end gap-2 border-t px-4 pb-4 pt-4">
-                        <Button variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
-                        <button
-                            type="button"
-                            :disabled="isLoading || isSendingMail"
-                            class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            @click.prevent="handleSubmit(false)"
-                        >
-                            {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
-                        </button>
-                        <button
-                            type="button"
-                            :disabled="isLoading || isSendingMail"
-                            class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            @click.prevent="handleSubmit(true)"
-                        >
-                            {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
-                        </button>
-                    </DialogFooter>
+                    </fieldset>
                 </form>
+            </FormDialogBody>
+            <FormDialogFooter class="justify-end gap-4 bg-background px-4 py-4">
+                <Button variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
+                <button
+                    v-if="!isReadOnly"
+                    type="button"
+                    :disabled="isLoading || isSendingMail || isBlockingLoading"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    @click.prevent="handleSubmit(false)"
+                >
+                    {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
+                </button>
+                <button
+                    v-if="!isReadOnly"
+                    type="button"
+                    :disabled="isLoading || isSendingMail || isBlockingLoading"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    @click.prevent="handleSubmit(true)"
+                >
+                    {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
+                </button>
+            </FormDialogFooter>
+            <FormLoadingOverlay
+                :active="isBlockingLoading"
+                :delay-ms="0"
+                message="Cargando factura de compra tela..."
+                description="Preparando proveedores, ordenes de tela pendientes y datos iniciales."
+            />
             </div>
-        </DialogContent>
+        </FormDialogContent>
     </Dialog>
 </template>

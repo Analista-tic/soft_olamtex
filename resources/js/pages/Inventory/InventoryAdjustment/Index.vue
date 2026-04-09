@@ -9,6 +9,16 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
+import {
+    Pagination,
+    PaginationEllipsis,
+    PaginationFirst,
+    PaginationLast,
+    PaginationList,
+    PaginationListItem,
+    PaginationNext,
+    PaginationPrev,
+} from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -217,8 +227,8 @@ onMounted(() => {
                 </div>
 
                 <Button
-                    size="sm"
-                    class="flex h-10 items-center gap-1 rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+                    size="pill"
+                    class="flex items-center gap-1 shadow-sm"
                     @click="openCreateAdjustment"
                 >
                     <PlusCircle class="h-4 w-4" /> Crear ajuste
@@ -386,6 +396,5 @@ onMounted(() => {
         </Dialog>
     </AppLayout>
 </template>
-
 
 

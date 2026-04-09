@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:public/build/assets/send-DKz79cwh.js
 import{c as a}from"./createLucideIcon-dN_oecrn.js";/**
+========
+import{c as a}from"./createLucideIcon-BWbhHrEP.js";/**
+>>>>>>>> origin/ManuArroyoG:public/build/assets/send-B_r9atS_.js
  * @license lucide-vue-next v0.513.0 - ISC
  *
  * This source code is licensed under the ISC license.

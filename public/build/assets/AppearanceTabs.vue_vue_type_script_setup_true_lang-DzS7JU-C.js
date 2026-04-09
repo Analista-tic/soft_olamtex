@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:public/build/assets/AppearanceTabs.vue_vue_type_script_setup_true_lang-DzS7JU-C.js
 import{d as b,bV as v,e as t,f as s,j as e,F as g,l as h,n as o,u as r,t as k,bW as f,m as _,Z as C}from"./app-BBKii1Go.js";import{c as p}from"./createLucideIcon-dN_oecrn.js";/**
+========
+import{d as b,bV as v,e as t,f as s,j as e,F as g,l as h,n as o,u as r,t as k,bW as f,m as _,Z as C}from"./app-HequdLu-.js";import{c as p}from"./createLucideIcon-BWbhHrEP.js";/**
+>>>>>>>> origin/ManuArroyoG:public/build/assets/AppearanceTabs.vue_vue_type_script_setup_true_lang-DPm9PDxD.js
  * @license lucide-vue-next v0.513.0 - ISC
  *
  * This source code is licensed under the ISC license.

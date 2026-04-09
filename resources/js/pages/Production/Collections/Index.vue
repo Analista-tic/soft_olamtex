@@ -5,7 +5,7 @@ import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputField from '@/components/InputField.vue';
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
@@ -291,17 +291,7 @@ fetchCollections();
         <!-- Dialog crear/editar -->
         <Dialog v-model:open="isDialogOpen">
             <FormDialogContent class="max-w-md">
-                <!-- Alerta flotante del dialog -->
-                <div v-if="dialogErrorMessage" class="pointer-events-none fixed left-1/2 top-6 z-[99999] flex -translate-x-1/2 justify-center px-4 sm:px-0">
-                    <AlertBox
-                        :type="dialogErrorType"
-                        :title="dialogErrorType === 'error' ? 'Error' : 'Advertencia'"
-                        :message="dialogErrorMessage"
-                        :auto-close-ms="dialogErrorType === 'error' ? 0 : 4000"
-                        class="pointer-events-auto"
-                        @close="dialogErrorMessage = ''"
-                    />
-                </div>
+                <AlertStack :error-message="dialogErrorMessage" :error-type="dialogErrorType" @close-error="dialogErrorMessage = ''" />
                 <DialogHeader class="px-6 pt-6 pb-4">
                     <DialogTitle>{{ isEditMode ? 'Editar' : 'Nueva' }} colección</DialogTitle>
                     <DialogDescription>

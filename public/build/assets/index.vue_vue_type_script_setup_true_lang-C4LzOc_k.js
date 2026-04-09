@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:public/build/assets/index.vue_vue_type_script_setup_true_lang-C4LzOc_k.js
 import{_ as R}from"./TableStatusBadge.vue_vue_type_script_setup_true_lang-CYOGJj53.js";import{f as Se,d as Ce,s as we}from"./service-B-wtj_WJ.js";import{_ as _e}from"./CuttingDialog.vue_vue_type_script_setup_true_lang-spMZwFnZ.js";import{_ as Ae}from"./StampingLaundryDialog.vue_vue_type_script_setup_true_lang-C9LATy7J.js";import{S as Ne,a as ke}from"./stamp-DD8Pyx3e.js";import{C as V}from"./chevron-right-Ce-COCbG.js";import{c as Ie}from"./createLucideIcon-dN_oecrn.js";import{d as De,a as m,c as i,w as W,e as l,f as u,j as s,p as b,g as p,t as f,F as U,u as x,l as F}from"./app-BBKii1Go.js";/**
+========
+import{_ as R}from"./TableStatusBadge.vue_vue_type_script_setup_true_lang-B-S7vIuV.js";import{f as Se,d as Ce,s as we}from"./service-DJjDrH8H.js";import{_ as _e}from"./CuttingDialog.vue_vue_type_script_setup_true_lang-BefLipT-.js";import{_ as Ae}from"./StampingLaundryDialog.vue_vue_type_script_setup_true_lang-2NLrSQEv.js";import{S as Ne,a as ke}from"./stamp-C34ASNOG.js";import{C as V}from"./chevron-right-CO4g9KaQ.js";import{c as Ie}from"./createLucideIcon-BWbhHrEP.js";import{d as De,a as m,c as i,w as W,e as l,f as u,j as s,p as b,g as p,t as f,F as U,u as x,l as F}from"./app-HequdLu-.js";/**
+>>>>>>>> origin/ManuArroyoG:public/build/assets/index.vue_vue_type_script_setup_true_lang-T5eQ5tvf.js
  * @license lucide-vue-next v0.513.0 - ISC
  *
  * This source code is licensed under the ISC license.

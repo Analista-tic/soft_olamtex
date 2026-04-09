@@ -314,9 +314,8 @@ onMounted(async () => {
                 <Button
                     v-if="canCreate"
                     @click="openDialog('create')"
-                    variant="default"
-                    size="sm"
-                    class="flex h-10 items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+                    size="pill"
+                    class="flex items-center gap-2 shadow-sm"
                 >
                     <PlusCircle class="h-4 w-4" /> Crear Nuevo Usuario
                 </Button>

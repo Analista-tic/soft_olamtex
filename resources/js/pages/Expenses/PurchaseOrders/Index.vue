@@ -311,7 +311,7 @@ function handleDialogError(message?: string) {
                 <button
                     type="button"
                     :disabled="isPreparingDialog"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-black shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     @click="openDialog('create')"
                 >
                     <PlusCircle class="h-4 w-4" />
@@ -374,11 +374,10 @@ function handleDialogError(message?: string) {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>#Orden</TableHead>
+                            <TableHead>N° Orden</TableHead>
                             <TableHead>Fecha de creación</TableHead>
                             <TableHead>Fecha de entrega</TableHead>
                             <TableHead>Proveedor</TableHead>
-                            <TableHead>Item</TableHead>
                             <TableHead>Total</TableHead>
                             <TableHead>Descripción</TableHead>
                             <TableHead>Estado</TableHead>
@@ -393,7 +392,6 @@ function handleDialogError(message?: string) {
                             <TableCell>{{ formatDate(order.date) }}</TableCell>
                             <TableCell>{{ formatDate(order.delivery_date) }}</TableCell>
                             <TableCell>{{ order.supplier?.full_name || order.contact?.full_name || '-' }}</TableCell>
-                            <TableCell class="text-start">{{ getOrderItemsPreview(order) }}</TableCell>
                             <TableCell>{{ formatCurrency(computeOrderTotal(order)) }}</TableCell>
                             <TableCell class="text-start">{{ order.description || '-' }}</TableCell>
                             <TableCell>

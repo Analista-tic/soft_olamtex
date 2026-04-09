@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:public/build/assets/arrow-down-to-line-a6FR96bH.js
 import{c as o}from"./createLucideIcon-dN_oecrn.js";/**
+========
+import{c as o}from"./createLucideIcon-BWbhHrEP.js";/**
+>>>>>>>> origin/ManuArroyoG:public/build/assets/arrow-down-to-line-WzM8QcuW.js
  * @license lucide-vue-next v0.513.0 - ISC
  *
  * This source code is licensed under the ISC license.

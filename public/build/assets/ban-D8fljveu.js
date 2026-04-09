@@ -1,0 +1,10 @@
+<<<<<<<< HEAD:public/build/assets/ban-BYJI0_7p.js
+import{c}from"./createLucideIcon-dN_oecrn.js";/**
+========
+import{c}from"./createLucideIcon-BWbhHrEP.js";/**
+>>>>>>>> origin/ManuArroyoG:public/build/assets/ban-D8fljveu.js
+ * @license lucide-vue-next v0.513.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const e=c("ban",[["circle",{cx:"12",cy:"12",r:"10",key:"1mglay"}],["path",{d:"m4.9 4.9 14.2 14.2",key:"1m5liu"}]]);export{e as B};

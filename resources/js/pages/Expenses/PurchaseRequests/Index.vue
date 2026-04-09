@@ -41,7 +41,6 @@ const isDateFromActive = computed(() => Boolean(dateFrom.value));
 const isDateToActive = computed(() => Boolean(dateTo.value));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
-
 const { successMessage, errorMessage, errorType, clearSuccess, clearError, showError } = useAlertStack();
 
 const statusOptions = [
@@ -78,66 +77,6 @@ const currencyFormatter = new Intl.NumberFormat('es-CO', {
     minimumFractionDigits: 0,
 });
 
-const formatCurrency = (value?: number) => currencyFormatter.format(value ?? 0);
-
-const formatDate = (value?: string | null) => {
-    if (!value) return '-';
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return String(value);
-    return d.toLocaleDateString('es-CO');
-};
-
-const computeRequestTotal = (request: PurchaseRequest) => {
-    if (typeof request.estimated_amount === 'number') {
-        return request.estimated_amount;
-    }
-    const items = Array.isArray(request.items) ? request.items : [];
-    if (!items.length) {
-        return 0;
-    }
-    return items.reduce((acc, item) => {
-        const total = Number(item.total ?? 0);
-        const totalTax = Number(item.total_tax ?? 0);
-        return acc + total + totalTax;
-    }, 0);
-};
-
-const getRequestItemsPreview = (request: PurchaseRequest) => {
-    // Parsear items si viene como string JSON
-    let items: any[] = [];
-    if (Array.isArray(request.items)) {
-        items = request.items;
-    } else if (typeof request.items === 'string') {
-        try {
-            const parsed = JSON.parse(request.items);
-            items = Array.isArray(parsed) ? parsed : [];
-        } catch {
-            items = [];
-        }
-    }
-
-    const names = items
-        .map((item) => {
-            const rawName = item.name || item.item?.name || item.item_name || item.description;
-            if (typeof rawName === 'string') {
-                return rawName.trim();
-            }
-            if (rawName != null) {
-                return String(rawName).trim();
-            }
-            return '';
-        })
-        .filter((name) => name.length > 0);
-
-    if (!names.length) {
-        return '-';
-    }
-    if (names.length <= 2) {
-        return names.join(', ');
-    }
-    return `${names.slice(0, 2).join(', ')} +${names.length - 2} más`;
-};
-
 const isDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
 const dialogForm = ref<Partial<PurchaseRequest>>({});
@@ -146,6 +85,33 @@ const isDeleteDialogOpen = ref(false);
 const requestToDelete = ref<PurchaseRequest | null>(null);
 const isRejectDialogOpen = ref(false);
 const requestToReject = ref<PurchaseRequest | null>(null);
+
+const formatCurrency = (value?: number) => currencyFormatter.format(value ?? 0);
+
+const formatDate = (value?: string | null) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleDateString('es-CO');
+};
+
+const computeRequestTotal = (request: PurchaseRequest) => {
+    if (typeof request.estimated_amount === 'number') {
+        return request.estimated_amount;
+    }
+
+    const items = Array.isArray(request.items) ? request.items : [];
+    if (!items.length) {
+        return 0;
+    }
+
+    return items.reduce((accumulator, item) => {
+        const total = Number(item.total ?? 0);
+        const totalTax = Number(item.total_tax ?? 0);
+        return accumulator + total + totalTax;
+    }, 0);
+};
+
 function closeDialog() {
     isDialogOpen.value = false;
 }
@@ -158,7 +124,9 @@ function openCreateRequest() {
 }
 
 function viewRequest(request: PurchaseRequest) {
-    if (!request.id) return;
+    if (!request.id) {
+        return;
+    }
 
     dialogType.value = 'edit';
     dialogForm.value = { ...request };
@@ -167,7 +135,9 @@ function viewRequest(request: PurchaseRequest) {
 }
 
 function editRequest(request: PurchaseRequest) {
-    if (!request.id) return;
+    if (!request.id) {
+        return;
+    }
 
     dialogType.value = 'edit';
     dialogForm.value = { ...request };
@@ -185,14 +155,15 @@ async function handleDeleteRequest() {
         isDeleteDialogOpen.value = false;
         return;
     }
+
     try {
         await axios.delete(`/gastos/solicitudes-compra/${requestToDelete.value.id}`);
         successMessage.value = 'Solicitud eliminada correctamente.';
         fetchRequests();
-    } catch (err: any) {
-        const message = err?.response?.data?.message || 'No se pudo eliminar la solicitud. Intenta nuevamente.';
+    } catch (error: any) {
+        const message = error?.response?.data?.message || 'No se pudo eliminar la solicitud. Intenta nuevamente.';
         showError(message);
-        console.error('Error eliminando solicitud', err);
+        console.error('Error eliminando solicitud', error);
     } finally {
         isDeleteDialogOpen.value = false;
         requestToDelete.value = null;
@@ -200,27 +171,33 @@ async function handleDeleteRequest() {
 }
 
 async function handleSendToApproval(request: PurchaseRequest) {
-    if (!request.id) return;
+    if (!request.id) {
+        return;
+    }
+
     try {
         await axios.post(`/gastos/solicitudes-compra/${request.id}/send-to-approval`);
         successMessage.value = 'Solicitud enviada a aprobación correctamente.';
         fetchRequests();
-    } catch (err: any) {
-        const message = err?.response?.data?.message || 'No se pudo enviar la solicitud a aprobación.';
+    } catch (error: any) {
+        const message = error?.response?.data?.message || 'No se pudo enviar la solicitud a aprobación.';
         showError(message);
-        console.error('Error enviando a aprobación', err);
+        console.error('Error enviando a aprobación', error);
     }
 }
 
 async function handleApprove(request: PurchaseRequest) {
-    if (!request.id) return;
+    if (!request.id) {
+        return;
+    }
+
     try {
         await axios.post(`/gastos/solicitudes-compra/${request.id}/approve`);
         fetchRequests();
-    } catch (err: any) {
-        const message = err?.response?.data?.message || 'No se pudo aprobar la solicitud.';
+    } catch (error: any) {
+        const message = error?.response?.data?.message || 'No se pudo aprobar la solicitud.';
         showError(message);
-        console.error('Error aprobando solicitud', err);
+        console.error('Error aprobando solicitud', error);
     }
 }
 
@@ -234,18 +211,20 @@ async function handleReject(reason: string) {
         isRejectDialogOpen.value = false;
         return;
     }
+
     if (!reason || !reason.trim()) {
         showError('Debes ingresar un motivo para rechazar la solicitud.');
         return;
     }
+
     try {
         await axios.post(`/gastos/solicitudes-compra/${requestToReject.value.id}/reject`, { reason: reason.trim() });
         successMessage.value = 'Solicitud rechazada correctamente.';
         fetchRequests();
-    } catch (err: any) {
-        const message = err?.response?.data?.message || 'No se pudo rechazar la solicitud.';
+    } catch (error: any) {
+        const message = error?.response?.data?.message || 'No se pudo rechazar la solicitud.';
         showError(message);
-        console.error('Error rechazando solicitud', err);
+        console.error('Error rechazando solicitud', error);
     } finally {
         isRejectDialogOpen.value = false;
         requestToReject.value = null;
@@ -253,16 +232,22 @@ async function handleReject(reason: string) {
 }
 
 async function handleCancel(request: PurchaseRequest) {
-    if (!request.id) return;
-    if (!confirm('¿Estás seguro de cancelar esta solicitud?')) return;
+    if (!request.id) {
+        return;
+    }
+
+    if (!confirm('¿Estás seguro de cancelar esta solicitud?')) {
+        return;
+    }
+
     try {
         await axios.post(`/gastos/solicitudes-compra/${request.id}/cancel`);
         successMessage.value = 'Solicitud cancelada correctamente.';
         fetchRequests();
-    } catch (err: any) {
-        const message = err?.response?.data?.message || 'No se pudo cancelar la solicitud.';
+    } catch (error: any) {
+        const message = error?.response?.data?.message || 'No se pudo cancelar la solicitud.';
         showError(message);
-        console.error('Error cancelando solicitud', err);
+        console.error('Error cancelando solicitud', error);
     }
 }
 
@@ -270,6 +255,7 @@ function handleDialogRefresh(message?: string) {
     if (message) {
         successMessage.value = message;
     }
+
     fetchRequests();
 }
 
@@ -283,52 +269,30 @@ const getStatusTone = (status?: string): 'gray' | 'yellow' | 'green' | 'blue' | 
     return statusBadgeTones[status] ?? 'gray';
 };
 
-// Funciones para verificar permisos de estado
 const canEditRequest = (request: PurchaseRequest): boolean => {
     const status = request.status;
     return status === 'draft' || status === 'pending';
 };
 
-const canSendToApproval = (request: PurchaseRequest): boolean => {
-    return request.status === 'draft';
-};
-
-const canApprove = (request: PurchaseRequest): boolean => {
-    return request.status === 'pending';
-};
-
-const canReject = (request: PurchaseRequest): boolean => {
-    return request.status === 'pending';
-};
-
-const canCancel = (request: PurchaseRequest): boolean => {
-    const status = request.status;
-    return status === 'draft' || status === 'pending';
-};
+const canSendToApproval = (request: PurchaseRequest): boolean => request.status === 'draft';
+const canApprove = (request: PurchaseRequest): boolean => request.status === 'pending';
+const canReject = (request: PurchaseRequest): boolean => request.status === 'pending';
+const canCancel = (request: PurchaseRequest): boolean => request.status === 'draft' || request.status === 'pending';
 
 async function fetchRequests() {
     isLoading.value = true;
+
     const params: Record<string, unknown> = {};
-    if (searchQuery.value.trim()) {
-        params.search = searchQuery.value.trim();
-    }
-    if (statusFilter.value !== 'all') {
-        params.status = statusFilter.value;
-    }
-    if (providerFilter.value.trim()) {
-        params.provider_name = providerFilter.value.trim();
-    }
-    if (dateFrom.value) {
-        params.date_from = dateFrom.value;
-    }
-    if (dateTo.value) {
-        params.date_to = dateTo.value;
-    }
+    if (searchQuery.value.trim()) params.search = searchQuery.value.trim();
+    if (statusFilter.value !== 'all') params.status = statusFilter.value;
+    if (providerFilter.value.trim()) params.provider_name = providerFilter.value.trim();
+    if (dateFrom.value) params.date_from = dateFrom.value;
+    if (dateTo.value) params.date_to = dateTo.value;
+
     try {
         const response = await axios.get('/gastos/solicitudes-compra/data', { params });
         const rows = Array.isArray(response.data?.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
 
-        // Asegurar que items sea un array en cada solicitud
         requests.value = rows.map((request: any) => {
             if (request.items && typeof request.items === 'string') {
                 try {
@@ -339,6 +303,7 @@ async function fetchRequests() {
             } else if (!Array.isArray(request.items)) {
                 request.items = [];
             }
+
             return request;
         });
 
@@ -383,7 +348,7 @@ onMounted(() => {
                 </div>
                 <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-black shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     @click="openCreateRequest"
                 >
                     <PlusCircle class="h-4 w-4" />
@@ -424,10 +389,9 @@ onMounted(() => {
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead># Solicitud</TableHead>
+                            <TableHead>N° Solicitud</TableHead>
                             <TableHead>Fecha</TableHead>
                             <TableHead>Proveedor</TableHead>
-                            <TableHead>Item</TableHead>
                             <TableHead>Total estimado</TableHead>
                             <TableHead>Descripción</TableHead>
                             <TableHead>Estado</TableHead>
@@ -437,14 +401,14 @@ onMounted(() => {
                     <TableBody>
                         <template v-if="isLoading">
                             <TableRow>
-                                <TableCell colspan="8">
+                                <TableCell colspan="7">
                                     <div class="py-6 text-center text-sm text-muted-foreground">Cargando solicitudes...</div>
                                 </TableCell>
                             </TableRow>
                         </template>
                         <template v-else-if="!requests.length">
                             <TableRow>
-                                <TableCell colspan="8">
+                                <TableCell colspan="7">
                                     <div class="py-6 text-center text-sm text-muted-foreground">No se encontraron solicitudes.</div>
                                 </TableCell>
                             </TableRow>
@@ -454,7 +418,6 @@ onMounted(() => {
                                 <TableCell class="font-medium">{{ request.request_number || request.id }}</TableCell>
                                 <TableCell>{{ formatDate(request.date) }}</TableCell>
                                 <TableCell class="max-w-[180px] truncate">{{ request.provider_name || '-' }}</TableCell>
-                                <TableCell>{{ getRequestItemsPreview(request) }}</TableCell>
                                 <TableCell>{{ formatCurrency(computeRequestTotal(request)) }}</TableCell>
                                 <TableCell class="max-w-[200px] truncate">{{ request.description || '-' }}</TableCell>
                                 <TableCell>
@@ -478,10 +441,7 @@ onMounted(() => {
                                         v-if="canSendToApproval(request) || canApprove(request) || canReject(request) || canCancel(request)"
                                     >
                                         <DropdownMenuTrigger as-child>
-                                            <button
-                                                class="flex items-center text-gray-500 transition-colors duration-200 hover:text-gray-700"
-                                                title="Más acciones"
-                                            >
+                                            <button class="flex items-center text-gray-500 transition-colors duration-200 hover:text-gray-700" title="Más acciones">
                                                 <MoreVertical class="h-4 w-4" />
                                             </button>
                                         </DropdownMenuTrigger>
@@ -522,6 +482,7 @@ onMounted(() => {
                     </TableBody>
                 </Table>
             </div>
+
             <PurchaseRequestDialog
                 :isOpen="isDialogOpen"
                 :dialogType="dialogType"

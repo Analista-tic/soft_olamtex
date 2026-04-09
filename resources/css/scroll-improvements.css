@@ -1,7 +1,7 @@
 /**
  * Mejoras de Scroll para Listados Operacionales
  * Fecha: 8 de enero de 2026
- * 
+ *
  * Estilos globales para mejorar la experiencia de scroll
  * en toda la aplicación, especialmente en diálogos y tablas.
  */
@@ -19,7 +19,10 @@
 .scroll-smooth::-webkit-scrollbar-track,
 .overflow-y-auto::-webkit-scrollbar-track,
 .overflow-auto::-webkit-scrollbar-track {
-    background: hsl(var(--muted) / 0.3);
+    /* Solid color: WebKit renders scrollbar tracks against the OS white background,
+       not the element background. Alpha-based colors (e.g. / 0.3) appear light/white
+       in dark mode. Using the solid CSS variable resolves correctly per theme. */
+    background: hsl(var(--muted));
     border-radius: 4px;
 }
 
@@ -35,6 +38,15 @@
 .overflow-y-auto::-webkit-scrollbar-thumb:hover,
 .overflow-auto::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--muted-foreground) / 0.6);
+}
+
+/* Firefox: scrollbar-color takes (thumb track) — CSS variables resolve correctly
+   from the theme context, no alpha-over-white issue in this property. */
+.scroll-smooth,
+.overflow-y-auto,
+.overflow-auto {
+    scrollbar-color: hsl(var(--muted-foreground) / 0.4) hsl(var(--muted));
+    scrollbar-width: thin;
 }
 
 /* ===== Smooth Scroll Behavior ===== */

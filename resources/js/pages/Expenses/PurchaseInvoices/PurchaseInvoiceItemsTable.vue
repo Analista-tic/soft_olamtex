@@ -78,6 +78,11 @@ const totalColumns = computed(() => {
     return cols;
 });
 
+const tableClasses = computed(() => [
+    props.telaMode === true ? 'min-w-[1600px] table-auto' : 'min-w-full table-fixed',
+    'border-separate border-spacing-x-2 border-spacing-y-1 text-center',
+]);
+
 function normalizeOrderWidth(value: string | number | null | undefined) {
     if (value === null || value === undefined) return '';
     if (typeof value === 'string') return value;
@@ -335,15 +340,16 @@ defineExpose({ addItem });
 <template>
     <div style="overflow: visible; max-height: none" class="w-full">
         <div class="overflow-x-auto rounded-lg border border-border" style="overflow: visible; max-height: none">
-            <Table
-                class="min-w-full table-fixed border-separate border-spacing-x-2 border-spacing-y-1 text-center"
-                style="overflow: visible; max-height: none"
-            >
+            <Table :class="tableClasses" style="overflow: visible; max-height: none">
                 <TableHeader>
                     <TableRow class="border-b border-border/60">
-                        <TableHead class="min-w-[150px] text-left">Item <span class="text-red-600">*</span></TableHead>
-                        <TableHead class="min-w-[120px] text-left">Precio SIN Impuesto <span class="text-red-600">*</span></TableHead>
-                        <TableHead class="min-w-[160px] text-left">Impuesto (%)</TableHead>
+                        <TableHead :class="[props.telaMode === true ? 'min-w-[220px]' : 'min-w-[150px]', 'text-left']"
+                            >Item <span class="text-red-600">*</span></TableHead
+                        >
+                        <TableHead :class="[props.telaMode === true ? 'min-w-[150px]' : 'min-w-[120px]', 'text-left']"
+                            >Precio SIN Impuesto <span class="text-red-600">*</span></TableHead
+                        >
+                        <TableHead :class="[props.telaMode === true ? 'min-w-[170px]' : 'min-w-[160px]', 'text-left']">Impuesto (%)</TableHead>
                         <TableHead class="min-w-[110px] text-left">Cantidad <span class="text-red-600">*</span></TableHead>
                         <TableHead class="min-w-[160px] text-left">Descripción</TableHead>
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
@@ -362,7 +368,7 @@ defineExpose({ addItem });
 
                 <TableBody>
                     <TableRow v-for="(item, idx) in localItems" :key="idx">
-                        <TableCell class="min-w-[150px] p-1 text-left">
+                        <TableCell :class="[props.telaMode === true ? 'min-w-[220px]' : 'min-w-[150px]', 'p-1 text-left']">
                             <SelectField
                                 v-model="item.item_id"
                                 :options="itemOptions"
@@ -375,7 +381,7 @@ defineExpose({ addItem });
                                 @action="openItemDialog"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 120px">
+                        <TableCell class="p-1 text-left" :style="{ width: props.telaMode === true ? '150px' : '120px' }">
                             <InputField
                                 v-model="item.price"
                                 type="currency"
@@ -401,7 +407,7 @@ defineExpose({ addItem });
                                 }}
                             </div>
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 160px">
+                        <TableCell class="p-1 text-left" :style="{ width: props.telaMode === true ? '170px' : '160px' }">
                             <SelectField
                                 v-model="item.tax"
                                 :options="taxOptions"
@@ -434,10 +440,10 @@ defineExpose({ addItem });
                                 Cantidad real: {{ Number(getSuggestedQuantity(item)).toLocaleString('es-CO') }}
                             </div>
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 160px">
+                        <TableCell class="p-1 text-left" :style="{ width: props.telaMode === true ? '220px' : '160px' }">
                             <InputField v-model="item.description" label="" class="h-10 w-full" :readonly="isReadOnly" :disabled="isReadOnly" />
                         </TableCell>
-                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left" style="width: 150px">
+                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left" style="width: 160px">
                             <InputField
                                 v-model="item.supplier_code"
                                 label=""
@@ -447,7 +453,7 @@ defineExpose({ addItem });
                                 :disabled="isReadOnly || !isTela(item)"
                             />
                         </TableCell>
-                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left" style="width: 150px">
+                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left" style="width: 160px">
                             <InputField
                                 v-model="item.supplier_color"
                                 label=""
@@ -457,7 +463,7 @@ defineExpose({ addItem });
                                 :disabled="isReadOnly || !isTela(item)"
                             />
                         </TableCell>
-                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left" style="width: 150px">
+                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left" style="width: 160px">
                             <InputField
                                 v-model="item.order_width"
                                 type="text"
@@ -469,7 +475,7 @@ defineExpose({ addItem });
                                 :required="isTela(item)"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 90px">
+                        <TableCell class="p-1 text-left" :style="{ width: props.telaMode === true ? '120px' : '90px' }">
                             {{
                                 Number(item.total || 0).toLocaleString('es-CO', {
                                     style: 'currency',

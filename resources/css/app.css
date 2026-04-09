@@ -139,4 +139,20 @@ html {
     body {
         @apply bg-background text-foreground;
     }
+
+    /* Remove native spinner appearance from number inputs.
+       WebKit/Blink render the spin button as a separate native widget
+       with its own UA background that does not inherit the theme background,
+       causing a white/light area in dark mode. Hiding it is the only reliable
+       cross-browser fix; numeric behavior (keyboard arrows, scroll) is unaffected. */
+    input[type='number']::-webkit-inner-spin-button,
+    input[type='number']::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    input[type='number'] {
+        -moz-appearance: textfield; /* Firefox */
+        appearance: textfield;
+    }
 }

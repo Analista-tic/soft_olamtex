@@ -468,7 +468,7 @@ onBeforeUnmount(() => {
                                 :class="[
                                     'text-center',
                                     shouldHighlightImportedItem(item)
-                                        ? 'bg-red-50/70 transition-colors hover:bg-red-50 dark:bg-red-950/20 dark:hover:bg-red-950/30'
+                                        ? 'bg-red-50/70 transition-colors hover:bg-red-50 dark:bg-red-500/10 dark:hover:bg-red-500/15'
                                         : '',
                                 ]"
                             >

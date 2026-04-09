@@ -207,7 +207,7 @@ onMounted(() => {
                     <p :class="uiPatterns.pageIndex.subtitle">Registra cobros recibidos de clientes y aplica los pagos a las facturas de venta pendientes.</p>
                 </div>
 
-                <Button class="rounded-full" @click="openCreateDialog()">
+                <Button size="pill" @click="openCreateDialog()">
                     <PlusCircle class="mr-2 h-4 w-4" />
                     Nuevo recibo
                 </Button>

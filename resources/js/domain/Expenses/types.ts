@@ -87,6 +87,7 @@ export interface PurchaseInvoice {
 }
 
 export interface PurchaseRequestItem {
+    uid?: string;
     item_id: number | string | null;
     price: number | string;
     quantity: number | string;
@@ -96,6 +97,9 @@ export interface PurchaseRequestItem {
     item?: Item;
     item_name?: string;
     total_tax?: number;
+    image_url?: string | null;
+    image_file?: File | null;
+    _delete_image?: boolean;
 }
 
 export interface PurchaseRequest {
@@ -108,7 +112,6 @@ export interface PurchaseRequest {
     description?: string;
     status?: 'draft' | 'pending' | 'approved' | 'processed' | 'rejected' | 'cancelled';
     items?: PurchaseRequestItem[];
-    document_path?: string | null;
     destination?: string | null;
     // Campos de aprobación
     approved_by_user_id?: number | null;
@@ -137,6 +140,5 @@ export interface PurchaseRequestForm {
     description: string;
     items: PurchaseRequestItem[];
     status?: string | null;
-    document_path?: string | null;
     destination?: string | null;
 }

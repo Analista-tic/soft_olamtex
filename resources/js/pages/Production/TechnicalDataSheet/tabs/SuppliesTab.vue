@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import Button from '@/components/ui/button/Button.vue';
@@ -878,30 +878,13 @@ watch(
 
 <template>
     <div class="space-y-4">
-        <!-- Alertas según patrón de dialog -->
-        <div
-            v-if="errorMessage || successMsg"
-            class="pointer-events-none fixed left-1/2 top-6 z-[99999] flex -translate-x-1/2 justify-center px-4 sm:px-0"
-        >
-            <AlertBox
-                v-if="errorMessage"
-                :type="errorType"
-                :title="errorType === 'warning' ? 'Advertencia' : errorType === 'info' ? 'Información' : 'Error'"
-                :message="errorMessage"
-                :auto-close-ms="errorType === 'error' ? 0 : 4000"
-                class="pointer-events-auto"
-                @close="errorMessage = ''"
-            />
-            <AlertBox
-                v-if="successMsg && !errorMessage"
-                type="success"
-                title="Éxito"
-                :message="successMsg"
-                :auto-close-ms="4000"
-                class="pointer-events-auto"
-                @close="successMsg = ''"
-            />
-        </div>
+        <AlertStack
+            :success-message="successMsg"
+            :error-message="errorMessage"
+            :error-type="errorType"
+            @close-success="successMsg = ''"
+            @close-error="errorMessage = ''"
+        />
 
         <div v-if="!hasOperationalList" class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             Esta OP no tiene listado operacional asignado. Puedes registrar insumos, pero valida las etapas cuando asignes la lista operacional.

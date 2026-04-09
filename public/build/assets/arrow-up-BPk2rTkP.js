@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:public/build/assets/arrow-up-BPk2rTkP.js
 import{c as r}from"./createLucideIcon-dN_oecrn.js";/**
+========
+import{c as r}from"./createLucideIcon-BWbhHrEP.js";/**
+>>>>>>>> origin/ManuArroyoG:public/build/assets/arrow-up-CX3z2BCk.js
  * @license lucide-vue-next v0.513.0 - ISC
  *
  * This source code is licensed under the ISC license.

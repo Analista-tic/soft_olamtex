@@ -21,7 +21,6 @@ return new class extends Migration
             $table->decimal('estimated_amount', 12, 2)->nullable();
             $table->longText('description')->nullable();
             $table->json('items')->nullable();
-            $table->string('document_path')->nullable();
             $table->enum('status', ['draft', 'pending', 'approved', 'processed', 'rejected', 'cancelled'])->default('draft');
             
             // Campos de aprobación

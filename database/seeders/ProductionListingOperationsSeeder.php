@@ -67,7 +67,7 @@ class ProductionListingOperationsSeeder extends Seeder
 
             // Crear clave única para detectar duplicados en los datos
             $uniqueKey = "{$action}|{$garment}";
-            
+
             // Saltar si ya vimos esta operación en el archivo (dentro de memoria)
             if (isset($seenOperations[$uniqueKey])) {
                 $skippedCount++;

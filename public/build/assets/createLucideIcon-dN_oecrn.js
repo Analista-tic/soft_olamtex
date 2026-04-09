@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:public/build/assets/createLucideIcon-dN_oecrn.js
 import{N as a}from"./app-BBKii1Go.js";/**
+========
+import{N as a}from"./app-HequdLu-.js";/**
+>>>>>>>> origin/ManuArroyoG:public/build/assets/createLucideIcon-BWbhHrEP.js
  * @license lucide-vue-next v0.513.0 - ISC
  *
  * This source code is licensed under the ISC license.

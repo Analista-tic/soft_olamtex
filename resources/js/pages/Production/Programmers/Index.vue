@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -92,15 +92,20 @@ const programmerToDelete = ref<Programmer | null>(null);
 const isDialogOpen = ref(false);
 
 // Alert state
-const alertMessage = ref('');
-const alertType = ref<'success' | 'error' | 'info' | 'warning'>('info');
-const showAlert = ref(false);
+const successMessage = ref('');
+const errorMessage = ref('');
+const errorType = ref<'error' | 'info' | 'warning'>('error');
 const pageContentRef = ref<HTMLElement | null>(null);
 
 function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
-    alertMessage.value = message;
-    alertType.value = type;
-    showAlert.value = true;
+    if (type === 'success') {
+        successMessage.value = message;
+        errorMessage.value = '';
+    } else {
+        errorMessage.value = message;
+        successMessage.value = '';
+        errorType.value = type;
+    }
     if (pageContentRef.value && typeof pageContentRef.value.scrollTo === 'function') {
         pageContentRef.value.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
@@ -109,8 +114,8 @@ function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning
 }
 
 function clearAlert() {
-    alertMessage.value = '';
-    showAlert.value = false;
+    successMessage.value = '';
+    errorMessage.value = '';
 }
 
 function handleProgrammerCreated(message?: string) {
@@ -419,25 +424,13 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
     <Head title="Programador" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div ref="pageContentRef" class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
-            <transition name="fade">
-                <div v-if="showAlert && alertMessage" class="pointer-events-none fixed left-1/2 top-4 z-50 w-full max-w-xl -translate-x-1/2">
-                    <AlertBox
-                        :type="alertType"
-                        :title="
-                            alertType === 'warning'
-                                ? 'Advertencia'
-                                : alertType === 'success'
-                                  ? 'Éxito'
-                                  : alertType === 'info'
-                                    ? 'Información'
-                                    : 'Error'
-                        "
-                        :message="alertMessage"
-                        class="pointer-events-auto"
-                        @close="clearAlert"
-                    />
-                </div>
-            </transition>
+            <AlertStack
+                :success-message="successMessage"
+                :error-message="errorMessage"
+                :error-type="errorType"
+                @close-success="successMessage = ''"
+                @close-error="errorMessage = ''"
+            />
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
                     <h1 :class="uiPatterns.typography.pageTitle">Lista Programador</h1>

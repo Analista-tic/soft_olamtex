@@ -4,9 +4,9 @@ namespace App\Services\Expenses;
 
 use App\Models\Expenses\PurchaseRequest;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Http\UploadedFile;
 
 class PurchaseRequestService
 {
@@ -38,19 +38,16 @@ class PurchaseRequestService
         if (!empty($filters['date_to'])) {
             $query->where('date', '<=', $filters['date_to']);
         }
-        
-        // Excluir solicitudes que ya tienen órdenes generadas o están procesadas
+
         if (!empty($filters['exclude_with_orders']) && $filters['exclude_with_orders']) {
             $query->whereDoesntHave('orders', function ($orderQuery) {
                 $orderQuery->where('document_type', \App\Models\Expenses\PurchaseDocument::TYPE_ORDER)
                     ->whereNull('deleted_at');
-            })
-            ->where('status', '!=', \App\Enums\PurchaseRequestStatus::PROCESSED->value);
+            })->where('status', '!=', \App\Enums\PurchaseRequestStatus::PROCESSED->value);
         }
 
         $paginator = $query->orderByDesc('date')->orderByDesc('id')->paginate($perPage);
-        
-        // Asegurar que items sea un array en cada resultado
+
         $paginator->getCollection()->transform(function ($request) {
             if (is_string($request->items)) {
                 $decoded = json_decode($request->items, true);
@@ -58,9 +55,10 @@ class PurchaseRequestService
             } elseif (!is_array($request->items)) {
                 $request->items = [];
             }
+
             return $request;
         });
-        
+
         return $paginator;
     }
 
@@ -72,13 +70,17 @@ class PurchaseRequestService
 
     public function update(PurchaseRequest $purchaseRequest, array $data): PurchaseRequest
     {
+        $existingItems = $this->extractItems($purchaseRequest->items);
         $payload = $this->prepareData($data, true);
+        $this->deleteRemovedItemImages($existingItems, $data['items'] ?? []);
         $purchaseRequest->update($payload);
+
         return $purchaseRequest->fresh('requester');
     }
 
     public function delete(PurchaseRequest $purchaseRequest): void
     {
+        $this->deleteAllItemImages($this->extractItems($purchaseRequest->items));
         $purchaseRequest->delete();
     }
 
@@ -87,22 +89,17 @@ class PurchaseRequestService
         return $purchaseRequest->load(['requester', 'approvedBy', 'rejectedBy', 'processor']);
     }
 
-    /**
-     * Enviar solicitud a aprobación (draft → pending)
-     */
     public function sendToApproval(PurchaseRequest $purchaseRequest): PurchaseRequest
     {
         if (!$purchaseRequest->canSendToApproval()) {
-            throw new \RuntimeException('No se puede enviar a aprobación desde el estado actual.');
+            throw new \RuntimeException('No se puede enviar a aprobacion desde el estado actual.');
         }
 
         $purchaseRequest->sendToApproval();
+
         return $purchaseRequest->fresh(['requester']);
     }
 
-    /**
-     * Aprobar solicitud (pending → approved)
-     */
     public function approve(PurchaseRequest $purchaseRequest, ?string $reason = null): PurchaseRequest
     {
         if (!$purchaseRequest->canApprove()) {
@@ -115,12 +112,10 @@ class PurchaseRequestService
         }
 
         $purchaseRequest->approve($userId, $reason);
+
         return $purchaseRequest->fresh(['requester', 'approvedBy']);
     }
 
-    /**
-     * Rechazar solicitud (pending → rejected)
-     */
     public function reject(PurchaseRequest $purchaseRequest, string $reason): PurchaseRequest
     {
         if (!$purchaseRequest->canReject()) {
@@ -128,26 +123,26 @@ class PurchaseRequestService
         }
 
         $purchaseRequest->reject(Auth::id(), $reason);
+
         return $purchaseRequest->fresh(['requester', 'rejectedBy']);
     }
 
-    /**
-     * Cancelar solicitud (draft/pending → cancelled)
-     */
     public function cancel(PurchaseRequest $purchaseRequest): PurchaseRequest
     {
         if (!$purchaseRequest->canCancel()) {
             throw new \RuntimeException('No se puede cancelar desde el estado actual.');
         }
 
+        $itemsWithoutImages = $this->clearItemImages($this->extractItems($purchaseRequest->items));
+        $purchaseRequest->update([
+            'items' => json_encode($itemsWithoutImages),
+        ]);
+
         $purchaseRequest->cancel();
+
         return $purchaseRequest->fresh(['requester']);
     }
 
-    /**
-     * Marcar como procesada (compatibilidad - ahora es approved)
-     * @deprecated Usar approve() en su lugar
-     */
     public function markAsProcessed(PurchaseRequest $request, int $userId): void
     {
         $request->approve($userId);
@@ -159,16 +154,12 @@ class PurchaseRequestService
             $data['request_number'] = $this->generateRequestNumber();
         }
 
-        // Por defecto, las nuevas solicitudes se crean en estado 'draft'
         $data['status'] = $data['status'] ?? 'draft';
         $data['requester_user_id'] = $data['requester_user_id'] ?? Auth::id();
 
-        // Manejar items: si viene como string JSON, decodificar y volver a codificar para validar
-        // Si viene como array, codificar a JSON
         $items = null;
         if (isset($data['items'])) {
             if (is_string($data['items'])) {
-                // Ya viene como JSON string, validar que sea válido
                 $decoded = json_decode($data['items'], true);
                 if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
                     $items = $decoded;
@@ -184,7 +175,6 @@ class PurchaseRequestService
             }
         }
 
-        // Calcular monto estimado desde los items
         if ($items && is_array($items) && count($items) > 0) {
             $data['estimated_amount'] = array_reduce($items, function ($sum, $item) {
                 $total = is_numeric($item['total'] ?? 0) ? (float) $item['total'] : 0;
@@ -197,40 +187,103 @@ class PurchaseRequestService
         return $data;
     }
 
-    public function handleDocumentUpload(?UploadedFile $file, ?string $existingPath = null): ?string
+    public function handleItemImageUpload(?UploadedFile $file, ?string $existingPath = null): ?string
     {
-        // Eliminar archivo anterior si existe
-        if ($existingPath && Storage::disk('public')->exists($existingPath)) {
-            Storage::disk('public')->delete($existingPath);
-        }
-
         if (!$file) {
             return $existingPath;
         }
 
-        // Validar tipo de archivo
-        $allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
-        if (!in_array($file->getMimeType(), $allowedMimes)) {
-            throw new \InvalidArgumentException('Tipo de archivo no permitido. Solo se permiten imágenes (JPEG, PNG, WebP) y PDF.');
+        $this->deleteStoredPublicFile($existingPath);
+
+        return $file->store('purchase-requests/items', 'public');
+    }
+
+    public function deleteStoredPublicFile(?string $path): void
+    {
+        if (!$path) {
+            return;
         }
 
-        // Generar ruta única
-        $extension = $file->getClientOriginalExtension();
-        $path = sprintf('purchase-requests/documents/%s/%s.%s', 
-            now()->format('Y/m/d'), 
-            \Illuminate\Support\Str::uuid(), 
-            $extension
-        );
-
-        // Guardar archivo
-        Storage::disk('public')->put($path, file_get_contents($file->getRealPath()));
-
-        return $path;
+        if (Storage::disk('public')->exists($path)) {
+            Storage::disk('public')->delete($path);
+        }
     }
 
     protected function generateRequestNumber(): string
     {
         $nextId = (int) PurchaseRequest::withTrashed()->max('id') + 1;
         return sprintf('SOL-%03d', $nextId);
+    }
+
+    protected function extractItems(mixed $items): array
+    {
+        if (is_string($items)) {
+            $decoded = json_decode($items, true);
+            return json_last_error() === JSON_ERROR_NONE && is_array($decoded) ? $decoded : [];
+        }
+
+        return is_array($items) ? $items : [];
+    }
+
+    protected function deleteRemovedItemImages(array $existingItems, array $newItems): void
+    {
+        $newKeys = [];
+
+        foreach (array_values($newItems) as $index => $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $newKeys[] = $this->resolveItemKey($item, $index, null);
+        }
+
+        foreach (array_values($existingItems) as $index => $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $existingKey = $this->resolveItemKey($item, $index, null);
+            if (in_array($existingKey, $newKeys, true)) {
+                continue;
+            }
+
+            $this->deleteStoredPublicFile($item['image_path'] ?? null);
+        }
+    }
+
+    protected function deleteAllItemImages(array $items): void
+    {
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $this->deleteStoredPublicFile($item['image_path'] ?? null);
+        }
+    }
+
+    protected function clearItemImages(array $items): array
+    {
+        return array_values(array_map(function ($item) {
+            if (!is_array($item)) {
+                return [];
+            }
+
+            $this->deleteStoredPublicFile($item['image_path'] ?? null);
+            $item['image_path'] = null;
+
+            return $item;
+        }, $items));
+    }
+
+    protected function resolveItemKey(array $item, int $index, ?int $purchaseRequestId): string
+    {
+        $uid = isset($item['uid']) && is_string($item['uid']) ? trim($item['uid']) : '';
+
+        if ($uid !== '') {
+            return $uid;
+        }
+
+        return sprintf('legacy-%s-%s', $purchaseRequestId ?? 'request', $index);
     }
 }
