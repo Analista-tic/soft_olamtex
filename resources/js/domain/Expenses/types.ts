@@ -5,7 +5,7 @@ export interface PurchaseOrderItem {
     item?: Item;
     item_name?: string;
     price: number;
-    tax: number;
+    tax: number | null;
     quantity: number;
     description?: string;
     total: number;
@@ -49,7 +49,7 @@ export interface PurchaseInvoiceItem {
     item?: Item;
     item_name?: string;
     price: number | string | '';
-    tax: number;
+    tax: number | null;
     quantity: number | string | '';
     description?: string;
     total: number;

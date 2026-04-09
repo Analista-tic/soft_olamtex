@@ -48,7 +48,7 @@ const itemMap = computed(() => new Map<number, Item>(catalogItems.value.map((ite
 const itemOptions = computed(() => catalogItems.value.map((item) => ({ id: item.id, name: item.name })));
 const taxById = computed(() => new Map<number, Tax>(taxes.value.map((tax) => [Number(tax.id), tax])));
 const taxOptions = computed(() => [
-    { id: 0, name: DEFAULT_TAX_LABEL },
+    { id: null as null, name: DEFAULT_TAX_LABEL },
     ...taxes.value
         .filter((tax): tax is Tax => !isDefaultTax(tax))
         .map((tax) => ({
@@ -310,7 +310,7 @@ function roundCurrency(value: number) {
 function calcTotals(item: PurchaseOrderItem) {
     const price = Number(item.price) || 0;
     const quantity = Number(item.quantity) || 0;
-    const tax = Number(item.tax) || 0;
+    const tax = item.tax ?? 0;
 
     item.total = roundCurrency(price * quantity);
     item.total_tax = roundCurrency(price * (tax / 100) * quantity);
@@ -344,20 +344,34 @@ function setTaxFromItem(item: PurchaseOrderItem) {
     item.tax = Number(taxPercentage) || 0;
 }
 
-function syncItemsTaxWithCatalog() {
-    localItems.value.forEach((item) => {
-        if (item.item_id == null) return;
-        setTaxFromItem(item);
-        calcTotals(item);
-    });
-}
+watch(
+    () => itemMap.value.size,
+    (newSize) => {
+        if (newSize === 0) return;
+
+        localItems.value.forEach((item) => {
+            if (item.item_id == null) return;
+            setTaxFromItem(item);
+            calcTotals(item);
+        });
+
+        emit('update:items', localItems.value);
+    },
+);
 
 watch(
-    [catalogItems, taxes],
-    () => {
-        syncItemsTaxWithCatalog();
+    () => taxById.value.size,
+    (newSize) => {
+        if (newSize === 0) return;
+
+        localItems.value.forEach((item) => {
+            if (item.item_id == null) return;
+            setTaxFromItem(item);
+            calcTotals(item);
+        });
+
+        emit('update:items', localItems.value);
     },
-    { immediate: true },
 );
 
 watch(
@@ -543,7 +557,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                                 @action="openTaxDialog"
                                 @update:modelValue="
                                     (val) => {
-                                        item.tax = Number(val) || 0;
+                                        item.tax = val === null ? null : (Number(val) || 0);
                                         calcTotals(item);
                                     }
                                 "
@@ -613,4 +627,3 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
         />
     </div>
 </template>
-

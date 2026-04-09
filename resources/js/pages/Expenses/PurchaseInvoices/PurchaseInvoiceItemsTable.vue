@@ -41,7 +41,7 @@ const isReadOnly = computed(() => !!props.isReadOnly);
 const itemMap = computed(() => new Map<number, Item>(catalogItems.value.map((a) => [a.id, a])));
 const taxById = computed(() => new Map<number, Tax>(taxes.value.map((tax) => [Number(tax.id), tax])));
 const taxOptions = computed(() => [
-    { id: 0, name: DEFAULT_TAX_LABEL },
+    { id: null as null, name: DEFAULT_TAX_LABEL },
     ...taxes.value
         .filter((tax): tax is Tax => !isDefaultTax(tax))
         .map((tax) => ({
@@ -298,7 +298,7 @@ function roundCurrency(value: number) {
 function calcTotals(item: PurchaseInvoiceItem) {
     const price = item.price === '' || item.price === null || item.price === undefined ? 0 : Number(item.price);
     const quantity = item.quantity === '' || item.quantity === null || item.quantity === undefined ? 0 : Number(item.quantity);
-    const tax = Number(item.tax) || 0;
+    const tax = item.tax ?? 0;
     item.total = roundCurrency(price * quantity);
     item.total_tax = roundCurrency(price * (tax / 100) * quantity);
 }
@@ -331,11 +331,34 @@ function syncInvoiceItemsTaxWithCatalog() {
 }
 
 watch(
-    [catalogItems, taxes],
-    () => {
-        syncInvoiceItemsTaxWithCatalog();
+    () => itemMap.value.size,
+    (size) => {
+        if (size === 0) return;
+
+        localItems.value.forEach((invoiceItem) => {
+            if (invoiceItem.item_id == null) return;
+            setTaxFromItem(invoiceItem);
+            setDescriptionFromItem(invoiceItem);
+            calcTotals(invoiceItem);
+        });
+
+        notifyParent();
     },
-    { immediate: true },
+);
+
+watch(
+    () => taxById.value.size,
+    (size) => {
+        if (size === 0) return;
+
+        localItems.value.forEach((invoiceItem) => {
+            if (invoiceItem.item_id == null) return;
+            setTaxFromItem(invoiceItem);
+            calcTotals(invoiceItem);
+        });
+
+        notifyParent();
+    },
 );
 
 function isPriceDifferent(item: PurchaseInvoiceItem): boolean {
@@ -435,7 +458,7 @@ defineExpose({ addItem });
                                 @action="openTaxDialog"
                                 @update:modelValue="
                                     (val) => {
-                                        item.tax = Number(val) || 0;
+                                        item.tax = val === null ? null : (Number(val) || 0);
                                         calcTotals(item);
                                     }
                                 "

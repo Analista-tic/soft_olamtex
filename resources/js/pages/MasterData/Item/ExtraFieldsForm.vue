@@ -333,7 +333,7 @@ function isAddDisabled() {
             </div>
             <div
                 v-if="!hasExtraFields"
-                class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-center text-sm font-medium text-slate-500"
+                class="rounded-2xl border border-dashed border-border bg-muted px-4 py-3 text-center text-sm font-medium text-muted-foreground"
             >
                 No hay campos adicionales agregados.
             </div>
