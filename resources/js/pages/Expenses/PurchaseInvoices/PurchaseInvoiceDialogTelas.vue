@@ -5,6 +5,7 @@ import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormDialogFooter from '@/components/FormDialogFooter.vue';
 import FormDialogHeader from '@/components/FormDialogHeader.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -12,6 +13,7 @@ import TextareaField from '@/components/TextareaField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import type { PurchaseInvoice } from '@/domain/Expenses';
@@ -548,6 +550,7 @@ watch(dialogOpen, (isOpen) => {
             content-class="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
             :scrollable="false"
         >
+            <TooltipProvider>
             <div class="relative flex min-h-0 flex-1 flex-col">
             <AlertStack
                 :success-message="successMessage"
@@ -575,6 +578,7 @@ watch(dialogOpen, (isOpen) => {
                             :readonly="isReadOnly"
                             :searchable="pendingPurchaseOrderOptions.length >= 6"
                             search-placeholder="Buscar orden de compra..."
+                            tooltip-text="Selecciona una orden de compra aprobada para pre-llenar automáticamente los ítems de esta factura."
                         />
                     </div>
                     <div class="shrink-0">
@@ -606,9 +610,13 @@ watch(dialogOpen, (isOpen) => {
                     <div class="space-y-4 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
                         <!-- Cabecera -->
                         <div class="grid grid-cols-3 items-start gap-4">
-                            <div>
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <label class="text-sm font-medium">N° Factura de Compra Tela</label>
+                                    <HelpTooltip text="Número interno del sistema para esta factura. Es diferente al número de la factura del proveedor." aria-label="Ayuda sobre número de factura" />
+                                </div>
                                 <InputField
-                                    label="N° Factura de Compra Tela"
+                                    label=""
                                     :modelValue="id"
                                     readonly
                                     v-if="dialogType === 'edit' || (dialogType === 'create' && !isLoadingInvoiceId && id)"
@@ -670,15 +678,27 @@ watch(dialogOpen, (isOpen) => {
                                 :show-today="true"
                                 required
                             />
-                            <DateField
-                                v-model="deliveryDate"
-                                label="Fecha de entrega"
-                                :disabled="isReadOnly"
-                                :clearable="true"
-                                :show-today="true"
-                                required
-                            />
-                            <InputField v-model="localForm.supplier_invoice_number" label="N° factura proveedor" required />
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <label class="text-sm font-medium">Fecha de entrega<span class="text-red-500">*</span></label>
+                                    <HelpTooltip text="Fecha en que se recibe la mercancía en bodega. Puede ser diferente a la fecha de la factura." aria-label="Ayuda sobre fecha de entrega" />
+                                </div>
+                                <DateField
+                                    v-model="deliveryDate"
+                                    label=""
+                                    :disabled="isReadOnly"
+                                    :clearable="true"
+                                    :show-today="true"
+                                    required
+                                />
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <label class="text-sm font-medium">N° factura proveedor<span class="text-red-500">*</span></label>
+                                    <HelpTooltip text="Número que aparece impreso en la factura física del proveedor. Es obligatorio para la trazabilidad." aria-label="Ayuda sobre número de factura proveedor" />
+                                </div>
+                                <InputField v-model="localForm.supplier_invoice_number" label="" required />
+                            </div>
                         </div>
                         <InventoryDetailTableLayout @create-line="handleInvoiceAddLine" :createLineButtonDisabled="isReadOnly">
                             <PurchaseInvoiceItemsTable
@@ -798,6 +818,7 @@ watch(dialogOpen, (isOpen) => {
                 description="Preparando proveedores, ordenes de tela pendientes y datos iniciales."
             />
             </div>
+            </TooltipProvider>
         </FormDialogContent>
     </Dialog>
 </template>

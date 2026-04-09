@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -138,6 +139,7 @@ watch(
                     () => item.item_id,
                     () => {
                         setTaxFromItem(item);
+                        setDescriptionFromItem(item);
                         setFieldsFromOrder(item);
                         calcTotals(item);
                         notifyParent();
@@ -253,6 +255,20 @@ function setTaxFromItem(invoiceItem: PurchaseInvoiceItem) {
     invoiceItem.tax = Number(taxPercentage) || 0;
 }
 
+function setDescriptionFromItem(item: PurchaseInvoiceItem) {
+    const catalogItem = itemMap.value.get(Number(item.item_id));
+    if (!catalogItem) {
+        return;
+    }
+
+    const catalogDescription = catalogItem.description?.trim() ?? '';
+    const currentDescription = (item.description ?? '').trim();
+
+    if (catalogDescription && !currentDescription) {
+        item.description = catalogDescription;
+    }
+}
+
 function getSuggestedPrice(item: PurchaseInvoiceItem): number | null {
     if (item.original_order_item && (typeof item.original_order_item.price === 'string' || typeof item.original_order_item.price === 'number')) {
         const price = Number(item.original_order_item.price);
@@ -353,13 +369,13 @@ defineExpose({ addItem });
                         <TableHead class="min-w-[110px] text-left">Cantidad <span class="text-red-600">*</span></TableHead>
                         <TableHead class="min-w-[160px] text-left">Descripción</TableHead>
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
-                            >Código proveedor <span class="text-red-600">*</span></TableHead
+                            ><span class="inline-flex items-center gap-1">Código proveedor <span class="text-red-600">*</span><HelpTooltip text="Referencia interna del proveedor para identificar esta tela en su catálogo. Aparece en la factura del proveedor." /></span></TableHead
                         >
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
-                            >Color proveedor <span class="text-red-600">*</span></TableHead
+                            ><span class="inline-flex items-center gap-1">Color proveedor <span class="text-red-600">*</span><HelpTooltip text="Nombre o código del color según el proveedor. Puede diferir del nombre interno del sistema." /></span></TableHead
                         >
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
-                            >Ancho pedido <span class="text-red-600">*</span></TableHead
+                            ><span class="inline-flex items-center gap-1">Ancho pedido <span class="text-red-600">*</span><HelpTooltip text="Ancho de la tela en centímetros según lo pactado en la orden de compra." /></span></TableHead
                         >
                         <TableHead class="min-w-[90px] text-left">Total</TableHead>
                         <TableHead v-if="showActionsColumn" class="w-[60px]"></TableHead>
