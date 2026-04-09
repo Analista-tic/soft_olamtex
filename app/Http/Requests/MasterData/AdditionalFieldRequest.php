@@ -25,4 +25,11 @@ class AdditionalFieldRequest extends InventoryFormRequest
             ],
         );
     }
+
+    public function messages(): array
+    {
+        return [
+            'name.required' => 'Debe ingresar el nombre del campo.',
+        ];
+    }
 }

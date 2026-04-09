@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 
 class Setting extends Model
 {
-    public const KEY_PATTERN = '/^[a-z0-9]+(?:-[a-z0-9]+)*$/i';
+    public const KEY_PATTERN = '/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/i';
 
     public const KIND_PARAMETER = 'parameter';
     public const KIND_FIELD = 'field';

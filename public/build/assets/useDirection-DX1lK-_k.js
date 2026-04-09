@@ -1,1 +1,0 @@
-import{i as r}from"./ConfigProvider-Cd4dFYfJ.js";import{a as n,c as a}from"./app-DGI4pFtT.js";function u(t){const e=r({dir:n("ltr")});return a(()=>{var o;return(t==null?void 0:t.value)||((o=e.dir)==null?void 0:o.value)||"ltr"})}export{u};

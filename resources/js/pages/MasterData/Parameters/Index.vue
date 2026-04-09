@@ -19,7 +19,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 
 import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
 import type { Parameter, ParameterListQuery, ParameterStatusFilter } from '@/domain/MasterData';
-import { createParameter, deleteParameter, getParameters, updateParameter } from '@/domain/MasterData';
+import { createParameter, deleteParameter, getParameters, mapParameterToDialogForm, updateParameter } from '@/domain/MasterData';
 import type { BreadcrumbItem } from '@/domain/shared';
 import type { ParameterDialogModel } from './ParameterDialog.vue';
 import ParameterDialog from './ParameterDialog.vue';
@@ -88,12 +88,8 @@ const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 
 function toParameterItem(parameter: Parameter): ParameterItem {
     return {
+        ...mapParameterToDialogForm(parameter),
         id: Number(parameter.id),
-        key: parameter.key,
-        label: parameter.label,
-        description: parameter.description ?? undefined,
-        value: parameter.value,
-        status: Boolean(parameter.status),
     };
 }
 

@@ -70,6 +70,10 @@ export interface AdditionalFieldPayload {
     key?: string;
 }
 
+export type AdditionalFieldDialogFormState = Omit<AdditionalField, 'default_value'> & {
+    default_value: string;
+};
+
 export type CategoryGroup = Named;
 
 export interface CategorySubGroup extends Named {
@@ -122,6 +126,15 @@ export interface Parameter extends Timestamps {
     value: unknown;
     status: boolean;
 }
+
+export type ParameterDialogFormState = {
+    id?: number | string;
+    key?: string;
+    label: string;
+    description?: string;
+    value: unknown;
+    status: boolean;
+};
 
 export type ParameterStatusFilter = 'all' | 'active' | 'inactive';
 

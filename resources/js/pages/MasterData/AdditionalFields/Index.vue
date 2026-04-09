@@ -22,6 +22,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
+import { mapAdditionalFieldRecord } from '@/domain/MasterData';
 import type { AdditionalField, AdditionalFieldPayload } from '@/domain/MasterData';
 import type { BreadcrumbItem } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -244,8 +245,12 @@ async function handleDialogSubmit(fieldData: AdditionalFieldPayload) {
         fetchAdditionalFields(currentPage.value, searchQuery.value);
         closeDialog();
     } catch (error: any) {
+        const validationErrors = error?.response?.data?.errors;
+        const firstValidationError = validationErrors && typeof validationErrors === 'object'
+            ? Object.values(validationErrors).flat().find((message) => typeof message === 'string')
+            : null;
         const rawMessage = error?.response?.data?.message;
-        setError(rawMessage || 'Error al guardar el campo adicional.');
+        setError((firstValidationError as string | null) || rawMessage || 'Error al guardar el campo adicional.');
     } finally {
         isSubmitting.value = false;
     }
@@ -262,7 +267,8 @@ async function fetchAdditionalFields(page = 1, search = '') {
                 status: statusFilter.value === 'active' ? true : statusFilter.value === 'inactive' ? false : undefined,
             },
         });
-        additionalFields.value = response.data.data;
+        const rows = Array.isArray(response.data?.data) ? response.data.data : [];
+        additionalFields.value = rows.map((field: AdditionalField & { label?: string }) => mapAdditionalFieldRecord(field));
         totalItems.value = response.data.total ?? response.data.data.length;
         currentPage.value = response.data.current_page ?? page;
     } catch (error) {

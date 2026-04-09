@@ -1,5 +1,15 @@
 import type { AdditionalContactDto, CategorySubGroupDto, ContactDto, ItemDto } from './dto';
-import type { AdditionalContact, CategorySubGroup, Contact, ExtraFields, Item } from './types';
+import type {
+    AdditionalContact,
+    AdditionalField,
+    AdditionalFieldDialogFormState,
+    CategorySubGroup,
+    Contact,
+    ExtraFields,
+    Item,
+    Parameter,
+    ParameterDialogFormState,
+} from './types';
 
 function parseExtraFields(value?: string | Record<string, string>): ExtraFields | undefined {
     if (!value) return undefined;
@@ -11,6 +21,82 @@ function parseExtraFields(value?: string | Record<string, string>): ExtraFields 
         }
     }
     return value;
+}
+
+export function normalizeBooleanFlag(value: unknown, fallback = false): boolean {
+    if (typeof value === 'boolean') {
+        return value;
+    }
+
+    if (typeof value === 'number') {
+        return value !== 0;
+    }
+
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+
+        if (normalized === '') {
+            return fallback;
+        }
+
+        if (['1', 'true', 'on', 'yes'].includes(normalized)) {
+            return true;
+        }
+
+        if (['0', 'false', 'off', 'no'].includes(normalized)) {
+            return false;
+        }
+
+        const numericValue = Number(normalized);
+        if (!Number.isNaN(numericValue)) {
+            return numericValue !== 0;
+        }
+    }
+
+    return fallback;
+}
+
+export function mapAdditionalFieldToDialogForm(field?: Partial<AdditionalField> | null): AdditionalFieldDialogFormState {
+    return {
+        name: field?.name ?? '',
+        field_type: field?.field_type ?? 'text',
+        options: Array.isArray(field?.options) ? field.options : [],
+        default_value: String(field?.default_value ?? ''),
+        description: field?.description ?? '',
+        is_required: normalizeBooleanFlag(field?.is_required, false),
+        status: normalizeBooleanFlag(field?.status, true),
+        id: field?.id,
+        position: field?.position,
+        created_at: field?.created_at,
+        updated_at: field?.updated_at,
+    };
+}
+
+export function mapAdditionalFieldRecord(field?: (Partial<AdditionalField> & { label?: string }) | null): AdditionalField {
+    return {
+        id: field?.id,
+        name: field?.name ?? field?.label ?? '',
+        field_type: field?.field_type ?? 'text',
+        options: Array.isArray(field?.options) ? field.options : [],
+        default_value: field?.default_value ?? '',
+        description: field?.description ?? '',
+        is_required: normalizeBooleanFlag(field?.is_required, false),
+        status: normalizeBooleanFlag(field?.status, true),
+        position: field?.position,
+        created_at: field?.created_at,
+        updated_at: field?.updated_at,
+    };
+}
+
+export function mapParameterToDialogForm(parameter?: Partial<Parameter> | Partial<ParameterDialogFormState> | null): ParameterDialogFormState {
+    return {
+        id: parameter?.id,
+        key: parameter?.key,
+        label: parameter?.label ?? '',
+        description: parameter?.description ?? '',
+        value: parameter?.value ?? [],
+        status: normalizeBooleanFlag(parameter?.status, true),
+    };
 }
 
 function mapAdditionalContactDto(dto: AdditionalContactDto): AdditionalContact {
