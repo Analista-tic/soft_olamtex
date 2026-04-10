@@ -9,8 +9,8 @@ use App\Services\Production\ProductionOrderService;
 
 /**
  * Tests de listado operacional (ProductSheetOperation) y snapshot de orden (ProductionOrderService).
- * Requieren BD de pruebas real: phpunit.xml usa mysql + :memory: por defecto (inválido).
- * Para ejecutar: definir .env.testing con DB_DATABASE=nombre_bd_real o usar DB_CONNECTION=sqlite y DB_DATABASE=:memory: en phpunit.
+ * Requieren BD de pruebas MySQL real.
+ * Para ejecutar: definir .env.testing con DB_CONNECTION=mysql y credenciales válidas.
  */
 beforeEach(function () {
     $this->service = app(ProductOperationListService::class);
