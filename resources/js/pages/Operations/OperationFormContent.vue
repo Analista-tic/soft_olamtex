@@ -2,10 +2,9 @@
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus } from 'lucide-vue-next';
+import axios from 'axios';
 import { computed, ref, watch } from 'vue';
 
 export type SectionOption = { id: number | string; name: string; type?: string | null };
@@ -24,6 +23,8 @@ export type MachineOption = { id: number | string; name: string; code?: string |
 export interface OperationFormData {
     action: string;
     garment_part: string;
+    tipo?: string | null;
+    anexo?: string | null;
     section_id: number | null;
     measure: number | null;
     quantity: number;
@@ -39,6 +40,7 @@ const props = withDefaults(
         sections: SectionOption[];
         actions: string[];
         garmentParts: string[];
+        types: string[];
         productSheets?: ProductSheetOption[];
         machines?: MachineOption[];
         operation?: OperationFormData | null;
@@ -58,20 +60,17 @@ const props = withDefaults(
 
 const emit = defineEmits<{
     (e: 'submit', payload: Record<string, unknown>): void;
+    /** Emitido cuando se persiste una nueva opción en un catálogo */
+    (e: 'catalog-updated', catalog: string, options: string[]): void;
 }>();
 
 const isEditing = computed(() => !!props.operation);
 
-const actionsList = ref<string[]>(props.actions || []);
-const garmentPartsList = ref<string[]>(props.garmentParts || []);
-const showActionInput = ref(false);
-const showGarmentPartInput = ref(false);
-const newActionValue = ref('');
-const newGarmentPartValue = ref('');
-
 const form = ref<OperationFormData>({
     action: '',
     garment_part: '',
+    tipo: null,
+    anexo: null,
     section_id: props.defaultSectionId ?? (props.sections[0]?.id !== undefined ? Number(props.sections[0].id) : null),
     measure: null,
     quantity: 1,
@@ -89,6 +88,8 @@ watch(
             form.value = {
                 action: operation.action ?? '',
                 garment_part: operation.garment_part ?? '',
+                tipo: operation.tipo ?? null,
+                anexo: operation.anexo ?? null,
                 section_id: operation.section_id ?? null,
                 measure: operation.measure ?? null,
                 quantity: operation.quantity ?? 1,
@@ -102,6 +103,8 @@ watch(
             form.value = {
                 action: '',
                 garment_part: '',
+                tipo: null,
+                anexo: null,
                 section_id: defaultSectionId ?? (props.sections[0]?.id !== undefined ? Number(props.sections[0].id) : null),
                 measure: null,
                 quantity: 1,
@@ -116,45 +119,82 @@ watch(
     { immediate: true },
 );
 
-watch(
-    () => props.actions,
-    (v) => {
-        actionsList.value = v ? [...v] : [];
-    },
-);
-watch(
-    () => props.garmentParts,
-    (v) => {
-        garmentPartsList.value = v ? [...v] : [];
-    },
-);
+watch(() => form.value.anexo, (v) => {
+    if (v) {
+        const n = v.toUpperCase();
+        if (v !== n) form.value.anexo = n;
+    }
+});
 
-watch(newActionValue, (v) => {
-    const n = v.toUpperCase();
-    if (v !== n) newActionValue.value = n;
-});
-watch(newGarmentPartValue, (v) => {
-    const n = v.toUpperCase();
-    if (v !== n) newGarmentPartValue.value = n;
-});
+// ── Catálogos reactivos (sincronizados con backend al agregar nuevas opciones) ──
+
+const localActions = ref<string[]>([...props.actions]);
+const localGarmentParts = ref<string[]>([...props.garmentParts]);
+const localTypes = ref<string[]>([...props.types]);
+
+watch(() => props.actions, (v) => { localActions.value = [...v]; });
+watch(() => props.garmentParts, (v) => { localGarmentParts.value = [...v]; });
+watch(() => props.types, (v) => { localTypes.value = [...v]; });
+
+async function persistCatalogOption(catalog: string, name: string): Promise<void> {
+    try {
+        const { data } = await axios.post('/produccion/operaciones/catalog-option', { catalog, name });
+        const updated: string[] = data.options ?? [];
+        if (catalog === 'operation_actions') localActions.value = updated;
+        else if (catalog === 'operation_garment_parts') localGarmentParts.value = updated;
+        else if (catalog === 'operation_types') localTypes.value = updated;
+        emit('catalog-updated', catalog, updated);
+    } catch {
+        // La opción ya quedó seleccionada en el form; no bloquear el flujo
+    }
+}
+
+function handleActionChange(val: string | number | boolean | (string | number | boolean)[] | null | undefined) {
+    const upper = String(val ?? '').trim().toUpperCase();
+    form.value.action = upper;
+    if (upper && !localActions.value.some((a) => a.toUpperCase() === upper)) {
+        void persistCatalogOption('operation_actions', upper);
+    }
+}
+
+function handleGarmentPartChange(val: string | number | boolean | (string | number | boolean)[] | null | undefined) {
+    const upper = String(val ?? '').trim().toUpperCase();
+    form.value.garment_part = upper;
+    if (upper && !localGarmentParts.value.some((g) => g.toUpperCase() === upper)) {
+        void persistCatalogOption('operation_garment_parts', upper);
+    }
+}
+
+function handleTipoChange(val: string | number | boolean | (string | number | boolean)[] | null | undefined) {
+    const upper = val !== null && val !== undefined ? String(val).trim().toUpperCase() : null;
+    form.value.tipo = upper || null;
+    if (upper && !localTypes.value.some((t) => t.toUpperCase() === upper)) {
+        void persistCatalogOption('operation_types', upper);
+    }
+}
+
+// ── Options computadas ───────────────────────────────────────────────────────
 
 const sectionOptions = computed(() => props.sections.map((s) => ({ id: s.id, name: s.name })));
+
 const actionOptions = computed(() => {
-    const base = actionsList.value.map((a) => ({ id: a, name: a }));
-    const current = form.value.action?.trim();
-    if (current && !base.some((o) => String(o.id).toUpperCase() === current.toUpperCase())) {
-        return [{ id: current, name: current.toUpperCase() }, ...base];
-    }
-    return base;
+    const all = [...new Set(localActions.value.map((v) => v.trim().toUpperCase()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, 'es-CO'));
+    return all.map((a) => ({ id: a, name: a }));
 });
+
 const garmentPartOptions = computed(() => {
-    const base = garmentPartsList.value.map((g) => ({ id: g, name: g }));
-    const current = form.value.garment_part?.trim();
-    if (current && !base.some((o) => String(o.id).toUpperCase() === current.toUpperCase())) {
-        return [{ id: current, name: current.toUpperCase() }, ...base];
-    }
-    return base;
+    const all = [...new Set(localGarmentParts.value.map((v) => v.trim().toUpperCase()))]
+        .sort((a, b) => a.localeCompare(b, 'es-CO'));
+    return all.map((g) => ({ id: g, name: g || '— (genérica)' }));
 });
+
+const typeOptions = computed(() => {
+    const all = [...new Set(localTypes.value.map((v) => v.trim().toUpperCase()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, 'es-CO'));
+    return all.map((t) => ({ id: t, name: t }));
+});
+
 const productSheetOptions = computed(() =>
     (props.productSheets || []).map((ps) => {
         const sample = String(ps.sample_reference ?? '').trim().toUpperCase() || '-';
@@ -167,28 +207,20 @@ const productSheetOptions = computed(() =>
         return { id: ps.id, name };
     }),
 );
+
 const machineOptions = computed(() =>
     (props.machines || []).map((m) => ({
         id: m.id,
-        name: m.code ? `${m.code} · ${m.name}` : m.name,
+        name: m.code ? `${m.name}  [${m.code}]` : m.name,
     })),
 );
 
 const generatedName = computed(() => {
     const a = form.value.action?.trim().toUpperCase() ?? '';
     const p = form.value.garment_part?.trim().toUpperCase() ?? '';
-    if (a && p) return `${a} ${p}`;
-    return a || p || '';
-});
-
-const generatedDescription = computed(() => {
-    const parts: string[] = [];
-    if (generatedName.value) parts.push(generatedName.value);
-    if (form.value.measure != null && form.value.measure > 0) parts.push(`${Number(form.value.measure).toFixed(2)} cm`);
-    if (form.value.quantity != null && form.value.quantity > 0) parts.push(String(form.value.quantity));
-    const sectionName = form.value.section_id ? (props.sections.find((s) => s.id === form.value.section_id)?.name ?? '') : '';
-    if (sectionName) parts.push(sectionName);
-    return parts.join(' ').toUpperCase();
+    const anx = form.value.anexo?.trim().toUpperCase() ?? '';
+    const base = a && p ? `${a} ${p}` : a || p || '';
+    return base && anx ? `${base} · ${anx}` : base;
 });
 
 const selectedProductSheetName = computed(() => {
@@ -197,42 +229,17 @@ const selectedProductSheetName = computed(() => {
     return ps ? `${ps.reference ?? ps.name} (${ps.type ?? ''})` : '-';
 });
 
-function addNewAction() {
-    const v = newActionValue.value.trim().toUpperCase();
-    if (!v) return;
-    if (!actionsList.value.includes(v)) {
-        actionsList.value.push(v);
-        form.value.action = v;
-    }
-    newActionValue.value = '';
-    showActionInput.value = false;
-}
-
-function addNewGarmentPart() {
-    const v = newGarmentPartValue.value.trim().toUpperCase();
-    if (!v) return;
-    if (!garmentPartsList.value.includes(v)) {
-        garmentPartsList.value.push(v);
-        form.value.garment_part = v;
-    }
-    newGarmentPartValue.value = '';
-    showGarmentPartInput.value = false;
-}
-
 function validate(): string | null {
     if (!form.value.action?.trim()) return 'La acción es obligatoria.';
-    if (!form.value.garment_part?.trim()) return 'La parte de prenda es obligatoria.';
+    if (form.value.garment_part === null || form.value.garment_part === undefined) return 'La parte de prenda es obligatoria.';
     if (!form.value.section_id && !isEditing.value) return 'La sección es obligatoria.';
 
-    // En creación: SAM es obligatorio y debe ser > 0
     if (!isEditing.value) {
         const sam = form.value.sam_base ?? 0;
         if (sam <= 0 || !Number.isFinite(sam)) {
             return 'El SAM base es obligatorio y debe ser mayor a 0 (ej: 0.25 min).';
         }
-    }
-    // En edición: si se proporciona SAM, debe ser > 0
-    else if (form.value.sam_base != null) {
+    } else if (form.value.sam_base != null) {
         if (form.value.sam_base <= 0 || !Number.isFinite(form.value.sam_base)) {
             return 'El SAM base debe ser mayor a 0 si se especifica.';
         }
@@ -249,6 +256,8 @@ function submit() {
     const payload: Record<string, unknown> = {
         action: (form.value.action ?? '').trim().toUpperCase(),
         garment_part: (form.value.garment_part ?? '').trim().toUpperCase(),
+        tipo: form.value.tipo?.trim().toUpperCase() || null,
+        anexo: form.value.anexo?.trim().toUpperCase() || null,
         section_id: form.value.section_id,
         measure: form.value.measure ?? null,
         quantity: form.value.quantity ?? 1,
@@ -265,128 +274,137 @@ defineExpose({ submit, validate });
 
 <template>
     <div class="space-y-4">
-        <!-- Preview nombre -->
-        <div v-if="generatedName" class="rounded-md border bg-muted/50 px-3 py-2">
-            <p class="mb-0.5 text-[11px] text-muted-foreground">Nombre de la operación</p>
-            <p class="font-mono text-sm font-bold">{{ generatedName }}</p>
-            <p v-if="generatedDescription" class="mt-0.5 text-xs uppercase text-muted-foreground">{{ generatedDescription }}</p>
+
+        <!-- ── Bloque 1: Nombre vivo de la operación ──────────────────────── -->
+        <div
+            class="flex min-h-[52px] flex-col items-start gap-2 rounded-lg border border-primary/20 bg-gradient-to-r from-primary/5 to-transparent px-3 py-2 sm:flex-row sm:items-center"
+            :class="generatedName ? '' : 'border-dashed opacity-60'"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Nombre generado</p>
+                <p v-if="generatedName" class="truncate font-mono text-base font-bold leading-tight">{{ generatedName }}</p>
+                <p v-else class="text-sm italic text-muted-foreground">Selecciona acción y parte de prenda…</p>
+            </div>
+            <div v-if="isEditing && form.codigo" class="flex-shrink-0 rounded-md border bg-muted px-2.5 py-1">
+                <p class="text-[9px] uppercase tracking-widest text-muted-foreground">Código</p>
+                <p class="font-mono text-xs font-semibold">{{ form.codigo }}</p>
+            </div>
         </div>
 
-        <!-- Código (solo edición) + Sección -->
-        <div class="grid grid-cols-2 gap-4">
-            <div v-if="isEditing" class="space-y-1.5">
-                <Label>Código</Label>
-                <InputField :model-value="form.codigo ?? ''" label="" class="bg-muted/50 font-mono" disabled placeholder="Generado al guardar" />
-            </div>
-            <SelectField v-model="form.section_id" label="Sección" placeholder="Selecciona sección" :options="sectionOptions" required />
-        </div>
+        <!-- ── Bloque 2: Clasificación ─────────────────────────────────────── -->
+        <div class="space-y-3 rounded-lg border bg-card p-3">
+            <p class="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Clasificación</p>
 
-        <!-- Acción + Parte -->
-        <div class="grid grid-cols-2 gap-4">
-            <div>
-                <Label>Acción <span class="text-destructive">*</span></Label>
-                <SelectField v-if="!showActionInput" v-model="form.action" :options="actionOptions" placeholder="Selecciona acción" required>
-                    <template #header>
-                        <Button type="button" size="sm" variant="outline" class="w-full justify-center gap-1 text-xs" @click="showActionInput = true">
-                            <Plus class="h-4 w-4" /> Nueva acción
-                        </Button>
-                    </template>
-                </SelectField>
-                <div v-else class="flex gap-2">
-                    <InputField v-model="newActionValue" label="" placeholder="Ej: CERRAR, COSER" class="flex-1" />
-                    <Button size="sm" @click="addNewAction">Agregar</Button>
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        @click="
-                            showActionInput = false;
-                            newActionValue = '';
-                        "
-                        >Cancelar</Button
-                    >
-                </div>
-            </div>
-            <div>
-                <Label>Parte de prenda <span class="text-destructive">*</span></Label>
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
+                  <SelectField
+                    :model-value="form.tipo ?? ''"
+                    label="Tipo de prenda"
+                    placeholder="Sin tipo"
+                    :options="typeOptions"
+                    :allow-custom="true"
+                    :searchable="true"
+                    custom-option-label="Agregar '{value}'"
+                    @update:model-value="handleTipoChange"
+                />
                 <SelectField
-                    v-if="!showGarmentPartInput"
-                    v-model="form.garment_part"
-                    :options="garmentPartOptions"
-                    placeholder="Selecciona parte"
+                    v-model="form.section_id"
+                    label="Sección"
+                    placeholder="Selecciona sección"
+                    :options="sectionOptions"
                     required
-                >
-                    <template #header>
-                        <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            class="w-full justify-center gap-1 text-xs"
-                            @click="showGarmentPartInput = true"
-                        >
-                            <Plus class="h-4 w-4" /> Nueva parte
-                        </Button>
-                    </template>
-                </SelectField>
-                <div v-else class="flex gap-2">
-                    <InputField v-model="newGarmentPartValue" label="" placeholder="Ej: BOLSILLO, PRETINA" class="flex-1" />
-                    <Button size="sm" @click="addNewGarmentPart">Agregar</Button>
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        @click="
-                            showGarmentPartInput = false;
-                            newGarmentPartValue = '';
-                        "
-                        >Cancelar</Button
-                    >
+                />
+                <SelectField
+                    :model-value="form.action"
+                    label="Acción"
+                    placeholder="Selecciona o escribe"
+                    :options="actionOptions"
+                    :allow-custom="true"
+                    :searchable="true"
+                    custom-option-label="Agregar '{value}'"
+                    required
+                    @update:model-value="handleActionChange"
+                />
+                <SelectField
+                    :model-value="form.garment_part"
+                    label="Parte de prenda"
+                    placeholder="Selecciona o escribe"
+                    :options="garmentPartOptions"
+                    :allow-custom="true"
+                    :searchable="true"
+                    custom-option-label="Agregar '{value}'"
+                    required
+                    @update:model-value="handleGarmentPartChange"
+                />
+            </div>
+
+            <div class="space-y-1">
+                <Label class="text-sm">Complemento <span class="text-[10px] font-normal text-muted-foreground">(opcional · añade detalle al nombre)</span></Label>
+                <InputField
+                    v-model="form.anexo"
+                    label=""
+                    placeholder="Ej: FRENTE DERECHO, INTERIOR, TIRO…"
+                    class="uppercase"
+                />
+            </div>
+        </div>
+
+        <!-- ── Bloque 3: Tiempo y medidas ──────────────────────────────────── -->
+        <div class="space-y-3 rounded-lg border bg-card p-3">
+            <p class="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Tiempo y medidas</p>
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div class="space-y-1">
+                    <Label class="text-sm">SAM base (min) <span class="text-destructive">*</span></Label>
+                    <InputField
+                        v-model.number="form.sam_base"
+                        label=""
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.25"
+                        class="font-mono text-base font-semibold"
+                    />
+                    <p class="text-[10px] text-muted-foreground">Tiempo real medido con cronómetro</p>
+                </div>
+                <div class="space-y-1">
+                    <Label class="text-sm">Medida (cm)</Label>
+                    <InputField v-model.number="form.measure" label="" type="number" step="0.01" min="0" placeholder="0.00" />
+                    <p class="text-[10px] text-muted-foreground">Longitud de costura</p>
+                </div>
+                <div class="space-y-1">
+                    <Label class="text-sm">Cantidad</Label>
+                    <Input v-model.number="form.quantity" type="number" step="1" min="1" placeholder="1" />
+                    <p class="text-[10px] text-muted-foreground">Repeticiones por pieza</p>
                 </div>
             </div>
         </div>
 
-        <!-- Medida + Cantidad + SAM base -->
-        <div class="grid grid-cols-3 gap-4">
-            <div class="space-y-1.5">
-                <Label>Medida (cm)</Label>
-                <InputField v-model.number="form.measure" label="" type="number" step="0.01" min="0" placeholder="0.00" />
-            </div>
-            <div class="space-y-1.5">
-                <Label>Cantidad</Label>
-                <Input v-model.number="form.quantity" type="number" step="1" min="1" placeholder="1" />
-            </div>
-            <div class="space-y-1.5">
-                <Label>SAM base (min) <span class="text-destructive">*</span></Label>
-                <InputField v-model.number="form.sam_base" label="" type="number" step="0.01" min="0" placeholder="0.25" class="font-mono" />
-                <p class="text-[10px] text-muted-foreground">Tiempo real con cronómetro</p>
-            </div>
-        </div>
-
-        <!-- Descripción auto-generada -->
-        <div v-if="generatedDescription" class="space-y-1.5 rounded-md border bg-muted/30 px-3 py-2">
-            <Label class="text-muted-foreground">Descripción (auto-generada)</Label>
-            <p class="font-mono text-sm uppercase">{{ generatedDescription }}</p>
-        </div>
-
-        <!-- Referencia sábana + Máquina -->
-        <div class="grid grid-cols-2 gap-4">
-            <div v-if="productSheets?.length && !lockProductSheet">
-                <Label>Referencia (sábana de producto)</Label>
-                <SelectField v-model="form.product_sheet_id_reference" placeholder="Opcional" :options="productSheetOptions" />
-            </div>
-            <div v-else-if="lockProductSheet && defaultProductSheetId">
-                <Label>Referencia (sábana de producto)</Label>
-                <div class="py-2 text-sm text-muted-foreground">{{ selectedProductSheetName }}</div>
-            </div>
-            <div v-if="machines?.length">
-                <Label>Máquina de referencia</Label>
-                <SelectField v-model="form.machine_id_reference" placeholder="Opcional" :options="machineOptions" />
+        <!-- ── Bloque 4: Referencias opcionales ───────────────────────────── -->
+        <div v-if="(productSheets?.length && !lockProductSheet) || (lockProductSheet && defaultProductSheetId) || machines?.length" class="space-y-3 rounded-lg border bg-card p-3">
+            <p class="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Referencias (opcionales)</p>
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div v-if="productSheets?.length && !lockProductSheet">
+                    <Label class="text-sm">Sábana de producto</Label>
+                    <SelectField v-model="form.product_sheet_id_reference" placeholder="Sin referencia" :options="productSheetOptions" />
+                </div>
+                <div v-else-if="lockProductSheet && defaultProductSheetId">
+                    <Label class="text-sm">Sábana de producto</Label>
+                    <div class="mt-1.5 rounded-md border bg-muted/50 px-2.5 py-2 text-sm text-muted-foreground">{{ selectedProductSheetName }}</div>
+                </div>
+                <div v-if="machines?.length">
+                    <Label class="text-sm">Máquina de referencia</Label>
+                    <SelectField v-model="form.machine_id_reference" placeholder="Sin asignar" :options="machineOptions" />
+                </div>
             </div>
         </div>
 
-        <!-- Estado (solo edición) -->
-        <div v-if="isEditing" class="flex items-center gap-3 rounded-md border px-3 py-2.5">
-            <input type="checkbox" id="op-active" v-model="form.is_active" class="h-4 w-4 rounded" />
-            <label for="op-active" class="text-sm">Operación activa</label>
-            <TableStatusBadge :label="form.is_active ? 'Activa' : 'Inactiva'" :tone="form.is_active ? 'green' : 'red'" class="ml-auto" />
+        <!-- ── Bloque 5: Estado (solo edición) ────────────────────────────── -->
+        <div v-if="isEditing" class="flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors" :class="form.is_active ? 'border-emerald-200 bg-emerald-50/50' : 'border-red-200 bg-red-50/50'">
+            <input type="checkbox" id="op-active" v-model="form.is_active" class="h-4 w-4 cursor-pointer rounded accent-emerald-600" />
+            <label for="op-active" class="flex-1 cursor-pointer select-none text-sm font-medium">
+                {{ form.is_active ? 'Operación activa' : 'Operación inactiva' }}
+            </label>
+            <TableStatusBadge :label="form.is_active ? 'Activa' : 'Inactiva'" :tone="form.is_active ? 'green' : 'red'" />
         </div>
+
     </div>
 </template>
