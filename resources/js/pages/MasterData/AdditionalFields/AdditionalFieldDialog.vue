@@ -234,7 +234,7 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <FormDialogContent v-if="!props.deferContent" class="flex max-h-[95vh] max-w-2xl flex-col px-2 py-2">
+        <FormDialogContent v-if="!props.deferContent" class="flex max-h-[95vh] max-w-2xl flex-col px-2 pb-3 pt-4">
             <TooltipProvider>
                 <FormHeader
                     :title="dialogType === 'create' ? 'Crear campo adicional' : 'Editar campo adicional'"
@@ -420,7 +420,7 @@ function handleSubmit() {
                         </div>
                     </div>
                 </div>
-                <DialogFooter class="mt-6 justify-end gap-2">
+                <DialogFooter class="flex-shrink-0 justify-end gap-2 border-t pt-4">
                     <Button variant="outline" size="pill" @click="handleClose"> Cancelar </Button>
                     <button
                         type="button"
