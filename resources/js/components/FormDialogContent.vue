@@ -27,7 +27,7 @@ const sizeClasses: Record<FormDialogSize, string> = {
 
 const contentClass = computed(() =>
     cn(
-        'flex max-h-[90vh] w-[calc(100vw-2rem)] flex-col overflow-visible rounded-2xl bg-background px-4 pb-4 pt-5 text-foreground sm:px-5 sm:pb-5 sm:pt-6',
+        'flex h-fit max-h-[90vh] w-[calc(100vw-2rem)] flex-col rounded-2xl bg-background text-foreground',
         sizeClasses[props.size],
         props.class,
     ),

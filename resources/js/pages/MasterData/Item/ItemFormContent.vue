@@ -1634,7 +1634,7 @@ onBeforeUnmount(() => {
                             <InputField v-model="localForm.reference" label="Referencia" required />
                         </div>
 
-                        <div class="flex items-center md:col-span-1">
+                        <div class="flex flex-col justify-end md:col-span-1">
                             <SwitchField
                                 :model-value="negativeMovementBool"
                                 @update:modelValue="handleNegativeMovementChange"

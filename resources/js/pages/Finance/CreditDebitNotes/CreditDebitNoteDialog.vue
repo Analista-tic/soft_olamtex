@@ -749,23 +749,24 @@ onMounted(async () => {
 <template>
     <Dialog :open="dialogOpen" @update:open="(value) => (dialogOpen = value)">
         <FormDialogContent class="flex max-h-[95vh] max-w-[190vh] flex-col px-2 py-2">
-            <DialogHeader class="border-b pb-3">
+            <DialogHeader class="border-b px-5 py-4 pr-12">
                 <div>
                     <DialogTitle>{{ dialogTitle }}</DialogTitle>
                     <DialogDescription>Completa los datos de la nota y sus items asociados.</DialogDescription>
                 </div>
             </DialogHeader>
 
-            <AlertStack
-                :successMessage="successMessage"
-                :errorMessage="errorMessage"
-                :errorType="errorType"
-                class="mt-2"
-                @close-success="clearSuccess"
-                @close-error="clearError"
-            />
+            <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4" style="scrollbar-width: thin">
+                <AlertStack
+                    :successMessage="successMessage"
+                    :errorMessage="errorMessage"
+                    :errorType="errorType"
+                    class="mb-3"
+                    @close-success="clearSuccess"
+                    @close-error="clearError"
+                />
 
-            <div class="mt-3 flex-1 space-y-3 overflow-y-auto pr-1">
+                <div class="space-y-3">
                 <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
                     <div class="space-y-3">
                         <SelectField
@@ -929,9 +930,10 @@ onMounted(async () => {
                     placeholder="Agrega una observacion para la nota"
                     :rows="3"
                 />
+                </div>
             </div>
 
-            <DialogFooter class="border-t border-border pt-4 flex justify-end gap-2">
+            <DialogFooter class="border-t border-border px-5 py-4 flex justify-end gap-2">
                 <Button variant="outline" size="pill" @click="handleClose"> Cancelar </Button>
                 <Button variant="default" size="pill" :disabled="isSubmitting" @click="handleSubmit">
                     {{ isSubmitting ? 'Guardando...' : props.dialogType === 'create' ? 'Guardar' : 'Actualizar' }}

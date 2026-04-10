@@ -58,18 +58,20 @@ import { computed } from 'vue';
 <template>
     <div :class="gridClass">
         <!-- Toggle Producto Tejido -->
-        <div class="flex w-auto flex-col gap-1">
+        <div class="flex flex-col justify-end gap-1">
             <div class="flex items-center gap-2">
                 <Label class="text-sm font-medium">Producto tejido</Label>
                 <HelpTooltip :text="tooltipWovenProduct" aria-label="Ayuda sobre Producto tejido" />
             </div>
-            <SwitchField
-                :model-value="wovenProduct"
-                label=""
-                id="woven_product"
-                :disabled="disabled"
-                @update:model-value="emit('update:wovenProduct', $event)"
-            />
+            <div class="flex h-10 items-center">
+                <SwitchField
+                    :model-value="wovenProduct"
+                    label=""
+                    id="woven_product"
+                    :disabled="disabled"
+                    @update:model-value="emit('update:wovenProduct', $event)"
+                />
+            </div>
         </div>
 
         <!-- Base Tela -->
@@ -127,10 +129,7 @@ import { computed } from 'vue';
         </div>
 
         <!-- Tallas -->
-        <div class="flex flex-col gap-1">
-            <div class="flex items-center gap-2">
-                <Label class="text-sm font-medium">Tallas<span class="text-red-500">*</span></Label>
-            </div>
+        <div class="flex flex-col justify-end gap-1">
             <div class="tooltip-managed-size-selector">
                 <SizeSelector
                     class="w-full"

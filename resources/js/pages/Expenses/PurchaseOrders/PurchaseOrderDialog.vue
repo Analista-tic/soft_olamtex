@@ -429,8 +429,6 @@ function applyRequestSuggestion() {
     // NO sobrescribir la fecha de creación - siempre debe ser la fecha actual
     // localForm.value.date se mantiene con la fecha actual establecida en createDefaultForm
     localForm.value.delivery_date = normalizeIsoDate(request.delivery_date, null) || '';
-    localForm.value.supplier_order_number = request.request_number || '';
-
     // Mapear items de la solicitud a items de la orden
     const requestItems = normalizeRequestItems(request.items);
 

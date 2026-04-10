@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import FormDialogContent from '@/components/FormDialogContent.vue';
-import FormHeader from '@/components/FormHeader.vue';
 import GroupSelect from '@/components/GroupSelect.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue'; // Importar el nuevo componente SelectField
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import type { Role, User } from '@/domain/Settings'; // Importar los tipos centralizados
@@ -173,18 +172,19 @@ function submitForm() {
     <Dialog v-model:open="internalIsOpen">
         <FormDialogContent class="flex max-h-[95vh] max-w-[85vh] flex-col px-2 py-2">
             <TooltipProvider>
-                <FormHeader
-                    class="flex-shrink-0 pb-2"
-                    :title="dialogType === 'create' ? 'Crear Usuario' : dialogType === 'edit' ? 'Editar Usuario' : 'Ver Usuario'"
-                    :description="
-                        dialogType === 'create'
-                            ? 'Completa los campos para crear un nuevo usuario.'
-                            : dialogType === 'edit'
-                              ? 'Completa los campos para editar el usuario.'
-                              : 'Consulta la información del usuario.'
-                    "
-                />
-                <div class="flex-1 overflow-y-auto scroll-smooth px-2" style="scrollbar-width: thin">
+                <DialogHeader class="border-b px-5 py-4 pr-12">
+                    <DialogTitle>{{ dialogType === 'create' ? 'Crear Usuario' : dialogType === 'edit' ? 'Editar Usuario' : 'Ver Usuario' }}</DialogTitle>
+                    <DialogDescription>
+                        {{
+                            dialogType === 'create'
+                                ? 'Completa los campos para crear un nuevo usuario.'
+                                : dialogType === 'edit'
+                                  ? 'Completa los campos para editar el usuario.'
+                                  : 'Consulta la información del usuario.'
+                        }}
+                    </DialogDescription>
+                </DialogHeader>
+                <div class="min-h-0 flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
                     <div class="space-y-4">
                         <div class="flex flex-col gap-1">
                             <div class="flex items-center gap-2">
@@ -288,7 +288,7 @@ function submitForm() {
                     </div>
                 </div>
             </TooltipProvider>
-            <DialogFooter class="flex flex-shrink-0 flex-col gap-2 border-t border-border pt-4 md:flex-row md:justify-end">
+            <DialogFooter class="flex flex-shrink-0 flex-col gap-2 border-t border-border px-5 py-4 md:flex-row md:justify-end">
                 <div class="w-full md:w-auto">
                     <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="closeDialog">
                         {{ isView ? 'Cerrar' : 'Cancelar' }}
