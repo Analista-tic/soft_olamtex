@@ -24,6 +24,9 @@ class SettingService
         'fabric_colors' => ['fabric_colors', 'colores', 'colors'],
         'unit_measures' => ['unit_measures', 'unit_measure_catalog', 'unidades_medida', 'unidades_de_medida', 'unidad_medida'],
         'thread_brands' => ['thread_brands', 'marcas_hilo', 'marcas_de_hilo'],
+        'operation_actions' => ['operation_actions', 'acciones_operacion', 'acciones_de_operacion', 'acciones_operativas'],
+        'operation_garment_parts' => ['operation_garment_parts', 'partes_prenda_operacion', 'partes_de_prenda_operacion', 'partes_operacion'],
+        'operation_types' => ['operation_types', 'tipos_prenda', 'tipos_de_prenda', 'operation_garment_types'],
     ];
 
     /**
@@ -220,6 +223,94 @@ class SettingService
         }
 
         return $key;
+    }
+
+    /**
+     * Agrega una nueva opción a un catálogo de parámetros.
+     * Lee el JSON actual, genera un nuevo id, agrega la opción y persiste.
+     *
+     * @return array{id: int, name: string} La opción creada
+     */
+    public function addCatalogOption(string $key, string $name): array
+    {
+        $canonical = $this->canonicalKey($key);
+
+        // Buscar el Setting que contiene el catálogo
+        $setting = null;
+        foreach ($this->keyCandidates($canonical) as $candidate) {
+            $setting = Setting::parameters()
+                ->where('key', $candidate)
+                ->where('status', true)
+                ->first();
+            if ($setting) break;
+        }
+
+        if (!$setting) {
+            throw new \RuntimeException("No se encontró el catálogo '{$canonical}' en Settings.");
+        }
+
+        $current = is_array($setting->value) ? $setting->value : [];
+
+        // Verificar duplicados por nombre
+        foreach ($current as $item) {
+            if (is_array($item) && isset($item['name']) && mb_strtolower(trim($item['name'])) === mb_strtolower(trim($name))) {
+                return ['id' => $item['id'], 'name' => (string) $item['name']];
+            }
+        }
+
+        // Calcular siguiente id numérico
+        $maxId = 0;
+        foreach ($current as $item) {
+            if (is_array($item) && isset($item['id']) && is_numeric($item['id'])) {
+                $maxId = max($maxId, (int) $item['id']);
+            }
+        }
+        $newId = $maxId + 1;
+
+        $newOption = ['id' => $newId, 'name' => trim($name)];
+        $current[] = $newOption;
+
+        $setting->value = $current;
+        $setting->save();
+
+        return $newOption;
+    }
+
+    /**
+     * Obtiene una lista de strings almacenada como JSON en la tabla settings.
+     * Usada para listas parametrizables como operation_actions, operation_garment_parts.
+     */
+    public function getStringList(string $key): array
+    {
+        $setting = Setting::parameters()
+            ->where('key', $key)
+            ->where('status', true)
+            ->first();
+        if (!$setting) return [];
+        $val = $setting->getAttribute('value');
+        if (!is_array($val)) return [];
+        return array_values(array_filter($val, 'is_string'));
+    }
+
+    /**
+     * Persiste una lista de strings como JSON en la tabla settings.
+     * Crea el registro si no existe.
+     */
+    public function setStringList(string $key, array $values): void
+    {
+        $clean = array_values(array_unique(array_filter(array_map('strval', $values))));
+        $setting = Setting::parameters()->where('key', $key)->first();
+        if ($setting) {
+            $setting->value = $clean;
+            $setting->save();
+        } else {
+            Setting::create([
+                'key'    => $key,
+                'value'  => $clean,
+                'type'   => 'parameters',
+                'status' => true,
+            ]);
+        }
     }
 
     /**
