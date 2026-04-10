@@ -31,6 +31,7 @@ type OperationRecord = {
     codigo: string | null;
     action: string;
     garment_part: string;
+    anexo?: string | null;
     name: string;
     normalized_name: string;
     generated_description: string;
@@ -64,6 +65,7 @@ const page = usePage<{
     sections: Section[];
     actions: string[];
     garmentParts: string[];
+    types: string[];
     productSheets: ProductSheetOption[];
     machines: MachineOption[];
 }>();
@@ -314,7 +316,10 @@ onMounted(() => fetchPage(1));
                                         <span v-else class="text-xs text-muted-foreground">-</span>
                                     </TableCell>
                                     <TableCell class="text-xs font-semibold uppercase">{{ op.action }}</TableCell>
-                                    <TableCell class="text-xs uppercase">{{ op.garment_part }}</TableCell>
+                                    <TableCell class="text-xs uppercase">
+                                        <span>{{ op.garment_part }}</span>
+                                        <span v-if="op.anexo" class="ml-1 text-[10px] text-primary/70">· {{ op.anexo }}</span>
+                                    </TableCell>
                                     <TableCell class="text-right font-mono text-xs">{{ op.measure != null ? op.measure : '-' }}</TableCell>
                                     <TableCell class="text-right font-mono text-xs">{{ op.quantity ?? '-' }}</TableCell>
                                     <TableCell class="text-right font-mono text-xs font-semibold">{{
@@ -412,6 +417,7 @@ onMounted(() => fetchPage(1));
             :sections="sections"
             :actions="page.props.actions || []"
             :garment-parts="page.props.garmentParts || []"
+            :types="page.props.types || []"
             :product-sheets="productSheets"
             :machines="machines"
             @close="isFormDialogOpen = false"

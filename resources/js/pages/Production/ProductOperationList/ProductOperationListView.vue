@@ -33,6 +33,7 @@ type OperationEntry = {
     operator_efficiency_factor?: number;
     machine_supplement_factor?: number;
     fabric_base_factor?: number;
+    notes?: string | null;
 };
 
 type CostParameters = { operation_cost: number };
@@ -401,7 +402,10 @@ watch(
                                                 <TableCell class="pl-4 font-mono text-xs text-muted-foreground">{{
                                                     entry.sequence ?? '-'
                                                 }}</TableCell>
-                                                <TableCell>{{ entry.operation?.name ?? '-' }}</TableCell>
+                                                <TableCell>
+                                                    {{ entry.operation?.name ?? '-' }}
+                                                    <span v-if="entry.notes" class="mt-0.5 block text-[10px] italic text-muted-foreground/60">{{ entry.notes }}</span>
+                                                </TableCell>
                                                 <TableCell class="text-center text-xs text-muted-foreground">{{
                                                     entry.machine?.code ?? '-'
                                                 }}</TableCell>
@@ -552,7 +556,10 @@ watch(
                                         <TableRow v-for="entry in operations" :key="entry.id" class="text-sm">
                                             <TableCell class="pl-4 font-mono text-xs text-muted-foreground">{{ entry.sequence ?? '-' }}</TableCell>
                                             <TableCell class="text-xs">{{ resolveSectionName(entry) || '-' }}</TableCell>
-                                            <TableCell>{{ entry.operation?.name ?? '-' }}</TableCell>
+                                            <TableCell>
+                                                {{ entry.operation?.name ?? '-' }}
+                                                <span v-if="entry.notes" class="mt-0.5 block text-[10px] italic text-muted-foreground/60">{{ entry.notes }}</span>
+                                            </TableCell>
                                             <TableCell class="text-center text-xs text-muted-foreground">{{ entry.machine?.code ?? '-' }}</TableCell>
                                             <TableCell class="text-right">{{ entry.quantity ?? 1 }}</TableCell>
                                             <TableCell class="text-right font-mono">{{ fmtOperationTime(getSamBaseValue(entry)) }}</TableCell>

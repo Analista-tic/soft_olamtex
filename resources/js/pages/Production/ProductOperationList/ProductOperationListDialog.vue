@@ -23,6 +23,7 @@ interface OperationRow {
     quantity: number;
     fabric_base_id: number | string | null;
     operator_efficiency_factor: number;
+    row_notes: string;
 }
 
 interface OperationRowInput {
@@ -33,6 +34,7 @@ interface OperationRowInput {
     quantity?: number;
     fabric_base_id?: number | string | null;
     operator_efficiency_factor?: number;
+    row_notes?: string;
 }
 
 interface DialogInitialData {
@@ -169,6 +171,7 @@ const createEmptyRow = (): OperationRow => ({
     quantity: 1,
     fabric_base_id: NONE_FABRIC_BASE_ID,
     operator_efficiency_factor: DEFAULT_OPERATOR_EFFICIENCY,
+    row_notes: '',
 });
 const currentRow = ref<OperationRow>(createEmptyRow());
 
@@ -225,7 +228,6 @@ const availableProductSheets = computed(() => {
 });
 
 const productSheetId = ref<number | string | null>(availableProductSheets.value[0]?.id ?? props.productSheets[0]?.id ?? null);
-const notes = ref('');
 
 watch(
     () => availableProductSheets.value,
@@ -243,6 +245,7 @@ const operationList = ref<OperationRow[]>([]);
 const editingRowIndex = ref<number | null>(null);
 const editRow = ref<OperationRow | null>(null);
 const addNewDialogOpen = ref(false);
+
 const addNewEntity = ref<'section' | 'operation' | 'machine'>('section');
 
 function openAddNewDialog(entity: 'section' | 'operation' | 'machine') {
@@ -345,7 +348,7 @@ function getSamOperacion(row: OperationRow): number {
 function getOpsPerHour(row: OperationRow): number {
     const samOp = getSamOperacion(row);
     if (samOp <= 0) return 0;
-    return Number((60 / samOp).toFixed(2));
+    return Math.floor(60 / samOp);
 }
 
 function getSectionName(id: number | null): string {
@@ -358,7 +361,11 @@ function getOperationName(id: number | null): string {
 
 function getMachineName(id: string | number | null): string {
     const m = machinesList.value.find((m) => m.id === id);
-    return m ? `${m.code} · ${m.name}` : '-';
+    if (!m) return '-';
+    const code = (m.code ?? '').trim();
+    const name = (m.name ?? '').trim();
+    if (code && name && code.toUpperCase() !== name.toUpperCase()) return `${code} · ${name}`;
+    return code || name || '-';
 }
 
 function getMachineDisplayWithSupplement(row: OperationRow): string {
@@ -427,7 +434,6 @@ function initializeForm() {
     cancelEditRow();
     if (props.mode === 'edit' && props.initialData) {
         productSheetId.value = props.initialData.productSheetId ?? props.productSheets[0]?.id ?? null;
-        notes.value = props.initialData.notes ?? '';
         operationList.value = props.initialData.operations.map((row) => ({
             section_id: row.section_id,
             operation_id: row.operation_id,
@@ -436,6 +442,7 @@ function initializeForm() {
             quantity: row.quantity ?? 1,
             fabric_base_id: row.fabric_base_id ?? NONE_FABRIC_BASE_ID,
             operator_efficiency_factor: row.operator_efficiency_factor ?? props.initialData?.operatorEfficiencyFactor ?? DEFAULT_OPERATOR_EFFICIENCY,
+            row_notes: row.row_notes ?? '',
         }));
         currentRow.value = createEmptyRow();
         return;
@@ -481,7 +488,7 @@ function saveOperations() {
         optimal_time: row.optimal_time,
         operator_efficiency_factor: row.operator_efficiency_factor,
         machine_supplement_factor: getSupplementForRow(row),
-        notes: notes.value || undefined,
+        notes: row.row_notes || undefined,
         quantity: row.quantity ?? 1,
         fabric_base_id: toNumOrNull(row.fabric_base_id),
     }));
@@ -495,7 +502,6 @@ function saveOperations() {
 function resetForm() {
     cancelEditRow();
     operationList.value = [];
-    notes.value = '';
     productSheetId.value = availableProductSheets.value[0]?.id ?? null;
     currentRow.value = createEmptyRow();
 }
@@ -529,7 +535,7 @@ function resetForm() {
                             :disabled="isEditMode || readonly"
                             required
                         />
-                        <InputField v-model="notes" label="Notas generales" :disabled="readonly" />
+                        <div></div>
                         <div></div>
                     </div>
 
@@ -608,7 +614,12 @@ function resetForm() {
                             <SelectField
                                 v-model="currentRow.machine_id"
                                 :options="
-                                    machinesList.map((m) => ({ id: m.id, name: `${m.code} · ${m.name} (×${(m.supplement_factor ?? 1).toFixed(2)})` }))
+                                    machinesList.map((m) => {
+                                        const code = (m.code ?? '').trim();
+                                        const name = (m.name ?? '').trim();
+                                        const label = (code && name && code.toUpperCase() !== name.toUpperCase()) ? `${code} · ${name}` : (code || name || '-');
+                                        return { id: m.id, name: `${label} (×${(m.supplement_factor ?? 1).toFixed(2)})` };
+                                    })
                                 "
                                 placeholder="Máquina"
                                 class="h-9 w-full"
@@ -679,6 +690,14 @@ function resetForm() {
                                 Añadir
                             </Button>
                         </div>
+                        <div class="col-span-11">
+                            <input
+                                v-model="currentRow.row_notes"
+                                type="text"
+                                placeholder="Nota de la operación (opcional)"
+                                class="h-7 w-full rounded-md border border-input bg-transparent px-2 text-xs text-muted-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+                            />
+                        </div>
                     </div>
 
                     <!-- Lista de operaciones añadidas -->
@@ -747,6 +766,18 @@ function resetForm() {
                                             <span class="block truncate" :title="getOperationName(row.operation_id)">{{
                                                 getOperationName(row.operation_id)
                                             }}</span>
+                                            <span
+                                                v-if="!isEditingRow(index) && row.row_notes"
+                                                class="mt-0.5 block truncate text-[10px] italic text-muted-foreground/60"
+                                                :title="row.row_notes"
+                                            >{{ row.row_notes }}</span>
+                                            <input
+                                                v-if="isEditingRow(index) && editRow"
+                                                v-model="editRow.row_notes"
+                                                type="text"
+                                                placeholder="Nota (opcional)"
+                                                class="mt-1 h-6 w-full rounded border border-input bg-transparent px-1.5 text-[10px] text-muted-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+                                            />
                                         </td>
                                         <td class="px-2 py-2 text-xs">
                                             <SelectField

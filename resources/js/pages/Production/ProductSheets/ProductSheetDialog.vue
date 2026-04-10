@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AlertStack from '@/components/common/AlertStack.vue';
+import AlertBox from '@/components/AlertBox.vue';
 import DialogActionButtons from '@/components/common/DialogActionButtons.vue';
 import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
@@ -15,7 +15,6 @@ import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } fr
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useProductSheetValidation } from '@/composables/useProductSheetValidation';
-import type { FabricBaseOption, MachineOption, OperationOption, OperationSection, ProductOperationPayload } from '@/domain/product-sheet';
 import type { OptionParams, ProductSheet } from '@/domain/Production';
 import {
     PRODUCT_SHEET_TYPE_PRODUCT,
@@ -29,11 +28,10 @@ import {
     stringifyJsonRecord,
     updateProductSheet,
 } from '@/domain/Production';
-import ProductOperationListDialog from '@/pages/Production/ProductOperationList/ProductOperationListDialog.vue';
-import { router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Eye, Image as ImageIcon, List, Loader2, Trash } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch } from 'vue';
+import { Loader2 } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
+import FlatSketchUploader from './FlatSketchUploader.vue';
 
 interface Props {
     mode: 'create' | 'edit' | 'view'; // Define si es creación, edición o visualización
@@ -50,49 +48,6 @@ interface Props {
 }
 
 const props = defineProps<Props & { open: boolean }>(); // Agregar la propiedad `open`
-async function loadOperationsForProduct(productId: number, silent = false): Promise<void> {
-    try {
-        const { data } = await axios.get(route('produccion.listados-operacionales.data'), {
-            params: { product_sheet_id: productId },
-        });
-        const rows = Array.isArray(data?.data) ? data.data : [];
-        const sorted = [...rows].sort(
-            (a: { sequence_order?: number }, b: { sequence_order?: number }) => (a.sequence_order ?? 0) - (b.sequence_order ?? 0),
-        );
-        const seen = new Set<string>();
-        const deduplicated: typeof sorted = [];
-        for (const row of sorted) {
-            const key = `${row.operation_id ?? ''}-${row.machine_id ?? ''}-${row.operation_section_id ?? row.section_id ?? ''}`;
-            if (seen.has(key)) continue;
-            seen.add(key);
-            deduplicated.push(row);
-        }
-        loadedOperationIds.value = deduplicated.map((r: { id?: number }) => Number(r.id)).filter(Boolean);
-        const first = deduplicated[0] ?? {};
-        operationDialogInitialData.value = {
-            productSheetId: productId,
-            operations: deduplicated.map((row: Record<string, unknown>) => ({
-                id: typeof row.id === 'number' ? row.id : undefined,
-                section_id: Number(row.operation_section_id ?? row.section_id ?? 0) || null,
-                operation_id: Number(row.operation_id ?? 0) || null,
-                machine_id: Number(row.machine_id ?? 0) || null,
-                optimal_time: String(row.optimal_time ?? row.sam ?? '0.00'),
-                quantity: Math.max(1, Math.floor(Number(row.quantity ?? 1)) || 1),
-                fabric_base_id: row.fabric_base_id != null ? Number(row.fabric_base_id) || null : null,
-                operator_efficiency_factor: Number(row.operator_efficiency_factor ?? first.operator_efficiency_factor ?? 1) || 1,
-            })),
-            operatorEfficiencyFactor: Number(first.operator_efficiency_factor ?? 1) || 1,
-            machineSupplementFactor: Number(first.machine_supplement_factor ?? 1.0) || 1.0,
-            notes: String(first.notes ?? ''),
-        };
-    } catch (err) {
-        if (!silent) {
-            console.error('Error al cargar operaciones:', err);
-        }
-        loadedOperationIds.value = [];
-        operationDialogInitialData.value = { ...buildOperationDialogInitialData(), productSheetId: productId };
-    }
-}
 
 /** Respuesta estructurada del backend al guardar/actualizar ProductSheet */
 interface ProductSheetSavedPayload {
@@ -154,10 +109,7 @@ const developmentProcessLabel = 'Desarrollo de muestras';
 const developmentProcessAliases = ['Desarrollo de muestra', 'Desarrollo de Muestra', 'Desarrollo de Muestras'];
 const hasAppliedDefaultSampleProcess = ref(false);
 const mandatoryProcesses = ['Muestras', 'Confección', 'Terminación', 'Bodega'];
-const flatSketchFile = ref<File | null>(null);
-const flatSketchPreviewUrl = ref<string | null>(null);
-const flatSketchLoadFailed = ref(false);
-const allowedFlatSketchMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+const flatSketchRef = ref<InstanceType<typeof FlatSketchUploader> | null>(null);
 
 interface FormState {
     id?: number;
@@ -184,13 +136,6 @@ interface FormState {
     status: 'incomplete' | 'complete';
     version: number;
     parent_id: number | null;
-}
-
-interface ProductSheetDialogOption {
-    id: number | string;
-    reference: string;
-    type: string;
-    isTemporary?: boolean;
 }
 
 function defaultSizesJson(): string {
@@ -281,16 +226,36 @@ function createInitialFormState(): FormState {
 }
 
 const form = ref<FormState>(createInitialFormState());
+const sectionOptions = ref<OptionParams[]>([]);
+const groupOptions = ref<OptionParams[]>([]);
+const brandOptions = ref<OptionParams[]>([]);
+const worldOptions = ref<OptionParams[]>([]);
+const yarnBaseOptions = ref<OptionParams[]>([]);
 const collectionOptions = ref<OptionParams[]>([]);
+const sectionSearchTerm = ref('');
+const groupSearchTerm = ref('');
+const brandSearchTerm = ref('');
+const worldSearchTerm = ref('');
+const fabricBaseSearchTerm = ref('');
+const yarnBaseSearchTerm = ref('');
 const collectionSearchTerm = ref('');
 const creatingCollection = ref(false);
+const collectionActionLabel = computed(() => {
+    if (creatingCollection.value) {
+        return 'Creando colección…';
+    }
+
+    return normalizeCollectionName(collectionSearchTerm.value) ? 'Crear colección' : 'Agregar colección';
+});
 const FABRIC_BASE_NA_OPTION: OptionParams = {
     id: 0,
     name: 'N/A - No aplica',
 };
 
+const baseFabricOptions = ref<OptionParams[]>([]);
+
 const fabricBaseOptions = computed<OptionParams[]>(() => {
-    const bases = Array.isArray(props.fabricBases) ? props.fabricBases : [];
+    const bases = [...baseFabricOptions.value];
 
     if (!form.value.woven_product) {
         return bases;
@@ -310,6 +275,139 @@ const fabricBaseOptions = computed<OptionParams[]>(() => {
 
     return [FABRIC_BASE_NA_OPTION, ...bases];
 });
+
+const selectCreationConfig = {
+    sections: {
+        getTerm: () => sectionSearchTerm.value,
+        getOptions: () => sectionOptions.value,
+        setOptions: (options: OptionParams[]) => {
+            sectionOptions.value = options;
+        },
+        assign: (id: number) => {
+            form.value.section_id = id;
+        },
+        successLabel: 'Sección',
+    },
+    groups: {
+        getTerm: () => groupSearchTerm.value,
+        getOptions: () => groupOptions.value,
+        setOptions: (options: OptionParams[]) => {
+            groupOptions.value = options;
+        },
+        assign: (id: number) => {
+            form.value.group_id = id;
+        },
+        successLabel: 'Grupo',
+    },
+    brands: {
+        getTerm: () => brandSearchTerm.value,
+        getOptions: () => brandOptions.value,
+        setOptions: (options: OptionParams[]) => {
+            brandOptions.value = options;
+        },
+        assign: (id: number) => {
+            form.value.brand_id = id;
+        },
+        successLabel: 'Marca',
+    },
+    worlds: {
+        getTerm: () => worldSearchTerm.value,
+        getOptions: () => worldOptions.value,
+        setOptions: (options: OptionParams[]) => {
+            worldOptions.value = options;
+        },
+        assign: (id: number) => {
+            form.value.world_id = id;
+        },
+        successLabel: 'Mundo',
+    },
+    fabric_bases: {
+        getTerm: () => fabricBaseSearchTerm.value,
+        getOptions: () => baseFabricOptions.value,
+        setOptions: (options: OptionParams[]) => {
+            baseFabricOptions.value = options;
+        },
+        assign: (id: number) => {
+            form.value.fabric_base_id = id;
+        },
+        successLabel: 'Base tela',
+    },
+    yarn_bases: {
+        getTerm: () => yarnBaseSearchTerm.value,
+        getOptions: () => yarnBaseOptions.value,
+        setOptions: (options: OptionParams[]) => {
+            yarnBaseOptions.value = options;
+        },
+        assign: (id: number) => {
+            form.value.yarn_base_id = id;
+        },
+        successLabel: 'Base hilaza',
+    },
+} as const;
+
+function syncCatalogOptionsFromProps(): void {
+    sectionOptions.value = Array.isArray(props.sections) ? [...props.sections] : [];
+    groupOptions.value = Array.isArray(props.groups) ? [...props.groups] : [];
+    brandOptions.value = Array.isArray(props.brands) ? [...props.brands] : [];
+    worldOptions.value = Array.isArray(props.worlds) ? [...props.worlds] : [];
+    baseFabricOptions.value = Array.isArray(props.fabricBases) ? [...props.fabricBases] : [];
+    yarnBaseOptions.value = Array.isArray(props.yarnBases) ? [...props.yarnBases] : [];
+}
+
+async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig): Promise<void> {
+    if (isReadonly.value) return;
+
+    const config = selectCreationConfig[catalogKey];
+    const name = normalizeCollectionName(config.getTerm());
+
+    if (!name) {
+        setError(`Escribe un nombre para agregar ${config.successLabel.toLowerCase()}.`, 'warning');
+        return;
+    }
+
+    const currentOptions = config.getOptions();
+    const exists = currentOptions.find((option) => String(option.name).trim().toLowerCase() === name.toLowerCase());
+    if (exists) {
+        const existingId = toIdOrNull(exists.id);
+        if (existingId) {
+            config.assign(existingId);
+        }
+        setError(`${config.successLabel} ya existe y fue seleccionada.`, 'info');
+        return;
+    }
+
+    try {
+        const response = await axios.post(route('produccion.product-sheets.parameters.store-option'), {
+            key: catalogKey,
+            name,
+        });
+
+        const created = response.data?.data;
+        const createdId = toIdOrNull(created?.id ?? null);
+        const createdName = normalizeCollectionName(String(created?.name ?? name));
+
+        if (!createdId) {
+            setError(`No se pudo crear ${config.successLabel.toLowerCase()}.`);
+            return;
+        }
+
+        const updated = [...currentOptions, { id: createdId, name: createdName }];
+        config.setOptions(updated);
+        config.assign(createdId);
+        setError(`${config.successLabel} agregada y seleccionada.`, 'info');
+    } catch (err: unknown) {
+        if (axios.isAxiosError(err)) {
+            const message = err.response?.data?.message;
+            const validationError = err.response?.data?.errors
+                ? Object.values(err.response.data.errors).flat()[0]
+                : null;
+            setError(validationError ?? message ?? `No se pudo crear ${config.successLabel.toLowerCase()}.`);
+            return;
+        }
+
+        setError(`No se pudo crear ${config.successLabel.toLowerCase()}.`);
+    }
+}
 
 function normalizeCollectionName(value: string): string {
     return value.trim().replace(/\s+/g, ' ');
@@ -372,6 +470,16 @@ async function createCollectionFromSelect(): Promise<void> {
     }
 }
 
+function handleCollectionAction(): void {
+    const hasSearchTerm = Boolean(normalizeCollectionName(collectionSearchTerm.value));
+    if (hasSearchTerm) {
+        void createCollectionFromSelect();
+        return;
+    }
+
+    setError('Escribe el nombre en el buscador para agregar colección.', 'warning');
+}
+
 // Template (crear desde plantilla)
 const templateOptions = ref<Array<{ id: number | string; name: string }>>([]);
 const selectedTemplateId = ref<number | null>(null);
@@ -428,84 +536,8 @@ async function applyTemplate(templateId: number) {
     }
 }
 
-const operationListDialogOpen = ref(false);
-const operationListOptionsLoaded = ref(false);
-const operationListOptionsLoading = ref(false);
-const operationListPayload = ref<ProductOperationPayload[]>([]);
-const operationDialogInitialData = ref<{
-    productSheetId: number | string | null;
-    operations: Array<{ id?: number; section_id: number | null; operation_id: number | null; machine_id: number | null; optimal_time: string }>;
-    operatorEfficiencyFactor: number;
-    machineSupplementFactor: number;
-    notes: string;
-} | null>(null);
-const loadedOperationIds = ref<number[]>([]);
-const operationListMeta = ref({
-    sections: [] as OperationSection[],
-    operations: [] as OperationOption[],
-    machines: [] as MachineOption[],
-    productSheets: [] as ProductSheetDialogOption[],
-    fabricBases: [] as FabricBaseOption[],
-    actions: [] as string[],
-    garmentParts: [] as string[],
-});
-
-const TEMP_SAMPLE_PRODUCT_SHEET_ID = '__temp_sample__';
-
-const currentProductSheetOption = computed<ProductSheetDialogOption | null>(() => {
-    const sheet = props.productSheet;
-    if (!sheet?.id) return null;
-    return {
-        id: sheet.id,
-        reference: sheet.product_reference ?? sheet.sample_reference ?? '',
-        type: normalizeTypeValue(sheet.type),
-    };
-});
-
-const temporarySampleProductSheetOption = computed<ProductSheetDialogOption | null>(() => {
-    if (!isCreateMode.value) return null;
-    if (normalizeTypeValue(form.value.type) !== TYPE_SAMPLE) return null;
-    const reference = activeReference.value.trim();
-    if (!reference) return null;
-    return {
-        id: TEMP_SAMPLE_PRODUCT_SHEET_ID,
-        reference,
-        type: TYPE_SAMPLE,
-        isTemporary: true,
-    };
-});
-
-const productSheetOptionsForDialog = computed(() => {
-    const temp = temporarySampleProductSheetOption.value;
-    const base = currentProductSheetOption.value;
-    const metaSheets = operationListMeta.value.productSheets ?? [];
-
-    const withoutTemp = metaSheets.filter((sheet) => sheet.id !== TEMP_SAMPLE_PRODUCT_SHEET_ID);
-
-    if (temp) {
-        return [temp, ...withoutTemp];
-    }
-
-    if (!base) return withoutTemp;
-
-    const exists = withoutTemp.some((sheet) => sheet.id === base.id);
-    return exists ? withoutTemp : [base, ...withoutTemp];
-});
-
-const operationDialogBoundProductId = computed(() => {
-    const id = props.productSheet?.id ?? form.value.id ?? temporarySampleProductSheetOption.value?.id ?? null;
-    return id;
-});
-
-function buildOperationDialogInitialData() {
-    return {
-        productSheetId: operationDialogBoundProductId.value,
-        operations: [] as Array<{ section_id: number | null; operation_id: number | null; machine_id: number | null; optimal_time: string }>,
-        operatorEfficiencyFactor: 1,
-        machineSupplementFactor: 1.0,
-        notes: '',
-    };
-}
+const hasSampleOperationalList = ref(true);
+const checkingSampleOperationalList = ref(false);
 
 const sizeGroups = {
     tallas_1: ['XS', 'S', 'M', 'L', 'XL', '2XL', 'U'],
@@ -515,12 +547,10 @@ const sizeGroups = {
 
 const parsedSizes = computed<Record<string, boolean>>(() => parseBooleanRecord(form.value.sizes));
 
-const operationalListSheetId = computed<number | null>(() => {
+const currentProductSheetId = computed<number | null>(() => {
     const id = props.productSheet?.id ?? form.value.id;
     return typeof id === 'number' && id > 0 ? id : null;
 });
-
-const canManageOperationalList = computed(() => operationalListSheetId.value !== null);
 
 const overallStatus = computed<boolean>(() => {
     const hasSelectedSize = Object.values(parsedSizes.value).some((value) => value === true);
@@ -528,8 +558,7 @@ const overallStatus = computed<boolean>(() => {
         Boolean(form.value.reference) &&
         Boolean(form.value.billing_price) &&
         Boolean(form.value.selling_price) &&
-        hasSelectedSize &&
-        hasOperationalListConfigured.value
+        hasSelectedSize
     );
 });
 
@@ -589,6 +618,30 @@ function orderProcesses(processes: Record<string, boolean>): Record<string, bool
     return ordered;
 }
 
+function normalizeProcessName(value: string): string {
+    return value.trim().replace(/\s+/g, ' ');
+}
+
+function handleCreateProcessOption(rawName: string): void {
+    if (isReadonly.value) return;
+
+    const name = normalizeProcessName(rawName);
+    if (!name) {
+        setError('Escribe el nombre del proceso para agregarlo.', 'warning');
+        return;
+    }
+
+    const exists = allProcesses.value.some((process) => process.trim().toLowerCase() === name.toLowerCase());
+    if (!exists) {
+        allProcesses.value = [...allProcesses.value, name];
+    }
+
+    const parsed = parseProcessesValue(form.value.processes);
+    parsed[name] = true;
+    form.value.processes = JSON.stringify(orderProcesses(parsed));
+    setError('Proceso agregado y seleccionado.', 'info');
+}
+
 function applyDefaultSampleProcessOnce() {
     if (hasAppliedDefaultSampleProcess.value) return;
     if (!isCreateMode.value) return;
@@ -604,20 +657,10 @@ function applyDefaultSampleProcessOnce() {
     hasAppliedDefaultSampleProcess.value = true;
 }
 
-const hasOperationalListConfigured = computed(
-    () =>
-        operationDialogInitialData.value != null &&
-        Array.isArray(operationDialogInitialData.value.operations) &&
-        operationDialogInitialData.value.operations.length > 0,
-);
-
-const operationalListCount = computed(() =>
-    operationDialogInitialData.value != null && Array.isArray(operationDialogInitialData.value.operations)
-        ? operationDialogInitialData.value.operations.length
-        : 0,
-);
-
-const operationListReadonly = computed(() => Boolean(props.productSheet?.has_production_orders));
+const shouldValidateSampleOperationalList = computed(() => {
+    const isSample = normalizeTypeValue(form.value.type) === TYPE_SAMPLE;
+    return isSample && Boolean(currentProductSheetId.value);
+});
 
 const typeModel = computed({
     get() {
@@ -638,14 +681,6 @@ const isTypeReadonly = computed(
 
 const showConvertButton = computed(
     () => isEditMode.value && normalizeTypeValue(form.value.type) === TYPE_SAMPLE && !Boolean(props.productSheet?.has_derived_product),
-);
-const mainReferenceLabel = computed(() => (form.value.type === TYPE_SAMPLE ? 'Referencia (Muestra)' : 'Referencia (Producto)'));
-const displayedReferenceForInput = computed<string>(() =>
-    form.value.type === TYPE_SAMPLE ? (form.value.sample_reference ?? '') : (form.value.product_reference ?? ''),
-);
-const hasBothReferences = computed(() => Boolean(form.value.sample_reference && form.value.product_reference));
-const hasAnyReference = computed(() =>
-    Boolean(form.value.sample_reference?.trim() || form.value.product_reference?.trim()),
 );
 
 const isConvertDialogOpen = ref(false);
@@ -725,16 +760,62 @@ watch(
 watch(
     () => form.value.woven_product,
     (newValue) => {
+        const productType = form.value.type === TYPE_SAMPLE ? 'muestra' : 'producto';
         const processes = parseBooleanRecord(form.value.processes);
+
         if (newValue) {
             if (!processes['Tejido']) {
                 processes['Tejido'] = true;
+                if (import.meta.env.DEV) {
+                    console.log(
+                        `[ProductSheet][woven_product=true][tipo=${productType}] ` +
+                        `➕ Proceso "Tejido" marcado automáticamente en Procesos.`,
+                    );
+                }
+            } else if (import.meta.env.DEV) {
+                console.log(
+                    `[ProductSheet][woven_product=true][tipo=${productType}] ` +
+                    `ℹ Proceso "Tejido" ya estaba activo, sin cambios.`,
+                );
+            }
+            if (import.meta.env.DEV) {
+                console.log(
+                    `[ProductSheet][woven_product=true][tipo=${productType}] ` +
+                    `🔵 Campo "Base Hilaza" habilitado y visible.`,
+                );
             }
         } else {
+            const tejitoWasActive = Boolean(processes['Tejido']);
             delete processes['Tejido'];
             form.value.yarn_base_id = null;
+            // Si tenía N/A seleccionada (id=0 o null) al apagar el toggle,
+            // limpiar para obligar al usuario a seleccionar una base tela real
+            if (!form.value.fabric_base_id || Number(form.value.fabric_base_id) === 0) {
+                form.value.fabric_base_id = null;
+            }
+            if (import.meta.env.DEV) {
+                if (tejitoWasActive) {
+                    console.log(
+                        `[ProductSheet][woven_product=false][tipo=${productType}] ` +
+                        `➖ Proceso "Tejido" desmarcado de Procesos.`,
+                    );
+                }
+                console.log(
+                    `[ProductSheet][woven_product=false][tipo=${productType}] ` +
+                    `🔴 Campo "Base Hilaza" ocultado y yarn_base_id limpiado.`,
+                );
+            }
         }
         form.value.processes = stringifyJsonRecord(processes);
+        if (import.meta.env.DEV) {
+            const activeProcesses = Object.entries(parseBooleanRecord(form.value.processes))
+                .filter(([, v]) => v)
+                .map(([k]) => k);
+            console.log(
+                `[ProductSheet][woven_product=${newValue}][tipo=${productType}] ` +
+                `📋 Procesos activos: [${activeProcesses.join(', ')}]`,
+            );
+        }
     },
 );
 
@@ -747,7 +828,7 @@ watch(
     () => props.productSheet,
     (newProductSheet) => {
         if ((isEditMode.value || isViewMode.value) && newProductSheet) {
-            resetFlatSketchSelection();
+            flatSketchRef.value?.reset();
             const sizeValue = ensureSizesJson(newProductSheet.sizes);
             const normalizedType = normalizeTypeValue(newProductSheet.type);
 
@@ -785,6 +866,14 @@ watch(
 );
 
 watch(
+    () => [props.sections, props.groups, props.brands, props.worlds, props.fabricBases, props.yarnBases],
+    () => {
+        syncCatalogOptionsFromProps();
+    },
+    { immediate: true },
+);
+
+watch(
     () => props.collections,
     () => {
         syncCollectionOptionsFromProps();
@@ -803,12 +892,7 @@ watch(
             if (isCreateMode.value) {
                 resetForm();
             } else if ((isEditMode.value || isViewMode.value) && props.productSheet?.id) {
-                // Precargar operaciones existentes para validación correcta, pero NO bloquear la apertura
-                const productId = props.productSheet.id;
-                if (typeof productId === 'number') {
-                    // Cargar operaciones en segundo plano
-                    loadOperationsForProduct(productId, true);
-                }
+                void validateSampleOperationalList(true);
             }
         }
     },
@@ -843,177 +927,58 @@ watch(selectedTemplateId, (newId) => {
     }
 });
 
-function goToOperationalListIndex() {
-    const productSheetId = operationalListSheetId.value;
+async function validateSampleOperationalList(silent = false): Promise<boolean> {
+    if (!shouldValidateSampleOperationalList.value) {
+        hasSampleOperationalList.value = true;
+        return true;
+    }
 
+    const productSheetId = currentProductSheetId.value;
     if (!productSheetId) {
-        setError('Guarda primero la sábana para registrar su listado operacional.', 'info');
+        hasSampleOperationalList.value = true;
+        return true;
+    }
+
+    checkingSampleOperationalList.value = true;
+    try {
+        const response = await axios.get(route('produccion.listados-operacionales.data'), {
+            params: { product_sheet_id: productSheetId },
+        });
+        const rows = Array.isArray(response.data?.data) ? response.data.data : [];
+        hasSampleOperationalList.value = rows.length > 0;
+
+        if (!hasSampleOperationalList.value && !silent) {
+            setError('La muestra no tiene listado operacional registrado.', 'warning');
+        }
+
+        return hasSampleOperationalList.value;
+    } catch (error) {
+        hasSampleOperationalList.value = false;
+        if (!silent) {
+            setError('No se pudo validar el listado operacional de la muestra.');
+        }
+        return false;
+    } finally {
+        checkingSampleOperationalList.value = false;
+    }
+}
+
+async function openOperationalListInNewWindow(): Promise<void> {
+    const productSheetId = currentProductSheetId.value;
+    if (!productSheetId || normalizeTypeValue(form.value.type) !== TYPE_SAMPLE) {
         return;
     }
 
-    router.get(route('produccion.listados-operacionales.index'), {
+    const hasOperationalList = await validateSampleOperationalList(true);
+    if (!hasOperationalList) {
+        setError('La muestra no tiene listado operacional registrado.', 'warning');
+        return;
+    }
+
+    const targetUrl = route('produccion.listados-operacionales.index', {
         product_sheet_id: productSheetId,
     });
-}
-
-async function loadOperationListOptions(forceRefresh = false) {
-    if ((!forceRefresh && operationListOptionsLoaded.value) || operationListOptionsLoading.value) return;
-    if (forceRefresh) operationListOptionsLoaded.value = false;
-    operationListOptionsLoading.value = true;
-    try {
-        const response = await axios.get(route('produccion.listados-operacionales.options'));
-        const payload = response.data?.data ?? response.data;
-        const rawFabricBases = payload?.fabric_bases ?? [];
-        const fabricBases: FabricBaseOption[] = Array.isArray(rawFabricBases)
-            ? rawFabricBases.map((f: Record<string, unknown>) => ({
-                  id: (typeof f.id === 'number' || typeof f.id === 'string' ? f.id : 0) as number | string,
-                  name: String(f.name ?? f.nombre ?? f.codigo ?? f.code ?? ''),
-                  nombre: f.nombre != null ? String(f.nombre) : undefined,
-                  codigo: f.codigo != null ? String(f.codigo) : undefined,
-                  factor: typeof f.factor === 'number' ? f.factor : typeof f.factor_base === 'number' ? f.factor_base : undefined,
-              }))
-            : [];
-
-        operationListMeta.value = {
-            sections: (payload?.sections ?? []) as OperationSection[],
-            operations: (payload?.operations ?? []) as OperationOption[],
-            machines: (payload?.machines ?? []) as MachineOption[],
-            productSheets: payload?.productSheets ?? [],
-            fabricBases,
-            actions: payload?.actions ?? [],
-            garmentParts: payload?.garmentParts ?? [],
-        };
-        operationListOptionsLoaded.value = true;
-    } catch (error) {
-        console.error('Error al cargar opciones del listado operacional:', error);
-        setError('No se pudieron cargar las opciones de lista operacional.');
-    } finally {
-        operationListOptionsLoading.value = false;
-    }
-}
-
-async function openOperationListDialog() {
-    await loadOperationListOptions(true);
-    const productId = props.productSheet?.id ?? form.value.id;
-    if (productId && typeof productId === 'number') {
-        await loadOperationsForProduct(productId);
-    } else {
-        loadedOperationIds.value = [];
-        const base = buildOperationDialogInitialData();
-        if (operationListPayload.value.length > 0) {
-            base.operations = operationListPayload.value.map((p) => ({
-                section_id: p.section_id,
-                operation_id: p.operation_id,
-                machine_id: p.machine_id,
-                optimal_time: p.optimal_time,
-                quantity: p.quantity ?? 1,
-                fabric_base_id: p.fabric_base_id ?? null,
-                operator_efficiency_factor: p.operator_efficiency_factor ?? 1,
-            }));
-        }
-        operationDialogInitialData.value = base;
-    }
-    operationListDialogOpen.value = true;
-}
-
-function closeOperationListDialog() {
-    operationListDialogOpen.value = false;
-}
-
-function buildOperationsPayload(items: ProductOperationPayload[], productId: number): Array<Record<string, unknown>> {
-    const toInt = (v: unknown): number => {
-        if (v == null) return 0;
-        const n = typeof v === 'number' ? v : parseInt(String(v), 10);
-        return Number.isFinite(n) ? n : 0;
-    };
-    const toNum = (v: unknown, fallback: number): number => {
-        if (v == null) return fallback;
-        const n = typeof v === 'number' ? v : parseFloat(String(v));
-        return Number.isFinite(n) ? n : fallback;
-    };
-    return items.map((p, idx) => {
-        const fbId = p.fabric_base_id != null ? toInt(p.fabric_base_id) : null;
-        return {
-            product_sheet_id: productId,
-            operation_id: toInt(p.operation_id),
-            machine_id: toInt(p.machine_id),
-            operation_section_id: toInt(p.section_id),
-            sequence: Math.max(1, 'sequence' in p ? toInt(p.sequence) : (idx + 1) * 10),
-            optimal_time: Math.max(0.01, toNum(p.optimal_time, 0.01)),
-            operator_efficiency_factor: Math.max(1, Math.min(2, toNum(p.operator_efficiency_factor, 1))),
-            machine_supplement_factor: Math.max(1, toNum(p.machine_supplement_factor, 1)),
-            quantity: Math.max(1, toInt(p.quantity ?? 1)),
-            fabric_base_id: fbId != null && fbId > 0 ? fbId : null,
-            notes: typeof p.notes === 'string' && p.notes.trim() ? p.notes.trim().slice(0, 1000) : null,
-        };
-    });
-}
-
-async function handleOperationDialogSave(payload: ProductOperationPayload[]) {
-    const productId = props.productSheet?.id ?? form.value.id;
-    const hasRealProductId = typeof productId === 'number' && productId > 0;
-    const validPayloads = payload.filter((p) => p.section_id && p.operation_id && p.machine_id && Number(p.optimal_time) > 0);
-
-    if (hasRealProductId) {
-        try {
-            const idsToDelete = loadedOperationIds.value;
-            if (idsToDelete.length > 0) {
-                await axios.post(route('produccion.listados-operacionales.destroy-bulk'), {
-                    product_sheet_id: productId,
-                    operation_ids: idsToDelete,
-                });
-            }
-            if (validPayloads.length === 0) {
-                loadedOperationIds.value = [];
-                operationDialogInitialData.value = {
-                    ...(operationDialogInitialData.value ?? buildOperationDialogInitialData()),
-                    productSheetId: productId ?? null,
-                    operations: [],
-                };
-                operationListDialogOpen.value = false;
-                return;
-            }
-            const operations = buildOperationsPayload(validPayloads, productId);
-            await axios.post(route('produccion.listados-operacionales.bulk'), { operations });
-            loadedOperationIds.value = [];
-        } catch (err) {
-            console.error('Error al guardar operaciones:', err);
-            let msg = 'Error al guardar las operaciones.';
-            if (axios.isAxiosError(err)) {
-                const data = err.response?.data;
-                const validationErrors = data?.errors;
-                if (validationErrors && typeof validationErrors === 'object') {
-                    const details = Object.values(validationErrors)
-                        .flat()
-                        .filter((v): v is string => typeof v === 'string')
-                        .join('\n');
-                    msg = details || data?.message || msg;
-                } else if (typeof data?.message === 'string' && data.message.trim()) {
-                    msg = data.message;
-                }
-            }
-            setError(msg);
-            emit('error', msg);
-            return;
-        }
-    } else {
-        operationListPayload.value = validPayloads;
-    }
-
-    operationDialogInitialData.value = {
-        ...(operationDialogInitialData.value ?? buildOperationDialogInitialData()),
-        productSheetId: productId ?? null,
-        operations: validPayloads.map((p) => ({
-            section_id: p.section_id,
-            operation_id: p.operation_id,
-            machine_id: p.machine_id,
-            optimal_time: p.optimal_time,
-            quantity: p.quantity ?? 1,
-            fabric_base_id: p.fabric_base_id ?? null,
-            operator_efficiency_factor: p.operator_efficiency_factor ?? 1,
-        })),
-    };
-    operationListDialogOpen.value = false;
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
 }
 
 function openConvertDialog() {
@@ -1030,6 +995,13 @@ async function submitConvertDialog(productReference: string) {
     if (!props.productSheet?.id) {
         setError('No se pudo identificar la sábana.');
         return;
+    }
+
+    if (normalizeTypeValue(form.value.type) === TYPE_SAMPLE) {
+        const hasOperationalList = await validateSampleOperationalList();
+        if (!hasOperationalList) {
+            return;
+        }
     }
 
     convertLoading.value = true;
@@ -1124,96 +1096,6 @@ function buildMultipartPayload(basePayload: Record<string, unknown>): FormData {
     return payload;
 }
 
-function inferImageExtension(mimeType: string): string {
-    const normalized = mimeType.toLowerCase();
-    if (normalized.includes('png')) return 'png';
-    if (normalized.includes('webp')) return 'webp';
-    if (normalized.includes('jpeg') || normalized.includes('jpg')) return 'jpg';
-    return 'jpg';
-}
-
-async function resolveFlatSketchFileForUpload(): Promise<File | null> {
-    if (flatSketchFile.value instanceof File) {
-        return flatSketchFile.value;
-    }
-
-    const previewUrl = flatSketchPreviewUrl.value ?? '';
-    if (!previewUrl.startsWith('blob:')) {
-        return null;
-    }
-
-    try {
-        const response = await fetch(previewUrl);
-        const blob = await response.blob();
-        if (!blob || !blob.type.startsWith('image/')) {
-            return null;
-        }
-
-        const extension = inferImageExtension(blob.type);
-        return new File([blob], `flat-sketch.${extension}`, { type: blob.type });
-    } catch (error) {
-        console.error('No se pudo convertir preview blob a File:', error);
-        return null;
-    }
-}
-
-function resolveImageUrl(rawPath?: string | null): string | null {
-    const path = typeof rawPath === 'string' ? rawPath.trim() : '';
-    if (!path) return null;
-    if (/^https?:\/\//i.test(path)) return path;
-    if (path.startsWith('/storage-file/')) return path;
-    if (path.startsWith('/')) return `/storage-file/${path.replace(/^\/+(?:storage\/)?/, '')}`;
-    return `/storage-file/${path.replace(/^\/?storage\//, '')}`;
-}
-
-const flatSketchResolvedUrl = computed(() => resolveImageUrl(form.value.flat_sketch_path ?? ''));
-const flatSketchVisualUrl = computed(() => {
-    if (flatSketchPreviewUrl.value) {
-        return flatSketchPreviewUrl.value;
-    }
-
-    if (flatSketchLoadFailed.value) {
-        return null;
-    }
-
-    return flatSketchResolvedUrl.value;
-});
-const canClearFlatSketch = computed(() => Boolean(flatSketchFile.value || form.value.flat_sketch_path));
-function handleFlatSketchChange(event: Event) {
-    const input = event.target as HTMLInputElement;
-    const file = input?.files?.[0] ?? null;
-
-    if (file && !allowedFlatSketchMimeTypes.includes(file.type)) {
-        setError('Formato de imagen no válido. Solo se permiten JPG, PNG o WEBP.');
-        if (input) {
-            input.value = '';
-        }
-        return;
-    }
-
-    revokeFlatSketchPreview();
-    flatSketchLoadFailed.value = false;
-    flatSketchFile.value = file;
-
-    if (file) {
-        flatSketchPreviewUrl.value = URL.createObjectURL(file);
-    }
-}
-
-function openFlatSketchPreview(event: MouseEvent) {
-    event.stopPropagation();
-    const url = flatSketchVisualUrl.value;
-    if (!url) return;
-    if (typeof window !== 'undefined') {
-        window.open(url, '_blank', 'noopener');
-    }
-}
-
-function clearFlatSketch(event?: MouseEvent) {
-    event?.stopPropagation();
-    resetFlatSketchSelection();
-    form.value.flat_sketch_path = '';
-}
 
 async function saveProductSheet() {
     if (isLoading.value) return;
@@ -1226,69 +1108,50 @@ async function saveProductSheet() {
     determineStatus();
     isLoading.value = true;
 
-    const basePayload = buildBasePayload();
-    const payload = buildMultipartPayload(basePayload);
+    try {
+        const basePayload = buildBasePayload();
+        const payload = buildMultipartPayload(basePayload);
 
-    const request = resolveFlatSketchFileForUpload().then((flatSketchToUpload) => {
+        const flatSketchToUpload = await (flatSketchRef.value?.getFileForUpload() ?? Promise.resolve(null));
         if (flatSketchToUpload instanceof File) {
-            if (!allowedFlatSketchMimeTypes.includes(flatSketchToUpload.type)) {
-                throw new Error('INVALID_FLAT_SKETCH_TYPE');
-            }
             payload.append('flat_sketch', flatSketchToUpload);
         }
 
         if (isEditMode.value && props.productSheet?.id) {
             payload.append('_method', 'PUT');
-            return updateProductSheet(props.productSheet.id, payload);
         }
 
-        return createProductSheet(payload);
-    });
+        const response = isEditMode.value && props.productSheet?.id
+            ? await updateProductSheet(props.productSheet.id, payload)
+            : await createProductSheet(payload);
 
-    request
-        .then(async (response) => {
-            const savedProduct = response?.data?.data ?? response?.data;
-            const productId = savedProduct?.id ?? props.productSheet?.id;
-
-            if (operationListPayload.value.length > 0 && productId && typeof productId === 'number') {
-                try {
-                    const operations = buildOperationsPayload(operationListPayload.value, productId);
-                    await axios.post(route('produccion.listados-operacionales.bulk'), { operations });
-                } catch (err) {
-                    console.error('Error al guardar operaciones del nuevo producto:', err);
-                }
-            }
-
-            emit('productSheetSaved', {
-                success: true,
-                message: isEditMode.value ? 'Sábana actualizada correctamente.' : 'Sábana creada correctamente.',
-                data: response.data?.data ?? response.data,
-            });
-            resetForm();
-            localOpen.value = false;
-        })
-        .catch((error: unknown) => {
-            let errMsg = `Hubo un error al ${isEditMode.value ? 'actualizar' : 'crear'} el product sheet.`;
-            if (error instanceof Error && error.message === 'INVALID_FLAT_SKETCH_TYPE') {
-                errMsg = 'Formato de imagen no válido. Solo se permiten JPG, PNG o WEBP.';
-            } else if (axios.isAxiosError(error)) {
-                const backendMessage = error.response?.data?.message;
-                const validationErrors = error.response?.data?.errors;
-                if (validationErrors && typeof validationErrors === 'object') {
-                    const details = Object.values(validationErrors)
-                        .flat()
-                        .filter((value): value is string => typeof value === 'string')
-                        .join('\n');
-                    errMsg = details || errMsg;
-                } else if (typeof backendMessage === 'string' && backendMessage.trim()) {
-                    errMsg = backendMessage;
-                }
-            }
-            emit('error', errMsg);
-        })
-        .finally(() => {
-            isLoading.value = false;
+        emit('productSheetSaved', {
+            success: true,
+            message: isEditMode.value ? 'Sábana actualizada correctamente.' : 'Sábana creada correctamente.',
+            data: response.data?.data ?? response.data,
         });
+        resetForm();
+        localOpen.value = false;
+    } catch (error: unknown) {
+        let errMsg = `Hubo un error al ${isEditMode.value ? 'actualizar' : 'crear'} el product sheet.`;
+        if (axios.isAxiosError(error)) {
+            const backendMessage = error.response?.data?.message;
+            const validationErrors = error.response?.data?.errors;
+            if (validationErrors && typeof validationErrors === 'object') {
+                const details = Object.values(validationErrors)
+                    .flat()
+                    .filter((value): value is string => typeof value === 'string')
+                    .join('\n');
+                errMsg = details || errMsg;
+            } else if (typeof backendMessage === 'string' && backendMessage.trim()) {
+                errMsg = backendMessage;
+            }
+        }
+        emit('error', errMsg);
+        setError(errMsg);
+    } finally {
+        isLoading.value = false;
+    }
 }
 
 function validateForm() {
@@ -1301,34 +1164,12 @@ function validateForm() {
     return true;
 }
 
-function revokeFlatSketchPreview() {
-    if (flatSketchPreviewUrl.value) {
-        URL.revokeObjectURL(flatSketchPreviewUrl.value);
-        flatSketchPreviewUrl.value = null;
-    }
-}
-
-function resetFlatSketchSelection() {
-    revokeFlatSketchPreview();
-    flatSketchFile.value = null;
-    flatSketchLoadFailed.value = false;
-}
-
-function handleFlatSketchImageError() {
-    if (flatSketchPreviewUrl.value) {
-        return;
-    }
-
-    flatSketchLoadFailed.value = true;
-}
-
 function resetForm() {
-    resetFlatSketchSelection();
+    flatSketchRef.value?.reset();
     closeConvertDialog();
-    closeOperationListDialog();
     hasAppliedDefaultSampleProcess.value = false;
-    operationListPayload.value = [];
-    operationDialogInitialData.value = null;
+    hasSampleOperationalList.value = true;
+    checkingSampleOperationalList.value = false;
     selectedTemplateId.value = null;
     form.value = createInitialFormState();
     showFieldErrors.value = false;
@@ -1349,10 +1190,23 @@ function handleClose() {
 </script>
 
 <template>
-    <AlertStack :error-message="errorMessage" :error-type="errorType" @close-error="errorMessage = ''" />
+    <!-- Alerta flotante en la parte superior central - Sobrepuesta a todo -->
+    <div v-if="errorMessage" class="pointer-events-none fixed left-1/2 top-6 z-[99999] flex -translate-x-1/2 justify-center px-4 sm:px-0">
+        <AlertBox
+            :type="errorType"
+            :title="errorType === 'warning' ? 'Advertencia' : errorType === 'info' ? 'Información' : 'Error'"
+            :message="errorMessage"
+            :auto-close-ms="errorType === 'error' ? 0 : 4000"
+            class="pointer-events-auto"
+            @close.stop.prevent="errorMessage = ''"
+        />
+    </div>
 
     <Dialog v-model:open="localOpen">
-        <FormDialogContent class="flex max-h-[95vh] max-w-[190vh] flex-col px-2 py-2">
+        <FormDialogContent
+            class="flex max-h-[95vh] w-[calc(100vw-2rem)] max-w-[1400px] flex-col px-2 py-2"
+            :disable-outside-pointer-events="false"
+        >
             <TooltipProvider>
             <DialogHeader class="flex-shrink-0 px-6 pb-4 pt-6">
                 <div class="flex items-start justify-between gap-4">
@@ -1386,7 +1240,7 @@ function handleClose() {
                 </div>
             </DialogHeader>
             <div ref="dialogInnerRef" class="flex-1 overflow-y-auto scroll-smooth px-6 pb-24" style="scrollbar-width: thin">
-                    <div class="grid gap-6 md:grid-cols-[minmax(0,1fr)_340px]">
+                    <div class="grid gap-6 sm:grid-cols-[minmax(0,1fr)_340px]">
                         <div class="space-y-4">
                             <div class="grid gap-2">
                                 <div class="flex items-center gap-2">
@@ -1432,7 +1286,7 @@ function handleClose() {
                                         :error="showFieldErrors && fieldErrors.reference && form.type === TYPE_PRODUCT ? fieldErrors.reference : undefined"
                                     />
                                 </div>
-                                <div class="flex flex-col gap-1">
+                                <div v-if="form.type === TYPE_PRODUCT" class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Ref. Prod 2</Label>
                                     </div>
@@ -1448,9 +1302,16 @@ function handleClose() {
                             <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium">Precio facturacion</Label>
+                                        <Label class="text-sm font-medium">Precio facturacion<span class="text-red-500">*</span></Label>
                                     </div>
-                                    <InputField v-model="form.billing_price" type="currency" label="" placeholder="$ 0" :disabled="isReadonly" />
+                                    <InputField
+                                        v-model="form.billing_price"
+                                        type="currency"
+                                        label=""
+                                        placeholder="$ 0"
+                                        :disabled="isReadonly"
+                                        :error="showFieldErrors ? fieldErrors.billing_price : undefined"
+                                    />
                                 </div>
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
@@ -1469,10 +1330,16 @@ function handleClose() {
                                     <SelectField
                                         v-model="form.section_id"
                                         label=""
-                                        :options="props.sections"
+                                        :options="sectionOptions"
                                         required
                                         placeholder="Seleccione sección"
                                         :disabled="isReadonly"
+                                        :searchable="true"
+                                        :search-threshold="0"
+                                        action-label="Agregar sección"
+                                        :action-disabled="isReadonly"
+                                        @search="(term) => (sectionSearchTerm = String(term ?? ''))"
+                                        @action="createCatalogOption('sections')"
                                         :invalid="showFieldErrors && !!fieldErrors.section_id"
                                         :error-message="showFieldErrors ? fieldErrors.section_id : undefined"
                                     />
@@ -1485,10 +1352,16 @@ function handleClose() {
                                     <SelectField
                                         v-model="form.group_id"
                                         label=""
-                                        :options="props.groups"
+                                        :options="groupOptions"
                                         required
                                         placeholder="Seleccione grupo"
                                         :disabled="isReadonly"
+                                        :searchable="true"
+                                        :search-threshold="0"
+                                        action-label="Agregar grupo"
+                                        :action-disabled="isReadonly"
+                                        @search="(term) => (groupSearchTerm = String(term ?? ''))"
+                                        @action="createCatalogOption('groups')"
                                         :invalid="showFieldErrors && !!fieldErrors.group_id"
                                         :error-message="showFieldErrors ? fieldErrors.group_id : undefined"
                                     />
@@ -1500,10 +1373,16 @@ function handleClose() {
                                     <SelectField
                                         v-model="form.brand_id"
                                         label=""
-                                        :options="props.brands"
+                                        :options="brandOptions"
                                         required
                                         placeholder="Seleccione marca"
                                         :disabled="isReadonly"
+                                        :searchable="true"
+                                        :search-threshold="0"
+                                        action-label="Agregar marca"
+                                        :action-disabled="isReadonly"
+                                        @search="(term) => (brandSearchTerm = String(term ?? ''))"
+                                        @action="createCatalogOption('brands')"
                                         :invalid="showFieldErrors && !!fieldErrors.brand_id"
                                         :error-message="showFieldErrors ? fieldErrors.brand_id : undefined"
                                     />
@@ -1517,17 +1396,23 @@ function handleClose() {
                                         class="w-full"
                                         v-model="form.world_id"
                                         label=""
-                                        :options="props.worlds"
+                                        :options="worldOptions"
                                         required
                                         placeholder="Seleccione mundo"
                                         :disabled="isReadonly"
+                                        :searchable="true"
+                                        :search-threshold="0"
+                                        action-label="Agregar mundo"
+                                        :action-disabled="isReadonly"
+                                        @search="(term) => (worldSearchTerm = String(term ?? ''))"
+                                        @action="createCatalogOption('worlds')"
                                         :invalid="showFieldErrors && !!fieldErrors.world_id"
                                         :error-message="showFieldErrors ? fieldErrors.world_id : undefined"
                                     />
                                 </div>
                             </div>
 
-                            <div :class="`mb-4 grid gap-4 ${form.woven_product ? 'grid-cols-4' : 'grid-cols-3'}`">
+                            <div class="mb-4 grid gap-4" :class="form.woven_product ? 'grid-cols-4' : 'grid-cols-3'">
                                 <div class="flex w-auto flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Producto tejido</Label>
@@ -1548,6 +1433,12 @@ function handleClose() {
                                         :required="!form.woven_product"
                                         placeholder="Seleccione base tela"
                                         :disabled="isReadonly"
+                                        :searchable="true"
+                                        :search-threshold="0"
+                                        action-label="Agregar base tela"
+                                        :action-disabled="isReadonly"
+                                        @search="(term) => (fabricBaseSearchTerm = String(term ?? ''))"
+                                        @action="createCatalogOption('fabric_bases')"
                                         :invalid="showFieldErrors && !!fieldErrors.fabric_base_id"
                                         :error-message="showFieldErrors ? fieldErrors.fabric_base_id : undefined"
                                     />
@@ -1561,10 +1452,16 @@ function handleClose() {
                                         class="w-full"
                                         v-model="form.yarn_base_id"
                                         label=""
-                                        :options="props.yarnBases"
+                                        :options="yarnBaseOptions"
                                         required
                                         placeholder="Seleccione base hilaza"
                                         :disabled="isReadonly"
+                                        :searchable="true"
+                                        :search-threshold="0"
+                                        action-label="Agregar base hilaza"
+                                        :action-disabled="isReadonly"
+                                        @search="(term) => (yarnBaseSearchTerm = String(term ?? ''))"
+                                        @action="createCatalogOption('yarn_bases')"
                                         :invalid="showFieldErrors && !!fieldErrors.yarn_base_id"
                                         :error-message="showFieldErrors ? fieldErrors.yarn_base_id : undefined"
                                     />
@@ -1608,49 +1505,63 @@ function handleClose() {
                                         :searchable="true"
                                         :search-threshold="0"
                                         search-placeholder="Buscar o escribir colección"
-                                        :action-label="creatingCollection ? 'Creando colección…' : 'Crear colección'"
+                                        :action-label="collectionActionLabel"
                                         :action-disabled="isReadonly || creatingCollection"
                                         @search="(term) => (collectionSearchTerm = String(term ?? ''))"
-                                        @action="createCollectionFromSelect"
+                                        @action="handleCollectionAction"
                                     />
                                 </div>
                             </div>
 
                             <div class="mb-4 rounded-xl border border-emerald-200/70 bg-gradient-to-r from-emerald-50 via-white to-cyan-50 p-4 shadow-sm">
-                                <template v-if="operationListOptionsLoading">
+                                <template v-if="checkingSampleOperationalList">
                                     <div class="flex items-center justify-center py-8">
                                         <Loader2 class="w-8 h-8 text-primary animate-spin" />
-                                        <span class="ml-3 text-primary">Cargando operaciones...</span>
+                                        <span class="ml-3 text-primary">Validando listado operacional...</span>
                                     </div>
                                 </template>
                                 <template v-else>
                                     <div class="flex items-start justify-between gap-4">
                                         <div class="flex-1 space-y-1">
                                             <div class="flex items-center gap-2">
-                                                <List class="h-4 w-4 text-emerald-700" />
                                                 <Label class="text-sm font-semibold text-emerald-900">Listado operacional</Label>
                                                 <HelpTooltip :text="tooltips.operationalList" aria-label="Ayuda sobre Listado operacional" />
                                             </div>
                                             <p class="text-xs leading-relaxed text-emerald-800/80">
-                                                Estado: {{ hasOperationalListConfigured ? 'Configurado' : 'Pendiente' }}.
-                                                Una sábana solo pasa a estado completo cuando tiene listado operacional registrado.
+                                                <template v-if="normalizeTypeValue(form.type) === TYPE_SAMPLE && currentProductSheetId">
+                                                    Estado: {{ hasSampleOperationalList ? 'Configurado' : 'Pendiente' }}.
+                                                    {{
+                                                        hasSampleOperationalList
+                                                            ? 'La muestra ya tiene listado operacional registrado.'
+                                                            : 'La muestra aún no tiene listado operacional registrado.'
+                                                    }}
+                                                </template>
+                                                <template v-else>
+                                                    Esta validación aplica para muestras ya guardadas.
+                                                </template>
                                             </p>
                                         </div>
-                                        <Button
-                                            variant="default"
-                                            size="sm"
-                                            class="shrink-0 rounded-full bg-emerald-700 px-4 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-emerald-800"
-                                            :disabled="!canManageOperationalList"
-                                            @click="goToOperationalListIndex"
-                                        >
-                                            <template v-if="!canManageOperationalList"> Guarda la sábana primero </template>
-                                            <template v-else-if="hasOperationalListConfigured">
-                                                {{ operationalListCount }} operación{{ operationalListCount !== 1 ? 'es' : '' }} registrada{{
-                                                    operationalListCount !== 1 ? 's' : ''
-                                                }}
-                                            </template>
-                                            <template v-else> Registrar listado operacional </template>
-                                        </Button>
+                                        <div v-if="normalizeTypeValue(form.type) === TYPE_SAMPLE && currentProductSheetId" class="flex shrink-0 items-center gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                class="rounded-full px-4 text-xs font-semibold"
+                                                :disabled="checkingSampleOperationalList"
+                                                @click="validateSampleOperationalList()"
+                                            >
+                                                Revalidar
+                                            </Button>
+                                            <Button
+                                                v-if="hasSampleOperationalList"
+                                                variant="default"
+                                                size="sm"
+                                                class="rounded-full bg-emerald-700 px-4 text-xs font-semibold text-primary-foreground hover:bg-emerald-800"
+                                                :disabled="checkingSampleOperationalList"
+                                                @click="openOperationalListInNewWindow"
+                                            >
+                                                Ver listado
+                                            </Button>
+                                        </div>
                                     </div>
                                 </template>
                             </div>
@@ -1660,82 +1571,24 @@ function handleClose() {
                                     <Label class="text-sm font-medium">Procesos<span class="text-red-500">*</span></Label>
                                     <HelpTooltip :text="tooltips.processes" aria-label="Ayuda sobre Procesos" />
                                 </div>
-                                <div class="tooltip-managed-process-selector">
-                                    <ProcessSelector
-                                        v-model="form.processes"
-                                        :availableProcesses="allProcesses"
-                                        :wovenProduct="form.woven_product"
-                                        :productSheetType="form.type"
-                                        :disabled="isReadonly"
-                                    />
-                                </div>
+                                <ProcessSelector
+                                    v-model="form.processes"
+                                    :availableProcesses="allProcesses"
+                                    :wovenProduct="form.woven_product"
+                                    :productSheetType="form.type"
+                                    :disabled="isReadonly"
+                                    @create-process="handleCreateProcessOption"
+                                />
                             </div>
                         </div>
-                        <div class="w-full min-w-0 md:w-[320px]">
-                            <div class="sticky top-3 space-y-4">
-                                <div class="flex items-center gap-2">
-                                    <Label class="text-sm font-medium">Dibujo plano</Label>
-                                    <HelpTooltip :text="tooltips.flatSketch" aria-label="Ayuda sobre Dibujo plano" />
-                                </div>
-                                <div class="flex w-full flex-col items-start gap-2">
-                                    <div class="relative w-full overflow-hidden">
-                                        <input
-                                            v-if="!isReadonly"
-                                            id="flat-sketch-input"
-                                            name="flat_sketch"
-                                            type="file"
-                                            accept="image/jpeg,image/png,image/webp"
-                                            class="absolute inset-0 z-30 h-full w-full cursor-pointer opacity-0"
-                                            @change="handleFlatSketchChange"
-                                        />
-                                        <div
-                                            :class="[
-                                                'group relative flex min-h-[320px] w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-gray-50 transition-all duration-200',
-                                                isReadonly ? 'cursor-default opacity-100' : 'hover:border-blue-400 hover:shadow-lg',
-                                            ]"
-                                            style="min-width: 0"
-                                        >
-                                            <template v-if="flatSketchVisualUrl">
-                                                <div class="relative flex min-h-[200px] w-full flex-1 items-center justify-center overflow-hidden">
-                                                    <img
-                                                        :src="flatSketchVisualUrl"
-                                                        alt="Previsualización dibujo plano"
-                                                        class="z-10 max-h-full max-w-full rounded object-contain transition-transform duration-200 group-hover:scale-105"
-                                                        @error="handleFlatSketchImageError"
-                                                    />
-                                                </div>
-                                            </template>
-                                            <template v-else>
-                                                <div class="pointer-events-none z-10 flex h-full w-full flex-col items-center justify-center">
-                                                    <ImageIcon class="mb-2 h-12 w-12 text-muted-foreground" />
-                                                    <span class="text-sm text-muted-foreground">
-                                                        {{ isReadonly ? 'Sin imagen' : 'Haz clic para subir imagen' }}
-                                                    </span>
-                                                </div>
-                                            </template>
-                                        </div>
-                                    </div>
-                                    <div v-if="canClearFlatSketch" class="flex w-full items-center gap-2">
-                                        <button
-                                            type="button"
-                                            class="flex flex-1 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-muted/60 hover:text-foreground"
-                                            @click="openFlatSketchPreview"
-                                        >
-                                            <Eye class="h-4 w-4" />
-                                            Ver imagen
-                                        </button>
-                                        <button
-                                            v-if="!isReadonly"
-                                            type="button"
-                                            class="flex flex-1 items-center justify-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm font-medium text-destructive transition hover:bg-destructive/10"
-                                            @click="clearFlatSketch"
-                                        >
-                                            <Trash class="h-4 w-4" />
-                                            Eliminar
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
+                        <div class="w-full min-w-0 sm:w-[320px]">
+                            <FlatSketchUploader
+                                ref="flatSketchRef"
+                                v-model="form.flat_sketch_path"
+                                :readonly="isReadonly"
+                                :tooltip="tooltips.flatSketch"
+                                @error="setError"
+                            />
                         </div>
                     </div>
                 </div>
@@ -1765,24 +1618,6 @@ function handleClose() {
             </TooltipProvider>
         </FormDialogContent>
     </Dialog>
-    <ProductOperationListDialog
-        :open="operationListDialogOpen"
-        :mode="(operationDialogInitialData?.operations?.length ? 'edit' : 'create') as 'create' | 'edit'"
-        :initial-data="operationDialogInitialData"
-        :productSheets="productSheetOptionsForDialog"
-        :excluded-product-sheet-ids="[]"
-        :sections="operationListMeta.sections"
-        :operations="operationListMeta.operations"
-        :machines="operationListMeta.machines"
-        :fabric-bases="operationListMeta.fabricBases"
-        :actions="operationListMeta.actions"
-        :garmentParts="operationListMeta.garmentParts"
-        :readonly="isReadonly || operationListReadonly"
-        @save="handleOperationDialogSave"
-        @close="closeOperationListDialog"
-        @validation-error="setError"
-    />
-
     <ConvertSampleToProductDialog
         v-model:open="isConvertDialogOpen"
         :loading="convertLoading"
@@ -1793,10 +1628,6 @@ function handleClose() {
 
 <style scoped>
 .tooltip-managed-size-selector :deep(.mb-2) {
-    display: none;
-}
-
-.tooltip-managed-process-selector :deep(.grid.w-full.items-center.gap-1 > label) {
     display: none;
 }
 </style>

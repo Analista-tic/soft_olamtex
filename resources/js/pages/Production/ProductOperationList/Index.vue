@@ -91,6 +91,7 @@ type OperationRowInput = {
     quantity?: number;
     fabric_base_id?: number | string | null;
     operator_efficiency_factor?: number;
+    row_notes?: string;
 };
 
 type DialogInitialData = {
@@ -423,6 +424,7 @@ async function openEditDialog(summary: OperationSummary) {
                 quantity: row.quantity ?? 1,
                 fabric_base_id: row.fabric_base_id ?? null,
                 operator_efficiency_factor: Number(row.operator_efficiency_factor ?? 1) || 1,
+                row_notes: row.notes ?? '',
             })),
             operatorEfficiencyFactor: Number(firstRow.operator_efficiency_factor ?? 1) || 1,
             notes: firstRow.notes ?? '',

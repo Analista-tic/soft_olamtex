@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import DialogActionButtons from '@/components/common/DialogActionButtons.vue';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormHeader from '@/components/FormHeader.vue';
+import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
 import OperationFormContent, {
@@ -16,6 +18,8 @@ export type OperationRecord = {
     codigo: string | null;
     action: string;
     garment_part: string;
+    tipo?: string | null;
+    anexo?: string | null;
     section_id: number | null;
     measure: number | null;
     quantity: number | null;
@@ -31,6 +35,7 @@ const props = defineProps<{
     sections: SectionOption[];
     actions: string[];
     garmentParts: string[];
+    types: string[];
     productSheets: ProductSheetOption[];
     machines: MachineOption[];
 }>();
@@ -41,20 +46,30 @@ const emit = defineEmits<{
 }>();
 
 const localOpen = ref(props.open);
-watch(
-    () => props.open,
-    (v) => {
-        localOpen.value = v;
-    },
-);
-watch(localOpen, (v) => {
-    if (!v) emit('close');
-});
+watch(() => props.open, (v) => { localOpen.value = v; });
+watch(localOpen, (v) => { if (!v) emit('close'); });
 
 const isEditing = computed(() => !!props.operation);
 const isSaving = ref(false);
 const error = ref('');
 const formRef = ref<InstanceType<typeof OperationFormContent> | null>(null);
+
+// Copias locales de catálogos — se actualizan cuando el usuario agrega opciones
+const localActions = ref<string[]>([...props.actions]);
+const localGarmentParts = ref<string[]>([...props.garmentParts]);
+const localTypes = ref<string[]>([...props.types]);
+
+// Sincronizar con props cuando cambian (ej: recarga de la página padre)
+watch(() => props.actions, (v) => { localActions.value = [...v]; });
+watch(() => props.garmentParts, (v) => { localGarmentParts.value = [...v]; });
+watch(() => props.types, (v) => { localTypes.value = [...v]; });
+
+/** Cuando OperationFormContent persiste una nueva opción, actualiza la copia local */
+function handleCatalogUpdated(catalog: string, options: string[]) {
+    if (catalog === 'operation_actions') localActions.value = options;
+    else if (catalog === 'operation_garment_parts') localGarmentParts.value = options;
+    else if (catalog === 'operation_types') localTypes.value = options;
+}
 
 const operationForForm = ref<OperationFormData | null>(null);
 const formContentKey = ref(0);
@@ -69,6 +84,8 @@ watch(
             operationForForm.value = {
                 action: op.action ?? '',
                 garment_part: op.garment_part ?? '',
+                tipo: op.tipo ?? null,
+                anexo: op.anexo ?? null,
                 section_id: op.section_id,
                 measure: op.measure,
                 quantity: op.quantity ?? 1,
@@ -94,14 +111,11 @@ function handleSubmit(payload: Record<string, unknown>) {
     isSaving.value = true;
     error.value = '';
 
-    // Construir el objeto de datos, normalizando campos opcionales
     const data: Record<string, unknown> = {
-        action: String(rest.action ?? '')
-            .trim()
-            .toUpperCase(),
-        garment_part: String(rest.garment_part ?? '')
-            .trim()
-            .toUpperCase(),
+        action: String(rest.action ?? '').trim().toUpperCase(),
+        garment_part: String(rest.garment_part ?? '').trim().toUpperCase(),
+        tipo: rest.tipo ? String(rest.tipo).trim().toUpperCase() : null,
+        anexo: rest.anexo ? String(rest.anexo).trim().toUpperCase() : null,
         section_id: rest.section_id ?? null,
         measure: rest.measure ?? null,
         quantity: rest.quantity ?? 1,
@@ -118,7 +132,6 @@ function handleSubmit(payload: Record<string, unknown>) {
         .then(() => {
             isSaving.value = false;
             emit('saved');
-            // Cerrar el diálogo después de guardar exitosamente
             localOpen.value = false;
         })
         .catch((e: any) => {
@@ -129,38 +142,39 @@ function handleSubmit(payload: Record<string, unknown>) {
 </script>
 
 <template>
-    <AlertStack
-        :error-message="error"
-        @close-error="error = ''"
-    />
+    <AlertStack :error-message="error" @close-error="error = ''" />
     <Dialog v-model:open="localOpen">
-        <DialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
-            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
-                <DialogTitle>{{ isEditing ? 'Editar operación' : 'Nueva operación' }}</DialogTitle>
-                <DialogDescription>
-                    {{
+        <FormDialogContent size="lg" class="flex max-h-[95vh] min-h-0 w-[calc(100vw-2rem)] max-w-[1120px] flex-col p-0">
+            <div class="border-b border-sidebar-border/70 bg-muted/20 px-5 py-3 dark:border-sidebar-border">
+                <FormHeader
+                    :title="isEditing ? 'Editar operación' : 'Nueva operación'"
+                    :description="
                         isEditing
                             ? 'Modifica los datos de la operación. La combinación acción + parte debe ser única.'
                             : 'Registra una nueva operación. La combinación acción + parte debe ser única.'
-                    }}
-                </DialogDescription>
-            </DialogHeader>
-
-            <div class="flex-1 overflow-y-auto p-1" style="scrollbar-width: thin">
-                <OperationFormContent
-                    :key="`op-form-${formContentKey}`"
-                    ref="formRef"
-                    :sections="sections"
-                    :actions="actions"
-                    :garment-parts="garmentParts"
-                    :product-sheets="productSheets"
-                    :machines="machines"
-                    :operation="operationForForm"
-                    @submit="handleSubmit"
+                    "
                 />
             </div>
 
-            <DialogFooter class="mt-4 border-t pt-4">
+            <div class="flex-1 overflow-y-auto px-5 py-3" style="scrollbar-width: thin">
+                <div class="mx-auto w-full max-w-[980px]">
+                    <OperationFormContent
+                        :key="`op-form-${formContentKey}`"
+                        ref="formRef"
+                        :sections="sections"
+                        :actions="localActions"
+                        :garment-parts="localGarmentParts"
+                        :types="localTypes"
+                        :product-sheets="productSheets"
+                        :machines="machines"
+                        :operation="operationForForm"
+                        @submit="handleSubmit"
+                        @catalog-updated="handleCatalogUpdated"
+                    />
+                </div>
+            </div>
+
+            <DialogFooter class="border-t px-5 py-3">
                 <DialogActionButtons
                     cancel-label="Cancelar"
                     :submit-label="isEditing ? 'Actualizar' : 'Crear operación'"
@@ -169,6 +183,6 @@ function handleSubmit(payload: Record<string, unknown>) {
                     @submit="formRef?.submit()"
                 />
             </DialogFooter>
-        </DialogContent>
+        </FormDialogContent>
     </Dialog>
 </template>

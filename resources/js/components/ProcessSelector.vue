@@ -1,7 +1,6 @@
 <template>
     <div class="space-y-3">
         <div class="grid w-full items-center gap-1">
-            <Label class="text-sm font-medium">Procesos<span class="text-red-500">*</span></Label>
             <div>
                 <div class="rounded-md border border-border bg-background p-2 shadow-sm">
                     <div class="mb-3" v-if="!props.disabled">
@@ -9,7 +8,7 @@
                             <SelectTrigger class="h-9 w-full text-sm shadow-sm">
                                 <SelectValue placeholder="Selecciona un proceso para añadir" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent class="z-[99999]">
                                 <SelectGroup>
                                     <SelectItem v-for="process in filteredProcesses" :key="process" :value="process">
                                         {{ process }}
@@ -51,7 +50,6 @@
 
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { X } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';

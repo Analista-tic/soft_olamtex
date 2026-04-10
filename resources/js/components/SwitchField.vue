@@ -8,9 +8,8 @@
 
         <Switch
             :id="id || label"
-            :checked="proxyValue"
+            v-model="proxyValue"
             :disabled="disabled"
-            @update:checked="onCheckedChange"
         />
     </div>
 </template>
@@ -34,7 +33,6 @@ const emit = defineEmits<{
     (e: 'update:modelValue', value: boolean): void;
 }>();
 
-// Proxy que conecta directamente el checkbox con el valor del padre
 const proxyValue = computed({
     get() {
         return !!props.modelValue;
@@ -43,8 +41,4 @@ const proxyValue = computed({
         emit('update:modelValue', val);
     },
 });
-
-function onCheckedChange(value: boolean | 'indeterminate'): void {
-    proxyValue.value = value === true;
-}
 </script>

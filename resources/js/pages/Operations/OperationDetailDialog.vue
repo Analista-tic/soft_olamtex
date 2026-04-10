@@ -10,6 +10,7 @@ type OperationRecord = {
     codigo: string | null;
     action: string;
     garment_part: string;
+    anexo?: string | null;
     name: string;
     normalized_name: string;
     generated_description: string;
@@ -93,6 +94,11 @@ watch(localOpen, (v) => {
                     <div>
                         <p class="text-[11px] font-medium text-muted-foreground">Parte de prenda</p>
                         <p class="font-semibold uppercase">{{ operation.garment_part }}</p>
+                    </div>
+
+                    <div v-if="operation.anexo" class="col-span-2">
+                        <p class="text-[11px] font-medium text-muted-foreground">Complemento (anexo)</p>
+                        <p class="font-medium uppercase">{{ operation.anexo }}</p>
                     </div>
 
                     <div>

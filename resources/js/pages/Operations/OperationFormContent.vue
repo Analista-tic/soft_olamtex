@@ -76,7 +76,7 @@ const form = ref<OperationFormData>({
     quantity: 1,
     sam_base: null,
     product_sheet_id_reference: (props.defaultProductSheetId ?? null) as number | null,
-    machine_id_reference: props.machines?.[0]?.id !== undefined ? Number(props.machines[0].id) : null,
+    machine_id_reference: null,
     codigo: '',
     is_active: true,
 });
@@ -110,7 +110,7 @@ watch(
                 quantity: 1,
                 sam_base: null,
                 product_sheet_id_reference: (defaultProductSheetId ?? null) as number | null,
-                machine_id_reference: props.machines?.[0]?.id !== undefined ? Number(props.machines[0].id) : null,
+                machine_id_reference: null,
                 codigo: '',
                 is_active: true,
             };

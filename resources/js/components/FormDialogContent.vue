@@ -12,6 +12,7 @@ const props = withDefaults(
         overlayClass?: HTMLAttributes['class'];
         scrollable?: boolean;
         size?: FormDialogSize;
+        disableOutsidePointerEvents?: boolean;
     }>(),
     {
         size: 'sm',
@@ -26,7 +27,7 @@ const sizeClasses: Record<FormDialogSize, string> = {
 
 const contentClass = computed(() =>
     cn(
-        'flex max-h-[90vh] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl bg-background p-4 text-foreground sm:p-5',
+        'flex max-h-[92vh] w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-2xl bg-background p-3 text-foreground sm:p-4',
         sizeClasses[props.size],
         props.class,
     ),
@@ -34,7 +35,13 @@ const contentClass = computed(() =>
 </script>
 
 <template>
-    <DialogContent :class="contentClass" :content-class="props.contentClass" :overlay-class="props.overlayClass" :scrollable="props.scrollable">
+    <DialogContent
+        :class="contentClass"
+        :content-class="props.contentClass"
+        :overlay-class="props.overlayClass"
+        :scrollable="props.scrollable"
+        :disable-outside-pointer-events="props.disableOutsidePointerEvents"
+    >
         <DialogTitle class="sr-only">Formulario</DialogTitle>
         <DialogDescription class="sr-only">Contenido del diálogo</DialogDescription>
         <slot />

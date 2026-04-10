@@ -7,6 +7,7 @@ export interface ProductSheetValidationSource {
     brand_id: number | null;
     world_id: number | null;
     fabric_base_id: number | null;
+    billing_price?: number | null;
     operational_list_id: number | null;
     yarn_base_id?: number | null;
     woven_product?: boolean;
@@ -19,6 +20,7 @@ export interface ProductSheetFieldErrors {
     brand_id: string;
     world_id: string;
     fabric_base_id: string;
+    billing_price: string;
     yarn_base_id: string;
     operational_list_id: string;
 }
@@ -42,7 +44,8 @@ export function useProductSheetValidation<T extends ProductSheetValidationSource
         if (!form.group_id) errors.push('Grupo es requerido.');
         if (!form.brand_id) errors.push('Marca es requerida.');
         if (!form.world_id) errors.push('Mundo es requerido.');
-        if (!form.woven_product && !form.fabric_base_id) errors.push('Base Tela es requerida.');
+        if (!requiresYarnBase.value && !form.fabric_base_id) errors.push('Base Tela es requerida.');
+        if (!Number(form.billing_price ?? 0)) errors.push('Precio de facturación es requerido.');
         if (!params.activeReference.value.trim()) errors.push('Referencia es requerida.');
 
         if (requiresOperationalList.value && !hasOperationalListConfigured.value && !form.operational_list_id) {
@@ -66,7 +69,8 @@ export function useProductSheetValidation<T extends ProductSheetValidationSource
             group_id: !form.group_id ? 'Grupo es requerido.' : '',
             brand_id: !form.brand_id ? 'Marca es requerida.' : '',
             world_id: !form.world_id ? 'Mundo es requerido.' : '',
-            fabric_base_id: !form.woven_product && !form.fabric_base_id ? 'Base Tela es requerida.' : '',
+            fabric_base_id: !requiresYarnBase.value && !form.fabric_base_id ? 'Base Tela es requerida.' : '',
+            billing_price: !Number(form.billing_price ?? 0) ? 'Precio de facturación es requerido.' : '',
             yarn_base_id: requiresYarnBase.value && !form.yarn_base_id ? 'Base hilaza es requerida.' : '',
             operational_list_id:
                 requiresOperationalList.value && !hasOperationalListConfigured.value && !form.operational_list_id

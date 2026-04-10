@@ -369,22 +369,22 @@ function summarizeNames(items: { name: string }[]) {
 function getValuePreview(value: unknown) {
     if (value === null || value === undefined) return '-';
 
+    if (typeof value === 'boolean') return value ? 'true' : 'false';
     if (typeof value === 'number') return String(value);
-
     if (typeof value === 'string') return truncateString(value);
 
     if (Array.isArray(value)) {
+        if (value.length === 0) return 'Lista vacía';
         if (value.every((item) => typeof item === 'string')) return summarizeStrings(value as string[]);
         if (value.every((item) => isObjectWithName(item))) return summarizeNames(value as { name: string }[]);
         return `Lista (${value.length} elementos)`;
     }
 
     if (typeof value === 'object') {
-        const objectValue = value as Record<string, unknown>;
-        if (Array.isArray(objectValue.unitMeasureGroups)) {
-            return `Estructura (${objectValue.unitMeasureGroups.length} grupos)`;
-        }
-        return `Objeto JSON (${Object.keys(objectValue).length} claves)`;
+        const keys = Object.keys(value as object);
+        const preview = keys.slice(0, 3).join(', ');
+        const suffix = keys.length > 3 ? ` +${keys.length - 3}` : '';
+        return `{ ${preview}${suffix} }`;
     }
 
     return String(value);
