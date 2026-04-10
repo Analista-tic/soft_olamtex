@@ -180,7 +180,7 @@ function handleSubmit() {
                           : 'Visualiza los valores almacenados del parámetro sin editar.'
                 "
             />
-            <div class="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1 pt-4">
+            <div class="min-h-0 flex-1 space-y-6 overflow-y-auto px-1 pr-1 pt-4">
                 <div class="space-y-4 pt-2">
                     <InputField v-model="localForm.label" label="Nombre" placeholder="Nombre visible" required :disabled="isViewMode" />
                     <div class="space-y-2">

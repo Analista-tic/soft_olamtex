@@ -244,7 +244,7 @@ function handleSubmit() {
                             : 'Actualiza las propiedades del campo adicional seleccionado para adaptarlo a los requerimientos del negocio.'
                     "
                 />
-                <div class="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1 pt-4">
+                <div class="min-h-0 flex-1 space-y-6 overflow-y-auto px-1 pr-1 pt-4">
                     <div class="space-y-6">
                         <!-- Row: Name | Type -->
                         <div class="grid grid-cols-1 gap-5 md:grid-cols-2">

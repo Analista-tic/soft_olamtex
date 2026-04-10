@@ -72,7 +72,7 @@ function handleInteractOutside(event: unknown) {
         <DialogOverlay
             :class="
                 cn(
-                    'fixed inset-0 z-50 bg-black/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+                    'fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
                     props.overlayClass,
                 )
             "
@@ -89,7 +89,7 @@ function handleInteractOutside(event: unknown) {
                 )
             "
         >
-            <div class="flex max-h-[calc(100vh-3rem)] flex-col overflow-hidden rounded-[10px]">
+            <div class="flex max-h-[calc(100vh-3rem)] flex-col">
                 <div
                     :class="cn(
                         'dialog-scroll-area flex min-h-0 flex-1 flex-col scroll-smooth',

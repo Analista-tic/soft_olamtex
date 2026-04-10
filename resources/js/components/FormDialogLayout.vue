@@ -1,5 +1,5 @@
 <template>
-    <div :class="['w-full', maxWidth, fullHeight ? 'h-[80vh]' : 'max-h-[80vh]', 'rounded-2xl', 'bg-background text-foreground', 'overflow-hidden']">
+    <div :class="['w-full', maxWidth, fullHeight ? 'h-[80vh]' : 'max-h-[80vh]', 'rounded-2xl', 'bg-background text-foreground', 'overflow-visible']">
         <div class="flex h-full flex-col">
             <header class="border-b px-4 py-3">
                 <slot name="header"></slot>

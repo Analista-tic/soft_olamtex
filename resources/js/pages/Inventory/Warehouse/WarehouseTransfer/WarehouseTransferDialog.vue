@@ -420,7 +420,7 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
                     {{ dialogDescription }}
                 </DialogDescription>
             </DialogHeader>
-            <div class="relative flex-1 overflow-y-auto pr-2">
+            <div class="relative flex-1 overflow-y-auto px-1 pr-2">
                 <AlertStack
                     :error-message="localErrorMessage"
                     :error-type="localErrorType"
