@@ -6,22 +6,31 @@ use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
+    /**
+     * Seed para PRODUCCIÓN: solo parametrización
+     *
+     * Incluye: configuración, categorías, impuestos, bodegas, roles/permisos, operaciones
+     * NO incluye: datos de ejemplo, órdenes de producción, inventario específico
+     */
     public function run(): void
     {
         $this->call([
+            // === CONFIGURACIÓN DEL SISTEMA ===
             CompanySettingSeeder::class,
             SettingsFieldParametersSeeder::class,
+            RolesAndPermissionsSeeder::class,
+
+            // === MAESTROS DE DATOS ===
             CategorySeeder::class,
             TaxesSeeder::class,
             WarehousesSeeder::class,
-            RolesAndPermissionsSeeder::class,
-
-            OperationSeeder::class,
-
             AccountingAccountSeeder::class,
 
+            // === PARAMETRIZACIÓN DE OPERACIONES ===
+            OperationSeeder::class,
+
+            // === DATOS HISTÓRICOS (opcional) ===
             LegacyItemsSeeder::class,
-            FabricRollsLegacySeeder::class,
         ]);
     }
 }

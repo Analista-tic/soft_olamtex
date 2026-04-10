@@ -31,7 +31,7 @@ import {
 import axios from 'axios';
 import { Loader2 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
-import FlatSketchUploader from './FlatSketchUploader.vue';
+import ImageUploadViewer from '@/components/ImageUploadViewer.vue';
 
 interface Props {
     mode: 'create' | 'edit' | 'view'; // Define si es creación, edición o visualización
@@ -109,7 +109,7 @@ const developmentProcessLabel = 'Desarrollo de muestras';
 const developmentProcessAliases = ['Desarrollo de muestra', 'Desarrollo de Muestra', 'Desarrollo de Muestras'];
 const hasAppliedDefaultSampleProcess = ref(false);
 const mandatoryProcesses = ['Muestras', 'Confección', 'Terminación', 'Bodega'];
-const flatSketchRef = ref<InstanceType<typeof FlatSketchUploader> | null>(null);
+const flatSketchRef = ref<InstanceType<typeof ImageUploadViewer> | null>(null);
 
 interface FormState {
     id?: number;
@@ -1582,7 +1582,7 @@ function handleClose() {
                             </div>
                         </div>
                         <div class="w-full min-w-0 sm:w-[320px]">
-                            <FlatSketchUploader
+                            <ImageUploadViewer
                                 ref="flatSketchRef"
                                 v-model="form.flat_sketch_path"
                                 :readonly="isReadonly"

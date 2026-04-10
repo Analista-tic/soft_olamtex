@@ -9,7 +9,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 
 class PurchaseRequest extends Model implements \App\Contracts\HasAuditLabel
 {
@@ -108,7 +107,13 @@ class PurchaseRequest extends Model implements \App\Contracts\HasAuditLabel
             $serialized['uid'] = isset($item['uid']) && is_string($item['uid']) && trim($item['uid']) !== ''
                 ? trim($item['uid'])
                 : sprintf('legacy-%s-%s', $this->getKey() ?? 'new', $index);
-            $serialized['image_url'] = $imagePath ? Storage::url($imagePath) : null;
+            if ($imagePath) {
+                $normalizedPath = ltrim($imagePath, '/');
+                $normalizedPath = preg_replace('/^storage\//', '', $normalizedPath);
+                $serialized['image_url'] = route('storage.file.show', ['path' => $normalizedPath]);
+            } else {
+                $serialized['image_url'] = null;
+            }
 
             unset($serialized['image_path']);
 

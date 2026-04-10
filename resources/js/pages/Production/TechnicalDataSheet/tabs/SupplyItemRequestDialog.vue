@@ -3,6 +3,7 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormHeader from '@/components/FormHeader.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
+import ImageViewer from '@/components/ImageViewer.vue';
 import SelectField from '@/components/SelectField.vue';
 import Button from '@/components/ui/button/Button.vue';
 import { Dialog, DialogFooter } from '@/components/ui/dialog';
@@ -479,11 +480,17 @@ function formatCurrency(value: number): string {
                             </div>
 
                             <div v-else class="space-y-3">
-                                <div class="overflow-hidden rounded-xl border border-border bg-muted/20">
-                                    <div v-if="isImageFile && referencePreview" class="flex h-[220px] items-center justify-center bg-muted/30 p-2">
-                                        <img :src="referencePreview" alt="Referencia" class="h-full w-full rounded-md object-contain" />
-                                    </div>
-                                    <div v-else class="flex h-[220px] items-center justify-center bg-muted/30">
+                                <div v-if="isImageFile && referencePreview" class="overflow-hidden rounded-xl">
+                                    <ImageViewer
+                                        :src="referencePreview"
+                                        alt="Referencia visual"
+                                        readonly
+                                        @delete="removeFile"
+                                        @update="triggerFileInput"
+                                    />
+                                </div>
+                                <div v-else class="overflow-hidden rounded-xl border border-border bg-muted/20">
+                                    <div class="flex h-[220px] items-center justify-center bg-muted/30">
                                         <div class="text-center">
                                             <FileText class="mx-auto h-10 w-10 text-muted-foreground" />
                                             <p class="mt-2 text-xs text-muted-foreground">Vista previa no disponible</p>

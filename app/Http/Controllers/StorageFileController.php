@@ -14,6 +14,8 @@ class StorageFileController extends Controller
         'product-sheets/',
         'product_sheets/',
         'purchase-invoices/',
+        'purchase-requests/',
+        'purchase_requests/',
         'supply-requests/',
         'inventory_requests/',
         'articles/',
