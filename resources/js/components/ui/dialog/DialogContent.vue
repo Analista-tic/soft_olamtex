@@ -47,16 +47,21 @@ function isDatepickerPopoverTarget(target: EventTarget | null) {
     return Boolean(target.closest('[data-datepicker-popover="true"]'));
 }
 
+function isAlertStackTarget(target: EventTarget | null) {
+    if (!(target instanceof Element)) return false;
+    return Boolean(target.closest('[data-alert-stack-root="true"]'));
+}
+
 function handlePointerDownOutside(event: unknown) {
     const target = (event as { detail?: { originalEvent?: { target?: EventTarget | null } } })?.detail?.originalEvent?.target ?? null;
-    if (isDatepickerPopoverTarget(target)) {
+    if (isDatepickerPopoverTarget(target) || isAlertStackTarget(target)) {
         (event as { preventDefault: () => void }).preventDefault();
     }
 }
 
 function handleInteractOutside(event: unknown) {
     const target = (event as { detail?: { originalEvent?: { target?: EventTarget | null } } })?.detail?.originalEvent?.target ?? null;
-    if (isDatepickerPopoverTarget(target)) {
+    if (isDatepickerPopoverTarget(target) || isAlertStackTarget(target)) {
         (event as { preventDefault: () => void }).preventDefault();
     }
 }

@@ -43,6 +43,7 @@ const warehouses = ref<WarehouseOption[]>([]);
 const isLoading = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
+const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const hasMissingItems = computed(() => items.value.some((item) => !item.item_id));
 
 async function fetchRequest(id: number) {
@@ -61,6 +62,7 @@ async function fetchRequest(id: number) {
               }))
             : [];
     } catch {
+        errorType.value = 'error';
         errorMessage.value = 'No se pudo cargar la solicitud.';
     }
 }
@@ -137,6 +139,7 @@ function formatDateValue(value: string) {
 async function initializeDialog() {
     successMessage.value = '';
     errorMessage.value = '';
+    errorType.value = 'error';
     if (props.requestId) {
         await Promise.all([fetchRequest(props.requestId), warehouses.value.length ? Promise.resolve() : fetchWarehouses()]);
     }
@@ -144,25 +147,30 @@ async function initializeDialog() {
 
 function validateForm() {
     if (!deliveryDate.value) {
+        errorType.value = 'warning';
         errorMessage.value = 'La fecha de entrega es obligatoria.';
         return false;
     }
 
     for (const line of items.value) {
         if (!line.item_id) {
+            errorType.value = 'warning';
             errorMessage.value = 'Debe asociar un item existente antes de entregar.';
             return false;
         }
         const quantity = Number(line.delivered_quantity) || 0;
         if (quantity <= 0) {
+            errorType.value = 'warning';
             errorMessage.value = 'Todas las lineas deben tener cantidad entregada.';
             return false;
         }
         if (quantity > Number(line.requested_quantity)) {
+            errorType.value = 'warning';
             errorMessage.value = 'La cantidad entregada no puede superar la solicitada.';
             return false;
         }
         if (!line.warehouse_id) {
+            errorType.value = 'warning';
             errorMessage.value = 'Debe seleccionar la bodega para cada item.';
             return false;
         }
@@ -174,6 +182,7 @@ function validateForm() {
 async function handleSubmit() {
     successMessage.value = '';
     errorMessage.value = '';
+    errorType.value = 'error';
     if (!props.requestId) return;
     if (!validateForm()) return;
 
@@ -194,6 +203,7 @@ async function handleSubmit() {
     } catch (e: any) {
         const serverMessage =
             e?.response?.data?.message || Object.values(e?.response?.data?.errors || {})?.flat()?.[0] || 'No se pudo entregar la solicitud.';
+        errorType.value = 'error';
         errorMessage.value = serverMessage;
     } finally {
         isLoading.value = false;
@@ -233,6 +243,7 @@ onMounted(() => {
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
+                :error-type="errorType"
                 success-title="Exito"
                 error-title="Error"
                 @close-success="successMessage = ''"

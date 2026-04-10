@@ -18,6 +18,7 @@ class InventoryRequestItem extends Model
         'requested_quantity',
         'delivered_quantity',
         'warehouse_id',
+        'image_path',
     ];
 
     protected $casts = [

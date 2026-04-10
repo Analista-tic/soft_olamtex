@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Inventory\InventoryRequest;
 use App\Services\Inventory\InventoryRequestService;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -73,6 +74,7 @@ class InventoryRequestController extends Controller
     public function store(Request $request)
     {
         $payload = $this->validateRequestPayload($request);
+        $payload['items'] = $this->prepareItemsPayload($request, $payload['items'] ?? []);
         // Adjuntar imagen si existe
         if ($request->hasFile('image')) {
             $payload['image'] = $request->file('image');
@@ -85,6 +87,11 @@ class InventoryRequestController extends Controller
     {
         $this->ensureCanEdit($inventoryRequest);
         $payload = $this->validateRequestPayload($request, $inventoryRequest);
+        $payload['items'] = $this->prepareItemsPayload(
+            $request,
+            $payload['items'] ?? [],
+            $inventoryRequest
+        );
         // Adjuntar imagen si existe
         if ($request->hasFile('image')) {
             $payload['image'] = $request->file('image');
@@ -135,13 +142,79 @@ class InventoryRequestController extends Controller
             'delivery_date' => 'nullable|date',
             'observation' => 'nullable|string',
             'items' => ($isUpdate ? 'sometimes' : 'required') . '|array|min:1',
+            'items.*.id' => 'nullable|integer|exists:inventory_request_items,id',
             'items.*.item_id' => 'nullable|integer|exists:items,id',
             'items.*.item_name' => 'required_without:items.*.item_id|string',
             'items.*.quantity' => 'required|numeric|min:0.0001',
+            'items.*._delete_image' => 'nullable|boolean',
+            'items.*.image' => 'nullable|image|max:2048',
             'image' => 'nullable|image|max:5120', // hasta 5MB
         ];
 
         return $request->validate($rules);
+    }
+
+    protected function prepareItemsPayload(
+        Request $request,
+        array $items,
+        ?InventoryRequest $inventoryRequest = null
+    ): array {
+        $existingItemsById = $inventoryRequest
+            ? $inventoryRequest->items()->get()->keyBy('id')->toArray()
+            : [];
+        $existingItems = $inventoryRequest
+            ? array_values($inventoryRequest->items()->get()->toArray())
+            : [];
+
+        $preparedItems = [];
+        $retainedItemIds = [];
+
+        foreach (array_values($items) as $index => $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $existingItem = $existingItems[$index] ?? [];
+            $itemRowId = isset($item['id']) && is_numeric($item['id']) ? (int) $item['id'] : null;
+            if ($itemRowId && isset($existingItemsById[$itemRowId])) {
+                $existingItem = $existingItemsById[$itemRowId];
+                $retainedItemIds[] = $itemRowId;
+            }
+            $imagePath = $existingItem['image_path'] ?? null;
+            $uploadedImage = $request->file("items.$index.image");
+
+            if ($uploadedImage instanceof UploadedFile) {
+                $imagePath = $this->service->handleItemImageUpload($uploadedImage, $imagePath);
+            } elseif ($request->boolean("items.$index._delete_image")) {
+                $this->service->deleteStoredPublicFile($imagePath);
+                $imagePath = null;
+            }
+
+            $itemId = $item['item_id'] ?? null;
+            if ($itemId === '') {
+                $itemId = null;
+            }
+
+            $itemName = isset($item['item_name']) ? trim((string) $item['item_name']) : '';
+            $quantity = $item['quantity'] ?? $item['requested_quantity'] ?? null;
+
+            $preparedItems[] = [
+                'item_id' => $itemId ? (int) $itemId : null,
+                'item_name' => $itemName !== '' ? $itemName : null,
+                'quantity' => $quantity,
+                'image_path' => $imagePath,
+            ];
+        }
+
+        foreach ($existingItemsById as $existingItemId => $existingItem) {
+            if (in_array((int) $existingItemId, $retainedItemIds, true)) {
+                continue;
+            }
+
+            $this->service->deleteStoredPublicFile($existingItem['image_path'] ?? null);
+        }
+
+        return $preparedItems;
     }
 
     private function validateDeliveryPayload(Request $request): array

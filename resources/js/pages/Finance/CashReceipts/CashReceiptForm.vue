@@ -24,7 +24,7 @@ const breadcrumbs = [
     { title: 'Nuevo recibo', href: ROUTES.create },
 ];
 
-const { successMessage, errorMessage, showError, clearSuccess, clearError } = useAlertStack();
+const { successMessage, errorMessage, showError, showWarning, clearSuccess, clearError } = useAlertStack();
 
 const {
     loadingParties,
@@ -141,7 +141,7 @@ function submitReceipt(): void {
     clearSuccess();
     clearError();
     if (hasApplicationErrors.value) {
-        showError('Hay montos inválidos en la tabla. Corrige los valores para continuar.');
+        showWarning('Hay montos inválidos en la tabla. Corrige los valores para continuar.');
         return;
     }
     showError('Recibo de caja queda activo en Fase 3. La base Treasury ya está preparada.');
@@ -393,4 +393,3 @@ onMounted(async () => {
         </div>
     </AppLayout>
 </template>
-

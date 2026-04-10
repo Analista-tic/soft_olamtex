@@ -16,6 +16,7 @@ return new class extends Migration
                 ->index();
             $table->foreignId('item_id')->nullable()->constrained('items')->cascadeOnDelete();
             $table->string('item_name')->nullable();
+            $table->string('image_path')->nullable();
             $table->decimal('requested_quantity', 15, 4);
             $table->decimal('delivered_quantity', 15, 4)->nullable();
             $table->foreignId('warehouse_id')->nullable()->constrained('warehouses')->nullOnDelete();

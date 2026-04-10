@@ -75,12 +75,12 @@ function getWithholdingValue(w: PurchaseInvoiceWithholding): number {
     return (getEffectiveBase(w) * (Number(w.percentage) || 0)) / 100;
 }
 
-function getBaseAmountInputValue(w: PurchaseInvoiceWithholding): string | number | undefined {
-    return w.base_amount == null ? undefined : Number(w.base_amount);
+function getBaseAmountInputValue(w: PurchaseInvoiceWithholding): string | number {
+    return w.base_amount == null ? '' : Number(w.base_amount);
 }
 
 function updateBaseAmount(w: PurchaseInvoiceWithholding, value: string | number | undefined) {
-    if (value === '' || value == null) {
+    if (value === '' || value == null || Number(value) === 0) {
         w.base_amount = null;
         emit('update:modelValue', [...localWithholdings.value]);
         return;

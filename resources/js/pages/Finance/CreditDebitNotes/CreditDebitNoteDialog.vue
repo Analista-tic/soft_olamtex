@@ -138,7 +138,7 @@ const isSyncingParentApplication = ref(false);
 
 const localForm = ref<CreditDebitNoteWithMeta>(createDefaultForm());
 
-const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError } = useAlertStack();
+const { successMessage, errorMessage, errorType, showSuccess, showError, showWarning, clearSuccess, clearError } = useAlertStack();
 
 /**
  * Contexto + labels
@@ -382,28 +382,28 @@ function validateForm(): boolean {
     if (!localForm.value.date) missingFields.push('Fecha');
 
     if (missingFields.length > 0) {
-        showError(formatRequiredFieldsMessage('Completa los campos obligatorios', missingFields));
+        showWarning(formatRequiredFieldsMessage('Completa los campos obligatorios', missingFields));
         return false;
     }
 
     const items = Array.isArray(localForm.value.items) ? localForm.value.items : [];
     if (items.length === 0) {
-        showError('Debes agregar al menos un item.');
+        showWarning('Debes agregar al menos un item.');
         return false;
     }
 
     for (const [index, item] of items.entries()) {
         const hasItemReference = asNumber(item.item_id, 0) > 0 || trimText(item.item_name).length > 0;
         if (!hasItemReference) {
-            showError(`El item ${index + 1} debe tener concepto o descripcion.`);
+            showWarning(`El item ${index + 1} debe tener concepto o descripcion.`);
             return false;
         }
         if (asNumber(item.quantity, 0) <= 0) {
-            showError(`El item ${index + 1} debe tener cantidad mayor a 0.`);
+            showWarning(`El item ${index + 1} debe tener cantidad mayor a 0.`);
             return false;
         }
         if (asNumber(item.price, 0) < 0) {
-            showError(`El item ${index + 1} no puede tener precio negativo.`);
+            showWarning(`El item ${index + 1} no puede tener precio negativo.`);
             return false;
         }
     }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import AlertBox from '@/components/AlertBox.vue';
-import { computed } from 'vue';
+import { computed, Teleport } from 'vue';
 
 const props = defineProps<{
     successMessage?: string;
@@ -46,21 +46,32 @@ function handleAlertClose() {
 </script>
 
 <template>
-    <div
-        class="pointer-events-none fixed left-1/2 top-6 z-[9999] flex max-w-2xl -translate-x-1/2 flex-col gap-3 px-4 sm:px-0"
-        :class="props.class"
-    >
-        <Transition name="alert">
-            <div v-if="activeAlert" key="alert" class="pointer-events-auto">
-                <AlertBox
-                    :type="activeAlert.type"
-                    :title="activeAlert.title"
-                    :message="activeAlert.message"
-                    @close="handleAlertClose"
-                />
-            </div>
-        </Transition>
-    </div>
+    <Teleport to="body">
+        <div
+            class="pointer-events-none fixed left-1/2 top-6 z-[9999] flex max-w-2xl -translate-x-1/2 flex-col gap-3 px-4 sm:px-0"
+            :class="props.class"
+        >
+            <Transition name="alert">
+                <div
+                    v-if="activeAlert"
+                    key="alert"
+                    class="pointer-events-auto"
+                    data-alert-stack-root="true"
+                    @pointerdown.stop
+                    @mousedown.stop
+                    @touchstart.stop
+                    @click.stop
+                >
+                    <AlertBox
+                        :type="activeAlert.type"
+                        :title="activeAlert.title"
+                        :message="activeAlert.message"
+                        @close="handleAlertClose"
+                    />
+                </div>
+            </Transition>
+        </div>
+    </Teleport>
 </template>
 
 <style scoped>

@@ -41,7 +41,7 @@ const isDateFromActive = computed(() => Boolean(dateFrom.value));
 const isDateToActive = computed(() => Boolean(dateTo.value));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
-const { successMessage, errorMessage, errorType, clearSuccess, clearError, showError } = useAlertStack();
+const { successMessage, errorMessage, errorType, clearSuccess, clearError, showError, showWarning } = useAlertStack();
 
 const statusOptions = [
     { id: 'all', name: 'Todos los estados' },
@@ -213,7 +213,7 @@ async function handleReject(reason: string) {
     }
 
     if (!reason || !reason.trim()) {
-        showError('Debes ingresar un motivo para rechazar la solicitud.');
+        showWarning('Debes ingresar un motivo para rechazar la solicitud.');
         return;
     }
 

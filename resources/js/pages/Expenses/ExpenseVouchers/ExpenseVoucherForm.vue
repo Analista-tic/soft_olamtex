@@ -270,7 +270,7 @@ function formatVoucherApplicationPendingBalance(application: ExpenseVoucherDetai
 
 // ─── Alerts ───────────────────────────────────────────────────────────────────
 
-const { successMessage, errorMessage, showSuccess, showError, clearSuccess, clearError } = useAlertStack();
+const { successMessage, errorMessage, showSuccess, showError, showWarning, clearSuccess, clearError } = useAlertStack();
 
 // ─── Treasury voucher page composable ─────────────────────────────────────────
 
@@ -567,22 +567,22 @@ async function submitVoucher(): Promise<void> {
 
     if (hasMissingRequiredFields.value) {
         const missingLabels = missingRequiredFieldKeys.value.map((key) => REQUIRED_FIELD_LABELS[key]);
-        showError(`Completa los campos obligatorios: ${missingLabels.join(', ')}.`);
+        showWarning(`Completa los campos obligatorios: ${missingLabels.join(', ')}.`);
         return;
     }
 
     if (hasApplicationErrors.value) {
-        showError('Hay montos a pagar inválidos. Revisa las filas marcadas en rojo.');
+        showWarning('Hay montos a pagar inválidos. Revisa las filas marcadas en rojo.');
         return;
     }
 
     if (hasRetentionAdjustedErrors.value) {
-        showError('Hay montos que superan el valor por pagar después de retenciones.');
+        showWarning('Hay montos que superan el valor por pagar después de retenciones.');
         return;
     }
 
     if (!canSubmit.value) {
-        showError('Completa los campos requeridos y al menos una aplicación válida.');
+        showWarning('Completa los campos requeridos y al menos una aplicación válida.');
         return;
     }
 
