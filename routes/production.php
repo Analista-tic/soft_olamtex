@@ -103,12 +103,18 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
     Route::put('sabana-productos/{sabana}', [ProductSheetController::class, 'update'])
         ->middleware('permission:editar sabana productos')
         ->name('sabana-productos.update');
+    Route::post('sabana-productos/{sabana}/toggle-enabled', [ProductSheetController::class, 'toggleEnabled'])
+        ->middleware('permission:editar sabana productos')
+        ->name('sabana-productos.toggle-enabled');
     Route::post('sabana-productos/{sabana}/convert', [ProductSheetController::class, 'convertToProduct'])
         ->middleware('permission:editar sabana productos')
         ->name('sabana-productos.convertToProduct');
     Route::get('product-sheets/parameters', [ProductSheetController::class, 'parameters'])
         ->middleware('permission:ver sabana productos')
         ->name('product-sheets.parameters');
+    Route::post('product-sheets/parameters/options', [ProductSheetController::class, 'storeParameterOption'])
+        ->middleware('permission:crear sabana productos|editar sabana productos')
+        ->name('product-sheets.parameters.store-option');
     Route::delete('sabana-productos/{sabana}', [ProductSheetController::class, 'destroy'])
         ->middleware('permission:eliminar sabana productos')
         ->name('sabana-productos.destroy');
@@ -173,6 +179,9 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
         Route::get('/data', [OperationController::class, 'data'])->name('data');
         Route::get('/metadata', [OperationController::class, 'metadata'])->name('metadata');
         Route::get('/paginated', [OperationController::class, 'paginated'])->name('paginated');
+        Route::post('/catalog-option', [OperationController::class, 'addCatalogOption'])
+            ->middleware('permission:crear listados operacionales|editar listados operacionales|crear sabana productos|editar sabana productos')
+            ->name('catalog-option');
         Route::post('/', [OperationController::class, 'store'])
             ->middleware('permission:crear listados operacionales|crear sabana productos')
             ->name('store');

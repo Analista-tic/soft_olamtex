@@ -62,6 +62,9 @@ class OperationService
 
         $data['action'] = $action;
         $data['garment_part'] = $garmentPart;
+        if (! empty($data['anexo'])) {
+            $data['anexo'] = strtoupper(trim($data['anexo']));
+        }
         if (! empty($data['location'])) {
             $data['location'] = strtoupper(trim($data['location']));
         }
@@ -87,6 +90,9 @@ class OperationService
         if (isset($data['garment_part'])) {
             $data['garment_part'] = strtoupper(trim($data['garment_part']));
         }
+        if (isset($data['anexo'])) {
+            $data['anexo'] = $data['anexo'] ? strtoupper(trim($data['anexo'])) : null;
+        }
         if (isset($data['location'])) {
             $data['location'] = strtoupper(trim($data['location']));
         }
@@ -106,7 +112,7 @@ class OperationService
         }
 
         return DB::transaction(function () use ($operation, $data, $motivo) {
-            $auditableFields = ['sam_base', 'action', 'garment_part', 'section_id', 'location', 'measure', 'quantity'];
+            $auditableFields = ['sam_base', 'action', 'garment_part', 'anexo', 'section_id', 'location', 'measure', 'quantity'];
 
             foreach ($auditableFields as $field) {
                 if (array_key_exists($field, $data) && (string) $operation->$field !== (string) $data[$field]) {
@@ -175,31 +181,21 @@ class OperationService
     }
 
     /**
-     * Obtiene valores únicos de acciones
+     * Obtiene valores únicos de acciones derivados de las operaciones existentes.
      */
     public function getUniqueActions(): Collection
     {
-        return $this->model
-            ->active()
-            ->whereNotNull('action')
-            ->pluck('action')
-            ->unique()
-            ->sort()
-            ->values();
+        return $this->model->active()->whereNotNull('action')
+            ->pluck('action')->unique()->sort()->values();
     }
 
     /**
-     * Obtiene valores únicos de partes de prenda
+     * Obtiene valores únicos de partes de prenda derivados de las operaciones existentes.
      */
     public function getUniqueGarmentParts(): Collection
     {
-        return $this->model
-            ->active()
-            ->whereNotNull('garment_part')
-            ->pluck('garment_part')
-            ->unique()
-            ->sort()
-            ->values();
+        return $this->model->active()->whereNotNull('garment_part')
+            ->pluck('garment_part')->unique()->sort()->values();
     }
 
     /**
@@ -216,6 +212,25 @@ class OperationService
             ->first();
 
         if ($existing) {
+            $updates = [];
+
+            if (array_key_exists('product_sheet_id_reference', $data)
+                && $data['product_sheet_id_reference'] !== null
+                && (int) $existing->product_sheet_id_reference !== (int) $data['product_sheet_id_reference']) {
+                $updates['product_sheet_id_reference'] = (int) $data['product_sheet_id_reference'];
+            }
+
+            if (array_key_exists('machine_id_reference', $data)
+                && $data['machine_id_reference'] !== null
+                && (int) $existing->machine_id_reference !== (int) $data['machine_id_reference']) {
+                $updates['machine_id_reference'] = (int) $data['machine_id_reference'];
+            }
+
+            if (!empty($updates)) {
+                $existing->update($updates);
+                $existing = $existing->fresh();
+            }
+
             return ['operation' => $existing, 'reused' => true];
         }
 

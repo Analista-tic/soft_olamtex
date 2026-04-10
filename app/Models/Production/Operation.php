@@ -18,6 +18,7 @@ class Operation extends Model
         'codigo',
         'action',
         'garment_part',
+        'anexo',
         'section_id',
         'measure',
         'quantity',
@@ -25,15 +26,19 @@ class Operation extends Model
         'sam_base',
         'product_sheet_id_reference',
         'machine_id_reference',
+        'tipo',
         'is_active',
     ];
 
     public array $auditIgnore = ['created_at', 'updated_at', 'deleted_at'];
 
     protected $casts = [
+        'section_id' => 'integer',
         'measure' => 'float',
         'quantity' => 'integer',
         'sam_base' => 'float',
+        'product_sheet_id_reference' => 'integer',
+        'machine_id_reference' => 'integer',
         'is_active' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
@@ -73,12 +78,14 @@ class Operation extends Model
     // Accessors
     public function getNameAttribute(): string
     {
-        return trim("{$this->action} {$this->garment_part}");
+        $base = trim("{$this->action} {$this->garment_part}");
+        return $this->anexo ? "{$base} · {$this->anexo}" : $base;
     }
 
     public function getNormalizedNameAttribute(): string
     {
-        return strtoupper(trim("{$this->action} {$this->garment_part}"));
+        $base = strtoupper(trim("{$this->action} {$this->garment_part}"));
+        return $this->anexo ? "{$base} · " . strtoupper(trim($this->anexo)) : $base;
     }
 
     /**
@@ -91,6 +98,10 @@ class Operation extends Model
         }
 
         $parts = [strtoupper(trim("{$this->action} {$this->garment_part}"))];
+
+        if ($this->anexo) {
+            $parts[] = '· ' . strtoupper(trim($this->anexo));
+        }
 
         if ($this->measure && $this->measure > 0) {
             $parts[] = "{$this->measure} cm";

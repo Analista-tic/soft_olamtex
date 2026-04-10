@@ -362,7 +362,7 @@ class ProductSheetController extends Controller
             $catalogs[$key] = $this->settingService->getCatalogOptions($key);
         }
         $catalogs['collections'] = $this->collectionService->allActive()
-            ->map(fn ($c) => ['id' => $c->id, 'name' => $c->name]);
+            ->map(fn (\App\Models\Production\Collection $c) => ['id' => $c->id, 'name' => $c->name]);
         return $catalogs;
     }
 
@@ -391,6 +391,34 @@ class ProductSheetController extends Controller
             'success' => true,
             'data' => $options->values()->all(),
         ]);
+    }
+
+    /**
+     * Crea una nueva opción en un catálogo de parámetros (inline desde selects).
+     */
+    public function storeParameterOption(Request $request): JsonResponse
+    {
+        $request->validate([
+            'key' => 'required|string|max:100',
+            'name' => 'required|string|max:255',
+        ]);
+
+        $key = $request->input('key');
+        $name = trim($request->input('name'));
+
+        try {
+            $created = $this->settingService->addCatalogOption($key, $name);
+
+            return response()->json([
+                'success' => true,
+                'data' => $created,
+            ], 201);
+        } catch (\RuntimeException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 
     private function generateProductReference(ProductSheet $productSheet): string

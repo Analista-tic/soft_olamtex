@@ -31,6 +31,28 @@ class ProductOperationListController extends Controller
     ) {
     }
 
+    private function actionOptions()
+    {
+        return $this->settingService
+            ->getCatalogOptions('operation_actions')
+            ->pluck('name')
+            ->filter(fn ($name) => is_string($name) && trim($name) !== '')
+            ->map(fn ($name) => mb_strtoupper(trim((string) $name)))
+            ->unique()
+            ->values();
+    }
+
+    private function garmentPartOptions()
+    {
+        return $this->settingService
+            ->getCatalogOptions('operation_garment_parts')
+            ->pluck('name')
+            ->filter(fn ($name) => is_string($name))
+            ->map(fn ($name) => mb_strtoupper(trim((string) $name)))
+            ->unique()
+            ->values();
+    }
+
     public function options(): JsonResponse
     {
         return response()->json([
@@ -39,8 +61,8 @@ class ProductOperationListController extends Controller
             'machines' => $this->machineService->options(),
             'productSheets' => $this->sheetService->recentOptions(50),
             'fabric_bases' => $this->settingService->getFabricBasesWithFactor()->values()->all(),
-            'actions' => $this->operationService->getUniqueActions(),
-            'garmentParts' => $this->operationService->getUniqueGarmentParts(),
+            'actions' => $this->actionOptions(),
+            'garmentParts' => $this->garmentPartOptions(),
         ]);
     }
 
@@ -56,8 +78,8 @@ class ProductOperationListController extends Controller
             'machines' => $this->machineService->options(),
             'productSheets' => $this->sheetService->recentOptions(50),
             'fabric_bases' => $this->settingService->getFabricBasesWithFactor()->values()->all(),
-            'actions' => $this->operationService->getUniqueActions(),
-            'garmentParts' => $this->operationService->getUniqueGarmentParts(),
+            'actions' => $this->actionOptions(),
+            'garmentParts' => $this->garmentPartOptions(),
             'costParameters' => $this->getCostParameters(),
         ]);
     }
