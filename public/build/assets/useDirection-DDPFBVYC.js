@@ -1,1 +1,0 @@
-import{i as r}from"./ConfigProvider-DKIp2U4a.js";import{a as n,c as a}from"./app-C9q2_lfR.js";function u(t){const e=r({dir:n("ltr")});return a(()=>{var o;return(t==null?void 0:t.value)||((o=e.dir)==null?void 0:o.value)||"ltr"})}export{u};

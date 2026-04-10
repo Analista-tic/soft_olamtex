@@ -1,0 +1,1 @@
+import{c as a}from"./utils-CytzSlOG.js";import{d as r,e as t,f as l,n,u as c,B as m}from"./app-CXlsUD1R.js";const u=r({__name:"DialogFooter",props:{class:{}},setup(e){const s=e;return(o,p)=>(t(),l("div",{class:n(c(a)("w-full pt-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end sm:gap-x-3 gap-y-2",s.class))},[m(o.$slots,"default")],2))}});export{u as _};

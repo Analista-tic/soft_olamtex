@@ -1,0 +1,1 @@
+import{c as t}from"./utils-CytzSlOG.js";import{d as o,e as r,f as n,n as l,u as c,B as p}from"./app-CXlsUD1R.js";const d=o({__name:"DialogHeader",props:{class:{}},setup(e){const s=e;return(a,f)=>(r(),n("div",{class:l(c(t)("flex flex-col gap-y-1.5 text-center sm:text-left",s.class))},[p(a.$slots,"default")],2))}});export{d as _};
