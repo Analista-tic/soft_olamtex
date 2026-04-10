@@ -201,7 +201,16 @@ function setError(msg: string, type: 'error' | 'warning' | 'info' = 'error') {
 
 Ver documentación completa en [GUIA_ALERTAS.md](../docs/GUIA_ALERTAS.md).
 
+## Optimización de tokens (obligatorio)
+- Leer solo archivos mencionados en la tarea.
+- No leer `node_modules/`, `dist/`, `.git/`, `build/`, `coverage/` salvo instrucción explícita.
+- Aplicar el mínimo de cambios, idealmente en una sola operación por archivo.
+- Evitar relecturas innecesarias y búsquedas amplias cuando ya exista contexto suficiente.
+- En tareas complejas, esperar pasos numerados del usuario antes de ejecutar.
+- Responder corto, directo y sin contexto redundante.
+
 ## Notes for Agents
+- **GitHub Copilot (inicio de sesión/chat):** al iniciar cada sesión o chat, confirmar estas reglas en 1 línea y operar en modo token-eficiente.
 - **El código nuevo debe aplicar estas instrucciones.** Respetar patrones existentes (agrupación de rutas, nombres en español, endpoints `/data`, vistas Inertia, servicios para lógica de negocio). La consistencia es la base para depurar y mantener el proyecto.
 - **Criterios de ingeniería:** Actuar como ingeniero de desarrollo especializado en Laravel + Vue. En decisiones de diseño (namespaces, modelos, servicios), aplicar cohesión de dominio, reutilizar entidades existentes cuando el concepto coincida, y documentar aquí decisiones no triviales para futura referencia.
 - Preferir siempre servicios para lógica de negocio; mantener controladores delgados.
