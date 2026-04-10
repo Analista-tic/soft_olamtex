@@ -1,5 +1,0 @@
-<<<<<<<< HEAD:public/build/assets/EditButton.vue_vue_type_script_setup_true_lang-DpmhaRke.js
-import{_ as r}from"./index-ARjiqzT6.js";import{P as s}from"./pencil-nBNRlY30.js";import{d as i,m as n,f as a,i as m,g as c,u as e}from"./app-BBKii1Go.js";const k=i({__name:"EditButton",emits:["click"],setup(_,{emit:f}){return(o,t)=>(a(),n(e(r),{variant:"ghost",size:"icon",class:"h-8 w-8 text-muted-foreground hover:text-foreground",onClick:t[0]||(t[0]=u=>o.$emit("click")),type:"button"},{default:m(()=>[c(e(s),{class:"h-4 w-4"})]),_:1}))}});export{k as _};
-========
-import{_ as r}from"./index-CinoXSOD.js";import{P as s}from"./pencil-DjrT3_Be.js";import{d as i,m as n,f as a,i as m,g as c,u as e}from"./app-HequdLu-.js";const k=i({__name:"EditButton",emits:["click"],setup(_,{emit:f}){return(o,t)=>(a(),n(e(r),{variant:"ghost",size:"icon",class:"h-8 w-8 text-muted-foreground hover:text-foreground",onClick:t[0]||(t[0]=u=>o.$emit("click")),type:"button"},{default:m(()=>[c(e(s),{class:"h-4 w-4"})]),_:1}))}});export{k as _};
->>>>>>>> origin/ManuArroyoG:public/build/assets/EditButton.vue_vue_type_script_setup_true_lang-XYvcRX9N.js

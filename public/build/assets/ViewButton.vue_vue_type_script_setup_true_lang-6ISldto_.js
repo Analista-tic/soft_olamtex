@@ -1,5 +1,0 @@
-<<<<<<<< HEAD:public/build/assets/ViewButton.vue_vue_type_script_setup_true_lang-CjHeLF63.js
-import{_ as t}from"./index-ARjiqzT6.js";import{E as n}from"./eye-ld_72yJO.js";import{d as r,m as s,f as a,i as c,g as i,u as o}from"./app-BBKii1Go.js";const l=r({__name:"ViewButton",props:{onClick:{type:Function}},setup(p){return(e,m)=>(a(),s(o(t),{variant:"ghost",size:"icon",class:"h-8 w-8 text-muted-foreground hover:text-foreground",onClick:e.onClick,type:"button"},{default:c(()=>[i(o(n),{class:"h-4 w-4"})]),_:1},8,["onClick"]))}});export{l as _};
-========
-import{_ as t}from"./index-CinoXSOD.js";import{E as n}from"./eye-pLnGxZdh.js";import{d as r,m as s,f as a,i as c,g as i,u as o}from"./app-HequdLu-.js";const l=r({__name:"ViewButton",props:{onClick:{type:Function}},setup(p){return(e,m)=>(a(),s(o(t),{variant:"ghost",size:"icon",class:"h-8 w-8 text-muted-foreground hover:text-foreground",onClick:e.onClick,type:"button"},{default:c(()=>[i(o(n),{class:"h-4 w-4"})]),_:1},8,["onClick"]))}});export{l as _};
->>>>>>>> origin/ManuArroyoG:public/build/assets/ViewButton.vue_vue_type_script_setup_true_lang-6ISldto_.js
