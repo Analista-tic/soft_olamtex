@@ -656,26 +656,14 @@ watch(dialogOpen, (isOpen) => {
                     </TooltipProvider>
                 </div>
 
-                <DialogFooter class="shrink-0 justify-end gap-4 border-t bg-background px-4 py-4">
+                <DialogFooter class="shrink-0 border-t border-border px-5 py-4 justify-end gap-2">
                     <Button variant="outline" size="pill" @click="dialogOpen = false">Cancelar</Button>
-                    <button
-                        v-if="!props.readonly && !isReadOnly"
-                        type="button"
-                        :disabled="isLoading || isBlockingLoading"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        @click="handleSubmit(false)"
-                    >
+                    <Button v-if="!props.readonly && !isReadOnly" variant="default" size="pill" :disabled="isLoading || isBlockingLoading" @click="handleSubmit(false)">
                         {{ isLoading ? 'Guardando...' : 'Guardar' }}
-                    </button>
-                    <button
-                        v-if="!props.readonly && !isReadOnly && canSendToApproval"
-                        type="button"
-                        :disabled="isLoading || isBlockingLoading"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        @click="handleSubmit(true)"
-                    >
+                    </Button>
+                    <Button v-if="!props.readonly && !isReadOnly && canSendToApproval" variant="default" size="pill" :disabled="isLoading || isBlockingLoading" @click="handleSubmit(true)">
                         {{ isLoading ? 'Guardando...' : 'Guardar y enviar a aprobacion' }}
-                    </button>
+                    </Button>
                 </DialogFooter>
             </div>
         </FormDialogContent>

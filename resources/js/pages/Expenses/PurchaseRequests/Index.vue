@@ -5,6 +5,7 @@ import ConfirmWithInputDialog from '@/components/common/ConfirmWithInputDialog.v
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
+import { Button } from '@/components/ui/button';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import InputDate from '@/components/InputDate.vue';
@@ -346,14 +347,10 @@ onMounted(() => {
                     <h1 class="text-lg font-bold">Solicitud de Compra y Servicios</h1>
                     <p class="text-sm text-muted-foreground">Gestiona las solicitudes emitidas a proveedores y mantente al tanto de su estado.</p>
                 </div>
-                <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-black shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                    @click="openCreateRequest"
-                >
+                <Button variant="default" size="pill" @click="openCreateRequest">
                     <PlusCircle class="h-4 w-4" />
                     Nueva solicitud
-                </button>
+                </Button>
             </div>
 
             <FilterBar align="start">

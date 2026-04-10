@@ -1728,7 +1728,7 @@ onBeforeUnmount(() => {
                 </fieldset>
             </div>
 
-            <DialogFooter class="shrink-0 border-t px-5 py-3 md:justify-end">
+            <DialogFooter class="shrink-0 border-t border-border px-5 py-4 md:justify-end">
                 <button
                     v-if="dialogType !== 'view' && showAdvancedLink"
                     type="button"

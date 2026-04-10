@@ -931,16 +931,11 @@ onMounted(async () => {
                 />
             </div>
 
-            <DialogFooter class="mt-3 flex justify-end gap-2">
+            <DialogFooter class="border-t border-border pt-4 flex justify-end gap-2">
                 <Button variant="outline" size="pill" @click="handleClose"> Cancelar </Button>
-                <button
-                    type="button"
-                    :disabled="isSubmitting"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    @click="handleSubmit"
-                >
+                <Button variant="default" size="pill" :disabled="isSubmitting" @click="handleSubmit">
                     {{ isSubmitting ? 'Guardando...' : props.dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
-                </button>
+                </Button>
             </DialogFooter>
         </FormDialogContent>
     </Dialog>

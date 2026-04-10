@@ -325,15 +325,10 @@ function handleDialogError(message?: string) {
                     <h1 class="text-lg font-bold">Órdenes de Compras y Servicios</h1>
                     <p class="text-sm text-muted-foreground">Lleva el control de las órdenes emitidas a proveedores y su estado de facturación.</p>
                 </div>
-                <button
-                    type="button"
-                    :disabled="isPreparingDialog"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-black shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                    @click="openDialog('create')"
-                >
+                <Button variant="default" size="pill" :disabled="isPreparingDialog" @click="openDialog('create')">
                     <PlusCircle class="h-4 w-4" />
                     Nueva Orden
-                </button>
+                </Button>
             </div>
             <FilterBar align="start">
                 <FilterField label="Buscar orden" :active="isSearchActive" class="min-w-[220px] flex-1">

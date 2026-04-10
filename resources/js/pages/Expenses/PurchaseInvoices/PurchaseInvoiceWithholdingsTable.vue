@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
+import { Button } from '@/components/ui/button';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -141,15 +142,10 @@ async function handleRetentionSubmit(formData: RetentionForm) {
         <div class="mb-2 flex items-center justify-between">
             <span class="inline-flex items-center gap-1 text-xs font-semibold">Retenciones <HelpTooltip text="Las retenciones son descuentos tributarios que se aplican sobre el valor de la compra según la normativa colombiana (ReteIVA, ReteICA, ReteRenta)." /></span>
             <div class="flex items-center gap-2">
-                <button
-                    v-if="!isReadOnly"
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                    @click="addWithholding"
-                >
+                <Button v-if="!isReadOnly" variant="default" size="pill" class="px-4 text-xs" @click="addWithholding">
                     <CirclePlus class="h-4 w-4" />
                     Añadir Retención
-                </button>
+                </Button>
             </div>
         </div>
         <div class="min-w-full rounded text-xs" v-if="localWithholdings.length">

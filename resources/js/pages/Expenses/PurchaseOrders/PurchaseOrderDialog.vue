@@ -934,7 +934,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                         </fieldset>
                     </form>
                 </FormDialogBody>
-                <FormDialogFooter class="justify-end gap-4 bg-background px-4 py-4">
+                <FormDialogFooter class="justify-end gap-4 bg-background">
                     <Button variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
                     <button
                         v-if="!isReadOnly"

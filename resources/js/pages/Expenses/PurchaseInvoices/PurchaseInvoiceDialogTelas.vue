@@ -797,24 +797,12 @@ watch(dialogOpen, (isOpen) => {
             </FormDialogBody>
             <FormDialogFooter class="justify-end gap-4 bg-background px-4 py-4">
                 <Button variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
-                <button
-                    v-if="!isReadOnly"
-                    type="button"
-                    :disabled="isLoading || isSendingMail || isBlockingLoading"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    @click.prevent="handleSubmit(false)"
-                >
+                <Button v-if="!isReadOnly" variant="default" size="pill" :disabled="isLoading || isSendingMail || isBlockingLoading" @click.prevent="handleSubmit(false)">
                     {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
-                </button>
-                <button
-                    v-if="!isReadOnly"
-                    type="button"
-                    :disabled="isLoading || isSendingMail || isBlockingLoading"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    @click.prevent="handleSubmit(true)"
-                >
+                </Button>
+                <Button v-if="!isReadOnly" variant="default" size="pill" :disabled="isLoading || isSendingMail || isBlockingLoading" @click.prevent="handleSubmit(true)">
                     {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
-                </button>
+                </Button>
             </FormDialogFooter>
             <FormLoadingOverlay
                 :active="isBlockingLoading"

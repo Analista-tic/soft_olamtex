@@ -346,7 +346,7 @@ const updateBranches = (branches: any[]) => {
                     </TabsContent>
                 </Tabs>
             </div>
-            <DialogFooter class="mt-4 flex justify-end gap-2">
+            <DialogFooter class="flex justify-end gap-2 border-t border-border pt-4">
                 <Button variant="outline" size="pill" @click="closeDialog"> Cancelar </Button>
                 <button
                     type="button"

@@ -88,16 +88,11 @@ const retentionTypeOptions = [
                     required
                 />
             </div>
-            <DialogFooter class="flex justify-end gap-2">
+            <DialogFooter class="flex justify-end gap-2 border-t border-border pt-4">
                 <Button variant="outline" size="pill" @click="handleClose"> Cancelar </Button>
-                <button
-                    type="button"
-                    :disabled="props.loading"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    @click="handleSubmit"
-                >
+                <Button variant="default" size="pill" :disabled="props.loading" @click="handleSubmit">
                     {{ props.dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
-                </button>
+                </Button>
             </DialogFooter>
         </FormDialogContent>
     </Dialog>

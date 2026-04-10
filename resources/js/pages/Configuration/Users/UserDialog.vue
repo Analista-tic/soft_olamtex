@@ -288,7 +288,7 @@ function submitForm() {
                     </div>
                 </div>
             </TooltipProvider>
-            <DialogFooter class="mt-4 flex flex-shrink-0 flex-col gap-2 border-t pt-4 md:flex-row md:justify-end">
+            <DialogFooter class="flex flex-shrink-0 flex-col gap-2 border-t border-border pt-4 md:flex-row md:justify-end">
                 <div class="w-full md:w-auto">
                     <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="closeDialog">
                         {{ isView ? 'Cerrar' : 'Cancelar' }}

@@ -254,13 +254,9 @@ function print() {
                 </div>
                 <DialogFooter class="mt-4 flex justify-end gap-3 print:hidden">
                     <Button variant="outline" size="pill" @click="dialogOpen = false"> Cerrar </Button>
-                    <button
-                        type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                        @click="print"
-                    >
+                    <Button variant="default" size="pill" @click="print">
                         Imprimir
-                    </button>
+                    </Button>
                 </DialogFooter>
             </div>
         </DialogContent>

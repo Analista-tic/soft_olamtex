@@ -88,6 +88,13 @@ html {
         --ring: 240 5.9% 10%;
     }
 
+    .dark html[data-accent='zinc'],
+    html.dark[data-accent='zinc'] {
+        --primary: 240 5% 64.9%;
+        --primary-foreground: 0 0% 9%;
+        --ring: 240 5% 64.9%;
+    }
+
     html[data-accent='red'] {
         --primary: 0 72.2% 50.6%;
         --primary-foreground: 0 0% 98%;
@@ -102,7 +109,7 @@ html {
 
     html[data-accent='orange'] {
         --primary: 24.6 95% 53.1%;
-        --primary-foreground: 20 14.3% 4.1%;
+        --primary-foreground: 0 0% 98%;
         --ring: 24.6 95% 53.1%;
     }
 

@@ -567,15 +567,9 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
                     <Button variant="outline" size="pill" @click="closeDialog">
                         {{ cancelButtonLabel }}
                     </Button>
-                    <button
-                        v-if="!isViewMode"
-                        type="button"
-                        :disabled="isSaveDisabled || isSaving"
-                        class="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-                        @click="saveDialog"
-                    >
+                    <Button v-if="!isViewMode" variant="default" size="pill" class="disabled:opacity-60" :disabled="isSaveDisabled || isSaving" @click="saveDialog">
                         {{ isSaving ? 'Guardando...' : 'Guardar' }}
-                    </button>
+                    </Button>
                 </div>
             </DialogFooter>
         </FormDialogContent>
