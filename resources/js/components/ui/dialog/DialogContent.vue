@@ -83,13 +83,14 @@ function handleInteractOutside(event: unknown) {
             @interact-outside="handleInteractOutside"
             :class="
                 cn(
-                    'h-fit max-h-[90vh] w-[calc(100%-2rem)] max-w-4xl overflow-y-auto border border-border bg-background shadow-[0_25px_70px_rgba(15,23,42,0.35)] sm:rounded-[28px]',
+                    'h-fit max-h-[90vh] w-[calc(100%-2rem)] max-w-4xl border border-border bg-background shadow-[0_25px_70px_rgba(15,23,42,0.35)] sm:rounded-[28px]',
+                    isScrollable ? 'overflow-y-auto' : 'overflow-hidden',
                     props.class,
                     'fixed left-1/2 top-1/2 z-[51] -translate-x-1/2 -translate-y-1/2',
                 )
             "
         >
-            <div class="flex max-h-[calc(100vh-3rem)] flex-col">
+            <div :class="['flex flex-col', isScrollable ? 'max-h-[calc(100vh-3rem)]' : 'h-full']">
                 <div
                     :class="cn(
                         'dialog-scroll-area flex min-h-0 flex-1 flex-col scroll-smooth',
