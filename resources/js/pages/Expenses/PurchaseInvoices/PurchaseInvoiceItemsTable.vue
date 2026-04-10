@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -40,7 +41,7 @@ const isReadOnly = computed(() => !!props.isReadOnly);
 const itemMap = computed(() => new Map<number, Item>(catalogItems.value.map((a) => [a.id, a])));
 const taxById = computed(() => new Map<number, Tax>(taxes.value.map((tax) => [Number(tax.id), tax])));
 const taxOptions = computed(() => [
-    { id: 0, name: DEFAULT_TAX_LABEL },
+    { id: null as null, name: DEFAULT_TAX_LABEL },
     ...taxes.value
         .filter((tax): tax is Tax => !isDefaultTax(tax))
         .map((tax) => ({
@@ -138,6 +139,7 @@ watch(
                     () => item.item_id,
                     () => {
                         setTaxFromItem(item);
+                        setDescriptionFromItem(item);
                         setFieldsFromOrder(item);
                         calcTotals(item);
                         notifyParent();
@@ -253,6 +255,20 @@ function setTaxFromItem(invoiceItem: PurchaseInvoiceItem) {
     invoiceItem.tax = Number(taxPercentage) || 0;
 }
 
+function setDescriptionFromItem(item: PurchaseInvoiceItem) {
+    const catalogItem = itemMap.value.get(Number(item.item_id));
+    if (!catalogItem) {
+        return;
+    }
+
+    const catalogDescription = catalogItem.description?.trim() ?? '';
+    const currentDescription = (item.description ?? '').trim();
+
+    if (catalogDescription && !currentDescription) {
+        item.description = catalogDescription;
+    }
+}
+
 function getSuggestedPrice(item: PurchaseInvoiceItem): number | null {
     if (item.original_order_item && (typeof item.original_order_item.price === 'string' || typeof item.original_order_item.price === 'number')) {
         const price = Number(item.original_order_item.price);
@@ -282,7 +298,7 @@ function roundCurrency(value: number) {
 function calcTotals(item: PurchaseInvoiceItem) {
     const price = item.price === '' || item.price === null || item.price === undefined ? 0 : Number(item.price);
     const quantity = item.quantity === '' || item.quantity === null || item.quantity === undefined ? 0 : Number(item.quantity);
-    const tax = Number(item.tax) || 0;
+    const tax = item.tax ?? 0;
     item.total = roundCurrency(price * quantity);
     item.total_tax = roundCurrency(price * (tax / 100) * quantity);
 }
@@ -315,11 +331,34 @@ function syncInvoiceItemsTaxWithCatalog() {
 }
 
 watch(
-    [catalogItems, taxes],
-    () => {
-        syncInvoiceItemsTaxWithCatalog();
+    () => itemMap.value.size,
+    (size) => {
+        if (size === 0) return;
+
+        localItems.value.forEach((invoiceItem) => {
+            if (invoiceItem.item_id == null) return;
+            setTaxFromItem(invoiceItem);
+            setDescriptionFromItem(invoiceItem);
+            calcTotals(invoiceItem);
+        });
+
+        notifyParent();
     },
-    { immediate: true },
+);
+
+watch(
+    () => taxById.value.size,
+    (size) => {
+        if (size === 0) return;
+
+        localItems.value.forEach((invoiceItem) => {
+            if (invoiceItem.item_id == null) return;
+            setTaxFromItem(invoiceItem);
+            calcTotals(invoiceItem);
+        });
+
+        notifyParent();
+    },
 );
 
 function isPriceDifferent(item: PurchaseInvoiceItem): boolean {
@@ -353,13 +392,13 @@ defineExpose({ addItem });
                         <TableHead class="min-w-[110px] text-left">Cantidad <span class="text-red-600">*</span></TableHead>
                         <TableHead class="min-w-[160px] text-left">Descripción</TableHead>
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
-                            >Código proveedor <span class="text-red-600">*</span></TableHead
+                            ><span class="inline-flex items-center gap-1">Código proveedor <span class="text-red-600">*</span><HelpTooltip text="Referencia interna del proveedor para identificar esta tela en su catálogo. Aparece en la factura del proveedor." /></span></TableHead
                         >
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
-                            >Color proveedor <span class="text-red-600">*</span></TableHead
+                            ><span class="inline-flex items-center gap-1">Color proveedor <span class="text-red-600">*</span><HelpTooltip text="Nombre o código del color según el proveedor. Puede diferir del nombre interno del sistema." /></span></TableHead
                         >
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
-                            >Ancho pedido <span class="text-red-600">*</span></TableHead
+                            ><span class="inline-flex items-center gap-1">Ancho pedido <span class="text-red-600">*</span><HelpTooltip text="Ancho de la tela en centímetros según lo pactado en la orden de compra." /></span></TableHead
                         >
                         <TableHead class="min-w-[90px] text-left">Total</TableHead>
                         <TableHead v-if="showActionsColumn" class="w-[60px]"></TableHead>
@@ -368,7 +407,7 @@ defineExpose({ addItem });
 
                 <TableBody>
                     <TableRow v-for="(item, idx) in localItems" :key="idx">
-                        <TableCell :class="[props.telaMode === true ? 'min-w-[220px]' : 'min-w-[150px]', 'p-1 text-left']">
+                        <TableCell :class="[props.telaMode === true ? 'min-w-[220px]' : 'min-w-[150px]', 'p-1 text-left align-top']">
                             <SelectField
                                 v-model="item.item_id"
                                 :options="itemOptions"
@@ -381,7 +420,7 @@ defineExpose({ addItem });
                                 @action="openItemDialog"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" :style="{ width: props.telaMode === true ? '150px' : '120px' }">
+                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '150px' : '120px' }">
                             <InputField
                                 v-model="item.price"
                                 type="currency"
@@ -407,7 +446,7 @@ defineExpose({ addItem });
                                 }}
                             </div>
                         </TableCell>
-                        <TableCell class="p-1 text-left" :style="{ width: props.telaMode === true ? '170px' : '160px' }">
+                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '170px' : '160px' }">
                             <SelectField
                                 v-model="item.tax"
                                 :options="taxOptions"
@@ -419,13 +458,13 @@ defineExpose({ addItem });
                                 @action="openTaxDialog"
                                 @update:modelValue="
                                     (val) => {
-                                        item.tax = Number(val) || 0;
+                                        item.tax = val === null ? null : (Number(val) || 0);
                                         calcTotals(item);
                                     }
                                 "
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 110px">
+                        <TableCell class="p-1 text-left align-top" style="width: 110px">
                             <InputField
                                 v-model="item.quantity"
                                 type="number"
@@ -440,7 +479,7 @@ defineExpose({ addItem });
                                 Cantidad real: {{ Number(getSuggestedQuantity(item)).toLocaleString('es-CO') }}
                             </div>
                         </TableCell>
-                        <TableCell class="p-1 text-left" :style="{ width: props.telaMode === true ? '220px' : '160px' }">
+                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '220px' : '160px' }">
                             <InputField v-model="item.description" label="" class="h-10 w-full" :readonly="isReadOnly" :disabled="isReadOnly" />
                         </TableCell>
                         <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left" style="width: 160px">
@@ -475,7 +514,7 @@ defineExpose({ addItem });
                                 :required="isTela(item)"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" :style="{ width: props.telaMode === true ? '120px' : '90px' }">
+                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '120px' : '90px' }">
                             {{
                                 Number(item.total || 0).toLocaleString('es-CO', {
                                     style: 'currency',

@@ -1,23 +1,20 @@
 <script setup lang="ts">
+import DatePickerField from '@/components/DatePickerField.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormHeader from '@/components/FormHeader.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
-import SwitchField from '@/components/SwitchField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import type { AdditionalField, AdditionalFieldPayload, AdditionalFieldType } from '@/domain/MasterData';
+import { mapAdditionalFieldToDialogForm } from '@/domain/MasterData';
+import type { AdditionalField, AdditionalFieldDialogFormState, AdditionalFieldPayload, AdditionalFieldType } from '@/domain/MasterData';
 import { normalizeTitleCaseWords } from '@/lib/textNormalizer';
 import { Plus } from 'lucide-vue-next';
 import { computed, nextTick, ref, watch } from 'vue';
-
-type AdditionalFieldForm = Omit<AdditionalField, 'default_value'> & {
-    default_value: string;
-};
 
 const fieldTypeOptions: Array<{ id: AdditionalFieldType; name: string }> = [
     { id: 'text', name: 'Texto' },
@@ -43,7 +40,7 @@ const emit = defineEmits<{
     (e: 'loading-state', value: boolean): void;
 }>();
 
-const defaultForm: AdditionalFieldForm = {
+const defaultForm: AdditionalFieldDialogFormState = {
     name: '',
     field_type: 'text',
     options: [],
@@ -53,15 +50,14 @@ const defaultForm: AdditionalFieldForm = {
     status: true,
 };
 
-// Inicializar localForm de forma segura convirtiendo `default_value` a string
-const localForm = ref<AdditionalFieldForm>({
+const localForm = ref<AdditionalFieldDialogFormState>({
     ...defaultForm,
-    ...(props.form ?? ({} as Partial<AdditionalFieldForm>)),
-    default_value: String((props.form as Partial<AdditionalField>)?.default_value ?? ''),
+    ...mapAdditionalFieldToDialogForm(props.form),
 });
 const isInitializingDialog = ref(false);
 const localOptions = ref<string[]>([]);
 const newOptionInput = ref('');
+const formError = ref('');
 
 function normalizeOptionEntry(value: unknown): string {
     return normalizeTitleCaseWords(value);
@@ -96,17 +92,21 @@ const defaultValueInputType = computed((): 'text' | 'number' | 'date' => {
 });
 
 watch(
-    () => props.form,
-    (value) => {
+    [() => props.open, () => props.form],
+    ([isOpen, formValue]) => {
+        if (!isOpen) return;
+
         localForm.value = {
             ...defaultForm,
-            ...(value ?? {}),
-            options: value?.options ?? [],
-            default_value: value?.default_value ?? '',
+            ...mapAdditionalFieldToDialogForm(formValue),
         };
-        const optionsFromProps = Array.isArray(value?.options) ? (value?.options ?? []) : [];
-        localOptions.value = optionsFromProps.map((option) => normalizeOptionEntry(option)).filter((option) => option !== '');
+
+        const optionsFromProps = Array.isArray(localForm.value.options) ? localForm.value.options : [];
+        localOptions.value = optionsFromProps
+            .map((option) => normalizeOptionEntry(option))
+            .filter((option) => option !== '');
         newOptionInput.value = '';
+        formError.value = '';
     },
     { immediate: true },
 );
@@ -221,13 +221,20 @@ function buildPayload(preparedOptions: string[]): AdditionalFieldPayload {
 function handleSubmit() {
     const preparedOptions = isSelectField.value ? localOptions.value.map((value) => normalizeOptionEntry(value)).filter((value) => value) : [];
 
+    if (isSelectField.value && preparedOptions.length === 0) {
+        formError.value = 'Debe agregar al menos una opción para los campos de tipo lista.';
+        return;
+    }
+
+    formError.value = '';
+
     emit('submit', buildPayload(preparedOptions));
 }
 </script>
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <FormDialogContent v-if="!props.deferContent" class="flex max-h-[95vh] max-w-2xl flex-col px-2 py-2">
+        <FormDialogContent v-if="!props.deferContent" class="flex max-h-[95vh] max-w-2xl flex-col px-2 pb-3 pt-4">
             <TooltipProvider>
                 <FormHeader
                     :title="dialogType === 'create' ? 'Crear campo adicional' : 'Editar campo adicional'"
@@ -237,7 +244,7 @@ function handleSubmit() {
                             : 'Actualiza las propiedades del campo adicional seleccionado para adaptarlo a los requerimientos del negocio.'
                     "
                 />
-                <div class="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1 pt-4">
+                <div class="min-h-0 flex-1 space-y-6 overflow-y-auto px-1 pr-1 pt-4">
                     <div class="space-y-6">
                         <!-- Row: Name | Type -->
                         <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
@@ -294,6 +301,14 @@ function handleSubmit() {
                                         Agrega opciones para habilitar un valor por defecto
                                     </p>
                                 </div>
+                                <DatePickerField
+                                    v-else-if="localForm.field_type === 'date'"
+                                    v-model="localForm.default_value"
+                                    label=""
+                                    placeholder-text="Selecciona una fecha"
+                                    clearable
+                                    show-today
+                                />
                                 <InputField
                                     v-else
                                     v-model="localForm.default_value"
@@ -347,6 +362,7 @@ function handleSubmit() {
                             <p v-else class="text-xs text-muted-foreground">Sin valores registrados.</p>
                             <p v-if="hasDuplicateOptions" class="text-xs text-red-600">Cada opción debe ser única.</p>
                         </div>
+                        <p v-if="formError" class="text-sm text-red-600">{{ formError }}</p>
 
                         <!-- Separator -->
                         <div class="my-2 h-px bg-slate-100" />
@@ -365,7 +381,19 @@ function handleSubmit() {
                                     />
                                 </div>
                                 <div class="switch-inline">
-                                    <SwitchField v-model="localForm.is_required" />
+                                    <button
+                                        type="button"
+                                        role="switch"
+                                        :aria-checked="localForm.is_required"
+                                        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                                        :class="localForm.is_required ? 'bg-primary' : 'bg-input'"
+                                        @click="localForm.is_required = !localForm.is_required"
+                                    >
+                                        <span
+                                            class="inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform"
+                                            :class="localForm.is_required ? 'translate-x-6' : 'translate-x-1'"
+                                        />
+                                    </button>
                                 </div>
                             </div>
                             <div class="flex flex-col gap-2">
@@ -374,13 +402,25 @@ function handleSubmit() {
                                     <HelpTooltip text="Habilita o pausa el campo sin eliminar su configuración." aria-label="Ayuda sobre activo" />
                                 </div>
                                 <div class="switch-inline">
-                                    <SwitchField v-model="localForm.status" />
+                                    <button
+                                        type="button"
+                                        role="switch"
+                                        :aria-checked="localForm.status"
+                                        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                                        :class="localForm.status ? 'bg-primary' : 'bg-input'"
+                                        @click="localForm.status = !localForm.status"
+                                    >
+                                        <span
+                                            class="inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform"
+                                            :class="localForm.status ? 'translate-x-6' : 'translate-x-1'"
+                                        />
+                                    </button>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-                <DialogFooter class="mt-6 justify-end gap-2">
+                <DialogFooter class="flex-shrink-0 justify-end gap-2 border-t pt-4">
                     <Button variant="outline" size="pill" @click="handleClose"> Cancelar </Button>
                     <button
                         type="button"

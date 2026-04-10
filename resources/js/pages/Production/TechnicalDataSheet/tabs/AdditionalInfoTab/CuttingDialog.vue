@@ -685,7 +685,7 @@ watch(
                 @close-error="infoMessage = null"
             />
 
-            <div class="min-h-0 flex-1 overflow-y-auto pr-2 pt-4">
+            <div class="min-h-0 flex-1 overflow-y-auto px-2 pt-4">
                 <div
                     class="grid grid-cols-[0.98fr_1.6fr] gap-6 items-start"
                     style="grid-template-columns: minmax(260px,38%) minmax(340px,62%);"

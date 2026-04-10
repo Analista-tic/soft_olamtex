@@ -1,1 +1,0 @@
-import{d as a,e as t,f as s,j as n,t as o,p as r}from"./app-CXlsUD1R.js";const i={class:"mb-0.5 text-base font-medium"},p={key:0,class:"text-sm text-muted-foreground"},l=a({__name:"HeadingSmall",props:{title:{},description:{}},setup(c){return(e,d)=>(t(),s("header",null,[n("h3",i,o(e.title),1),e.description?(t(),s("p",p,o(e.description),1)):r("",!0)]))}});export{l as _};

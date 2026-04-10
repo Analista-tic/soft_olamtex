@@ -19,7 +19,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { formatDateDDMMYYYY, toIsoDateString } from '@/lib/date';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Eye, Mail, MinusCircle, MoreVertical, Package, PlusCircle, Printer, Search } from 'lucide-vue-next';
+import { Eye, Mail, MinusCircle, MoreVertical, Package, PlusCircle, Printer, Search, ShieldCheck } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceCreditDebitNotesDialog, {
     type PurchaseInvoiceAssociatedNote,
@@ -27,6 +27,7 @@ import PurchaseInvoiceCreditDebitNotesDialog, {
 } from './PurchaseInvoiceCreditDebitNotesDialog.vue';
 import PurchaseInvoiceDialog from './PurchaseInvoiceDialog.vue';
 import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
+import InvoiceDifferenceApprovalDialog from './InvoiceDifferenceApprovalDialog.vue';
 
 const breadcrumbs = [{ title: 'Facturas de Compra', href: '/facturas-compra' }];
 
@@ -51,6 +52,9 @@ const associatedNotesSummary = ref<PurchaseInvoiceNotesSummary | null>(null);
 const isLoadingAssociatedNotes = ref(false);
 const associatedNotesError = ref('');
 const isSendingMail = ref(false);
+const isApprovalDialogOpen = ref(false);
+const invoiceForApproval = ref<PurchaseInvoice | null>(null);
+const approvalStatusFilter = ref('all');
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError, clearAlerts } = useAlertStack();
 
 const statusFilter = ref('all');
@@ -231,6 +235,7 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         date_to: toIsoDateString(dateTo.value) || undefined,
     };
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
+    if (approvalStatusFilter.value !== 'all') params.approval_status = approvalStatusFilter.value;
     if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
         params.provider_id = isNaN(Number(providerFilter.value)) ? providerFilter.value : Number(providerFilter.value);
     }
@@ -250,15 +255,16 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
 
 // Watcher Ãºnico para filtros y bÃºsqueda
 watch(
-    [statusFilter, providerFilter, subgroupFilter, dateFrom, dateTo, searchQuery],
-    ([newStatus, newProvider, newSubgroup, newFrom, newTo, newSearch], [oldStatus, oldProvider, oldSubgroup, oldFrom, oldTo, oldSearch]) => {
+    [statusFilter, providerFilter, subgroupFilter, dateFrom, dateTo, searchQuery, approvalStatusFilter],
+    ([newStatus, newProvider, newSubgroup, newFrom, newTo, newSearch, newApproval], [oldStatus, oldProvider, oldSubgroup, oldFrom, oldTo, oldSearch, oldApproval]) => {
         if (
             newStatus !== oldStatus ||
             newProvider !== oldProvider ||
             newSubgroup !== oldSubgroup ||
             newFrom !== oldFrom ||
             newTo !== oldTo ||
-            newSearch !== oldSearch
+            newSearch !== oldSearch ||
+            newApproval !== oldApproval
         ) {
             // Solo cambia la página, el watcher de currentPage hará el fetch
             if (currentPage.value !== 1) {
@@ -461,6 +467,17 @@ function handleDialogError(message?: string) {
     showError(message || 'Error al guardar la factura.');
     clearSuccess();
 }
+
+function openApprovalDialog(invoice: PurchaseInvoice) {
+    invoiceForApproval.value = invoice;
+    isApprovalDialogOpen.value = true;
+}
+
+async function handleDifferenceDecision() {
+    isApprovalDialogOpen.value = false;
+    showSuccess('Decisión registrada correctamente.');
+    await fetchInvoices(currentPage.value, searchQuery.value);
+}
 </script>
 
 <template>
@@ -546,6 +563,18 @@ function handleDialogError(message?: string) {
                 <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
                     <DateField v-model="dateTo" placeholder="Hasta" />
                 </FilterField>
+                <FilterField label="Diferencia" :active="approvalStatusFilter !== 'all'" class="min-w-[180px]">
+                    <SelectField
+                        v-model="approvalStatusFilter"
+                        label=""
+                        :options="[
+                            { id: 'all', name: 'Todas' },
+                            { id: 'pending_difference_approval', name: 'Aprobación pendiente' },
+                            { id: 'approved', name: 'Diferencia aprobada' },
+                            { id: 'difference_rejected', name: 'Diferencia rechazada' },
+                        ]"
+                    />
+                </FilterField>
             </FilterBar>
             <div class="relative overflow-auto rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>
@@ -573,6 +602,22 @@ function handleDialogError(message?: string) {
                             <TableCell class="max-w-32 truncate text-start">{{ invoice.description || '-' }}</TableCell>
                             <TableCell>
                                 <TableStatusBadge
+                                    v-if="invoice.approval_status === 'pending_difference_approval'"
+                                    label="Aprobación pendiente"
+                                    tone="yellow"
+                                />
+                                <TableStatusBadge
+                                    v-else-if="invoice.approval_status === 'approved'"
+                                    label="Diferencia aprobada"
+                                    tone="green"
+                                />
+                                <TableStatusBadge
+                                    v-else-if="invoice.approval_status === 'difference_rejected'"
+                                    label="Diferencia rechazada"
+                                    tone="red"
+                                />
+                                <TableStatusBadge
+                                    v-else
                                     :label="invoice.status ? getInvoiceStatusLabel(invoice.status) : 'Pendiente'"
                                     :tone="invoice.status ? getInvoiceStatusTone(invoice.status) : 'yellow'"
                                 />
@@ -587,6 +632,15 @@ function handleDialogError(message?: string) {
                                         <Eye class="h-4 w-4" />
                                     </button>
                                     <EditButton :onClick="() => openDialogWithPreparation('edit', invoice)" />
+                                    <!-- Botón de aprobación de diferencia: visible solo cuando hay diferencia pendiente -->
+                                    <button
+                                        v-if="invoice.approval_status === 'pending_difference_approval'"
+                                        class="flex items-center transition-colors duration-200 text-yellow-600 hover:text-yellow-800"
+                                        title="Aprobar / Rechazar diferencia"
+                                        @click="openApprovalDialog(invoice)"
+                                    >
+                                        <ShieldCheck class="h-4 w-4" />
+                                    </button>
                                     <!-- Mostrar siempre el botón; si está aprobado se muestra deshabilitado visualmente
                                          y al hacer clic se muestra un mensaje en vez de intentar eliminar -->
                                     <DeleteButton
@@ -688,6 +742,12 @@ function handleDialogError(message?: string) {
             cancel-text="Cancelar"
             :destructive="true"
             @confirm="deleteInvoice"
+        />
+        <InvoiceDifferenceApprovalDialog
+            v-model:open="isApprovalDialogOpen"
+            :invoice="invoiceForApproval"
+            @approved="handleDifferenceDecision"
+            @rejected="handleDifferenceDecision"
         />
     </AppLayout>
 </template>

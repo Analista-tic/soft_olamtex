@@ -199,42 +199,49 @@ function handleSave() {
                     El total de la factura {{ formattedTotal }} no coincide con el valor de la orden {{ formattedOrderTotal }}.
                 </DialogDescription>
             </DialogHeader>
-            <div class="flex-1 overflow-y-auto scroll-smooth pr-2" style="scrollbar-width: thin">
+            <div class="flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
                 <div class="space-y-4">
-                    <TextareaField v-model="reason" label="Motivo" :rows="3" required />
+                    <div class="space-y-1">
+                        <TextareaField v-model="reason" label="Motivo" :rows="4" class="min-h-[100px] resize-y" required />
+                    </div>
                     <div class="space-y-2 text-sm">
                         <label class="block font-semibold">
                             Evidencia (imagen)
                             <span class="text-red-500">*</span>
                         </label>
+                        <p class="text-xs text-muted-foreground mb-2">
+                            Adjunta una imagen que respalde la diferencia:
+                            cotización del proveedor, correo de autorización,
+                            nota de ajuste u otro documento relevante.
+                        </p>
                         <div class="space-y-2">
-                            <label class="block">
-                                <Button as="label" variant="outline" class="w-full justify-center px-4">
-                                    Seleccionar archivo
-                                    <input type="file" accept="image/*" class="sr-only" @change="handleFileChange" required />
-                                </Button>
-                            </label>
-                            <div class="space-y-2">
+                            <div class="flex gap-2">
+                                <label class="flex-1">
+                                    <Button as="label" variant="outline" class="w-full justify-center px-4">
+                                        Seleccionar archivo
+                                        <input type="file" accept="image/*" class="sr-only" @change="handleFileChange" required />
+                                    </Button>
+                                </label>
                                 <Button
+                                    v-if="!cameraCaptured"
                                     variant="outline"
                                     type="button"
-                                    class="w-full justify-center px-4"
+                                    class="flex-1 justify-center px-4"
                                     @click="toggleCamera"
-                                    v-if="!cameraCaptured"
                                 >
                                     {{ isCameraActive ? 'Cerrar cámara' : 'Abrir cámara' }}
                                 </Button>
-                                <div class="flex flex-wrap gap-2">
-                                    <Button
-                                        variant="outline"
-                                        type="button"
-                                        class="w-full justify-center px-4"
-                                        @click="retakePhoto"
-                                        v-if="cameraCaptured"
-                                    >
-                                        Reanudar foto
-                                    </Button>
-                                </div>
+                            </div>
+                            <div class="space-y-2">
+                                <Button
+                                    v-if="cameraCaptured"
+                                    variant="outline"
+                                    type="button"
+                                    class="w-full justify-center px-4 py-2"
+                                    @click="retakePhoto"
+                                >
+                                    Reanudar foto
+                                </Button>
                             </div>
                         </div>
                         <p v-if="evidenceName" class="text-xs text-muted-foreground">{{ evidenceName }}</p>
@@ -254,8 +261,9 @@ function handleSave() {
                 </div>
             </div>
             <DialogFooter class="mt-4 flex-shrink-0 gap-2 border-t pt-4">
+                <p class="mr-auto text-xs text-muted-foreground">Al guardar, se notificará a los aprobadores para su revisión.</p>
                 <Button variant="outline" size="pill" type="button" @click="handleCancel">Cancelar</Button>
-                <Button variant="default" size="pill" class="shadow-sm" type="button" @click="handleSave">Guardar y continuar</Button>
+                <Button variant="default" size="pill" class="shadow-sm" type="button" @click="handleSave">Enviar para aprobación</Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>

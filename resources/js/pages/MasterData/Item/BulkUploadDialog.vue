@@ -107,7 +107,7 @@ function preventDrag(event: DragEvent) {
                 <p class="pb-5 text-sm text-muted-foreground">Sube un archivo Excel para registrar productos y servicios de forma masiva.</p>
             </DialogHeader>
 
-            <div class="flex-1 overflow-y-auto scroll-smooth pr-2" style="scrollbar-width: thin">
+            <div class="flex-1 overflow-y-auto scroll-smooth px-2" style="scrollbar-width: thin">
                 <div class="grid gap-6 lg:grid-cols-[1.3fr,1.7fr]">
                     <section class="rounded-2xl border border-muted bg-muted/40 p-4 text-sm text-muted-foreground">
                         <header class="flex items-center gap-2 text-base font-semibold text-foreground">

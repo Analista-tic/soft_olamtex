@@ -1,1 +1,0 @@
-const r="Ninguno (0%)";function a(e){if(!e)return!1;const n=(e.name??"").trim(),t=Number(e.percentage??0);return n===r&&Number.isFinite(t)&&Math.trunc(t)===0}function c(e){const n=Number(e.percentage??0),t=Number.isFinite(n)?Math.trunc(n):0;return`${e.name} (${t}%)`}export{r as D,c as f,a as i};

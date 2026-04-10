@@ -18,7 +18,7 @@ final class SettingKindRules
             ],
             'value' => [
                 'present',
-                'required',
+                'nullable',
             ],
         ];
     }

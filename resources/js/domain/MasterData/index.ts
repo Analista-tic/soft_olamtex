@@ -4,6 +4,7 @@ import type { Parameter, ParameterListQuery, ParameterPayload } from './types';
 export type {
     AdditionalContact,
     AdditionalField,
+    AdditionalFieldDialogFormState,
     AdditionalFieldPayload,
     AdditionalFieldType,
     CategoryGroup,
@@ -12,13 +13,23 @@ export type {
     ExtraFields,
     Item,
     Parameter,
+    ParameterDialogFormState,
     ParameterListQuery,
     ParameterPayload,
     ParameterStatusFilter,
 } from './types';
 
 export type { AdditionalContactDto, CategorySubGroupDto, ContactDto, ItemDto } from './dto';
-export { mapCategorySubGroupDto, mapContactDto, mapItemDto, mapItemsDto } from './mappers';
+export {
+    mapAdditionalFieldRecord,
+    mapAdditionalFieldToDialogForm,
+    mapCategorySubGroupDto,
+    mapContactDto,
+    mapItemDto,
+    mapItemsDto,
+    mapParameterToDialogForm,
+    normalizeBooleanFlag,
+} from './mappers';
 
 const PARAMETERS_ENDPOINT = '/parametros';
 const PARAMETERS_DATA_ENDPOINT = '/parametros/data';

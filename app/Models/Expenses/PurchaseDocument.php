@@ -37,6 +37,10 @@ class PurchaseDocument extends Model implements HasAuditLabel
         'executed_by_user_id',
         'status',
         'approval_status',
+        'approval_notes',
+        'has_difference',
+        'difference_status',
+        'has_difference',
         'supplier_order_number',
         'supplier_invoice_number',
         'withholdings',
@@ -63,6 +67,7 @@ class PurchaseDocument extends Model implements HasAuditLabel
         'rejected_at'   => 'datetime',
 
         'withholdings'  => 'array',
+        'has_difference' => 'boolean',
     ];
 
     public const TYPE_REQUEST = 'purchase_request';
@@ -70,6 +75,11 @@ class PurchaseDocument extends Model implements HasAuditLabel
     public const TYPE_INVOICE = 'purchase_invoice';
     public const TYPE_CREDIT_NOTE = 'purchase_credit_note';
     public const TYPE_DEBIT_NOTE  = 'purchase_debit_note';
+
+    public const APPROVAL_PENDING            = 'pending';
+    public const APPROVAL_PENDING_DIFFERENCE  = 'pending_difference_approval';
+    public const APPROVAL_DIFFERENCE_REJECTED = 'difference_rejected';
+    public const APPROVAL_APPROVED            = 'approved';
 
     // Detalles (ítems) del documento
     public function items()
@@ -95,7 +105,7 @@ class PurchaseDocument extends Model implements HasAuditLabel
     {
         return $this->hasMany(PurchasePayment::class, 'purchase_invoice_id');
     }
-    
+
     // Solicitud de compra relacionada (para órdenes creadas desde solicitudes)
     public function purchaseRequest()
     {

@@ -5,7 +5,7 @@ export interface PurchaseOrderItem {
     item?: Item;
     item_name?: string;
     price: number;
-    tax: number;
+    tax: number | null;
     quantity: number;
     description?: string;
     total: number;
@@ -49,7 +49,7 @@ export interface PurchaseInvoiceItem {
     item?: Item;
     item_name?: string;
     price: number | string | '';
-    tax: number;
+    tax: number | null;
     quantity: number | string | '';
     description?: string;
     total: number;
@@ -74,6 +74,12 @@ export interface PurchaseInvoice {
     supplier_invoice_number?: string;
     description?: string;
     status?: 'pending_receipt' | 'received' | 'approved' | 'rejected';
+    approval_status?: 'pending' | 'approved' | 'rejected' | null;
+    approval_notes?: string | null;
+    has_difference?: boolean;
+    approved_by_user_id?: number | null;
+    approved_by?: { name?: string } | null;
+    approved_at?: string | null;
     items: PurchaseInvoiceItem[];
     created_at?: string;
     updated_at?: string;
@@ -84,6 +90,8 @@ export interface PurchaseInvoice {
     rejected_by_user_id?: number | null;
     rejected_at?: string | null;
     rejection_reason?: string | null;
+    rejection_notes?: string | null;
+    rejection_evidence_image?: string | null;
 }
 
 export interface PurchaseRequestItem {

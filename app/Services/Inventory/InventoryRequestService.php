@@ -7,9 +7,11 @@ use App\Models\Inventory\InventoryRequestItem;
 use App\Models\Settings\User;
 use App\Notifications\InventoryRequestCreatedNotification;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class InventoryRequestService
@@ -330,7 +332,30 @@ class InventoryRequestService
                 'item_id' => $itemId ? (int) $itemId : null,
                 'item_name' => $itemName !== '' ? $itemName : null,
                 'requested_quantity' => (float) $quantity,
+                'image_path' => $item['image_path'] ?? null,
             ]);
+        }
+    }
+
+    public function handleItemImageUpload(?UploadedFile $file, ?string $existingPath = null): ?string
+    {
+        if (!$file) {
+            return $existingPath;
+        }
+
+        $this->deleteStoredPublicFile($existingPath);
+
+        return $file->store('inventory-requests/items', 'public');
+    }
+
+    public function deleteStoredPublicFile(?string $path): void
+    {
+        if (!$path) {
+            return;
+        }
+
+        if (Storage::disk('public')->exists($path)) {
+            Storage::disk('public')->delete($path);
         }
     }
 

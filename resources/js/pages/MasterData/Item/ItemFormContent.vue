@@ -831,7 +831,7 @@ const hasNegativeStock = computed(() => warehouseStocks.value.some((w) => Number
 
 const negativeMovementBool = computed(() => localForm.value.negative_movement === 1 || localForm.value.negative_movement === true);
 
-const negativeMovementToggleDisabled = computed(() => isViewMode.value || (!hasInventoryDetails.value && !negativeMovementBool.value));
+const negativeMovementToggleDisabled = computed(() => isViewMode.value);
 
 function showNegativeMovementWarning() {
     errorType.value = 'warning';
@@ -846,10 +846,6 @@ function showNegativeMovementInventoryWarning() {
 }
 
 function handleNegativeMovementChange(val: boolean) {
-    if (val && !hasInventoryDetails.value) {
-        showNegativeMovementInventoryWarning();
-        return;
-    }
     if (hasNegativeStock.value && !val) {
         showNegativeMovementWarning();
         return;
@@ -1643,11 +1639,7 @@ onBeforeUnmount(() => {
                                 :model-value="negativeMovementBool"
                                 @update:modelValue="handleNegativeMovementChange"
                                 label="Movimiento Negativo"
-                                :tooltip-text="
-                                    hasInventoryDetails
-                                        ? 'Permite que las bodegas registren cantidades negativas cuando lo necesites.'
-                                        : 'Asocia al menos una bodega antes de habilitar movimientos negativos.'
-                                "
+                                :tooltip-text="'Permite que las bodegas registren cantidades negativas cuando lo necesites.'"
                                 :disabled="negativeMovementToggleDisabled"
                             />
                         </div>

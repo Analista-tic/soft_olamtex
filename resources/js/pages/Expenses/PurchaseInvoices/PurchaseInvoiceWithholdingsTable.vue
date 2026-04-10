@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -74,12 +75,12 @@ function getWithholdingValue(w: PurchaseInvoiceWithholding): number {
     return (getEffectiveBase(w) * (Number(w.percentage) || 0)) / 100;
 }
 
-function getBaseAmountInputValue(w: PurchaseInvoiceWithholding): string | number | undefined {
-    return w.base_amount == null ? undefined : Number(w.base_amount);
+function getBaseAmountInputValue(w: PurchaseInvoiceWithholding): string | number {
+    return w.base_amount == null ? '' : Number(w.base_amount);
 }
 
 function updateBaseAmount(w: PurchaseInvoiceWithholding, value: string | number | undefined) {
-    if (value === '' || value == null) {
+    if (value === '' || value == null || Number(value) === 0) {
         w.base_amount = null;
         emit('update:modelValue', [...localWithholdings.value]);
         return;
@@ -138,7 +139,7 @@ async function handleRetentionSubmit(formData: RetentionForm) {
             @close-success="successMessage = ''"
         />
         <div class="mb-2 flex items-center justify-between">
-            <span class="text-xs font-semibold">Retenciones</span>
+            <span class="inline-flex items-center gap-1 text-xs font-semibold">Retenciones <HelpTooltip text="Las retenciones son descuentos tributarios que se aplican sobre el valor de la compra según la normativa colombiana (ReteIVA, ReteICA, ReteRenta)." /></span>
             <div class="flex items-center gap-2">
                 <button
                     v-if="!isReadOnly"
@@ -156,7 +157,7 @@ async function handleRetentionSubmit(formData: RetentionForm) {
                 <thead>
                     <tr>
                         <th class="w-32 p-1">Nombre</th>
-                        <th class="w-24 p-1">Base</th>
+                        <th class="w-24 p-1"><span class="inline-flex items-center gap-1">Base <HelpTooltip text="Valor sobre el cual se calcula la retención. Por defecto es el subtotal de la factura, pero puede ajustarse manualmente." /></span></th>
                         <th class="w-24 p-1">Valor</th>
                         <th class="w-8 p-1"></th>
                     </tr>

@@ -177,6 +177,8 @@ class ExampleDataSeeder extends Seeder
             'created_by_user_id' => $userId,
             'executed_by_user_id' => $userId,
             'status' => 'pending_receipt', // Estados válidos para invoices: pending_receipt, received, rejected
+            'approval_status' => null,
+            'has_difference' => false,
             'supplier_invoice_number' => 'FAC-2025-001',
             'withholdings' => json_encode([
                 ['name' => 'Retefuente', 'percentage' => 2.5, 'base_amount' => 12000.00],

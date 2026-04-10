@@ -113,6 +113,11 @@ onBeforeUnmount(() => {
     <div
         class="flex max-w-md gap-4 rounded-lg border px-4 py-3 shadow-md transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-2"
         :class="`${config.bgColor} ${config.borderColor}`"
+        data-alert-stack-root="true"
+        @pointerdown.stop
+        @mousedown.stop
+        @touchstart.stop
+        @click.stop
     >
         <div class="flex flex-shrink-0 items-start pt-0.5">
             <component :is="IconComponent" :class="`${config.colors} h-5 w-5`" />

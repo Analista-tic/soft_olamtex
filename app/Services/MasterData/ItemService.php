@@ -38,6 +38,8 @@ class ItemService
             'was_edited_after_import',
             'imported_at',
             'import_batch_id',
+            'tax_id',
+            'category_sub_group_id',
         ]);
 
         if (!empty($filters['search'])) {

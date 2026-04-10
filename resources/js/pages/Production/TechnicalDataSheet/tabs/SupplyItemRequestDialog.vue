@@ -309,7 +309,7 @@ function formatCurrency(value: number): string {
 
             <AlertStack :error-message="errorMessage" :error-type="errorType" @close-error="errorMessage = ''" />
 
-            <div class="relative min-h-0 flex-1 overflow-y-auto pr-1 pt-4" :class="{ 'min-h-[420px]': !canRenderForm }">
+            <div class="relative min-h-0 flex-1 overflow-y-auto px-1 pr-1 pt-4" :class="{ 'min-h-[420px]': !canRenderForm }">
                 <FormLoadingOverlay
                     :active="!canRenderForm"
                     :delay-ms="0"

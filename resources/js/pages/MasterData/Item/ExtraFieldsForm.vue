@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
+import DatePickerField from '@/components/DatePickerField.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
+import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import type { AdditionalField, ExtraFields } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared/types';
@@ -97,6 +99,33 @@ const resolveFieldInputType = (field: string): 'text' | 'number' | 'date' => {
     if (meta?.field_type === 'number' || meta?.field_type === 'decimal') return 'number';
     return 'text';
 };
+
+function shouldUseSelect(field: string): boolean {
+    const meta = additionalFieldsMetaMap.value[field];
+    return meta?.field_type === 'select';
+}
+
+function shouldUseBoolean(field: string): boolean {
+    const meta = additionalFieldsMetaMap.value[field];
+    return meta?.field_type === 'boolean';
+}
+
+function shouldUseTextarea(field: string): boolean {
+    const meta = additionalFieldsMetaMap.value[field];
+    return meta?.field_type === 'textarea';
+}
+
+function shouldUseDate(field: string): boolean {
+    const meta = additionalFieldsMetaMap.value[field];
+    return meta?.field_type === 'date';
+}
+
+function resolveInputTypeByMeta(meta?: AdditionalField): 'text' | 'number' | 'date' {
+    if (!meta) return 'text';
+    if (meta.field_type === 'date') return 'date';
+    if (meta.field_type === 'number' || meta.field_type === 'decimal') return 'number';
+    return 'text';
+}
 
 // Función para inicializar campos obligatorios
 function initializeRequiredFields() {
@@ -254,29 +283,56 @@ function isAddDisabled() {
                 </SelectField>
             </div>
             <div class="flex-1">
+                <template v-if="selectedExtraField">
+                    <SelectField
+                        v-if="additionalFieldsMetaMap[selectedExtraField]?.field_type === 'select'"
+                        label="Valor"
+                        v-model="extraFieldValue"
+                        :options="(dynamicFieldOptions[selectedExtraField] ?? []).map((o) => ({ id: o, name: o }))"
+                        placeholder="Seleccione valor"
+                    />
+                    <SelectField
+                        v-else-if="additionalFieldsMetaMap[selectedExtraField]?.field_type === 'boolean'"
+                        label="Valor"
+                        v-model="extraFieldValue"
+                        :options="[
+                            { id: 'true', name: 'Sí' },
+                            { id: 'false', name: 'No' },
+                        ]"
+                        option-label="name"
+                        option-value="id"
+                        placeholder="Selecciona"
+                        :searchable="false"
+                    />
+                    <DatePickerField
+                        v-else-if="additionalFieldsMetaMap[selectedExtraField]?.field_type === 'date'"
+                        label="Valor"
+                        v-model="extraFieldValue"
+                        placeholder-text="Selecciona una fecha"
+                        clearable
+                    />
+                    <TextareaField
+                        v-else-if="additionalFieldsMetaMap[selectedExtraField]?.field_type === 'textarea'"
+                        label="Valor"
+                        v-model="extraFieldValue"
+                        placeholder="Ingresa un valor"
+                        :rows="3"
+                    />
+                    <InputField
+                        v-else
+                        label="Valor"
+                        :type="resolveInputTypeByMeta(additionalFieldsMetaMap[selectedExtraField])"
+                        v-model="extraFieldValue"
+                        placeholder="Ingresa un valor"
+                    />
+                </template>
                 <InputField
-                    v-if="selectedExtraField === 'Campo adicional'"
+                    v-else
                     label="Valor"
                     type="text"
                     v-model="extraFieldValue"
-                    :disabled="!selectedExtraField"
-                    placeholder="Ingrese valor"
-                />
-                <SelectField
-                    v-else-if="selectedExtraField && dynamicFieldOptions[selectedExtraField]"
-                    label="Valor"
-                    v-model="extraFieldValue"
-                    :options="(dynamicFieldOptions[selectedExtraField] ?? []).map((o) => ({ id: o, name: o }))"
-                    :disabled="!selectedExtraField"
-                    placeholder="Seleccione valor"
-                />
-                <InputField
-                    v-else-if="selectedExtraField"
-                    label="Valor"
-                    type="text"
-                    v-model="extraFieldValue"
-                    :disabled="!selectedExtraField"
-                    placeholder="Ingrese valor"
+                    :disabled="true"
+                    placeholder="Selecciona un campo primero"
                 />
             </div>
             <Button
@@ -304,7 +360,7 @@ function isAddDisabled() {
                     </p>
                     <div>
                         <SelectField
-                            v-if="formatFieldOptions(field).length"
+                            v-if="shouldUseSelect(field)"
                             v-model="localExtraFields[field]"
                             label=""
                             :options="formatFieldOptions(field)"
@@ -313,6 +369,36 @@ function isAddDisabled() {
                             placeholder="Selecciona un valor"
                             :disabled="props.readonly"
                             :searchable="false"
+                        />
+                        <SelectField
+                            v-else-if="shouldUseBoolean(field)"
+                            v-model="localExtraFields[field]"
+                            label=""
+                            :options="[
+                                { id: 'true', name: 'Sí' },
+                                { id: 'false', name: 'No' },
+                            ]"
+                            option-label="name"
+                            option-value="id"
+                            placeholder="Selecciona"
+                            :disabled="props.readonly"
+                            :searchable="false"
+                        />
+                        <DatePickerField
+                            v-else-if="shouldUseDate(field)"
+                            v-model="localExtraFields[field]"
+                            label=""
+                            placeholder-text="Selecciona una fecha"
+                            :disabled="props.readonly"
+                            clearable
+                        />
+                        <TextareaField
+                            v-else-if="shouldUseTextarea(field)"
+                            v-model="localExtraFields[field]"
+                            label=""
+                            placeholder="Ingresa un valor"
+                            :readonly="props.readonly"
+                            :rows="3"
                         />
                         <InputField
                             v-else
@@ -333,7 +419,7 @@ function isAddDisabled() {
             </div>
             <div
                 v-if="!hasExtraFields"
-                class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-center text-sm font-medium text-slate-500"
+                class="rounded-2xl border border-dashed border-border bg-muted px-4 py-3 text-center text-sm font-medium text-muted-foreground"
             >
                 No hay campos adicionales agregados.
             </div>

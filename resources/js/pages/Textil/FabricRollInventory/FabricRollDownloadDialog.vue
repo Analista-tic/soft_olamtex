@@ -81,7 +81,7 @@ function submitDownload() {
         <FormDialogContent class="flex max-h-[95vh] max-w-[85vh] flex-col px-2 py-2">
             <FormHeader title="Descarga por rollo" description="Registra los datos de la salida antes de procesarla." class="mb-4 flex-shrink-0" />
 
-            <div class="flex-1 overflow-y-auto scroll-smooth pr-2" style="scrollbar-width: thin">
+            <div class="flex-1 overflow-y-auto scroll-smooth px-2" style="scrollbar-width: thin">
                 <div class="space-y-6">
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                         <div class="space-y-1">

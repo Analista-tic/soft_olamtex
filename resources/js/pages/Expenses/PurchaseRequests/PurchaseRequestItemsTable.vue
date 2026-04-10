@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -46,7 +47,7 @@ function calcTotals(item: PurchaseRequestItem) {
     item.total = roundCurrency(price * quantity);
 }
 
-function normalizeItem(item: Partial<PurchaseRequestItem>, index: number): PurchaseRequestItem {
+function normalizeItem(item: Partial<PurchaseRequestItem>): PurchaseRequestItem {
     const uid = typeof item.uid === 'string' && item.uid.trim() ? item.uid.trim() : generateItemUid();
     const imageUrl = typeof item.image_url === 'string' && item.image_url.trim() ? item.image_url : null;
 
@@ -217,7 +218,7 @@ function removeItemImage(item: PurchaseRequestItem, index: number) {
 }
 
 function syncLocalItemsFromProps(items: PurchaseRequestItem[]) {
-    const normalizedItems = Array.isArray(items) ? items.map((item, index) => normalizeItem(item, index)) : [];
+    const normalizedItems = Array.isArray(items) ? items.map((item) => normalizeItem(item)) : [];
 
     if (itemsSignature(normalizedItems) === itemsSignature(localItems.value)) {
         return;
@@ -289,8 +290,8 @@ watch(
             return;
         }
 
-        const normalizedItems = items.map((item, index) => {
-            const normalized = normalizeItem(item, index);
+        const normalizedItems = items.map((item) => {
+            const normalized = normalizeItem(item);
             const match = catalogItems.value.find((entry) => entry.name?.toLowerCase() === (normalized.name || '').toLowerCase());
             normalized.item_id = match ? Number(match.id) : normalized.name && normalized.name.trim() ? normalized.name.trim() : null;
             calcTotals(normalized);
@@ -340,7 +341,7 @@ defineExpose({ addItem });
                         <TableHead class="min-w-[120px] px-1 text-left">Precio estimado</TableHead>
                         <TableHead class="min-w-[110px] px-1 text-left">Cantidad</TableHead>
                         <TableHead class="min-w-[160px] px-1 text-left">Descripcion</TableHead>
-                        <TableHead class="w-20 px-1 text-center">Imagen</TableHead>
+                        <TableHead class="w-20 px-1 text-center"><span class="inline-flex items-center justify-center gap-1">Imagen <HelpTooltip text="Imagen de referencia opcional para el ítem. Ayuda al proveedor a identificar exactamente lo que se necesita." /></span></TableHead>
                         <TableHead class="min-w-[90px] px-1 text-left">Total</TableHead>
                         <TableHead class="w-[60px]"></TableHead>
                     </TableRow>

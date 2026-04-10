@@ -1,5 +1,6 @@
 ﻿<script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import InputDate from '@/components/InputDate.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -269,7 +270,7 @@ function formatVoucherApplicationPendingBalance(application: ExpenseVoucherDetai
 
 // ─── Alerts ───────────────────────────────────────────────────────────────────
 
-const { successMessage, errorMessage, showSuccess, showError, clearSuccess, clearError } = useAlertStack();
+const { successMessage, errorMessage, showSuccess, showError, showWarning, clearSuccess, clearError } = useAlertStack();
 
 // ─── Treasury voucher page composable ─────────────────────────────────────────
 
@@ -566,22 +567,22 @@ async function submitVoucher(): Promise<void> {
 
     if (hasMissingRequiredFields.value) {
         const missingLabels = missingRequiredFieldKeys.value.map((key) => REQUIRED_FIELD_LABELS[key]);
-        showError(`Completa los campos obligatorios: ${missingLabels.join(', ')}.`);
+        showWarning(`Completa los campos obligatorios: ${missingLabels.join(', ')}.`);
         return;
     }
 
     if (hasApplicationErrors.value) {
-        showError('Hay montos a pagar inválidos. Revisa las filas marcadas en rojo.');
+        showWarning('Hay montos a pagar inválidos. Revisa las filas marcadas en rojo.');
         return;
     }
 
     if (hasRetentionAdjustedErrors.value) {
-        showError('Hay montos que superan el valor por pagar después de retenciones.');
+        showWarning('Hay montos que superan el valor por pagar después de retenciones.');
         return;
     }
 
     if (!canSubmit.value) {
-        showError('Completa los campos requeridos y al menos una aplicación válida.');
+        showWarning('Completa los campos requeridos y al menos una aplicación válida.');
         return;
     }
 
@@ -828,9 +829,11 @@ onMounted(async () => {
             <!-- ─── Create / Edit form mode ─────────────────────────────────── -->
             <template v-if="isFormMode">
                 <div class="flex flex-col gap-1">
-                    <h1 :class="uiPatterns.typography.pageTitle">
-                        {{ isEditMode ? 'Editar comprobante de egreso' : 'Nuevo comprobante de egreso' }}
-                    </h1>
+                    <div class="flex items-center gap-2">
+                        <h1 :class="uiPatterns.typography.pageTitle">
+                            {{ isEditMode ? 'Editar comprobante de egreso' : 'Nuevo comprobante de egreso' }}
+                        </h1>
+                    </div>
                     <p :class="uiPatterns.typography.pageSubtitle">
                         {{
                             isEditMode
@@ -957,7 +960,7 @@ onMounted(async () => {
                                             <TableHead>Vencimiento</TableHead>
                                             <TableHead>Total</TableHead>
                                             <TableHead>Pagado</TableHead>
-                                            <TableHead>Retenciones</TableHead>
+                                            <TableHead>Retenciones <HelpTooltip text="Las retenciones son descuentos tributarios que se aplican sobre el valor de la compra según la normativa." /></TableHead>
                                             <TableHead>Por pagar</TableHead>
                                             <TableHead>Monto a pagar</TableHead>
                                         </TableRow>

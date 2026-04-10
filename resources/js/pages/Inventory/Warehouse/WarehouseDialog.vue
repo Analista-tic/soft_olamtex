@@ -68,7 +68,7 @@ function handleSubmit() {
                     }}
                 </DialogDescription>
             </DialogHeader>
-            <div class="flex-1 overflow-y-auto scroll-smooth pr-2" style="scrollbar-width: thin">
+            <div class="flex-1 overflow-y-auto scroll-smooth px-1 pr-2" style="scrollbar-width: thin">
                 <TooltipProvider>
                     <div class="space-y-4">
                         <div class="flex flex-col gap-1">

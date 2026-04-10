@@ -3,20 +3,14 @@ import { Button } from '@/components/ui/button';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormHeader from '@/components/FormHeader.vue';
 import InputField from '@/components/InputField.vue';
-import SwitchField from '@/components/SwitchField.vue';
 import TextareaField from '@/components/TextareaField.vue';
+import { mapParameterToDialogForm } from '@/domain/MasterData';
+import type { ParameterDialogFormState } from '@/domain/MasterData';
 import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Plus } from 'lucide-vue-next';
 import { computed, nextTick, ref, watch } from 'vue';
 
-export type ParameterDialogModel = {
-    id?: number | string;
-    key?: string;
-    label: string;
-    description?: string;
-    value: unknown;
-    status?: boolean;
-};
+export type ParameterDialogModel = ParameterDialogFormState;
 
 const props = defineProps<{
     open: boolean;
@@ -33,14 +27,17 @@ const emit = defineEmits<{
     (e: 'loading-state', value: boolean): void;
 }>();
 
-const defaultForm = {
+const defaultForm: ParameterDialogModel = {
     label: '',
     description: '',
     status: true,
     value: [],
-} as ParameterDialogModel;
+};
 
-const localForm = ref({ ...defaultForm });
+const localForm = ref<ParameterDialogModel>({
+    ...defaultForm,
+    ...mapParameterToDialogForm(props.form),
+});
 const valueList = ref<string[]>([]);
 const newValueInput = ref('');
 const isInitializingDialog = ref(false);
@@ -50,8 +47,12 @@ const isViewMode = computed(() => props.dialogType === 'view');
 const shouldEmitLoadingState = computed(() => props.open && isInitializingDialog.value);
 
 watch(
-    () => props.form,
-    (value) => {
+    [() => props.open, () => props.form],
+    ([isOpen, value]) => {
+        if (!isOpen) {
+            return;
+        }
+
         if (!value) {
             localForm.value = { ...defaultForm };
             valueList.value = [];
@@ -59,13 +60,8 @@ watch(
             return;
         }
 
-        localForm.value = {
-            label: value.label ?? '',
-            description: value.description ?? '',
-            status: value.status ?? true,
-            value: value.value ?? [],
-        };
-        valueList.value = parseValueList(value.value);
+        localForm.value = mapParameterToDialogForm(value);
+        valueList.value = parseValueList(localForm.value.value);
         newValueInput.value = '';
     },
     { immediate: true },
@@ -173,7 +169,7 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <FormDialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
+        <FormDialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-2xl px-2 pb-3 pt-4">
             <FormHeader
                 :title="dialogType === 'create' ? 'Crear parámetro' : dialogType === 'edit' ? 'Editar parámetro' : 'Ver parámetro'"
                 :description="
@@ -184,7 +180,7 @@ function handleSubmit() {
                           : 'Visualiza los valores almacenados del parámetro sin editar.'
                 "
             />
-            <div class="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1 pt-4">
+            <div class="min-h-0 flex-1 space-y-6 overflow-y-auto px-1 pr-1 pt-4">
                 <div class="space-y-4 pt-2">
                     <InputField v-model="localForm.label" label="Nombre" placeholder="Nombre visible" required :disabled="isViewMode" />
                     <div class="space-y-2">
@@ -242,16 +238,28 @@ function handleSubmit() {
                     <div class="flex flex-wrap gap-4">
                         <div class="flex w-full items-center gap-3 text-sm text-foreground/80">
                             <span>Activo</span>
-                            <SwitchField v-model="localForm.status!" :disabled="isViewMode" />
+                            <button
+                                type="button"
+                                role="switch"
+                                :aria-checked="localForm.status"
+                                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                                :class="localForm.status ? 'bg-primary' : 'bg-input'"
+                                :disabled="isViewMode"
+                                @click="!isViewMode && (localForm.status = !localForm.status)"
+                            >
+                                <span
+                                    class="inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform"
+                                    :class="localForm.status ? 'translate-x-6' : 'translate-x-1'"
+                                />
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
             <DialogFooter class="mt-6 justify-end gap-2">
-                <Button variant="outline" size="pill" @click="handleClose">
-                    Cancelar
-                </Button>
+                <Button variant="outline" size="pill" @click="handleClose"> Cancelar </Button>
                 <button
+                    v-if="!isViewMode"
                     type="button"
                     :disabled="loading || hasDuplicateOptions"
                     class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
