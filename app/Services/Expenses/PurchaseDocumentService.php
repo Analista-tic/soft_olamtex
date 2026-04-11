@@ -335,15 +335,25 @@ class PurchaseDocumentService
 
     protected function generateDocumentNumber(string $prefix, string $documentType): string
     {
-        $nextId = $this->nextDocumentSequence($documentType);
-        return sprintf('%s-%03d', $prefix, $nextId);
+        $nextId = $this->nextDocumentSequence($documentType, $prefix);
+        return sprintf('%s-%04d', $prefix, $nextId);
     }
 
-    protected function nextDocumentSequence(string $documentType): int
+    protected function nextDocumentSequence(string $documentType, string $prefix): int
     {
-        return (int) PurchaseDocument::withTrashed()
+        $last = PurchaseDocument::withTrashed()
             ->where('document_type', $documentType)
-            ->max('id') + 1;
+            ->where('document_number', 'like', $prefix . '-%')
+            ->orderByDesc('id')
+            ->value('document_number');
+
+        if (!$last) {
+            return 1;
+        }
+
+        $parts = explode('-', $last);
+        $number = (int) end($parts);
+        return $number + 1;
     }
 
     protected function normalizeInvoicePayload(array $data): array

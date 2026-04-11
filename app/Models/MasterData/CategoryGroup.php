@@ -15,6 +15,6 @@ class CategoryGroup extends Model implements \App\Contracts\HasAuditLabel
 
     public function subGroups()
     {
-        return $this->belongsTo(CategorySubGroup::class);
+        return $this->hasMany(CategorySubGroup::class, 'category_group_id');
     }
 }

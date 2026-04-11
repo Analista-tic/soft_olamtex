@@ -10,7 +10,7 @@ let cachedAdditionalFields: CachedAdditionalField[] | null = null;
 <script setup lang="ts">
 import axios from 'axios';
 import { ExternalLink, Image, Plus, Trash } from 'lucide-vue-next';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import AlertStack from '@/components/common/AlertStack.vue';
 import FormHeader from '@/components/FormHeader.vue';
@@ -123,6 +123,10 @@ function mapItemToFormState(source: ItemFormSource): ItemForm {
 
     return {
         ...source,
+        category_sub_group_id:
+            source.category_sub_group_id !== undefined && source.category_sub_group_id !== null && String(source.category_sub_group_id).trim() !== ''
+                ? String(source.category_sub_group_id)
+                : undefined,
         reference: source.reference || '',
         bar_code: source.bar_code ?? '',
         tax_id: resolvedTaxId,
@@ -146,6 +150,7 @@ const categorySubGroups = ref<CategorySubGroup[]>([]);
 const categoryGroups = ref<CategoryGroup[]>([]);
 
 const selectedGroupId = ref<string | null>(null);
+const isInitializing = ref(true);
 
 const imageFile = ref<File | null>(null);
 const imagePreview = ref<string | undefined>(undefined);
@@ -411,12 +416,14 @@ function updateNameField(orderedFields?: Record<string, string>): void {
 }
 
 function syncGroupFromSubgroup() {
-    const subGroup = categorySubGroups.value.find((sg) => String(sg.id) === String(localForm.value.category_sub_group_id));
+    const subGroupId = String(localForm.value.category_sub_group_id ?? '');
+    if (!subGroupId) return;
 
-    if (subGroup && subGroup.category_group_id) {
-        selectedGroupId.value = String(subGroup.category_group_id);
-    } else {
-        selectedGroupId.value = null;
+    const found = categorySubGroups.value.find(
+        (sg) => String(sg.id) === subGroupId
+    );
+    if (found && found.category_group_id) {
+        selectedGroupId.value = String(found.category_group_id);
     }
 }
 
@@ -1268,10 +1275,23 @@ const handleInventoryAdjustmentSaved = (event: Event) => {
     void refreshWarehouseStocksForCurrentItem(currentItemId);
 };
 
-onMounted(() => {
+watch(selectedGroupId, (newVal, oldVal) => {
+    // Solo limpiar si el cambio viene del usuario, no de la inicialización
+    if (isInitializing.value) return;
+    if (oldVal === null || oldVal === undefined) return;
+    if (newVal !== oldVal) {
+        localForm.value.category_sub_group_id = '';
+    }
+});
+
+onMounted(async () => {
     if (typeof window !== 'undefined') {
         window.addEventListener(INVENTORY_ADJUSTMENT_SAVED_EVENT, handleInventoryAdjustmentSaved);
     }
+    await fetchCategorySubGroups();
+    // nextTick para asegurar que syncGroupFromSubgroup ya corrió
+    await nextTick();
+    isInitializing.value = false;
 });
 
 onBeforeUnmount(() => {
