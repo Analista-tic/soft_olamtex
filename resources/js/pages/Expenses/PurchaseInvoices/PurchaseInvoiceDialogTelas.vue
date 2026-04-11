@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import DateField from '@/components/DateField.vue';
+import DifferenceDialog from '@/components/DifferenceDialog.vue';
 import FormDialogBody from '@/components/FormDialogBody.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormDialogFooter from '@/components/FormDialogFooter.vue';
@@ -54,6 +55,11 @@ const successMessage = ref<string>('');
 const errorMessage = ref<string>('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const originalFormSnapshot = ref<string>('');
+const orderTotal = ref<number | null>(null);
+const differenceDialogOpen = ref(false);
+const pendingDifferenceSendMail = ref<boolean | null>(null);
+const differenceReason = ref('');
+const differenceEvidenceData = ref<string | null>(null);
 const invoiceItemsTableRef = ref<{ addItem: () => void } | null>(null);
 const invoiceDate = ref<Date | null>(null);
 const deliveryDate = ref<Date | null>(null);
@@ -72,6 +78,28 @@ function getWithholdingAmount(w: { base_amount?: number | null; percentage?: num
 }
 const retencionesTotal = computed(() => (localForm.value.withholdings || []).reduce((acc, w) => acc + getWithholdingAmount(w), 0));
 const totalPagar = computed(() => Number(total.value) - Number(retencionesTotal.value));
+const amountDifference = computed(() =>
+    orderTotal.value != null ? Number(total.value) - orderTotal.value : 0
+);
+
+const hasModifiedPriceOrQuantity = computed(() => {
+    const items = Array.isArray(localForm.value.items) ? localForm.value.items : [];
+    return items.some((item: any) => {
+        const original = item.original_order_item;
+        if (!original) return false;
+        const suggestedPrice = Number(original.price);
+        const suggestedQuantity = Number(original.quantity);
+        const priceChanged = !Number.isNaN(suggestedPrice) && Number(item.price) !== suggestedPrice;
+        const quantityChanged = !Number.isNaN(suggestedQuantity) && Number(item.quantity) !== suggestedQuantity;
+        return priceChanged || quantityChanged;
+    });
+});
+
+const hasDifference = computed(() => {
+    return orderTotal.value != null
+        && Math.abs(amountDifference.value) > 0.01
+        && hasModifiedPriceOrQuantity.value;
+});
 
 const selectedContactData = computed(() => contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id)) || null);
 const contactIdNumber = computed(() => selectedContactData.value?.id_number || '');
@@ -184,6 +212,9 @@ function resetForm() {
     successMessage.value = '';
     errorMessage.value = '';
     errorType.value = 'error';
+    orderTotal.value = null;
+    differenceReason.value = props.form?.reason || '';
+    differenceEvidenceData.value = null;
     const pid = props.form?.parent_document_id ?? props.form?.purchase_order_id;
     if (props.dialogType === 'edit' && localForm.value && pid != null) {
         localForm.value.purchase_order_id = Number(pid);
@@ -313,6 +344,10 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     }
     selectedPurchaseOrderId.value = Number(orderId);
     localForm.value.purchase_order_id = Number(orderId);
+    orderTotal.value = (Array.isArray(order.items) ? order.items : []).reduce(
+        (acc: number, item: any) => acc + (Number(item.total) || 0) + (Number(item.total_tax) || 0),
+        0,
+    );
     syncDateRefsFromForm();
     originalFormSnapshot.value = stableStringify(localForm.value);
 }
@@ -364,7 +399,7 @@ function handleInvoiceAddLine() {
     invoiceItemsTableRef.value?.addItem();
 }
 
-async function handleSubmit(sendMail = false) {
+async function handleSubmit(sendMail = false, skipDifferenceCheck = false) {
     if (isReadOnly.value) return;
     successMessage.value = '';
     errorMessage.value = '';
@@ -373,6 +408,14 @@ async function handleSubmit(sendMail = false) {
     if (props.dialogType === 'edit' && stableStringify(localForm.value) === originalFormSnapshot.value) {
         return;
     }
+
+    // Interceptar diferencia SOLO al guardar
+    if (!skipDifferenceCheck && hasDifference.value && !differenceReason.value.trim()) {
+        pendingDifferenceSendMail.value = sendMail;
+        differenceDialogOpen.value = true;
+        return;
+    }
+
     isLoading.value = true;
     isSubmittingDialog.value = true;
     isSendingMail.value = sendMail;
@@ -402,6 +445,10 @@ async function handleSubmit(sendMail = false) {
                 base_amount: base,
             };
         });
+    const trimmedLocalReason = String(localForm.value.reason || '').trim();
+    const normalizedReason = differenceReason.value.trim() || trimmedLocalReason;
+    formToSend.reason = normalizedReason || null;
+    formToSend.evidence_path = differenceEvidenceData.value ?? localForm.value.evidence_path ?? null;
     const url = props.dialogType === 'create' ? '/gastos/facturas-compra-tela' : `/gastos/facturas-compra-tela/${localForm.value.id}`;
     const method = props.dialogType === 'create' ? 'POST' : 'PUT';
     try {
@@ -413,6 +460,8 @@ async function handleSubmit(sendMail = false) {
             emit('refresh', props.dialogType === 'create' ? 'Factura creada correctamente.' : 'Factura actualizada correctamente.');
             successMessage.value = props.dialogType === 'create' ? 'Factura creada correctamente.' : 'Factura actualizada correctamente.';
         }
+        differenceReason.value = '';
+        differenceEvidenceData.value = null;
         dialogOpen.value = false;
     } catch (e: any) {
         const serverMessage =
@@ -425,6 +474,26 @@ async function handleSubmit(sendMail = false) {
         isSendingMail.value = false;
         isSubmittingDialog.value = false;
     }
+}
+
+async function handleDifferenceDialogSave(payload: {
+    reason: string;
+    evidenceData: string;
+    evidenceName: string;
+}) {
+    differenceReason.value = payload.reason.trim();
+    localForm.value.reason = differenceReason.value;
+    differenceEvidenceData.value = payload.evidenceData;
+    localForm.value.evidence_path = payload.evidenceData;
+    const sendMail = pendingDifferenceSendMail.value ?? false;
+    pendingDifferenceSendMail.value = null;
+    differenceDialogOpen.value = false;
+    await handleSubmit(sendMail, true);
+}
+
+function closeDifferenceDialog() {
+    differenceDialogOpen.value = false;
+    pendingDifferenceSendMail.value = null;
 }
 
 function validateForm(): boolean {
@@ -512,6 +581,7 @@ watch(selectedPurchaseOrderId, (orderId) => {
         loadPurchaseOrderToInvoice(orderId);
     } else {
         localForm.value.purchase_order_id = null;
+        orderTotal.value = null;
     }
 });
 
@@ -601,9 +671,8 @@ watch(dialogOpen, (isOpen) => {
                 :class="{ 'min-h-[420px]': isBlockingLoading }"
                 style="scrollbar-width: thin"
             >
-                <form
+                <div
                     v-if="canRenderForm"
-                    @submit.prevent="handleSubmit()"
                     :class="{ 'pointer-events-none opacity-50': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly }"
                     class="space-y-6 pb-4"
                 >
@@ -793,10 +862,10 @@ watch(dialogOpen, (isOpen) => {
                         </div>
                     </div>
                     </fieldset>
-                </form>
+                </div>
             </FormDialogBody>
             <FormDialogFooter class="justify-end gap-4 bg-background px-4 py-4">
-                <Button variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
+                <Button type="button" variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
                 <Button v-if="!isReadOnly" variant="default" size="pill" :disabled="isLoading || isSendingMail || isBlockingLoading" @click.prevent="handleSubmit(false)">
                     {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
                 </Button>
@@ -814,4 +883,11 @@ watch(dialogOpen, (isOpen) => {
             </TooltipProvider>
         </FormDialogContent>
     </Dialog>
+    <DifferenceDialog
+        v-model:open="differenceDialogOpen"
+        :total="total"
+        :order-total="orderTotal ?? 0"
+        @save="handleDifferenceDialogSave"
+        @cancel="closeDifferenceDialog"
+    />
 </template>

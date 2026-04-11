@@ -35,7 +35,7 @@ const lightboxOpen = ref(false);
 
 const isPending = computed(() => props.invoice?.approval_status === 'pending_difference_approval');
 const isApproved = computed(() => props.invoice?.approval_status === 'approved');
-const isRejected = computed(() => props.invoice?.approval_status === 'rejected');
+const isRejected = computed(() => props.invoice?.approval_status === 'difference_rejected');
 
 const evidenceUrl = computed(() => {
     const path = props.invoice?.rejection_evidence_image;
@@ -113,10 +113,10 @@ async function handleReject() {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <FormDialogContent size="md">
-            <DialogTitle class="sr-only">Aprobación de diferencia en factura</DialogTitle>
-            <DialogDescription class="sr-only">Revisar y aprobar o rechazar la diferencia registrada</DialogDescription>
-
+        <FormDialogContent
+            size="md"
+            class="flex h-[90vh] max-h-[90vh] flex-col overflow-hidden p-0"
+        >
             <FormDialogHeader title="Revisión de diferencia en factura" description="Revisa los detalles de la diferencia registrada y toma una decisión." />
 
             <!-- Alerta interna del dialog -->
@@ -135,7 +135,7 @@ async function handleReject() {
             </div>
 
             <!-- Cuerpo del dialog -->
-            <div class="flex flex-1 flex-col gap-4 overflow-y-auto px-2 py-4">
+            <div class="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
                 <!-- Número de factura -->
                 <p class="text-sm text-muted-foreground">
                     Factura:

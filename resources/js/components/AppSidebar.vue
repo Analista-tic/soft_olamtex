@@ -80,9 +80,9 @@ const moduleSections: ModuleSection[] = [
                 items: [
                     { title: 'Solicitud de compra', href: '/gastos/solicitudes-compra', permission: 'ver telas' },
                     { title: 'Orden de compra', href: '/gastos/ordenes-compra', permission: 'ver telas' },
-                    { title: 'Recepciones', href: '/kardex-telas/recepcion' },
                     { title: 'Factura de compra', href: '/gastos/facturas-compra', permission: 'ver telas' },
                     { title: 'Factura de compra tela', href: '/gastos/facturas-compra-tela', permission: 'ver telas' },
+                    { title: 'Recepciones', href: '/kardex-telas/recepcion' },
                     { title: 'Notas Crédito / Débito', href: '/notas-credito-debito?context=purchase', permission: 'ver telas' },
                 ],
             },

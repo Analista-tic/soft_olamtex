@@ -60,6 +60,7 @@ const differenceDialogOpen = ref(false);
 const pendingDifferenceSendMail = ref<boolean | null>(null);
 const differenceReason = ref('');
 const differenceEvidenceData = ref<string | null>(null);
+const savedInvoiceId = ref<number | null>(null);
 const invoiceItemsTableRef = ref<{ addItem: () => void } | null>(null);
 const invoiceDate = ref<Date | null>(null);
 const deliveryDate = ref<Date | null>(null);
@@ -215,6 +216,7 @@ function syncDateRefsFromForm() {
 }
 
 function resetForm() {
+    savedInvoiceId.value = null;
     if (props.form && Object.keys(props.form).length > 0) {
         const formCopy = JSON.parse(JSON.stringify(props.form));
         if (!Array.isArray(formCopy.items)) formCopy.items = [];
@@ -410,16 +412,50 @@ function handleInvoiceAddLine() {
     invoiceItemsTableRef.value?.addItem();
 }
 
-async function handleDifferenceDialogSave(payload: { reason: string; evidenceData: string }) {
+async function handleDifferenceDialogSave(payload: {
+    reason: string;
+    evidenceData: string;
+    evidenceName: string;
+}) {
     const trimmedReason = payload.reason.trim();
     differenceReason.value = trimmedReason;
-    localForm.value.reason = trimmedReason;
     differenceEvidenceData.value = payload.evidenceData;
-    localForm.value.evidence_path = payload.evidenceData;
     const sendMail = pendingDifferenceSendMail.value ?? false;
     pendingDifferenceSendMail.value = null;
     differenceDialogOpen.value = false;
-    await handleSubmit(sendMail, true);
+
+    // Guardar la factura sin emitir refresh todavía
+    await handleSubmit(sendMail, true, true);
+
+    // Después de guardar exitosamente, llamar a /justificar para
+    // marcar la diferencia y disparar notificaciones a aprobadores.
+    // Solo si el dialog se cerró sin error (la factura fue guardada).
+    // Necesitamos el id de la factura guardada.
+    // En modo create, el id viene del response; en modo edit ya existe.
+    // Para acceder al id después del submit usamos savedInvoiceId.
+    if (savedInvoiceId.value) {
+        try {
+            await axios.post(
+                `/gastos/facturas-compra/${savedInvoiceId.value}/justificar`,
+                {
+                    difference_reason: trimmedReason,
+                    difference_evidence_path: payload.evidenceData,
+                    difference_notes: null,
+                }
+            );
+        } catch (e) {
+            console.error('Error al registrar diferencia:', e);
+        }
+    }
+
+    // Ahora sí cerrar el dialog y recargar la tabla con datos actualizados
+    differenceReason.value = '';
+    differenceEvidenceData.value = null;
+    dialogOpen.value = false;
+    emit('refresh', props.dialogType === 'create'
+        ? 'Factura creada correctamente.'
+        : 'Factura actualizada correctamente.'
+    );
 }
 
 function closeDifferenceDialog() {
@@ -427,7 +463,11 @@ function closeDifferenceDialog() {
     pendingDifferenceSendMail.value = null;
 }
 
-async function handleSubmit(sendMail = false, skipDifferenceCheck = false) {
+async function handleSubmit(
+    sendMail = false,
+    skipDifferenceCheck = false,
+    suppressRefresh = false
+) {
     if (isReadOnly.value) return;
     successMessage.value = '';
     errorMessage.value = '';
@@ -480,16 +520,19 @@ async function handleSubmit(sendMail = false, skipDifferenceCheck = false) {
     const method = props.dialogType === 'create' ? 'POST' : 'PUT';
     try {
         const { data } = await axios({ method, url, data: formToSend });
-        if (sendMail) {
-            await axios.post(`/gastos/facturas-compra/${data.data.id}/enviar-correo`);
-            emit('refresh', 'Factura guardada y enviada por correo correctamente.');
-        } else {
-            emit('refresh', props.dialogType === 'create' ? 'Factura creada correctamente.' : 'Factura actualizada correctamente.');
-            successMessage.value = props.dialogType === 'create' ? 'Factura creada correctamente.' : 'Factura actualizada correctamente.';
+        savedInvoiceId.value = data?.data?.id ?? null;
+        if (!suppressRefresh) {
+            if (sendMail) {
+                await axios.post(`/gastos/facturas-compra/${data.data.id}/enviar-correo`);
+                emit('refresh', 'Factura guardada y enviada por correo correctamente.');
+            } else {
+                emit('refresh', props.dialogType === 'create' ? 'Factura creada correctamente.' : 'Factura actualizada correctamente.');
+                successMessage.value = props.dialogType === 'create' ? 'Factura creada correctamente.' : 'Factura actualizada correctamente.';
+            }
+            differenceReason.value = '';
+            differenceEvidenceData.value = null;
+            dialogOpen.value = false;
         }
-        differenceReason.value = '';
-        differenceEvidenceData.value = null;
-        dialogOpen.value = false;
     } catch (e: any) {
         const serverMessage =
             e?.response?.data?.message ||
@@ -669,43 +712,42 @@ watch(dialogOpen, (isOpen) => {
                 </FormDialogHeader>
 
                 <!-- Banner de estado de aprobación de diferencia -->
-                <div v-if="localForm.approval_status === 'pending'" class="mx-4 flex items-center gap-3 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+                <div
+                    v-if="localForm.approval_status === 'pending_difference_approval'"
+                    class="mx-4 flex items-center gap-3 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800"
+                >
                     <span class="text-lg">⏳</span>
                     <div>
                         <p class="font-semibold">Diferencia pendiente de aprobación</p>
-                        <p class="text-xs text-yellow-700">Esta factura tiene una diferencia registrada que requiere aprobación por un usuario autorizado.</p>
-                    </div>
-                </div>
-                <div v-else-if="localForm.approval_status === 'approved'" class="mx-4 flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-                    <span class="text-lg">✓</span>
-                    <div>
-                        <p class="font-semibold">Diferencia aprobada</p>
-                        <p class="text-xs text-green-700">
-                            Aprobado por <strong>{{ localForm.approved_by?.name ?? 'Usuario' }}</strong>
-                            <template v-if="localForm.approved_at">
-                                el {{ new Date(localForm.approved_at).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' }) }}
-                            </template>
-                            <template v-if="localForm.approval_notes">— {{ localForm.approval_notes }}</template>
+                        <p class="text-xs text-yellow-700">
+                            Esta factura tiene una diferencia registrada que requiere
+                            aprobación por un usuario autorizado.
                         </p>
                     </div>
                 </div>
-                <div v-else-if="localForm.approval_status === 'rejected'" class="mx-4 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                <div
+                    v-else-if="localForm.approval_status === 'difference_rejected'"
+                    class="mx-4 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                >
                     <span class="text-lg">✗</span>
                     <div>
                         <p class="font-semibold">Diferencia rechazada</p>
                         <p class="text-xs text-red-700">
-                            Rechazado por <strong>{{ localForm.approved_by?.name ?? 'Usuario' }}</strong>
+                            Rechazado por
+                            <strong>{{ localForm.approved_by?.name ?? 'Usuario' }}</strong>
                             <template v-if="localForm.approved_at">
-                                el {{ new Date(localForm.approved_at).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' }) }}
+                                el {{ new Date(localForm.approved_at).toLocaleString('es-CO',
+                                    { dateStyle: 'medium', timeStyle: 'short' }) }}
                             </template>
-                            <template v-if="localForm.approval_notes">— {{ localForm.approval_notes }}</template>
+                            <template v-if="localForm.approval_notes">
+                                — {{ localForm.approval_notes }}
+                            </template>
                         </p>
                     </div>
                 </div>
 
                 <FormDialogBody class="relative px-4 pr-2" :class="{ 'min-h-[420px]': isBlockingLoading }" style="scrollbar-width: thin">
-                    <form
-                        @submit.prevent="handleSubmit()"
+                    <div
                         :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingInvoiceId }"
                         class="space-y-6 pb-4"
                     >
@@ -913,10 +955,10 @@ watch(dialogOpen, (isOpen) => {
                                 </div>
                             </div>
                         </fieldset>
-                    </form>
+                    </div>
                 </FormDialogBody>
                 <FormDialogFooter class="justify-end gap-4 bg-background">
-                    <Button variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
+                    <Button type="button" variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
                     <Button v-if="!isReadOnly" variant="default" size="pill" :disabled="isLoading || isSendingMail || isBlockingLoading" @click.prevent="handleSubmit(false)">
                         {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
                     </Button>

@@ -143,16 +143,21 @@ const getInvoiceItemsPreview = (invoice: PurchaseInvoice) => {
 };
 
 function getInvoiceStatusLabel(status?: string): string {
-    if (status === 'pending_receipt') return 'Pendiente';
-    if (status === 'approved') return 'Aprobado';
-    if (status === 'received') return 'Recibida';
-    if (status === 'rejected') return 'Rechazada';
-    return 'Sin estado';
+    const labels: Record<string, string> = {
+        pending_receipt: 'Pendiente',
+        received: 'Recibida',
+        rejected: 'Rechazada',
+        approved: 'Aprobada',
+        pending: 'Pendiente',
+    };
+    return labels[status ?? ''] ?? 'Pendiente';
 }
 
-function getInvoiceStatusTone(status?: string): 'yellow' | 'green' | 'red' | 'gray' {
-    if (status === 'pending_receipt') return 'yellow';
-    if (status === 'approved' || status === 'received') return 'green';
+function getInvoiceStatusTone(
+    status?: string
+): 'yellow' | 'green' | 'red' | 'gray' {
+    if (status === 'pending_receipt' || status === 'pending') return 'yellow';
+    if (status === 'received' || status === 'approved') return 'green';
     if (status === 'rejected') return 'red';
     return 'gray';
 }
@@ -602,11 +607,6 @@ async function handleDifferenceDecision() {
                                     tone="yellow"
                                 />
                                 <TableStatusBadge
-                                    v-else-if="invoice.approval_status === 'approved'"
-                                    label="Diferencia aprobada"
-                                    tone="green"
-                                />
-                                <TableStatusBadge
                                     v-else-if="invoice.approval_status === 'difference_rejected'"
                                     label="Diferencia rechazada"
                                     tone="red"
@@ -630,8 +630,9 @@ async function handleDifferenceDecision() {
                                     <!-- Botón de aprobación de diferencia: visible solo cuando hay diferencia pendiente -->
                                     <button
                                         v-if="invoice.approval_status === 'pending_difference_approval'"
+                                        type="button"
                                         class="flex items-center transition-colors duration-200 text-yellow-600 hover:text-yellow-800"
-                                        title="Aprobar / Rechazar diferencia"
+                                        title="Revisar diferencia — Aprobar o Rechazar"
                                         @click="openApprovalDialog(invoice)"
                                     >
                                         <ShieldCheck class="h-4 w-4" />
