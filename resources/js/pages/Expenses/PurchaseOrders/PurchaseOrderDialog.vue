@@ -22,8 +22,9 @@ import type { Contact } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import axios from 'axios';
-import { Plus } from 'lucide-vue-next';
+import { Plus, X } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
+import ContactDialog from '@/pages/MasterData/Contact/ContactDialog.vue';
 import PurchaseOrderItemsTable from './PurchaseOrderItemsTable.vue';
 
 const props = defineProps<{
@@ -41,6 +42,8 @@ const emit = defineEmits<{
 const dialogOpen = ref(props.isOpen);
 const localForm = ref<Partial<PurchaseOrder>>(createDefaultForm());
 const contacts = ref<Contact[]>([]);
+const isContactDialogOpen = ref(false);
+const contactDialogForm = ref<Partial<Contact>>({ groups: [] });
 const purchaseRequests = ref<any[]>([]);
 const selectedPurchaseRequestId = ref<number | null>(null);
 const selectedPurchaseRequest = ref<any | null>(null); // Solicitud completa seleccionada para mostrar sugerencia
@@ -335,6 +338,35 @@ async function fetchContacts() {
     } catch (e) {
         contacts.value = [];
         console.error('Error fetching contacts:', e);
+    }
+}
+
+function openContactDialog() {
+    contactDialogForm.value = { groups: [] };
+    isContactDialogOpen.value = true;
+}
+
+function handleContactFormUpdate(updatedContact: Partial<Contact>) {
+    contactDialogForm.value = updatedContact;
+}
+
+async function handleContactDialogSubmit(contactData: Partial<Contact>) {
+    try {
+        await axios.post('/contactos', contactData);
+        isContactDialogOpen.value = false;
+        await fetchContacts();
+
+        const createdContact = contacts.value.find((contact) => {
+            const matchesEmail = contactData.email && contact.email === contactData.email;
+            const matchesIdNumber = contactData.id_number && contact.id_number === contactData.id_number;
+            return Boolean(matchesEmail || matchesIdNumber);
+        });
+
+        if (createdContact?.id) {
+            localForm.value.contact_id = Number(createdContact.id);
+        }
+    } catch (error) {
+        console.error('Error al guardar el contacto:', error);
     }
 }
 
@@ -675,9 +707,9 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                             </DialogTitle>
                             <DialogDescription> Completa los campos y añade los ítems de la orden. </DialogDescription>
                         </div>
-                        <div class="w-full shrink-0 sm:w-[340px]">
+                        <div v-if="!isReadOnly" class="w-full shrink-0 sm:w-[340px]">
                             <div class="flex items-end gap-2">
-                                <div class="min-w-0 flex-1">
+                                <div class="flex-1 min-w-0">
                                     <SelectField
                                         v-model="selectedPurchaseRequestValue"
                                         :options="pendingPurchaseRequestOptions"
@@ -688,16 +720,15 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                         search-placeholder="Buscar solicitud..."
                                     />
                                 </div>
-                                <div class="shrink-0">
-                                    <button
-                                        type="button"
-                                        class="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-4 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                        :disabled="!selectedPurchaseRequestId || isReadOnly || dialogType === 'edit'"
-                                        @click="selectedPurchaseRequestId = null; resetForm()"
-                                    >
-                                        Limpiar
-                                    </button>
-                                </div>
+                                <button
+                                    type="button"
+                                    class="shrink-0 h-7 w-7 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
+                                    :disabled="!selectedPurchaseRequestId || isReadOnly || dialogType === 'edit'"
+                                    title="Limpiar selección"
+                                    @click="selectedPurchaseRequestId = null; resetForm()"
+                                >
+                                    <X class="h-3.5 w-3.5" />
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -723,7 +754,11 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                     </div>
                                     <div>
                                         <span class="text-muted-foreground">Fecha:</span>
-                                        <span class="ml-2 text-foreground">{{ selectedPurchaseRequest.date || 'No especificada' }}</span>
+                                        <span class="ml-2 text-foreground">{{ selectedPurchaseRequest.date
+                                            ? new Date(selectedPurchaseRequest.date).toLocaleDateString('es-CO', {
+                                                day: '2-digit', month: '2-digit', year: 'numeric'
+                                            })
+                                            : 'No especificada' }}</span>
                                     </div>
                                     <div class="col-span-2">
                                         <span class="text-muted-foreground">Descripción:</span>
@@ -778,7 +813,10 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                             label=""
                                             :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
                                             :disabled="isReadOnly || !canEdit"
+                                            :action-label="(!isReadOnly && canEdit) ? 'Nuevo contacto' : undefined"
+                                            :action-disabled="isReadOnly || !canEdit"
                                             required
+                                            @action="openContactDialog"
                                         />
                                     </div>
                                     <InputField
@@ -962,4 +1000,13 @@ watch(selectedPurchaseRequestId, async (requestId) => {
             </div>
         </FormDialogContent>
     </Dialog>
+    <ContactDialog
+        v-if="isContactDialogOpen"
+        :isOpen="isContactDialogOpen"
+        dialog-type="create"
+        :contactData="contactDialogForm"
+        @close="isContactDialogOpen = false"
+        @submit="handleContactDialogSubmit"
+        @update:contactData="handleContactFormUpdate"
+    />
 </template>

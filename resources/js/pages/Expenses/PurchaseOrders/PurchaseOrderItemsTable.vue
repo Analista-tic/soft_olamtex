@@ -344,6 +344,18 @@ function setTaxFromItem(item: PurchaseOrderItem) {
     item.tax = Number(taxPercentage) || 0;
 }
 
+function setDescriptionFromItem(item: any) {
+    const catalogItem = itemMap.value.get(Number(item.item_id));
+    if (!catalogItem) return;
+
+    const catalogDescription = catalogItem.description?.trim() ?? '';
+    const currentDescription = (item.description ?? '').trim();
+
+    if (catalogDescription && !currentDescription) {
+        item.description = catalogDescription;
+    }
+}
+
 watch(
     () => itemMap.value.size,
     (newSize) => {
@@ -352,6 +364,7 @@ watch(
         localItems.value.forEach((item) => {
             if (item.item_id == null) return;
             setTaxFromItem(item);
+            setDescriptionFromItem(item);
             calcTotals(item);
         });
 
@@ -388,6 +401,7 @@ watch(
                     () => item.item_id,
                     () => {
                         setTaxFromItem(item);
+                        setDescriptionFromItem(item);
                         calcTotals(item);
                         emit('update:items', localItems.value);
                     },

@@ -23,6 +23,7 @@ import type { Option } from '@/domain/shared';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { parseToDate, toIsoDateString } from '@/lib/date';
 import axios from 'axios';
+import { X } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
 import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
@@ -639,29 +640,28 @@ watch(dialogOpen, (isOpen) => {
                     </div>
                 <div v-if="!isReadOnly" class="w-full shrink-0 sm:w-[380px]">
                     <div class="flex items-end gap-2">
-                    <div class="min-w-0 flex-1">
-                        <SelectField
-                            v-model="selectedPurchaseOrderValue"
-                            :options="pendingPurchaseOrderOptions"
-                            label="Cargar desde orden pendiente"
-                            placeholder="Selecciona una orden existente"
-                            :disabled="isReadOnly"
-                            :readonly="isReadOnly"
-                            :searchable="pendingPurchaseOrderOptions.length >= 6"
-                            search-placeholder="Buscar orden de compra..."
-                            tooltip-text="Selecciona una orden de compra aprobada para pre-llenar automáticamente los ítems de esta factura."
-                        />
-                    </div>
-                    <div class="shrink-0">
+                        <div class="flex-1 min-w-0">
+                            <SelectField
+                                v-model="selectedPurchaseOrderValue"
+                                :options="pendingPurchaseOrderOptions"
+                                label="Cargar desde orden pendiente"
+                                placeholder="Selecciona una orden existente"
+                                :disabled="isReadOnly"
+                                :readonly="isReadOnly"
+                                :searchable="pendingPurchaseOrderOptions.length >= 6"
+                                search-placeholder="Buscar orden de compra..."
+                                tooltip-text="Selecciona una orden de compra aprobada para pre-llenar automáticamente los ítems de esta factura."
+                            />
+                        </div>
                         <button
                             type="button"
-                            class="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-4 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            class="shrink-0 h-7 w-7 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
                             :disabled="!selectedPurchaseOrderId || isReadOnly"
+                            title="Limpiar selección"
                             @click="clearSelectedPurchaseOrder()"
                         >
-                            Limpiar
+                            <X class="h-3.5 w-3.5" />
                         </button>
-                    </div>
                     </div>
                 </div>
                 </div>
