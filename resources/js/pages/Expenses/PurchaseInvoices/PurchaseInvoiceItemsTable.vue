@@ -13,6 +13,12 @@ import ItemDialog from '@/pages/MasterData/Item/ItemDialog.vue';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 
+// Caché a nivel de módulo — persiste entre montajes del componente
+let cachedItems: Item[] | null = null;
+let cachedTaxes: Tax[] | null = null;
+let itemsFetchPromise: Promise<void> | null = null;
+let taxesFetchPromise: Promise<void> | null = null;
+
 const props = defineProps<{
     items: PurchaseInvoiceItem[];
     isCreating?: boolean;
@@ -157,13 +163,62 @@ watch(
 );
 
 async function fetchItems() {
-    const res = await axios.get('/item/data', { params: { per_page: 1000 } });
-    catalogItems.value = res.data.data;
+    // Si ya hay caché, usar instantáneamente
+    if (cachedItems !== null) {
+        catalogItems.value = cachedItems;
+        return;
+    }
+    // Si ya hay una petición en curso, esperar esa misma
+    if (itemsFetchPromise) {
+        await itemsFetchPromise;
+        if (cachedItems !== null) {
+            catalogItems.value = cachedItems;
+        }
+        return;
+    }
+    // Primera carga real
+    itemsFetchPromise = axios
+        .get('/item/data', { params: { per_page: 2000, status: true } })
+        .then((res) => {
+            cachedItems = res.data.data;
+            catalogItems.value = cachedItems!;
+        })
+        .catch((err) => {
+            console.error('Error cargando ítems:', err);
+        })
+        .finally(() => {
+            itemsFetchPromise = null;
+        });
+    await itemsFetchPromise;
 }
 
 async function fetchTaxes() {
-    const res = await axios.get('/impuestos/data', { params: { per_page: 1000, status: true } });
-    taxes.value = Array.isArray(res.data?.data) ? res.data.data.filter((t: any) => t.status) : [];
+    if (cachedTaxes !== null) {
+        taxes.value = cachedTaxes;
+        return;
+    }
+    if (taxesFetchPromise) {
+        await taxesFetchPromise;
+        if (cachedTaxes !== null) {
+            taxes.value = cachedTaxes;
+        }
+        return;
+    }
+    taxesFetchPromise = axios
+        .get('/impuestos/data', { params: { per_page: 1000, status: true } })
+        .then((res) => {
+            cachedTaxes = Array.isArray(res.data?.data)
+                ? res.data.data.filter((t: any) => t.status)
+                : [];
+            taxes.value = cachedTaxes!;
+        })
+        .catch((err) => {
+            console.error('Error cargando impuestos:', err);
+        })
+        .finally(() => {
+            taxesFetchPromise = null;
+        });
+    await taxesFetchPromise;
 }
 
 onMounted(() => {
@@ -201,6 +256,7 @@ function openItemDialog() {
 }
 
 async function handleItemDialogRefresh() {
+    cachedItems = null;
     await fetchItems();
 }
 

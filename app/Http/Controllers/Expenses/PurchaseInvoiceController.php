@@ -108,6 +108,15 @@ class PurchaseInvoiceController extends PurchaseDocumentController
 
     public function update(Request $request, PurchaseDocument $purchaseDocument)
     {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+
+        if ($purchaseDocument->approval_status === PurchaseDocument::APPROVAL_APPROVED
+            || $purchaseDocument->status === 'received') {
+            return response()->json([
+                'message' => 'No se puede editar una factura aprobada o recibida.'
+            ], 422);
+        }
+
         return $this->updateGeneric(
             $request,
             $purchaseDocument,
@@ -118,7 +127,20 @@ class PurchaseInvoiceController extends PurchaseDocumentController
 
     public function destroy(PurchaseDocument $purchaseDocument)
     {
-        return $this->destroyGeneric($purchaseDocument, PurchaseDocument::TYPE_INVOICE, 'Factura eliminada');
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+
+        if ($purchaseDocument->approval_status === PurchaseDocument::APPROVAL_APPROVED
+            || $purchaseDocument->status === 'received') {
+            return response()->json([
+                'message' => 'No se puede eliminar una factura aprobada o recibida.'
+            ], 422);
+        }
+
+        return $this->destroyGeneric(
+            $purchaseDocument,
+            PurchaseDocument::TYPE_INVOICE,
+            'Factura eliminada'
+        );
     }
 
     public function justify(Request $request, PurchaseDocument $purchaseDocument)

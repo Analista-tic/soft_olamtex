@@ -626,7 +626,20 @@ async function handleDifferenceDecision() {
                                     >
                                         <Eye class="h-4 w-4" />
                                     </button>
-                                    <EditButton :onClick="() => openDialogWithPreparation('edit', invoice)" />
+                                    <EditButton
+                                        :onClick="() => {
+                                            if (invoice.approval_status === 'approved') {
+                                                showError('No se puede editar una factura aprobada o recibida.');
+                                                return;
+                                            }
+                                            openDialogWithPreparation('edit', invoice);
+                                        }"
+                                        :class="
+                                            invoice.approval_status === 'approved'
+                                                ? 'opacity-40 cursor-not-allowed pointer-events-none'
+                                                : ''
+                                        "
+                                    />
                                     <!-- Botón de aprobación de diferencia: visible solo cuando hay diferencia pendiente -->
                                     <button
                                         v-if="invoice.approval_status === 'pending_difference_approval'"
@@ -642,14 +655,18 @@ async function handleDifferenceDecision() {
                                     <DeleteButton
                                         :onClick="
                                             () => {
-                                                if (invoice.status === 'received') {
-                                                    showError('No se puede eliminar una factura que ya fue recibida.');
+                                                if (invoice.status === 'received' || invoice.approval_status === 'approved') {
+                                                    showError('No se puede eliminar una factura aprobada o recibida.');
                                                 } else {
                                                     confirmDeleteInvoice(invoice);
                                                 }
                                             }
                                         "
-                                        :customClass="invoice.status === 'received' ? 'opacity-60 cursor-not-allowed' : ''"
+                                        :customClass="
+                                            invoice.status === 'received' || invoice.approval_status === 'approved'
+                                                ? 'opacity-60 cursor-not-allowed'
+                                                : ''
+                                        "
                                     />
                                     <DropdownMenu>
                                         <DropdownMenuTrigger as-child>
