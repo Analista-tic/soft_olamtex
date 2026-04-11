@@ -13,6 +13,9 @@ export interface PurchaseOrderItem {
     supplier_code?: string;
     supplier_color?: string;
     order_width?: number;
+    image_url?: string | null;
+    _image_file?: File | null;
+    _delete_image?: boolean;
 }
 export interface PurchaseOrder {
     id?: number;

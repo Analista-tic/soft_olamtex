@@ -40,7 +40,6 @@ const totalItems = ref(0);
 const isPrintDialogOpen = ref(false);
 const orderToPrint = ref<PurchaseOrder | null>(null);
 const isSendingMail = ref(false);
-const isConverting = ref<number | null>(null);
 const isApproving = ref<number | null>(null);
 const successMessage = ref('');
 const errorMessage = ref('');
@@ -271,25 +270,6 @@ async function approveOrder(order: PurchaseOrder) {
         setErrorMessage(e?.response?.data?.message || 'Error al aprobar la orden.');
     } finally {
         isApproving.value = null;
-    }
-}
-
-async function convertToInvoice(order: PurchaseOrder) {
-    if (isConverting.value !== null) return;
-    isConverting.value = order.id ?? null; // order.id nunca debería ser undefined, pero por seguridad
-    try {
-        await axios.post(`/gastos/ordenes-compra/${order.id}/convert-to-invoice`);
-        successMessage.value = 'Orden convertida en factura correctamente.';
-        fetchOrders(currentPage.value, searchQuery.value);
-    } catch (e: any) {
-        // Validación específica del mensaje de error
-        if (e?.response?.data?.error_code === 'ORDER_ALREADY_INVOICED') {
-            setErrorMessage('Esta orden de compra ya tiene una factura asociada.');
-        } else {
-            setErrorMessage(e?.response?.data?.message || 'Error al convertir en factura.');
-        }
-    } finally {
-        isConverting.value = null;
     }
 }
 

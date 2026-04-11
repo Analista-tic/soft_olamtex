@@ -901,21 +901,10 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                                 variant="outline"
                                                 size="pill"
                                                 class="border-primary/40 bg-background text-primary hover:bg-primary/10 hover:text-primary"
-                                                @click="itemsTableRef?.openItemDialog()"
-                                            >
-                                                <Plus class="h-2 w-2" />
-                                                Crear item
-                                            </Button>
-                                            <Button
-                                                v-if="!isReadOnly"
-                                                type="button"
-                                                variant="outline"
-                                                size="pill"
-                                                class="border-primary/40 bg-background text-primary hover:bg-primary/10 hover:text-primary"
                                                 @click="handleAddLine"
                                             >
                                                 <Plus class="h-2 w-2" />
-                                                Agregar linea
+                                                Agregar ítem
                                             </Button>
                                         </div>
                                     </template>
