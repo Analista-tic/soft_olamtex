@@ -1,66 +1,87 @@
 <script setup lang="ts">
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
+import { Trash2 } from 'lucide-vue-next'
 
 const props = withDefaults(
-    defineProps<{
-        open?: boolean;
-        title: string;
-        description?: string;
-        confirmText?: string;
-        cancelText?: string;
-        destructive?: boolean;
-    }>(),
-    {
-        open: false,
-        description: '',
-        confirmText: 'Eliminar',
-        cancelText: 'Cancelar',
-        destructive: true,
-    },
-);
+  defineProps<{
+    open?: boolean
+    title: string
+    description?: string
+    confirmText?: string
+    cancelText?: string
+    destructive?: boolean
+  }>(),
+  {
+    open: false,
+    description: '',
+    confirmText: 'Eliminar',
+    cancelText: 'Cancelar',
+    destructive: true,
+  },
+)
 
 const emit = defineEmits<{
-    (event: 'update:open', value: boolean): void;
-    (event: 'confirm'): void;
-}>();
-
-function handleOpenChange(value: boolean) {
-    emit('update:open', value);
-}
-
-function closeDialog() {
-    handleOpenChange(false);
-}
+  'update:open': [value: boolean]
+  confirm: []
+}>()
 
 function handleConfirm() {
-    emit('confirm');
-    closeDialog();
+  emit('confirm')
+  emit('update:open', false)
+}
+
+function handleCancel() {
+  emit('update:open', false)
 }
 </script>
 
 <template>
-    <Dialog :open="props.open" modal @update:open="handleOpenChange">
-        <DialogContent class="max-w-sm gap-0 overflow-hidden border border-border p-0">
-            <DialogHeader class="space-y-1 px-5 py-4">
-                <DialogTitle>{{ props.title }}</DialogTitle>
-            </DialogHeader>
-            <div v-if="props.description" class="px-5 pb-1">
-                <DialogDescription>{{ props.description }}</DialogDescription>
-            </div>
-            <DialogFooter class="gap-2 px-5 py-4 pt-3 sm:justify-end">
-                <Button variant="outline" size="pill" @click="closeDialog">
-                    {{ props.cancelText }}
-                </Button>
-                <Button
-                    :variant="props.destructive ? 'destructive' : 'default'"
-                    size="pill"
-                    class="shadow-sm"
-                    @click="handleConfirm"
-                >
-                    {{ props.confirmText }}
-                </Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
+  <AlertDialog :open="props.open" @update:open="emit('update:open', $event)">
+    <AlertDialogContent size="sm">
+      <AlertDialogHeader>
+        <AlertDialogMedia
+          :class="
+            props.destructive
+              ? 'bg-destructive/10 text-destructive'
+              : 'bg-muted text-muted-foreground'
+          "
+        >
+          <slot name="icon">
+            <Trash2 class="h-5 w-5" />
+          </slot>
+        </AlertDialogMedia>
+        <AlertDialogTitle class="text-center">{{ props.title }}</AlertDialogTitle>
+        <AlertDialogDescription class="text-center">
+          {{ props.description }}
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel as-child>
+          <Button variant="outline" size="pill" @click="handleCancel">
+            {{ props.cancelText }}
+          </Button>
+        </AlertDialogCancel>
+        <AlertDialogAction as-child>
+          <Button
+            :variant="props.destructive ? 'destructive' : 'default'"
+            size="pill"
+            @click="handleConfirm"
+          >
+            {{ props.confirmText }}
+          </Button>
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
 </template>
