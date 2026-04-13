@@ -42,6 +42,17 @@ const localForm = ref<ParameterDialogModel>({
 });
 const valueList = ref<string[]>([]);
 const newValueInput = ref('');
+const valueSearchQuery = ref('');
+
+const filteredValueList = computed(() => {
+    const q = valueSearchQuery.value.trim().toLowerCase();
+    if (!q) return valueList.value;
+    return valueList.value.filter((item) =>
+        item.toLowerCase().includes(q)
+    );
+});
+
+const showValueSearch = computed(() => valueList.value.length > 10);
 const isInitializingDialog = ref(false);
 // const hasValues = computed(() => valueList.value.length > 0);
 const hasDuplicateOptions = computed(() => false);
@@ -59,12 +70,14 @@ watch(
             localForm.value = { ...defaultForm };
             valueList.value = [];
             newValueInput.value = '';
+            valueSearchQuery.value = '';
             return;
         }
 
         localForm.value = mapParameterToDialogForm(value);
         valueList.value = parseValueList(localForm.value.value);
         newValueInput.value = '';
+        valueSearchQuery.value = '';
     },
     { immediate: true },
 );
@@ -221,9 +234,26 @@ function handleSubmit() {
                                     <Plus class="h-4 w-4" />
                                 </button>
                             </div>
+                            <div v-if="showValueSearch" class="relative w-full">
+                                <input
+                                    v-model="valueSearchQuery"
+                                    type="text"
+                                    placeholder="Buscar valor..."
+                                    class="h-9 w-full rounded-md border border-input bg-background
+                                           pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground
+                                           focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                                />
+                                <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-muted-foreground"
+                                         viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                                    </svg>
+                                </span>
+                            </div>
                             <div v-if="valueList.length" class="flex flex-wrap gap-2">
                                 <span
-                                    v-for="(item, index) in valueList"
+                                    v-for="(item, index) in filteredValueList"
                                     :key="`value-chip-${index}`"
                                     class="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-semibold text-foreground"
                                 >
@@ -237,6 +267,12 @@ function handleSubmit() {
                                     >×</button>
                                 </span>
                             </div>
+                            <p
+                                v-if="showValueSearch && filteredValueList.length === 0 && valueSearchQuery.trim()"
+                                class="text-xs text-muted-foreground"
+                            >
+                                Sin resultados para "{{ valueSearchQuery }}"
+                            </p>
                             <p v-else class="text-xs text-muted-foreground">Sin valores registrados.</p>
                         </div>
                         <TextareaField

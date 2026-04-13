@@ -13,6 +13,7 @@ import { useAlertStack } from '@/composables/useAlert';
 import type { CreditDebitNote, CreditDebitNoteItem, CreditDebitNotePayload, CreditDebitNoteType, NoteKind } from '@/domain/Finance';
 import { create as createCreditDebitNote, update as updateCreditDebitNote } from '@/domain/Finance';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
+import { useItemSearch } from '@/composables/useItemSearch';
 import axios from 'axios';
 import { PlusCircle, Trash } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -37,11 +38,6 @@ type ParentSummary = {
 };
 
 type InvoiceOption = {
-    id: number;
-    name: string;
-};
-
-type ItemOption = {
     id: number;
     name: string;
 };
@@ -130,7 +126,12 @@ const dialogOpen = ref(props.open);
 const isSubmitting = ref(false);
 
 const contacts = ref<ContactOption[]>([]);
-const itemsCatalog = ref<ItemOption[]>([]);
+const {
+    options: itemSearchOptions,
+    isLoading: isLoadingItemsCatalog,
+    search: searchItemsCatalog,
+    loadInitial: loadItemsCatalogInitial,
+} = useItemSearch();
 const invoiceOptions = ref<InvoiceOption[]>([]);
 const parentSummary = ref<ParentSummary | null>(null);
 const reasonOptions = ref<Array<{ id: string; name: string }>>([]);
@@ -315,7 +316,7 @@ function handleSelectItem(item: CreditDebitNoteItem, rawValue: string | number):
     item.item_id = parsed > 0 ? parsed : null;
 
     if (item.item_id) {
-        const selected = itemsCatalog.value.find((o) => o.id === item.item_id);
+        const selected = itemSearchOptions.value.find((o) => o.id === item.item_id);
         if (selected && !trimText(item.item_name)) {
             item.item_name = selected.name;
         }
@@ -463,15 +464,6 @@ async function safeGet<T = any>(url: string, config?: any): Promise<T | null> {
 async function fetchContacts(): Promise<void> {
     const data = await safeGet<any>('/contactos/data', { params: { per_page: 1000 } });
     contacts.value = Array.isArray(data?.data) ? data.data : [];
-}
-
-async function fetchItemsCatalog(): Promise<void> {
-    const data = await safeGet<any>('/item/data', { params: { per_page: 1000 } });
-    const rows = Array.isArray(data?.data) ? data.data : [];
-    itemsCatalog.value = rows.map((row: { id: number | string; name?: string }) => ({
-        id: asNumber(row.id),
-        name: String(row.name ?? `Item #${row.id}`),
-    }));
 }
 
 function ensureCurrentReasonOption(): void {
@@ -647,7 +639,7 @@ async function initializeDialog(): Promise<void> {
     const initialContactId = asNumber(localForm.value.contact_id, 0);
     const invoiceOptionsPromise = isParentFixed.value ? Promise.resolve() : fetchInvoiceOptions(initialContactId > 0 ? initialContactId : null);
 
-    await Promise.all([fetchContacts(), fetchItemsCatalog(), invoiceOptionsPromise, fetchReasonOptions()]);
+    await Promise.all([fetchContacts(), loadItemsCatalogInitial(), invoiceOptionsPromise, fetchReasonOptions()]);
 
     // Si se disparó otra inicialización, aborta esta.
     if (token !== initToken.value) return;
@@ -839,8 +831,10 @@ onMounted(async () => {
                                     <TableCell class="text-left">
                                         <SelectField
                                             v-model="item.item_id"
-                                            :options="itemsCatalog"
-                                            placeholder="Seleccionar item (opcional)"
+                                            :options="itemSearchOptions"
+                                            :loading="isLoadingItemsCatalog"
+                                            @search="searchItemsCatalog"
+                                            placeholder="Buscar ítem..."
                                             @update:modelValue="(value) => handleSelectItem(item, Number(value || 0))"
                                         />
                                     </TableCell>

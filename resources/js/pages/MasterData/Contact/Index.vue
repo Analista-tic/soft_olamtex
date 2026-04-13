@@ -21,7 +21,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
-import type { Contact } from '@/domain/MasterData';
+import type { Contact, ContactType } from '@/domain/MasterData';
 import type { BreadcrumbItem } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
@@ -57,14 +57,20 @@ const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
-const selectedContactType = ref<string>('');
+const selectedContactType = ref<ContactType | ''>('');
 
 const contactTypeOptions = [
     { id: '', name: 'Todos los tipos' },
-    { id: 'Proveedor', name: 'Proveedor' },
-    { id: 'Cliente', name: 'Cliente' },
-    { id: 'Cliente y Proveedor', name: 'Cliente y Proveedor' },
+    { id: 'proveedor', name: 'Proveedor' },
+    { id: 'cliente', name: 'Cliente' },
+    { id: 'cliente_proveedor', name: 'Cliente y Proveedor' },
 ];
+
+const contactTypeLabels: Record<ContactType, string> = {
+    proveedor: 'Proveedor',
+    cliente: 'Cliente',
+    cliente_proveedor: 'Cliente y Proveedor',
+};
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isContactTypeFilterActive = computed(() => selectedContactType.value !== '');
@@ -293,6 +299,14 @@ async function fetchContacts(page: number = 1, search: string = '', contactType:
     }
 }
 
+function formatContactType(contactType?: string): string {
+    if (!contactType) {
+        return '-';
+    }
+
+    return contactTypeLabels[contactType as ContactType] ?? contactType;
+}
+
 function handlePageChange(newPage: number): void {
     currentPage.value = newPage;
     fetchContacts(newPage, searchQuery.value, selectedContactType.value || null);
@@ -381,7 +395,7 @@ onBeforeUnmount(() => {
                             <TableCell class="font-medium">{{ contact.full_name }}</TableCell>
                             <TableCell>{{ contact.email }}</TableCell>
                             <TableCell>{{ contact.phone }}</TableCell>
-                            <TableCell>{{ contact.contact_type }}</TableCell>
+                            <TableCell>{{ formatContactType(contact.contact_type) }}</TableCell>
                             <TableCell class="flex justify-center gap-1">
                                 <EditButton :onClick="() => openDialog('edit', contact)" />
                                 <DeleteButton :onClick="() => confirmDeleteContact(contact)" />

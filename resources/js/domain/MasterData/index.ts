@@ -10,6 +10,9 @@ export type {
     CategoryGroup,
     CategorySubGroup,
     Contact,
+    ContactIdType,
+    ContactPersonType,
+    ContactType,
     ExtraFields,
     Item,
     Parameter,
@@ -19,7 +22,7 @@ export type {
     ParameterStatusFilter,
 } from './types';
 
-export type { AdditionalContactDto, CategorySubGroupDto, ContactDto, ItemDto } from './dto';
+export type { AdditionalContactDto, CategorySubGroupDto, ContactDto, ContactIdTypeDto, ContactPersonTypeDto, ContactTypeDto, ItemDto } from './dto';
 export {
     mapAdditionalFieldRecord,
     mapAdditionalFieldToDialogForm,

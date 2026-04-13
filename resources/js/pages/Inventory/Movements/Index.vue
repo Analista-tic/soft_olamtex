@@ -21,8 +21,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { useItemSearch } from '@/composables/useItemSearch';
 import type { InventoryMovement, Warehouse } from '@/domain/Inventory';
-import type { Item } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
@@ -52,7 +52,12 @@ const selectedMovement = ref<InventoryMovement | null>(null);
 const isDetailDialogOpen = ref(false);
 
 // Items y warehouses para filtros
-const items = ref<Item[]>([]);
+const {
+    options: itemSearchResults,
+    isLoading: isLoadingItems,
+    search: searchItems,
+    loadInitial: loadItemsInitial,
+} = useItemSearch();
 const warehouses = ref<Warehouse[]>([]);
 
 const DEFAULT_TYPE_FILTER = 'all';
@@ -81,7 +86,7 @@ const typeOptions = [
 
 const itemOptions = computed<Option[]>(() => [
     { id: ALL_ITEMS_FILTER, name: 'Todos los items' },
-    ...items.value.map((item) => ({ id: item.id, name: item.name })),
+    ...itemSearchResults.value.map((item) => ({ id: item.id, name: item.name })),
 ]);
 
 const warehouseOptions = computed<Option[]>(() => [
@@ -183,16 +188,6 @@ async function fetchMovements(page = 1, search = '') {
     }
 }
 
-async function fetchItems() {
-    try {
-        const { data } = await axios.get('/item/data', { params: { per_page: 1000 } });
-        items.value = Array.isArray(data.data) ? data.data : [];
-    } catch (error) {
-        items.value = [];
-        console.error('Error al cargar items:', error);
-    }
-}
-
 async function fetchWarehouses() {
     try {
         const { data } = await axios.get('/bodegas/data', { params: { per_page: 1000 } });
@@ -231,7 +226,7 @@ watch(searchQuery, (newQuery) => {
 
 onMounted(() => {
     fetchMovements();
-    fetchItems();
+    loadItemsInitial();
     fetchWarehouses();
 });
 </script>
@@ -273,7 +268,7 @@ onMounted(() => {
                 </FilterField>
 
                 <FilterField label="Item" :active="isItemFilterActive" class="min-w-[200px]">
-                    <SelectField v-model="itemFilter" label="" :options="itemOptions" :button-class="itemButtonClasses" />
+                    <SelectField v-model="itemFilter" label="" :options="itemOptions" :loading="isLoadingItems" @search="searchItems" placeholder="Buscar ítem..." :button-class="itemButtonClasses" />
                 </FilterField>
 
                 <FilterField label="Bodega" :active="isWarehouseFilterActive" class="min-w-[180px]">

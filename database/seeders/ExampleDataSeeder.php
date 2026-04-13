@@ -36,11 +36,11 @@ class ExampleDataSeeder extends Seeder
         $provider = DB::table('contacts')->where('id_number', '900000001')->first();
         $providerId = $provider ? $provider->id : DB::table('contacts')->insertGetId([
             'contact_type' => 'proveedor',
-            'id_type' => 'NIT',
+            'id_type' => 'nit',
             'id_number' => '900000001',
             'dv' => null,
             'full_name' => 'Proveedor Ejemplo',
-            'person_type' => 'jurídica',
+            'person_type' => 'persona_juridica',
             'groups' => null,
             'municipality' => null,
             'department' => null,

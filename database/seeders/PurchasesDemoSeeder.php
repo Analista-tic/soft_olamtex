@@ -28,16 +28,16 @@ class PurchasesDemoSeeder extends Seeder
     public function run(): void
     {
         // Obtener proveedor
-        $supplier = Contact::where('contact_type', 'supplier')->first();
+        $supplier = Contact::where('contact_type', 'proveedor')->first();
         if (!$supplier) {
             $this->command->warn('No hay proveedores. Creando uno de ejemplo...');
             $supplier = Contact::create([
-                'contact_type' => 'supplier',
-                'id_type' => 'NIT',
+                'contact_type' => 'proveedor',
+                'id_type' => 'nit',
                 'id_number' => '900123456',
                 'dv' => '7',
                 'full_name' => 'Proveedor Demo S.A.S.',
-                'person_type' => 'juridica',
+                'person_type' => 'persona_juridica',
                 'email' => 'proveedor@example.com',
                 'phone' => '555-1234',
                 'address' => 'Calle Demo 123',

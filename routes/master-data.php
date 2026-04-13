@@ -38,6 +38,7 @@ Route::prefix('item')->name('item.')->group(function () {
     Route::get('/data', [ItemController::class, 'getData'])->name('data');
     Route::post('/carga-masiva', [ItemController::class, 'bulkUpload'])->name('carga-masiva');
     Route::get('/check-duplicate', [ItemController::class, 'checkDuplicate'])->name('check-duplicate');
+    Route::get('/search', [ItemController::class, 'search'])->name('search');
     Route::get('/{id}', [ItemController::class, 'show'])->name('show');
     Route::post('/', [ItemController::class, 'store'])->name('store');
     Route::put('/{id}', [ItemController::class, 'update'])->name('update');

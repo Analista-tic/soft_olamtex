@@ -296,14 +296,18 @@ export interface AdditionalContact {
     email: string;
 }
 
+export type ContactType = 'proveedor' | 'cliente' | 'cliente_proveedor';
+export type ContactIdType = 'nit' | 'cc' | 'nit_otro_pais' | 'pp' | 'pep' | 'die' | 'ce' | 'te' | 'ti' | 'rc' | 'nuip' | 'ppt';
+export type ContactPersonType = 'persona_natural' | 'persona_juridica';
+
 export interface Contact {
     id: number;
-    contact_type: string;
-    id_type: string;
+    contact_type: ContactType;
+    id_type: ContactIdType;
     id_number: string;
     dv?: string;
     full_name: string;
-    person_type: string;
+    person_type: ContactPersonType;
     category: string;
     municipality?: string;
     department?: string;

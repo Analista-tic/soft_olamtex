@@ -59,6 +59,17 @@ const localForm = ref<AdditionalFieldDialogFormState>({
 const isInitializingDialog = ref(false);
 const localOptions = ref<string[]>([]);
 const newOptionInput = ref('');
+const optionSearchQuery = ref('');
+
+const filteredOptions = computed(() => {
+    const q = optionSearchQuery.value.trim().toLowerCase();
+    if (!q) return localOptions.value;
+    return localOptions.value.filter((opt) =>
+        opt.toLowerCase().includes(q)
+    );
+});
+
+const showOptionSearch = computed(() => localOptions.value.length > 10);
 const formError = ref('');
 
 function normalizeOptionEntry(value: unknown): string {
@@ -108,6 +119,7 @@ watch(
             .map((option) => normalizeOptionEntry(option))
             .filter((option) => option !== '');
         newOptionInput.value = '';
+        optionSearchQuery.value = '';
         formError.value = '';
     },
     { immediate: true },
@@ -341,9 +353,26 @@ function handleSubmit() {
                                         <Plus class="h-4 w-4" />
                                     </button>
                                 </div>
+                                <div v-if="showOptionSearch" class="relative w-full">
+                                    <input
+                                        v-model="optionSearchQuery"
+                                        type="text"
+                                        placeholder="Buscar opción..."
+                                        class="h-9 w-full rounded-md border border-input bg-background
+                                               pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground
+                                               focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                                    />
+                                    <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-muted-foreground"
+                                             viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                                        </svg>
+                                    </span>
+                                </div>
                                 <div v-if="hasOptionValues" class="flex flex-wrap gap-2">
                                     <span
-                                        v-for="(option, index) in localOptions"
+                                        v-for="(option, index) in filteredOptions"
                                         :key="`option-chip-${index}`"
                                         class="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground"
                                     >
@@ -352,10 +381,16 @@ function handleSubmit() {
                                             v-if="localOptions.length > 1"
                                             type="button"
                                             class="text-muted-foreground hover:text-foreground"
-                                            @click="removeOption(index)"
+                                            @click="removeOption(localOptions.indexOf(option))"
                                         >×</button>
                                     </span>
                                 </div>
+                                <p
+                                    v-if="showOptionSearch && filteredOptions.length === 0 && optionSearchQuery.trim()"
+                                    class="text-xs text-muted-foreground"
+                                >
+                                    Sin resultados para "{{ optionSearchQuery }}"
+                                </p>
                                 <p v-else class="text-xs text-muted-foreground">Sin valores registrados.</p>
                                 <p v-if="hasDuplicateOptions" class="text-xs text-red-600">Cada opción debe ser única.</p>
                             </div>

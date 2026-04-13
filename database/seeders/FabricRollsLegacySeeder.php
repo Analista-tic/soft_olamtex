@@ -257,11 +257,11 @@ class FabricRollsLegacySeeder extends Seeder
 
             $contactId = DB::table('contacts')->insertGetId([
                 'contact_type'        => 'proveedor',
-                'id_type'             => 'NIT',
+                'id_type'             => 'nit',
                 'id_number'           => $idNumber,
                 'dv'                  => null,
                 'full_name'           => $supplierName,
-                'person_type'         => 'jurídica',
+                'person_type'         => 'persona_juridica',
                 'groups'              => null,
                 'municipality'        => null,
                 'department'          => null,

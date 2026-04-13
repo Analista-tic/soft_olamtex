@@ -10,18 +10,18 @@ return new class extends Migration
     {
         Schema::create('contacts', function (Blueprint $table) {
             $table->id();
-            $table->string('contact_type'); // Tipo de contacto
-            $table->string('id_type'); // Tipo de identificación
-            $table->string('id_number')->unique(); // Número de identificación
+            $table->enum('contact_type', ['proveedor', 'cliente', 'cliente_proveedor']); // Tipo de contacto
+            $table->enum('id_type', ['nit', 'cc', 'nit_otro_pais', 'pp', 'pep', 'die', 'ce', 'te', 'ti', 'rc', 'nuip', 'ppt']); // Tipo de identificacion
+            $table->string('id_number')->unique(); // Numero de identificacion
             $table->string('dv')->nullable(); // DV
-            $table->string('full_name'); // Nombre completo o razón social
-            $table->string('person_type'); // Tipo de persona
+            $table->string('full_name'); // Nombre completo o razon social
+            $table->enum('person_type', ['persona_natural', 'persona_juridica']); // Tipo de persona
             $table->json('groups')->nullable(); // Cambiar subgroups a groups
             $table->string('municipality')->nullable(); // Municipio
             $table->string('department')->nullable(); // Departamento
-            $table->text('address')->nullable(); // Dirección
-            $table->string('email')->unique(); // Correo electrónico
-            $table->string('phone')->nullable(); // Teléfono
+            $table->text('address')->nullable(); // Direccion
+            $table->string('email')->unique(); // Correo electronico
+            $table->string('phone')->nullable(); // Telefono
             $table->json('additional_contacts')->nullable(); // Contactos adicionales
             $table->json('branches')->nullable(); // Sucursales
             $table->timestamps();

@@ -10,7 +10,7 @@ import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import type { Item } from '@/domain/MasterData';
+import { useItemSearch } from '@/composables/useItemSearch';
 import type { Option } from '@/domain/shared';
 import axios from 'axios';
 import { Trash } from 'lucide-vue-next';
@@ -81,9 +81,14 @@ const createEmptyForm = (): TransferForm => ({
     items: [createEmptyItem()],
 });
 
+const {
+    options: itemSearchOptions,
+    isLoading: isLoadingItems,
+    search: searchItems,
+    loadInitial: loadItemsInitial,
+} = useItemSearch();
+
 const transferForm = ref<TransferForm>(createEmptyForm());
-const catalogItems = ref<Item[]>([]);
-const isLoadingItems = ref(false);
 const itemRowRefs = ref<Array<HTMLElement | null>>([]);
 const itemWarehouseStocks = ref<Record<number, Array<{ warehouse_id: number; quantity: number }>>>({});
 
@@ -259,7 +264,7 @@ watch(
     (isOpen) => {
         if (isOpen) {
             initializeForm();
-            void fetchItems();
+            loadItemsInitial();
         }
     },
 );
@@ -274,9 +279,9 @@ watch(
 );
 
 const itemOptions = computed<Option[]>(() =>
-    catalogItems.value.map((item) => ({
+    itemSearchOptions.value.map((item) => ({
         id: item.id,
-        name: item.reference ? `${item.name} - ${item.reference}` : item.name,
+        name: item.label,
     })),
 );
 
@@ -317,20 +322,6 @@ function updateRowsCurrentQty(itemId: number | null = null) {
             updateRowCurrentQty(row);
         }
     });
-}
-
-async function fetchItems() {
-    if (isLoadingItems.value) return;
-    isLoadingItems.value = true;
-    try {
-        const response = await axios.get('/item/data', { params: { per_page: 1000 } });
-        catalogItems.value = Array.isArray(response?.data?.data) ? response.data.data : [];
-    } catch (error) {
-        console.error('Error al cargar ítems', error);
-        catalogItems.value = [];
-    } finally {
-        isLoadingItems.value = false;
-    }
 }
 
 import type { ComponentPublicInstance } from 'vue';
@@ -528,13 +519,15 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
                                                 :modelValue="getItemSelectionValue(row)"
                                                 :options="itemOptions"
                                                 label=""
-                                                placeholder="Selecciona un ítem"
+                                                placeholder="Buscar ítem..."
                                                 :searchable="true"
-                                                :disabled="isViewMode || isLoadingItems"
+                                                :loading="isLoadingItems"
+                                                :disabled="isViewMode"
                                                 class="w-full"
                                                 @update:modelValue="
                                                     (value) => handleItemSelection(row, Array.isArray(value) ? (value[0] ?? null) : value)
                                                 "
+                                                @search="searchItems"
                                                 @focus="() => scrollItemRowIntoView(idx)"
                                             />
                                         </td>

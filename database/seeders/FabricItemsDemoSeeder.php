@@ -53,11 +53,11 @@ class FabricItemsDemoSeeder extends Seeder
         if (!$camarbuId) {
             $camarbuId = DB::table('contacts')->insertGetId([
                 'contact_type' => 'proveedor',
-                'id_type' => 'NIT',
+                'id_type' => 'nit',
                 'id_number' => '900000100',
                 'dv' => '3',
                 'full_name' => 'CAMARBU Textiles S.A.S',
-                'person_type' => 'jurídica',
+                'person_type' => 'persona_juridica',
                 'groups' => null,
                 'municipality' => 'Bogotá',
                 'department' => 'Cundinamarca',
