@@ -3,7 +3,8 @@ import GroupSelect from '@/components/GroupSelect.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import type { Contact } from '@/domain/MasterData';
-import axios from 'axios';
+import { useMasterDataStore } from '@/stores/masterData';
+import { useDebounceFn } from '@vueuse/core';
 import { computed, onMounted, ref, watch } from 'vue';
 import colombiaData from '../../../data/colombia.json';
 
@@ -51,31 +52,33 @@ function normalizeFormPayload(form?: Partial<Contact> | Record<string, any>): Pa
 // Inicializar de forma segura: merge de defaults con el prop (si existe)
 const internalForm = ref<Partial<Contact>>(Object.assign({}, defaultForm, normalizeFormPayload(props.form)));
 
-// Sincronizar el objeto interno con el prop `form` sin causar recursividad
+// Sincronizar prop → interno (solo cuando cambia desde el padre)
 watch(
     () => props.form,
     (newForm) => {
         const normalized = normalizeFormPayload(newForm);
-        const currentNormalized = normalizeFormPayload(internalForm.value);
-        if (JSON.stringify(normalized) !== JSON.stringify(currentNormalized)) {
+        const changed = Object.keys(normalized).some((key) => {
+            const k = key as keyof typeof normalized;
+            if (k === 'groups') {
+                const a = JSON.stringify(internalForm.value.groups ?? []);
+                const b = JSON.stringify(normalized.groups ?? []);
+                return a !== b;
+            }
+            return internalForm.value[k] !== normalized[k];
+        });
+        if (changed) {
             internalForm.value = { ...defaultForm, ...normalized };
         }
     },
     { deep: true },
 );
 
-// Emitir actualizaciones al padre cuando cambie el objeto interno
-watch(
-    internalForm,
-    (updatedForm) => {
-        const normalizedUpdated = normalizeFormPayload(updatedForm);
-        const normalizedPropsForm = normalizeFormPayload(props.form);
-        if (JSON.stringify(normalizedUpdated) !== JSON.stringify(normalizedPropsForm)) {
-            emit('update:form', normalizedUpdated); // Emitir el formulario actualizado
-        }
-    },
-    { deep: true },
-);
+// Emitir al padre con debounce para no disparar en cada tecla
+const emitUpdate = useDebounceFn(() => {
+    emit('update:form', normalizeFormPayload(internalForm.value));
+}, 150);
+
+watch(internalForm, emitUpdate, { deep: true });
 
 // Procesar todas las opciones de ubicación una sola vez al cargar el módulo
 // Optimizado: crear estructura de datos eficiente para búsqueda
@@ -113,22 +116,10 @@ const updateLocationOptions = (searchQuery: string = '') => {
     }, 0);
 };
 
-const groups = ref<{ id: string; name: string }[]>([]); // Lista de grupos
-
-async function loadGroups() {
-    try {
-        const response = await axios.get('categorias/grupos'); // Asegúrate de que el endpoint sea correcto
-        groups.value = response.data.map((group: any) => ({
-            id: group.id, // Asegúrate de que el campo `id` exista en los datos
-            name: group.name, // Asegúrate de que el campo `name` exista en los datos
-        }));
-    } catch (error) {
-        console.error('Error al cargar los grupos:', error);
-    }
-}
+const masterDataStore = useMasterDataStore();
 
 onMounted(() => {
-    loadGroups(); // Cargar grupos al montar
+    masterDataStore.fetchGroups();
 });
 
 const errors = ref<Record<string, string[]>>({}); // Manejo de errores
@@ -175,7 +166,7 @@ const validateField = (field: string) => {
         <GroupSelect
             v-model="internalForm.groups"
             label="Categoría proveedor/cliente"
-            :options="groups.map((group) => ({ id: group.id, name: group.name }))"
+            :options="masterDataStore.groups"
             placeholder="Selecciona categorías"
             required
             :searchable="true"

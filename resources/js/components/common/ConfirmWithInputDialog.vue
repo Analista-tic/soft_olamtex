@@ -11,7 +11,7 @@ import {
   AlertDialogMedia,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
 import TextareaField from '@/components/TextareaField.vue'
 import { Trash2 } from 'lucide-vue-next'
 
@@ -70,7 +70,7 @@ function handleCancel() {
 <template>
   <AlertDialog :open="props.open" @update:open="emit('update:open', $event)">
     <AlertDialogContent size="sm">
-      <AlertDialogHeader>
+      <AlertDialogHeader class="items-center text-center">
         <AlertDialogMedia
           :class="
             props.destructive
@@ -97,21 +97,24 @@ function handleCancel() {
         />
       </div>
 
-      <AlertDialogFooter>
-        <AlertDialogCancel as-child>
-          <Button variant="outline" size="pill" @click="handleCancel">
-            {{ props.cancelText }}
-          </Button>
+      <AlertDialogFooter class="gap-x-2 sm:justify-center">
+        <AlertDialogCancel
+          :class="buttonVariants({ variant: 'outline', size: 'pill' })"
+          @click="handleCancel"
+        >
+          {{ props.cancelText }}
         </AlertDialogCancel>
-        <AlertDialogAction as-child>
-          <Button
-            :variant="props.destructive ? 'destructive' : 'default'"
-            size="pill"
-            :disabled="props.inputRequired && !inputValue.trim()"
-            @click="handleConfirm"
-          >
-            {{ props.confirmText }}
-          </Button>
+        <AlertDialogAction
+          :class="
+            buttonVariants({
+              variant: props.destructive ? 'destructive' : 'default',
+              size: 'pill',
+            })
+          "
+          :disabled="props.inputRequired && !inputValue.trim()"
+          @click="handleConfirm"
+        >
+          {{ props.confirmText }}
         </AlertDialogAction>
       </AlertDialogFooter>
     </AlertDialogContent>
