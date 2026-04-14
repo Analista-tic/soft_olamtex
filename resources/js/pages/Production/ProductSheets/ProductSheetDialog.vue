@@ -416,10 +416,10 @@ function syncCollectionOptionsFromProps(): void {
     collectionOptions.value = Array.isArray(props.collections) ? [...props.collections] : [];
 }
 
-async function createCollectionFromSelect(): Promise<void> {
+async function createCollectionFromSelect(rawName?: string): Promise<void> {
     if (isReadonly.value || creatingCollection.value) return;
 
-    const name = normalizeCollectionName(collectionSearchTerm.value);
+    const name = normalizeCollectionName(rawName ?? collectionSearchTerm.value);
     if (!name) {
         setError('Escribe el nombre de la colección en el buscador para crearla.', 'warning');
         return;
@@ -474,10 +474,11 @@ async function createCollectionFromSelect(): Promise<void> {
     }
 }
 
-function handleCollectionAction(): void {
-    const hasSearchTerm = Boolean(normalizeCollectionName(collectionSearchTerm.value));
+function handleCollectionAction(rawSearchTerm?: string): void {
+    const normalizedSearchTerm = normalizeCollectionName(rawSearchTerm ?? collectionSearchTerm.value);
+    const hasSearchTerm = Boolean(normalizedSearchTerm);
     if (hasSearchTerm) {
-        void createCollectionFromSelect();
+        void createCollectionFromSelect(normalizedSearchTerm);
         return;
     }
 
