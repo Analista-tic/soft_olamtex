@@ -18,12 +18,12 @@ export type OperationRecord = {
     codigo: string | null;
     action: string;
     garment_part: string;
-    tipo?: string | null;
     anexo?: string | null;
     section_id: number | null;
     measure: number | null;
     quantity: number | null;
     sam_base: number | null;
+    factor_operario?: number | null;
     product_sheet_id_reference: number | null;
     machine_id_reference: number | null;
     is_active?: boolean;
@@ -35,14 +35,13 @@ const props = defineProps<{
     sections: SectionOption[];
     actions: string[];
     garmentParts: string[];
-    types: string[];
     productSheets: ProductSheetOption[];
     machines: MachineOption[];
 }>();
 
 const emit = defineEmits<{
     (e: 'close'): void;
-    (e: 'saved'): void;
+    (e: 'saved', payload?: { reused?: boolean; message?: string }): void;
 }>();
 
 const localOpen = ref(props.open);
@@ -57,18 +56,15 @@ const formRef = ref<InstanceType<typeof OperationFormContent> | null>(null);
 // Copias locales de catálogos — se actualizan cuando el usuario agrega opciones
 const localActions = ref<string[]>([...props.actions]);
 const localGarmentParts = ref<string[]>([...props.garmentParts]);
-const localTypes = ref<string[]>([...props.types]);
 
 // Sincronizar con props cuando cambian (ej: recarga de la página padre)
 watch(() => props.actions, (v) => { localActions.value = [...v]; });
 watch(() => props.garmentParts, (v) => { localGarmentParts.value = [...v]; });
-watch(() => props.types, (v) => { localTypes.value = [...v]; });
 
 /** Cuando OperationFormContent persiste una nueva opción, actualiza la copia local */
 function handleCatalogUpdated(catalog: string, options: string[]) {
     if (catalog === 'operation_actions') localActions.value = options;
     else if (catalog === 'operation_garment_parts') localGarmentParts.value = options;
-    else if (catalog === 'operation_types') localTypes.value = options;
 }
 
 const operationForForm = ref<OperationFormData | null>(null);
@@ -84,12 +80,12 @@ watch(
             operationForForm.value = {
                 action: op.action ?? '',
                 garment_part: op.garment_part ?? '',
-                tipo: op.tipo ?? null,
                 anexo: op.anexo ?? null,
                 section_id: op.section_id,
                 measure: op.measure,
                 quantity: op.quantity ?? 1,
                 sam_base: op.sam_base,
+                factor_operario: op.factor_operario ?? 100,
                 product_sheet_id_reference: op.product_sheet_id_reference,
                 machine_id_reference: op.machine_id_reference,
                 codigo: op.codigo ?? '',
@@ -114,24 +110,26 @@ function handleSubmit(payload: Record<string, unknown>) {
     const data: Record<string, unknown> = {
         action: String(rest.action ?? '').trim().toUpperCase(),
         garment_part: String(rest.garment_part ?? '').trim().toUpperCase(),
-        tipo: rest.tipo ? String(rest.tipo).trim().toUpperCase() : null,
         anexo: rest.anexo ? String(rest.anexo).trim().toUpperCase() : null,
         section_id: rest.section_id ?? null,
         measure: rest.measure ?? null,
         quantity: rest.quantity ?? 1,
         sam_base: rest.sam_base ?? null,
+        factor_operario: rest.factor_operario ?? 100,
         product_sheet_id_reference: rest.product_sheet_id_reference ?? null,
         machine_id_reference: rest.machine_id_reference ?? null,
         is_active: rest.is_active === false ? false : true,
     };
-
     (isEditing.value && props.operation
         ? axios.put(`/produccion/operaciones/${props.operation.id}`, data)
         : axios.post('/produccion/operaciones', data)
     )
-        .then(() => {
+        .then((response) => {
             isSaving.value = false;
-            emit('saved');
+            emit('saved', {
+                reused: response?.data?.reused === true,
+                message: response?.data?.message,
+            });
             localOpen.value = false;
         })
         .catch((e: any) => {
@@ -164,7 +162,6 @@ function handleSubmit(payload: Record<string, unknown>) {
                         :sections="sections"
                         :actions="localActions"
                         :garment-parts="localGarmentParts"
-                        :types="localTypes"
                         :product-sheets="productSheets"
                         :machines="machines"
                         :operation="operationForForm"

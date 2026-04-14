@@ -17,7 +17,7 @@ class ProductSheetService
         return $this->model
             ->orderBy('created_at', 'desc')
             ->take($limit)
-            ->select(['id', 'type', 'sample_reference', 'product_reference', 'product_reference_2'])
+            ->select(['id', 'type', 'sample_reference', 'product_reference', 'product_reference_2', 'version', 'garment_type', 'fabric_base_id'])
             ->get()
             ->map(function ($sheet) {
                 $type = $sheet->type === 'producto' ? 'producto' : 'muestra';
@@ -31,6 +31,9 @@ class ProductSheetService
                     'sample_reference' => $sheet->sample_reference,
                     'product_reference' => $sheet->product_reference,
                     'product_reference_2' => $sheet->product_reference_2,
+                    'version' => $sheet->version,
+                    'garment_type' => $sheet->garment_type,
+                    'fabric_base_id' => $sheet->fabric_base_id,
                     'type' => $type,
                 ];
             });

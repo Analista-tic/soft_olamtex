@@ -4,6 +4,7 @@ namespace App\Services\Production;
 
 use App\Models\Production\Machine;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\ValidationException;
 
 class MachineService
 {
@@ -35,17 +36,56 @@ class MachineService
             ->get();
     }
 
+    public function managementList(): Collection
+    {
+        return $this->model
+            ->newQuery()
+            ->withCount(['operations', 'productOperationLists'])
+            ->orderBy('code')
+            ->get(['id', 'code', 'name', 'supplement_factor', 'is_active'])
+            ->map(function (Machine $machine) {
+                return [
+                    'id' => $machine->id,
+                    'code' => mb_strtoupper(trim((string) $machine->code)),
+                    'name' => mb_strtoupper(trim((string) $machine->name)),
+                    'supplement_factor' => (float) $machine->supplement_factor,
+                    'is_active' => (bool) $machine->is_active,
+                    'usage_count' => (int) ($machine->operations_count + $machine->product_operation_lists_count),
+                ];
+            })
+            ->values();
+    }
+
     /**
      * Crea una nueva mÃƒÂ¡quina
      */
     public function create(array $data): Machine
     {
-        // Normalizar cÃƒÂ³digo a mayÃƒÂºsculas
-        if (isset($data['code'])) {
-            $data['code'] = strtoupper(trim($data['code']));
+        $code = strtoupper(trim((string) ($data['code'] ?? '')));
+        $name = strtoupper(trim((string) ($data['name'] ?? '')));
+
+        $machine = $this->model->withTrashed()->firstOrNew(['code' => $code]);
+
+        $duplicateName = $this->model
+            ->withTrashed()
+            ->where('name', $name)
+            ->where('id', '!=', $machine->id)
+            ->exists();
+
+        if ($duplicateName) {
+            throw ValidationException::withMessages([
+                'name' => 'Ya existe una máquina con ese nombre.',
+            ]);
         }
 
-        return $this->model->create($data);
+        $machine->code = $code;
+        $machine->name = $name;
+        $machine->supplement_factor = (float) ($data['supplement_factor'] ?? $machine->supplement_factor ?? self::MACHINE_SUPPLEMENTS['DEFAULT']);
+        $machine->is_active = (bool) ($data['is_active'] ?? true);
+        $machine->deleted_at = null;
+        $machine->save();
+
+        return $machine->fresh();
     }
 
     /**
@@ -53,13 +93,53 @@ class MachineService
      */
     public function update(Machine $machine, array $data): Machine
     {
-        // Normalizar cÃƒÂ³digo si viene
-        if (isset($data['code'])) {
-            $data['code'] = strtoupper(trim($data['code']));
+        $code = strtoupper(trim((string) ($data['code'] ?? $machine->code)));
+        $name = strtoupper(trim((string) ($data['name'] ?? $machine->name)));
+
+        $duplicateCode = $this->model
+            ->withTrashed()
+            ->where('code', $code)
+            ->where('id', '!=', $machine->id)
+            ->exists();
+
+        if ($duplicateCode) {
+            throw ValidationException::withMessages([
+                'code' => 'Ya existe una máquina con ese código.',
+            ]);
         }
 
-        $machine->update($data);
+        $duplicateName = $this->model
+            ->withTrashed()
+            ->where('name', $name)
+            ->where('id', '!=', $machine->id)
+            ->exists();
+
+        if ($duplicateName) {
+            throw ValidationException::withMessages([
+                'name' => 'Ya existe una máquina con ese nombre.',
+            ]);
+        }
+
+        $machine->code = $code;
+        $machine->name = $name;
+        $machine->supplement_factor = (float) ($data['supplement_factor'] ?? $machine->supplement_factor);
+        $machine->is_active = (bool) ($data['is_active'] ?? $machine->is_active);
+        $machine->save();
+
         return $machine->fresh();
+    }
+
+    public function delete(Machine $machine): void
+    {
+        $machine->loadCount(['operations', 'productOperationLists']);
+
+        if (($machine->operations_count ?? 0) > 0 || ($machine->product_operation_lists_count ?? 0) > 0) {
+            throw ValidationException::withMessages([
+                'machine' => 'La máquina no se puede eliminar porque ya está en uso. Puedes dejarla inactiva.',
+            ]);
+        }
+
+        $machine->delete();
     }
 
     /**

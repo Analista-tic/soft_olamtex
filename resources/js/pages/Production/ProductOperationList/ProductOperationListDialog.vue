@@ -5,7 +5,6 @@ import DialogActionButtons from '@/components/common/DialogActionButtons.vue';
 import DraggableTableRow from '@/components/DraggableTableRow.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
-import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -21,9 +20,10 @@ interface OperationRow {
     machine_id: number | null;
     optimal_time: string;
     quantity: number;
-    fabric_base_id: number | string | null;
-    operator_efficiency_factor: number;
+    factor_operario: number;
+    grupo_preparacion?: string | null;
     row_notes: string;
+    sam_total_base?: number;
 }
 
 interface OperationRowInput {
@@ -32,8 +32,8 @@ interface OperationRowInput {
     machine_id: number | null;
     optimal_time: string;
     quantity?: number;
-    fabric_base_id?: number | string | null;
-    operator_efficiency_factor?: number;
+    factor_operario?: number;
+    grupo_preparacion?: string | null;
     row_notes?: string;
 }
 
@@ -48,10 +48,12 @@ interface ProductSheetDialogOption {
     id: number | string;
     reference: string;
     type: string;
+    garment_type?: 'superior' | 'inferior' | null;
     sample_reference?: string | null;
     product_reference?: string | null;
     product_reference_2?: string | null;
     version?: number | null;
+    fabric_base_id?: number | string | null;
     isTemporary?: boolean;
 }
 
@@ -63,6 +65,9 @@ interface EntityCreatedData {
     section_id?: number | null;
     section?: { id: number } | null;
     sam_base?: number | null;
+    factor_operario?: number | null;
+    machine_id_reference?: number | null;
+    product_sheet_id_reference?: number | null;
     type?: string;
     code?: string;
 }
@@ -113,6 +118,10 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    preparationGroups: {
+        type: Array as () => string[],
+        default: () => [],
+    },
 });
 
 const emit = defineEmits<{
@@ -126,13 +135,13 @@ function normalizeComparableId(value: number | string | null | undefined): strin
 }
 
 function buildProductSheetLabel(sheet: ProductSheetDialogOption): string {
-    const sample = String(sheet.sample_reference ?? '').trim().toUpperCase();
-    const ref1 = String(sheet.product_reference ?? '').trim().toUpperCase();
-    const ref2 = String(sheet.product_reference_2 ?? '').trim().toUpperCase();
+    const parts = [
+        String(sheet.sample_reference ?? '').trim().toUpperCase(),
+        String(sheet.product_reference ?? '').trim().toUpperCase(),
+        String(sheet.product_reference_2 ?? '').trim().toUpperCase(),
+    ].filter(Boolean);
     const version = Number(sheet.version ?? 1);
-
-    const parts = [sample || '-', ref1 || '-', ref2 || '-'];
-    return `${parts.join(' / ')} / v${version}`;
+    return (parts.length ? parts.join(' / ') : '-') + ` / v${version}`;
 }
 
 const validationError = ref('');
@@ -150,28 +159,50 @@ const sectionsList = ref<OperationSection[]>([]);
 const operationsList = ref<OperationOption[]>([]);
 const machinesList = ref<MachineOption[]>([]);
 const fabricBasesList = ref<FabricBaseOption[]>([]);
+const preparationGroupsList = ref<string[]>([]);
+const preparationGroupSearchTerm = ref('');
 
-const DEFAULT_OPERATOR_EFFICIENCY = 1;
-const NONE_FABRIC_BASE_ID = '__none__';
 const NONE_FABRIC_BASE_LABEL = 'NS / NINGUNA';
 
-const fabricBaseOptions = computed(() => [
-    { id: NONE_FABRIC_BASE_ID, name: NONE_FABRIC_BASE_LABEL },
-    ...fabricBasesList.value.map((f) => ({
-        id: f.id,
-        name: `${f.nombre ?? f.name ?? f.codigo ?? String(f.id)} (×${Number(f.factor ?? f.factor_base ?? f.factor_base_tela ?? 1).toFixed(2)})`,
-    })),
-]);
+/** Fabric base heredada de la sábana seleccionada. */
+const selectedSheetFabricBaseId = computed(() => {
+    if (!productSheetId.value) return null;
+    const sheet = props.productSheets.find((s) => s.id === productSheetId.value);
+    return sheet?.fabric_base_id ?? null;
+});
+
+const selectedSheetFabricFactor = computed(() => {
+    const id = selectedSheetFabricBaseId.value;
+    if (id == null) return 1.0;
+    const opt = fabricBasesList.value.find((f) => f.id === id || f.id == id);
+    const factor = opt?.factor ?? opt?.factor_base ?? opt?.factor_base_tela ?? null;
+    const num = Number(factor);
+    return Number.isFinite(num) && num > 0 ? num : 1.0;
+});
+
+const selectedSheetFabricBaseName = computed(() => {
+    const id = selectedSheetFabricBaseId.value;
+    if (id == null) return NONE_FABRIC_BASE_LABEL;
+    const opt = fabricBasesList.value.find((f) => f.id === id || f.id == id);
+    return opt?.nombre ?? opt?.name ?? opt?.codigo ?? String(id);
+});
+
+function isSectionPreparacion(sectionId: number | null): boolean {
+    if (!sectionId) return false;
+    const section = sectionsList.value.find((s) => s.id === sectionId);
+    return (section?.type ?? '').toLowerCase() === 'preparacion';
+}
 
 const createEmptyRow = (): OperationRow => ({
     section_id: null,
     operation_id: null,
-    machine_id: props.machines[0]?.id !== undefined ? Number(props.machines[0].id) : null,
+    machine_id: null,
     optimal_time: '0.00',
     quantity: 1,
-    fabric_base_id: NONE_FABRIC_BASE_ID,
-    operator_efficiency_factor: DEFAULT_OPERATOR_EFFICIENCY,
+    factor_operario: 100,
+    grupo_preparacion: null,
     row_notes: '',
+    sam_total_base: 0,
 });
 const currentRow = ref<OperationRow>(createEmptyRow());
 
@@ -180,6 +211,38 @@ function syncListsFromProps() {
     operationsList.value = Array.isArray(props.operations) ? [...props.operations] : [];
     machinesList.value = Array.isArray(props.machines) ? [...props.machines] : [];
     fabricBasesList.value = Array.isArray(props.fabricBases) ? [...props.fabricBases] : [];
+    preparationGroupsList.value = Array.isArray(props.preparationGroups)
+        ? [...new Set(props.preparationGroups.map((g) => String(g ?? '').trim()).filter(Boolean))]
+        : [];
+}
+
+function normalizePreparationGroupName(value: unknown): string {
+    return String(value ?? '')
+        .trim()
+        .replace(/\s+/g, ' ');
+}
+
+function addPreparationGroupFromSelect() {
+    const group = normalizePreparationGroupName(preparationGroupSearchTerm.value);
+
+    if (!group) {
+        const msg = 'Escribe el nombre del grupo para agregarlo.';
+        setValidationError(msg);
+        emit('validation-error', msg);
+        return;
+    }
+
+    const exists = preparationGroupsList.value.some((g) => g.toLowerCase() === group.toLowerCase());
+    if (exists) {
+        currentRow.value.grupo_preparacion = preparationGroupsList.value.find((g) => g.toLowerCase() === group.toLowerCase()) ?? group;
+        clearValidationError();
+        return;
+    }
+
+    preparationGroupsList.value = [...preparationGroupsList.value, group];
+    currentRow.value.grupo_preparacion = group;
+    preparationGroupSearchTerm.value = '';
+    clearValidationError();
 }
 
 watch(
@@ -205,7 +268,20 @@ watch(
         const op = operationsList.value.find((o) => o.id === opId);
         if (!op) return;
         if (op.section_id) currentRow.value.section_id = Number(op.section_id);
-        currentRow.value.optimal_time = op.sam_base != null ? Number(op.sam_base).toFixed(2) : '0.00';
+        // Auto-set machine from operation
+        if (op.machine_id_reference) {
+            currentRow.value.machine_id = Number(op.machine_id_reference);
+        }
+        // Auto-set factor_operario from operation (percentage: 85, 100, 120...)
+        currentRow.value.factor_operario = Number(op.factor_operario ?? 100);
+        // SAM base
+        const samTotal = Number(op.sam_base ?? 0);
+        currentRow.value.sam_total_base = Number.isFinite(samTotal) ? samTotal : 0;
+        currentRow.value.optimal_time = currentRow.value.sam_total_base.toFixed(4);
+        // Reset grupo_preparacion if section is not PREPARACION
+        if (!isSectionPreparacion(currentRow.value.section_id)) {
+            currentRow.value.grupo_preparacion = null;
+        }
     },
 );
 
@@ -228,6 +304,12 @@ const availableProductSheets = computed(() => {
 });
 
 const productSheetId = ref<number | string | null>(availableProductSheets.value[0]?.id ?? props.productSheets[0]?.id ?? null);
+
+/** garment_type de la sábana actualmente seleccionada (superior | inferior | null). */
+const selectedGarmentType = computed(() => {
+    if (!productSheetId.value) return null;
+    return props.productSheets.find((s) => s.id === productSheetId.value)?.garment_type ?? null;
+});
 
 watch(
     () => availableProductSheets.value,
@@ -268,13 +350,22 @@ function handleEntityCreated(data: EntityCreatedData) {
                 garment_part: data.garment_part,
                 section_id: data.section_id ?? data.section?.id ?? null,
                 sam_base: data.sam_base ?? null,
+                factor_operario: data.factor_operario ?? 100,
+                machine_id_reference: data.machine_id_reference ?? null,
+                product_sheet_id_reference: data.product_sheet_id_reference ?? null,
             });
         }
         currentRow.value.operation_id = data.id;
         if (data.section_id != null || data.section?.id != null) {
             currentRow.value.section_id = data.section_id ?? data.section?.id ?? null;
         }
-        currentRow.value.optimal_time = data.sam_base != null ? Number(data.sam_base).toFixed(2) : '0.00';
+        if (data.machine_id_reference != null) {
+            currentRow.value.machine_id = Number(data.machine_id_reference);
+        }
+        const samTotal = Number(data.sam_base ?? 0);
+        currentRow.value.sam_total_base = Number.isFinite(samTotal) ? samTotal : 0;
+        currentRow.value.optimal_time = currentRow.value.sam_total_base.toFixed(4);
+        currentRow.value.factor_operario = Number(data.factor_operario ?? 100);
         addOperation();
     } else if (addNewEntity.value === 'machine') {
         const machineData = data as EntityCreatedData & { supplement_factor?: number };
@@ -303,11 +394,11 @@ function cancelEditRow() {
 
 function saveEditRow(i: number) {
     if (!editRow.value) return;
-    if (!editRow.value.machine_id) return;
-    const eff = Number(editRow.value.operator_efficiency_factor);
-    if (eff < 1 || eff > 2) return;
-    const qty = Math.max(1, Math.floor(Number(editRow.value.quantity)) || 1);
-    operationList.value[i] = { ...editRow.value, quantity: qty };
+    operationList.value[i] = {
+        ...operationList.value[i],
+        row_notes: editRow.value.row_notes,
+        grupo_preparacion: editRow.value.grupo_preparacion,
+    };
     cancelEditRow();
 }
 
@@ -317,28 +408,26 @@ function getSupplementForRow(row: OperationRow): number {
     return typeof f === 'number' && f >= 1 ? f : 1;
 }
 
-function getFabricFactorForRow(row: OperationRow): number {
-    const id = row.fabric_base_id ?? null;
-    if (id === NONE_FABRIC_BASE_ID) return 1.0;
-    if (id == null) return 1.0;
-    const opt = fabricBasesList.value.find((f) => f.id === id || f.id == id);
-    const factor = opt?.factor ?? opt?.factor_base ?? opt?.factor_base_tela ?? null;
-    const num = Number(factor);
-    return Number.isFinite(num) && num > 0 ? num : 1.0;
+function getSupplementPercentage(row: OperationRow): number {
+    return (getSupplementForRow(row) - 1) * 100;
 }
 
-function getFabricBaseName(id: number | string | null): string {
-    if (id == null || id === NONE_FABRIC_BASE_ID) return NONE_FABRIC_BASE_LABEL;
-    const opt = fabricBasesList.value.find((f) => f.id === id || f.id == id);
-    return opt?.nombre ?? opt?.name ?? opt?.codigo ?? opt?.code ?? String(id);
+/** SAM ajustado = SAM_base / (factor_operario / 100) */
+function getSamAjustado(row: OperationRow): number {
+    const samBase = Number(row.sam_total_base ?? row.optimal_time ?? 0);
+    const factorOp = Number(row.factor_operario ?? 100);
+    if (!Number.isFinite(samBase) || factorOp <= 0) return 0;
+    return samBase / (factorOp / 100);
 }
 
+/** SAM con suplemento = SAM_ajustado × suplemento_máquina */
+function getSamConSuplemento(row: OperationRow): number {
+    return getSamAjustado(row) * getSupplementForRow(row);
+}
+
+/** SAM total unitario = SAM con suplemento × factor base tela */
 function getSamUnitario(row: OperationRow): number {
-    const samBase = Number.parseFloat(row.optimal_time) || 0;
-    const supplement = getSupplementForRow(row);
-    const factorTela = getFabricFactorForRow(row);
-    const factorOp = Number(row.operator_efficiency_factor) || 1;
-    return Number((samBase * supplement * factorTela * factorOp).toFixed(2));
+    return Number((getSamConSuplemento(row) * selectedSheetFabricFactor.value).toFixed(4));
 }
 
 function getSamOperacion(row: OperationRow): number {
@@ -359,6 +448,17 @@ function getOperationName(id: number | null): string {
     return operationsList.value.find((o) => o.id === id)?.name ?? '-';
 }
 
+function getOperationOptionLabel(operation: OperationOption): string {
+    const code = operation.code ? `${String(operation.code)}  ` : '';
+    const baseName = String(operation.name ?? '').trim() || `${operation.action ?? ''} ${operation.garment_part ?? ''}`.trim();
+
+    const detailParts: string[] = [];
+    if (operation.measure != null && Number(operation.measure) > 0) detailParts.push(`${Number(operation.measure)}CM`);
+    if (operation.quantity != null && Number(operation.quantity) > 0) detailParts.push(`X${Number(operation.quantity)}`);
+
+    return detailParts.length ? `${code}${baseName} ${detailParts.join(', ')}` : `${code}${baseName}`;
+}
+
 function getMachineName(id: string | number | null): string {
     const m = machinesList.value.find((m) => m.id === id);
     if (!m) return '-';
@@ -376,27 +476,29 @@ function getMachineDisplayWithSupplement(row: OperationRow): string {
 
 function addOperation() {
     const samBase = Number.parseFloat(currentRow.value.optimal_time);
-    const eff = Number(currentRow.value.operator_efficiency_factor);
 
-    if (!currentRow.value.operation_id || !currentRow.value.machine_id || samBase <= 0 || eff < 1 || eff > 2) {
-        let msg = 'Selecciona una operación.';
-        if (!currentRow.value.operation_id) msg = 'Selecciona una operación.';
-        else if (!currentRow.value.machine_id) msg = 'Selecciona una máquina.';
-        else if (samBase <= 0) msg = 'La operación seleccionada no tiene SAM base. Regístralo primero en la base de datos de operaciones.';
-        else msg = 'El factor operario debe estar entre 1.00 y 2.00.';
+    if (!currentRow.value.operation_id) {
+        setValidationError('Selecciona una operación.');
+        emit('validation-error', 'Selecciona una operación.');
+        return;
+    }
+    if (!currentRow.value.machine_id) {
+        const msg = 'La operación no tiene máquina asignada. Asígnala en el catálogo de operaciones.';
+        setValidationError(msg);
+        emit('validation-error', msg);
+        return;
+    }
+    if (samBase <= 0) {
+        const msg = 'La operación seleccionada no tiene SAM base. Regístralo primero en la base de datos de operaciones.';
         setValidationError(msg);
         emit('validation-error', msg);
         return;
     }
 
     const opId = currentRow.value.operation_id;
-    const machineId = currentRow.value.machine_id;
-    const sectionId = currentRow.value.section_id;
-    const isDuplicate = operationList.value.some(
-        (r) => r.operation_id === opId && r.machine_id === machineId && (r.section_id === sectionId || (r.section_id == null && sectionId == null)),
-    );
+    const isDuplicate = operationList.value.some((r) => r.operation_id === opId);
     if (isDuplicate) {
-        const msg = 'Esta operación con esta máquina y sección ya fue añadida.';
+        const msg = 'Esta operación ya fue añadida al listado. No se puede repetir en la misma sábana.';
         setValidationError(msg);
         emit('validation-error', msg);
         return;
@@ -440,9 +542,10 @@ function initializeForm() {
             machine_id: row.machine_id,
             optimal_time: row.optimal_time,
             quantity: row.quantity ?? 1,
-            fabric_base_id: row.fabric_base_id ?? NONE_FABRIC_BASE_ID,
-            operator_efficiency_factor: row.operator_efficiency_factor ?? props.initialData?.operatorEfficiencyFactor ?? DEFAULT_OPERATOR_EFFICIENCY,
+            factor_operario: row.factor_operario ?? 100,
+            grupo_preparacion: row.grupo_preparacion ?? null,
             row_notes: row.row_notes ?? '',
+            sam_total_base: Number(row.optimal_time ?? 0),
         }));
         currentRow.value = createEmptyRow();
         return;
@@ -455,10 +558,10 @@ function saveOperations() {
         saveEditRow(editingRowIndex.value);
         if (editingRowIndex.value !== null) return;
     }
-    const keys = operationList.value.map((r) => `${r.operation_id}-${r.machine_id}-${r.section_id ?? ''}`);
+    const keys = operationList.value.map((r) => `${r.operation_id}`);
     const hasDuplicates = keys.some((k, i) => keys.indexOf(k) !== i);
     if (hasDuplicates) {
-        const msg = 'Hay operaciones duplicadas (misma operación, máquina y sección). Elimina duplicados antes de guardar.';
+        const msg = 'Hay operaciones duplicadas en el listado (misma operación). Elimina duplicados antes de guardar.';
         setValidationError(msg);
         emit('validation-error', msg);
         return;
@@ -474,24 +577,28 @@ function saveOperations() {
 
     const toNumOrNull = (v: number | string | null | undefined): number | null => {
         if (v == null) return null;
-        if (v === NONE_FABRIC_BASE_ID) return null;
         if (typeof v === 'number' && Number.isFinite(v)) return v;
         const n = parseInt(String(v), 10);
         return Number.isFinite(n) ? n : null;
     };
-    const payload: ProductOperationPayload[] = operationList.value.map((row, i) => ({
-        product_sheet_id: typeof productSheetId.value === 'number' ? productSheetId.value : null,
-        section_id: row.section_id,
-        operation_id: row.operation_id,
-        machine_id: row.machine_id,
-        sequence: (i + 1) * 10,
-        optimal_time: row.optimal_time,
-        operator_efficiency_factor: row.operator_efficiency_factor,
-        machine_supplement_factor: getSupplementForRow(row),
-        notes: row.row_notes || undefined,
-        quantity: row.quantity ?? 1,
-        fabric_base_id: toNumOrNull(row.fabric_base_id),
-    }));
+    const sheetFabricId = toNumOrNull(selectedSheetFabricBaseId.value);
+    const payload: ProductOperationPayload[] = operationList.value.map((row, i) => {
+        const factorOp = Number(row.factor_operario ?? 100);
+        return {
+            product_sheet_id: typeof productSheetId.value === 'number' ? productSheetId.value : null,
+            section_id: row.section_id,
+            operation_id: row.operation_id,
+            machine_id: row.machine_id,
+            sequence: (i + 1) * 10,
+            optimal_time: row.optimal_time,
+            operator_efficiency_factor: factorOp > 0 ? 100 / factorOp : 1,
+            machine_supplement_factor: getSupplementForRow(row),
+            grupo_preparacion: row.grupo_preparacion || undefined,
+            notes: row.row_notes || undefined,
+            quantity: row.quantity ?? 1,
+            fabric_base_id: sheetFabricId,
+        };
+    });
 
     clearValidationError();
     emit('save', payload);
@@ -527,23 +634,35 @@ function resetForm() {
             <TooltipProvider>
                 <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden scroll-smooth pr-1" style="scrollbar-width: thin">
                     <!-- Datos generales -->
-                    <div class="grid items-end gap-5 pb-5 md:grid-cols-3" style="border-bottom: 1px solid hsl(var(--border) / 0.4)">
-                        <SelectField
-                            v-model="productSheetId"
-                            label="Sábana de producto"
-                            :options="availableProductSheets.map((s) => ({ id: s.id, name: buildProductSheetLabel(s) }))"
-                            :disabled="isEditMode || readonly"
-                            required
-                        />
-                        <div></div>
-                        <div></div>
+                    <div class="flex flex-wrap items-end gap-x-6 gap-y-3 px-1 pb-4" style="border-bottom: 1px solid hsl(var(--border) / 0.4)">
+                        <div class="min-w-[220px] flex-1">
+                            <SelectField
+                                v-model="productSheetId"
+                                label="Sábana de producto"
+                                :options="availableProductSheets.map((s) => ({ id: s.id, name: buildProductSheetLabel(s) }))"
+                                :disabled="isEditMode || readonly"
+                                required
+                            />
+                        </div>
+                        <div class="flex shrink-0 items-center gap-3 pb-1">
+                            <div v-if="selectedGarmentType" class="flex items-center gap-1.5">
+                                <span class="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Tipo de prenda</span>
+                                <span :class="['inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold', selectedGarmentType === 'superior' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800']">{{ selectedGarmentType }}</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Base tela</span>
+                                <span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+                                    {{ selectedSheetFabricBaseName }} <span class="ml-1 text-[10px] font-normal">(×{{ selectedSheetFabricFactor.toFixed(2) }})</span>
+                                </span>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Añadir operación -->
-                    <div v-if="!readonly" class="flex flex-wrap items-center justify-between gap-3 py-4">
+                    <div v-if="!readonly" class="flex flex-wrap items-center justify-between gap-3 py-3">
                         <div>
                             <span class="text-sm font-medium text-foreground">Añadir operación</span>
-                            <p class="mt-0.5 text-xs text-muted-foreground/80">Busca, ajusta factores y añade. Si no existe, créala.</p>
+                            <p class="mt-0.5 text-xs text-muted-foreground/80">Selecciona una operación; máquina y factor operario se auto-rellenan.</p>
                         </div>
                         <Button
                             variant="default"
@@ -557,85 +676,50 @@ function resetForm() {
                     </div>
 
                     <!-- Fila para añadir (encabezados sutiles) -->
-                    <div v-if="!readonly" class="grid grid-cols-11 gap-2 px-1 py-1 text-[11px] font-medium text-muted-foreground/80">
-                        <div class="col-span-2 flex items-center gap-1">
+                    <div v-if="!readonly" class="grid grid-cols-12 gap-2 px-1 py-1 text-[11px] font-medium text-muted-foreground/80">
+                        <div class="col-span-4 flex items-center gap-1">
                             Operación
                             <HelpTooltip text="Nombre de la operación según catálogo." />
                         </div>
                         <div class="col-span-2 flex items-center gap-1">
                             Máquina
-                            <HelpTooltip text="Máquina asignada a la operación. El factor entre paréntesis es el suplemento." />
+                            <HelpTooltip text="Se auto-rellena desde la operación. El factor muestra el suplemento." />
                         </div>
                         <div class="col-span-1 flex items-center justify-end gap-1">
                             SAM
-                            <HelpTooltip text="SAM base: tiempo estándar en minutos por unidad (del catálogo de operaciones)." />
+                            <HelpTooltip text="SAM base: tiempo estándar en minutos por unidad (del catálogo)." />
+                        </div>
+                        <div class="col-span-1 flex items-center justify-end gap-1">
+                            F. op.
+                            <HelpTooltip text="Factor operario (%) de la operación. SAM ajust. = SAM base / (F.op. / 100)." />
+                        </div>
+                        <div class="col-span-1 flex items-center justify-end gap-1">
+                            SAM total
+                            <HelpTooltip text="SAM total unitario: (SAM base / F.op.) × suplemento máq. × factor base tela." />
                         </div>
                         <div class="col-span-2 flex items-center gap-1">
-                            Base tela
-                            <HelpTooltip text="Base de tela con su factor. Afecta el tiempo según el tipo de material." />
+                            Grupo prep.
+                            <HelpTooltip text="Solo para secciones de tipo PREPARACIÓN. Reagrupa operaciones dentro de la sección." />
                         </div>
-                        <div class="col-span-1 flex items-center gap-1">
-                            F. op.
-                            <HelpTooltip text="Factor operario (1.0 a 2.0). Ajusta el tiempo según rendimiento del operario." />
-                        </div>
-                        <div class="col-span-1 flex items-center justify-end gap-1">
-                            SAM op.
-                            <HelpTooltip
-                                text="Tiempo total de la operación: SAM base × suplemento × factor tela × factor op. × cantidad de piezas (min)."
-                            />
-                        </div>
-                        <div class="col-span-1 flex items-center justify-end gap-1">
-                            Op./h
-                            <HelpTooltip text="Veces que se completa esta operación en una hora (60 min ÷ SAM op.)." />
-                        </div>
+                        <div class="col-span-1"></div>
                     </div>
-                    <div v-if="!readonly" class="grid grid-cols-11 items-end gap-2 px-1 py-2">
-                        <div class="col-span-2">
+                    <div v-if="!readonly" class="grid grid-cols-12 items-end gap-2 px-1 py-2">
+                        <div class="col-span-4">
                             <SelectField
                                 v-model="currentRow.operation_id"
-                                :options="operationsList.map((o) => ({ id: o.id, name: o.name }))"
+                                :options="operationsList.map((o) => ({ id: o.id, name: getOperationOptionLabel(o) }))"
                                 placeholder="Buscar operación"
                                 class="h-9 w-full"
                             >
-                                <template #header>
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="ghost"
-                                        class="w-full justify-center gap-1 text-xs text-muted-foreground hover:bg-muted/50"
-                                        @click="openAddNewDialog('operation')"
-                                    >
-                                        <Plus class="h-4 w-4" /> Crear si no existe
-                                    </Button>
-                                </template>
                             </SelectField>
                         </div>
                         <div class="col-span-2">
-                            <SelectField
-                                v-model="currentRow.machine_id"
-                                :options="
-                                    machinesList.map((m) => {
-                                        const code = (m.code ?? '').trim();
-                                        const name = (m.name ?? '').trim();
-                                        const label = (code && name && code.toUpperCase() !== name.toUpperCase()) ? `${code} · ${name}` : (code || name || '-');
-                                        return { id: m.id, name: `${label} (×${(m.supplement_factor ?? 1).toFixed(2)})` };
-                                    })
-                                "
-                                placeholder="Máquina"
-                                class="h-9 w-full"
+                            <div
+                                class="flex h-9 items-center truncate rounded-md bg-muted/30 px-2 text-xs text-muted-foreground"
+                                :title="currentRow.machine_id ? getMachineDisplayWithSupplement(currentRow) : 'Se auto-rellena al elegir operación'"
                             >
-                                <template #header>
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="ghost"
-                                        class="w-full justify-center gap-1 text-xs text-muted-foreground hover:bg-muted/50"
-                                        @click="openAddNewDialog('machine')"
-                                    >
-                                        <Plus class="h-4 w-4" /> Nueva máquina
-                                    </Button>
-                                </template>
-                            </SelectField>
+                                {{ currentRow.machine_id ? getMachineDisplayWithSupplement(currentRow) : '—' }}
+                            </div>
                         </div>
                         <div class="col-span-1">
                             <div
@@ -645,52 +729,48 @@ function resetForm() {
                                 {{ (Number(currentRow.optimal_time) || 0).toFixed(2) }}
                             </div>
                         </div>
-                        <div class="col-span-2">
-                            <SelectField
-                                v-model="currentRow.fabric_base_id"
-                                :options="fabricBaseOptions"
-                                placeholder="Base tela"
-                                class="h-9 w-full"
-                            />
-                        </div>
-                        <div class="col-span-1" @keydown.enter.prevent="addOperation">
-                            <InputField
-                                v-model.number="currentRow.operator_efficiency_factor"
-                                label=""
-                                type="number"
-                                step="0.01"
-                                min="1"
-                                max="2"
-                                placeholder="1.00"
-                                class="h-9 w-full"
-                                :class="{
-                                    'border-red-500':
-                                        Number(currentRow.operator_efficiency_factor) < 1 || Number(currentRow.operator_efficiency_factor) > 2,
-                                }"
-                            />
+                        <div class="col-span-1">
+                            <div
+                                class="flex h-9 items-center justify-end rounded-md bg-muted/30 px-2 font-mono text-xs text-muted-foreground"
+                                :title="`Factor operario: ${currentRow.factor_operario}%`"
+                            >
+                                {{ currentRow.factor_operario }}%
+                            </div>
                         </div>
                         <div class="col-span-1">
                             <div class="flex h-9 items-center justify-end rounded-md bg-primary/5 px-2 font-mono text-xs font-semibold text-primary">
-                                {{ Number(getSamOperacion(currentRow)).toFixed(2) }}
+                                {{ getSamUnitario(currentRow).toFixed(2) }}
                             </div>
                         </div>
-                        <div class="col-span-1">
-                            <div class="flex h-9 items-center justify-end rounded-md bg-muted/30 px-2 font-mono text-xs text-muted-foreground">
-                                {{ getOpsPerHour(currentRow) }}
-                            </div>
+                        <div class="col-span-2">
+                            <SelectField
+                                v-if="isSectionPreparacion(currentRow.section_id)"
+                                v-model="currentRow.grupo_preparacion"
+                                :options="preparationGroupsList.map((g: string) => ({ id: g, name: g }))"
+                                placeholder="Seleccionar grupo"
+                                class="h-9 w-full"
+                                :searchable="true"
+                                :search-threshold="0"
+                                search-placeholder="Buscar o escribir grupo"
+                                action-label="Agregar grupo"
+                                :action-disabled="readonly"
+                                @search="(term) => (preparationGroupSearchTerm = String(term ?? ''))"
+                                @action="addPreparationGroupFromSelect"
+                            />
+                            <div v-else class="flex h-9 items-center justify-center text-[10px] text-muted-foreground/50">—</div>
                         </div>
                         <div class="col-span-1">
                             <Button
                                 size="sm"
                                 class="w-full gap-1"
-                                :disabled="!currentRow.operation_id || !currentRow.machine_id"
+                                :disabled="!currentRow.operation_id"
                                 @click="addOperation"
                             >
                                 <Plus class="h-4 w-4" />
                                 Añadir
                             </Button>
                         </div>
-                        <div class="col-span-11">
+                        <div class="col-span-12">
                             <input
                                 v-model="currentRow.row_notes"
                                 type="text"
@@ -704,7 +784,7 @@ function resetForm() {
                     <div v-if="operationList.length > 0" class="mt-5 overflow-hidden">
                         <p v-if="!readonly" class="mb-2 flex items-center gap-2 px-1 text-[11px] text-muted-foreground/80">
                             <GripVertical class="h-3 w-3 shrink-0" />
-                            Arrastra para reordenar · Edita máquina, base tela y factor operario
+                            Arrastra para reordenar · Edita notas y grupo de preparación
                         </p>
                         <div class="max-h-[360px] overflow-y-auto scroll-smooth rounded-md bg-muted/20" style="scrollbar-width: thin">
                             <table class="w-full table-fixed text-sm">
@@ -713,40 +793,25 @@ function resetForm() {
                                         <th class="w-7 py-2.5"></th>
                                         <th class="w-7 px-3 py-2.5 text-left font-medium">#</th>
                                         <th class="px-3 py-2.5 text-left font-medium">
-                                            <span class="inline-flex items-center gap-1"
-                                                >Operación <HelpTooltip text="Nombre de la operación."
-                                            /></span>
+                                            <span class="inline-flex items-center gap-1">Operación <HelpTooltip text="Nombre de la operación." /></span>
                                         </th>
-                                        <th class="w-24 px-3 py-2.5 text-left font-medium">
-                                            <span class="inline-flex items-center gap-1"
-                                                >Máquina <HelpTooltip text="Máquina asignada. El factor es el suplemento."
-                                            /></span>
-                                        </th>
-                                        <th class="w-14 px-3 py-2.5 text-right font-medium">
-                                            <span class="inline-flex items-center justify-end gap-1"
-                                                >SAM <HelpTooltip text="SAM base en minutos."
-                                            /></span>
-                                        </th>
-                                        <th class="w-30 px-3 py-2.5 text-left font-medium">
-                                            <span class="inline-flex items-center gap-1"
-                                                >Base tela <HelpTooltip text="Base de tela con factor."
-                                            /></span>
-                                        </th>
-                                        <th class="w-28 px-3 py-2.5 text-right font-medium">
-                                            <span class="inline-flex items-center justify-end gap-1"
-                                                >F. op. <HelpTooltip text="Factor operario."
-                                            /></span>
-                                        </th>
-                                        <th class="w-20 px-3 py-2.5 text-right font-medium">
-                                            <span class="inline-flex items-center justify-end gap-1"
-                                                >SAM op.
-                                                <HelpTooltip text="Tiempo total (min): SAM base × suplemento × factor tela × factor op. × cantidad."
-                                            /></span>
+                                        <th class="w-52 px-3 py-2.5 text-left font-medium">
+                                            <span class="inline-flex items-center gap-1">Máquina <HelpTooltip text="Máquina de la operación (auto)." /></span>
                                         </th>
                                         <th class="w-16 px-3 py-2.5 text-right font-medium">
-                                            <span class="inline-flex items-center justify-end gap-1"
-                                                >Op./h <HelpTooltip text="Operaciones por hora (60 ÷ SAM op.)."
-                                            /></span>
+                                            <span class="inline-flex items-center justify-end gap-1">SAM <HelpTooltip text="SAM base en minutos." /></span>
+                                        </th>
+                                        <th class="w-14 px-3 py-2.5 text-right font-medium">
+                                            <span class="inline-flex items-center justify-end gap-1">F. op. <HelpTooltip text="Factor operario (%)." /></span>
+                                        </th>
+                                        <th class="w-20 px-3 py-2.5 text-right font-medium">
+                                            <span class="inline-flex items-center justify-end gap-1">SAM total <HelpTooltip text="SAM total unitario: (SAM / F.op.) × supl. máq. × factor tela." /></span>
+                                        </th>
+                                        <th class="w-14 px-3 py-2.5 text-right font-medium">
+                                            <span class="inline-flex items-center justify-end gap-1">Op./h <HelpTooltip text="Operaciones por hora (60 ÷ SAM total)." /></span>
+                                        </th>
+                                        <th class="w-24 px-3 py-2.5 text-left font-medium">
+                                            <span class="inline-flex items-center gap-1">Grupo <HelpTooltip text="Grupo de preparación (solo secciones PREPARACIÓN)." /></span>
                                         </th>
                                         <th v-if="!readonly" class="w-16"></th>
                                     </tr>
@@ -779,67 +844,45 @@ function resetForm() {
                                                 class="mt-1 h-6 w-full rounded border border-input bg-transparent px-1.5 text-[10px] text-muted-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
                                             />
                                         </td>
-                                        <td class="px-2 py-2 text-xs">
-                                            <SelectField
-                                                v-if="isEditingRow(index) && editRow"
-                                                v-model="editRow.machine_id"
-                                                :options="
-                                                    machinesList.map((m) => ({
-                                                        id: m.id,
-                                                        name: `${getMachineName(m.id)} (×${(m.supplement_factor ?? 1).toFixed(2)})`,
-                                                    }))
-                                                "
-                                                class="h-8 min-w-[140px]"
-                                            />
+                                        <td class="px-3 py-2.5 text-xs">
                                             <span
-                                                v-else
                                                 class="block truncate text-muted-foreground/90"
                                                 :title="`Suplemento: ×${getSupplementForRow(row).toFixed(2)}`"
-                                                >{{ getMachineDisplayWithSupplement(row) }}</span
-                                            >
+                                            >{{ getMachineDisplayWithSupplement(row) }}</span>
                                         </td>
                                         <td class="px-3 py-2.5 text-right font-mono text-xs text-muted-foreground/80">
                                             {{ (Number(row.optimal_time) || 0).toFixed(2) }}
                                         </td>
-                                        <td class="px-2 py-2 text-xs">
-                                            <SelectField
-                                                v-if="isEditingRow(index) && editRow"
-                                                v-model="editRow.fabric_base_id"
-                                                :options="fabricBaseOptions"
-                                                class="h-8 min-w-[90px]"
-                                            />
-                                            <span
-                                                v-else
-                                                class="block truncate text-muted-foreground/90"
-                                                :title="`Factor: ×${getFabricFactorForRow(row).toFixed(2)}`"
-                                            >
-                                                {{ getFabricBaseName(row.fabric_base_id) }}
-                                                <span class="text-[10px]">(×{{ getFabricFactorForRow(row).toFixed(2) }}) </span>
-                                            </span>
-                                        </td>
-                                        <td class="px-3 py-2.5 text-right font-mono text-xs">
-                                            <InputField
-                                                v-if="isEditingRow(index) && editRow"
-                                                v-model.number="editRow.operator_efficiency_factor"
-                                                label=""
-                                                type="number"
-                                                step="0.01"
-                                                min="1"
-                                                max="2"
-                                                class="h-8 w-16 text-right"
-                                                :class="{
-                                                    'border-red-500':
-                                                        Number(editRow.operator_efficiency_factor) < 1 ||
-                                                        Number(editRow.operator_efficiency_factor) > 2,
-                                                }"
-                                            />
-                                            <span v-else>{{ (Number(row.operator_efficiency_factor) || 0).toFixed(2) }}</span>
+                                        <td class="px-3 py-2.5 text-right font-mono text-xs text-muted-foreground/80">
+                                            {{ row.factor_operario }}%
                                         </td>
                                         <td class="px-3 py-2.5 text-right font-mono text-xs font-semibold text-primary">
-                                            {{ Number(getSamOperacion(isEditingRow(index) && editRow ? editRow : row)).toFixed(2) }}
+                                            {{ getSamUnitario(row).toFixed(2) }}
                                         </td>
                                         <td class="px-3 py-2.5 text-right font-mono text-xs text-muted-foreground/80">
-                                            {{ getOpsPerHour(isEditingRow(index) && editRow ? editRow : row) }}
+                                            {{ getOpsPerHour(row) }}
+                                        </td>
+                                        <td class="px-2 py-2 text-xs">
+                                            <SelectField
+                                                v-if="isEditingRow(index) && editRow && isSectionPreparacion(row.section_id)"
+                                                v-model="editRow.grupo_preparacion"
+                                                :options="preparationGroupsList.map((g: string) => ({ id: g, name: g }))"
+                                                placeholder="Grupo"
+                                                class="h-7 min-w-[80px]"
+                                                :searchable="true"
+                                                :search-threshold="0"
+                                                search-placeholder="Buscar o escribir grupo"
+                                                action-label="Agregar grupo"
+                                                :action-disabled="readonly"
+                                                @search="(term) => (preparationGroupSearchTerm = String(term ?? ''))"
+                                                @action="addPreparationGroupFromSelect"
+                                            />
+                                            <span
+                                                v-else-if="isSectionPreparacion(row.section_id) && row.grupo_preparacion"
+                                                class="block truncate text-muted-foreground/90"
+                                                :title="row.grupo_preparacion"
+                                            >{{ row.grupo_preparacion }}</span>
+                                            <span v-else class="text-muted-foreground/40">—</span>
                                         </td>
                                         <td v-if="!readonly" class="px-3 py-2">
                                             <div class="flex items-center justify-end gap-1">
@@ -848,7 +891,7 @@ function resetForm() {
                                                     variant="ghost"
                                                     size="icon"
                                                     class="h-7 w-7"
-                                                    title="Editar factores"
+                                                    title="Editar notas / grupo"
                                                     @click="startEditRow(index)"
                                                 >
                                                     <Pencil class="h-3.5 w-3.5" />
@@ -898,8 +941,8 @@ function resetForm() {
                     </div>
 
                     <div v-else class="mt-5 py-10 text-center text-sm text-muted-foreground/80">
-                        <p>Busca una operación, ajusta factores y haz clic en <strong>Añadir</strong>.</p>
-                        <p class="mt-1 text-xs">Si no existe, créala con «Crear operación» o «Crear si no existe».</p>
+                        <p>Selecciona una operación y haz clic en <strong>Añadir</strong>.</p>
+                        <p class="mt-1 text-xs">Máquina y factor operario se auto-rellenan. Si no existe la operación, créala.</p>
                     </div>
 
                     <AddNew

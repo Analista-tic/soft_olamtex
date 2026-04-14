@@ -7,9 +7,11 @@ use App\Models\Production\Machine;
 use App\Models\Production\Operation;
 use App\Models\Production\OperationAuditLog;
 use App\Models\Production\ProductSheet;
+use App\Services\Production\OperationCatalogService;
 use App\Services\Production\OperationSectionService;
 use App\Services\Production\OperationService;
-use App\Services\Settings\SettingService;
+use App\Services\Production\ProductOperationListService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -20,40 +22,18 @@ class OperationController extends Controller
     public function __construct(
         protected OperationService $service,
         protected OperationSectionService $sectionService,
-        protected SettingService $settingService,
+        protected OperationCatalogService $operationCatalogService,
+        protected ProductOperationListService $productOperationListService,
     ) {}
 
     private function actionOptions()
     {
-        return $this->settingService
-            ->getCatalogOptions('operation_actions')
-            ->pluck('name')
-            ->filter(fn ($name) => is_string($name) && trim($name) !== '')
-            ->map(fn ($name) => mb_strtoupper(trim((string) $name)))
-            ->unique()
-            ->values();
+        return $this->operationCatalogService->actionOptions();
     }
 
     private function garmentPartOptions()
     {
-        return $this->settingService
-            ->getCatalogOptions('operation_garment_parts')
-            ->pluck('name')
-            ->filter(fn ($name) => is_string($name))
-            ->map(fn ($name) => mb_strtoupper(trim((string) $name)))
-            ->unique()
-            ->values();
-    }
-
-    private function typeOptions()
-    {
-        return $this->settingService
-            ->getCatalogOptions('operation_types')
-            ->pluck('name')
-            ->filter(fn ($name) => is_string($name) && trim($name) !== '')
-            ->map(fn ($name) => mb_strtoupper(trim((string) $name)))
-            ->unique()
-            ->values();
+        return $this->operationCatalogService->garmentPartOptions();
     }
 
     /**
@@ -62,7 +42,7 @@ class OperationController extends Controller
      */
     public function indexView(): Response
     {
-        $productSheets = ProductSheet::select('id', 'sample_reference', 'product_reference', 'type')
+        $productSheets = ProductSheet::select('id', 'sample_reference', 'product_reference', 'type', 'garment_type')
             ->orderBy('sample_reference')
             ->get()
             ->map(fn ($ps) => [
@@ -74,13 +54,17 @@ class OperationController extends Controller
             ->select('id', 'code', 'name', 'supplement_factor')
             ->orderBy('name')
             ->get()
-            ->map(fn ($m) => ['id' => $m->id, 'code' => $m->code, 'name' => $m->name]);
+            ->map(fn ($m) => [
+                'id' => $m->id,
+                'code' => $m->code,
+                'name' => $m->name,
+                'supplement_factor' => $m->supplement_factor,
+            ]);
 
         return Inertia::render('Operations/Index', [
             'sections'     => $this->sectionService->options(),
             'actions'      => $this->actionOptions(),
             'garmentParts' => $this->garmentPartOptions(),
-            'types'        => $this->typeOptions(),
             'productSheets'=> $productSheets,
             'machines'     => $machines,
         ]);
@@ -141,7 +125,6 @@ class OperationController extends Controller
             'data' => [
                 'actions'      => $this->actionOptions(),
                 'garment_parts'=> $this->garmentPartOptions(),
-                'types'        => $this->typeOptions(),
             ],
         ]);
     }
@@ -150,19 +133,19 @@ class OperationController extends Controller
      * Agrega una nueva opción a un catálogo de operaciones.
      * POST /produccion/operaciones/catalog-option
      *
-     * Catálogos permitidos: operation_actions, operation_garment_parts, operation_types
+     * Catálogos permitidos: operation_actions, operation_garment_parts
      */
     public function addCatalogOption(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'catalog' => ['required', 'string', 'in:operation_actions,operation_garment_parts,operation_types'],
+            'catalog' => ['required', 'string', 'in:operation_actions,operation_garment_parts'],
             'name'    => ['required', 'string', 'max:100'],
         ]);
 
         $name = mb_strtoupper(trim($validated['name']));
 
         try {
-            $option = $this->settingService->addCatalogOption($validated['catalog'], $name);
+            $option = $this->operationCatalogService->addOption($validated['catalog'], $name);
 
             return response()->json([
                 'message' => "Opción '{$name}' agregada correctamente.",
@@ -180,7 +163,6 @@ class OperationController extends Controller
         return match ($catalog) {
             'operation_actions'       => $this->actionOptions(),
             'operation_garment_parts' => $this->garmentPartOptions(),
-            'operation_types'         => $this->typeOptions(),
             default                   => collect(),
         };
     }
@@ -194,7 +176,6 @@ class OperationController extends Controller
         $validated = $request->validate([
             'action'       => ['required', 'string', 'max:255'],
             'garment_part' => ['required', 'string', 'max:255'],
-            'tipo'         => ['nullable', 'string', 'max:100'],
             'anexo'        => ['nullable', 'string', 'max:255'],
             'codigo'       => ['nullable', 'string', 'max:50'],
             'section_id'   => ['required', 'integer', 'exists:operation_sections,id'],
@@ -202,29 +183,70 @@ class OperationController extends Controller
             'quantity'     => ['nullable', 'integer', 'min:1'],
             'description'  => ['nullable', 'string'],
             'sam_base'     => ['required', 'numeric', 'min:0.001'],
-            'product_sheet_id_reference' => ['nullable', 'integer', 'exists:product_sheets,id'],
-            'machine_id_reference'       => ['nullable', 'integer', 'exists:machines,id'],
+            'factor_operario' => ['required', 'numeric', 'min:0.01'],
+            'product_sheet_id_reference' => ['required', 'integer', 'exists:product_sheets,id'],
+            'machine_id_reference'       => ['required', 'integer', 'exists:machines,id'],
             'is_active'    => ['sometimes', 'boolean'],
         ]);
 
-        $result    = $this->service->findOrCreate($validated);
-        $operation = $result['operation'];
-        $reused    = $result['reused'];
+        // Nota: el tipo de prenda (garment_type) vive en product_sheets, no en la operación.
+        // La operación es un catálogo maestro reutilizable; el contexto lo define product_sheet.
+
+        try {
+            $result    = $this->service->findOrCreate($validated);
+            $operation = $result['operation'];
+            $reused    = $result['reused'];
+        } catch (\InvalidArgumentException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'type' => 'warning',
+            ], 422);
+        } catch (QueryException $e) {
+            $message = $e->getMessage();
+            if (str_contains($message, 'operations_action_garment_unique')) {
+                return response()->json([
+                    'message' => 'Hay una restricción antigua de unicidad por acción + parte. Ejecuta migraciones pendientes para usar la nueva regla por descripción y variables.',
+                    'type' => 'warning',
+                ], 422);
+            }
+            throw $e;
+        }
+
+        // ── Auto-link: vincular operación al listado operacional de la sábana ──
+        $linkedToList = false;
+        $productSheetId = $validated['product_sheet_id_reference'] ?? null;
+
+        if ($productSheetId && $operation->id) {
+            $linkedToList = $this->autoLinkToProductOperationList(
+                $operation,
+                (int) $productSheetId,
+                (int) ($validated['machine_id_reference'] ?? $operation->machine_id_reference),
+                (int) ($validated['section_id'] ?? $operation->section_id),
+                (float) ($validated['sam_base'] ?? $operation->sam_base ?? 0),
+                (int) ($validated['quantity'] ?? $operation->quantity ?? 1),
+            );
+        }
 
         $operation->load(['section', 'productSheetReference', 'machineReference']);
 
         if ($reused) {
             return response()->json([
-                'message' => "Operación '{$operation->name}' ya existe. Se reutilizará.",
+                'message' => $linkedToList
+                    ? "Operación '{$operation->name}' ya existe. Se reutilizó y vinculó al listado operacional."
+                    : "Operación '{$operation->name}' ya existe. Se reutilizará.",
                 'data'    => $operation,
                 'reused'  => true,
+                'linked_to_list' => $linkedToList,
             ], 200);
         }
 
         return response()->json([
-            'message' => 'Operación registrada correctamente.',
+            'message' => $linkedToList
+                ? 'Operación registrada y vinculada al listado operacional.'
+                : 'Operación registrada correctamente.',
             'data'    => $operation,
             'reused'  => false,
+            'linked_to_list' => $linkedToList,
         ], 201);
     }
 
@@ -237,17 +259,19 @@ class OperationController extends Controller
         $validated = $request->validate([
             'action'       => ['sometimes', 'string', 'max:255'],
             'garment_part' => ['sometimes', 'string', 'max:255'],
-            'tipo'         => ['nullable', 'string', 'max:100'],
             'anexo'        => ['nullable', 'string', 'max:255'],
             'section_id'   => ['nullable', 'integer', 'exists:operation_sections,id'],
             'measure'      => ['nullable', 'numeric', 'min:0'],
             'quantity'     => ['nullable', 'integer', 'min:1'],
             'sam_base'     => ['nullable', 'numeric', 'min:0'],
-            'product_sheet_id_reference' => ['nullable', 'integer', 'exists:product_sheets,id'],
-            'machine_id_reference'       => ['nullable', 'integer', 'exists:machines,id'],
+            'factor_operario' => ['sometimes', 'numeric', 'min:0.01'],
+            'product_sheet_id_reference' => ['required', 'integer', 'exists:product_sheets,id'],
+            'machine_id_reference'       => ['required', 'integer', 'exists:machines,id'],
             'is_active'    => ['sometimes', 'boolean'],
             'motivo'       => ['nullable', 'string', 'max:500'],
         ]);
+
+        // Nota: el tipo de prenda (garment_type) vive en product_sheets, no en la operación.
 
         $motivo = $validated['motivo'] ?? null;
         unset($validated['motivo']);
@@ -257,7 +281,7 @@ class OperationController extends Controller
 
             return response()->json([
                 'message' => 'Operación actualizada correctamente.',
-                'data'    => $operation->load(['section', 'productSheetReference']),
+                'data'    => $operation->load(['section', 'productSheetReference', 'machineReference']),
             ]);
         } catch (\InvalidArgumentException $e) {
             return response()->json([
@@ -316,5 +340,67 @@ class OperationController extends Controller
             ->get();
 
         return response()->json(['data' => $logs]);
+    }
+
+    /**
+     * Auto-vincula una operación al listado operacional de la sábana seleccionada.
+     * Si ya existe un registro con la misma operación, máquina y sección, no duplica.
+     * Retorna true si se creó la vinculación, false si ya existía o no pudo crearse.
+     */
+    private function autoLinkToProductOperationList(
+        Operation $operation,
+        int $productSheetId,
+        int $machineId,
+        int $sectionId,
+        float $samBase,
+        int $quantity,
+    ): bool {
+        // Verificar si ya existe la combinación en el listado
+        $exists = \App\Models\Production\ProductOperationList::where('product_sheet_id', $productSheetId)
+            ->where('operation_id', $operation->id)
+            ->where('machine_id', $machineId)
+            ->where('operation_section_id', $sectionId)
+            ->withTrashed()
+            ->exists();
+
+        if ($exists) {
+            return false;
+        }
+
+        // Obtener el suplemento de la máquina
+        $machine = Machine::find($machineId);
+        $machineSupplement = $machine ? (float) ($machine->supplement_factor ?? 1.0) : 1.0;
+
+        // Calcular secuencia: siguiente disponible para esta ficha
+        $maxSequence = \App\Models\Production\ProductOperationList::where('product_sheet_id', $productSheetId)
+            ->max('sequence') ?? 0;
+
+        try {
+            $this->productOperationListService->create([
+                'product_sheet_id'          => $productSheetId,
+                'operation_id'              => $operation->id,
+                'machine_id'                => $machineId,
+                'operation_section_id'      => $sectionId,
+                'sequence'                  => $maxSequence + 10,
+                'sam_base'                  => $samBase,
+                'optimal_time'              => $samBase,
+                'operator_efficiency_factor' => 1.0,
+                'machine_supplement_factor'  => $machineSupplement,
+                'fabric_base_id'            => null,
+                'quantity'                  => $quantity,
+                'grupo_preparacion'         => null,
+                'notes'                     => null,
+            ]);
+
+            return true;
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Auto-link operación a listado falló', [
+                'operation_id'    => $operation->id,
+                'product_sheet_id' => $productSheetId,
+                'error'           => $e->getMessage(),
+            ]);
+
+            return false;
+        }
     }
 }

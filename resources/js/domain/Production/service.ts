@@ -65,7 +65,7 @@ const ENDPOINTS = {
     PRODUCT_SHEETS_DELETE: '/produccion/sabana-productos/:id',
     PRODUCT_SHEETS_CONVERT: '/produccion/sabana-productos/:id/convert',
     PRODUCT_SHEETS_TOGGLE_ENABLED: '/produccion/sabana-productos/:id/toggle-enabled',
-    PRODUCT_SHEETS_TEMPLATES: '/produccion/sabana-productos-templates',
+    PRODUCT_SHEETS_TEMPLATES: '/produccion/sabana-productos/templates',
 } as const;
 
 type ItemCatalogDto = {

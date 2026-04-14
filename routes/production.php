@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\MasterData\ParameterController;
 use App\Http\Controllers\Production\BatchControlController;
+use App\Http\Controllers\Production\CollectionController;
 use App\Http\Controllers\Production\MachineController;
+use App\Http\Controllers\Production\OperationCatalogController;
 use App\Http\Controllers\Production\OperationController;
 use App\Http\Controllers\Production\ProductionOrderController;
 use App\Http\Controllers\Production\ProductOperationListController;
@@ -39,9 +41,11 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
     Route::get('ficha-tecnica/{opId}/costos', [TechnicalDataSheetController::class, 'costsSummary'])
         ->name('ficha-tecnica.costs-summary');
     Route::get('ficha-tecnica/{opId}/imprimir', [TechnicalDataSheetController::class, 'printSummary'])
-        ->name('ficha-tecnica.print-summary');
+        ->name('ficha-tecnica.print-summary')
+        ->withoutMiddleware(\App\Http\Middleware\HandleInertiaRequests::class);
     Route::get('ficha-tecnica/{opId}/imprimir-h', [TechnicalDataSheetController::class, 'printSummaryH'])
-        ->name('ficha-tecnica.print-summary-h');
+        ->name('ficha-tecnica.print-summary-h')
+        ->withoutMiddleware(\App\Http\Middleware\HandleInertiaRequests::class);
     Route::get('ficha-tecnica/{opId}/materia-prima', [TechnicalDataSheetController::class, 'rawMaterialsSummary'])
         ->name('ficha-tecnica.raw-materials.index');
     Route::put('ficha-tecnica/{opId}/materia-prima', [TechnicalDataSheetController::class, 'saveRawMaterials'])
@@ -97,6 +101,9 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
     Route::post('sabana-productos', [ProductSheetController::class, 'store'])
         ->middleware('permission:crear sabana productos')
         ->name('sabana-productos.store');
+    Route::get('sabana-productos/templates', [ProductSheetController::class, 'templates'])
+        ->middleware('permission:ver sabana productos')
+        ->name('sabana-productos.templates');
     Route::get('sabana-productos/{sabana}', [ProductSheetController::class, 'show'])
         ->middleware('permission:ver sabana productos')
         ->name('sabana-productos.show');
@@ -118,6 +125,31 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
     Route::delete('sabana-productos/{sabana}', [ProductSheetController::class, 'destroy'])
         ->middleware('permission:eliminar sabana productos')
         ->name('sabana-productos.destroy');
+
+    // Colecciones
+    Route::prefix('colecciones')->name('colecciones.')->group(function () {
+        Route::get('/', [CollectionController::class, 'index'])
+            ->middleware('permission:ver sabana productos')
+            ->name('index');
+        Route::get('/data', [CollectionController::class, 'getData'])
+            ->middleware('permission:ver sabana productos')
+            ->name('data');
+        Route::get('/opciones', [CollectionController::class, 'options'])
+            ->middleware('permission:ver sabana productos')
+            ->name('options');
+        Route::post('/', [CollectionController::class, 'store'])
+            ->middleware('permission:crear sabana productos|editar sabana productos')
+            ->name('store');
+        Route::put('/{collection}', [CollectionController::class, 'update'])
+            ->middleware('permission:editar sabana productos')
+            ->name('update');
+        Route::delete('/{collection}', [CollectionController::class, 'destroy'])
+            ->middleware('permission:eliminar sabana productos')
+            ->name('destroy');
+        Route::post('/{collection}/toggle-activo', [CollectionController::class, 'toggleActive'])
+            ->middleware('permission:editar sabana productos')
+            ->name('toggle-activo');
+    });
 
     // Base de operaciones
     Route::get('base-operaciones', [OperationController::class, 'indexView'])
@@ -178,6 +210,18 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
     Route::prefix('operaciones')->name('operaciones.')->group(function () {
         Route::get('/data', [OperationController::class, 'data'])->name('data');
         Route::get('/metadata', [OperationController::class, 'metadata'])->name('metadata');
+        Route::get('/catalog-management', [OperationCatalogController::class, 'index'])
+            ->middleware('permission:ver listados operacionales|ver sabana productos')
+            ->name('catalog-management.index');
+        Route::post('/catalog-management/{catalog}', [OperationCatalogController::class, 'store'])
+            ->middleware('permission:crear listados operacionales|editar listados operacionales|crear sabana productos|editar sabana productos')
+            ->name('catalog-management.store');
+        Route::put('/catalog-management/{catalog}/{id}', [OperationCatalogController::class, 'update'])
+            ->middleware('permission:editar listados operacionales|editar sabana productos')
+            ->name('catalog-management.update');
+        Route::delete('/catalog-management/{catalog}/{id}', [OperationCatalogController::class, 'destroy'])
+            ->middleware('permission:eliminar listados operacionales|editar listados operacionales|eliminar sabana productos|editar sabana productos')
+            ->name('catalog-management.destroy');
         Route::get('/paginated', [OperationController::class, 'paginated'])->name('paginated');
         Route::post('/catalog-option', [OperationController::class, 'addCatalogOption'])
             ->middleware('permission:crear listados operacionales|editar listados operacionales|crear sabana productos|editar sabana productos')

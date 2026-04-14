@@ -16,15 +16,16 @@ import { useAlertStack } from '@/composables/useAlert';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { ChevronLeft, ChevronRight, Database, Eye, Pencil, Plus, Search, Trash2 } from 'lucide-vue-next';
+import { ChevronLeft, ChevronRight, Database, Eye, Pencil, Plus, Search, Settings2, Trash2 } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
+import OperationCatalogManagerDialog, { type ManagedMachine, type ManagedSection } from './OperationCatalogManagerDialog.vue';
 import OperationDetailDialog from './OperationDetailDialog.vue';
 import OperationFormDialog from './OperationFormDialog.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 
 type Section = { id: number; name: string; type?: string };
 type ProductSheetOption = { id: number; name: string };
-type MachineOption = { id: number; name: string };
+type MachineOption = { id: number; name: string; code?: string; supplement_factor?: number | null };
 
 type OperationRecord = {
     id: number;
@@ -40,6 +41,7 @@ type OperationRecord = {
     quantity: number | null;
     description: string | null;
     sam_base: number | null;
+    factor_operario?: number | null;
     product_sheet_id_reference: number | null;
     machine_id_reference: number | null;
     is_active: boolean;
@@ -65,7 +67,6 @@ const page = usePage<{
     sections: Section[];
     actions: string[];
     garmentParts: string[];
-    types: string[];
     productSheets: ProductSheetOption[];
     machines: MachineOption[];
 }>();
@@ -75,10 +76,28 @@ const breadcrumbs = [
     { title: 'Base de datos de operaciones', href: '/produccion/base-operaciones' },
 ];
 
-const sections = computed(() => page.props.sections || []);
+const localSections = ref<ManagedSection[]>((page.props.sections || []).map((section) => ({
+    id: Number(section.id),
+    name: section.name,
+    type: (section.type ?? 'confeccion') as 'confeccion' | 'presentacion',
+    is_active: true,
+    usage_count: 0,
+})));
+const localActions = ref<string[]>([...(page.props.actions || [])]);
+const localGarmentParts = ref<string[]>([...(page.props.garmentParts || [])]);
+const localMachines = ref<ManagedMachine[]>((page.props.machines || []).map((machine) => ({
+    id: Number(machine.id),
+    code: machine.code ?? '',
+    name: machine.name,
+    supplement_factor: Number(machine.supplement_factor ?? 1),
+    is_active: true,
+    usage_count: 0,
+})));
+
+const sections = computed(() => localSections.value.filter((section) => section.is_active));
 const productSheets = computed(() => page.props.productSheets || []);
-const machines = computed(() => page.props.machines || []);
-const actionOptions = computed(() => (page.props.actions || []).map((a: string) => ({ id: a, name: a })));
+const machines = computed(() => localMachines.value.filter((machine) => machine.is_active));
+const actionOptions = computed(() => localActions.value.map((a: string) => ({ id: a, name: a })));
 const sectionFilterOptions = computed(() => [{ id: '', name: 'Todas las secciones' }, ...sections.value.map((s) => ({ id: s.id, name: s.name }))]);
 
 const isLoading = ref(false);
@@ -104,6 +123,7 @@ const isDetailOpen = ref(false);
 const viewingOperation = ref<OperationRecord | null>(null);
 const isDeleteDialogOpen = ref(false);
 const operationToDelete = ref<OperationRecord | null>(null);
+const isCatalogDialogOpen = ref(false);
 
 let searchTimeout: ReturnType<typeof setTimeout> | undefined;
 
@@ -152,6 +172,10 @@ function openCreateDialog() {
     isFormDialogOpen.value = true;
 }
 
+function openCatalogDialog() {
+    isCatalogDialogOpen.value = true;
+}
+
 function openEditDialog(op: OperationRecord) {
     editingOperation.value = op;
     isFormDialogOpen.value = true;
@@ -181,10 +205,21 @@ async function deleteOperation() {
     }
 }
 
-function handleDialogSaved() {
+function handleDialogSaved(payload?: { reused?: boolean; message?: string }) {
     isFormDialogOpen.value = false;
-    showSuccess('Operación guardada correctamente.');
+    if (payload?.reused) {
+        showSuccess(payload.message || 'La operación ya existe. Se reutilizó el registro existente.');
+    } else {
+        showSuccess(payload?.message || 'Operación guardada correctamente.');
+    }
     fetchPage(pagination.value.current_page);
+}
+
+function handleCatalogsUpdated(payload: { sections: ManagedSection[]; actions: string[]; garmentParts: string[]; machines: ManagedMachine[] }) {
+    localSections.value = payload.sections;
+    localActions.value = payload.actions;
+    localGarmentParts.value = payload.garmentParts;
+    localMachines.value = payload.machines;
 }
 
 function handleEditFromDetail() {
@@ -224,10 +259,16 @@ onMounted(() => fetchPage(1));
                         Gestiona todas las operaciones del sistema. Cada operación es única por acción + parte de prenda.
                     </p>
                 </div>
-                <Button class="rounded-full px-5 py-2 text-sm font-semibold" @click="openCreateDialog">
-                    <Plus class="mr-1 h-4 w-4" />
-                    Nueva operación
-                </Button>
+                <div class="flex items-center gap-2">
+                    <Button variant="outline" class="rounded-full px-5 py-2 text-sm font-semibold" @click="openCatalogDialog">
+                        <Settings2 class="mr-1 h-4 w-4" />
+                        Parametrizar catálogos
+                    </Button>
+                    <Button class="rounded-full px-5 py-2 text-sm font-semibold" @click="openCreateDialog">
+                        <Plus class="mr-1 h-4 w-4" />
+                        Nueva operación
+                    </Button>
+                </div>
             </div>
 
             <!-- Filtros -->
@@ -273,6 +314,7 @@ onMounted(() => fetchPage(1));
                                     <TableHead class="w-16 text-right">Medida</TableHead>
                                     <TableHead class="w-16 text-right">Cant.</TableHead>
                                     <TableHead class="text-right">SAM base</TableHead>
+                                    <TableHead class="text-right">Factor op. %</TableHead>
                                     <TableHead>Descripción</TableHead>
                                     <TableHead class="w-20 text-center">Estado</TableHead>
                                     <TableHead class="w-28 text-center">Acciones</TableHead>
@@ -289,6 +331,9 @@ onMounted(() => fetchPage(1));
                                         <TableCell><Skeleton class="ml-auto h-4 w-12" /></TableCell>
                                         <TableCell><Skeleton class="ml-auto h-4 w-10" /></TableCell>
                                         <TableCell><Skeleton class="ml-auto h-4 w-14" /></TableCell>
+                                        <TableCell><Skeleton class="ml-auto h-4 w-14" /></TableCell>
+                                        <TableCell><Skeleton class="ml-auto h-4 w-14" /></TableCell>
+                                        <TableCell><Skeleton class="ml-auto h-4 w-14" /></TableCell>
                                         <TableCell><Skeleton class="h-4 w-32" /></TableCell>
                                         <TableCell><Skeleton class="mx-auto h-4 w-12" /></TableCell>
                                         <TableCell><Skeleton class="mx-auto h-4 w-20" /></TableCell>
@@ -297,7 +342,7 @@ onMounted(() => fetchPage(1));
 
                                 <!-- Empty -->
                                 <TableRow v-else-if="records.length === 0">
-                                    <TableCell colspan="10" class="py-16 text-center">
+                                    <TableCell colspan="13" class="py-16 text-center">
                                         <div class="flex flex-col items-center gap-2">
                                             <Database class="h-10 w-10 text-muted-foreground/40" />
                                             <p :class="uiPatterns.typography.pageSubtitle">No se encontraron operaciones.</p>
@@ -324,6 +369,9 @@ onMounted(() => fetchPage(1));
                                     <TableCell class="text-right font-mono text-xs">{{ op.quantity ?? '-' }}</TableCell>
                                     <TableCell class="text-right font-mono text-xs font-semibold">{{
                                         op.sam_base != null ? op.sam_base.toFixed(4) : '-'
+                                    }}</TableCell>
+                                    <TableCell class="text-right font-mono text-xs">{{
+                                        op.factor_operario != null ? Number(op.factor_operario).toFixed(2) : '-'
                                     }}</TableCell>
                                     <TableCell
                                         class="max-w-[200px] truncate text-xs uppercase text-muted-foreground"
@@ -415,13 +463,18 @@ onMounted(() => fetchPage(1));
             :open="isFormDialogOpen"
             :operation="editingOperation"
             :sections="sections"
-            :actions="page.props.actions || []"
-            :garment-parts="page.props.garmentParts || []"
-            :types="page.props.types || []"
+            :actions="localActions"
+            :garment-parts="localGarmentParts"
             :product-sheets="productSheets"
             :machines="machines"
             @close="isFormDialogOpen = false"
             @saved="handleDialogSaved"
+        />
+
+        <OperationCatalogManagerDialog
+            :open="isCatalogDialogOpen"
+            @close="isCatalogDialogOpen = false"
+            @catalogs-updated="handleCatalogsUpdated"
         />
 
         <OperationDetailDialog :open="isDetailOpen" :operation="viewingOperation" @close="isDetailOpen = false" @edit="handleEditFromDetail" />

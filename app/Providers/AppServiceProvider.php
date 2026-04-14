@@ -23,7 +23,9 @@ use App\Models\MasterData\Parameter;
 use App\Models\Production\Machine;
 use App\Models\Production\Collection;
 use App\Models\Production\Operation;
+use App\Models\Production\OperationAction;
 use App\Models\Production\OperationSection;
+use App\Models\Production\OperationGarmentPart;
 use App\Models\Production\ProductionOrder;
 use App\Models\Production\ProductOperationList;
 use App\Models\Production\ProductSheet;
@@ -120,6 +122,8 @@ class AppServiceProvider extends ServiceProvider
             Collection::class,
             ProductOperationList::class,
             Operation::class,
+            OperationAction::class,
+            OperationGarmentPart::class,
             OperationSection::class,
             Machine::class,
             ProductionOrder::class,

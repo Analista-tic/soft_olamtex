@@ -26,10 +26,39 @@ class OperationSection extends Model
         'is_active' => 'boolean',
     ];
 
+    /**
+     * Determina si esta sección es de tipo PREPARACION.
+     */
+    public function isPreparation(): bool
+    {
+        return $this->type === 'PREPARACION';
+    }
+
+    /**
+     * Determina si esta sección es de tipo ENSAMBLE.
+     */
+    public function isAssembly(): bool
+    {
+        return $this->type === 'ENSAMBLE';
+    }
+
+    /**
+     * Determina si esta sección es de tipo TERMINACION.
+     */
+    public function isFinishing(): bool
+    {
+        return $this->type === 'TERMINACION';
+    }
+
     // Relaciones
     public function productOperationLists()
     {
         return $this->hasMany(ProductOperationList::class);
+    }
+
+    public function operations()
+    {
+        return $this->hasMany(Operation::class, 'section_id');
     }
 
     public function createdBy()

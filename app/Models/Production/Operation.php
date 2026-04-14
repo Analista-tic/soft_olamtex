@@ -24,9 +24,9 @@ class Operation extends Model
         'quantity',
         'description',
         'sam_base',
+        'factor_operario',
         'product_sheet_id_reference',
         'machine_id_reference',
-        'tipo',
         'is_active',
     ];
 
@@ -37,6 +37,7 @@ class Operation extends Model
         'measure' => 'float',
         'quantity' => 'integer',
         'sam_base' => 'float',
+        'factor_operario' => 'float',
         'product_sheet_id_reference' => 'integer',
         'machine_id_reference' => 'integer',
         'is_active' => 'boolean',
@@ -48,6 +49,44 @@ class Operation extends Model
     protected $appends = ['name', 'generated_description'];
 
     protected $with = [];
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $operation) {
+            // Normalizar valores básicos  
+            $samBase = is_numeric((string) $operation->sam_base) ? (float) $operation->sam_base : 0.0;
+            $operation->sam_base = max(0, $samBase); // No negativo
+            
+            $factorOperario = is_numeric((string) $operation->factor_operario) ? (float) $operation->factor_operario : 100.0;
+            $operation->factor_operario = max(0.01, $factorOperario); // Validar es positivo
+            
+            // Generar descripción
+            $operation->description = $operation->composeDescription();
+        });
+    }
+
+    private function composeDescription(): string
+    {
+        $parts = [
+            strtoupper(trim((string) $this->action)),
+            strtoupper(trim((string) $this->garment_part)),
+        ];
+
+        $anexo = trim((string) ($this->anexo ?? ''));
+        if ($anexo !== '') {
+            $parts[] = strtoupper($anexo);
+        }
+
+        if ($this->measure !== null && is_numeric((string) $this->measure)) {
+            $parts[] = rtrim(rtrim((string) $this->measure, '0'), '.') . ' CM';
+        }
+
+        if ($this->quantity !== null && is_numeric((string) $this->quantity)) {
+            $parts[] = 'X' . (string) ((int) $this->quantity);
+        }
+
+        return trim(implode(' ', $parts));
+    }
 
     // Relaciones
     public function section()
@@ -93,27 +132,7 @@ class Operation extends Model
      */
     public function getGeneratedDescriptionAttribute(): string
     {
-        if (! empty($this->description)) {
-            return $this->description;
-        }
-
-        $parts = [strtoupper(trim("{$this->action} {$this->garment_part}"))];
-
-        if ($this->anexo) {
-            $parts[] = '· ' . strtoupper(trim($this->anexo));
-        }
-
-        if ($this->measure && $this->measure > 0) {
-            $parts[] = "{$this->measure} cm";
-        }
-        if ($this->quantity && $this->quantity > 0) {
-            $parts[] = (string) $this->quantity;
-        }
-        if ($this->section?->name) {
-            $parts[] = strtoupper($this->section->name);
-        }
-
-        return strtoupper(implode(' ', $parts));
+        return $this->composeDescription();
     }
 
     // Scopes
