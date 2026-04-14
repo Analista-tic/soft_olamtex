@@ -76,11 +76,8 @@ class PurchaseDocumentService
                     $itemQuery->where('category_sub_group_id', $filters['subgroup_id'])
                 )
             )
-            ->when(!empty($filters['date_from']), fn (Builder $builder) =>
-                $builder->whereDate('date', '>=', $filters['date_from'])
-            )
-            ->when(!empty($filters['date_to']), fn (Builder $builder) =>
-                $builder->whereDate('date', '<=', $filters['date_to'])
+            ->when(!empty($filters['date']), fn (Builder $builder) =>
+                $builder->whereDate('date', $filters['date'])
             );
 
         return $this->applyFabricFilter($query, $filters);

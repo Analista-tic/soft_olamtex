@@ -177,8 +177,8 @@ function buildItemDialogForm(rowIdx: number): Partial<Item> {
         baseForm.description = description;
     }
 
-    if (suggestedImagePath) {
-        baseForm.img = suggestedImagePath;
+    if (suggestedItem.image_url) {
+        baseForm.img_url = suggestedItem.image_url;
     }
 
     return baseForm;
@@ -251,6 +251,19 @@ async function handleItemDialogSaved(mode: 'create' | 'edit') {
     setTaxFromItem(targetItem);
     calcTotals(targetItem);
     emit('update:items', localItems.value);
+
+    // Esperar a que el watcher de item_id ejecute setDescriptionFromItem (catálogo)
+    await nextTick();
+
+    // Pre-llenar descripción de la fila con la de la solicitud si aún está vacía
+    if (!targetItem.description?.trim() && shouldPrefillItemDialogFromRequest.value) {
+        const suggestedItem = getSuggestedItemForRow(rowIdx);
+        const solicitudDescription = typeof suggestedItem?.description === 'string' ? suggestedItem.description.trim() : '';
+        if (solicitudDescription) {
+            targetItem.description = solicitudDescription;
+            emit('update:items', localItems.value);
+        }
+    }
 }
 
 async function handleTaxDialogSubmit(formData: TaxDialogForm) {
@@ -609,6 +622,14 @@ function selectSuggestedItemInRow(rowIdx: number) {
     emit('update:items', localItems.value);
 }
 
+function openCreateItemDialogForRow(rowIdx: number) {
+    if (hasPurchaseRequestContext.value) {
+        openItemDialogFromRequest(rowIdx);
+    } else {
+        openItemDialog(rowIdx, false);
+    }
+}
+
 defineExpose({ addItem, validateFabricFields, openItemDialog });
 </script>
 
@@ -693,6 +714,18 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                                 <div class="flex items-center gap-1.5">
                                     <div class="min-w-0 flex-1">
                                         <SelectField
+                                            v-model="item.item_id"
+                                            :options="itemOptions"
+                                            label=""
+                                            placeholder="Selecciona item"
+                                            class="w-full"
+                                            :disabled="isReadOnly"
+                                            v-if="!isReadOnly"
+                                            action-label="Nuevo ítem"
+                                            @action="openCreateItemDialogForRow(idx)"
+                                        />
+                                        <SelectField
+                                            v-else
                                             v-model="item.item_id"
                                             :options="itemOptions"
                                             label=""

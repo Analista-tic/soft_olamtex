@@ -84,8 +84,8 @@ function handleInteractOutside(event: unknown) {
             :class="
                 cn(
                     'h-fit max-h-[90vh] w-[calc(100%-2rem)] max-w-4xl overflow-hidden border border-border bg-background shadow-[0_25px_70px_rgba(15,23,42,0.35)] sm:rounded-[28px]',
-                    props.class,
                     'fixed left-1/2 top-1/2 z-[51] -translate-x-1/2 -translate-y-1/2',
+                    props.class,
                 )
             "
         >

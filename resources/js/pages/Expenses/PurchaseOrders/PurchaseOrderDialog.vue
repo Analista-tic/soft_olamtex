@@ -476,6 +476,7 @@ function applyRequestSuggestion() {
             supplier_code: item.supplier_code || '',
             supplier_color: item.supplier_color || '',
             order_width: Number(item.order_width) || 0,
+            image_url: item.image_url || null,
         }));
     }
 
@@ -499,6 +500,24 @@ const setErrorMessage = (msg: string, type: 'success' | 'error' | 'info' | 'warn
     showError(msg, type);
     scrollToDialogTop();
 };
+
+function resolvePurchaseOrderSaveErrorMessage(error: unknown): string {
+    const responseData = (error as any)?.response?.data;
+    const validationErrors = responseData?.errors as Record<string, string[] | string> | undefined;
+
+    if (validationErrors) {
+        const hasInvalidItemError = Object.keys(validationErrors).some((key) => /^items\.\d+\.item_id$/.test(key));
+        if (hasInvalidItemError) {
+            return 'El ítem seleccionado no existe o ya no está disponible. Selecciona un ítem válido.';
+        }
+    }
+
+    return (
+        responseData?.message ||
+        Object.values(validationErrors || {})?.flat?.()?.[0] ||
+        'Error al guardar la orden. Por favor intente nuevamente.'
+    );
+}
 
 const stableStringify = (value: any): string => {
     const normalize = (val: any): any => {
@@ -571,10 +590,7 @@ async function handleSubmit(sendMail = false) {
         }
         dialogOpen.value = false;
     } catch (e) {
-        const serverMessage =
-            (e as any)?.response?.data?.message ||
-            Object.values((e as any)?.response?.data?.errors || {})?.flat()?.[0] ||
-            'Error al guardar la orden. Por favor intente nuevamente.';
+        const serverMessage = resolvePurchaseOrderSaveErrorMessage(e);
         setErrorMessage(serverMessage);
         emit('error', serverMessage);
         console.error('Error guardando orden:', e);

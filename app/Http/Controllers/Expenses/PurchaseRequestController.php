@@ -21,11 +21,14 @@ class PurchaseRequestController extends Controller
 
     public function getData(Request $request)
     {
-        $filters = $request->only(['search', 'status', 'provider_name', 'date_from', 'date_to', 'exclude_with_orders']);
+
+        $filters = $request->only(['search', 'status', 'provider_name', 'date', 'exclude_with_orders']);
+
 
         if (isset($filters['exclude_with_orders'])) {
             $filters['exclude_with_orders'] = filter_var($filters['exclude_with_orders'], FILTER_VALIDATE_BOOLEAN);
         }
+
 
         $perPage = $request->input('per_page', 20);
         $documents = $this->service->paginate($filters, $perPage);

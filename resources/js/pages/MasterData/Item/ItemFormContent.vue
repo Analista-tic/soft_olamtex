@@ -435,6 +435,8 @@ function applyFormData(source: ItemFormSource) {
     imageFile.value = null;
     if (fileInputRef.value) fileInputRef.value.value = '';
 
+    console.log('[applyFormData] img:', source.img, 'img_url:', source.img_url, 'imagePreview resultado:', resolveImageUrl(source.img, source.img_url));
+
     imagePreview.value = resolveImageUrl(localForm.value.img, localForm.value.img_url);
 
     updateNameField();

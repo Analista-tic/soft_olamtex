@@ -10,7 +10,7 @@ import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { useItemSearch } from '@/composables/useItemSearch';
+import type { Item } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
 import axios from 'axios';
 import { Trash } from 'lucide-vue-next';
@@ -81,13 +81,8 @@ const createEmptyForm = (): TransferForm => ({
     items: [createEmptyItem()],
 });
 
-const {
-    options: itemSearchOptions,
-    isLoading: isLoadingItems,
-    search: searchItems,
-    loadInitial: loadItemsInitial,
-} = useItemSearch();
-
+const catalogItems = ref<Item[]>([]);
+const isLoadingItems = ref(false);
 const transferForm = ref<TransferForm>(createEmptyForm());
 const itemRowRefs = ref<Array<HTMLElement | null>>([]);
 const itemWarehouseStocks = ref<Record<number, Array<{ warehouse_id: number; quantity: number }>>>({});
@@ -259,12 +254,26 @@ function initializeForm() {
     validationAlertVisible.value = Boolean(validationAlert.value);
 }
 
+async function fetchItems() {
+    if (isLoadingItems.value) return;
+    isLoadingItems.value = true;
+    try {
+        const response = await axios.get('/item/data', { params: { per_page: 1000 } });
+        catalogItems.value = Array.isArray(response?.data?.data) ? response.data.data : [];
+    } catch (error) {
+        console.error('Error al cargar ítems', error);
+        catalogItems.value = [];
+    } finally {
+        isLoadingItems.value = false;
+    }
+}
+
 watch(
     () => props.open,
     (isOpen) => {
         if (isOpen) {
             initializeForm();
-            loadItemsInitial();
+            void fetchItems();
         }
     },
 );
@@ -279,9 +288,9 @@ watch(
 );
 
 const itemOptions = computed<Option[]>(() =>
-    itemSearchOptions.value.map((item) => ({
+    catalogItems.value.map((item) => ({
         id: item.id,
-        name: item.label,
+        name: item.reference ? `${item.name} - ${item.reference}` : item.name,
     })),
 );
 
@@ -527,7 +536,6 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
                                                 @update:modelValue="
                                                     (value) => handleItemSelection(row, Array.isArray(value) ? (value[0] ?? null) : value)
                                                 "
-                                                @search="searchItems"
                                                 @focus="() => scrollItemRowIntoView(idx)"
                                             />
                                         </td>
