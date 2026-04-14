@@ -445,7 +445,7 @@ defineExpose({ addItem });
                             >Precio SIN Impuesto <span class="text-red-600">*</span></TableHead
                         >
                         <TableHead :class="[props.telaMode === true ? 'min-w-[170px]' : 'min-w-[160px]', 'text-left']">Impuesto (%)</TableHead>
-                        <TableHead class="min-w-[110px] text-left">Cantidad <span class="text-red-600">*</span></TableHead>
+                        <TableHead class="min-w-[140px] text-left">{{ props.telaMode ? 'Longitud (mts)' : 'Cantidad' }} <span class="text-red-600">*</span></TableHead>
                         <TableHead class="min-w-[160px] text-left">Descripción</TableHead>
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
                             ><span class="inline-flex items-center gap-1">Código proveedor <span class="text-red-600">*</span><HelpTooltip text="Referencia interna del proveedor para identificar esta tela en su catálogo. Aparece en la factura del proveedor." /></span></TableHead

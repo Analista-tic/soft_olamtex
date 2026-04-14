@@ -190,7 +190,8 @@ const widthTolerance = computed(() => {
 });
 
 async function loadRolls(): Promise<void> {
-    if (!props.item?.id || !props.apiUrl) {
+    const itemId = (props.item as any)?.id;
+    if (!itemId || !props.apiUrl) {
         rolls.value = [];
         return;
     }
@@ -198,11 +199,7 @@ async function loadRolls(): Promise<void> {
     rollsLoading.value = true;
 
     try {
-        const response = await axios.get(props.apiUrl, {
-            params: {
-                purchase_document_item_id: (props.item as any).id,
-            },
-        });
+        const response = await axios.get(`${props.apiUrl}/item/${itemId}`);
 
         const payload = response.data;
         rolls.value = Array.isArray(payload)

@@ -35,4 +35,6 @@ Route::prefix('kardex-telas')->name('kardex-telas.')->group(function () {
 
     Route::post('/rollos', [App\Http\Controllers\Textil\FabricRollController::class, 'storeFromReception'])->name('rollos.store');
     Route::get('/rollos/item/{itemId}', [App\Http\Controllers\Textil\FabricRollController::class, 'getByInvoiceItem'])->name('rollos.by-item');
+    Route::put('/rollos/{fabricRoll}', [App\Http\Controllers\Textil\FabricRollController::class, 'update'])->name('rollos.update');
+    Route::delete('/rollos/{fabricRoll}', [App\Http\Controllers\Textil\FabricRollController::class, 'destroy'])->name('rollos.delete');
 });

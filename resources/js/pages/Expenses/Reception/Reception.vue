@@ -564,7 +564,7 @@ function onFabricRollSuccess() {
 </script>
 
 <template>
-    <Head :title="specificInvoiceId ? `Recepción - Factura #${specificInvoiceId}` : 'Recepción'" />
+    <Head :title="showInvoiceDetail ? `Recepción - Factura N° ${selectedInvoice?.document_number || specificInvoiceId}` : 'Recepción'" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div ref="pageContentRef" class="flex h-full flex-col gap-4 rounded-xl p-3">
             <AlertStack
@@ -583,7 +583,7 @@ function onFabricRollSuccess() {
                         Volver a la lista
                     </Button>
                     <h1 class="text-base font-bold">
-                        {{ showInvoiceDetail ? `Recepción - Factura #${selectedInvoice?.id}` : 'Recepción' }}
+                        {{ showInvoiceDetail ? `Recepción - Factura N° ${selectedInvoice?.document_number || selectedInvoice?.id}` : 'Recepción' }}
                     </h1>
                 </div>
                 <div class="text-xs text-muted-foreground">
@@ -740,10 +740,10 @@ function onFabricRollSuccess() {
                         </div>
                         <div>
                             <p class="text-sm font-medium text-muted-foreground">Fecha de entrega</p>
-                            <p class="text-sm">{{ selectedInvoice.delivery_date }}</p>
+                            <p class="text-sm">{{ formatInvoiceDate(selectedInvoice.delivery_date) }}</p>
                         </div>
                         <div>
-                            <p class="text-sm font-medium text-muted-foreground"># Factura proveedor</p>
+                            <p class="text-sm font-medium text-muted-foreground">N° Factura proveedor</p>
                             <p class="text-sm">{{ selectedInvoice.supplier_invoice_number || 'N/A' }}</p>
                         </div>
                         <div>
@@ -757,42 +757,41 @@ function onFabricRollSuccess() {
                     <!-- Header de empresa -->
                     <div class="grid grid-cols-3 items-start gap-4 rounded-lg border border-border bg-card p-3">
                         <div>
-                            <div class="text-sm font-semibold">Factura #{{ selectedInvoice.id }}</div>
-                            <p class="text-sm text-muted-foreground">{{ selectedInvoice.supplier_invoice_number || 'Sin número de proveedor' }}</p>
+                            <div class="text-sm font-semibold">Factura N° {{ selectedInvoice.document_number || selectedInvoice.id }}</div>
+                            <div class="mt-2 space-y-1">
+                                <div>
+                                    <p class="text-xs font-medium text-muted-foreground">Proveedor</p>
+                                    <p class="text-sm">{{ getInvoiceContact(selectedInvoice)?.full_name ?? 'N/A' }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-medium text-muted-foreground">Número de identificación</p>
+                                    <p class="text-sm">{{ getInvoiceContact(selectedInvoice)?.id_number ?? 'N/A' }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-medium text-muted-foreground">Número de contacto</p>
+                                    <p class="text-sm">{{ getInvoiceContact(selectedInvoice)?.phone ?? 'N/A' }}</p>
+                                </div>
+                            </div>
                         </div>
                         <div class="relative flex h-full items-center justify-center rounded p-2">
                             <img :src="logoUrl" alt="Logotipo de la empresa" class="max-h-24 w-auto max-w-[160px] object-contain" />
                         </div>
                         <div>
                             <div class="text-sm font-semibold">Datos empresa</div>
-                            <p class="text-sm">
-                                Razón Social:
-                                <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
-                            </p>
-                            <p class="text-sm">
-                                NIT:
-                                <span class="font-normal">{{ company?.nit || 'Sin NIT' }}</span>
-                            </p>
-                            <p class="text-sm">
-                                Correo:
-                                <span class="font-normal">{{ company?.email || 'Sin correo' }}</span>
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Información del proveedor -->
-                    <div class="grid grid-cols-3 gap-4 rounded-lg bg-muted/40 p-3">
-                        <div>
-                            <p class="text-sm font-medium text-muted-foreground">Proveedor</p>
-                            <p class="text-sm">{{ getInvoiceContact(selectedInvoice)?.full_name ?? 'N/A' }}</p>
-                        </div>
-                        <div>
-                            <p class="text-sm font-medium text-muted-foreground">Número de identificación</p>
-                            <p class="text-sm">{{ getInvoiceContact(selectedInvoice)?.id_number ?? 'N/A' }}</p>
-                        </div>
-                        <div>
-                            <p class="text-sm font-medium text-muted-foreground">Número de contacto</p>
-                            <p class="text-sm">{{ getInvoiceContact(selectedInvoice)?.phone ?? 'N/A' }}</p>
+                            <div class="mt-2 space-y-1">
+                                <div>
+                                    <p class="text-xs font-medium text-muted-foreground">Razón Social</p>
+                                    <p class="text-sm">{{ company?.name || 'Sin nombre' }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-medium text-muted-foreground">NIT</p>
+                                    <p class="text-sm">{{ company?.nit || 'Sin NIT' }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-medium text-muted-foreground">Correo</p>
+                                    <p class="text-sm">{{ company?.email || 'Sin correo' }}</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -813,11 +812,11 @@ function onFabricRollSuccess() {
                                         <TableHead class="py-2">Código</TableHead>
                                         <TableHead class="py-2">Descripción</TableHead>
                                         <TableHead class="py-2">Proveedor</TableHead>
-                                        <TableHead class="py-2">Cantidad</TableHead>
+                                        <TableHead class="py-2">{{ isTelasList ? 'Longitud' : 'Cantidad' }}</TableHead>
                                         <TableHead class="py-2">Precio</TableHead>
                                         <TableHead class="py-2">IVA</TableHead>
                                         <TableHead class="py-2">Total</TableHead>
-                                        <TableHead class="py-2">Acciones</TableHead>
+                                        <TableHead class="w-24 py-2 text-center">Acciones</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -827,7 +826,7 @@ function onFabricRollSuccess() {
                                         <TableCell class="py-2">{{ item.description || '-' }}</TableCell>
                                         <TableCell class="py-2">{{ item.supplier_code || '-' }}</TableCell>
                                         <TableCell class="py-2">{{
-                                            `${item.quantity} ${item.item && 'unit' in item.item ? item.item.unit : 'mts'}`
+                                            `${Number(item.quantity).toFixed(2)} ${item.item && 'unit' in item.item ? item.item.unit : 'mts'}`
                                         }}</TableCell>
                                         <TableCell class="py-2">
                                             {{
@@ -859,10 +858,10 @@ function onFabricRollSuccess() {
                                                 })
                                             }}
                                         </TableCell>
-                                        <TableCell class="py-2">
+                                        <TableCell class="py-2 text-center">
                                             <template v-if="isFabricItem(item)">
                                                 <button
-                                                    class="flex h-full items-center justify-center text-muted-foreground transition-colors duration-200"
+                                                    class="mx-auto flex h-full items-center justify-center text-muted-foreground transition-colors duration-200"
                                                     :class="
                                                         isInvoiceReceptionApproved(selectedInvoice)
                                                             ? 'cursor-not-allowed opacity-50'
