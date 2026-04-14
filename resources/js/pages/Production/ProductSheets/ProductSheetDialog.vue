@@ -353,11 +353,11 @@ function syncCatalogOptionsFromProps(): void {
     yarnBaseOptions.value = Array.isArray(props.yarnBases) ? [...props.yarnBases] : [];
 }
 
-async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig): Promise<void> {
+async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig, rawName?: string): Promise<void> {
     if (isReadonly.value) return;
 
     const config = selectCreationConfig[catalogKey];
-    const name = normalizeCollectionName(config.getTerm());
+    const name = normalizeCollectionName(rawName ?? config.getTerm());
 
     if (!name) {
         setError(`Escribe un nombre para agregar ${config.successLabel.toLowerCase()}.`, 'warning');
@@ -1297,7 +1297,7 @@ function handleClose() {
                                         action-label="Agregar sección"
                                         :action-disabled="isReadonly"
                                         @search="(term) => (sectionSearchTerm = String(term ?? ''))"
-                                        @action="createCatalogOption('sections')"
+                                        @action="(term) => createCatalogOption('sections', String(term ?? ''))"
                                         :invalid="showFieldErrors && !!fieldErrors.section_id"
                                         :error-message="showFieldErrors ? fieldErrors.section_id : undefined"
                                     />
@@ -1319,7 +1319,7 @@ function handleClose() {
                                         action-label="Agregar grupo"
                                         :action-disabled="isReadonly"
                                         @search="(term) => (groupSearchTerm = String(term ?? ''))"
-                                        @action="createCatalogOption('groups')"
+                                        @action="(term) => createCatalogOption('groups', String(term ?? ''))"
                                         :invalid="showFieldErrors && !!fieldErrors.group_id"
                                         :error-message="showFieldErrors ? fieldErrors.group_id : undefined"
                                     />
@@ -1340,7 +1340,7 @@ function handleClose() {
                                         action-label="Agregar marca"
                                         :action-disabled="isReadonly"
                                         @search="(term) => (brandSearchTerm = String(term ?? ''))"
-                                        @action="createCatalogOption('brands')"
+                                        @action="(term) => createCatalogOption('brands', String(term ?? ''))"
                                         :invalid="showFieldErrors && !!fieldErrors.brand_id"
                                         :error-message="showFieldErrors ? fieldErrors.brand_id : undefined"
                                     />
@@ -1363,7 +1363,7 @@ function handleClose() {
                                         action-label="Agregar mundo"
                                         :action-disabled="isReadonly"
                                         @search="(term) => (worldSearchTerm = String(term ?? ''))"
-                                        @action="createCatalogOption('worlds')"
+                                        @action="(term) => createCatalogOption('worlds', String(term ?? ''))"
                                         :invalid="showFieldErrors && !!fieldErrors.world_id"
                                         :error-message="showFieldErrors ? fieldErrors.world_id : undefined"
                                     />
@@ -1399,7 +1399,7 @@ function handleClose() {
                                         action-label="Agregar base tela"
                                         :action-disabled="isReadonly"
                                         @search="(term) => (fabricBaseSearchTerm = String(term ?? ''))"
-                                        @action="createCatalogOption('fabric_bases')"
+                                        @action="(term) => createCatalogOption('fabric_bases', String(term ?? ''))"
                                         :invalid="showFieldErrors && !!fieldErrors.fabric_base_id"
                                         :error-message="showFieldErrors ? fieldErrors.fabric_base_id : undefined"
                                     />
@@ -1422,7 +1422,7 @@ function handleClose() {
                                         action-label="Agregar base hilaza"
                                         :action-disabled="isReadonly"
                                         @search="(term) => (yarnBaseSearchTerm = String(term ?? ''))"
-                                        @action="createCatalogOption('yarn_bases')"
+                                        @action="(term) => createCatalogOption('yarn_bases', String(term ?? ''))"
                                         :invalid="showFieldErrors && !!fieldErrors.yarn_base_id"
                                         :error-message="showFieldErrors ? fieldErrors.yarn_base_id : undefined"
                                     />

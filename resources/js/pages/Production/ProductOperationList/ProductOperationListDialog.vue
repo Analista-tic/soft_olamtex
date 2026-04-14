@@ -222,8 +222,8 @@ function normalizePreparationGroupName(value: unknown): string {
         .replace(/\s+/g, ' ');
 }
 
-function addPreparationGroupFromSelect() {
-    const group = normalizePreparationGroupName(preparationGroupSearchTerm.value);
+function addPreparationGroupFromSelect(rawName?: string) {
+    const group = normalizePreparationGroupName(rawName ?? preparationGroupSearchTerm.value);
 
     if (!group) {
         const msg = 'Escribe el nombre del grupo para agregarlo.';
@@ -755,7 +755,7 @@ function resetForm() {
                                 action-label="Agregar grupo"
                                 :action-disabled="readonly"
                                 @search="(term) => (preparationGroupSearchTerm = String(term ?? ''))"
-                                @action="addPreparationGroupFromSelect"
+                                @action="(term) => addPreparationGroupFromSelect(String(term ?? ''))"
                             />
                             <div v-else class="flex h-9 items-center justify-center text-[10px] text-muted-foreground/50">—</div>
                         </div>
@@ -875,7 +875,7 @@ function resetForm() {
                                                 action-label="Agregar grupo"
                                                 :action-disabled="readonly"
                                                 @search="(term) => (preparationGroupSearchTerm = String(term ?? ''))"
-                                                @action="addPreparationGroupFromSelect"
+                                                @action="(term) => addPreparationGroupFromSelect(String(term ?? ''))"
                                             />
                                             <span
                                                 v-else-if="isSectionPreparacion(row.section_id) && row.grupo_preparacion"
