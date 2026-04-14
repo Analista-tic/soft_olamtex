@@ -55,6 +55,7 @@ class ProductOperationListResource extends JsonResource
             ),
             
             // Metadata
+            'grupo_preparacion' => $this->grupo_preparacion,
             'notes' => $this->notes,
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
