@@ -54,7 +54,6 @@ const associatedNotesError = ref('');
 const isSendingMail = ref(false);
 const isApprovalDialogOpen = ref(false);
 const invoiceForApproval = ref<PurchaseInvoice | null>(null);
-const approvalStatusFilter = ref('all');
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError, clearAlerts } = useAlertStack();
 
 const statusFilter = ref('all');
@@ -66,6 +65,15 @@ const subgroups = ref<{ id: number; name: string }[]>([]);
 const DEFAULT_STATUS_FILTER = 'all';
 const DEFAULT_PROVIDER_FILTER = 'all';
 const DEFAULT_SUBGROUP_FILTER = 'all';
+const statusOptions = [
+    { id: 'all', name: 'Todos los estados' },
+    { id: 'status_pending', name: 'Pendiente' },
+    { id: 'status_approved', name: 'Aprobado' },
+    { id: 'status_rejected', name: 'Rechazado' },
+    { id: 'approval_pending_difference', name: 'Aprobación pendiente' },
+    { id: 'approval_approved', name: 'Diferencia aprobada' },
+    { id: 'approval_difference_rejected', name: 'Diferencia rechazada' },
+];
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
@@ -237,8 +245,12 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         date_from: toIsoDateString(dateFilter.value) || undefined,
         date_to: toIsoDateString(dateFilter.value) || undefined,
     };
-    if (statusFilter.value !== 'all') params.status = statusFilter.value;
-    if (approvalStatusFilter.value !== 'all') params.approval_status = approvalStatusFilter.value;
+    if (statusFilter.value === 'status_pending') params.status = 'pending';
+    if (statusFilter.value === 'status_approved') params.status = 'approved';
+    if (statusFilter.value === 'status_rejected') params.status = 'rejected';
+    if (statusFilter.value === 'approval_pending_difference') params.approval_status = 'pending_difference_approval';
+    if (statusFilter.value === 'approval_approved') params.approval_status = 'approved';
+    if (statusFilter.value === 'approval_difference_rejected') params.approval_status = 'difference_rejected';
     if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
         params.provider_id = isNaN(Number(providerFilter.value)) ? providerFilter.value : Number(providerFilter.value);
     }
@@ -258,15 +270,14 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
 
 // Watcher Ãºnico para filtros y bÃºsqueda
 watch(
-    [statusFilter, providerFilter, subgroupFilter, dateFilter, searchQuery, approvalStatusFilter],
-    ([newStatus, newProvider, newSubgroup, newDate, newSearch, newApproval], [oldStatus, oldProvider, oldSubgroup, oldDate, oldSearch, oldApproval]) => {
+    [statusFilter, providerFilter, subgroupFilter, dateFilter, searchQuery],
+    ([newStatus, newProvider, newSubgroup, newDate, newSearch], [oldStatus, oldProvider, oldSubgroup, oldDate, oldSearch]) => {
         if (
             newStatus !== oldStatus ||
             newProvider !== oldProvider ||
             newSubgroup !== oldSubgroup ||
             newDate !== oldDate ||
-            newSearch !== oldSearch ||
-            newApproval !== oldApproval
+            newSearch !== oldSearch
         ) {
             // Solo cambia la página, el watcher de currentPage hará el fetch
             if (currentPage.value !== 1) {
@@ -526,12 +537,7 @@ async function handleDifferenceDecision() {
                     <SelectField
                         v-model="statusFilter"
                         label=""
-                        :options="[
-                            { id: 'all', name: 'Todos los estados' },
-                            { id: 'pending', name: 'Pendiente' },
-                            { id: 'approved', name: 'Aprobado' },
-                            { id: 'rejected', name: 'Rechazado' },
-                        ]"
+                        :options="statusOptions"
                         :button-class="statusButtonClasses"
                     />
                 </FilterField>
@@ -556,18 +562,6 @@ async function handleDifferenceDecision() {
                 </FilterField>
                 <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
                     <DateField v-model="dateFilter" placeholder="Fecha" />
-                </FilterField>
-                <FilterField label="Diferencia" :active="approvalStatusFilter !== 'all'" class="min-w-[180px]">
-                    <SelectField
-                        v-model="approvalStatusFilter"
-                        label=""
-                        :options="[
-                            { id: 'all', name: 'Todas' },
-                            { id: 'pending_difference_approval', name: 'Aprobación pendiente' },
-                            { id: 'approved', name: 'Diferencia aprobada' },
-                            { id: 'difference_rejected', name: 'Diferencia rechazada' },
-                        ]"
-                    />
                 </FilterField>
             </FilterBar>
             <div class="relative overflow-auto rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
