@@ -27,7 +27,7 @@ class PurchaseDocumentController extends Controller
 
     protected function getDataGeneric(Request $request, string $documentType, int $perPage = 20)
     {
-        $filters = $request->only(['search', 'status', 'provider_id', 'date_from', 'date_to', 'subgroup_id']);
+        $filters = $request->only(['search', 'status', 'provider_id', 'date_from', 'date_to', 'subgroup_id', 'fabric_only', 'exclude_fabric']);
         $documents = $this->service->paginateDocuments($documentType, $filters, $perPage);
 
         return response()->json([

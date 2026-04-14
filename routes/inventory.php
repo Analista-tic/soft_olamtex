@@ -16,6 +16,7 @@ use Inertia\Inertia;
 Route::prefix('bodegas')->name('warehouses.')->group(function () {
     Route::get('/', [WarehouseController::class, 'index'])->name('index');
     Route::get('/data', [WarehouseController::class, 'getData'])->name('getData');
+    Route::get('/list', [WarehouseController::class, 'list'])->name('list');
     Route::post('/', [WarehouseController::class, 'store'])->name('store');
     Route::get('/{warehouse}', [WarehouseController::class, 'show'])->name('show');
     Route::get('/{id}/warehouses', [ItemController::class, 'getWarehouses'])->name('warehouses');

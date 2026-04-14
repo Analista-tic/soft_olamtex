@@ -2,16 +2,26 @@
 import AlertStack from '@/components/common/AlertStack.vue';
 import InputDate from '@/components/InputDate.vue';
 import InputField from '@/components/InputField.vue';
+import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import type { PurchaseInvoiceItem } from '@/domain/Expenses';
 import axios from 'axios';
 import { Pencil, Trash2 } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const TOLERANCE_QUANTITY_PERCENT = 30;
 const TOLERANCE_WIDTH_CM = 0.05;
+
+type AlertType = 'error' | 'info' | 'warning';
 
 type FabricRollForm = {
     roll_number: string;
@@ -23,29 +33,84 @@ type FabricRollForm = {
     entry_date: string;
 };
 
+type RollRecord = {
+    id: number;
+    roll_number?: string | null;
+    roll?: string | null;
+    quantity: number | string;
+    roll_width: number | string;
+    location?: string | null;
+    description?: string | null;
+    entry_date: string;
+};
+
 const props = defineProps<{
     isOpen: boolean;
     item: PurchaseInvoiceItem | null;
     apiUrl: string;
-    /** Si la factura está abierta (no recepcionada), se pueden eliminar y editar rollos. Por defecto true. */
     canDeleteEditRolls?: boolean;
 }>();
-
-const canDeleteEditRolls = computed(() => props.canDeleteEditRolls !== false);
 
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'success'): void;
 }>();
 
-const dialogOpen = ref(props.isOpen);
+const dialogOpen = ref(false);
 const isLoading = ref(false);
+const rollsLoading = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
-const errorType = ref<'error' | 'info' | 'warning'>('error');
+const errorType = ref<AlertType>('error');
 const dialogInnerRef = ref<HTMLElement | null>(null);
 
-function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
+const activeTab = ref<'form' | 'list'>('form');
+const editingRoll = ref<RollRecord | null>(null);
+const rolls = ref<RollRecord[]>([]);
+const warehouses = ref<{ id: number; name: string }[]>([]);
+const warehousesLoading = ref(false);
+
+const canDeleteEditRolls = computed(() => props.canDeleteEditRolls !== false);
+
+function parseNumber(value: number | string | null | undefined): number {
+    if (value === null || value === undefined || value === '') return 0;
+    if (typeof value === 'number') return value;
+
+    const normalized = String(value).trim().replace(/\s/g, '').replace(',', '.');
+    const parsed = Number(normalized);
+
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function todayIso(): string {
+    return new Date().toISOString().split('T')[0];
+}
+
+function generateRollNumber(): string {
+    return `RL-${Math.floor(100000 + Math.random() * 900000)}`;
+}
+
+function buildDefaultForm(): FabricRollForm {
+    return {
+        roll_number: generateRollNumber(),
+        purchase_document_item_id: (props.item as any)?.id ?? null,
+        quantity: '',
+        roll_width: props.item?.order_width?.toString() ?? '',
+        location: '',
+        description: '',
+        entry_date: todayIso(),
+    };
+}
+
+const form = ref<FabricRollForm>(buildDefaultForm());
+
+function resetForm(): void {
+    form.value = buildDefaultForm();
+    editingRoll.value = null;
+    clearAlert();
+}
+
+function setAlert(message: string, type: 'success' | AlertType = 'info'): void {
     if (type === 'success') {
         successMessage.value = message;
         errorMessage.value = '';
@@ -54,270 +119,259 @@ function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning
         successMessage.value = '';
         errorType.value = type;
     }
+
     if (dialogInnerRef.value?.scrollTo) {
         dialogInnerRef.value.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-        document.querySelector('[role="dialog"]')?.scrollTo?.({ top: 0, behavior: 'smooth' });
     }
 }
 
-function clearAlert() {
+function clearAlert(): void {
     successMessage.value = '';
     errorMessage.value = '';
 }
 
-const form = ref<FabricRollForm>({
-    roll_number: '',
-    purchase_document_item_id: null,
-    quantity: '',
-    roll_width: '',
-    location: '',
-    description: '',
-    entry_date: new Date().toISOString().split('T')[0],
-});
-
 const itemInfo = computed(() => {
     if (!props.item) return null;
+
     return {
         articleName: props.item.item?.name || 'N/A',
         supplierCode: props.item.supplier_code || 'N/A',
         supplierColor: props.item.supplier_color || 'N/A',
-        orderWidth: props.item.order_width || 'N/A',
-        orderedQuantity: Number(props.item.quantity) || 0,
+        orderWidth: parseNumber(props.item.order_width),
+        orderedQuantity: parseNumber(props.item.quantity),
     };
 });
 
-const totalReceived = computed(() => rolls.value.reduce((acc, roll) => acc + Number(roll.quantity || 0), 0));
+const totalReceived = computed(() =>
+    rolls.value.reduce((acc, roll) => acc + parseNumber(roll.quantity), 0)
+);
 
-/** Tolerancia de cantidad: 30% por encima o por debajo del pedido. */
 const quantityTolerance = computed(() => {
-    if (!props.item || itemInfo.value == null) return null;
+    if (!itemInfo.value) return null;
+
     const ordered = itemInfo.value.orderedQuantity;
     if (ordered <= 0) return null;
-    const currentReceived = totalReceived.value;
-    const thisQuantity = Number(form.value.quantity) || 0;
-    const receivedAfterSave = currentReceived + thisQuantity;
+
+    const currentReceivedWithoutEditing = rolls.value
+        .filter((roll) => roll.id !== editingRoll.value?.id)
+        .reduce((acc, roll) => acc + parseNumber(roll.quantity), 0);
+
+    const thisQuantity = parseNumber(form.value.quantity);
+    const receivedAfterSave = currentReceivedWithoutEditing + thisQuantity;
     const difference = Math.abs(ordered - receivedAfterSave);
     const percentageDiff = (difference / ordered) * 100;
-    const isWithinTolerance = percentageDiff <= TOLERANCE_QUANTITY_PERCENT;
+    const isApproved = percentageDiff <= TOLERANCE_QUANTITY_PERCENT;
+
     return {
         ordered,
         receivedAfterSave,
         difference,
         percentageDiff,
-        isApproved: isWithinTolerance,
+        isApproved,
     };
 });
 
-/** Tolerancia de ancho: ≤ 0.05 cm. Si es mayor, el rollo sigue siendo aprobado (solo informativo). */
 const widthTolerance = computed(() => {
-    if (!props.item || form.value.roll_width === '' || form.value.roll_width == null) return null;
-    const orderedWidth = Number(props.item.order_width) || 0;
-    const receivedWidth = Number(form.value.roll_width);
-    const difference = Math.abs(orderedWidth - receivedWidth);
-    const withinTolerance = difference <= TOLERANCE_WIDTH_CM;
+    if (!itemInfo.value) return null;
+
+    const referenceWidth = itemInfo.value.orderWidth;
+    const enteredWidth = parseNumber(form.value.roll_width);
+
+    if (referenceWidth <= 0 || enteredWidth <= 0) return null;
+
+    const difference = Math.abs(referenceWidth - enteredWidth);
+
     return {
-        ordered: orderedWidth,
-        received: receivedWidth,
+        referenceWidth,
+        enteredWidth,
         difference,
-        withinTolerance,
+        withinTolerance: difference <= TOLERANCE_WIDTH_CM,
     };
 });
 
-/** Estado de aprobación: solo por cantidad. Si no cumple tolerancia 30% → no aprobada / a la espera. Ancho > 0.05 no bloquea. */
-const approvalStatus = computed(() => {
-    const q = quantityTolerance.value;
-    if (!q) return null;
-    if (q.isApproved) return 'approved';
-    return 'pending_approval';
-});
-
-function resetForm() {
-    editingRoll.value = null;
-    form.value = {
-        roll_number: '',
-        purchase_document_item_id: props.item?.id ?? null,
-        quantity: '',
-        roll_width: props.item?.order_width?.toString() ?? '',
-        location: '',
-        description: '',
-        entry_date: new Date().toISOString().split('T')[0],
-    };
-}
-
-function fillFormFromRoll(roll: any) {
-    const entryDate = roll.entry_date
-        ? typeof roll.entry_date === 'string'
-            ? roll.entry_date.split('T')[0]
-            : roll.entry_date
-        : new Date().toISOString().split('T')[0];
-    form.value = {
-        roll_number: roll.roll_number ?? roll.roll ?? '',
-        purchase_document_item_id: roll.purchase_document_item_id ?? props.item?.id ?? null,
-        quantity: roll.quantity ?? '',
-        roll_width: roll.roll_width ?? props.item?.order_width?.toString() ?? '',
-        location: roll.location ?? '',
-        description: roll.description ?? '',
-        entry_date: entryDate,
-    };
-}
-
-function startEditRoll(roll: any) {
-    editingRoll.value = roll;
-    fillFormFromRoll(roll);
-    activeTab.value = 'form';
-    clearAlert();
-}
-
-/** Genera identificador único RL para el rollo. */
-function generateRollNumber(): string {
-    return `RL-${String(Date.now()).slice(-6)}`;
-}
-
-async function handleSubmit() {
-    if (!validateForm()) return;
-    isLoading.value = true;
-    try {
-        let rollNumber = String(form.value.roll_number || '').trim();
-        if (!rollNumber) rollNumber = generateRollNumber();
-
-        const payload = {
-            roll_number: rollNumber,
-            purchase_document_item_id: props.item!.id,
-            quantity: Number(form.value.quantity),
-            roll_width: Number(form.value.roll_width) || 0,
-            location: String(form.value.location || '').trim() || null,
-            description: form.value.description || null,
-            entry_date: form.value.entry_date,
-            partial_output: editingRoll.value?.partial_output ?? 0,
-            actual_output: editingRoll.value?.actual_output ?? 0,
-        };
-
-        if (editingRoll.value) {
-            await axios.put(`/rollos-tela/${editingRoll.value.id}`, payload);
-            setAlert('Rollo actualizado correctamente', 'success');
-            editingRoll.value = null;
-            resetForm();
-            await fetchRolls();
-            activeTab.value = 'list';
-        } else {
-            await axios.post(props.apiUrl, { ...payload, approval_status: approvalStatus.value || 'pending_approval' });
-            emit('success');
-            dialogOpen.value = false;
-            resetForm();
-            await fetchRolls();
-        }
-    } catch (error: any) {
-        const data = error.response?.data;
-        const msg = data?.message || (data?.errors && Object.values(data.errors).flat().join(', ')) || 'Error al guardar el rollo. Intente de nuevo.';
-        setAlert(msg, 'error');
-    } finally {
-        isLoading.value = false;
-    }
-}
-
-async function deleteRoll(roll: any) {
-    if (!props.canDeleteEditRolls) return;
-    if (!confirm(`¿Eliminar el rollo ${roll.roll_number || roll.roll}? Esta acción no se puede deshacer.`)) return;
-    isLoading.value = true;
-    try {
-        await axios.delete(`/rollos-tela/${roll.id}`);
-        setAlert('Rollo eliminado', 'success');
-        await fetchRolls();
-        emit('success');
-    } catch (error: any) {
-        const data = error.response?.data;
-        const msg = data?.message || (data?.errors && Object.values(data.errors).flat().join(', ')) || 'Error al eliminar el rollo.';
-        setAlert(msg, 'error');
-    } finally {
-        isLoading.value = false;
-    }
-}
-
-function validateForm(): boolean {
-    if (!form.value.quantity || Number(form.value.quantity) <= 0) {
-        setAlert('Ingrese una longitud válida (mts)', 'warning');
-        return false;
-    }
-    if (form.value.roll_width === '' || form.value.roll_width == null || Number(form.value.roll_width) < 0) {
-        setAlert('Ingrese un ancho válido (cm)', 'warning');
-        return false;
-    }
-    if (!form.value.entry_date) {
-        setAlert('Seleccione la fecha de entrada', 'warning');
-        return false;
-    }
-    const loc = String(form.value.location || '').trim();
-    if (!loc) {
-        setAlert('Ingrese la ubicación del rollo', 'warning');
-        return false;
-    }
-    return true;
-}
-
-const activeTab = ref<'form' | 'list'>('form');
-const rolls = ref<any[]>([]);
-const rollsLoading = ref(false);
-/** Rollo en edición (si no es null, el formulario hace PUT en lugar de POST). */
-const editingRoll = ref<any | null>(null);
-
-async function fetchRolls() {
-    if (!props.item?.id) {
+async function loadRolls(): Promise<void> {
+    if (!props.item?.id || !props.apiUrl) {
         rolls.value = [];
         return;
     }
+
     rollsLoading.value = true;
+
     try {
-        const res = await axios.get(`/kardex-telas/rollos/item/${props.item.id}`);
-        rolls.value = Array.isArray(res.data) ? res.data : [];
-    } catch {
+        const response = await axios.get(props.apiUrl, {
+            params: {
+                purchase_document_item_id: (props.item as any).id,
+            },
+        });
+
+        const payload = response.data;
+        rolls.value = Array.isArray(payload)
+            ? payload
+            : Array.isArray(payload?.data)
+              ? payload.data
+              : [];
+    } catch (error) {
+        console.error(error);
+        setAlert('No se pudieron cargar los rollos registrados.', 'error');
         rolls.value = [];
     } finally {
         rollsLoading.value = false;
     }
 }
 
-function formatDate(dateStr: string) {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    return Number.isNaN(d.getTime()) ? dateStr : d.toLocaleDateString('es-CO');
+async function loadWarehouses(): Promise<void> {
+    if (warehouses.value.length > 0) return;
+
+    warehousesLoading.value = true;
+    try {
+        const response = await axios.get('/bodegas/list');
+        warehouses.value = Array.isArray(response.data) ? response.data : [];
+    } catch {
+        warehouses.value = [];
+    } finally {
+        warehousesLoading.value = false;
+    }
+}
+
+async function handleSubmit(): Promise<void> {
+    if (!props.item?.id) {
+        setAlert('No hay un ítem seleccionado para registrar el rollo.', 'error');
+        return;
+    }
+
+    clearAlert();
+    isLoading.value = true;
+
+    const payload = {
+        roll_number: form.value.roll_number,
+        purchase_document_item_id: (props.item as any).id,
+        quantity: parseNumber(form.value.quantity),
+        roll_width: parseNumber(form.value.roll_width),
+        location: form.value.location,
+        description: form.value.description,
+        entry_date: form.value.entry_date,
+    };
+
+    try {
+        if (editingRoll.value?.id) {
+            await axios.put(`${props.apiUrl}/${editingRoll.value.id}`, payload);
+            setAlert('Rollo actualizado correctamente.', 'success');
+        } else {
+            await axios.post(props.apiUrl, payload);
+            setAlert('Rollo guardado correctamente.', 'success');
+        }
+
+        await loadRolls();
+        emit('success');
+
+        resetForm();
+        activeTab.value = 'list';
+    } catch (error: any) {
+        console.error(error);
+
+        const message =
+            error?.response?.data?.message ||
+            'No fue posible guardar la información del rollo.';
+        setAlert(message, 'error');
+    } finally {
+        isLoading.value = false;
+    }
+}
+
+function startEditRoll(roll: RollRecord): void {
+    editingRoll.value = roll;
+    activeTab.value = 'form';
+    clearAlert();
+
+    form.value = {
+        roll_number: roll.roll_number || roll.roll || generateRollNumber(),
+        purchase_document_item_id: (props.item as any)?.id ?? null,
+        quantity: roll.quantity ?? '',
+        roll_width: roll.roll_width ?? '',
+        location: roll.location || '',
+        description: roll.description || '',
+        entry_date: roll.entry_date || todayIso(),
+    };
+}
+
+async function deleteRoll(roll: RollRecord): Promise<void> {
+    if (!canDeleteEditRolls.value) return;
+
+    const confirmed = window.confirm(
+        `¿Seguro que deseas eliminar el rollo ${roll.roll_number || roll.roll || ''}?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+        await axios.delete(`${props.apiUrl}/${roll.id}`);
+        setAlert('Rollo eliminado correctamente.', 'success');
+        await loadRolls();
+        emit('success');
+
+        if (editingRoll.value?.id === roll.id) {
+            resetForm();
+            activeTab.value = 'form';
+        }
+    } catch (error: any) {
+        console.error(error);
+        const message =
+            error?.response?.data?.message ||
+            'No fue posible eliminar el rollo.';
+        setAlert(message, 'error');
+    }
+}
+
+function formatDate(value: string): string {
+    if (!value) return '—';
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+
+    return new Intl.DateTimeFormat('es-CO').format(date);
 }
 
 watch(
     () => props.isOpen,
-    (isOpen) => {
-        dialogOpen.value = isOpen;
-        if (isOpen) {
+    async (value) => {
+        dialogOpen.value = value;
+
+        if (value) {
             resetForm();
-            form.value.roll_number = generateRollNumber();
-            fetchRolls();
+            await Promise.all([loadRolls(), loadWarehouses()]);
         }
     },
+    { immediate: true }
 );
 
 watch(
-    () => props.item?.id,
-    (newId) => {
-        if (props.isOpen && newId) fetchRolls();
-    },
+    () => props.item,
+    async () => {
+        if (dialogOpen.value) {
+            resetForm();
+            await loadRolls();
+        }
+    }
 );
 
-watch(dialogOpen, (isOpen) => {
-    if (!isOpen) emit('close');
-});
-
-onMounted(() => {
-    if (props.isOpen && props.item?.id) fetchRolls();
+watch(dialogOpen, (value) => {
+    if (!value) {
+        emit('close');
+    }
 });
 </script>
 
 <template>
-    <Dialog v-model:open="dialogOpen">
-        <DialogContent class="flex max-h-[90vh] max-w-3xl flex-col gap-0 p-0">
-            <div class="flex-shrink-0 px-6 pb-2 pt-5">
+    <Dialog :open="dialogOpen" @update:open="dialogOpen = $event">
+        <DialogContent
+            class="flex h-[90vh] w-[95vw] max-w-4xl flex-col gap-0 overflow-hidden p-0"
+        >
+            <div class="border-b px-6 pb-4 pt-5">
                 <DialogHeader>
-                    <DialogTitle class="text-lg">{{ editingRoll ? 'Editar rollo' : 'Registrar rollo de tela' }}</DialogTitle>
-                    <DialogDescription class="text-sm text-muted-foreground">
+                    <DialogTitle class="text-lg">
+                        {{ editingRoll ? 'Editar rollo' : 'Registrar rollo de tela' }}
+                    </DialogTitle>
+                    <DialogDescription>
                         {{
                             editingRoll
                                 ? 'Modifique los datos del rollo y guarde.'
@@ -327,17 +381,16 @@ onMounted(() => {
                 </DialogHeader>
             </div>
 
-            <AlertStack
-                :success-message="successMessage"
-                :error-message="errorMessage"
-                :error-type="errorType"
-                @close-success="successMessage = ''"
-                @close-error="errorMessage = ''"
-            />
+            <div ref="dialogInnerRef" class="flex-1 overflow-y-auto px-6 py-4">
+                <AlertStack
+                    :success-message="successMessage"
+                    :error-message="errorMessage"
+                    :error-type="errorType"
+                    @close-success="successMessage = ''"
+                    @close-error="errorMessage = ''"
+                />
 
-            <div class="flex-1 overflow-y-auto px-6 py-4" style="scrollbar-width: thin">
-                <div ref="dialogInnerRef" class="space-y-5">
-                    <!-- Tabs -->
+                <div class="space-y-5">
                     <div class="flex gap-2 border-b pb-2">
                         <button
                             type="button"
@@ -349,13 +402,12 @@ onMounted(() => {
                             ]"
                             @click="
                                 resetForm();
-                                form.roll_number = generateRollNumber();
-                                form.roll_width = props.item?.order_width?.toString() ?? '';
                                 activeTab = 'form';
                             "
                         >
                             {{ editingRoll ? 'Editar rollo' : 'Registrar rollo' }}
                         </button>
+
                         <button
                             type="button"
                             :class="[
@@ -371,7 +423,6 @@ onMounted(() => {
                     </div>
 
                     <template v-if="activeTab === 'form'">
-                        <!-- Resumen del ítem -->
                         <div v-if="itemInfo" class="rounded-lg border bg-muted/30 p-4">
                             <h3 class="mb-3 text-sm font-semibold">Resumen del ítem</h3>
                             <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
@@ -384,8 +435,7 @@ onMounted(() => {
                             </div>
                         </div>
 
-                        <form @submit.prevent="handleSubmit" class="space-y-5">
-                            <!-- Longitud y ancho (destacados) -->
+                        <form id="fabric-roll-form" class="space-y-5" @submit.prevent="handleSubmit">
                             <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
                                 <div class="space-y-1">
                                     <InputField
@@ -396,18 +446,22 @@ onMounted(() => {
                                         min="0.01"
                                         placeholder="Ej: 100"
                                         required
-                                        class="text-base"
                                     />
                                     <p
                                         v-if="quantityTolerance"
                                         class="mt-1 text-xs"
                                         :class="quantityTolerance.isApproved ? 'text-green-600' : 'text-amber-600'"
                                     >
-                                        Tras guardar: {{ quantityTolerance.receivedAfterSave.toFixed(2) }} mts ({{
-                                            quantityTolerance.percentageDiff.toFixed(1)
-                                        }}% {{ quantityTolerance.isApproved ? '— dentro de tolerancia' : '— fuera de tolerancia ±30%' }})
+                                        Tras guardar: {{ quantityTolerance.receivedAfterSave.toFixed(2) }} mts
+                                        ({{ quantityTolerance.percentageDiff.toFixed(1) }}%
+                                        {{
+                                            quantityTolerance.isApproved
+                                                ? '— dentro de tolerancia'
+                                                : '— fuera de tolerancia ±30%'
+                                        }})
                                     </p>
                                 </div>
+
                                 <div class="space-y-1">
                                     <InputField
                                         v-model="form.roll_width"
@@ -417,7 +471,6 @@ onMounted(() => {
                                         min="0"
                                         placeholder="Ej: 1.50"
                                         required
-                                        class="text-base"
                                     />
                                     <p
                                         v-if="widthTolerance"
@@ -425,60 +478,53 @@ onMounted(() => {
                                         :class="widthTolerance.withinTolerance ? 'text-green-600' : 'text-muted-foreground'"
                                     >
                                         Dif. {{ widthTolerance.difference.toFixed(2) }} cm
-                                        {{ widthTolerance.withinTolerance ? '(dentro de ±0.05 cm)' : '(ancho no bloquea aprobación)' }}
+                                        {{
+                                            widthTolerance.withinTolerance
+                                                ? '(dentro de ±0.05 cm)'
+                                                : '(ancho no bloquea aprobación)'
+                                        }}
                                     </p>
                                 </div>
                             </div>
 
-                            <!-- Número de rollo y fecha -->
                             <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                                <InputField v-model="form.roll_number" label="Número de rollo (RL)" placeholder="Generado automáticamente" readonly />
+                                <InputField
+                                    v-model="form.roll_number"
+                                    label="Número de rollo (RL)"
+                                    placeholder="Generado automáticamente"
+                                    readonly
+                                />
                                 <InputDate v-model="form.entry_date" label="Fecha de entrada" required />
                             </div>
 
-                            <!-- Ubicación -->
-                            <div>
-                                <InputField v-model="form.location" label="Ubicación" placeholder="Ej: Bodega A, estante 2" required />
-                            </div>
-                            <!-- Observaciones -->
-                            <div>
-                                <TextareaField v-model="form.description" label="Observaciones" :rows="2" placeholder="Opcional" />
-                            </div>
+                            <SelectField
+                                label="Ubicación"
+                                :required="true"
+                                :options="warehouses.map(w => ({ id: w.name, name: w.name }))"
+                                :model-value="form.location"
+                                :disabled="warehousesLoading"
+                                :placeholder="warehousesLoading ? 'Cargando bodegas...' : 'Selecciona una bodega'"
+                                @update:model-value="form.location = String($event ?? '')"
+                            />
 
-                            <DialogFooter class="mt-4 border-t pt-4">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    class="rounded-full px-5 py-2 text-sm font-semibold"
-                                    @click="dialogOpen = false"
-                                >
-                                    Cancelar
-                                </Button>
-                                <Button type="submit" class="rounded-full px-5 py-2 text-sm font-semibold shadow-sm" :disabled="isLoading">
-                                    {{ isLoading ? 'Guardando...' : editingRoll ? 'Actualizar rollo' : 'Guardar rollo' }}
-                                </Button>
-                                <Button
-                                    v-if="editingRoll"
-                                    type="button"
-                                    variant="outline"
-                                    class="rounded-full px-5 py-2 text-sm font-semibold"
-                                    @click="
-                                        resetForm();
-                                        form.roll_number = generateRollNumber();
-                                        form.roll_width = props.item?.order_width?.toString() ?? '';
-                                    "
-                                >
-                                    Cancelar edición
-                                </Button>
-                            </DialogFooter>
+                            <TextareaField
+                                v-model="form.description"
+                                label="Observaciones"
+                                :rows="2"
+                                placeholder="Opcional"
+                            />
                         </form>
                     </template>
 
                     <template v-else>
-                        <div v-if="rollsLoading" class="py-8 text-center text-muted-foreground">Cargando rollos...</div>
+                        <div v-if="rollsLoading" class="py-8 text-center text-muted-foreground">
+                            Cargando rollos...
+                        </div>
+
                         <div v-else-if="rolls.length === 0" class="py-8 text-center text-muted-foreground">
                             Aún no hay rollos registrados para este ítem.
                         </div>
+
                         <div v-else class="space-y-3">
                             <div class="overflow-hidden rounded-lg border">
                                 <table class="w-full text-sm">
@@ -489,7 +535,12 @@ onMounted(() => {
                                             <th class="px-4 py-3 text-right font-medium">Ancho</th>
                                             <th class="px-4 py-3 text-left font-medium">Ubicación</th>
                                             <th class="px-4 py-3 text-left font-medium">Fecha</th>
-                                            <th v-if="canDeleteEditRolls" class="w-24 px-4 py-3 text-center font-medium">Acciones</th>
+                                            <th
+                                                v-if="canDeleteEditRolls"
+                                                class="w-24 px-4 py-3 text-center font-medium"
+                                            >
+                                                Acciones
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -523,33 +574,70 @@ onMounted(() => {
                                     </tbody>
                                 </table>
                             </div>
-                            <p class="text-sm font-medium text-muted-foreground">Longitud total recibida: {{ totalReceived.toFixed(2) }} mts</p>
-                            <DialogFooter class="mt-4 border-t pt-4">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    class="rounded-full px-5 py-2 text-sm font-semibold"
-                                    @click="dialogOpen = false"
-                                >
-                                    Cerrar
-                                </Button>
-                                <Button
-                                    type="button"
-                                    class="rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
-                                    @click="
-                                        resetForm();
-                                        form.roll_number = generateRollNumber();
-                                        form.roll_width = props.item?.order_width?.toString() ?? '';
-                                        activeTab = 'form';
-                                    "
-                                >
-                                    Registrar otro rollo
-                                </Button>
-                            </DialogFooter>
+
+                            <p class="text-sm font-medium text-muted-foreground">
+                                Longitud total recibida: {{ totalReceived.toFixed(2) }} mts
+                            </p>
                         </div>
                     </template>
                 </div>
             </div>
+
+            <DialogFooter class="border-t bg-background px-6 py-4">
+                <div class="flex w-full flex-col gap-2 md:flex-row md:justify-end">
+                    <template v-if="activeTab === 'form'">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            class="rounded-full px-5 py-2 text-sm font-semibold"
+                            @click="dialogOpen = false"
+                        >
+                            Cancelar
+                        </Button>
+
+                        <Button
+                            type="submit"
+                            form="fabric-roll-form"
+                            class="rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+                            :disabled="isLoading"
+                        >
+                            {{ isLoading ? 'Guardando...' : editingRoll ? 'Actualizar rollo' : 'Guardar rollo' }}
+                        </Button>
+
+                        <Button
+                            v-if="editingRoll"
+                            type="button"
+                            variant="outline"
+                            class="rounded-full px-5 py-2 text-sm font-semibold"
+                            @click="resetForm"
+                        >
+                            Cancelar edición
+                        </Button>
+                    </template>
+
+                    <template v-else>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            class="rounded-full px-5 py-2 text-sm font-semibold"
+                            @click="dialogOpen = false"
+                        >
+                            Cerrar
+                        </Button>
+
+                        <Button
+                            type="button"
+                            class="rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+                            @click="
+                                resetForm();
+                                activeTab = 'form';
+                            "
+                        >
+                            Registrar otro rollo
+                        </Button>
+                    </template>
+                </div>
+            </DialogFooter>
         </DialogContent>
     </Dialog>
 </template>

@@ -129,21 +129,16 @@ const pendingPurchaseOrderOptions = computed<Option[]>(() =>
         (order: {
             id: number | string;
             document_number?: string;
-            contact?: { full_name?: string; business_name?: string };
-            contact_full_name?: string;
+            supplier?: { full_name?: string };
         }) => {
             const rawId = order?.id ?? '';
             const numericId = Number(rawId);
             const optionId = Number.isNaN(numericId) ? rawId : numericId;
-            // Usar el número de documento (document_number) de la orden, no el del proveedor
             const orderNumber = order?.document_number || String(order?.id ?? '');
-            const contactName = order?.contact?.full_name || order?.contact?.business_name || order?.contact_full_name || '';
-            // Formato: #documento - Proveedor
-            let name = `#${orderNumber}`;
-            if (contactName) name += ` - ${contactName}`;
+            const providerLabel = order?.supplier?.full_name || 'Sin proveedor';
             return {
                 id: optionId,
-                name,
+                name: `${orderNumber} - ${providerLabel}`,
             };
         },
     ),

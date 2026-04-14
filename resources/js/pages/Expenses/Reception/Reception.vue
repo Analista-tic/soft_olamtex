@@ -1127,23 +1127,25 @@ function onFabricRollSuccess() {
 
             <!-- Diálogo de confirmación para rechazar recepción -->
             <Dialog v-model:open="isRejectDialogOpen">
-                <DialogContent class="sm:max-w-sm">
-                    <DialogHeader class="gap-3 text-center sm:text-left">
-                        <div
-                            class="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10 text-destructive sm:mx-0"
-                        >
+                <DialogContent class="sm:max-w-[440px] p-6">
+                    <div class="flex items-start pr-8">
+                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10 text-destructive mt-1 mr-4 shrink-0">
                             <AlertTriangle class="h-5 w-5" />
                         </div>
-                        <DialogTitle>Rechazar recepción</DialogTitle>
-                        <DialogDescription>
-                            Esta acción marcará la recepción como rechazada y no se podrá deshacer fácilmente.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter class="gap-2 sm:justify-end">
+                        <div class="flex-1 min-w-0">
+                            <DialogHeader class="p-0 text-left">
+                                <DialogTitle class="text-base font-semibold">Rechazar recepción</DialogTitle>
+                            </DialogHeader>
+                            <DialogDescription class="mt-1 text-sm text-muted-foreground">
+                                Esta acción marcará la recepción como rechazada y no se podrá deshacer fácilmente.
+                            </DialogDescription>
+                        </div>
+                    </div>
+                    <DialogFooter class="mt-6 gap-2 sm:justify-end">
                         <DialogClose as-child>
-                            <Button variant="outline">Cancelar</Button>
+                            <Button variant="outline" class="rounded-full px-4 py-2">Cancelar</Button>
                         </DialogClose>
-                        <Button variant="destructive" @click="confirmRejectReception">
+                        <Button variant="destructive" class="rounded-full px-4 py-2 flex items-center gap-2" @click="confirmRejectReception">
                             <X class="h-4 w-4" /> Rechazar
                         </Button>
                     </DialogFooter>

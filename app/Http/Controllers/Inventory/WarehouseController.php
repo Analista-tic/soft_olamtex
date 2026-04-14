@@ -66,4 +66,11 @@ class WarehouseController extends Controller
 
         return response()->json($warehouses);
     }
+
+    public function list()
+    {
+        return response()->json(
+            Warehouse::select('id', 'name')->orderBy('name')->get()
+        );
+    }
 }

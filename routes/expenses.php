@@ -79,5 +79,8 @@ Route::prefix('gastos')->name('gastos.')->group(function () {
         Route::get('/{purchaseInvoice}', [PurchaseInvoiceTelaController::class, 'show'])->name('show');
         Route::put('/{purchaseInvoice}', [PurchaseInvoiceTelaController::class, 'update'])->name('update');
         Route::delete('/{purchaseInvoice}', [PurchaseInvoiceTelaController::class, 'destroy'])->name('destroy');
+        Route::post('/{purchaseInvoice}/justificar', [PurchaseInvoiceTelaController::class, 'justify'])->name('justify')->middleware('permission:editar facturas compra');
+        Route::post('/{purchaseInvoice}/aprobar-diferencia', [PurchaseInvoiceTelaController::class, 'approveDifference'])->name('approve-difference')->middleware('permission:aprobar facturas compra');
+        Route::post('/{purchaseInvoice}/rechazar-diferencia', [PurchaseInvoiceTelaController::class, 'rejectDifference'])->name('reject-difference')->middleware('permission:aprobar facturas compra');
     });
 });
