@@ -50,6 +50,7 @@ export type ProductSheet = {
     id: number;
     reference?: string | null;
     type: 'muestra' | 'producto';
+    garment_type?: 'superior' | 'inferior' | null;
     sample_reference?: string | null;
     product_reference?: string | null;
     product_reference_2?: string | null;

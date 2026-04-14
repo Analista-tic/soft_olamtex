@@ -15,6 +15,7 @@ import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } fr
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useProductSheetValidation } from '@/composables/useProductSheetValidation';
+import { useSmartLoading } from '@/composables/useSmartLoading';
 import type { OptionParams, ProductSheet } from '@/domain/Production';
 import {
     PRODUCT_SHEET_TYPE_PRODUCT,
@@ -68,6 +69,7 @@ const dialogInnerRef = ref<HTMLElement | null>(null);
 const isLoading = ref(false);
 const errorMessage = ref('');
 const errorType = ref<'error' | 'warning' | 'info'>('error');
+const smartLoading = useSmartLoading();
 
 function setError(message: string, type: 'error' | 'warning' | 'info' = 'error'): void {
     errorMessage.value = message;
@@ -376,10 +378,14 @@ async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig
     }
 
     try {
-        const response = await axios.post(route('produccion.product-sheets.parameters.store-option'), {
-            key: catalogKey,
-            name,
-        });
+        const response = await smartLoading.run(
+            () =>
+                axios.post(route('produccion.product-sheets.parameters.store-option'), {
+                    key: catalogKey,
+                    name,
+                }),
+            { label: `Creando ${config.successLabel.toLowerCase()}...` },
+        );
 
         const created = response.data?.data;
         const createdId = toIdOrNull(created?.id ?? null);
@@ -416,6 +422,32 @@ function syncCollectionOptionsFromProps(): void {
     collectionOptions.value = Array.isArray(props.collections) ? [...props.collections] : [];
 }
 
+function findCollectionByName(name: string, options: OptionParams[]): OptionParams | undefined {
+    const normalized = normalizeCollectionName(name).toLowerCase();
+    return options.find((option) => normalizeCollectionName(String(option.name)).toLowerCase() === normalized);
+}
+
+async function refreshCollectionOptionsAndSelect(name: string): Promise<boolean> {
+    try {
+        const response = await axios.get(route('produccion.colecciones.options'));
+        const options = Array.isArray(response.data?.data) ? (response.data.data as OptionParams[]) : [];
+        collectionOptions.value = options;
+
+        const existing = findCollectionByName(name, options);
+        const existingId = toIdOrNull(existing?.id ?? null);
+        if (!existingId) {
+            return false;
+        }
+
+        form.value.collection_id = existingId;
+        collectionSearchTerm.value = '';
+        setError('La colección ya existía y fue seleccionada.', 'info');
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 async function createCollectionFromSelect(rawName?: string): Promise<void> {
     if (isReadonly.value || creatingCollection.value) return;
 
@@ -435,10 +467,14 @@ async function createCollectionFromSelect(rawName?: string): Promise<void> {
 
     creatingCollection.value = true;
     try {
-        const response = await axios.post(route('produccion.colecciones.store'), {
-            name,
-            is_active: true,
-        });
+        const response = await smartLoading.run(
+            () =>
+                axios.post(route('produccion.colecciones.store'), {
+                    name,
+                    is_active: true,
+                }),
+            { label: 'Creando colección...' },
+        );
 
         const created = response.data?.data;
         const createdId = toIdOrNull(created?.id ?? null);
@@ -455,6 +491,13 @@ async function createCollectionFromSelect(rawName?: string): Promise<void> {
         setError('Colección creada y seleccionada.', 'info');
     } catch (err: unknown) {
         if (axios.isAxiosError(err)) {
+            if (err.response?.status === 422) {
+                const recovered = await refreshCollectionOptionsAndSelect(name);
+                if (recovered) {
+                    return;
+                }
+            }
+
             const message = err.response?.data?.message;
             const validationError = err.response?.data?.errors
                 ? Object.values(err.response.data.errors).flat()[0]
@@ -496,7 +539,7 @@ async function loadTemplates() {
 
     isLoadingTemplate.value = true;
     try {
-        const response = await fetchProductSheetTemplates();
+        const response = await smartLoading.run(() => fetchProductSheetTemplates(), { label: 'Cargando plantillas...' });
         templateOptions.value = response.data?.data ?? [];
         templatesLoaded.value = true;
     } catch {
@@ -510,7 +553,7 @@ async function applyTemplate(templateId: number) {
     if (!templateId) return;
     isLoadingTemplate.value = true;
     try {
-        const response = await showProductSheet(templateId);
+        const response = await smartLoading.run(() => showProductSheet(templateId), { label: 'Aplicando plantilla...' });
         const tpl = response.data?.data;
         if (!tpl) return;
 
@@ -804,6 +847,7 @@ watch(
             flatSketchRef.value?.reset();
             const sizeValue = ensureSizesJson(newProductSheet.sizes);
             const normalizedType = normalizeTypeValue(newProductSheet.type);
+            const garmentType = (newProductSheet as ProductSheet & { garment_type?: 'superior' | 'inferior' | null }).garment_type ?? null;
 
             form.value = {
                 ...createInitialFormState(),
@@ -815,7 +859,7 @@ watch(
                 fabric_base_id: toIdOrNull(newProductSheet.fabric_base_id),
                 yarn_base_id: toIdOrNull(newProductSheet.yarn_base_id),
                 type: normalizedType,
-                garment_type: (newProductSheet.garment_type as 'superior' | 'inferior' | null) ?? null,
+                garment_type: garmentType,
                 operational_list_id: toIdOrNull(newProductSheet.operational_list_id),
                 collection_id: toIdOrNull(newProductSheet.collection_id),
                 billing_price: Number(newProductSheet.billing_price ?? 0),
@@ -915,9 +959,13 @@ async function validateSampleOperationalList(silent = false): Promise<boolean> {
 
     checkingSampleOperationalList.value = true;
     try {
-        const response = await axios.get(route('produccion.listados-operacionales.data'), {
-            params: { product_sheet_id: productSheetId },
-        });
+        const response = await smartLoading.run(
+            () =>
+                axios.get(route('produccion.listados-operacionales.data'), {
+                    params: { product_sheet_id: productSheetId },
+                }),
+            { label: 'Validando listado operacional...' },
+        );
         const rows = Array.isArray(response.data?.data) ? response.data.data : [];
         hasSampleOperationalList.value = rows.length > 0;
 
@@ -966,7 +1014,8 @@ function closeConvertDialog() {
 }
 
 async function submitConvertDialog(productReference: string) {
-    if (!props.productSheet?.id) {
+    const productSheetId = props.productSheet?.id;
+    if (!productSheetId) {
         setError('No se pudo identificar la sábana.');
         return;
     }
@@ -980,7 +1029,10 @@ async function submitConvertDialog(productReference: string) {
 
     convertLoading.value = true;
     try {
-        const response = await convertSampleToProduct(props.productSheet.id, productReference);
+        const response = await smartLoading.run(
+            () => convertSampleToProduct(productSheetId, productReference),
+            { label: 'Convirtiendo muestra a producto...' },
+        );
         emit('productSheetSaved', {
             success: true,
             message: 'Sábana convertida a producto correctamente.',
@@ -1084,21 +1136,26 @@ async function saveProductSheet() {
     isLoading.value = true;
 
     try {
-        const basePayload = buildBasePayload();
-        const payload = buildMultipartPayload(basePayload);
+        const response = await smartLoading.run(
+            async () => {
+                const basePayload = buildBasePayload();
+                const payload = buildMultipartPayload(basePayload);
 
-        const flatSketchToUpload = await (flatSketchRef.value?.getFileForUpload() ?? Promise.resolve(null));
-        if (flatSketchToUpload instanceof File) {
-            payload.append('flat_sketch', flatSketchToUpload);
-        }
+                const flatSketchToUpload = await (flatSketchRef.value?.getFileForUpload() ?? Promise.resolve(null));
+                if (flatSketchToUpload instanceof File) {
+                    payload.append('flat_sketch', flatSketchToUpload);
+                }
 
-        if (isEditMode.value && props.productSheet?.id) {
-            payload.append('_method', 'PUT');
-        }
+                if (isEditMode.value && props.productSheet?.id) {
+                    payload.append('_method', 'PUT');
+                }
 
-        const response = isEditMode.value && props.productSheet?.id
-            ? await updateProductSheet(props.productSheet.id, payload)
-            : await createProductSheet(payload);
+                return isEditMode.value && props.productSheet?.id
+                    ? await updateProductSheet(props.productSheet.id, payload)
+                    : await createProductSheet(payload);
+            },
+            { label: isEditMode.value ? 'Actualizando sábana...' : 'Guardando sábana...' },
+        );
 
         emit('productSheetSaved', {
             success: true,
