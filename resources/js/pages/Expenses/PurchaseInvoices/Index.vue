@@ -644,15 +644,7 @@ async function handleDifferenceDecision() {
                                     <!-- Mostrar siempre el botón; si está aprobado se muestra deshabilitado visualmente
                                          y al hacer clic se muestra un mensaje en vez de intentar eliminar -->
                                     <DeleteButton
-                                        :onClick="
-                                            () => {
-                                                if (invoice.status === 'received') {
-                                                    showError('No se puede eliminar una factura que ya fue recibida.');
-                                                } else {
-                                                    confirmDeleteInvoice(invoice);
-                                                }
-                                            }
-                                        "
+                                        @click="invoice.status === 'received' ? showError('No se puede eliminar una factura que ya fue recibida.') : confirmDeleteInvoice(invoice)"
                                         :customClass="invoice.status === 'received' ? 'opacity-60 cursor-not-allowed' : ''"
                                     />
                                     <DropdownMenu>

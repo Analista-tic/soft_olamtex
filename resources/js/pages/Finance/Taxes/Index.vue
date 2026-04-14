@@ -187,7 +187,7 @@ onMounted(() => fetchTaxes());
                             </TableCell>
                             <TableCell class="flex justify-center gap-1">
                                 <EditButton :onClick="() => openDialog('edit', tax)" />
-                                <DeleteButton :onClick="() => confirmDeleteTax(tax)" />
+                                <DeleteButton @click="confirmDeleteTax(tax)" />
                             </TableCell>
                         </TableRow>
                     </TableBody>

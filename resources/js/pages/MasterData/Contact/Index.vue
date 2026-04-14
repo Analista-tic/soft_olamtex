@@ -389,7 +389,7 @@ onBeforeUnmount(() => {
                             <TableCell>{{ contact.contact_type }}</TableCell>
                             <TableCell class="flex justify-center gap-1">
                                 <EditButton :onClick="() => openDialog('edit', contact)" />
-                                <DeleteButton :onClick="() => confirmDeleteContact(contact)" />
+                                <DeleteButton @click="confirmDeleteContact(contact)" />
                             </TableCell>
                         </TableRow>
                     </TableBody>

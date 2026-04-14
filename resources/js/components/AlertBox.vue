@@ -116,7 +116,6 @@ onBeforeUnmount(() => {
         data-alert-stack-root="true"
         @pointerdown.stop
         @mousedown.stop
-        @touchstart.stop
         @click.stop
     >
         <div class="flex flex-shrink-0 items-start pt-0.5">

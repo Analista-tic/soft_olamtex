@@ -635,7 +635,7 @@ onMounted(async () => {
                             </TableCell>
                             <TableCell class="flex justify-center gap-1">
                                 <EditButton :onClick="() => openEditDialog(note)" />
-                                <DeleteButton :onClick="() => confirmDelete(note)" />
+                                <DeleteButton @click="confirmDelete(note)" />
                             </TableCell>
                         </TableRow>
 

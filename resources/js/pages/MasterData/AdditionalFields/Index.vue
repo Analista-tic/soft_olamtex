@@ -511,7 +511,7 @@ onBeforeUnmount(() => {
                             <TableCell>{{ field.options?.length ?? 0 }}</TableCell>
                             <TableCell class="flex justify-center gap-1">
                                 <EditButton :onClick="() => openDialog('edit', field)" />
-                                <DeleteButton :onClick="() => confirmDeleteField(field)" />
+                                <DeleteButton @click="confirmDeleteField(field)" />
                             </TableCell>
                         </TableRow>
                         <TableRow v-if="additionalFields.length === 0">

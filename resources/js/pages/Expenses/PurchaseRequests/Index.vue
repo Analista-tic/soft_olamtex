@@ -434,7 +434,7 @@ onMounted(() => {
                                     <EditButton v-if="canEditRequest(request)" :onClick="() => editRequest(request)" title="Editar solicitud" />
                                     <DeleteButton
                                         v-if="canEditRequest(request) || request.status === 'cancelled'"
-                                        :onClick="() => confirmDeleteRequest(request)"
+                                        @click="confirmDeleteRequest(request)"
                                         title="Eliminar solicitud"
                                     />
                                     <DropdownMenu

@@ -229,7 +229,7 @@ onMounted(() => {
                             <TableCell>{{ subGroup.category_group?.name }}</TableCell>
                             <TableCell class="flex justify-center gap-1">
                                 <EditButton :onClick="() => openDialog('edit', subGroup)" />
-                                <DeleteButton :onClick="() => confirmDeleteSubGroup(subGroup)" />
+                                <DeleteButton @click="confirmDeleteSubGroup(subGroup)" />
                             </TableCell>
                         </TableRow>
                     </TableBody>

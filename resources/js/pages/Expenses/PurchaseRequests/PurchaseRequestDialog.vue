@@ -345,16 +345,24 @@ async function handleSubmit(sendToApproval: boolean = false) {
     errorMessage.value = '';
     errorType.value = 'error';
 
-    if (!validateForm()) {
-        return;
-    }
-
-    const hasNewItemImages = (localForm.value.items || []).some((item) => item.image_file instanceof File);
-
-    if (props.dialogType === 'edit' && stableStringify(localForm.value) === originalFormSnapshot.value && !hasNewItemImages) {
-        if (sendToApproval) {
-            await handleSendToApproval();
+    try {
+        if (!validateForm()) {
+            return;
         }
+
+        const hasNewItemImages = (localForm.value.items || []).some((item) => item.image_file instanceof File);
+
+        if (props.dialogType === 'edit' && stableStringify(localForm.value) === originalFormSnapshot.value && !hasNewItemImages) {
+            if (sendToApproval) {
+                await handleSendToApproval();
+            }
+            return;
+        }
+    } catch (error) {
+        const message = 'Error inesperado preparando la solicitud. Recarga e intenta nuevamente.';
+        setErrorMessage(message);
+        emit('error', message);
+        console.error('Error previo al guardado de solicitud:', error);
         return;
     }
 
@@ -434,6 +442,15 @@ async function handleSubmit(sendToApproval: boolean = false) {
         isLoading.value = false;
         isSubmittingDialog.value = false;
     }
+}
+
+function handleSubmitSafe(sendToApproval: boolean = false) {
+    void handleSubmit(sendToApproval).catch((error) => {
+        const message = 'Error inesperado al guardar la solicitud. Intenta nuevamente.';
+        setErrorMessage(message);
+        emit('error', message);
+        console.error('Error no controlado al guardar solicitud:', error);
+    });
 }
 
 async function handleSendToApproval() {
@@ -541,7 +558,7 @@ watch(dialogOpen, (isOpen) => {
 
                     <TooltipProvider v-if="canRenderForm">
                         <form
-                            @submit.prevent="handleSubmit()"
+                            @submit.prevent="handleSubmitSafe(false)"
                             :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingRequestId }"
                             class="mt-2 space-y-4 pb-4"
                         >
@@ -663,7 +680,7 @@ watch(dialogOpen, (isOpen) => {
                         type="button"
                         :disabled="isLoading || isBlockingLoading"
                         class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        @click="handleSubmit(false)"
+                        @click="handleSubmitSafe(false)"
                     >
                         {{ isLoading ? 'Guardando...' : 'Guardar' }}
                     </button>
@@ -672,7 +689,7 @@ watch(dialogOpen, (isOpen) => {
                         type="button"
                         :disabled="isLoading || isBlockingLoading"
                         class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        @click="handleSubmit(true)"
+                        @click="handleSubmitSafe(true)"
                     >
                         {{ isLoading ? 'Guardando...' : 'Guardar y enviar a aprobacion' }}
                     </button>

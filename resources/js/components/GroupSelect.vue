@@ -37,25 +37,38 @@ const emit = defineEmits<{
 
 const localValue = ref<Option['id'][]>(props.modelValue ? [...props.modelValue] : []);
 
+function normalizeToArray(value: Option['id'][] | Option['id'] | undefined | null): Option['id'][] {
+    if (Array.isArray(value)) {
+        return [...value];
+    }
+    if (value === undefined || value === null) {
+        return [];
+    }
+    return [value];
+}
+
+function areArraysEqual(a: Option['id'][], b: Option['id'][]): boolean {
+    return JSON.stringify(a) === JSON.stringify(b);
+}
+
 watch(
     () => props.modelValue,
     (next) => {
-        if (Array.isArray(next)) {
-            localValue.value = [...next];
-        } else if (next === undefined || next === null) {
-            localValue.value = [];
-        } else {
-            localValue.value = [next];
+        const normalizedNext = normalizeToArray(next);
+        if (!areArraysEqual(localValue.value, normalizedNext)) {
+            localValue.value = normalizedNext;
         }
     },
-    { deep: true },
 );
 
 watch(
     localValue,
     (next) => {
-        emit('update:modelValue', [...next]);
-        emit('input');
+        const normalizedPropsValue = normalizeToArray(props.modelValue);
+        if (!areArraysEqual(next, normalizedPropsValue)) {
+            emit('update:modelValue', [...next]);
+            emit('input');
+        }
     },
     { deep: true },
 );
@@ -92,11 +105,15 @@ const selectedOptions = computed(() => props.options.filter((option) => localVal
 function handleChange(next: Option['id'][] | Option['id']) {
     if (props.disabled) return;
     if (Array.isArray(next)) {
-        localValue.value = [...next];
+        if (!areArraysEqual(localValue.value, next)) {
+            localValue.value = [...next];
+        }
         return;
     }
     if (next === undefined || next === null) {
-        localValue.value = [];
+        if (localValue.value.length > 0) {
+            localValue.value = [];
+        }
         return;
     }
     const id = next;
@@ -107,7 +124,9 @@ function handleChange(next: Option['id'][] | Option['id']) {
     } else {
         clone.push(id);
     }
-    localValue.value = clone;
+    if (!areArraysEqual(localValue.value, clone)) {
+        localValue.value = clone;
+    }
 }
 
 function removeOption(optionId: Option['id']) {
@@ -127,7 +146,7 @@ const pillClasses =
 
 <template>
     <div class="grid w-full items-start gap-1">
-        <Label>
+        <Label v-if="label">
             {{ label }}
             <span v-if="required" class="text-destructive">*</span>
         </Label>

@@ -242,7 +242,7 @@ onMounted(() => fetchRetentions());
                             </TableCell>
                             <TableCell class="flex justify-center gap-1">
                                 <EditButton :onClick="() => openDialog('edit', retention)" />
-                                <DeleteButton :onClick="() => confirmDeleteRetention(retention)" />
+                                <DeleteButton @click="confirmDeleteRetention(retention)" />
                             </TableCell>
                         </TableRow>
                     </TableBody>

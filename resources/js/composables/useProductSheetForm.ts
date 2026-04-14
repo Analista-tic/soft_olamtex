@@ -414,7 +414,6 @@ export function useProductSheetForm(params: UseProductSheetFormParams) {
         const hasSelectedSize = Object.values(parsedSizes.value).some(Boolean);
         const isComplete =
             Boolean(form.value.reference) &&
-            Boolean(form.value.billing_price) &&
             Boolean(form.value.selling_price) &&
             hasSelectedSize &&
             hasOperationalList;
