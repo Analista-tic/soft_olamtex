@@ -32,8 +32,15 @@ class PurchaseRequestService
         }
 
 
-        if (!empty($filters['date'])) {
-            $query->whereDate('date', $filters['date']);
+        if (!empty($filters['date_from']) && !empty($filters['date_to']) && $filters['date_from'] === $filters['date_to']) {
+            $query->whereDate('date', $filters['date_from']);
+        } elseif (!empty($filters['date_from']) || !empty($filters['date_to'])) {
+            if (!empty($filters['date_from'])) {
+                $query->whereDate('date', '>=', $filters['date_from']);
+            }
+            if (!empty($filters['date_to'])) {
+                $query->whereDate('date', '<=', $filters['date_to']);
+            }
         }
 
         if (!empty($filters['exclude_with_orders']) && $filters['exclude_with_orders']) {

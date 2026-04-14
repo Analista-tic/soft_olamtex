@@ -285,7 +285,10 @@ async function fetchRequests() {
     if (searchQuery.value.trim()) params.search = searchQuery.value.trim();
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
     // Filtro de proveedor eliminado
-    if (dateFilter.value) params.date = dateFilter.value;
+    if (dateFilter.value) {
+        params.date_from = dateFilter.value;
+        params.date_to = dateFilter.value;
+    }
 
     try {
         const response = await axios.get('/gastos/solicitudes-compra/data', { params });
@@ -370,9 +373,9 @@ onMounted(() => {
                     />
                 </FilterField>
                 <!-- Filtro de proveedor eliminado -->
-                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
-                    <InputDate v-model="dateFilter" placeholder="Fecha" />
-                </FilterField>
+<FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
+    <InputDate v-model="dateFilter" placeholder="Fecha" :clearable="true" :show-today="true" />
+</FilterField>
             </FilterBar>
 
             <div class="relative overflow-auto rounded-xl border border-sidebar-border/70">

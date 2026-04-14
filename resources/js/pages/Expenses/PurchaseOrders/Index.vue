@@ -187,7 +187,8 @@ async function fetchOrders(page = 1, search = '') {
         page,
         per_page: itemsPerPage,
         search,
-        date: dateFilter.value || undefined,
+        date_from: dateFilter.value || undefined,
+        date_to: dateFilter.value || undefined,
     };
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
     if (providerFilter.value !== 'all') params.provider_id = providerFilter.value;
@@ -341,14 +342,9 @@ function handleDialogError(message?: string) {
                         :button-class="providerButtonClasses"
                     />
                 </FilterField>
-                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
-                    <div class="flex items-center gap-2">
-                        <DatePickerField v-model="dateFilter" label="" placeholder-text="Fecha" class="min-w-0 flex-1" />
-                        <Button v-if="isDateFilterActive" type="button" variant="ghost" size="sm" class="h-10 px-2 text-xs" @click="dateFilter = null">
-                            Borrar
-                        </Button>
-                    </div>
-                </FilterField>
+<FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
+    <DatePickerField v-model="dateFilter" label="" placeholder-text="Fecha" :clearable="true" :show-today="true" />
+</FilterField>
             </FilterBar>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>

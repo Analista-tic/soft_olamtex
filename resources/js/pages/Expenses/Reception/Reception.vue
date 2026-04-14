@@ -5,7 +5,7 @@ import FilterField from '@/components/FilterField.vue';
 import InputDate from '@/components/InputDate.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -16,7 +16,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import type { PageProps as InertiaPageProps } from '@inertiajs/core';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { ArrowLeft, Check, Eye, Package2, Search, X } from 'lucide-vue-next';
+import { AlertTriangle, ArrowLeft, Check, Eye, Package2, Search, X } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import FabricRollDialog from './FabricRollDialog.vue';
 
@@ -1127,14 +1127,23 @@ function onFabricRollSuccess() {
 
             <!-- Diálogo de confirmación para rechazar recepción -->
             <Dialog v-model:open="isRejectDialogOpen">
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>¿Está seguro de rechazar esta recepción?</DialogTitle>
-                        <DialogDescription> Esta acción marcará la recepción como rechazada y no se podrá deshacer fácilmente. </DialogDescription>
+                <DialogContent class="sm:max-w-sm">
+                    <DialogHeader class="gap-3 text-center sm:text-left">
+                        <div
+                            class="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10 text-destructive sm:mx-0"
+                        >
+                            <AlertTriangle class="h-5 w-5" />
+                        </div>
+                        <DialogTitle>Rechazar recepción</DialogTitle>
+                        <DialogDescription>
+                            Esta acción marcará la recepción como rechazada y no se podrá deshacer fácilmente.
+                        </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter class="mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
-                        <Button variant="outline" class="w-full md:w-auto" @click="isRejectDialogOpen = false"> Cancelar </Button>
-                        <Button variant="destructive" class="w-full md:w-auto" @click="confirmRejectReception">
+                    <DialogFooter class="gap-2 sm:justify-end">
+                        <DialogClose as-child>
+                            <Button variant="outline">Cancelar</Button>
+                        </DialogClose>
+                        <Button variant="destructive" @click="confirmRejectReception">
                             <X class="h-4 w-4" /> Rechazar
                         </Button>
                     </DialogFooter>

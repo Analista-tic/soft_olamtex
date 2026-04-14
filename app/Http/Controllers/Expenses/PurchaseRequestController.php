@@ -23,7 +23,7 @@ class PurchaseRequestController extends Controller
     public function getData(Request $request)
     {
 
-        $filters = $request->only(['search', 'status', 'provider_name', 'date', 'exclude_with_orders']);
+        $filters = $request->only(['search', 'status', 'provider_name', 'date_from', 'date_to', 'exclude_with_orders']);
 
 
         if (isset($filters['exclude_with_orders'])) {

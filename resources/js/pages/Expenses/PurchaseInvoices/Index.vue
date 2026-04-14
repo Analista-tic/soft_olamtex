@@ -168,6 +168,34 @@ function getInvoiceStatusTone(
     return 'gray';
 }
 
+function isInvoiceLocked(invoice: PurchaseInvoice): boolean {
+    return (
+        invoice.status === 'approved' ||
+        invoice.status === 'rejected' ||
+        invoice.approval_status === 'approved' ||
+        invoice.approval_status === 'difference_rejected'
+    );
+}
+
+function isInvoiceDeleteLocked(invoice: PurchaseInvoice): boolean {
+    return (
+        invoice.status === 'approved' ||
+        invoice.status === 'rejected' ||
+        invoice.status === 'received' ||
+        invoice.approval_status === 'approved' ||
+        invoice.approval_status === 'difference_rejected'
+    );
+}
+
+function invoiceHasNotes(invoice: PurchaseInvoice): boolean {
+    if (!invoice.children || invoice.children.length === 0) return false;
+    return invoice.children.some(
+        (c) =>
+            c.document_type === 'purchase_credit_note' ||
+            c.document_type === 'purchase_debit_note',
+    );
+}
+
 async function fetchProviders() {
     try {
         const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
@@ -616,17 +644,13 @@ async function handleDifferenceDecision() {
                                     </button>
                                     <EditButton
                                         :onClick="() => {
-                                            if (invoice.approval_status === 'approved') {
-                                                showError('No se puede editar una factura aprobada o recibida.');
+                                            if (isInvoiceLocked(invoice)) {
+                                                showError('No se puede editar una factura aprobada, rechazada o con diferencia rechazada.');
                                                 return;
                                             }
                                             openDialogWithPreparation('edit', invoice);
                                         }"
-                                        :class="
-                                            invoice.approval_status === 'approved'
-                                                ? 'opacity-40 cursor-not-allowed pointer-events-none'
-                                                : ''
-                                        "
+                                        :class="isInvoiceLocked(invoice) ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''"
                                     />
                                     <!-- Botón de aprobación de diferencia: visible solo cuando hay diferencia pendiente -->
                                     <button
@@ -641,20 +665,14 @@ async function handleDifferenceDecision() {
                                     <!-- Mostrar siempre el botón; si está aprobado se muestra deshabilitado visualmente
                                          y al hacer clic se muestra un mensaje en vez de intentar eliminar -->
                                     <DeleteButton
-                                        :onClick="
-                                            () => {
-                                                if (invoice.status === 'received' || invoice.approval_status === 'approved') {
-                                                    showError('No se puede eliminar una factura aprobada o recibida.');
-                                                } else {
-                                                    confirmDeleteInvoice(invoice);
-                                                }
+                                        :onClick="() => {
+                                            if (isInvoiceDeleteLocked(invoice)) {
+                                                showError('No se puede eliminar una factura aprobada, rechazada, recibida o con diferencia rechazada.');
+                                            } else {
+                                                confirmDeleteInvoice(invoice);
                                             }
-                                        "
-                                        :customClass="
-                                            invoice.status === 'received' || invoice.approval_status === 'approved'
-                                                ? 'opacity-60 cursor-not-allowed'
-                                                : ''
-                                        "
+                                        }"
+                                        :customClass="isInvoiceDeleteLocked(invoice) ? 'opacity-60 cursor-not-allowed' : ''"
                                     />
                                     <DropdownMenu>
                                         <DropdownMenuTrigger as-child>
@@ -674,10 +692,18 @@ async function handleDifferenceDecision() {
                                             <DropdownMenuItem class="cursor-pointer gap-2" @select="handlePrintAction(invoice, $event)">
                                                 <Printer class="h-4 w-4" /> Imprimir
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem class="cursor-pointer gap-2" @select="handleReceptionAction(invoice, $event)">
+                                            <DropdownMenuItem
+                                                v-if="invoice.status === 'pending_receipt' || invoice.status === 'approved' || invoice.status === 'rejected'"
+                                                class="cursor-pointer gap-2"
+                                                @select="handleReceptionAction(invoice, $event)"
+                                            >
                                                 <Package class="h-4 w-4" /> Ir a recepción
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem class="cursor-pointer gap-2" @select="openAssociatedNotesDialog(invoice, $event)">
+                                            <DropdownMenuItem
+                                                v-if="invoiceHasNotes(invoice)"
+                                                class="cursor-pointer gap-2"
+                                                @select="openAssociatedNotesDialog(invoice, $event)"
+                                            >
                                                 <Eye class="h-4 w-4" /> Ver notas crédito/débito
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
