@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
+import { Button } from '@/components/ui/button';
 import SelectField from '@/components/SelectField.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -610,13 +611,14 @@ onBeforeUnmount(() => {
                                 <!-- Botón de cámara - position absolute, tamaño fijo -->
                                 <DropdownMenu v-model:open="isAvatarMenuOpen" :modal="false">
                                     <DropdownMenuTrigger :as-child="true">
-                                        <button
-                                            type="button"
-                                            class="absolute bottom-0 right-0 z-10 box-border inline-flex h-9 w-9 items-center justify-center rounded-full border border-transparent bg-primary text-white shadow-md transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 data-[state=open]:bg-primary"
+                                        <Button
+                                            variant="default"
+                                            size="icon"
+                                            class="absolute bottom-0 right-0 z-10 box-border h-9 w-9 rounded-full border border-transparent shadow-md data-[state=open]:bg-primary"
                                             aria-label="Acciones de foto de perfil"
                                         >
                                             <Camera class="h-4 w-4" />
-                                        </button>
+                                        </Button>
                                     </DropdownMenuTrigger>
 
                                     <DropdownMenuContent align="end" side="bottom" :side-offset="10" class="w-44 rounded-xl">
@@ -844,13 +846,9 @@ onBeforeUnmount(() => {
                             </fieldset>
 
                             <div class="flex flex-wrap gap-3 border-t pt-4">
-                                <button
-                                    type="submit"
-                                    :disabled="isSaving || !canEditCompany"
-                                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
+                                <Button variant="default" size="pill" type="submit" :disabled="isSaving || !canEditCompany">
                                     {{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
-                                </button>
+                                </Button>
                                 <button
                                     type="button"
                                     :disabled="isSaving || !canEditCompany"

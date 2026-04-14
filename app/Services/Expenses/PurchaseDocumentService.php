@@ -335,15 +335,25 @@ class PurchaseDocumentService
 
     protected function generateDocumentNumber(string $prefix, string $documentType): string
     {
-        $nextId = $this->nextDocumentSequence($documentType);
-        return sprintf('%s-%03d', $prefix, $nextId);
+        $nextId = $this->nextDocumentSequence($documentType, $prefix);
+        return sprintf('%s-%04d', $prefix, $nextId);
     }
 
-    protected function nextDocumentSequence(string $documentType): int
+    protected function nextDocumentSequence(string $documentType, string $prefix): int
     {
-        return (int) PurchaseDocument::withTrashed()
+        $last = PurchaseDocument::withTrashed()
             ->where('document_type', $documentType)
-            ->max('id') + 1;
+            ->where('document_number', 'like', $prefix . '-%')
+            ->orderByDesc('id')
+            ->value('document_number');
+
+        if (!$last) {
+            return 1;
+        }
+
+        $parts = explode('-', $last);
+        $number = (int) end($parts);
+        return $number + 1;
     }
 
     protected function normalizeInvoicePayload(array $data): array
@@ -505,20 +515,25 @@ class PurchaseDocumentService
     /**
      * Aprobar la diferencia de una factura.
      */
-    public function approveDifference(PurchaseDocument $invoice, ?string $notes, int $approverId): PurchaseDocument
-    {
-        if (! $invoice->isInvoice()) {
-            throw new \InvalidArgumentException('Solo las facturas pueden ser aprobadas.');
+    public function approveDifference(
+        PurchaseDocument $invoice,
+        ?string $notes,
+        int $approverId
+    ): PurchaseDocument {
+        if (!$invoice->isInvoice()) {
+            throw new \InvalidArgumentException(
+                'Solo las facturas pueden ser aprobadas.'
+            );
         }
 
         if ($invoice->approval_status !== PurchaseDocument::APPROVAL_PENDING_DIFFERENCE) {
             throw ValidationException::withMessages([
-                'approval_status' => 'La factura no está en estado pendiente de aprobación de diferencia.',
+                'approval_status' => 'La factura no está pendiente de aprobación de diferencia.',
             ]);
         }
 
         $invoice->update([
-            'approval_status'     => PurchaseDocument::APPROVAL_PENDING,
+            'approval_status'     => PurchaseDocument::APPROVAL_APPROVED,
             'difference_status'   => 'approved',
             'approval_notes'      => $notes,
             'approved_by_user_id' => $approverId,
@@ -531,15 +546,20 @@ class PurchaseDocumentService
     /**
      * Rechazar la diferencia de una factura (requiere notas).
      */
-    public function rejectDifference(PurchaseDocument $invoice, string $notes, int $rejectorId): PurchaseDocument
-    {
-        if (! $invoice->isInvoice()) {
-            throw new \InvalidArgumentException('Solo las facturas pueden ser rechazadas.');
+    public function rejectDifference(
+        PurchaseDocument $invoice,
+        string $notes,
+        int $rejectorId
+    ): PurchaseDocument {
+        if (!$invoice->isInvoice()) {
+            throw new \InvalidArgumentException(
+                'Solo las facturas pueden ser rechazadas.'
+            );
         }
 
         if ($invoice->approval_status !== PurchaseDocument::APPROVAL_PENDING_DIFFERENCE) {
             throw ValidationException::withMessages([
-                'approval_status' => 'La factura no está en estado pendiente de aprobación de diferencia.',
+                'approval_status' => 'La factura no está pendiente de aprobación de diferencia.',
             ]);
         }
 
@@ -551,6 +571,41 @@ class PurchaseDocumentService
             'approved_at'         => now(),
         ]);
 
+        // Notificar al creador de la factura para que gestione nota crédito
+        $this->notifyDifferenceRejected($invoice);
+
         return $this->loadWithRelations($invoice);
+    }
+
+    protected function notifyDifferenceRejected(PurchaseDocument $invoice): void
+    {
+        $creator = $invoice->creator;
+        if (!$creator || !$creator->email) {
+            return;
+        }
+
+        try {
+            \Illuminate\Support\Facades\Mail::send(
+                [],
+                [],
+                function ($message) use ($invoice, $creator) {
+                    $message->to($creator->email, $creator->name)
+                        ->subject('Diferencia rechazada — ' . $invoice->document_number)
+                        ->html(
+                            '<p>Estimado/a <strong>' . e($creator->name) . '</strong>,</p>' .
+                            '<p>La diferencia registrada en la factura <strong>' .
+                            e($invoice->document_number) . '</strong> ha sido <strong>rechazada</strong>.</p>' .
+                            '<p><strong>Motivo de rechazo:</strong> ' . e($invoice->approval_notes) . '</p>' .
+                            '<p>Por favor gestiona la nota crédito correspondiente.</p>'
+                        );
+                }
+            );
+        } catch (\Throwable $e) {
+            // No interrumpir el flujo si el correo falla
+            \Illuminate\Support\Facades\Log::warning(
+                'No se pudo enviar email de rechazo de diferencia: ' . $e->getMessage(),
+                ['invoice_id' => $invoice->id]
+            );
+        }
     }
 }

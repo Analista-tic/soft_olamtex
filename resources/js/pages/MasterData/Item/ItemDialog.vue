@@ -52,7 +52,12 @@ function handleFormError(message: string) {
 
 <template>
     <Dialog :open="props.isOpen" @update:open="handleDialogOpenChange">
-        <FormDialogContent size="lg" class="p-0" content-class="p-0" :scrollable="false">
+        <FormDialogContent
+            size="lg"
+            class="flex h-[95vh] max-h-[95vh] w-full flex-col overflow-hidden p-0"
+            content-class="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+            :scrollable="false"
+        >
             <ItemFormContent
                 :is-open="props.isOpen"
                 :dialog-type="props.dialogType"

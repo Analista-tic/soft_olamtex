@@ -83,7 +83,10 @@ class ItemController extends Controller
 
     public function getData(Request $request)
     {
-        $filters = $request->only(['search', 'status', 'item_type', 'warehouse_id', 'origin_type']);
+        $filters = $request->only([
+            'search', 'status', 'item_type', 'warehouse_id',
+            'origin_type', 'category_sub_group_id', 'category_group_id'
+        ]);
         $perPage = $request->input('per_page', 10);
         $items = $this->service->paginate($filters, $perPage);
 
@@ -192,12 +195,51 @@ class ItemController extends Controller
         return Inertia::render('Inventory/InventoryAdjustment/Index');
     }
 
+    public function search(Request $request)
+    {
+        $q      = trim($request->input('q', ''));
+        $limit  = min((int) $request->input('limit', 30), 100);
+        $group  = $request->input('group');
+        $status = $request->input('status');
+
+        $query = Item::query()
+            ->select('id', 'name', 'reference', 'img', 'unit_measure', 'item_type', 'status')
+            ->where('status', true);
+
+        if ($q !== '') {
+            $query->where(function ($sub) use ($q) {
+                $sub->where('name', 'like', "%{$q}%")
+                    ->orWhere('reference', 'like', "%{$q}%");
+            });
+        }
+
+        if ($group === 'insumos') {
+            $query->whereHas('categorySubGroup.categoryGroup', function ($sub) {
+                $sub->where('name', 'like', '%insumo%');
+            });
+        }
+
+        $items = $query->orderBy('name')->limit($limit)->get();
+
+        return response()->json($items->map(fn($item) => [
+            'id'           => $item->id,
+            'name'         => $item->name,
+            'reference'    => $item->reference,
+            'label'        => $item->reference
+                                 ? "{$item->name} ({$item->reference})"
+                                 : $item->name,
+            'unit_measure' => $item->unit_measure,
+            'item_type'    => $item->item_type,
+            'img_url'      => $item->img ? asset("storage/{$item->img}") : null,
+        ]));
+    }
+
     private function resolveWarehouses(Request $request): array
     {
         // Delegar la resolución de payloads de bodegas al servicio
         return $this->service->resolveWarehousePayload($request->input('warehouses'));
     }
-    
+
     private function prepareItemPayload(Request $request, array $data, Item $item = null): array
     {
         $extraFields = $this->service->normalizeExtraFields(
@@ -249,7 +291,7 @@ class ItemController extends Controller
             'warehouses' => $warehouses,
         ];
     }
-    
+
     private function itemValidationRules(bool $isUpdate = false, $item = null): array
     {
         $rules = [
@@ -291,7 +333,7 @@ class ItemController extends Controller
     }
 
 
-    
+
 
 
 

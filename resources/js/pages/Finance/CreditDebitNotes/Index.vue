@@ -668,7 +668,7 @@ onMounted(async () => {
                                     class="h-6 w-6 rounded border text-xs"
                                     :class="
                                         getPaginationValue(item) === currentPage
-                                            ? 'border-primary bg-primary text-white'
+                                            ? 'border-primary bg-primary text-primary-foreground'
                                             : 'border-border bg-background text-foreground'
                                     "
                                     @click="handlePageChange(getPaginationValue(item))"

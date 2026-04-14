@@ -1,18 +1,10 @@
-<script lang="ts">
-import type { Item as CachedItem } from '@/domain/MasterData';
-
-let cachedCatalogItems: CachedItem[] | null = null;
-let catalogItemsPromise: Promise<CachedItem[]> | null = null;
-</script>
-
 <script setup lang="ts">
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { Item } from '@/domain/MasterData';
-import axios from 'axios';
+import { useItemSearch } from '@/composables/useItemSearch';
 import { ImagePlus, X } from 'lucide-vue-next';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
@@ -30,7 +22,12 @@ const props = defineProps<{ items: RequestItem[]; readonly?: boolean }>();
 const emit = defineEmits(['update:items']);
 
 const localItems = ref<RequestItem[]>([]);
-const catalogItems = ref<Item[]>([]);
+const {
+    options: itemSearchOptions,
+    isLoading: isLoadingItems,
+    search: searchItems,
+    loadInitial: loadItemsInitial,
+} = useItemSearch();
 const fileInputRefs = ref<Record<number, HTMLInputElement | null>>({});
 const persistedImageUrls = ref<Record<number, string | null>>({});
 const isSyncingItems = ref(false);
@@ -83,7 +80,7 @@ function normalizeItem(item: Partial<RequestItem>, index: number): RequestItem {
         _delete_image: Boolean(item._delete_image),
     };
 
-    const match = catalogItems.value.find((entry) => Number(entry.id) === Number(normalized.item_id));
+    const match = itemSearchOptions.value.find((entry) => Number(entry.id) === Number(normalized.item_id));
     if (match) {
         normalized.name = match.name || normalized.name;
     }
@@ -129,25 +126,6 @@ function shiftIndexedStateAfterRemoval(removedIndex: number) {
 
     persistedImageUrls.value = nextPersisted;
     fileInputRefs.value = {};
-}
-
-async function fetchItems() {
-    if (cachedCatalogItems) {
-        catalogItems.value = cachedCatalogItems;
-        return;
-    }
-
-    if (!catalogItemsPromise) {
-        catalogItemsPromise = axios
-            .get('/item/data', { params: { per_page: 1000 } })
-            .then((res) => (res.data.data || []) as Item[])
-            .finally(() => {
-                catalogItemsPromise = null;
-            });
-    }
-
-    cachedCatalogItems = await catalogItemsPromise;
-    catalogItems.value = cachedCatalogItems;
 }
 
 function addItem() {
@@ -199,7 +177,7 @@ function handleItemSelection(item: RequestItem, value: unknown) {
         return;
     }
 
-    const match = catalogItems.value.find((entry) => String(entry.id) === String(value));
+    const match = itemSearchOptions.value.find((entry) => String(entry.id) === String(value));
     if (match) {
         item.item_id = Number(match.id);
         item.name = match.name || '';
@@ -279,7 +257,7 @@ watch(
 );
 
 watch(
-    catalogItems,
+    itemSearchOptions,
     () => {
         syncLocalItemsFromProps(localItems.value);
     },
@@ -296,7 +274,7 @@ watch(
         val.forEach((item) => {
             item.quantity = Number(item.quantity) || 0;
             if (item.item_id) {
-                const match = catalogItems.value.find((entry) => Number(entry.id) === Number(item.item_id));
+                const match = itemSearchOptions.value.find((entry) => Number(entry.id) === Number(item.item_id));
                 if (match) {
                     item.name = match.name || item.name;
                 }
@@ -311,7 +289,7 @@ watch(
 );
 
 onMounted(() => {
-    void fetchItems();
+    void loadItemsInitial();
 });
 
 onBeforeUnmount(() => {
@@ -349,9 +327,11 @@ defineExpose({ addItem });
                             <SelectField
                                 :modelValue="getSelectionValue(item)"
                                 @update:modelValue="(value) => handleItemSelection(item, value)"
-                                :options="catalogItems.map((entry) => ({ id: entry.id, name: entry.name }))"
+                                :options="itemSearchOptions.map((entry) => ({ id: entry.id, name: entry.name }))"
+                                :loading="isLoadingItems"
+                                @search="searchItems"
                                 label=""
-                                placeholder="Buscar o escribir item"
+                                placeholder="Buscar ítem..."
                                 :searchable="true"
                                 :allowCustom="true"
                                 class="w-full"

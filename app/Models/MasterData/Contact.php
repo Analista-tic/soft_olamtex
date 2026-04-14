@@ -9,6 +9,32 @@ class Contact extends Model implements \App\Contracts\HasAuditLabel
 {
     use SoftDeletes;
 
+    public const CONTACT_TYPES = [
+        'proveedor',
+        'cliente',
+        'cliente_proveedor',
+    ];
+
+    public const ID_TYPES = [
+        'nit',
+        'cc',
+        'nit_otro_pais',
+        'pp',
+        'pep',
+        'die',
+        'ce',
+        'te',
+        'ti',
+        'rc',
+        'nuip',
+        'ppt',
+    ];
+
+    public const PERSON_TYPES = [
+        'persona_natural',
+        'persona_juridica',
+    ];
+
     public static function auditLabel(): string
     {
         return 'Contacto';

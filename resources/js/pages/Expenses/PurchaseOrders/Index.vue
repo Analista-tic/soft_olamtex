@@ -40,7 +40,6 @@ const totalItems = ref(0);
 const isPrintDialogOpen = ref(false);
 const orderToPrint = ref<PurchaseOrder | null>(null);
 const isSendingMail = ref(false);
-const isConverting = ref<number | null>(null);
 const isApproving = ref<number | null>(null);
 const successMessage = ref('');
 const errorMessage = ref('');
@@ -274,25 +273,6 @@ async function approveOrder(order: PurchaseOrder) {
     }
 }
 
-async function convertToInvoice(order: PurchaseOrder) {
-    if (isConverting.value !== null) return;
-    isConverting.value = order.id ?? null; // order.id nunca debería ser undefined, pero por seguridad
-    try {
-        await axios.post(`/gastos/ordenes-compra/${order.id}/convert-to-invoice`);
-        successMessage.value = 'Orden convertida en factura correctamente.';
-        fetchOrders(currentPage.value, searchQuery.value);
-    } catch (e: any) {
-        // Validación específica del mensaje de error
-        if (e?.response?.data?.error_code === 'ORDER_ALREADY_INVOICED') {
-            setErrorMessage('Esta orden de compra ya tiene una factura asociada.');
-        } else {
-            setErrorMessage(e?.response?.data?.message || 'Error al convertir en factura.');
-        }
-    } finally {
-        isConverting.value = null;
-    }
-}
-
 function handleDialogRefresh(message?: string) {
     if (message) {
         successMessage.value = message;
@@ -325,15 +305,10 @@ function handleDialogError(message?: string) {
                     <h1 class="text-lg font-bold">Órdenes de Compras y Servicios</h1>
                     <p class="text-sm text-muted-foreground">Lleva el control de las órdenes emitidas a proveedores y su estado de facturación.</p>
                 </div>
-                <button
-                    type="button"
-                    :disabled="isPreparingDialog"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-black shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                    @click="openDialog('create')"
-                >
+                <Button variant="default" size="pill" :disabled="isPreparingDialog" @click="openDialog('create')">
                     <PlusCircle class="h-4 w-4" />
                     Nueva Orden
-                </button>
+                </Button>
             </div>
             <FilterBar align="start">
                 <FilterField label="Buscar orden" :active="isSearchActive" class="min-w-[220px] flex-1">

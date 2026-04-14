@@ -57,7 +57,7 @@ const retentionTypeOptions = [
 <template>
     <Dialog :open="props.open" @update:open="emit('update:open', $event)">
         <FormDialogContent class="flex max-h-[95vh] max-w-[85vh] flex-col px-2 py-2">
-            <DialogHeader>
+            <DialogHeader class="border-b px-5 py-4 pr-12">
                 <DialogTitle>
                     {{ props.dialogType === 'create' ? 'Crear Retención' : 'Editar Retención' }}
                 </DialogTitle>
@@ -65,39 +65,36 @@ const retentionTypeOptions = [
                     Completa los campos para {{ props.dialogType === 'create' ? 'crear' : 'editar' }} una retención.
                 </DialogDescription>
             </DialogHeader>
-            <div class="space-y-4 pt-2">
-                <InputField label="Nombre" v-model="localForm.name" placeholder="Nombre de la retención" required />
-                <InputField
-                    label="Porcentaje"
-                    :model-value="localForm.percent"
-                    type="number"
-                    min="0"
-                    max="100"
-                    required
-                    @update:modelValue="(value) => (localForm.percent = Number(value) || 0)"
-                />
-                <SelectField v-model="localForm.type" label="Tipo" :options="retentionTypeOptions" required />
-                <InputField label="Descripción" v-model="localForm.description" placeholder="Descripción" />
-                <SelectField
-                    v-model="localForm.status"
-                    label="Estado"
-                    :options="[
-                        { id: 'active', name: 'Activa' },
-                        { id: 'inactive', name: 'Inactiva' },
-                    ]"
-                    required
-                />
+            <div class="min-h-0 overflow-y-auto px-5 py-4" style="scrollbar-width: thin">
+                <div class="space-y-4">
+                    <InputField label="Nombre" v-model="localForm.name" placeholder="Nombre de la retención" required />
+                    <InputField
+                        label="Porcentaje"
+                        :model-value="localForm.percent"
+                        type="number"
+                        min="0"
+                        max="100"
+                        required
+                        @update:modelValue="(value) => (localForm.percent = Number(value) || 0)"
+                    />
+                    <SelectField v-model="localForm.type" label="Tipo" :options="retentionTypeOptions" required />
+                    <InputField label="Descripción" v-model="localForm.description" placeholder="Descripción" />
+                    <SelectField
+                        v-model="localForm.status"
+                        label="Estado"
+                        :options="[
+                            { id: 'active', name: 'Activa' },
+                            { id: 'inactive', name: 'Inactiva' },
+                        ]"
+                        required
+                    />
+                </div>
             </div>
-            <DialogFooter class="flex justify-end gap-2">
+            <DialogFooter class="border-t border-border px-5 py-4 justify-end gap-2">
                 <Button variant="outline" size="pill" @click="handleClose"> Cancelar </Button>
-                <button
-                    type="button"
-                    :disabled="props.loading"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    @click="handleSubmit"
-                >
+                <Button variant="default" size="pill" :disabled="props.loading" @click="handleSubmit">
                     {{ props.dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
-                </button>
+                </Button>
             </DialogFooter>
         </FormDialogContent>
     </Dialog>

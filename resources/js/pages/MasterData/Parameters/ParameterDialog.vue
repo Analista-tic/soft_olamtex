@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
+import FormDialogBody from '@/components/FormDialogBody.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
-import FormHeader from '@/components/FormHeader.vue';
+import FormDialogFooter from '@/components/FormDialogFooter.vue';
+import FormDialogHeader from '@/components/FormDialogHeader.vue';
 import InputField from '@/components/InputField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { mapParameterToDialogForm } from '@/domain/MasterData';
 import type { ParameterDialogFormState } from '@/domain/MasterData';
-import { Dialog, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Plus } from 'lucide-vue-next';
 import { computed, nextTick, ref, watch } from 'vue';
 
@@ -40,6 +42,17 @@ const localForm = ref<ParameterDialogModel>({
 });
 const valueList = ref<string[]>([]);
 const newValueInput = ref('');
+const valueSearchQuery = ref('');
+
+const filteredValueList = computed(() => {
+    const q = valueSearchQuery.value.trim().toLowerCase();
+    if (!q) return valueList.value;
+    return valueList.value.filter((item) =>
+        item.toLowerCase().includes(q)
+    );
+});
+
+const showValueSearch = computed(() => valueList.value.length > 10);
 const isInitializingDialog = ref(false);
 // const hasValues = computed(() => valueList.value.length > 0);
 const hasDuplicateOptions = computed(() => false);
@@ -57,12 +70,14 @@ watch(
             localForm.value = { ...defaultForm };
             valueList.value = [];
             newValueInput.value = '';
+            valueSearchQuery.value = '';
             return;
         }
 
         localForm.value = mapParameterToDialogForm(value);
         valueList.value = parseValueList(localForm.value.value);
         newValueInput.value = '';
+        valueSearchQuery.value = '';
     },
     { immediate: true },
 );
@@ -169,37 +184,42 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <FormDialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-2xl px-2 pb-3 pt-4">
-            <FormHeader
-                :title="dialogType === 'create' ? 'Crear parámetro' : dialogType === 'edit' ? 'Editar parámetro' : 'Ver parámetro'"
-                :description="
-                    dialogType === 'create'
-                        ? 'Define un valor global que el sistema podrá reutilizar en distintos módulos.'
-                        : dialogType === 'edit'
-                          ? 'Actualiza las propiedades del parámetro seleccionado.'
-                          : 'Visualiza los valores almacenados del parámetro sin editar.'
-                "
-            />
-            <div class="min-h-0 flex-1 space-y-6 overflow-y-auto px-1 pr-1 pt-4">
-                <div class="space-y-4 pt-2">
-                    <InputField v-model="localForm.label" label="Nombre" placeholder="Nombre visible" required :disabled="isViewMode" />
-                    <div class="space-y-2">
-                        <p class="text-sm font-medium">
-                            Valores
-                            <span class="text-destructive">*</span>
-                        </p>
-                        <div v-if="!isViewMode" class="flex gap-2">
-                            <InputField v-model="newValueInput" label="" placeholder="Agregar valor" @keydown.enter.prevent="addValueEntry()" />
-                            <button
-                                type="button"
-                                class="flex h-10 w-10 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary hover:text-primary-foreground"
-                                @click="addValueEntry"
-                            >
-                                <Plus class="h-4 w-4" />
-                            </button>
-                        </div>
-                        <div v-if="valueList.length" class="flex flex-wrap gap-2">
-                            <!-- <div v-if="!isViewMode" class="flex gap-2">
+        <FormDialogContent
+            v-if="!props.deferContent"
+            class="flex h-[95vh] max-h-[95vh] w-full max-w-2xl flex-col overflow-hidden p-0"
+            content-class="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+            :scrollable="false"
+        >
+            <div class="relative flex min-h-0 flex-1 flex-col">
+                <FormDialogHeader class="px-5 pb-3 pr-12 pt-4">
+                    <DialogTitle>
+                        {{ dialogType === 'create' ? 'Crear parámetro' : dialogType === 'edit' ? 'Editar parámetro' : 'Ver parámetro' }}
+                    </DialogTitle>
+                    <DialogDescription>
+                        {{
+                            dialogType === 'create'
+                                ? 'Define un valor global que el sistema podrá reutilizar en distintos módulos.'
+                                : dialogType === 'edit'
+                                  ? 'Actualiza las propiedades del parámetro seleccionado.'
+                                  : 'Visualiza los valores almacenados del parámetro sin editar.'
+                        }}
+                    </DialogDescription>
+                </FormDialogHeader>
+
+                <FormDialogBody style="scrollbar-width: thin">
+                    <div class="space-y-4">
+                        <InputField
+                            v-model="localForm.label"
+                            label="Nombre"
+                            placeholder="Nombre visible"
+                            required
+                            :disabled="isViewMode"
+                        />
+                        <div class="space-y-2">
+                            <p class="text-sm font-medium">
+                                Valores <span class="text-destructive">*</span>
+                            </p>
+                            <div v-if="!isViewMode" class="flex gap-2">
                                 <InputField
                                     v-model="newValueInput"
                                     label=""
@@ -214,28 +234,54 @@ function handleSubmit() {
                                     <Plus class="h-4 w-4" />
                                 </button>
                             </div>
-                        <div v-if="hasValues" class="flex flex-wrap gap-2"> -->
-                            <span
-                                v-for="(item, index) in valueList"
-                                :key="`value-chip-${index}`"
-                                class="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-semibold text-foreground"
-                            >
-                                {{ item }}
-                                <button
-                                    v-if="!isViewMode"
-                                    type="button"
-                                    class="text-muted-foreground transition-colors hover:text-foreground"
-                                    @click="removeValueEntry(index)"
-                                    aria-label="Eliminar valor"
+                            <div v-if="showValueSearch" class="relative w-full">
+                                <input
+                                    v-model="valueSearchQuery"
+                                    type="text"
+                                    placeholder="Buscar valor..."
+                                    class="h-9 w-full rounded-md border border-input bg-background
+                                           pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground
+                                           focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                                />
+                                <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-muted-foreground"
+                                         viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                                    </svg>
+                                </span>
+                            </div>
+                            <div v-if="valueList.length" class="flex flex-wrap gap-2">
+                                <span
+                                    v-for="(item, index) in filteredValueList"
+                                    :key="`value-chip-${index}`"
+                                    class="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-semibold text-foreground"
                                 >
-                                    ×
-                                </button>
-                            </span>
+                                    {{ item }}
+                                    <button
+                                        v-if="!isViewMode"
+                                        type="button"
+                                        class="text-muted-foreground transition-colors hover:text-foreground"
+                                        @click="removeValueEntry(index)"
+                                        aria-label="Eliminar valor"
+                                    >×</button>
+                                </span>
+                            </div>
+                            <p
+                                v-if="showValueSearch && filteredValueList.length === 0 && valueSearchQuery.trim()"
+                                class="text-xs text-muted-foreground"
+                            >
+                                Sin resultados para "{{ valueSearchQuery }}"
+                            </p>
+                            <p v-else class="text-xs text-muted-foreground">Sin valores registrados.</p>
                         </div>
-                        <p v-else class="text-xs text-muted-foreground">Sin valores registrados.</p>
-                    </div>
-                    <TextareaField v-model="localForm.description" label="Descripción" placeholder="Opcional" :rows="3" :disabled="isViewMode" />
-                    <div class="flex flex-wrap gap-4">
+                        <TextareaField
+                            v-model="localForm.description"
+                            label="Descripción"
+                            placeholder="Opcional"
+                            :rows="3"
+                            :disabled="isViewMode"
+                        />
                         <div class="flex w-full items-center gap-3 text-sm text-foreground/80">
                             <span>Activo</span>
                             <button
@@ -254,20 +300,21 @@ function handleSubmit() {
                             </button>
                         </div>
                     </div>
-                </div>
+                </FormDialogBody>
+
+                <FormDialogFooter class="justify-end gap-2 bg-background">
+                    <Button variant="outline" size="pill" @click="handleClose">Cancelar</Button>
+                    <button
+                        v-if="!isViewMode"
+                        type="button"
+                        :disabled="loading || hasDuplicateOptions"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
+                        @click="handleSubmit"
+                    >
+                        {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
+                    </button>
+                </FormDialogFooter>
             </div>
-            <DialogFooter class="mt-6 justify-end gap-2">
-                <Button variant="outline" size="pill" @click="handleClose"> Cancelar </Button>
-                <button
-                    v-if="!isViewMode"
-                    type="button"
-                    :disabled="loading || hasDuplicateOptions"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
-                    @click="handleSubmit"
-                >
-                    {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
-                </button>
-            </DialogFooter>
         </FormDialogContent>
     </Dialog>
 </template>

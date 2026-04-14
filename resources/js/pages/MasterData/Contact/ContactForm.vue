@@ -2,22 +2,53 @@
 import GroupSelect from '@/components/GroupSelect.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
-import type { Contact } from '@/domain/MasterData';
-import axios from 'axios';
+import type { Contact, ContactIdType, ContactPersonType, ContactType } from '@/domain/MasterData';
+import { useMasterDataStore } from '@/stores/masterData';
+import { useDebounceFn } from '@vueuse/core';
 import { computed, onMounted, ref, watch } from 'vue';
 import colombiaData from '../../../data/colombia.json';
 
+type ContactFormState = Partial<Omit<Contact, 'contact_type' | 'id_type' | 'person_type'>> & {
+    contact_type?: ContactType | '';
+    id_type?: ContactIdType | '';
+    person_type?: ContactPersonType | '';
+};
+
+const contactTypeOptions = [
+    { id: 'proveedor', name: 'Proveedor' },
+    { id: 'cliente', name: 'Cliente' },
+    { id: 'cliente_proveedor', name: 'Cliente y Proveedor' },
+];
+
+const idTypeOptions = [
+    { id: 'nit', name: 'NIT - Numero de identificacion tributaria' },
+    { id: 'cc', name: 'CC - Cedula de ciudadania' },
+    { id: 'nit_otro_pais', name: 'NIT de otro pais' },
+    { id: 'pp', name: 'PP - Pasaporte' },
+    { id: 'pep', name: 'PEP - Permiso especial de permanencia' },
+    { id: 'die', name: 'DIE - Documento de identificacion extranjero' },
+    { id: 'ce', name: 'CE - Cedula de extranjeria' },
+    { id: 'te', name: 'TE - Tarjeta de extranjeria' },
+    { id: 'ti', name: 'TI - Tarjeta de identidad' },
+    { id: 'rc', name: 'RC - Registro civil' },
+    { id: 'nuip', name: 'NUIP - Numero unico de identificacion personal' },
+    { id: 'ppt', name: 'PPT - Permiso de proteccion temporal' },
+];
+
+const personTypeOptions = [
+    { id: 'persona_natural', name: 'Persona natural' },
+    { id: 'persona_juridica', name: 'Persona juridica' },
+];
+
 const props = defineProps<{
-    // Hacemos opcional y permisivo para evitar errores de tipado aquí.
-    form?: Partial<Contact> | Record<string, any>;
+    form?: ContactFormState | Record<string, any>;
 }>();
 
 const emit = defineEmits<{
-    (e: 'update:form', updatedForm: Partial<Contact>): void;
+    (e: 'update:form', updatedForm: ContactFormState): void;
 }>();
 
-// Defaults para evitar errores cuando props.form sea undefined
-const defaultForm: Partial<Contact> = {
+const defaultForm: ContactFormState = {
     contact_type: '',
     id_type: '',
     id_number: '',
@@ -42,43 +73,40 @@ function ensureArray(value: Contact['groups'] | undefined | null): Contact['grou
     return [value];
 }
 
-function normalizeFormPayload(form?: Partial<Contact> | Record<string, any>): Partial<Contact> {
-    const normalized = { ...(form || {}) } as Partial<Contact>;
+function normalizeFormPayload(form?: ContactFormState | Record<string, any>): ContactFormState {
+    const normalized = { ...(form || {}) } as ContactFormState;
     normalized.groups = ensureArray(normalized.groups);
     return normalized;
 }
 
-// Inicializar de forma segura: merge de defaults con el prop (si existe)
-const internalForm = ref<Partial<Contact>>(Object.assign({}, defaultForm, normalizeFormPayload(props.form)));
+const internalForm = ref<ContactFormState>(Object.assign({}, defaultForm, normalizeFormPayload(props.form)));
 
-// Sincronizar el objeto interno con el prop `form` sin causar recursividad
 watch(
     () => props.form,
     (newForm) => {
         const normalized = normalizeFormPayload(newForm);
-        const currentNormalized = normalizeFormPayload(internalForm.value);
-        if (JSON.stringify(normalized) !== JSON.stringify(currentNormalized)) {
+        const changed = Object.keys(normalized).some((key) => {
+            const k = key as keyof typeof normalized;
+            if (k === 'groups') {
+                const a = JSON.stringify(internalForm.value.groups ?? []);
+                const b = JSON.stringify(normalized.groups ?? []);
+                return a !== b;
+            }
+            return internalForm.value[k] !== normalized[k];
+        });
+        if (changed) {
             internalForm.value = { ...defaultForm, ...normalized };
         }
     },
     { deep: true },
 );
 
-// Emitir actualizaciones al padre cuando cambie el objeto interno
-watch(
-    internalForm,
-    (updatedForm) => {
-        const normalizedUpdated = normalizeFormPayload(updatedForm);
-        const normalizedPropsForm = normalizeFormPayload(props.form);
-        if (JSON.stringify(normalizedUpdated) !== JSON.stringify(normalizedPropsForm)) {
-            emit('update:form', normalizedUpdated); // Emitir el formulario actualizado
-        }
-    },
-    { deep: true },
-);
+const emitUpdate = useDebounceFn(() => {
+    emit('update:form', normalizeFormPayload(internalForm.value));
+}, 150);
 
-// Procesar todas las opciones de ubicación una sola vez al cargar el módulo
-// Optimizado: crear estructura de datos eficiente para búsqueda
+watch(internalForm, emitUpdate, { deep: true });
+
 const allLocationOptions = colombiaData.flatMap((department: any) =>
     (department.ciudades || []).map((municipality: string) => ({
         id: `${municipality}||${department.departamento}`,
@@ -87,51 +115,34 @@ const allLocationOptions = colombiaData.flatMap((department: any) =>
     })),
 );
 
-// Usar un array limitado para renderizado inicial rápido
 const locationOptions = ref(allLocationOptions.slice(0, 50));
 const isLoadingLocations = ref(false);
 
-// Función optimizada para búsqueda y actualización de opciones
 const updateLocationOptions = (searchQuery: string = '') => {
     if (isLoadingLocations.value) return;
 
     const query = searchQuery.toLowerCase().trim();
 
     if (!query) {
-        // Sin búsqueda: mostrar primeras 50 opciones
         locationOptions.value = allLocationOptions.slice(0, 50);
         return;
     }
 
-    // Con búsqueda: filtrar y limitar a 100 resultados
     isLoadingLocations.value = true;
 
-    // Usar setTimeout para no bloquear el UI
     setTimeout(() => {
         locationOptions.value = allLocationOptions.filter((opt) => opt.searchText.includes(query)).slice(0, 100);
         isLoadingLocations.value = false;
     }, 0);
 };
 
-const groups = ref<{ id: string; name: string }[]>([]); // Lista de grupos
-
-async function loadGroups() {
-    try {
-        const response = await axios.get('categorias/grupos'); // Asegúrate de que el endpoint sea correcto
-        groups.value = response.data.map((group: any) => ({
-            id: group.id, // Asegúrate de que el campo `id` exista en los datos
-            name: group.name, // Asegúrate de que el campo `name` exista en los datos
-        }));
-    } catch (error) {
-        console.error('Error al cargar los grupos:', error);
-    }
-}
+const masterDataStore = useMasterDataStore();
 
 onMounted(() => {
-    loadGroups(); // Cargar grupos al montar
+    masterDataStore.fetchGroups();
 });
 
-const errors = ref<Record<string, string[]>>({}); // Manejo de errores
+const errors = ref<Record<string, string[]>>({});
 const locationValue = computed({
     get() {
         if (!internalForm.value.municipality || !internalForm.value.department) return '';
@@ -149,7 +160,6 @@ const locationValue = computed({
     },
 });
 
-// Usar string aquí evita errores si la clave no está exactamente en la interfaz Contact.
 const validateField = (field: string) => {
     if (errors.value[field]) {
         delete errors.value[field];
@@ -163,20 +173,16 @@ const validateField = (field: string) => {
             v-model="internalForm.contact_type"
             label="Tipo de contacto"
             required
-            :options="[
-                { id: 'Proveedor', name: 'Proveedor' },
-                { id: 'Cliente', name: 'Cliente' },
-                { id: 'Cliente y Proveedor', name: 'Cliente y Proveedor' },
-            ]"
+            :options="contactTypeOptions"
             :error="errors.contact_type?.[0]"
             :searchable="false"
             @input="validateField('contact_type')"
         />
         <GroupSelect
             v-model="internalForm.groups"
-            label="Categoría proveedor/cliente"
-            :options="groups.map((group) => ({ id: group.id, name: group.name }))"
-            placeholder="Selecciona categorías"
+            label="Categoria proveedor/cliente"
+            :options="masterDataStore.groups"
+            placeholder="Selecciona categorias"
             required
             :searchable="true"
             :error="errors.groups?.[0]"
@@ -184,41 +190,25 @@ const validateField = (field: string) => {
         />
         <SelectField
             v-model="internalForm.id_type"
-            label="Tipo de identificación"
+            label="Tipo de identificacion"
             required
             :searchable="true"
-            :options="[
-                { id: 'NIT', name: 'NIT - Número de identificación tributaria' },
-                { id: 'CC', name: 'CC - Cédula de ciudadanía' },
-                { id: 'NIT de otro país', name: 'NIT de otro país' },
-                { id: 'PP', name: 'PP - Pasaporte' },
-                { id: 'PEP', name: 'PEP - Permiso especial de permanencia' },
-                { id: 'DIE', name: 'DIE - Documento de identificación extranjero' },
-                { id: 'CE', name: 'CE - Cédula de extranjería' },
-                { id: 'TE', name: 'TE - Tarjeta de extranjería' },
-                { id: 'TI', name: 'TI - Tarjeta de identidad' },
-                { id: 'RC', name: 'RC - Registro civil' },
-                { id: 'NUIP', name: 'NUIP - Número único de identificación personal' },
-                { id: 'PPT', name: 'PPT - Permiso de protección temporal' },
-            ]"
+            :options="idTypeOptions"
         />
         <div class="mb-4 grid grid-cols-5 gap-4">
             <div class="col-span-4">
-                <InputField v-model="internalForm.id_number" label="Número de identificación" required placeholder="Número de identificación" />
+                <InputField v-model="internalForm.id_number" label="Numero de identificacion" required placeholder="Numero de identificacion" />
             </div>
             <div class="col-span-1">
                 <InputField v-model="internalForm.dv" label="DV" placeholder="DV" />
             </div>
         </div>
-        <InputField v-model="internalForm.full_name" label="Nombre completo o razón social" required placeholder="Nombre completo" class="mb-4" />
+        <InputField v-model="internalForm.full_name" label="Nombre completo o razon social" required placeholder="Nombre completo" class="mb-4" />
         <SelectField
             v-model="internalForm.person_type"
             label="Tipo de persona"
             required
-            :options="[
-                { id: 'Persona natural', name: 'Persona natural' },
-                { id: 'Persona jurídica', name: 'Persona jurídica' },
-            ]"
+            :options="personTypeOptions"
             class="mb-4"
             :searchable="false"
         />
@@ -242,21 +232,20 @@ const validateField = (field: string) => {
             />
         </div>
         <div class="col-span-full mb-4 grid grid-cols-3 gap-4">
-            <InputField v-model="internalForm.address" label="Dirección" placeholder="Dirección" />
+            <InputField v-model="internalForm.address" label="Direccion" placeholder="Direccion" />
             <InputField
                 v-model="internalForm.email"
-                label="Correo electrónico"
+                label="Correo electronico"
                 type="email"
                 required
-                placeholder="Correo electrónico"
+                placeholder="Correo electronico"
                 :error="!!errors.email?.[0]"
                 @input="validateField('email')"
             />
-            <InputField v-model="internalForm.phone" label="Teléfono" placeholder="Teléfono" />
+            <InputField v-model="internalForm.phone" label="Telefono" placeholder="Telefono" />
         </div>
     </div>
 </template>
 
 <style scoped>
-/* Agregar estilos específicos si es necesario */
 </style>

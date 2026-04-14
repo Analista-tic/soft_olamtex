@@ -23,7 +23,9 @@ import type { Option } from '@/domain/shared';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { parseToDate, toIsoDateString } from '@/lib/date';
 import axios from 'axios';
+import { X } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
+import ContactDialog from '@/pages/MasterData/Contact/ContactDialog.vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
 import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
 
@@ -43,6 +45,8 @@ const dialogOpen = ref(props.isOpen);
 type PurchaseInvoiceWithProviderName = Partial<PurchaseInvoice> & { provider_name?: string | null };
 const localForm = ref<PurchaseInvoiceWithProviderName>(createDefaultForm());
 const contacts = ref<Contact[]>([]);
+const isContactDialogOpen = ref(false);
+const contactDialogForm = ref<Partial<Contact>>({ groups: [] });
 const isLoading = ref(false);
 const isSubmittingDialog = ref(false);
 const isSendingMail = ref(false);
@@ -60,9 +64,11 @@ const differenceDialogOpen = ref(false);
 const pendingDifferenceSendMail = ref<boolean | null>(null);
 const differenceReason = ref('');
 const differenceEvidenceData = ref<string | null>(null);
+const savedInvoiceId = ref<number | null>(null);
 const invoiceItemsTableRef = ref<{ addItem: () => void } | null>(null);
 const invoiceDate = ref<Date | null>(null);
 const deliveryDate = ref<Date | null>(null);
+const relatedOrder = ref<any | null>(null);
 const { isBootstrapping, isHydrating, isBlockingLoading, canRenderForm, startLoadingRun, isCurrentLoadingRun, cancelLoadingRun } =
     useDialogLoadingState(dialogOpen);
 
@@ -215,6 +221,7 @@ function syncDateRefsFromForm() {
 }
 
 function resetForm() {
+    savedInvoiceId.value = null;
     if (props.form && Object.keys(props.form).length > 0) {
         const formCopy = JSON.parse(JSON.stringify(props.form));
         if (!Array.isArray(formCopy.items)) formCopy.items = [];
@@ -245,6 +252,19 @@ function resetForm() {
         selectedPurchaseOrderId.value = pid != null ? Number(pid) : null;
     }
     originalFormSnapshot.value = stableStringify(localForm.value);
+    const pid2 = localForm.value.parent_document_id ?? localForm.value.purchase_order_id ?? null;
+    if (pid2 && props.readOnly) {
+        void fetchRelatedOrder(Number(pid2));
+    }
+}
+
+async function fetchRelatedOrder(orderId: number) {
+    try {
+        const { data } = await axios.get(`/gastos/ordenes-compra/${orderId}`);
+        relatedOrder.value = data?.data ?? null;
+    } catch {
+        relatedOrder.value = null;
+    }
 }
 
 async function initializeDialog() {
@@ -282,6 +302,35 @@ async function fetchContacts() {
         contacts.value = response.data.data || [];
     } catch {
         contacts.value = [];
+    }
+}
+
+function openContactDialog() {
+    contactDialogForm.value = { groups: [] };
+    isContactDialogOpen.value = true;
+}
+
+function handleContactFormUpdate(updatedContact: Partial<Contact>) {
+    contactDialogForm.value = updatedContact;
+}
+
+async function handleContactDialogSubmit(contactData: Partial<Contact>) {
+    try {
+        await axios.post('/contactos', contactData);
+        isContactDialogOpen.value = false;
+        await fetchContacts();
+
+        const createdContact = contacts.value.find((contact) => {
+            const matchesEmail = contactData.email && contact.email === contactData.email;
+            const matchesIdNumber = contactData.id_number && contact.id_number === contactData.id_number;
+            return Boolean(matchesEmail || matchesIdNumber);
+        });
+
+        if (createdContact?.id) {
+            localForm.value.contact_id = Number(createdContact.id);
+        }
+    } catch (error) {
+        console.error('Error al guardar el contacto:', error);
     }
 }
 
@@ -410,16 +459,50 @@ function handleInvoiceAddLine() {
     invoiceItemsTableRef.value?.addItem();
 }
 
-async function handleDifferenceDialogSave(payload: { reason: string; evidenceData: string }) {
+async function handleDifferenceDialogSave(payload: {
+    reason: string;
+    evidenceData: string;
+    evidenceName: string;
+}) {
     const trimmedReason = payload.reason.trim();
     differenceReason.value = trimmedReason;
-    localForm.value.reason = trimmedReason;
     differenceEvidenceData.value = payload.evidenceData;
-    localForm.value.evidence_path = payload.evidenceData;
     const sendMail = pendingDifferenceSendMail.value ?? false;
     pendingDifferenceSendMail.value = null;
     differenceDialogOpen.value = false;
-    await handleSubmit(sendMail, true);
+
+    // Guardar la factura sin emitir refresh todavía
+    await handleSubmit(sendMail, true, true);
+
+    // Después de guardar exitosamente, llamar a /justificar para
+    // marcar la diferencia y disparar notificaciones a aprobadores.
+    // Solo si el dialog se cerró sin error (la factura fue guardada).
+    // Necesitamos el id de la factura guardada.
+    // En modo create, el id viene del response; en modo edit ya existe.
+    // Para acceder al id después del submit usamos savedInvoiceId.
+    if (savedInvoiceId.value) {
+        try {
+            await axios.post(
+                `/gastos/facturas-compra/${savedInvoiceId.value}/justificar`,
+                {
+                    difference_reason: trimmedReason,
+                    difference_evidence_path: payload.evidenceData,
+                    difference_notes: null,
+                }
+            );
+        } catch (e) {
+            console.error('Error al registrar diferencia:', e);
+        }
+    }
+
+    // Ahora sí cerrar el dialog y recargar la tabla con datos actualizados
+    differenceReason.value = '';
+    differenceEvidenceData.value = null;
+    dialogOpen.value = false;
+    emit('refresh', props.dialogType === 'create'
+        ? 'Factura creada correctamente.'
+        : 'Factura actualizada correctamente.'
+    );
 }
 
 function closeDifferenceDialog() {
@@ -427,7 +510,11 @@ function closeDifferenceDialog() {
     pendingDifferenceSendMail.value = null;
 }
 
-async function handleSubmit(sendMail = false, skipDifferenceCheck = false) {
+async function handleSubmit(
+    sendMail = false,
+    skipDifferenceCheck = false,
+    suppressRefresh = false
+) {
     if (isReadOnly.value) return;
     successMessage.value = '';
     errorMessage.value = '';
@@ -480,16 +567,19 @@ async function handleSubmit(sendMail = false, skipDifferenceCheck = false) {
     const method = props.dialogType === 'create' ? 'POST' : 'PUT';
     try {
         const { data } = await axios({ method, url, data: formToSend });
-        if (sendMail) {
-            await axios.post(`/gastos/facturas-compra/${data.data.id}/enviar-correo`);
-            emit('refresh', 'Factura guardada y enviada por correo correctamente.');
-        } else {
-            emit('refresh', props.dialogType === 'create' ? 'Factura creada correctamente.' : 'Factura actualizada correctamente.');
-            successMessage.value = props.dialogType === 'create' ? 'Factura creada correctamente.' : 'Factura actualizada correctamente.';
+        savedInvoiceId.value = data?.data?.id ?? null;
+        if (!suppressRefresh) {
+            if (sendMail) {
+                await axios.post(`/gastos/facturas-compra/${data.data.id}/enviar-correo`);
+                emit('refresh', 'Factura guardada y enviada por correo correctamente.');
+            } else {
+                emit('refresh', props.dialogType === 'create' ? 'Factura creada correctamente.' : 'Factura actualizada correctamente.');
+                successMessage.value = props.dialogType === 'create' ? 'Factura creada correctamente.' : 'Factura actualizada correctamente.';
+            }
+            differenceReason.value = '';
+            differenceEvidenceData.value = null;
+            dialogOpen.value = false;
         }
-        differenceReason.value = '';
-        differenceEvidenceData.value = null;
-        dialogOpen.value = false;
     } catch (e: any) {
         const serverMessage =
             e?.response?.data?.message ||
@@ -640,7 +730,7 @@ watch(dialogOpen, (isOpen) => {
                         </div>
                         <div v-if="!isReadOnly" class="w-full shrink-0 sm:w-[340px]">
                             <div class="flex items-end gap-2">
-                                <div class="min-w-0 flex-1">
+                                <div class="flex-1 min-w-0">
                                     <SelectField
                                         v-model="selectedPurchaseOrderValue"
                                         :options="pendingPurchaseOrderOptions"
@@ -653,64 +743,98 @@ watch(dialogOpen, (isOpen) => {
                                         tooltip-text="Selecciona una orden de compra aprobada para pre-llenar automáticamente los ítems de esta factura."
                                     />
                                 </div>
-                                <div class="shrink-0">
-                                    <button
-                                        type="button"
-                                        class="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-4 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                        :disabled="!selectedPurchaseOrderId || isReadOnly"
-                                        @click="selectedPurchaseOrderId = null; resetForm()"
-                                    >
-                                        Limpiar
-                                    </button>
-                                </div>
+                                <button
+                                    type="button"
+                                    class="shrink-0 h-7 w-7 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
+                                    :disabled="!selectedPurchaseOrderId || isReadOnly"
+                                    title="Limpiar selección"
+                                    @click="selectedPurchaseOrderId = null; resetForm()"
+                                >
+                                    <X class="h-3.5 w-3.5" />
+                                </button>
                             </div>
                         </div>
                     </div>
                 </FormDialogHeader>
 
                 <!-- Banner de estado de aprobación de diferencia -->
-                <div v-if="localForm.approval_status === 'pending'" class="mx-4 flex items-center gap-3 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+                <div
+                    v-if="localForm.approval_status === 'pending_difference_approval'"
+                    class="mx-4 flex items-center gap-3 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800"
+                >
                     <span class="text-lg">⏳</span>
                     <div>
                         <p class="font-semibold">Diferencia pendiente de aprobación</p>
-                        <p class="text-xs text-yellow-700">Esta factura tiene una diferencia registrada que requiere aprobación por un usuario autorizado.</p>
-                    </div>
-                </div>
-                <div v-else-if="localForm.approval_status === 'approved'" class="mx-4 flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-                    <span class="text-lg">✓</span>
-                    <div>
-                        <p class="font-semibold">Diferencia aprobada</p>
-                        <p class="text-xs text-green-700">
-                            Aprobado por <strong>{{ localForm.approved_by?.name ?? 'Usuario' }}</strong>
-                            <template v-if="localForm.approved_at">
-                                el {{ new Date(localForm.approved_at).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' }) }}
-                            </template>
-                            <template v-if="localForm.approval_notes">— {{ localForm.approval_notes }}</template>
+                        <p class="text-xs text-yellow-700">
+                            Esta factura tiene una diferencia registrada que requiere
+                            aprobación por un usuario autorizado.
                         </p>
                     </div>
                 </div>
-                <div v-else-if="localForm.approval_status === 'rejected'" class="mx-4 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                <div
+                    v-else-if="localForm.approval_status === 'difference_rejected'"
+                    class="mx-4 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                >
                     <span class="text-lg">✗</span>
                     <div>
                         <p class="font-semibold">Diferencia rechazada</p>
                         <p class="text-xs text-red-700">
-                            Rechazado por <strong>{{ localForm.approved_by?.name ?? 'Usuario' }}</strong>
+                            Rechazado por
+                            <strong>{{ localForm.approved_by?.name ?? 'Usuario' }}</strong>
                             <template v-if="localForm.approved_at">
-                                el {{ new Date(localForm.approved_at).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' }) }}
+                                el {{ new Date(localForm.approved_at).toLocaleString('es-CO',
+                                    { dateStyle: 'medium', timeStyle: 'short' }) }}
                             </template>
-                            <template v-if="localForm.approval_notes">— {{ localForm.approval_notes }}</template>
+                            <template v-if="localForm.approval_notes">
+                                — {{ localForm.approval_notes }}
+                            </template>
                         </p>
                     </div>
                 </div>
 
                 <FormDialogBody class="relative px-4 pr-2" :class="{ 'min-h-[420px]': isBlockingLoading }" style="scrollbar-width: thin">
-                    <form
-                        @submit.prevent="handleSubmit()"
+                    <div
                         :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingInvoiceId }"
                         class="space-y-6 pb-4"
                     >
                         <fieldset v-if="canRenderForm" class="space-y-6">
                             <div class="space-y-4 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
+                                <!-- Orden relacionada (solo lectura) -->
+                                <div
+                                    v-if="isReadOnly && relatedOrder"
+                                    class="rounded-lg border border-border bg-muted/30 p-4"
+                                >
+                                    <div class="mb-3 flex items-center justify-between">
+                                        <h3 class="text-sm font-medium text-foreground">
+                                            Orden relacionada: {{ relatedOrder.document_number }}
+                                        </h3>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-3 text-sm">
+                                        <div>
+                                            <span class="text-muted-foreground">Proveedor:</span>
+                                            <span class="ml-2 text-foreground">
+                                                {{ relatedOrder.provider_name || relatedOrder.supplier?.full_name || 'No especificado' }}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span class="text-muted-foreground">Fecha:</span>
+                                            <span class="ml-2 text-foreground">
+                                                {{ relatedOrder.date
+                                                    ? new Date(relatedOrder.date).toLocaleDateString('es-CO', {
+                                                        day: '2-digit', month: '2-digit', year: 'numeric'
+                                                    })
+                                                    : 'No especificada' }}
+                                            </span>
+                                        </div>
+                                        <div class="col-span-2">
+                                            <span class="text-muted-foreground">Descripción:</span>
+                                            <span class="ml-2 text-foreground">
+                                                {{ relatedOrder.description || 'Sin descripción' }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div class="grid grid-cols-3 items-start gap-4">
                                     <div class="flex flex-col gap-1">
                                         <div class="flex items-center gap-2">
@@ -754,8 +878,11 @@ watch(dialogOpen, (isOpen) => {
                                             label=""
                                             :options="contacts.map((c) => ({ id: Number(c.id), name: c.full_name }))"
                                             :disabled="isReadOnly"
+                                            :action-label="(!isReadOnly) ? 'Nuevo contacto' : undefined"
+                                            :action-disabled="isReadOnly"
                                             required
                                             :key="contacts.length + '-' + localForm.contact_id"
+                                            @action="openContactDialog"
                                         />
                                     </div>
                                     <InputField
@@ -771,6 +898,7 @@ watch(dialogOpen, (isOpen) => {
                                         readonly
                                     />
                                 </div>
+
 
                                 <!-- Fechas -->
                                 <div class="grid grid-cols-3 gap-4">
@@ -913,28 +1041,16 @@ watch(dialogOpen, (isOpen) => {
                                 </div>
                             </div>
                         </fieldset>
-                    </form>
+                    </div>
                 </FormDialogBody>
-                <FormDialogFooter class="justify-end gap-4 bg-background px-4 py-4">
-                    <Button variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
-                    <button
-                        v-if="!isReadOnly"
-                        type="button"
-                        :disabled="isLoading || isSendingMail || isBlockingLoading"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        @click.prevent="handleSubmit(false)"
-                    >
+                <FormDialogFooter class="justify-end gap-4 bg-background">
+                    <Button type="button" variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
+                    <Button v-if="!isReadOnly" variant="default" size="pill" :disabled="isLoading || isSendingMail || isBlockingLoading" @click.prevent="handleSubmit(false)">
                         {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
-                    </button>
-                    <button
-                        v-if="!isReadOnly"
-                        type="button"
-                        :disabled="isLoading || isSendingMail || isBlockingLoading"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        @click.prevent="handleSubmit(true)"
-                    >
+                    </Button>
+                    <Button v-if="!isReadOnly" variant="default" size="pill" :disabled="isLoading || isSendingMail || isBlockingLoading" @click.prevent="handleSubmit(true)">
                         {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
-                    </button>
+                    </Button>
                 </FormDialogFooter>
                 <FormLoadingOverlay
                     :active="isBlockingLoading"
@@ -952,5 +1068,14 @@ watch(dialogOpen, (isOpen) => {
         :order-total="orderTotal ?? 0"
         @save="handleDifferenceDialogSave"
         @cancel="closeDifferenceDialog"
+    />
+    <ContactDialog
+        v-if="isContactDialogOpen"
+        :isOpen="isContactDialogOpen"
+        dialog-type="create"
+        :contactData="contactDialogForm"
+        @close="isContactDialogOpen = false"
+        @submit="handleContactDialogSubmit"
+        @update:contactData="handleContactFormUpdate"
     />
 </template>

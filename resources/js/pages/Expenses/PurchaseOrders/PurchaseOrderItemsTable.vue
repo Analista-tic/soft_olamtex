@@ -7,11 +7,12 @@ import type { PurchaseOrderItem } from '@/domain/Expenses';
 import type { Tax } from '@/domain/Finance';
 import type { Item } from '@/domain/MasterData';
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
+import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 import ItemDialog from '@/pages/MasterData/Item/ItemDialog.vue';
 import axios from 'axios';
-import { Lightbulb, PlusCircle } from 'lucide-vue-next';
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { ImagePlus, Lightbulb, PlusCircle, X as XIcon } from 'lucide-vue-next';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const props = defineProps<{
     items: PurchaseOrderItem[];
@@ -42,6 +43,12 @@ const createdItemCandidateId = ref<number | null>(null);
 const pendingItemDialogRefresh = ref<Promise<void> | null>(null);
 const shouldPrefillItemDialogFromRequest = ref(false);
 
+const fileInputRefs = ref<Record<string, HTMLInputElement | null>>({});
+const persistedImageUrls = ref<Record<string, string | null>>({});
+const showLightbox = ref(false);
+const lightboxUrl = ref<string | null>(null);
+let lightboxKeydownListenerAttached = false;
+
 const isReadOnly = computed(() => !!props.readonly);
 const hasPurchaseRequestContext = computed(() => props.purchaseRequestId != null);
 const itemMap = computed(() => new Map<number, Item>(catalogItems.value.map((item) => [item.id, item])));
@@ -59,7 +66,7 @@ const taxOptions = computed(() => [
 const shouldShowFabricColumns = computed(() => localItems.value.some(isTela));
 const showActionsColumn = computed(() => localItems.value.length > 1);
 const totalColumns = computed(() => {
-    let cols = 6;
+    let cols = 7;
     if (shouldShowFabricColumns.value) {
         cols += 3;
     }
@@ -82,6 +89,9 @@ watch(
                       supplier_code: item.supplier_code || '',
                       supplier_color: item.supplier_color || '',
                       order_width: typeof item.order_width === 'number' ? item.order_width : Number(item.order_width) || 0,
+                      image_url: item.image_url ?? null,
+                      _image_file: null,
+                      _delete_image: false,
                   }))
                 : [];
         }
@@ -287,6 +297,9 @@ function addItem() {
         supplier_code: '',
         supplier_color: '',
         order_width: 0,
+        image_url: null,
+        _image_file: null,
+        _delete_image: false,
     };
 
     localItems.value.push(newItem);
@@ -344,6 +357,127 @@ function setTaxFromItem(item: PurchaseOrderItem) {
     item.tax = Number(taxPercentage) || 0;
 }
 
+function getItemUid(item: any, idx: number): string {
+    return `item-${idx}-${item.item_id ?? 'new'}`;
+}
+
+function revokeBlobUrl(url?: string | null) {
+    if (typeof url === 'string' && url.startsWith('blob:')) {
+        URL.revokeObjectURL(url);
+    }
+}
+
+function registerFileInput(uid: string, element: HTMLInputElement | null) {
+    if (element) {
+        fileInputRefs.value[uid] = element;
+        return;
+    }
+    delete fileInputRefs.value[uid];
+}
+
+function triggerImagePicker(item: any, idx: number) {
+    if (props.readonly) {
+        return;
+    }
+    fileInputRefs.value[getItemUid(item, idx)]?.click();
+}
+
+function handleImageSelected(event: Event, item: any, idx: number) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) {
+        return;
+    }
+
+    const uid = getItemUid(item, idx);
+    if (!(uid in persistedImageUrls.value)) {
+        persistedImageUrls.value[uid] = item.image_url && !item.image_url.startsWith('blob:') ? item.image_url : null;
+    }
+
+    revokeBlobUrl(item.image_url);
+    item._image_file = file;
+    item.image_url = URL.createObjectURL(file);
+    item._delete_image = false;
+    input.value = '';
+    emit('update:items', localItems.value);
+}
+
+function openLightbox(url?: string | null) {
+    if (!url) {
+        return;
+    }
+    lightboxUrl.value = url;
+    showLightbox.value = true;
+}
+
+function closeLightbox() {
+    showLightbox.value = false;
+    lightboxUrl.value = null;
+}
+
+function handleLightboxKeydown(event: KeyboardEvent) {
+    if (!showLightbox.value || event.key !== 'Escape') {
+        return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    closeLightbox();
+}
+
+function syncLightboxKeydownListener(isOpen: boolean) {
+    if (isOpen && !lightboxKeydownListenerAttached) {
+        document.addEventListener('keydown', handleLightboxKeydown, true);
+        lightboxKeydownListenerAttached = true;
+        return;
+    }
+    if (!isOpen && lightboxKeydownListenerAttached) {
+        document.removeEventListener('keydown', handleLightboxKeydown, true);
+        lightboxKeydownListenerAttached = false;
+    }
+}
+
+function removeItemImage(item: any, idx: number) {
+    const uid = getItemUid(item, idx);
+    const hadPersistedImage = Boolean(persistedImageUrls.value[uid]);
+    const removedImageUrl = item.image_url;
+
+    revokeBlobUrl(item.image_url);
+    item._image_file = null;
+    item.image_url = null;
+    item._delete_image = hadPersistedImage;
+
+    if (removedImageUrl && lightboxUrl.value === removedImageUrl) {
+        closeLightbox();
+    }
+
+    const fileInput = fileInputRefs.value[uid];
+    if (fileInput) {
+        fileInput.value = '';
+    }
+    emit('update:items', localItems.value);
+}
+
+watch(showLightbox, (isOpen) => {
+    syncLightboxKeydownListener(isOpen);
+});
+
+onBeforeUnmount(() => {
+    syncLightboxKeydownListener(false);
+    localItems.value.forEach((item) => revokeBlobUrl(item.image_url));
+});
+
+function setDescriptionFromItem(item: any) {
+    const catalogItem = itemMap.value.get(Number(item.item_id));
+    if (!catalogItem) return;
+
+    const catalogDescription = catalogItem.description?.trim() ?? '';
+    const currentDescription = (item.description ?? '').trim();
+
+    if (catalogDescription && !currentDescription) {
+        item.description = catalogDescription;
+    }
+}
+
 watch(
     () => itemMap.value.size,
     (newSize) => {
@@ -352,6 +486,7 @@ watch(
         localItems.value.forEach((item) => {
             if (item.item_id == null) return;
             setTaxFromItem(item);
+            setDescriptionFromItem(item);
             calcTotals(item);
         });
 
@@ -388,6 +523,7 @@ watch(
                     () => item.item_id,
                     () => {
                         setTaxFromItem(item);
+                        setDescriptionFromItem(item);
                         calcTotals(item);
                         emit('update:items', localItems.value);
                     },
@@ -485,6 +621,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
             >
                 <TableHeader>
                     <TableRow class="border-b border-border/60 text-center">
+                        <TableHead class="w-14"></TableHead>
                         <TableHead class="min-w-[150px] text-left">Item <span class="text-destructive">*</span></TableHead>
                         <TableHead class="min-w-[120px] text-left">Precio SIN Impuesto <span class="text-destructive">*</span></TableHead>
                         <TableHead class="min-w-[160px] text-left">Impuesto <span class="text-destructive">*</span></TableHead>
@@ -500,6 +637,57 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
 
                 <TableBody>
                     <TableRow v-for="(item, idx) in localItems" :key="idx">
+                        <TableCell class="w-14 p-1 text-center align-middle">
+                            <div class="flex items-center justify-center">
+                                <input
+                                    :ref="(el) => registerFileInput(getItemUid(item, idx), el as HTMLInputElement | null)"
+                                    type="file"
+                                    accept="image/*"
+                                    class="hidden"
+                                    @change="handleImageSelected($event, item, idx)"
+                                />
+                                <button
+                                    v-if="!item.image_url && !isReadOnly"
+                                    type="button"
+                                    class="inline-flex h-10 w-10 items-center justify-center text-muted-foreground transition hover:text-foreground"
+                                    title="Agregar imagen"
+                                    @click.stop="triggerImagePicker(item, idx)"
+                                >
+                                    <ImagePlus class="h-5 w-5" />
+                                </button>
+                                <div
+                                    v-else-if="item.image_url"
+                                    class="relative h-10 w-10 overflow-visible rounded-md"
+                                >
+                                    <button
+                                        type="button"
+                                        class="block h-full w-full overflow-hidden rounded-md"
+                                        @click.stop="openLightbox(item.image_url)"
+                                    >
+                                        <img
+                                            :src="item.image_url"
+                                            alt="Imagen del ítem"
+                                            class="h-full w-full rounded-md object-cover"
+                                        />
+                                    </button>
+                                    <div v-if="!isReadOnly" class="absolute right-0 top-0 z-10">
+                                        <button
+                                            type="button"
+                                            class="inline-flex h-5 w-5 translate-x-1 -translate-y-1 items-center justify-center rounded-full bg-red-500 text-white shadow-sm transition hover:bg-red-600"
+                                            @click.stop="removeItemImage(item, idx)"
+                                        >
+                                            <XIcon class="h-3 w-3" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <span
+                                    v-else
+                                    class="inline-flex h-10 w-10 items-center justify-center text-muted-foreground"
+                                >
+                                    <ImagePlus class="h-5 w-5 opacity-30" />
+                                </span>
+                            </div>
+                        </TableCell>
                         <TableCell class="min-w-[150px] p-1 text-left align-top">
                             <div class="min-w-0">
                                 <div class="flex items-center gap-1.5">
@@ -515,7 +703,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                                     </div>
 
                                     <button
-                                        v-if="!isReadOnly && shouldShowRequestCreateAction(item, idx)"
+                                        v-if="!isReadOnly && shouldShowRequestCreateAction(item, idx) && !item.item_id"
                                         type="button"
                                         class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-primary transition hover:text-primary/80"
                                         @click.stop="openItemDialogFromRequest(idx)"
@@ -646,6 +834,12 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
             :loading="taxDialogLoading"
             @submit="handleTaxDialogSubmit"
             @cancel="isTaxDialogOpen = false"
+        />
+        <ImagePreviewDialog
+            :open="showLightbox"
+            :src="lightboxUrl"
+            alt="Imagen ampliada del ítem"
+            @update:open="(value) => (value ? (showLightbox = value) : closeLightbox())"
         />
     </div>
 </template>

@@ -26,7 +26,7 @@ class ItemService
 
     public function paginate(array $filters, int $perPage = 10): LengthAwarePaginator
     {
-        $perPage = max(5, min(100, (int) $perPage));
+        $perPage = max(5, min(2000, (int) $perPage));
 
         $query = Item::query()->select([
             'id',
@@ -40,6 +40,10 @@ class ItemService
             'import_batch_id',
             'tax_id',
             'category_sub_group_id',
+        ])->with([
+            'categorySubGroup:id,name,category_group_id',
+            'categorySubGroup.categoryGroup:id,name',
+            'tax:id,name,percentage',
         ]);
 
         if (!empty($filters['search'])) {
@@ -68,6 +72,20 @@ class ItemService
 
         if (!empty($filters['origin_type']) && in_array($filters['origin_type'], [Item::ORIGIN_SYSTEM, Item::ORIGIN_MIGRATION], true)) {
             $query->where('origin_type', $filters['origin_type']);
+        }
+
+        if (!empty($filters['category_sub_group_id'])) {
+            $query->where(
+                'category_sub_group_id',
+                (int) $filters['category_sub_group_id']
+            );
+        }
+
+        if (!empty($filters['category_group_id'])) {
+            $query->whereHas(
+                'categorySubGroup',
+                fn($q) => $q->where('category_group_id', (int) $filters['category_group_id'])
+            );
         }
 
         return $query

@@ -4,14 +4,18 @@ export interface AdditionalContactDto {
     email: string;
 }
 
+export type ContactTypeDto = 'proveedor' | 'cliente' | 'cliente_proveedor';
+export type ContactIdTypeDto = 'nit' | 'cc' | 'nit_otro_pais' | 'pp' | 'pep' | 'die' | 'ce' | 'te' | 'ti' | 'rc' | 'nuip' | 'ppt';
+export type ContactPersonTypeDto = 'persona_natural' | 'persona_juridica';
+
 export interface ContactDto {
     id: number;
-    contact_type: string;
-    id_type: string;
+    contact_type: ContactTypeDto;
+    id_type: ContactIdTypeDto;
     id_number: string;
     dv?: string;
     full_name: string;
-    person_type: string;
+    person_type: ContactPersonTypeDto;
     category: string;
     municipality?: string;
     department?: string;

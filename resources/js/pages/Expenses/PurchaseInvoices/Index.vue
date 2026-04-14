@@ -143,16 +143,21 @@ const getInvoiceItemsPreview = (invoice: PurchaseInvoice) => {
 };
 
 function getInvoiceStatusLabel(status?: string): string {
-    if (status === 'pending_receipt') return 'Pendiente';
-    if (status === 'approved') return 'Aprobado';
-    if (status === 'received') return 'Recibida';
-    if (status === 'rejected') return 'Rechazada';
-    return 'Sin estado';
+    const labels: Record<string, string> = {
+        pending_receipt: 'Pendiente',
+        received: 'Recibida',
+        rejected: 'Rechazada',
+        approved: 'Aprobada',
+        pending: 'Pendiente',
+    };
+    return labels[status ?? ''] ?? 'Pendiente';
 }
 
-function getInvoiceStatusTone(status?: string): 'yellow' | 'green' | 'red' | 'gray' {
-    if (status === 'pending_receipt') return 'yellow';
-    if (status === 'approved' || status === 'received') return 'green';
+function getInvoiceStatusTone(
+    status?: string
+): 'yellow' | 'green' | 'red' | 'gray' {
+    if (status === 'pending_receipt' || status === 'pending') return 'yellow';
+    if (status === 'received' || status === 'approved') return 'green';
     if (status === 'rejected') return 'red';
     return 'gray';
 }
@@ -505,15 +510,10 @@ async function handleDifferenceDecision() {
                         <Package class="h-4 w-4" />
                         Ver Recepciones
                     </button>
-                    <button
-                        type="button"
-                        :disabled="isPreparingDialog"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-black shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                        @click="openDialogWithPreparation('create')"
-                    >
+                    <Button variant="default" size="pill" :disabled="isPreparingDialog" @click="openDialogWithPreparation('create')">
                         <PlusCircle class="h-4 w-4" />
                         Nueva Factura
-                    </button>
+                    </Button>
                 </div>
             </div>
             <FilterBar align="start">
@@ -607,11 +607,6 @@ async function handleDifferenceDecision() {
                                     tone="yellow"
                                 />
                                 <TableStatusBadge
-                                    v-else-if="invoice.approval_status === 'approved'"
-                                    label="Diferencia aprobada"
-                                    tone="green"
-                                />
-                                <TableStatusBadge
                                     v-else-if="invoice.approval_status === 'difference_rejected'"
                                     label="Diferencia rechazada"
                                     tone="red"
@@ -631,12 +626,26 @@ async function handleDifferenceDecision() {
                                     >
                                         <Eye class="h-4 w-4" />
                                     </button>
-                                    <EditButton :onClick="() => openDialogWithPreparation('edit', invoice)" />
+                                    <EditButton
+                                        :onClick="() => {
+                                            if (invoice.approval_status === 'approved') {
+                                                showError('No se puede editar una factura aprobada o recibida.');
+                                                return;
+                                            }
+                                            openDialogWithPreparation('edit', invoice);
+                                        }"
+                                        :class="
+                                            invoice.approval_status === 'approved'
+                                                ? 'opacity-40 cursor-not-allowed pointer-events-none'
+                                                : ''
+                                        "
+                                    />
                                     <!-- Botón de aprobación de diferencia: visible solo cuando hay diferencia pendiente -->
                                     <button
                                         v-if="invoice.approval_status === 'pending_difference_approval'"
+                                        type="button"
                                         class="flex items-center transition-colors duration-200 text-yellow-600 hover:text-yellow-800"
-                                        title="Aprobar / Rechazar diferencia"
+                                        title="Revisar diferencia — Aprobar o Rechazar"
                                         @click="openApprovalDialog(invoice)"
                                     >
                                         <ShieldCheck class="h-4 w-4" />
@@ -644,8 +653,20 @@ async function handleDifferenceDecision() {
                                     <!-- Mostrar siempre el botón; si está aprobado se muestra deshabilitado visualmente
                                          y al hacer clic se muestra un mensaje en vez de intentar eliminar -->
                                     <DeleteButton
-                                        @click="invoice.status === 'received' ? showError('No se puede eliminar una factura que ya fue recibida.') : confirmDeleteInvoice(invoice)"
-                                        :customClass="invoice.status === 'received' ? 'opacity-60 cursor-not-allowed' : ''"
+                                        :onClick="
+                                            () => {
+                                                if (invoice.status === 'received' || invoice.approval_status === 'approved') {
+                                                    showError('No se puede eliminar una factura aprobada o recibida.');
+                                                } else {
+                                                    confirmDeleteInvoice(invoice);
+                                                }
+                                            }
+                                        "
+                                        :customClass="
+                                            invoice.status === 'received' || invoice.approval_status === 'approved'
+                                                ? 'opacity-60 cursor-not-allowed'
+                                                : ''
+                                        "
                                     />
                                     <DropdownMenu>
                                         <DropdownMenuTrigger as-child>

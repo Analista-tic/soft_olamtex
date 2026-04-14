@@ -422,7 +422,12 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <FormDialogContent size="lg" class="p-0" content-class="p-0" :scrollable="false">
+        <FormDialogContent
+            size="lg"
+            class="flex h-[95vh] max-h-[95vh] w-full flex-col overflow-hidden p-0"
+            content-class="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+            :scrollable="false"
+        >
             <FormDialogHeader
                 :title="`${dialogType === 'edit' ? 'Editar' : dialogType === 'view' ? 'Ver' : 'Nueva'} Solicitud Interna`"
                 description="Registro de solicitudes internas de insumos o materiales."

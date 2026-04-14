@@ -180,14 +180,10 @@ onMounted(() => fetchRetentions());
                         seleccionarlas en las facturas para calcular el total a pagar.
                     </p>
                 </div>
-                <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 self-end rounded-full bg-primary px-5 py-2 text-sm font-semibold text-black shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                    @click="openDialog('create')"
-                >
+                <Button variant="default" size="pill" class="self-end" @click="openDialog('create')">
                     <PlusCircle class="h-4 w-4" />
                     Nueva Retención
-                </button>
+                </Button>
             </div>
             <FilterBar align="start" gap="gap-4">
                 <FilterField label="Buscar retención" :active="isSearchActive" class="min-w-[240px] flex-1 p-0">

@@ -418,20 +418,19 @@ watch(
 <template>
     <Dialog v-model:open="dialogOpen">
         <FormDialogContent class="flex max-h-[95vh] max-w-[95vw] flex-col px-2 py-2">
-            <AlertStack
-                :success-message="successMessage"
-                :error-message="errorMessage"
-                :error-type="errorType"
-                @close-success="successMessage = ''"
-                @close-error="errorMessage = ''"
-            />
-
             <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle>{{ dialogTitle }}</DialogTitle>
                 <DialogDescription>{{ dialogDescription }}</DialogDescription>
             </DialogHeader>
 
-            <div class="relative min-h-0 flex-1 space-y-6 overflow-y-auto p-5" :class="{ 'min-h-[420px]': isBlockingLoading }">
+            <div class="relative min-h-0 flex-1 overflow-y-auto px-5 py-4" :class="{ 'min-h-[420px]': isBlockingLoading }" style="scrollbar-width: thin">
+                <AlertStack
+                    :success-message="successMessage"
+                    :error-message="errorMessage"
+                    :error-type="errorType"
+                    @close-success="successMessage = ''"
+                    @close-error="errorMessage = ''"
+                />
                 <FormLoadingOverlay
                     :active="isBlockingLoading"
                     :delay-ms="0"
@@ -440,6 +439,7 @@ watch(
                 />
 
                 <template v-if="canRenderForm">
+                    <div class="space-y-6">
                     <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
                         <div>
                             <label class="text-sm font-medium text-foreground">N° Cotización</label>
@@ -539,10 +539,11 @@ watch(
                         :disabled="isReadOnly"
                         @update:modelValue="localQuote.description = $event"
                     />
+                    </div>
                 </template>
             </div>
 
-            <DialogFooter class="flex-shrink-0 justify-end gap-2 border-t border-sidebar-border/70 px-5 py-4 dark:border-sidebar-border">
+            <DialogFooter class="flex-shrink-0 border-t border-border px-5 py-4 justify-end gap-2">
                 <Button variant="outline" size="pill" @click="dialogOpen = false">
                     {{ isViewMode ? 'Cerrar' : 'Cancelar' }}
                 </Button>

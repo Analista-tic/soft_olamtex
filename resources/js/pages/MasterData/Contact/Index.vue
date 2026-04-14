@@ -21,7 +21,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
-import type { Contact } from '@/domain/MasterData';
+import type { Contact, ContactType } from '@/domain/MasterData';
 import type { BreadcrumbItem } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
@@ -57,14 +57,20 @@ const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
-const selectedContactType = ref<string>('');
+const selectedContactType = ref<ContactType | ''>('');
 
 const contactTypeOptions = [
     { id: '', name: 'Todos los tipos' },
-    { id: 'Proveedor', name: 'Proveedor' },
-    { id: 'Cliente', name: 'Cliente' },
-    { id: 'Cliente y Proveedor', name: 'Cliente y Proveedor' },
+    { id: 'proveedor', name: 'Proveedor' },
+    { id: 'cliente', name: 'Cliente' },
+    { id: 'cliente_proveedor', name: 'Cliente y Proveedor' },
 ];
+
+const contactTypeLabels: Record<ContactType, string> = {
+    proveedor: 'Proveedor',
+    cliente: 'Cliente',
+    cliente_proveedor: 'Cliente y Proveedor',
+};
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isContactTypeFilterActive = computed(() => selectedContactType.value !== '');
@@ -293,6 +299,14 @@ async function fetchContacts(page: number = 1, search: string = '', contactType:
     }
 }
 
+function formatContactType(contactType?: string): string {
+    if (!contactType) {
+        return '-';
+    }
+
+    return contactTypeLabels[contactType as ContactType] ?? contactType;
+}
+
 function handlePageChange(newPage: number): void {
     currentPage.value = newPage;
     fetchContacts(newPage, searchQuery.value, selectedContactType.value || null);
@@ -335,15 +349,10 @@ onBeforeUnmount(() => {
                         Administra contactos de proveedores y clientes, controla su información de contacto y el tipo asignado.
                     </p>
                 </div>
-                <button
-                    type="button"
-                    :disabled="isPreparingDialog"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-black shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                    @click="openDialog('create')"
-                >
+                <Button variant="default" size="pill" :disabled="isPreparingDialog" @click="openDialog('create')">
                     <PlusCircle class="h-4 w-4" />
                     Nuevo Contacto
-                </button>
+                </Button>
             </div>
 
             <!-- Filtros -->
@@ -386,7 +395,7 @@ onBeforeUnmount(() => {
                             <TableCell class="font-medium">{{ contact.full_name }}</TableCell>
                             <TableCell>{{ contact.email }}</TableCell>
                             <TableCell>{{ contact.phone }}</TableCell>
-                            <TableCell>{{ contact.contact_type }}</TableCell>
+                            <TableCell>{{ formatContactType(contact.contact_type) }}</TableCell>
                             <TableCell class="flex justify-center gap-1">
                                 <EditButton :onClick="() => openDialog('edit', contact)" />
                                 <DeleteButton @click="confirmDeleteContact(contact)" />

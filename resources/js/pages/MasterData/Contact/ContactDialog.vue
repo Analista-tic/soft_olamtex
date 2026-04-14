@@ -307,19 +307,18 @@ const updateBranches = (branches: any[]) => {
 <template>
     <Dialog v-model:open="internalIsOpen">
         <FormDialogContent v-if="!props.deferContent" class="flex max-h-[95vh] max-w-[150vh] flex-col px-2 py-2">
-            <DialogHeader class="flex-shrink-0">
+            <DialogHeader class="border-b px-5 py-4 pr-12">
                 <DialogTitle>{{ dialogTitle }}</DialogTitle>
-                <DialogDescription class="pb-4">
+                <DialogDescription>
                     Completa los campos para {{ dialogType === 'create' ? 'crear' : 'editar' }} un contacto. Haz clic en
                     {{ dialogType === 'create' ? 'crear' : 'actualizar' }} cuando termines.
                 </DialogDescription>
             </DialogHeader>
 
-            <AlertStack :error-message="alertMessage" :error-type="alertType" @close-error="alertMessage = ''" />
-
-            <div class="flex-1 overflow-y-auto scroll-smooth px-2" style="scrollbar-width: thin">
+            <div class="min-h-0 flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
+                <AlertStack :error-message="alertMessage" :error-type="alertType" @close-error="alertMessage = ''" />
                 <!-- Pestañas -->
-                <Tabs defaultValue="basic-info" class="px-2 pt-1">
+                <Tabs defaultValue="basic-info" class="pt-1">
                     <TabsList class="flex justify-center space-x-4">
                         <TabsTrigger value="basic-info" class="flex-1 py-2 text-center">Información básica</TabsTrigger>
                         <TabsTrigger value="additional-info" class="flex-1 py-2 text-center">Contactos adicionales</TabsTrigger>
@@ -346,7 +345,7 @@ const updateBranches = (branches: any[]) => {
                     </TabsContent>
                 </Tabs>
             </div>
-            <DialogFooter class="mt-4 flex justify-end gap-2">
+            <DialogFooter class="border-t border-border px-5 py-4 justify-end gap-2">
                 <Button variant="outline" size="pill" @click="closeDialog"> Cancelar </Button>
                 <button
                     type="button"

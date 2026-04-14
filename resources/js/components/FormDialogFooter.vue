@@ -9,7 +9,7 @@ const props = defineProps<{
 </script>
 
 <template>
-    <DialogFooter :class="cn('shrink-0 border-t px-5 py-3 md:justify-end', props.class)">
+    <DialogFooter :class="cn('shrink-0 border-t border-border px-5 py-4 md:justify-end', props.class)">
         <slot />
     </DialogFooter>
 </template>

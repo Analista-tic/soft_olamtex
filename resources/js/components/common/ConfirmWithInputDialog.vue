@@ -1,99 +1,122 @@
 <script setup lang="ts">
-import TextareaField from '@/components/TextareaField.vue';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ref, watch } from 'vue';
+import { ref, watch } from 'vue'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { buttonVariants } from '@/components/ui/button'
+import TextareaField from '@/components/TextareaField.vue'
+import { Trash2 } from 'lucide-vue-next'
 
 const props = withDefaults(
-    defineProps<{
-        open?: boolean;
-        title: string;
-        description?: string;
-        inputLabel?: string;
-        inputPlaceholder?: string;
-        inputRequired?: boolean;
-        confirmText?: string;
-        cancelText?: string;
-        destructive?: boolean;
-    }>(),
-    {
-        open: false,
-        description: '',
-        inputLabel: 'Motivo',
-        inputPlaceholder: 'Ingresa el motivo...',
-        inputRequired: true,
-        confirmText: 'Confirmar',
-        cancelText: 'Cancelar',
-        destructive: true,
-    },
-);
+  defineProps<{
+    open?: boolean
+    title: string
+    description?: string
+    confirmText?: string
+    cancelText?: string
+    destructive?: boolean
+    inputLabel?: string
+    inputPlaceholder?: string
+    inputRequired?: boolean
+  }>(),
+  {
+    open: false,
+    description: '',
+    confirmText: 'Confirmar',
+    cancelText: 'Cancelar',
+    destructive: true,
+    inputLabel: 'Motivo',
+    inputPlaceholder: 'Ingresa el motivo...',
+    inputRequired: true,
+  },
+)
 
 const emit = defineEmits<{
-    (event: 'update:open', value: boolean): void;
-    (event: 'confirm', value: string): void;
-}>();
+  'update:open': [value: boolean]
+  confirm: [value: string]
+}>()
 
-const inputValue = ref('');
+const inputValue = ref('')
 
 watch(
-    () => props.open,
-    (isOpen) => {
-        if (isOpen) {
-            inputValue.value = '';
-        }
-    },
-);
-
-function handleOpenChange(value: boolean) {
-    emit('update:open', value);
-}
-
-function closeDialog() {
-    handleOpenChange(false);
-    inputValue.value = '';
-}
+  () => props.open,
+  (val) => {
+    if (val) inputValue.value = ''
+  },
+)
 
 function handleConfirm() {
-    if (props.inputRequired && !inputValue.value.trim()) {
-        return;
-    }
-    emit('confirm', inputValue.value.trim());
-    closeDialog();
+  if (props.inputRequired && !inputValue.value.trim()) {
+    return
+  }
+
+  emit('confirm', inputValue.value.trim())
+  emit('update:open', false)
+}
+
+function handleCancel() {
+  emit('update:open', false)
 }
 </script>
 
 <template>
-    <Dialog :open="props.open" modal @update:open="handleOpenChange">
-        <DialogContent class="max-w-md gap-0 overflow-hidden border border-border p-0">
-            <DialogHeader class="space-y-1 px-5 py-4">
-                <DialogTitle>{{ props.title }}</DialogTitle>
-            </DialogHeader>
-            <div v-if="props.description" class="px-5 pb-1">
-                <DialogDescription>{{ props.description }}</DialogDescription>
-            </div>
-            <div class="px-5 py-3">
-                <TextareaField
-                    v-model="inputValue"
-                    :label="props.inputLabel"
-                    :placeholder="props.inputPlaceholder"
-                    :required="props.inputRequired"
-                    :rows="3"
-                />
-            </div>
-            <DialogFooter class="gap-2 px-5 py-4 pt-3 sm:justify-end">
-                <Button variant="outline" size="pill" @click="closeDialog">
-                    {{ props.cancelText }}
-                </Button>
-                <Button
-                    :variant="props.destructive ? 'destructive' : 'default'"
-                    size="pill"
-                    class="shadow-sm"
-                    :disabled="props.inputRequired && !inputValue.trim()"
-                    @click="handleConfirm"
-                >
-                    {{ props.confirmText }}
-                </Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
+  <AlertDialog :open="props.open" @update:open="emit('update:open', $event)">
+    <AlertDialogContent size="sm">
+      <AlertDialogHeader class="items-center text-center">
+        <AlertDialogMedia
+          :class="
+            props.destructive
+              ? 'bg-destructive/10 text-destructive'
+              : 'bg-muted text-muted-foreground'
+          "
+        >
+          <slot name="icon">
+            <Trash2 class="h-5 w-5" />
+          </slot>
+        </AlertDialogMedia>
+        <AlertDialogTitle class="text-center">{{ props.title }}</AlertDialogTitle>
+        <AlertDialogDescription class="text-center">
+          {{ props.description }}
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+
+      <div class="px-1 pb-2">
+        <TextareaField
+          v-model="inputValue"
+          :label="props.inputLabel"
+          :placeholder="props.inputPlaceholder"
+          :required="props.inputRequired"
+        />
+      </div>
+
+      <AlertDialogFooter class="gap-x-2 sm:justify-center">
+        <AlertDialogCancel
+          :class="buttonVariants({ variant: 'outline', size: 'pill' })"
+          @click="handleCancel"
+        >
+          {{ props.cancelText }}
+        </AlertDialogCancel>
+        <AlertDialogAction
+          :class="
+            buttonVariants({
+              variant: props.destructive ? 'destructive' : 'default',
+              size: 'pill',
+            })
+          "
+          :disabled="props.inputRequired && !inputValue.trim()"
+          @click="handleConfirm"
+        >
+          {{ props.confirmText }}
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
 </template>

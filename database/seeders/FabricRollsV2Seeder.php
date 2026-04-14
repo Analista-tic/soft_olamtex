@@ -197,11 +197,11 @@ class FabricRollsV2Seeder extends Seeder
             $now = now();
             $contactMap[$name] = DB::table('contacts')->insertGetId([
                 'contact_type' => 'proveedor',
-                'id_type'      => 'NIT',
+                'id_type'      => 'nit',
                 'id_number'    => $idNumber,
                 'dv'           => null,
                 'full_name'    => $name,
-                'person_type'  => 'jurídica',
+                'person_type'  => 'persona_juridica',
                 'email'        => $email,
                 'created_at'   => $now,
                 'updated_at'   => $now,
