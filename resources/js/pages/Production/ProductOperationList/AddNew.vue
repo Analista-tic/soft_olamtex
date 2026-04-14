@@ -2,7 +2,8 @@
 import InputField from '@/components/InputField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import FormDialogContent from '@/components/FormDialogContent.vue';
+import { Dialog, DialogDescription, DialogFooter, DialogTitle } from '@/components/ui/dialog';
 import OperationFormContent from '@/pages/Operations/OperationFormContent.vue';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
@@ -70,6 +71,14 @@ const entityConfig = computed(() => entityLabels[props.entity]);
 
 const productSheetsForForm = computed(() =>
     (props.productSheets || []).map((s) => ({ id: s.id, name: `${s.reference} (${s.type})`, reference: s.reference, type: s.type })),
+);
+
+const machinesForForm = computed(() =>
+    (props.machines || []).map((m: any) => ({
+        id: m.id,
+        code: m.code ?? null,
+        name: String(m.name ?? m.nombre ?? m.code ?? 'SIN NOMBRE').trim(),
+    })),
 );
 
 function closeDialog() {
@@ -164,11 +173,11 @@ function clearErrorMessage() {
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <DialogContent class="flex max-h-[90vh] max-w-3xl flex-col px-1 pt-2">
-            <DialogHeader class="flex-shrink-0">
-                <DialogTitle>{{ entityConfig.title }}</DialogTitle>
-                <DialogDescription>{{ entityConfig.description }}</DialogDescription>
-            </DialogHeader>
+        <FormDialogContent size="lg" class="flex max-h-[90vh] min-h-0 w-[calc(100vw-2rem)] max-w-3xl flex-col p-0">
+            <div class="flex-shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-3 dark:border-sidebar-border">
+                <DialogTitle class="text-lg font-semibold">{{ entityConfig.title }}</DialogTitle>
+                <DialogDescription class="mt-0.5 text-sm text-muted-foreground">{{ entityConfig.description }}</DialogDescription>
+            </div>
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
@@ -176,8 +185,8 @@ function clearErrorMessage() {
                 @close-success="clearSuccessMessage"
                 @close-error="clearErrorMessage"
             />
-            <div class="flex-1 overflow-y-auto scroll-smooth px-2" style="scrollbar-width: thin">
-                <div class="space-y-4 pt-4">
+            <div class="min-h-0 flex-1 overflow-y-auto px-5 py-3" style="scrollbar-width: thin">
+                <div class="space-y-4">
                     <!-- Formulario para Sección -->
                     <template v-if="entity === 'section'">
                         <div class="space-y-3">
@@ -211,7 +220,7 @@ function clearErrorMessage() {
                             :actions="actions || []"
                             :garment-parts="garmentParts || []"
                             :product-sheets="productSheetsForForm"
-                            :machines="machines"
+                            :machines="machinesForForm"
                             :default-section-id="defaultSectionId"
                             :default-product-sheet-id="defaultProductSheetId"
                             :lock-product-sheet="!!defaultProductSheetId"
@@ -226,12 +235,12 @@ function clearErrorMessage() {
                     </template>
                 </div>
             </div>
-            <DialogFooter class="mt-6 flex flex-shrink-0 justify-end gap-2 border-t pt-4">
+            <DialogFooter class="flex flex-shrink-0 justify-end gap-2 border-t px-5 py-3">
                 <Button variant="outline" @click="closeDialog">Cancelar</Button>
                 <Button :disabled="isSubmitting" @click="submitForm">
                     {{ entityConfig.button }}
                 </Button>
             </DialogFooter>
-        </DialogContent>
+        </FormDialogContent>
     </Dialog>
 </template>

@@ -72,9 +72,6 @@ const errorType = ref<'error' | 'warning' | 'info'>('error');
 function setError(message: string, type: 'error' | 'warning' | 'info' = 'error'): void {
     errorMessage.value = message;
     errorType.value = type;
-    if (dialogInnerRef.value?.scrollTo) {
-        dialogInnerRef.value.scrollTo({ top: 0, behavior: 'smooth' });
-    }
 }
 
 const isCreateMode = computed(() => props.mode === 'create');
@@ -121,6 +118,7 @@ interface FormState {
     fabric_base_id: number | null;
     yarn_base_id: number | null;
     type: 'muestra' | 'producto';
+    garment_type: 'superior' | 'inferior' | null;
     operational_list_id: number | null;
     collection_id: number | null;
     billing_price: number;
@@ -207,6 +205,7 @@ function createInitialFormState(): FormState {
         fabric_base_id: null,
         yarn_base_id: null,
         type: TYPE_SAMPLE,
+        garment_type: null,
         operational_list_id: null,
         collection_id: null,
         billing_price: 0,
@@ -417,10 +416,10 @@ function syncCollectionOptionsFromProps(): void {
     collectionOptions.value = Array.isArray(props.collections) ? [...props.collections] : [];
 }
 
-async function createCollectionFromSelect(): Promise<void> {
+async function createCollectionFromSelect(rawName?: string): Promise<void> {
     if (isReadonly.value || creatingCollection.value) return;
 
-    const name = normalizeCollectionName(collectionSearchTerm.value);
+    const name = normalizeCollectionName(rawName ?? collectionSearchTerm.value);
     if (!name) {
         setError('Escribe el nombre de la colección en el buscador para crearla.', 'warning');
         return;
@@ -464,16 +463,22 @@ async function createCollectionFromSelect(): Promise<void> {
             return;
         }
 
+        if (err instanceof Error && err.message.trim()) {
+            setError(err.message);
+            return;
+        }
+
         setError('No se pudo crear la colección.');
     } finally {
         creatingCollection.value = false;
     }
 }
 
-function handleCollectionAction(): void {
-    const hasSearchTerm = Boolean(normalizeCollectionName(collectionSearchTerm.value));
+function handleCollectionAction(rawSearchTerm?: string): void {
+    const normalizedSearchTerm = normalizeCollectionName(rawSearchTerm ?? collectionSearchTerm.value);
+    const hasSearchTerm = Boolean(normalizedSearchTerm);
     if (hasSearchTerm) {
-        void createCollectionFromSelect();
+        void createCollectionFromSelect(normalizedSearchTerm);
         return;
     }
 
@@ -484,13 +489,20 @@ function handleCollectionAction(): void {
 const templateOptions = ref<Array<{ id: number | string; name: string }>>([]);
 const selectedTemplateId = ref<number | null>(null);
 const isLoadingTemplate = ref(false);
+const templatesLoaded = ref(false);
 
 async function loadTemplates() {
+    if (templatesLoaded.value || isLoadingTemplate.value) return;
+
+    isLoadingTemplate.value = true;
     try {
         const response = await fetchProductSheetTemplates();
         templateOptions.value = response.data?.data ?? [];
+        templatesLoaded.value = true;
     } catch {
         templateOptions.value = [];
+    } finally {
+        isLoadingTemplate.value = false;
     }
 }
 
@@ -556,7 +568,6 @@ const overallStatus = computed<boolean>(() => {
     const hasSelectedSize = Object.values(parsedSizes.value).some((value) => value === true);
     return (
         Boolean(form.value.reference) &&
-        Boolean(form.value.billing_price) &&
         Boolean(form.value.selling_price) &&
         hasSelectedSize
     );
@@ -616,30 +627,6 @@ function orderProcesses(processes: Record<string, boolean>): Record<string, bool
     }
 
     return ordered;
-}
-
-function normalizeProcessName(value: string): string {
-    return value.trim().replace(/\s+/g, ' ');
-}
-
-function handleCreateProcessOption(rawName: string): void {
-    if (isReadonly.value) return;
-
-    const name = normalizeProcessName(rawName);
-    if (!name) {
-        setError('Escribe el nombre del proceso para agregarlo.', 'warning');
-        return;
-    }
-
-    const exists = allProcesses.value.some((process) => process.trim().toLowerCase() === name.toLowerCase());
-    if (!exists) {
-        allProcesses.value = [...allProcesses.value, name];
-    }
-
-    const parsed = parseProcessesValue(form.value.processes);
-    parsed[name] = true;
-    form.value.processes = JSON.stringify(orderProcesses(parsed));
-    setError('Proceso agregado y seleccionado.', 'info');
 }
 
 function applyDefaultSampleProcessOnce() {
@@ -760,62 +747,48 @@ watch(
 watch(
     () => form.value.woven_product,
     (newValue) => {
-        const productType = form.value.type === TYPE_SAMPLE ? 'muestra' : 'producto';
         const processes = parseBooleanRecord(form.value.processes);
 
         if (newValue) {
             if (!processes['Tejido']) {
                 processes['Tejido'] = true;
-                if (import.meta.env.DEV) {
-                    console.log(
-                        `[ProductSheet][woven_product=true][tipo=${productType}] ` +
-                        `➕ Proceso "Tejido" marcado automáticamente en Procesos.`,
-                    );
-                }
-            } else if (import.meta.env.DEV) {
-                console.log(
-                    `[ProductSheet][woven_product=true][tipo=${productType}] ` +
-                    `ℹ Proceso "Tejido" ya estaba activo, sin cambios.`,
-                );
-            }
-            if (import.meta.env.DEV) {
-                console.log(
-                    `[ProductSheet][woven_product=true][tipo=${productType}] ` +
-                    `🔵 Campo "Base Hilaza" habilitado y visible.`,
-                );
             }
         } else {
-            const tejitoWasActive = Boolean(processes['Tejido']);
             delete processes['Tejido'];
             form.value.yarn_base_id = null;
-            // Si tenía N/A seleccionada (id=0 o null) al apagar el toggle,
-            // limpiar para obligar al usuario a seleccionar una base tela real
             if (!form.value.fabric_base_id || Number(form.value.fabric_base_id) === 0) {
                 form.value.fabric_base_id = null;
             }
-            if (import.meta.env.DEV) {
-                if (tejitoWasActive) {
-                    console.log(
-                        `[ProductSheet][woven_product=false][tipo=${productType}] ` +
-                        `➖ Proceso "Tejido" desmarcado de Procesos.`,
-                    );
-                }
-                console.log(
-                    `[ProductSheet][woven_product=false][tipo=${productType}] ` +
-                    `🔴 Campo "Base Hilaza" ocultado y yarn_base_id limpiado.`,
-                );
-            }
         }
         form.value.processes = stringifyJsonRecord(processes);
-        if (import.meta.env.DEV) {
-            const activeProcesses = Object.entries(parseBooleanRecord(form.value.processes))
-                .filter(([, v]) => v)
-                .map(([k]) => k);
-            console.log(
-                `[ProductSheet][woven_product=${newValue}][tipo=${productType}] ` +
-                `📋 Procesos activos: [${activeProcesses.join(', ')}]`,
-            );
+    },
+);
+
+/**
+ * Auto-asigna garment_type cuando la sección tiene un tipo permitido único (superior/inferior).
+ * Si la sección permite 'ambos', deja que el usuario elija libremente.
+ */
+const selectedSectionGarmentType = computed<'superior' | 'inferior' | 'ambos' | null>(() => {
+    const sId = form.value.section_id;
+    if (!sId) return null;
+    const section = sectionOptions.value.find((s) => s.id === sId || Number(s.id) === Number(sId));
+    return (section as OptionParams & { allowed_garment_type?: 'superior' | 'inferior' | 'ambos' })?.allowed_garment_type ?? null;
+});
+
+const isGarmentTypeLocked = computed(() => {
+    const gt = selectedSectionGarmentType.value;
+    return gt === 'superior' || gt === 'inferior';
+});
+
+watch(
+    () => form.value.section_id,
+    (sectionId) => {
+        if (!sectionId) return;
+        const gt = selectedSectionGarmentType.value;
+        if (gt === 'superior' || gt === 'inferior') {
+            form.value.garment_type = gt;
         }
+        // Si es 'ambos' o null, no forzar: el usuario elige
     },
 );
 
@@ -842,6 +815,7 @@ watch(
                 fabric_base_id: toIdOrNull(newProductSheet.fabric_base_id),
                 yarn_base_id: toIdOrNull(newProductSheet.yarn_base_id),
                 type: normalizedType,
+                garment_type: (newProductSheet.garment_type as 'superior' | 'inferior' | null) ?? null,
                 operational_list_id: toIdOrNull(newProductSheet.operational_list_id),
                 collection_id: toIdOrNull(newProductSheet.collection_id),
                 billing_price: Number(newProductSheet.billing_price ?? 0),
@@ -1064,6 +1038,7 @@ function buildBasePayload() {
 
     const payload: Record<string, unknown> = {
         type: form.value.type ?? TYPE_PRODUCT,
+        garment_type: form.value.garment_type ?? null,
         section_id: toIdOrNull(form.value.section_id),
         group_id: toIdOrNull(form.value.group_id),
         brand_id: toIdOrNull(form.value.brand_id),
@@ -1198,7 +1173,7 @@ function handleClose() {
             :message="errorMessage"
             :auto-close-ms="errorType === 'error' ? 0 : 4000"
             class="pointer-events-auto"
-            @close.stop.prevent="errorMessage = ''"
+            @close="errorMessage = ''"
         />
     </div>
 
@@ -1242,23 +1217,6 @@ function handleClose() {
             <div ref="dialogInnerRef" class="min-h-0 flex-1 overflow-y-auto scroll-smooth px-6 py-4" style="scrollbar-width: thin">
                     <div class="grid gap-6 sm:grid-cols-[minmax(0,1fr)_340px]">
                         <div class="space-y-4">
-                            <div class="grid gap-2">
-                                <div class="flex items-center gap-2">
-                                    <Label class="text-sm font-medium"> Tipo<span class="text-red-500">*</span> </Label>
-                                    <HelpTooltip :text="tooltips.type" aria-label="Ayuda sobre Tipo" />
-                                </div>
-                                <SegmentedToggle v-model="typeModel" :options="typeOptions" :disabled="isTypeReadonly" />
-                            </div>
-
-                            <!-- Template selector (solo en modo crear) -->
-                            <!-- Movido al DialogHeader (esquina superior derecha) -->
-
-                            <!-- Version badge (editar/ver) -->
-                            <div v-if="!isCreateMode && form.version && form.version > 1" class="mb-2">
-                                <span class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-800">
-                                    Versión {{ form.version }}
-                                </span>
-                            </div>
 
                             <!-- Primera seccion: Identificacion del producto (3 referencias) -->
                             <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -1302,7 +1260,7 @@ function handleClose() {
                             <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium">Precio facturacion<span class="text-red-500">*</span></Label>
+                                        <Label class="text-sm font-medium">Precio facturacion</Label>
                                     </div>
                                     <InputField
                                         v-model="form.billing_price"
@@ -1321,7 +1279,7 @@ function handleClose() {
                                 </div>
                             </div>
 
-                            <div class="mb-4 grid grid-cols-4 gap-4">
+                            <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Seccion<span class="text-red-500">*</span></Label>
@@ -1412,7 +1370,10 @@ function handleClose() {
                                 </div>
                             </div>
 
-                            <div class="mb-4 grid gap-4" :class="form.woven_product ? 'grid-cols-4' : 'grid-cols-3'">
+                            <div
+                                class="mb-4 grid gap-4"
+                                :class="form.woven_product ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'"
+                            >
                                 <div class="flex w-auto flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Producto tejido</Label>
@@ -1473,43 +1434,6 @@ function handleClose() {
                                     <div class="tooltip-managed-size-selector">
                                         <SizeSelector class="w-full" v-model="form.sizes" :sizeGroups="sizeGroups" :disabled="isReadonly" />
                                     </div>
-                                </div>
-                            </div>
-
-                            <div class="mb-4 grid grid-cols-1 gap-4">
-                                <div class="flex flex-col gap-1">
-                                    <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium">Descripcion</Label>
-                                    </div>
-                                    <InputField
-                                        v-model="form.description"
-                                        label=""
-                                        type="text"
-                                        placeholder="Anade descripcion o observaciones del producto"
-                                        :disabled="isReadonly"
-                                    />
-                                </div>
-                            </div>
-
-                            <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                                <div class="flex flex-col gap-1">
-                                    <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium">Colección</Label>
-                                    </div>
-                                    <SelectField
-                                        v-model="form.collection_id"
-                                        label=""
-                                        :options="collectionOptions"
-                                        placeholder="Sin colección"
-                                        :disabled="isReadonly"
-                                        :searchable="true"
-                                        :search-threshold="0"
-                                        search-placeholder="Buscar o escribir colección"
-                                        :action-label="collectionActionLabel"
-                                        :action-disabled="isReadonly || creatingCollection"
-                                        @search="(term) => (collectionSearchTerm = String(term ?? ''))"
-                                        @action="handleCollectionAction"
-                                    />
                                 </div>
                             </div>
 
@@ -1577,18 +1501,93 @@ function handleClose() {
                                     :wovenProduct="form.woven_product"
                                     :productSheetType="form.type"
                                     :disabled="isReadonly"
-                                    @create-process="handleCreateProcessOption"
                                 />
                             </div>
                         </div>
-                        <div class="w-full min-w-0 sm:w-[320px]">
-                            <ImageUploadViewer
-                                ref="flatSketchRef"
-                                v-model="form.flat_sketch_path"
-                                :readonly="isReadonly"
-                                :tooltip="tooltips.flatSketch"
-                                @error="setError"
-                            />
+                        <div class="w-full min-w-0 sm:sticky sm:top-0 sm:w-[340px] sm:self-start">
+                            <div class="space-y-4">
+                                <!-- Dibujo plano -->
+                                <ImageUploadViewer
+                                    ref="flatSketchRef"
+                                    v-model="form.flat_sketch_path"
+                                    :readonly="isReadonly"
+                                    :tooltip="tooltips.flatSketch"
+                                    @error="setError"
+                                />
+
+                                <!-- Tipo (muestra / producto) -->
+                                <div class="grid gap-1.5">
+                                    <div class="flex items-center gap-2">
+                                        <Label class="text-sm font-medium">Tipo<span class="text-red-500">*</span></Label>
+                                        <HelpTooltip :text="tooltips.type" aria-label="Ayuda sobre Tipo" />
+                                    </div>
+                                    <SegmentedToggle v-model="typeModel" :options="typeOptions" :disabled="isTypeReadonly" />
+                                </div>
+
+                                <!-- Tipo de prenda (superior / inferior) -->
+                                <div class="grid gap-1.5">
+                                    <div class="flex items-center gap-2">
+                                        <Label class="text-sm font-medium">Tipo de prenda<span class="text-red-500">*</span></Label>
+                                        <span v-if="isGarmentTypeLocked" class="text-[10px] font-normal text-muted-foreground">(definido por sección)</span>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button
+                                            type="button"
+                                            :class="['flex-1 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors', form.garment_type === 'superior' ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background hover:bg-muted']"
+                                            :disabled="isReadonly || isGarmentTypeLocked"
+                                            @click="form.garment_type = 'superior'"
+                                        >
+                                            ↑ Superior
+                                        </button>
+                                        <button
+                                            type="button"
+                                            :class="['flex-1 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors', form.garment_type === 'inferior' ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background hover:bg-muted']"
+                                            :disabled="isReadonly || isGarmentTypeLocked"
+                                            @click="form.garment_type = 'inferior'"
+                                        >
+                                            ↓ Inferior
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Version badge -->
+                                <div v-if="!isCreateMode && form.version && form.version > 1">
+                                    <span class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-800">
+                                        Versión {{ form.version }}
+                                    </span>
+                                </div>
+
+                                <!-- Descripción -->
+                                <div class="flex flex-col gap-1">
+                                    <Label class="text-sm font-medium">Descripción</Label>
+                                    <InputField
+                                        v-model="form.description"
+                                        label=""
+                                        type="text"
+                                        placeholder="Observaciones del producto"
+                                        :disabled="isReadonly"
+                                    />
+                                </div>
+
+                                <!-- Colección -->
+                                <div class="flex flex-col gap-1">
+                                    <Label class="text-sm font-medium">Colección</Label>
+                                    <SelectField
+                                        v-model="form.collection_id"
+                                        label=""
+                                        :options="collectionOptions"
+                                        placeholder="Sin colección"
+                                        :disabled="isReadonly"
+                                        :searchable="true"
+                                        :search-threshold="0"
+                                        search-placeholder="Buscar o escribir colección"
+                                        :action-label="collectionActionLabel"
+                                        :action-disabled="isReadonly || creatingCollection"
+                                        @search="(term) => (collectionSearchTerm = String(term ?? ''))"
+                                        @action="handleCollectionAction"
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

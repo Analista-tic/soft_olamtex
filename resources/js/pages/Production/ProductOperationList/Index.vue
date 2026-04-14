@@ -38,15 +38,15 @@ const productSheets = computed(() => page.props.productSheets || []);
 const actions = computed(() => page.props.actions || []);
 const garmentParts = computed(() => page.props.garmentParts || []);
 const fabricBases = computed(() => (page.props as any).fabric_bases || []);
+const preparationGroups = computed(() => (page.props as any).preparation_groups || []);
 function buildProductSheetLabel(sheet: any): string {
-    const sample = String(sheet.sample_reference ?? '').trim().toUpperCase() || '-';
-    const product = String(sheet.product_reference ?? '').trim().toUpperCase() || '-';
-    const prod2 = String(sheet.product_reference_2 ?? '').trim().toUpperCase();
+    const parts = [
+        String(sheet.sample_reference ?? '').trim().toUpperCase(),
+        String(sheet.product_reference ?? '').trim().toUpperCase(),
+        String(sheet.product_reference_2 ?? '').trim().toUpperCase(),
+    ].filter(Boolean);
     const version = Number(sheet.version ?? 1);
-    let label = `${sample} / ${product}`;
-    if (prod2) label += ` / ${prod2}`;
-    label += ` / v${version}`;
-    return label;
+    return (parts.length ? parts.join(' / ') : '-') + ` / v${version}`;
 }
 
 const productSheetOptions = computed(() => [
@@ -617,7 +617,7 @@ watch(productSheets, () => {
                                                 </TooltipTrigger>
                                                 <TooltipContent>Editar</TooltipContent>
                                             </Tooltip>
-                                            <DeleteButton :onClick="() => confirmDeleteSummary(summary)" customClass="h-4 w-4" />
+                                            <DeleteButton @click="confirmDeleteSummary(summary)" customClass="h-4 w-4" />
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -644,6 +644,7 @@ watch(productSheets, () => {
                 :actions="actions"
                 :garmentParts="garmentParts"
                 :fabricBases="fabricBases"
+                :preparation-groups="preparationGroups"
                 @save="handleDialogSave"
                 @close="closeDialog"
                 @validation-error="showError"

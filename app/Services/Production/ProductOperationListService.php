@@ -26,6 +26,22 @@ class ProductOperationListService
     ) {
     }
 
+    private function assertOperationNotDuplicatedInSheet(int $productSheetId, int $operationId, ?int $ignoreId = null): void
+    {
+        $query = $this->model
+            ->newQuery()
+            ->where('product_sheet_id', $productSheetId)
+            ->where('operation_id', $operationId);
+
+        if ($ignoreId !== null) {
+            $query->where('id', '!=', $ignoreId);
+        }
+
+        if ($query->exists()) {
+            throw new \InvalidArgumentException('La operación ya existe en este listado. No se puede repetir dentro de la misma sábana.');
+        }
+    }
+
     /**
      * Factor de base tela desde el catálogo (ligado al tipo de tela, no editable por usuario).
      */
@@ -107,6 +123,11 @@ class ProductOperationListService
     public function create(array $data): ProductOperationList
     {
         return DB::transaction(function () use ($data) {
+            $this->assertOperationNotDuplicatedInSheet(
+                (int) $data['product_sheet_id'],
+                (int) $data['operation_id']
+            );
+
             $samBase = (float) ($data['sam_base'] ?? $data['optimal_time'] ?? 0);
             $data['sam_base'] = $samBase;
             $data['sam'] = $data['optimal_time'] ?? $samBase;
@@ -150,7 +171,20 @@ class ProductOperationListService
         return DB::transaction(function () use ($operations) {
             $created = collect();
 
+            $seenInPayload = [];
+
             foreach ($operations as $data) {
+                $sheetId = (int) ($data['product_sheet_id'] ?? 0);
+                $operationId = (int) ($data['operation_id'] ?? 0);
+                $key = $sheetId . '|' . $operationId;
+
+                if (isset($seenInPayload[$key])) {
+                    throw new \InvalidArgumentException('Hay operaciones duplicadas en la carga masiva para la misma sábana.');
+                }
+                $seenInPayload[$key] = true;
+
+                $this->assertOperationNotDuplicatedInSheet($sheetId, $operationId);
+
                 $samBase = (float) ($data['sam_base'] ?? $data['optimal_time'] ?? 0);
                 $data['sam_base'] = $samBase;
                 $data['sam'] = $data['optimal_time'] ?? $samBase;
@@ -197,6 +231,10 @@ class ProductOperationListService
     {
         return DB::transaction(function () use ($item, $data, $motivo) {
             $before = $item->getAttributes();
+
+            $targetSheetId = (int) ($data['product_sheet_id'] ?? $item->product_sheet_id);
+            $targetOperationId = (int) ($data['operation_id'] ?? $item->operation_id);
+            $this->assertOperationNotDuplicatedInSheet($targetSheetId, $targetOperationId, (int) $item->id);
 
             if (isset($data['optimal_time'])) {
                 $data['sam'] = $data['optimal_time'];
@@ -414,5 +452,124 @@ class ProductOperationListService
         }
 
         return round(60 / $productionTime, 2);
+    }
+
+    /**
+     * Obtiene operaciones de un ProductSheet agrupadas jerárquicamente.
+     *
+     * Estructura retornada:
+     * [
+     *   'PREPARACION' => [
+     *     'Corte' => [operation1, operation2],
+     *     'Alistamiento' => [operation3],
+     *   ],
+     *   'ENSAMBLE' => [operation4, operation5],
+     *   'TERMINACION' => [operation6],
+     * ]
+     */
+    public function getOperationsHierarchicallyGrouped(int $productSheetId): array
+    {
+        $operations = $this->model
+            ->bySheet($productSheetId)
+            ->with(['operationSection', 'operation', 'machine'])
+            ->ordered()
+            ->get();
+
+        $grouped = [
+            'PREPARACION' => [],
+            'ENSAMBLE' => [],
+            'TERMINACION' => [],
+        ];
+
+        foreach ($operations as $op) {
+            /** @var \App\Models\Production\ProductOperationList $op */
+            $sectionType = $op->operationSection?->type ?? '';
+
+            if ($sectionType === 'PREPARACION') {
+                // Para PREPARACION, agrupar por grupo_preparacion
+                $grupo = $op->grupo_preparacion ?? 'Sin clasificar';
+                if (!isset($grouped['PREPARACION'][$grupo])) {
+                    $grouped['PREPARACION'][$grupo] = [];
+                }
+                $grouped['PREPARACION'][$grupo][] = $op;
+            } elseif ($sectionType === 'ENSAMBLE') {
+                $grouped['ENSAMBLE'][] = $op;
+            } elseif ($sectionType === 'TERMINACION') {
+                $grouped['TERMINACION'][] = $op;
+            }
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * Obtiene grupos de preparación únicos en un ProductSheet.
+     * Retorna: ['Corte', 'Alistamiento', 'Marcación', ...]
+     */
+    public function getPreparacionGroupsInSheet(int $productSheetId): array
+    {
+        $grupos = $this->model
+            ->bySheet($productSheetId)
+            ->preparacionSection()
+            ->pluck('grupo_preparacion')
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->toArray();
+
+        return $grupos;
+    }
+
+    /**
+     * Obtiene el total SAM agrupado por sección.
+     */
+    public function getTotalSamBySection(int $productSheetId): array
+    {
+        $operations = $this->model
+            ->bySheet($productSheetId)
+            ->with('operationSection')
+            ->get();
+
+        $totals = [
+            'PREPARACION' => 0.0,
+            'ENSAMBLE' => 0.0,
+            'TERMINACION' => 0.0,
+            'total' => 0.0,
+        ];
+
+        foreach ($operations as $op) {
+            /** @var \App\Models\Production\ProductOperationList $op */
+            $sam = $op->sam_total_unitario ?? 0;
+            $sectionType = $op->operationSection?->type ?? '';
+
+            if (isset($totals[$sectionType])) {
+                $totals[$sectionType] += $sam;
+            }
+        }
+
+        $totals['total'] = array_sum(array_filter($totals, fn ($k) => $k !== 'total', ARRAY_FILTER_USE_KEY));
+
+        return $totals;
+    }
+
+    /**
+     * Valida que grupo_preparacion sea requerido para nuevas operaciones PREPARACION.
+     */
+    public function validateGrupoPreparacionRequired(array $data): array
+    {
+        // Si operation_section_id corresponde a PREPARACION, grupo_preparacion es requerido
+        if (isset($data['operation_section_id'])) {
+            $section = \App\Models\Production\OperationSection::find($data['operation_section_id']);
+            if ($section && $section->type === 'PREPARACION') {
+                if (empty($data['grupo_preparacion'] ?? null)) {
+                    throw new \InvalidArgumentException(
+                        'El campo "grupo_preparacion" es requerido para operaciones de tipo PREPARACION.'
+                    );
+                }
+            }
+        }
+
+        return $data;
     }
 }

@@ -253,6 +253,19 @@ class SettingsFieldParametersSeeder extends Seeder
             ],
             [
                 'kind' => 'parameter',
+                'key' => 'preparation_groups',
+                'data' => [
+                    'label' => 'Grupos de preparación',
+                    'description' => 'Subgrupos para reagrupar operaciones dentro de la sección Preparación.',
+                    'value' => $this->mapNames([
+                        'DELANTERO', 'TRASERO', 'MANGA', 'CUELLO', 'BOLSILLO',
+                        'PRETINA', 'PUÑO', 'CAPUCHA', 'TIRA', 'SESGO',
+                    ]),
+                    'status' => true,
+                ],
+            ],
+            [
+                'kind' => 'parameter',
                 'key' => 'groups',
                 'data' => [
                     'label' => 'Grupo',
@@ -314,8 +327,25 @@ class SettingsFieldParametersSeeder extends Seeder
                 'data' => [
                     'label' => 'Secciones',
                     'description' => 'Catálogo de secciones de producto',
-                    'value' => $this->mapNames([
-                        'BERMUDA', 'BODY', 'BUZO', 'CAMISETA', 'CAPRY', 'CARDIGAN', 'CHALECO', 'CHAQUETA', 'CONJUNTO', 'ENTERIZO', 'FALDA', 'JOGGER', 'LEGGIN', 'OVEROL', 'PANTALON', 'SHORT', 'TOP', 'VESTIDO',
+                    'value' => $this->mapSectionsWithGarmentType([
+                        ['name' => 'BERMUDA',   'garment_type' => 'inferior'],
+                        ['name' => 'BODY',      'garment_type' => 'superior'],
+                        ['name' => 'BUZO',      'garment_type' => 'superior'],
+                        ['name' => 'CAMISETA',  'garment_type' => 'superior'],
+                        ['name' => 'CAPRY',     'garment_type' => 'inferior'],
+                        ['name' => 'CARDIGAN',  'garment_type' => 'superior'],
+                        ['name' => 'CHALECO',   'garment_type' => 'superior'],
+                        ['name' => 'CHAQUETA',  'garment_type' => 'superior'],
+                        ['name' => 'CONJUNTO',  'garment_type' => 'ambos'],
+                        ['name' => 'ENTERIZO',  'garment_type' => 'ambos'],
+                        ['name' => 'FALDA',     'garment_type' => 'inferior'],
+                        ['name' => 'JOGGER',    'garment_type' => 'inferior'],
+                        ['name' => 'LEGGIN',    'garment_type' => 'inferior'],
+                        ['name' => 'OVEROL',    'garment_type' => 'ambos'],
+                        ['name' => 'PANTALON',  'garment_type' => 'inferior'],
+                        ['name' => 'SHORT',     'garment_type' => 'inferior'],
+                        ['name' => 'TOP',       'garment_type' => 'superior'],
+                        ['name' => 'VESTIDO',   'garment_type' => 'ambos'],
                     ]),
                     'status' => true,
                 ],
@@ -505,175 +535,6 @@ class SettingsFieldParametersSeeder extends Seeder
                     'status' => true,
                 ],
             ],
-            [
-                'kind' => 'parameter',
-                'key' => 'operation_actions',
-                'data' => [
-                    'label' => 'Acciones de operación',
-                    'description' => 'Catálogo de acciones disponibles para el módulo de operaciones.',
-                    'value' => $this->mapNames([
-                        'ABIR', 'ABOTONAR', 'AMARRAR', 'ATRACAR', 'BOTONAR',
-                        'CABECEAR', 'CERRAR', 'COLOCAR', 'CORTAR', 'CUARTEAR',
-                        'DOBLADILLAR', 'EMBOLSAR', 'EMBONAR', 'ENTALEGAR',
-                        'FIJAR', 'FILETEAR', 'FUSIONAR', 'HACER', 'INSERTAR',
-                        'MARCAR', 'MEDIR Y CORTAR', 'OJALAR', 'PESPUNTAR',
-                        'PICAR Y VOLTEAR', 'PLANCHAR', 'PREPARAR', 'PRENDER',
-                        'QUITAR', 'REVOCAR', 'REVISAR', 'SESGAR', 'TERMINAR',
-                        'TIQUETEAR', 'UBICAR', 'UNIR', 'VAPORIZAR', 'VOLTEAR', 'ZURCIR',
-                    ]),
-                    'status' => true,
-                ],
-            ],
-            [
-                'kind' => 'parameter',
-                'key' => 'operation_garment_parts',
-                'data' => [
-                    'label' => 'Partes de prenda',
-                    'description' => 'Catálogo de partes de prenda disponibles para el módulo de operaciones.',
-                    'value' => $this->mapNames([
-                        'ALETILLA', 'ALETILLON', 'BOTON', 'BOLSILLO', 'CANASTA',
-                        'CAPOTA', 'CARTERA', 'CHARRETERA', 'CIERRE', 'CINTURON',
-                        'COLAS', 'CODIGO BARRA', 'CORDON', 'CUELLO', 'DELANTEROS',
-                        'ELASTICO', 'ENTREPIERNA', 'ESPALDA', 'FAJON', 'FRENTES',
-                        'GAFFETE', 'HILADILLA', 'HOMBROS', 'LATERAL', 'MANGA CORTA',
-                        'MANGA LARGA', 'MANGAS', 'MOÑO', 'PERILLA', 'PRETINA',
-                        'PRENDA COMPLETA', 'PUÑO', 'PUÑOS', 'RUEDO', 'SOLAPA',
-                        'TAPA', 'TIRA', 'TRASEROS',
-                    ]),
-                    'status' => true,
-                ],
-            ],
-            [
-                'kind' => 'parameter',
-                'key' => 'operation_types',
-                'data' => [
-                    'label' => 'Tipos de prenda',
-                    'description' => 'Catálogo de tipos de prenda para el módulo de operaciones. Campo independiente, sin condicionar otros selects.',
-                    'value' => $this->mapNames([
-                        'SUPERIOR', 'INFERIOR', 'COMPLETO', 'ACCESORIO',
-                    ]),
-                    'status' => true,
-                ],
-            ],
-            [
-                'kind' => 'parameter',
-                'key' => 'operation_tipo_map',
-                'data' => [
-                    'label' => 'Mapa tipo prenda → sección → acción → partes',
-                    'description' => 'Estructura de filtrado para el formulario de operaciones. Nivel: tipo (SUPERIOR/INFERIOR) → section_id → acción → [partes].',
-                    'value' => [
-                        'SUPERIOR' => [
-                            '1' => [ // PREPARACIÓN
-                                'ABRIR'          => ['CUELLO'],
-                                'CABECEAR'       => ['ESPALDA'],
-                                'CERRAR'         => ['FRENTES'],
-                                'CORTAR'         => ['MANGAS'],
-                                'CUARTEAR'       => ['BOLSILLO'],
-                                'DOBLADILLAR'    => ['PUÑOS'],
-                                'EMBONAR'        => ['FAJON'],
-                                'ENTALEGAR'      => ['CARTERA'],
-                                'FIJAR'          => ['PERILLA'],
-                                'FILETEAR'       => ['CAPOTA'],
-                                'FUSIONAR'       => ['TAPA'],
-                                'HACER'          => ['CHARRETERA'],
-                                'MARCAR'         => [],
-                                'MEDIR Y CORTAR' => [],
-                                'PESPUNTAR'      => [],
-                                'PICAR Y VOLTEAR'=> [],
-                                'PLANCHAR'       => [],
-                                'PRENDER'        => [],
-                                'PREPARAR'       => [],
-                                'QUITAR'         => [],
-                                'REVOCAR'        => [],
-                                'SESGAR'         => [],
-                                'UNIR'           => [],
-                                'VAPORIZAR'      => [],
-                            ],
-                            '2' => [ // ENSAMBLE
-                                'AMARRAR'    => ['TIRA'],
-                                'ATRACAR'    => ['HOMBROS'],
-                                'CERRAR'     => ['MANGA CORTA'],
-                                'DOBLADILLAR'=> ['MANGA LARGA'],
-                                'FILETEAR'   => ['RUEDO'],
-                                'HACER'      => ['COLAS'],
-                                'INSERTAR'   => ['GAFFETE'],
-                                'PESPUNTAR'  => ['CIERRE'],
-                                'PRENDER'    => ['SOLAPA'],
-                                'REVOCAR'    => ['ELASTICO'],
-                                'TERMINAR'   => ['FAJON'],
-                                'UNIR'       => ['PUÑO'],
-                                'ZURCIR'     => ['CUELLO'],
-                            ],
-                            '3' => [ // TERMINACIÓN
-                                'OJALAR'    => ['PRENDA COMPLETA'],
-                                'BOTONAR'   => ['CORDON'],
-                                'ABOTONAR'  => ['HILADILLA'],
-                                'REVISAR'   => ['BOTON'],
-                                'PLANCHAR'  => ['MOÑO'],
-                                'COLOCAR'   => ['CANASTA'],
-                                'TIQUETEAR' => ['CODIGO BARRA'],
-                                'EMBOLSAR'  => [],
-                                'INSERTAR'  => [],
-                                'UBICAR'    => [],
-                                'VOLTEAR'   => [],
-                                'MARCAR'    => [],
-                            ],
-                        ],
-                        'INFERIOR' => [
-                            '1' => [ // PREPARACIÓN
-                                'PESPUNTAR'      => ['PRETINA'],
-                                'ATRACAR'        => ['DELANTEROS'],
-                                'CERRAR'         => ['TRASEROS'],
-                                'DOBLADILLAR'    => ['BOLSILLO'],
-                                'ENTALEGAR'      => ['TAPA'],
-                                'FIJAR'          => ['TIRA'],
-                                'FILETEAR'       => ['ALETILLA'],
-                                'FUSIONAR'       => ['ALETILLON'],
-                                'HACER'          => [],
-                                'MARCAR'         => [],
-                                'MEDIR Y CORTAR' => [],
-                                'PRENDER'        => [],
-                                'PICAR Y VOLTEAR'=> [],
-                                'SESGAR'         => [],
-                                'UNIR'           => [],
-                                'PLANCHAR'       => [],
-                                'REVOCAR'        => [],
-                                'QUITAR'         => [],
-                            ],
-                            '2' => [ // ENSAMBLE
-                                'AMARRAR'    => ['CINTURON'],
-                                'ATRACAR'    => ['LATERAL'],
-                                'CERRAR'     => ['ENTREPIERNA'],
-                                'DOBLADILLAR'=> ['PRETINA'],
-                                'FILETEAR'   => [],
-                                'HACER'      => [],
-                                'INSERTAR'   => [],
-                                'PESPUNTAR'  => [],
-                                'PRENDER'    => [],
-                                'REVOCAR'    => [],
-                                'TERMINAR'   => [],
-                                'UNIR'       => [],
-                                'ZURCIR'     => [],
-                            ],
-                            '3' => [ // TERMINACIÓN
-                                'OJALAR'    => ['PRENDA COMPLETA'],
-                                'BOTONAR'   => ['CORDON'],
-                                'ABOTONAR'  => ['HILADILLA'],
-                                'REVISAR'   => ['BOTON'],
-                                'PLANCHAR'  => ['MOÑO'],
-                                'COLOCAR'   => ['CANASTA'],
-                                'TIQUETEAR' => ['CODIGO BARRA'],
-                                'EMBOLSAR'  => [],
-                                'INSERTAR'  => [],
-                                'UBICAR'    => [],
-                                'VOLTEAR'   => [],
-                                'MARCAR'    => [],
-                            ],
-                        ],
-                    ],
-                    'status' => true,
-                ],
-            ],
         ];
 
         // Definiciones de campos
@@ -802,8 +663,6 @@ class SettingsFieldParametersSeeder extends Seeder
             'months' => ['months', 'meses', 'mes'],
             'priorities' => ['priorities', 'prioridades', 'prioridad'],
             'process_types' => ['process_types', 'tipos_proceso', 'tipos_de_proceso', 'tipo_proceso', 'process_type', 'processes'],
-            'operation_actions' => ['operation_actions', 'acciones_operacion', 'acciones_de_operacion', 'acciones_operativas'],
-            'operation_garment_parts' => ['operation_garment_parts', 'partes_prenda_operacion', 'partes_de_prenda_operacion', 'partes_operacion'],
             'calibre' => ['calibre', 'calibres', 'gauge'],
             'puntada_por_pulgada' => ['puntada_por_pulgada', 'puntadas_por_pulgada', 'stitches_per_inch'],
         ];
@@ -889,6 +748,23 @@ class SettingsFieldParametersSeeder extends Seeder
             $mapped[] = [
                 'id' => $start + $index,
                 'name' => $name,
+            ];
+        }
+        return $mapped;
+    }
+
+    /**
+     * Mapea secciones con allowed_garment_type (superior|inferior|ambos).
+     * Cada item es ['name' => '...', 'garment_type' => '...'].
+     */
+    private function mapSectionsWithGarmentType(array $items, int $start = 1): array
+    {
+        $mapped = [];
+        foreach ($items as $index => $item) {
+            $mapped[] = [
+                'id' => $start + $index,
+                'name' => is_array($item) ? $item['name'] : (string) $item,
+                'allowed_garment_type' => is_array($item) ? ($item['garment_type'] ?? 'ambos') : 'ambos',
             ];
         }
         return $mapped;

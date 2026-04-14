@@ -34,6 +34,7 @@ class ProductSheet extends Model
         'product_reference_2',
         'version',
         'parent_id',
+        'garment_type',
         'is_enabled',
     ];
 
@@ -54,6 +55,7 @@ class ProductSheet extends Model
         'product_reference_2' => 'string',
         'version' => 'integer',
         'parent_id' => 'integer',
+        'garment_type' => 'string',
         'is_enabled' => 'boolean',
     ];
 

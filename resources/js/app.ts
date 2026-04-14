@@ -35,23 +35,18 @@ delete axios.defaults.headers.put['Content-Type'];
 delete axios.defaults.headers.patch['Content-Type'];
 delete axios.defaults.headers.common['Content-Type'];
 
+const axiosDebugEnabled = import.meta.env.DEV && import.meta.env.VITE_DEBUG_AXIOS === 'true';
+
 // Interceptor para garantizar que FormData no tenga Content-Type forzado
 axios.interceptors.request.use((config) => {
     const requestId = (config.headers?.['X-Request-Id'] as string | undefined) ?? undefined;
 
-    if (import.meta.env.DEV) {
-        const stack = new Error().stack
-            ?.split('\n')
-            .slice(1, 4)
-            .map((line) => line.trim())
-            .join(' | ');
-
+    if (axiosDebugEnabled) {
         console.debug('[AXIOS][REQ]', {
             method: config.method?.toUpperCase(),
             url: config.url,
             requestId: requestId ?? null,
             timestamp: new Date().toISOString(),
-            stack: stack ?? null,
         });
     }
 
@@ -67,7 +62,7 @@ axios.interceptors.request.use((config) => {
 
 axios.interceptors.response.use(
     (response) => {
-        if (import.meta.env.DEV) {
+        if (axiosDebugEnabled) {
             const requestId = (response.config.headers?.['X-Request-Id'] as string | undefined) ?? undefined;
             console.debug('[AXIOS][RES]', {
                 method: response.config.method?.toUpperCase(),
@@ -81,7 +76,7 @@ axios.interceptors.response.use(
         return response;
     },
     (error) => {
-        if (import.meta.env.DEV) {
+        if (axiosDebugEnabled) {
             const requestId = (error?.config?.headers?.['X-Request-Id'] as string | undefined) ?? undefined;
             console.debug('[AXIOS][ERR]', {
                 method: error?.config?.method?.toUpperCase(),

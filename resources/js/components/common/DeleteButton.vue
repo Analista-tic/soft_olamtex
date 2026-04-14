@@ -3,18 +3,12 @@ import { Button } from '@/components/ui/button';
 import { Trash } from 'lucide-vue-next';
 
 const props = defineProps<{
-    onClick?: () => void;
     customClass?: string;
 }>();
 
 const emit = defineEmits<{
     (event: 'click'): void;
 }>();
-
-function handleClick() {
-    props.onClick?.();
-    emit('click');
-}
 </script>
 
 <template>
@@ -22,8 +16,8 @@ function handleClick() {
         variant="ghost"
         size="icon"
         class="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-        @click="handleClick"
         type="button"
+        @click.stop="emit('click')"
     >
         <Trash :class="['h-4 w-4', props.customClass]" />
     </Button>

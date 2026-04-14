@@ -7,6 +7,7 @@ use App\Models\Production\ProductOperationList;
 use App\Models\Production\ProductSheetOperationHistory;
 use App\Services\Production\ProductOperationListService;
 use App\Services\Production\OperationService;
+use App\Services\Production\OperationCatalogService;
 use App\Services\Production\MachineService;
 use App\Services\Production\OperationSectionService;
 use App\Services\Production\ProductSheetService;
@@ -24,6 +25,7 @@ class ProductOperationListController extends Controller
     public function __construct(
         protected ProductOperationListService $service,
         protected OperationService $operationService,
+        protected OperationCatalogService $operationCatalogService,
         protected MachineService $machineService,
         protected OperationSectionService $sectionService,
         protected ProductSheetService $sheetService,
@@ -33,24 +35,12 @@ class ProductOperationListController extends Controller
 
     private function actionOptions()
     {
-        return $this->settingService
-            ->getCatalogOptions('operation_actions')
-            ->pluck('name')
-            ->filter(fn ($name) => is_string($name) && trim($name) !== '')
-            ->map(fn ($name) => mb_strtoupper(trim((string) $name)))
-            ->unique()
-            ->values();
+        return $this->operationCatalogService->actionOptions();
     }
 
     private function garmentPartOptions()
     {
-        return $this->settingService
-            ->getCatalogOptions('operation_garment_parts')
-            ->pluck('name')
-            ->filter(fn ($name) => is_string($name))
-            ->map(fn ($name) => mb_strtoupper(trim((string) $name)))
-            ->unique()
-            ->values();
+        return $this->operationCatalogService->garmentPartOptions();
     }
 
     public function options(): JsonResponse
@@ -78,6 +68,7 @@ class ProductOperationListController extends Controller
             'machines' => $this->machineService->options(),
             'productSheets' => $this->sheetService->recentOptions(50),
             'fabric_bases' => $this->settingService->getFabricBasesWithFactor()->values()->all(),
+            'preparation_groups' => $this->settingService->getCatalogOptions('preparation_groups')->pluck('name')->values()->all(),
             'actions' => $this->actionOptions(),
             'garmentParts' => $this->garmentPartOptions(),
             'costParameters' => $this->getCostParameters(),
@@ -133,6 +124,41 @@ class ProductOperationListController extends Controller
     }
 
     /**
+     * Obtiene operaciones agrupadas jerárquicamente por sección y grupo_preparacion
+     * GET /diseno/listados-operacionales/grouped?product_sheet_id=1
+     */
+    public function getGroupedBySection(Request $request): JsonResponse
+    {
+        $request->validate([
+            'product_sheet_id' => ['required', 'integer', 'exists:product_sheets,id'],
+        ]);
+
+        $productSheetId = (int) $request->input('product_sheet_id');
+        $grouped = $this->service->getOperationsHierarchicallyGrouped($productSheetId);
+        $samBySection = $this->service->getTotalSamBySection($productSheetId);
+
+        return response()->json([
+            'data' => $grouped,
+            'totals' => $samBySection,
+        ]);
+    }
+
+    /**
+     * Obtiene grupos de preparación disponibles en una ficha
+     * GET /diseno/listados-operacionales/grupos-preparacion?product_sheet_id=1
+     */
+    public function getPreparacionGroups(Request $request): JsonResponse
+    {
+        $request->validate([
+            'product_sheet_id' => ['required', 'integer', 'exists:product_sheets,id'],
+        ]);
+
+        $grupos = $this->service->getPreparacionGroupsInSheet((int) $request->input('product_sheet_id'));
+
+        return response()->json(['data' => $grupos]);
+    }
+
+    /**
      * Crea una nueva operación en el listado
      * POST /diseno/listados-operacionales
      */
@@ -140,7 +166,16 @@ class ProductOperationListController extends Controller
     {
         $validated = $request->validated();
 
-        $item = $this->service->create($validated);
+        try {
+            // Validar que grupo_preparacion sea requerido para PREPARACION
+            $this->service->validateGrupoPreparacionRequired($validated);
+            $item = $this->service->create($validated);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'type' => 'warning',
+            ], 422);
+        }
 
         return response()->json([
             'message' => 'Operación agregada correctamente.',
@@ -160,6 +195,7 @@ class ProductOperationListController extends Controller
             'operations.*.operation_id' => ['required', 'integer', 'exists:operations,id'],
             'operations.*.machine_id' => ['required', 'integer', 'exists:machines,id'],
             'operations.*.operation_section_id' => ['required', 'integer', 'exists:operation_sections,id'],
+            'operations.*.grupo_preparacion' => ['nullable', 'string', 'max:100'],
             'operations.*.sequence' => ['required', 'integer', 'min:1'],
             'operations.*.optimal_time' => ['required', 'numeric', 'min:0'],
             'operations.*.operator_efficiency_factor' => ['required', 'numeric', 'between:1,2'],
@@ -170,7 +206,18 @@ class ProductOperationListController extends Controller
             'operations.*.notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $items = $this->service->createBulk($validated['operations']);
+        try {
+            // Validar grupo_preparacion para cada operación
+            foreach ($validated['operations'] as $opData) {
+                $this->service->validateGrupoPreparacionRequired($opData);
+            }
+            $items = $this->service->createBulk($validated['operations']);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'type' => 'warning',
+            ], 422);
+        }
 
         return response()->json([
             'message' => count($items) . ' operaciones agregadas correctamente.',
@@ -188,7 +235,20 @@ class ProductOperationListController extends Controller
         $motivo = $validated['motivo'] ?? '';
         unset($validated['motivo']);
 
-        $item = $this->service->update($listItem, $validated, $motivo);
+        try {
+            // Validar que grupo_preparacion sea requerido para PREPARACION
+            if (isset($validated['operation_section_id']) || isset($validated['grupo_preparacion'])) {
+                $sectionId = $validated['operation_section_id'] ?? $listItem->operation_section_id;
+                $grupoData = ['operation_section_id' => $sectionId, 'grupo_preparacion' => $validated['grupo_preparacion'] ?? $listItem->grupo_preparacion];
+                $this->service->validateGrupoPreparacionRequired($grupoData);
+            }
+            $item = $this->service->update($listItem, $validated, $motivo);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'type' => 'warning',
+            ], 422);
+        }
 
         return response()->json([
             'message' => 'Operación actualizada correctamente.',

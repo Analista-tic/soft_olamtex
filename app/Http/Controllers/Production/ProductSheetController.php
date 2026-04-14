@@ -357,9 +357,13 @@ class ProductSheetController extends Controller
     private function gatherCatalogs(): array
     {
         $keys = ['sections', 'groups', 'brands', 'worlds', 'fabric_bases', 'yarn_bases', 'sizes', 'operational_lists'];
+        // Claves que requieren campos extra (allowed_garment_type, factor, etc.)
+        $richKeys = ['sections'];
         $catalogs = [];
         foreach ($keys as $key) {
-            $catalogs[$key] = $this->settingService->getCatalogOptions($key);
+            $catalogs[$key] = in_array($key, $richKeys, true)
+                ? $this->settingService->getCatalogOptionsRich($key)
+                : $this->settingService->getCatalogOptions($key);
         }
         $catalogs['collections'] = $this->collectionService->allActive()
             ->map(fn (\App\Models\Production\Collection $c) => ['id' => $c->id, 'name' => $c->name]);

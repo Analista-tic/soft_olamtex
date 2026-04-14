@@ -24,9 +24,7 @@ class SettingService
         'fabric_colors' => ['fabric_colors', 'colores', 'colors'],
         'unit_measures' => ['unit_measures', 'unit_measure_catalog', 'unidades_medida', 'unidades_de_medida', 'unidad_medida'],
         'thread_brands' => ['thread_brands', 'marcas_hilo', 'marcas_de_hilo'],
-        'operation_actions' => ['operation_actions', 'acciones_operacion', 'acciones_de_operacion', 'acciones_operativas'],
-        'operation_garment_parts' => ['operation_garment_parts', 'partes_prenda_operacion', 'partes_de_prenda_operacion', 'partes_operacion'],
-        'operation_types' => ['operation_types', 'tipos_prenda', 'tipos_de_prenda', 'operation_garment_types'],
+        'preparation_groups' => ['preparation_groups', 'grupos_preparacion', 'grupo_preparacion'],
     ];
 
     /**
@@ -168,6 +166,61 @@ class SettingService
     }
 
     /**
+     * Like getCatalogOptions but preserves additional fields
+     * (e.g. allowed_garment_type for sections, factor for fabric_bases).
+     *
+     * @return Collection<int, array{id: string|int, name: string, ...}>
+     */
+    public function getCatalogOptionsRich(string $key): Collection
+    {
+        foreach ($this->keyCandidates($key) as $candidate) {
+            $options = $this->getParameterOptionsRich($candidate);
+            if ($options->isNotEmpty()) {
+                return $options;
+            }
+        }
+
+        return collect();
+    }
+
+    /**
+     * Like getParameterOptions but keeps known extra fields.
+     */
+    private function getParameterOptionsRich(string $key): Collection
+    {
+        $setting = Setting::parameters()
+            ->where('key', $key)
+            ->where('status', true)
+            ->first();
+
+        if (!$setting || !is_array($setting->value)) {
+            return collect();
+        }
+
+        $extraFields = ['allowed_garment_type', 'factor', 'factor_base', 'code'];
+
+        return collect($setting->value)
+            ->map(function (mixed $item) use ($extraFields) {
+                if (is_array($item)) {
+                    $name = isset($item['name']) ? (string) $item['name'] : null;
+                    $id = $item['id'] ?? $name ?? $item['code'] ?? null;
+                    if ($name !== null && $id !== null) {
+                        $row = ['id' => $id, 'name' => $name];
+                        foreach ($extraFields as $extra) {
+                            if (array_key_exists($extra, $item)) {
+                                $row[$extra] = $item[$extra];
+                            }
+                        }
+                        return $row;
+                    }
+                }
+                $label = is_string($item) ? $item : (string) $item;
+                return ['id' => $label, 'name' => $label];
+            })
+            ->values();
+    }
+
+    /**
      * Return the raw options stored for the provided key (no alias resolution).
      */
     private function getParameterOptions(string $key): Collection
@@ -268,6 +321,12 @@ class SettingService
         $newId = $maxId + 1;
 
         $newOption = ['id' => $newId, 'name' => trim($name)];
+
+        // Secciones de producto: incluir allowed_garment_type por defecto
+        if ($canonical === 'sections') {
+            $newOption['allowed_garment_type'] = 'ambos';
+        }
+
         $current[] = $newOption;
 
         $setting->value = $current;

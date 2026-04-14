@@ -508,7 +508,7 @@ onBeforeUnmount(() => {
                                         </Tooltip>
 
                                         <EditButton :onClick="() => openDialog('edit', param)" />
-                                        <DeleteButton :onClick="() => confirmDeleteParameter(param)" />
+                                        <DeleteButton @click="confirmDeleteParameter(param)" />
                                     </div>
                                 </TableCell>
                             </TableRow>

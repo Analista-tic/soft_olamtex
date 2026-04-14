@@ -74,7 +74,7 @@ const props = withDefaults(
 const emit = defineEmits<{
     (e: 'update:modelValue', value: Option['id'] | Option['id'][] | undefined | null): void;
     (e: 'search', searchTerm: string): void;
-    (e: 'action'): void;
+    (e: 'action', searchTerm: string): void;
 }>();
 
 const localModelValue = ref<LocalModelValue>(normalizeModelValue(props.modelValue, props.multiple));
@@ -280,8 +280,9 @@ const actionButtonClass = computed(() => {
 
 function handleActionClick() {
     if (props.disabled || props.actionDisabled) return;
+    const currentSearchTerm = searchTerm.value.trim();
+    emit('action', currentSearchTerm);
     searchTerm.value = '';
-    emit('action');
 }
 
 const triggerRef = ref<HTMLElement | null>(null);

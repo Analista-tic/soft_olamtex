@@ -345,16 +345,24 @@ async function handleSubmit(sendToApproval: boolean = false) {
     errorMessage.value = '';
     errorType.value = 'error';
 
-    if (!validateForm()) {
-        return;
-    }
-
-    const hasNewItemImages = (localForm.value.items || []).some((item) => item.image_file instanceof File);
-
-    if (props.dialogType === 'edit' && stableStringify(localForm.value) === originalFormSnapshot.value && !hasNewItemImages) {
-        if (sendToApproval) {
-            await handleSendToApproval();
+    try {
+        if (!validateForm()) {
+            return;
         }
+
+        const hasNewItemImages = (localForm.value.items || []).some((item) => item.image_file instanceof File);
+
+        if (props.dialogType === 'edit' && stableStringify(localForm.value) === originalFormSnapshot.value && !hasNewItemImages) {
+            if (sendToApproval) {
+                await handleSendToApproval();
+            }
+            return;
+        }
+    } catch (error) {
+        const message = 'Error inesperado preparando la solicitud. Recarga e intenta nuevamente.';
+        setErrorMessage(message);
+        emit('error', message);
+        console.error('Error previo al guardado de solicitud:', error);
         return;
     }
 
@@ -434,6 +442,15 @@ async function handleSubmit(sendToApproval: boolean = false) {
         isLoading.value = false;
         isSubmittingDialog.value = false;
     }
+}
+
+function handleSubmitSafe(sendToApproval: boolean = false) {
+    void handleSubmit(sendToApproval).catch((error) => {
+        const message = 'Error inesperado al guardar la solicitud. Intenta nuevamente.';
+        setErrorMessage(message);
+        emit('error', message);
+        console.error('Error no controlado al guardar solicitud:', error);
+    });
 }
 
 async function handleSendToApproval() {
@@ -541,7 +558,7 @@ watch(dialogOpen, (isOpen) => {
 
                     <TooltipProvider v-if="canRenderForm">
                         <form
-                            @submit.prevent="handleSubmit()"
+                            @submit.prevent="handleSubmitSafe(false)"
                             :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingRequestId }"
                             class="mt-2 space-y-4 pb-4"
                         >
@@ -658,10 +675,10 @@ watch(dialogOpen, (isOpen) => {
 
                 <DialogFooter class="shrink-0 border-t border-border px-5 py-4 justify-end gap-2">
                     <Button variant="outline" size="pill" @click="dialogOpen = false">Cancelar</Button>
-                    <Button v-if="!props.readonly && !isReadOnly" variant="default" size="pill" :disabled="isLoading || isBlockingLoading" @click="handleSubmit(false)">
+                    <Button v-if="!props.readonly && !isReadOnly" variant="default" size="pill" :disabled="isLoading || isBlockingLoading" @click="handleSubmitSafe(false)">
                         {{ isLoading ? 'Guardando...' : 'Guardar' }}
                     </Button>
-                    <Button v-if="!props.readonly && !isReadOnly && canSendToApproval" variant="default" size="pill" :disabled="isLoading || isBlockingLoading" @click="handleSubmit(true)">
+                    <Button v-if="!props.readonly && !isReadOnly && canSendToApproval" variant="default" size="pill" :disabled="isLoading || isBlockingLoading" @click="handleSubmitSafe(true)">
                         {{ isLoading ? 'Guardando...' : 'Guardar y enviar a aprobacion' }}
                     </Button>
                 </DialogFooter>

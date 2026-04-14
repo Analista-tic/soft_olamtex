@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Services\Production\MachineService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class MachineController extends Controller
 {
@@ -24,10 +23,10 @@ class MachineController extends Controller
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:255'],
             'name' => ['required', 'string', 'max:255'],
+            'supplement_factor' => ['sometimes', 'numeric', 'min:0'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
 
-        $validated['created_by'] = Auth::id();
         $validated['is_active'] = $validated['is_active'] ?? true;
 
         $machine = $this->service->create($validated);

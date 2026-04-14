@@ -59,7 +59,6 @@ function handleAlertClose() {
                     data-alert-stack-root="true"
                     @pointerdown.stop
                     @mousedown.stop
-                    @touchstart.stop
                     @click.stop
                 >
                     <AlertBox

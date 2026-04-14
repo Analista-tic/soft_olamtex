@@ -3,6 +3,7 @@ import type { SharedData } from '@/domain/shared/types';
 export interface OptionParams {
     id: string | number | boolean;
     name: string;
+    allowed_garment_type?: 'superior' | 'inferior' | 'ambos' | null;
     created_at?: string | null;
     updated_at?: string | null;
 }
@@ -10,6 +11,7 @@ export interface OptionParams {
 export interface ProductSheet {
     id: number;
     type?: 'muestra' | 'producto' | string;
+    garment_type?: 'superior' | 'inferior' | null;
     derived_from_product_sheet_id?: number | null;
     has_derived_product?: boolean;
     reference: string;

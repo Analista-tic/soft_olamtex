@@ -23,12 +23,12 @@ export type MachineOption = { id: number | string; name: string; code?: string |
 export interface OperationFormData {
     action: string;
     garment_part: string;
-    tipo?: string | null;
     anexo?: string | null;
     section_id: number | null;
     measure: number | null;
     quantity: number;
     sam_base: number | null;
+    factor_operario: number;
     product_sheet_id_reference: number | null;
     machine_id_reference: number | null;
     codigo?: string | null;
@@ -40,7 +40,6 @@ const props = withDefaults(
         sections: SectionOption[];
         actions: string[];
         garmentParts: string[];
-        types: string[];
         productSheets?: ProductSheetOption[];
         machines?: MachineOption[];
         operation?: OperationFormData | null;
@@ -69,12 +68,12 @@ const isEditing = computed(() => !!props.operation);
 const form = ref<OperationFormData>({
     action: '',
     garment_part: '',
-    tipo: null,
     anexo: null,
     section_id: props.defaultSectionId ?? (props.sections[0]?.id !== undefined ? Number(props.sections[0].id) : null),
     measure: null,
     quantity: 1,
     sam_base: null,
+    factor_operario: 100,
     product_sheet_id_reference: (props.defaultProductSheetId ?? null) as number | null,
     machine_id_reference: null,
     codigo: '',
@@ -88,12 +87,12 @@ watch(
             form.value = {
                 action: operation.action ?? '',
                 garment_part: operation.garment_part ?? '',
-                tipo: operation.tipo ?? null,
                 anexo: operation.anexo ?? null,
                 section_id: operation.section_id ?? null,
                 measure: operation.measure ?? null,
                 quantity: operation.quantity ?? 1,
                 sam_base: operation.sam_base ?? null,
+                factor_operario: operation.factor_operario ?? 100,
                 product_sheet_id_reference: operation.product_sheet_id_reference ?? null,
                 machine_id_reference: operation.machine_id_reference ?? null,
                 codigo: operation.codigo ?? '',
@@ -103,12 +102,12 @@ watch(
             form.value = {
                 action: '',
                 garment_part: '',
-                tipo: null,
                 anexo: null,
                 section_id: defaultSectionId ?? (props.sections[0]?.id !== undefined ? Number(props.sections[0].id) : null),
                 measure: null,
                 quantity: 1,
                 sam_base: null,
+                factor_operario: 100,
                 product_sheet_id_reference: (defaultProductSheetId ?? null) as number | null,
                 machine_id_reference: null,
                 codigo: '',
@@ -130,11 +129,9 @@ watch(() => form.value.anexo, (v) => {
 
 const localActions = ref<string[]>([...props.actions]);
 const localGarmentParts = ref<string[]>([...props.garmentParts]);
-const localTypes = ref<string[]>([...props.types]);
 
 watch(() => props.actions, (v) => { localActions.value = [...v]; });
 watch(() => props.garmentParts, (v) => { localGarmentParts.value = [...v]; });
-watch(() => props.types, (v) => { localTypes.value = [...v]; });
 
 async function persistCatalogOption(catalog: string, name: string): Promise<void> {
     try {
@@ -142,7 +139,6 @@ async function persistCatalogOption(catalog: string, name: string): Promise<void
         const updated: string[] = data.options ?? [];
         if (catalog === 'operation_actions') localActions.value = updated;
         else if (catalog === 'operation_garment_parts') localGarmentParts.value = updated;
-        else if (catalog === 'operation_types') localTypes.value = updated;
         emit('catalog-updated', catalog, updated);
     } catch {
         // La opción ya quedó seleccionada en el form; no bloquear el flujo
@@ -165,14 +161,6 @@ function handleGarmentPartChange(val: string | number | boolean | (string | numb
     }
 }
 
-function handleTipoChange(val: string | number | boolean | (string | number | boolean)[] | null | undefined) {
-    const upper = val !== null && val !== undefined ? String(val).trim().toUpperCase() : null;
-    form.value.tipo = upper || null;
-    if (upper && !localTypes.value.some((t) => t.toUpperCase() === upper)) {
-        void persistCatalogOption('operation_types', upper);
-    }
-}
-
 // ── Options computadas ───────────────────────────────────────────────────────
 
 const sectionOptions = computed(() => props.sections.map((s) => ({ id: s.id, name: s.name })));
@@ -189,22 +177,19 @@ const garmentPartOptions = computed(() => {
     return all.map((g) => ({ id: g, name: g || '— (genérica)' }));
 });
 
-const typeOptions = computed(() => {
-    const all = [...new Set(localTypes.value.map((v) => v.trim().toUpperCase()).filter(Boolean))]
-        .sort((a, b) => a.localeCompare(b, 'es-CO'));
-    return all.map((t) => ({ id: t, name: t }));
-});
-
 const productSheetOptions = computed(() =>
     (props.productSheets || []).map((ps) => {
-        const sample = String(ps.sample_reference ?? '').trim().toUpperCase() || '-';
-        const product = String(ps.product_reference ?? '').trim().toUpperCase() || '-';
-        const prod2 = String(ps.product_reference_2 ?? '').trim().toUpperCase();
+        const explicitName = String(ps.name ?? '').trim();
+        if (explicitName) return { id: ps.id, name: explicitName };
+
+        const parts = [
+            String(ps.sample_reference ?? '').trim().toUpperCase(),
+            String(ps.product_reference ?? '').trim().toUpperCase(),
+            String(ps.product_reference_2 ?? '').trim().toUpperCase(),
+        ].filter(Boolean);
         const version = Number(ps.version ?? 1);
-        let name = `${sample} / ${product}`;
-        if (prod2) name += ` / ${prod2}`;
-        name += ` / v${version}`;
-        return { id: ps.id, name };
+        const base = parts.length ? parts.join(' / ') : `#${ps.id}`;
+        return { id: ps.id, name: `${base} / v${version}` };
     }),
 );
 
@@ -219,20 +204,33 @@ const generatedName = computed(() => {
     const a = form.value.action?.trim().toUpperCase() ?? '';
     const p = form.value.garment_part?.trim().toUpperCase() ?? '';
     const anx = form.value.anexo?.trim().toUpperCase() ?? '';
-    const base = a && p ? `${a} ${p}` : a || p || '';
-    return base && anx ? `${base} · ${anx}` : base;
+    const med = form.value.measure != null && Number(form.value.measure) > 0
+        ? `${Number(form.value.measure)}cm`
+        : '';
+    const qty = form.value.quantity != null && Number(form.value.quantity) > 1
+        ? `X${Number(form.value.quantity)}`
+        : '';
+
+    const parts = [
+        a && p ? `${a} ${p}` : a || p || '',
+        anx,
+        med,
+        qty,
+    ].filter(Boolean);
+    return parts.join(' · ');
 });
 
 const selectedProductSheetName = computed(() => {
     const id = props.defaultProductSheetId ?? form.value.product_sheet_id_reference;
     const ps = props.productSheets?.find((s) => s.id === id);
-    return ps ? `${ps.reference ?? ps.name} (${ps.type ?? ''})` : '-';
+    return ps?.name ?? '-';
 });
 
 function validate(): string | null {
     if (!form.value.action?.trim()) return 'La acción es obligatoria.';
     if (form.value.garment_part === null || form.value.garment_part === undefined) return 'La parte de prenda es obligatoria.';
     if (!form.value.section_id && !isEditing.value) return 'La sección es obligatoria.';
+    if (!form.value.product_sheet_id_reference) return 'La sábana de producto es obligatoria.';
 
     if (!isEditing.value) {
         const sam = form.value.sam_base ?? 0;
@@ -244,6 +242,8 @@ function validate(): string | null {
             return 'El SAM base debe ser mayor a 0 si se especifica.';
         }
     }
+
+    if (!form.value.machine_id_reference) return 'La máquina es obligatoria.';
     return null;
 }
 
@@ -256,12 +256,12 @@ function submit() {
     const payload: Record<string, unknown> = {
         action: (form.value.action ?? '').trim().toUpperCase(),
         garment_part: (form.value.garment_part ?? '').trim().toUpperCase(),
-        tipo: form.value.tipo?.trim().toUpperCase() || null,
         anexo: form.value.anexo?.trim().toUpperCase() || null,
         section_id: form.value.section_id,
         measure: form.value.measure ?? null,
         quantity: form.value.quantity ?? 1,
         sam_base: form.value.sam_base ?? null,
+        factor_operario: form.value.factor_operario ?? 100,
         product_sheet_id_reference: form.value.product_sheet_id_reference ?? null,
         machine_id_reference: form.value.machine_id_reference ?? null,
         is_active: form.value.is_active ?? true,
@@ -295,17 +295,7 @@ defineExpose({ submit, validate });
         <div class="space-y-3 rounded-lg border bg-card p-3">
             <p class="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Clasificación</p>
 
-            <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
-                  <SelectField
-                    :model-value="form.tipo ?? ''"
-                    label="Tipo de prenda"
-                    placeholder="Sin tipo"
-                    :options="typeOptions"
-                    :allow-custom="true"
-                    :searchable="true"
-                    custom-option-label="Agregar '{value}'"
-                    @update:model-value="handleTipoChange"
-                />
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
                 <SelectField
                     v-model="form.section_id"
                     label="Sección"
@@ -348,10 +338,10 @@ defineExpose({ submit, validate });
             </div>
         </div>
 
-        <!-- ── Bloque 3: Tiempo y medidas ──────────────────────────────────── -->
-        <div class="space-y-3 rounded-lg border bg-card p-3">
-            <p class="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Tiempo y medidas</p>
-            <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <!-- ── Bloque 3: Tiempos base (obligatorios) ────────────────────── -->
+        <div class="space-y-3 rounded-lg border border-primary/20 bg-card p-3">
+            <p class="text-[10px] font-semibold uppercase tracking-widest text-primary/70">Tiempos base <span class="text-destructive">*</span></p>
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div class="space-y-1">
                     <Label class="text-sm">SAM base (min) <span class="text-destructive">*</span></Label>
                     <InputField
@@ -363,8 +353,28 @@ defineExpose({ submit, validate });
                         placeholder="0.25"
                         class="font-mono text-base font-semibold"
                     />
-                    <p class="text-[10px] text-muted-foreground">Tiempo real medido con cronómetro</p>
+                    <p class="text-[10px] text-muted-foreground">Tiempo medido con cronómetro</p>
                 </div>
+                <div class="space-y-1">
+                    <Label class="text-sm">Factor operario (%) <span class="text-destructive">*</span></Label>
+                    <InputField v-model.number="form.factor_operario" label="" type="number" step="0.01" min="0.01" placeholder="100" />
+                    <p class="text-[10px] text-muted-foreground">100 = eficiencia normal del operario</p>
+                </div>
+                <div class="space-y-1">
+                    <Label class="text-sm">Máquina <span class="text-destructive">*</span></Label>
+                    <SelectField v-model="form.machine_id_reference" placeholder="Selecciona máquina" :options="machineOptions" />
+                    <p class="text-[10px] text-muted-foreground">El suplemento de máquina se aplica en listados operacionales</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Bloque 4: Detalles de costura (opcionales) ─────────────────── -->
+        <div class="space-y-3 rounded-lg border bg-card p-3">
+            <p class="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                Detalles de costura
+                <span class="ml-1 font-normal normal-case">— opcionales</span>
+            </p>
+            <div class="grid grid-cols-2 gap-4">
                 <div class="space-y-1">
                     <Label class="text-sm">Medida (cm)</Label>
                     <InputField v-model.number="form.measure" label="" type="number" step="0.01" min="0" placeholder="0.00" />
@@ -378,23 +388,16 @@ defineExpose({ submit, validate });
             </div>
         </div>
 
-        <!-- ── Bloque 4: Referencias opcionales ───────────────────────────── -->
-        <div v-if="(productSheets?.length && !lockProductSheet) || (lockProductSheet && defaultProductSheetId) || machines?.length" class="space-y-3 rounded-lg border bg-card p-3">
-            <p class="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Referencias (opcionales)</p>
-            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div v-if="productSheets?.length && !lockProductSheet">
-                    <Label class="text-sm">Sábana de producto</Label>
-                    <SelectField v-model="form.product_sheet_id_reference" placeholder="Sin referencia" :options="productSheetOptions" />
-                </div>
-                <div v-else-if="lockProductSheet && defaultProductSheetId">
-                    <Label class="text-sm">Sábana de producto</Label>
-                    <div class="mt-1.5 rounded-md border bg-muted/50 px-2.5 py-2 text-sm text-muted-foreground">{{ selectedProductSheetName }}</div>
-                </div>
-                <div v-if="machines?.length">
-                    <Label class="text-sm">Máquina de referencia</Label>
-                    <SelectField v-model="form.machine_id_reference" placeholder="Sin asignar" :options="machineOptions" />
-                </div>
+        <!-- ── Bloque 5: Sábana de producto (obligatoria) ─────────────────── -->
+        <div class="space-y-3 rounded-lg border bg-card p-3">
+            <p class="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Sábana de producto <span class="text-destructive">*</span></p>
+            <div v-if="lockProductSheet && defaultProductSheetId">
+                <div class="rounded-md border bg-muted/50 px-2.5 py-2 text-sm text-muted-foreground">{{ selectedProductSheetName }}</div>
             </div>
+            <div v-else-if="productSheets?.length">
+                <SelectField v-model="form.product_sheet_id_reference" placeholder="Selecciona sábana" :options="productSheetOptions" required />
+            </div>
+            <p v-else class="text-xs text-destructive">No hay sábanas de producto disponibles. Crea una sábana primero para registrar operaciones.</p>
         </div>
 
         <!-- ── Bloque 5: Estado (solo edición) ────────────────────────────── -->

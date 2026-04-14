@@ -160,13 +160,13 @@ class PurchaseRequestService
                 $decoded = json_decode($data['items'], true);
                 if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
                     $items = $decoded;
-                    $data['items'] = json_encode($decoded);
+                    $data['items'] = $this->safeJsonEncode($decoded);
                 } else {
                     $data['items'] = null;
                 }
             } elseif (is_array($data['items'])) {
                 $items = $data['items'];
-                $data['items'] = json_encode($data['items']);
+                $data['items'] = $this->safeJsonEncode($data['items']);
             } else {
                 $data['items'] = null;
             }
@@ -182,6 +182,17 @@ class PurchaseRequestService
         }
 
         return $data;
+    }
+
+    protected function safeJsonEncode(array $value): ?string
+    {
+        $encoded = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+
+        if ($encoded === false) {
+            throw new \RuntimeException('No fue posible serializar los items de la solicitud.');
+        }
+
+        return $encoded;
     }
 
     public function handleItemImageUpload(?UploadedFile $file, ?string $existingPath = null): ?string

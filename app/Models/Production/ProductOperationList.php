@@ -3,7 +3,6 @@
 namespace App\Models\Production;
 
 use App\Models\Concerns\HasAuditLabel;
-use App\Models\Settings\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -20,6 +19,7 @@ class ProductOperationList extends Model
         'operation_id',
         'machine_id',
         'operation_section_id',
+        'grupo_preparacion',
         'sequence',
         'sequence_order', // Alias para sequence (mapeado vía mutator)
         'fabric_base_id',
@@ -59,6 +59,16 @@ class ProductOperationList extends Model
     ];
 
     protected $with = [];
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $model) {
+            // Validar que grupo_preparacion solo esté en operaciones PREPARACION
+            if ($model->relationLoaded('operationSection')) {
+                $model->validateGrupoPreparacionRestriction();
+            }
+        });
+    }
 
     // Relaciones
     public function productSheet()
@@ -109,10 +119,78 @@ class ProductOperationList extends Model
         $this->attributes['sequence'] = $value;
     }
 
+    /**
+     * Determina si esta operación pertenece a la sección PREPARACION.
+     */
+    public function isPreparationSection(): bool
+    {
+        return $this->operationSection?->type === 'PREPARACION';
+    }
+
+    /**
+     * Determina si esta operación pertenece a la sección ENSAMBLE.
+     */
+    public function isAssemblySection(): bool
+    {
+        return $this->operationSection?->type === 'ENSAMBLE';
+    }
+
+    /**
+     * Determina si esta operación pertenece a la sección TERMINACION.
+     */
+    public function isFinishingSection(): bool
+    {
+        return $this->operationSection?->type === 'TERMINACION';
+    }
+
+    /**
+     * Obtiene el tipo de sección (PREPARACION, ENSAMBLE, TERMINACION).
+     */
+    public function getSectionType(): string
+    {
+        return $this->operationSection?->type ?? '';
+    }
+
+    /**
+     * Valida que grupo_preparacion solo esté presente en operaciones PREPARACION.
+     * Lanza excepción si se intenta asignar grupo a una operación no-PREPARACION.
+     */
+    public function validateGrupoPreparacionRestriction(): void
+    {
+        // Si es PREPARACION, grupo_preparacion puede tener valor
+        // Si NO es PREPARACION, grupo_preparacion DEBE ser NULL
+        if (!$this->isPreparationSection() && $this->grupo_preparacion !== null) {
+            throw new \InvalidArgumentException(
+                "El campo 'grupo_preparacion' solo puede usarse en operaciones de tipo PREPARACION. " .
+                "Sección actual: {$this->getSectionType()}"
+            );
+        }
+    }
+
     // Scopes
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    public function scopeByGrupoPreparacion(Builder $query, string $grupo): Builder
+    {
+        return $query->where('grupo_preparacion', $grupo);
+    }
+
+    public function scopePreparacionSection(Builder $query): Builder
+    {
+        return $query->whereHas('operationSection', fn ($q) => $q->where('type', 'PREPARACION'));
+    }
+
+    public function scopeEnsambleSection(Builder $query): Builder
+    {
+        return $query->whereHas('operationSection', fn ($q) => $q->where('type', 'ENSAMBLE'));
+    }
+
+    public function scopeTerminacionSection(Builder $query): Builder
+    {
+        return $query->whereHas('operationSection', fn ($q) => $q->where('type', 'TERMINACION'));
     }
 
     public function scopeBySheet(Builder $query, int $sheetId): Builder

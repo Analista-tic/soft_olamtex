@@ -19,6 +19,7 @@ type OperationRecord = {
     quantity: number | null;
     description: string | null;
     sam_base: number | null;
+    factor_operario?: number | null;
     product_sheet_id_reference: number | null;
     machine_id_reference: number | null;
     is_active: boolean;
@@ -114,6 +115,10 @@ watch(localOpen, (v) => {
                         <p class="font-mono font-bold text-primary">
                             {{ operation.sam_base != null ? `${operation.sam_base.toFixed(4)} min` : '-' }}
                         </p>
+                    </div>
+                    <div>
+                        <p class="text-[11px] font-medium text-muted-foreground">Factor operario</p>
+                        <p class="font-mono">{{ operation.factor_operario != null ? `${operation.factor_operario}%` : '-' }}</p>
                     </div>
 
                     <div>

@@ -1,57 +1,5 @@
-<template>
-    <div class="space-y-3">
-        <div class="grid w-full items-center gap-1">
-            <div>
-                <div class="rounded-md border border-border bg-background p-2 shadow-sm">
-                    <div class="mb-3" v-if="!props.disabled">
-                        <Select v-model="localSelectedProcess" :disabled="props.disabled">
-                            <SelectTrigger class="h-9 w-full text-sm shadow-sm">
-                                <SelectValue placeholder="Selecciona un proceso para añadir" />
-                            </SelectTrigger>
-                            <SelectContent class="z-[99999]">
-                                <SelectGroup>
-                                    <SelectItem v-for="process in filteredProcesses" :key="process" :value="process">
-                                        {{ process }}
-                                    </SelectItem>
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div v-if="orderedSelectedProcesses.length === 0" class="py-1 text-center text-xs text-muted-foreground">
-                        No hay procesos seleccionados
-                    </div>
-                    <div v-else class="grid grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3">
-                        <div
-                            v-for="(process, index) in orderedSelectedProcesses"
-                            :key="process"
-                            class="flex items-center justify-between rounded border border-border bg-muted/40 px-2 shadow-sm"
-                        >
-                            <div class="flex items-center space-x-1">
-                                <span class="text-xs font-medium text-muted-foreground">{{ index + 1 }}.</span>
-                                <span class="text-xs font-semibold text-foreground">{{ process }}</span>
-                            </div>
-                            <Button
-                                v-if="!props.disabled"
-                                variant="ghost"
-                                size="sm"
-                                @click="removeProcess(process)"
-                                :disabled="nonRemovableProcesses.includes(process)"
-                                class="text-muted-foreground hover:text-destructive"
-                            >
-                                <X class="h-3 w-3" />
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</template>
-
 <script setup lang="ts">
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X } from 'lucide-vue-next';
+import GroupSelect from '@/components/GroupSelect.vue';
 import { computed, ref, watch } from 'vue';
 
 interface Props {
@@ -65,9 +13,11 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
     disabled: false,
 });
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits<{
+    (e: 'update:modelValue', value: string): void;
+}>();
 
-const localSelectedProcess = ref<string | null>(null);
+const selectedProcessIds = ref<string[]>([]);
 
 // Procesos permitidos y obligatorios según tipo (alineado con config processes_allowed_by_type)
 const allowedProcessesByType: Record<string, string[]> = {
@@ -103,13 +53,10 @@ function normalizeProcessesToRecord(value: string | undefined): Record<string, b
             return Object.fromEntries(Object.entries(parsed).map(([k, v]) => [String(k), Boolean(v)]));
         }
         return {};
-    } catch (error) {
-        console.error('Error parsing processes JSON:', error, 'Value:', value);
+    } catch {
         return {};
     }
 }
-
-const selectedProcesses = ref<Record<string, boolean>>(normalizeProcessesToRecord(props.modelValue));
 
 // Orden productivo (alineado con config product-sheet.batch_control_processes)
 const processOrder = [
@@ -129,12 +76,6 @@ const processOrder = [
     'Bodega',
 ];
 
-const orderedSelectedProcesses = computed(() => {
-    return Object.keys(selectedProcesses.value)
-        .filter((key) => selectedProcesses.value[key])
-        .sort((a, b) => processOrder.indexOf(a) - processOrder.indexOf(b));
-});
-
 // Procesos disponibles filtrados por tipo de ficha
 const typeFilteredAvailableProcesses = computed(() => {
     if (!props.productSheetType) return props.availableProcesses;
@@ -144,23 +85,11 @@ const typeFilteredAvailableProcesses = computed(() => {
     return props.availableProcesses.filter((p) => allowedSet.has(p));
 });
 
-const filteredProcesses = computed(() => {
-    return typeFilteredAvailableProcesses.value.filter((process) => !selectedProcesses.value[process]);
+const processOptions = computed(() => {
+    return [...typeFilteredAvailableProcesses.value]
+        .sort((a, b) => processOrder.indexOf(a) - processOrder.indexOf(b))
+        .map((process) => ({ id: process, name: process }));
 });
-
-watch(localSelectedProcess, (newValue) => {
-    if (newValue) {
-        addProcess(newValue);
-    }
-});
-
-watch(
-    selectedProcesses,
-    (newValue) => {
-        emit('update:modelValue', JSON.stringify(newValue));
-    },
-    { deep: true },
-);
 
 // Compatibilidad: Muestra → Muestras, Estampando → Estampado
 const processAliases: Record<string, string> = {
@@ -198,9 +127,12 @@ watch(
         nonRemovableProcesses.value.forEach((process) => {
             parsed[process] = true;
         });
-        const serialized = JSON.stringify(parsed);
-        if (JSON.stringify(selectedProcesses.value) !== serialized) {
-            selectedProcesses.value = parsed;
+        const normalizedIds = Object.keys(parsed)
+            .filter((key) => parsed[key])
+            .sort((a, b) => processOrder.indexOf(a) - processOrder.indexOf(b));
+
+        if (JSON.stringify(selectedProcessIds.value) !== JSON.stringify(normalizedIds)) {
+            selectedProcessIds.value = normalizedIds;
         }
     },
     { immediate: true },
@@ -214,16 +146,13 @@ watch(
         const allowed = allowedProcessesByType[newType];
         if (!allowed) return;
         const allowedSet = new Set(allowed);
-        const current: Record<string, boolean> = {};
-        for (const [key, val] of Object.entries(selectedProcesses.value)) {
-            if (val && allowedSet.has(key)) {
-                current[key] = true;
+        const nextIds = selectedProcessIds.value.filter((key) => allowedSet.has(key));
+        for (const p of nonRemovableByType[newType] ?? []) {
+            if (!nextIds.includes(p)) {
+                nextIds.push(p);
             }
         }
-        for (const p of nonRemovableByType[newType] ?? []) {
-            current[p] = true;
-        }
-        selectedProcesses.value = current;
+        selectedProcessIds.value = [...nextIds].sort((a, b) => processOrder.indexOf(a) - processOrder.indexOf(b));
     },
 );
 
@@ -231,8 +160,8 @@ watch(
     () => props.wovenProduct,
     (newValue) => {
         if (newValue) {
-            if (!selectedProcesses.value['Tejido']) {
-                addProcess('Tejido');
+            if (!selectedProcessIds.value.includes('Tejido')) {
+                selectedProcessIds.value = [...selectedProcessIds.value, 'Tejido'].sort((a, b) => processOrder.indexOf(a) - processOrder.indexOf(b));
             }
         } else {
             removeProcess('Tejido');
@@ -241,16 +170,63 @@ watch(
     { immediate: true },
 );
 
-function addProcess(process: string) {
-    if (process && !selectedProcesses.value[process]) {
-        selectedProcesses.value[process] = true;
-        localSelectedProcess.value = null;
-    }
-}
+watch(
+    selectedProcessIds,
+    (newIds) => {
+        const uniqueIds = [...new Set(newIds)].filter((id) => processOptions.value.some((option) => option.id === id));
+        const ensuredIds = [...uniqueIds];
+
+        for (const process of nonRemovableProcesses.value) {
+            if (!ensuredIds.includes(process) && processOptions.value.some((option) => option.id === process)) {
+                ensuredIds.push(process);
+            }
+        }
+
+        const orderedIds = ensuredIds.sort((a, b) => processOrder.indexOf(a) - processOrder.indexOf(b));
+
+        if (JSON.stringify(orderedIds) !== JSON.stringify(selectedProcessIds.value)) {
+            selectedProcessIds.value = orderedIds;
+            return;
+        }
+
+        const payload = Object.fromEntries(orderedIds.map((id) => [id, true]));
+        const serializedPayload = JSON.stringify(payload);
+        if (serializedPayload !== (props.modelValue ?? '')) {
+            emit('update:modelValue', serializedPayload);
+        }
+    },
+    { deep: true },
+);
 
 function removeProcess(process: string) {
     if (!nonRemovableProcesses.value.includes(process)) {
-        delete selectedProcesses.value[process];
+        selectedProcessIds.value = selectedProcessIds.value.filter((id) => id !== process);
     }
 }
 </script>
+
+<template>
+    <div class="space-y-3">
+        <GroupSelect
+            v-model="selectedProcessIds"
+            label=""
+            class="multiselect-normalized-text"
+            :options="processOptions"
+            placeholder="Selecciona procesos"
+            :disabled="props.disabled"
+            :searchable="true"
+            search-placeholder="Buscar proceso"
+        />
+    </div>
+</template>
+
+<style scoped>
+.multiselect-normalized-text :deep(.inline-flex) {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+}
+
+.multiselect-normalized-text :deep(.truncate) {
+    max-width: 12rem;
+}
+</style>

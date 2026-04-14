@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Services\Production\SectionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class SectionController extends Controller
 {
@@ -27,7 +26,6 @@ class SectionController extends Controller
             'is_active' => ['sometimes', 'boolean'],
         ]);
 
-        $validated['created_by'] = Auth::id();
         $validated['is_active'] = $validated['is_active'] ?? true;
 
         $section = $this->service->create($validated);

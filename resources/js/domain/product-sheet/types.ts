@@ -80,8 +80,14 @@ export interface OperationOption {
     name: string;
     action?: string;
     garment_part?: string;
+    anexo?: string | null;
+    measure?: number | null;
+    quantity?: number | null;
     section_id?: number | string | null;
     sam_base?: number | null;
+    factor_operario?: number | null;
+    machine_id_reference?: number | null;
+    product_sheet_id_reference?: number | null;
     description?: string | null;
     code?: string | null;
 }
@@ -147,6 +153,7 @@ export interface ProductOperationPayload {
     optimal_time: string;
     operator_efficiency_factor: number;
     machine_supplement_factor: number;
+    grupo_preparacion?: string | null;
     notes?: string;
     quantity?: number;
     fabric_base_id?: number | null;

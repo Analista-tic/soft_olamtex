@@ -39,6 +39,11 @@ class Machine extends Model
         return $this->hasMany(ProductOperationList::class);
     }
 
+    public function operations()
+    {
+        return $this->hasMany(Operation::class, 'machine_id_reference');
+    }
+
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');

@@ -287,7 +287,7 @@ onMounted(() => {
                             <TableCell>{{ formatCurrency(adjustment.total) }}</TableCell>
                             <TableCell class="flex justify-center gap-1">
                                 <EditButton :onClick="() => openEditAdjustment(adjustment)" title="Editar ajuste" />
-                                <DeleteButton :onClick="() => confirmDelete(adjustment)" title="Eliminar ajuste" />
+                                <DeleteButton @click="confirmDelete(adjustment)" title="Eliminar ajuste" />
                                 <DropdownMenu>
                                     <DropdownMenuTrigger as-child>
                                         <Button variant="ghost" size="icon" class="h-8 w-8 p-0">

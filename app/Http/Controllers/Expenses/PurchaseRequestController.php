@@ -7,6 +7,7 @@ use App\Models\Expenses\PurchaseRequest;
 use App\Services\Expenses\PurchaseRequestService;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
@@ -42,12 +43,24 @@ class PurchaseRequestController extends Controller
 
     public function store(Request $request)
     {
-        $payload = $this->validateRequestPayload($request);
-        $payload['items'] = $this->prepareItemsPayload($request, $payload['items'] ?? []);
+        try {
+            $payload = $this->validateRequestPayload($request);
+            $payload['items'] = $this->prepareItemsPayload($request, $payload['items'] ?? []);
 
-        $purchaseRequest = $this->service->create($payload);
+            $purchaseRequest = $this->service->create($payload);
 
-        return response()->json(['data' => $purchaseRequest], 201);
+            return response()->json(['data' => $purchaseRequest], 201);
+        } catch (\Throwable $e) {
+            Log::error('Error creando solicitud de compra', [
+                'message' => $e->getMessage(),
+                'exception' => $e,
+                'payload_keys' => array_keys($request->all()),
+            ]);
+
+            return response()->json([
+                'message' => 'Error al crear la solicitud de compra: '.$e->getMessage(),
+            ], 500);
+        }
     }
 
     public function show(PurchaseRequest $purchaseRequest)
@@ -57,12 +70,25 @@ class PurchaseRequestController extends Controller
 
     public function update(Request $request, PurchaseRequest $purchaseRequest)
     {
-        $payload = $this->validateRequestPayload($request, true);
-        $payload['items'] = $this->prepareItemsPayload($request, $payload['items'] ?? [], $purchaseRequest);
+        try {
+            $payload = $this->validateRequestPayload($request, true);
+            $payload['items'] = $this->prepareItemsPayload($request, $payload['items'] ?? [], $purchaseRequest);
 
-        $updated = $this->service->update($purchaseRequest, $payload);
+            $updated = $this->service->update($purchaseRequest, $payload);
 
-        return response()->json(['data' => $updated]);
+            return response()->json(['data' => $updated]);
+        } catch (\Throwable $e) {
+            Log::error('Error actualizando solicitud de compra', [
+                'purchase_request_id' => $purchaseRequest->id,
+                'message' => $e->getMessage(),
+                'exception' => $e,
+                'payload_keys' => array_keys($request->all()),
+            ]);
+
+            return response()->json([
+                'message' => 'Error al actualizar la solicitud de compra: '.$e->getMessage(),
+            ], 500);
+        }
     }
 
     public function destroy(PurchaseRequest $purchaseRequest)

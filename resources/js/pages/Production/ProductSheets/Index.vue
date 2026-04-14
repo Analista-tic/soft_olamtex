@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
@@ -28,6 +29,7 @@ import {
     PaginationPrev,
 } from '@/components/ui/pagination';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useGlobalAlert } from '@/composables/useGlobalAlert';
 import { uiPatterns } from '@/lib/ui-patterns';
@@ -108,8 +110,34 @@ const convertRowTarget = ref<ProductSheet | null>(null);
 const convertRowLoading = ref(false);
 const convertDuplicateDialogOpen = ref(false);
 const pendingConvertReference = ref('');
+const previewSketchDialogOpen = ref(false);
+const previewSketchUrl = ref<string | null>(null);
+const previewSketchTitle = ref('Dibujo plano');
 
 const { successMessage, errorMessage, errorType, success, error, warning, clear } = useGlobalAlert();
+
+function resolveFlatSketchThumb(rawPath: unknown): string | null {
+    if (typeof rawPath !== 'string') return null;
+    const path = rawPath.trim();
+    if (!path) return null;
+    if (/^https?:\/\//i.test(path)) return path;
+    if (path.startsWith('/storage-file/')) return path;
+    if (path.startsWith('/')) return `/storage-file/${path.replace(/^\/+(?:storage\/)?/, '')}`;
+    return `/storage-file/${path.replace(/^\/?storage\//, '')}`;
+}
+
+function openSketchPreview(product: ProductSheet): void {
+    const url = resolveFlatSketchThumb(product.flat_sketch_path);
+    if (!url) return;
+    previewSketchUrl.value = url;
+    previewSketchTitle.value = `Dibujo plano · ${resolveProductSheetReference(product)}`;
+    previewSketchDialogOpen.value = true;
+}
+
+function closeSketchPreview(): void {
+    previewSketchDialogOpen.value = false;
+    previewSketchUrl.value = null;
+}
 
 async function loadPermissions() {
     try {
@@ -460,6 +488,7 @@ onUnmounted(() => {
                             <TableHead>Grupo</TableHead>
                             <TableHead>Mundo</TableHead>
                             <TableHead>Base</TableHead>
+                            <TableHead>Dibujo</TableHead>
                             <TableHead>Precio Fact</TableHead>
                             <TableHead>Precio Venta</TableHead>
                             <TableHead>Costo Total</TableHead>
@@ -469,7 +498,7 @@ onUnmounted(() => {
                     </TableHeader>
                     <TableBody>
                         <TableRow v-if="productSheets.length === 0">
-                            <TableCell colspan="12" class="py-10 text-center text-sm text-muted-foreground">
+                            <TableCell colspan="13" class="py-10 text-center text-sm text-muted-foreground">
                                 No se encontraron sábanas de producto.
                             </TableCell>
                         </TableRow>
@@ -492,6 +521,28 @@ onUnmounted(() => {
                                 <TableCell>{{ product.group?.name ?? '' }}</TableCell>
                                 <TableCell>{{ product.world?.name ?? '' }}</TableCell>
                                 <TableCell>{{ product.fabric_base?.name ?? '' }}</TableCell>
+                                <TableCell>
+                                    <div class="flex justify-center">
+                                        <div class="h-12 w-12 overflow-hidden rounded-md border border-border bg-muted/30">
+                                            <button
+                                                v-if="product.flat_sketch_path"
+                                                type="button"
+                                                class="h-full w-full"
+                                                @click="openSketchPreview(product)"
+                                                aria-label="Ver dibujo plano"
+                                            >
+                                                <img
+                                                    :src="resolveFlatSketchThumb(product.flat_sketch_path) ?? ''"
+                                                    alt="Miniatura dibujo plano"
+                                                    class="h-full w-full object-cover"
+                                                    loading="lazy"
+                                                    decoding="async"
+                                                />
+                                            </button>
+                                            <div v-else class="flex h-full w-full items-center justify-center text-xs text-muted-foreground">—</div>
+                                        </div>
+                                    </div>
+                                </TableCell>
                                 <TableCell>{{ formatCopCurrency(product.billing_price) }}</TableCell>
                                 <TableCell>{{ formatCopCurrency(product.selling_price) }}</TableCell>
                                 <TableCell>
@@ -597,6 +648,27 @@ onUnmounted(() => {
         @error="error"
         @close="isEditDialogOpen = false"
     />
+
+    <Dialog v-model:open="previewSketchDialogOpen">
+        <FormDialogContent class="flex max-h-[95vh] w-[calc(100vw-2rem)] max-w-4xl flex-col px-2 py-2">
+            <DialogHeader class="px-6 pb-3 pt-4">
+                <DialogTitle>{{ previewSketchTitle }}</DialogTitle>
+            </DialogHeader>
+            <div class="flex-1 overflow-auto px-6 pb-4">
+                <div class="overflow-hidden rounded-lg border border-border bg-muted/20">
+                    <img
+                        v-if="previewSketchUrl"
+                        :src="previewSketchUrl"
+                        alt="Dibujo plano"
+                        class="h-auto max-h-[72vh] w-full object-contain"
+                    />
+                </div>
+            </div>
+            <DialogFooter class="border-t px-6 pb-4 pt-3">
+                <Button variant="outline" @click="closeSketchPreview">Cerrar</Button>
+            </DialogFooter>
+        </FormDialogContent>
+    </Dialog>
 
     <ConvertSampleToProductDialog
         v-model:open="convertRowDialogOpen"

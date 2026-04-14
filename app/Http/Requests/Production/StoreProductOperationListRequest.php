@@ -48,6 +48,7 @@ class StoreProductOperationListRequest extends FormRequest
                 'min:1.0',
                 'max:5.0',
             ],
+            'grupo_preparacion' => ['nullable', 'string', 'max:100'],
             'fabric_base_id' => ['nullable', 'integer'],
             'quantity' => ['nullable', 'integer', 'min:1'],
             'actual_time' => ['nullable', 'numeric', 'min:0', 'max:999.99'],
@@ -69,6 +70,7 @@ class StoreProductOperationListRequest extends FormRequest
             'machine_supplement_factor.max' => 'El suplemento de máquina no puede superar 5.0 (500%).',
             'optimal_time.min' => 'El tiempo óptimo debe ser mayor a 0.',
             'optimal_time.max' => 'El tiempo óptimo no puede superar 999.99 minutos.',
+            'grupo_preparacion.max' => 'El grupo de preparación no puede superar 100 caracteres.',
         ];
     }
 
@@ -82,6 +84,7 @@ class StoreProductOperationListRequest extends FormRequest
             'operation_id' => 'operación',
             'machine_id' => 'máquina',
             'operation_section_id' => 'sección',
+            'grupo_preparacion' => 'grupo preparación',
             'sequence' => 'secuencia',
             'optimal_time' => 'tiempo óptimo',
             'operator_efficiency_factor' => 'factor de eficiencia del operario',
