@@ -7,6 +7,7 @@ import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
+    DialogClose,
     DialogContent,
     DialogDescription,
     DialogFooter,
@@ -15,7 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import type { PurchaseInvoiceItem } from '@/domain/Expenses';
 import axios from 'axios';
-import { Pencil, Trash2 } from 'lucide-vue-next';
+import { AlertTriangle, Pencil, Trash2 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
 const TOLERANCE_QUANTITY_PERCENT = 30;
@@ -69,6 +70,8 @@ const editingRoll = ref<RollRecord | null>(null);
 const rolls = ref<RollRecord[]>([]);
 const warehouses = ref<{ id: number; name: string }[]>([]);
 const warehousesLoading = ref(false);
+const isDeleteConfirmOpen = ref(false);
+const rollToDelete = ref<RollRecord | null>(null);
 
 const canDeleteEditRolls = computed(() => props.canDeleteEditRolls !== false);
 
@@ -291,20 +294,22 @@ function startEditRoll(roll: RollRecord): void {
     };
 }
 
-async function deleteRoll(roll: RollRecord): Promise<void> {
+function deleteRoll(roll: RollRecord): void {
     if (!canDeleteEditRolls.value) return;
+    rollToDelete.value = roll;
+    isDeleteConfirmOpen.value = true;
+}
 
-    const confirmed = window.confirm(
-        `¿Seguro que deseas eliminar el rollo ${roll.roll_number || roll.roll || ''}?`
-    );
+async function confirmDeleteRoll(): Promise<void> {
+    const roll = rollToDelete.value;
+    if (!roll) return;
 
-    if (!confirmed) return;
+    isDeleteConfirmOpen.value = false;
 
     try {
         await axios.delete(`${props.apiUrl}/${roll.id}`);
         setAlert('Rollo eliminado correctamente.', 'success');
         await loadRolls();
-        emit('success');
 
         if (editingRoll.value?.id === roll.id) {
             resetForm();
@@ -316,6 +321,8 @@ async function deleteRoll(roll: RollRecord): Promise<void> {
             error?.response?.data?.message ||
             'No fue posible eliminar el rollo.';
         setAlert(message, 'error');
+    } finally {
+        rollToDelete.value = null;
     }
 }
 
@@ -635,6 +642,33 @@ watch(dialogOpen, (value) => {
                     </template>
                 </div>
             </DialogFooter>
+            <Dialog v-model:open="isDeleteConfirmOpen">
+                <DialogContent class="sm:max-w-[400px] p-6">
+                    <div class="flex items-start pr-8">
+                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10 text-destructive mt-1 mr-4 shrink-0">
+                            <AlertTriangle class="h-5 w-5" />
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <DialogHeader class="p-0 text-left">
+                                <DialogTitle class="text-base font-semibold">Eliminar rollo</DialogTitle>
+                            </DialogHeader>
+                            <DialogDescription class="mt-1 text-sm text-muted-foreground">
+                                ¿Seguro que deseas eliminar el rollo
+                                <span class="font-medium text-foreground">{{ rollToDelete?.roll_number || rollToDelete?.roll }}</span>?
+                                Esta acción no se puede deshacer.
+                            </DialogDescription>
+                        </div>
+                    </div>
+                    <DialogFooter class="mt-6 gap-2 sm:justify-end">
+                        <DialogClose as-child>
+                            <Button variant="outline" class="rounded-full px-4 py-2">Cancelar</Button>
+                        </DialogClose>
+                        <Button variant="destructive" class="rounded-full px-4 py-2 flex items-center gap-2" @click="confirmDeleteRoll">
+                            <Trash2 class="h-4 w-4" /> Eliminar
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </DialogContent>
     </Dialog>
 </template>

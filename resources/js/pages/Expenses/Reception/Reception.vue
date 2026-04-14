@@ -308,7 +308,10 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         params.subgroup_id = isNaN(Number(subgroupFilter.value)) ? subgroupFilter.value : Number(subgroupFilter.value);
     }
     try {
-        const response = await axios.get('/gastos/facturas-compra/data', { params });
+        const endpoint = isTelasList.value
+            ? '/gastos/facturas-compra-tela/data'
+            : '/gastos/facturas-compra/data';
+        const response = await axios.get(endpoint, { params });
         invoices.value = Array.isArray(response.data.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
         totalItems.value = typeof response.data.total === 'number' ? response.data.total : 0;
         refreshBlockersForList();
@@ -548,6 +551,10 @@ watch(
 );
 
 function onFabricRollSuccess() {
+    if (selectedInvoice.value && selectedInvoice.value.id && typeof selectedInvoice.value.id === 'number') {
+        fetchSpecificInvoice(selectedInvoice.value.id);
+    }
+    return;
     const invoiceId = selectedInvoice.value?.id;
     const itemName = selectedItem.value?.item?.name || selectedItem.value?.article?.name || 'el ítem';
     if (invoiceId) {
@@ -656,7 +663,7 @@ function onFabricRollSuccess() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>#Factura</TableHead>
+                                <TableHead>N° Factura</TableHead>
                                 <TableHead>Proveedor</TableHead>
                                 <TableHead>Fecha</TableHead>
                                 <TableHead>Total</TableHead>
@@ -667,7 +674,7 @@ function onFabricRollSuccess() {
                         </TableHeader>
                         <TableBody>
                             <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
-                                <TableCell class="font-medium">{{ invoice.id }}</TableCell>
+                                <TableCell class="font-medium">{{ invoice.document_number || invoice.id }}</TableCell>
                                 <TableCell>{{ getInvoiceContact(invoice)?.full_name ?? '—' }}</TableCell>
                                 <TableCell>{{ formatInvoiceDate(invoice.date) }}</TableCell>
                                 <TableCell class="font-medium">
@@ -685,7 +692,7 @@ function onFabricRollSuccess() {
                                         {{ getStatusText(invoice.status || 'pending') }}
                                     </span>
                                 </TableCell>
-                                <TableCell>{{ (invoice.items || []).length }} item(s)</TableCell>
+                                <TableCell>{{ (invoice.items || []).length }} {{ (invoice.items || []).length === 1 ? 'item' : 'items' }}</TableCell>
                                 <TableCell class="flex justify-center gap-1">
                                     <button
                                         class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-primary"
@@ -816,7 +823,7 @@ function onFabricRollSuccess() {
                                         <TableHead class="py-2">Precio</TableHead>
                                         <TableHead class="py-2">IVA</TableHead>
                                         <TableHead class="py-2">Total</TableHead>
-                                        <TableHead class="w-24 py-2 text-center">Acciones</TableHead>
+                                        <TableHead v-if="isTelasList" class="w-24 py-2 text-center">Acciones</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -858,7 +865,7 @@ function onFabricRollSuccess() {
                                                 })
                                             }}
                                         </TableCell>
-                                        <TableCell class="py-2 text-center">
+                                        <TableCell v-if="isTelasList" class="py-2 text-center">
                                             <template v-if="isFabricItem(item)">
                                                 <button
                                                     class="mx-auto flex h-full items-center justify-center text-muted-foreground transition-colors duration-200"

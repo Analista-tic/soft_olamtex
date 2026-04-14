@@ -368,8 +368,7 @@ function handleDialogError(message?: string) {
                     <button
                         type="button"
                         class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                        :disabled="!invoices.length"
-                        @click="invoices.length && goToReception(invoices[0])"
+                        @click="router.visit(buildReceptionUrl())"
                     >
                         <Package class="h-4 w-4" />
                         Ver Recepciones
