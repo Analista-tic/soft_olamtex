@@ -60,8 +60,7 @@ const { successMessage, errorMessage, errorType, showSuccess, showError, clearSu
 const statusFilter = ref('all');
 const providerFilter = ref('all');
 const subgroupFilter = ref('all');
-const dateFrom = ref<Date | null>(null);
-const dateTo = ref<Date | null>(null);
+const dateFilter = ref<Date | null>(null);
 const providers = ref<{ id: number; full_name: string }[]>([]);
 const subgroups = ref<{ id: number; name: string }[]>([]);
 const DEFAULT_STATUS_FILTER = 'all';
@@ -72,8 +71,7 @@ const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
 const isSubgroupFilterActive = computed(() => subgroupFilter.value !== DEFAULT_SUBGROUP_FILTER);
-const isDateFromActive = computed(() => Boolean(dateFrom.value));
-const isDateToActive = computed(() => Boolean(dateTo.value));
+const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
@@ -236,8 +234,8 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         page,
         per_page: itemsPerPage,
         search,
-        date_from: toIsoDateString(dateFrom.value) || undefined,
-        date_to: toIsoDateString(dateTo.value) || undefined,
+        date_from: toIsoDateString(dateFilter.value) || undefined,
+        date_to: toIsoDateString(dateFilter.value) || undefined,
     };
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
     if (approvalStatusFilter.value !== 'all') params.approval_status = approvalStatusFilter.value;
@@ -260,14 +258,13 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
 
 // Watcher Ãºnico para filtros y bÃºsqueda
 watch(
-    [statusFilter, providerFilter, subgroupFilter, dateFrom, dateTo, searchQuery, approvalStatusFilter],
-    ([newStatus, newProvider, newSubgroup, newFrom, newTo, newSearch, newApproval], [oldStatus, oldProvider, oldSubgroup, oldFrom, oldTo, oldSearch, oldApproval]) => {
+    [statusFilter, providerFilter, subgroupFilter, dateFilter, searchQuery, approvalStatusFilter],
+    ([newStatus, newProvider, newSubgroup, newDate, newSearch, newApproval], [oldStatus, oldProvider, oldSubgroup, oldDate, oldSearch, oldApproval]) => {
         if (
             newStatus !== oldStatus ||
             newProvider !== oldProvider ||
             newSubgroup !== oldSubgroup ||
-            newFrom !== oldFrom ||
-            newTo !== oldTo ||
+            newDate !== oldDate ||
             newSearch !== oldSearch ||
             newApproval !== oldApproval
         ) {
@@ -557,11 +554,8 @@ async function handleDifferenceDecision() {
                         :button-class="subgroupButtonClasses"
                     />
                 </FilterField>
-                <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
-                    <DateField v-model="dateFrom" placeholder="Desde" />
-                </FilterField>
-                <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
-                    <DateField v-model="dateTo" placeholder="Hasta" />
+                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
+                    <DateField v-model="dateFilter" placeholder="Fecha" />
                 </FilterField>
                 <FilterField label="Diferencia" :active="approvalStatusFilter !== 'all'" class="min-w-[180px]">
                     <SelectField

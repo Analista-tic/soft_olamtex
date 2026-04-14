@@ -720,6 +720,9 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                                             placeholder="Selecciona item"
                                             class="w-full"
                                             :disabled="isReadOnly"
+                                            :action-label="!getSuggestedItemForRow(idx) && !isReadOnly ? '+ Nuevo ítem' : undefined"
+                                            :action-disabled="isReadOnly"
+                                            @action="openItemDialog(idx, false)"
                                             v-if="!isReadOnly"
                                         />
                                         <SelectField
