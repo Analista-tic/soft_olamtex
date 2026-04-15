@@ -123,6 +123,9 @@ const providerFilter = ref(DEFAULT_PROVIDER_FILTER);
 const subgroupFilter = ref(DEFAULT_SUBGROUP_FILTER);
 const dateFilter = ref('');
 const isDateFilterActive = computed(() => Boolean(dateFilter.value));
+const sortBy = ref<string>('date');
+const sortDir = ref<'asc' | 'desc'>('desc');
+const isLoading = ref(false);
 const providers = ref<{ id: number; full_name: string }[]>([]);
 const subgroups = ref<{ id: number; name: string }[]>([]);
 
@@ -140,6 +143,10 @@ const showInvoicesList = computed(() => {
 const showInvoiceDetail = computed(() => {
     return selectedInvoice.value !== null;
 });
+const receptionScope = computed<'all' | 'general' | 'fabric'>(() => {
+    if (isAllReceptions.value) return 'all';
+    return isTelasList.value ? 'fabric' : 'general';
+});
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
@@ -147,6 +154,18 @@ const isSubgroupFilterActive = computed(() => subgroupFilter.value !== DEFAULT_S
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
 const subgroupButtonClasses = useFilterButtonClasses(isSubgroupFilterActive);
+
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+
+    currentPage.value = 1;
+    void fetchInvoices(1, searchQuery.value);
+}
 
 async function fetchProviders() {
     try {
@@ -298,12 +317,16 @@ async function confirmRejectReception() {
 }
 
 async function fetchInvoices(page = 1, search = ''): Promise<void> {
+    isLoading.value = true;
     const params: Record<string, any> = {
         page,
         per_page: itemsPerPage,
         search,
         date_from: dateFilter.value || undefined,
         date_to: dateFilter.value || undefined,
+        sort_by: sortBy.value,
+        sort_dir: sortDir.value,
+        scope: receptionScope.value,
         exclude_difference_rejected: true,
     };
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
@@ -314,36 +337,19 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         params.subgroup_id = isNaN(Number(subgroupFilter.value)) ? subgroupFilter.value : Number(subgroupFilter.value);
     }
     try {
-        if (isAllReceptions.value) {
-            const [resGeneral, resTela] = await Promise.all([
-                axios.get('/gastos/facturas-compra/data', { params }),
-                axios.get('/gastos/facturas-compra-tela/data', { params }),
-            ]);
-            const general = Array.isArray(resGeneral.data.data) ? resGeneral.data.data : [];
-            const tela = Array.isArray(resTela.data.data) ? resTela.data.data : [];
-            const merged = [...general, ...tela].sort((a, b) => {
-                const dateA = new Date(a.date ?? 0).getTime();
-                const dateB = new Date(b.date ?? 0).getTime();
-                if (dateB !== dateA) return dateB - dateA;
-                return (b.id ?? 0) - (a.id ?? 0);
-            });
-            invoices.value = merged.filter((invoice) => !isDifferenceRejectedInvoice(invoice));
-            totalItems.value = (resGeneral.data.total ?? 0) + (resTela.data.total ?? 0);
-        } else {
-            const endpoint = isTelasList.value
-                ? '/gastos/facturas-compra-tela/data'
-                : '/gastos/facturas-compra/data';
-            const response = await axios.get(endpoint, { params });
-            const rawInvoices = Array.isArray(response.data.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
-            invoices.value = rawInvoices.filter((invoice: PurchaseInvoice) => !isDifferenceRejectedInvoice(invoice));
-            totalItems.value = typeof response.data.total === 'number' ? response.data.total : 0;
-        }
+        const response = await axios.get('/kardex-telas/recepcion/data', { params });
+        const rawInvoices = Array.isArray(response.data.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
+        invoices.value = rawInvoices.filter((invoice: PurchaseInvoice) => !isDifferenceRejectedInvoice(invoice));
+        totalItems.value = typeof response.data.total === 'number' ? response.data.total : 0;
+        currentPage.value = typeof response.data.current_page === 'number' ? response.data.current_page : page;
         refreshBlockersForList();
     } catch (e: any) {
         console.log('Error al cargar facturas:', e);
         invoices.value = [];
         totalItems.value = 0;
         setAlert('Error al cargar facturas. Verifique la conexión o consulte los registros del servidor.', 'error');
+    } finally {
+        isLoading.value = false;
     }
 }
 
@@ -701,72 +707,118 @@ function onFabricRollSuccess() {
                             <TableRow>
                                 <TableHead>N° Factura</TableHead>
                                 <TableHead>Proveedor</TableHead>
-                                <TableHead>Fecha</TableHead>
-                                <TableHead>Total</TableHead>
+                                <TableHead
+                                    class="cursor-pointer select-none whitespace-nowrap"
+                                    @click="toggleSort('date')"
+                                >
+                                    <span class="inline-flex items-center gap-1">
+                                        Fecha
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'date'">
+                                                {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead
+                                    class="cursor-pointer select-none whitespace-nowrap"
+                                    @click="toggleSort('total')"
+                                >
+                                    <span class="inline-flex items-center gap-1">
+                                        Total
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'total'">
+                                                {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
                                 <TableHead>Estado</TableHead>
                                 <TableHead>Items</TableHead>
                                 <TableHead>Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
-                                <TableCell class="font-medium">{{ invoice.document_number || invoice.id }}</TableCell>
-                                <TableCell>{{ getInvoiceContact(invoice)?.full_name ?? '—' }}</TableCell>
-                                <TableCell>{{ formatInvoiceDate(invoice.date) }}</TableCell>
-                                <TableCell class="font-medium">
-                                    {{
-                                        calculateInvoiceTotal(invoice).toLocaleString('es-CO', {
-                                            style: 'currency',
-                                            currency: 'COP',
-                                            minimumFractionDigits: 0,
-                                            maximumFractionDigits: 0,
-                                        })
-                                    }}
-                                </TableCell>
-                                <TableCell>
-                                    <span :class="['rounded-full px-2 py-1 text-xs font-medium', getStatusBadge(getInvoiceDisplayStatus(invoice))]">
-                                        {{ getStatusText(getInvoiceDisplayStatus(invoice)) }}
-                                    </span>
-                                </TableCell>
-                                <TableCell>{{ (invoice.items || []).length }} {{ (invoice.items || []).length === 1 ? 'item' : 'items' }}</TableCell>
-                                <TableCell class="flex justify-center gap-1">
-                                    <button
-                                        class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-primary"
-                                        @click="viewInvoice(invoice)"
-                                        title="Ver detalle"
-                                    >
-                                        <Eye class="h-4 w-4" />
-                                    </button>
-                                    <template v-if="isInvoicePendingReceipt(invoice)">
-                                        <div class="relative inline-flex">
-                                            <button
-                                                class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-green-600"
-                                                :disabled="getBlockersForInvoiceId(invoice.id).length > 0"
-                                                :title="
-                                                    getBlockersForInvoiceId(invoice.id).length > 0
-                                                        ? getBlockersForInvoiceId(invoice.id).join(' ')
-                                                        : 'Aprobar recepción'
-                                                "
-                                                @click="getBlockersForInvoiceId(invoice.id).length === 0 && approveReception(invoice)"
-                                            >
-                                                <Check class="h-4 w-4" />
-                                            </button>
-                                            <span
-                                                v-if="getBlockersForInvoiceId(invoice.id).length > 0"
-                                                class="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background"
-                                                title="Condiciones no cumplidas para aprobar"
-                                            />
-                                        </div>
+                            <template v-if="isLoading">
+                                <TableRow>
+                                    <TableCell :colspan="7" class="py-6 text-center text-sm text-muted-foreground">
+                                        Cargando recepciones...
+                                    </TableCell>
+                                </TableRow>
+                            </template>
+                            <template v-else-if="!invoices.length">
+                                <TableRow>
+                                    <TableCell :colspan="7" class="py-6 text-center text-sm text-muted-foreground">
+                                        No se encontraron recepciones.
+                                    </TableCell>
+                                </TableRow>
+                            </template>
+                            <template v-else>
+                                <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
+                                    <TableCell class="font-medium">{{ invoice.document_number || invoice.id }}</TableCell>
+                                    <TableCell>{{ getInvoiceContact(invoice)?.full_name ?? '—' }}</TableCell>
+                                    <TableCell>{{ formatInvoiceDate(invoice.date) }}</TableCell>
+                                    <TableCell class="font-medium">
+                                        {{
+                                            calculateInvoiceTotal(invoice).toLocaleString('es-CO', {
+                                                style: 'currency',
+                                                currency: 'COP',
+                                                minimumFractionDigits: 0,
+                                                maximumFractionDigits: 0,
+                                            })
+                                        }}
+                                    </TableCell>
+                                    <TableCell>
+                                        <span :class="['rounded-full px-2 py-1 text-xs font-medium', getStatusBadge(getInvoiceDisplayStatus(invoice))]">
+                                            {{ getStatusText(getInvoiceDisplayStatus(invoice)) }}
+                                        </span>
+                                    </TableCell>
+                                    <TableCell>{{ (invoice.items || []).length }} {{ (invoice.items || []).length === 1 ? 'item' : 'items' }}</TableCell>
+                                    <TableCell class="flex justify-center gap-1">
                                         <button
-                                            class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-red-600"
-                                            @click="showRejectDialog(invoice)"
-                                            title="Rechazar recepción"
+                                            class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-primary"
+                                            @click="viewInvoice(invoice)"
+                                            title="Ver detalle"
                                         >
-                                            <X class="h-4 w-4" />
+                                            <Eye class="h-4 w-4" />
                                         </button>
-                                    </template>
-                                </TableCell>
-                            </TableRow>
+                                        <template v-if="isInvoicePendingReceipt(invoice)">
+                                            <div class="relative inline-flex">
+                                                <button
+                                                    class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-green-600"
+                                                    :disabled="getBlockersForInvoiceId(invoice.id).length > 0"
+                                                    :title="
+                                                        getBlockersForInvoiceId(invoice.id).length > 0
+                                                            ? getBlockersForInvoiceId(invoice.id).join(' ')
+                                                            : 'Aprobar recepción'
+                                                    "
+                                                    @click="getBlockersForInvoiceId(invoice.id).length === 0 && approveReception(invoice)"
+                                                >
+                                                    <Check class="h-4 w-4" />
+                                                </button>
+                                                <span
+                                                    v-if="getBlockersForInvoiceId(invoice.id).length > 0"
+                                                    class="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background"
+                                                    title="Condiciones no cumplidas para aprobar"
+                                                />
+                                            </div>
+                                            <button
+                                                class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-red-600"
+                                                @click="showRejectDialog(invoice)"
+                                                title="Rechazar recepción"
+                                            >
+                                                <X class="h-4 w-4" />
+                                            </button>
+                                        </template>
+                                    </TableCell>
+                                </TableRow>
+                            </template>
                         </TableBody>
                     </Table>
                 </div>

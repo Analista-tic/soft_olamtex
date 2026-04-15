@@ -286,7 +286,8 @@ class FabricRollController extends Controller
         $documents = $invoiceService->paginateDocuments(
             PurchaseDocument::TYPE_INVOICE,
             $filters,
-            (int) $request->input('per_page', 10)
+            (int) $request->input('per_page', 10),
+            $request
         );
 
         return response()->json([
