@@ -35,7 +35,7 @@ class PurchaseDocumentService
             'executor:id,name',
             'rejectedBy:id,name',
             'parent:id,document_number',
-            'children:id,parent_document_id',
+            'children:id,parent_document_id,document_type',
         ])
         ->where('document_type', $documentType);
     }
@@ -76,11 +76,23 @@ class PurchaseDocumentService
                     $itemQuery->where('category_sub_group_id', $filters['subgroup_id'])
                 )
             )
-            ->when(!empty($filters['date_from']), fn (Builder $builder) =>
-                $builder->whereDate('date', '>=', $filters['date_from'])
+            ->when(
+                !empty($filters['date_from']) && !empty($filters['date_to']) && $filters['date_from'] === $filters['date_to'],
+                fn (Builder $builder) =>
+                    $builder->where(function (Builder $sub) use ($filters) {
+                        $sub->whereDate('date', $filters['date_from'])
+                            ->orWhereDate('delivery_date', $filters['date_from']);
+                    })
             )
-            ->when(!empty($filters['date_to']), fn (Builder $builder) =>
-                $builder->whereDate('date', '<=', $filters['date_to'])
+            ->when(
+                !empty($filters['date_from']) && (empty($filters['date_to']) || $filters['date_from'] !== $filters['date_to']),
+                fn (Builder $builder) =>
+                    $builder->whereDate('date', '>=', $filters['date_from'])
+            )
+            ->when(
+                !empty($filters['date_to']) && (empty($filters['date_from']) || $filters['date_from'] !== $filters['date_to']),
+                fn (Builder $builder) =>
+                    $builder->whereDate('date', '<=', $filters['date_to'])
             );
 
         return $this->applyFabricFilter($query, $filters);

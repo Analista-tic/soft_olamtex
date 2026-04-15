@@ -61,6 +61,7 @@ const differenceDialogOpen = ref(false);
 const pendingDifferenceSendMail = ref<boolean | null>(null);
 const differenceReason = ref('');
 const differenceEvidenceData = ref<string | null>(null);
+const savedInvoiceId = ref<number | null>(null);
 const invoiceItemsTableRef = ref<{ addItem: () => void } | null>(null);
 const invoiceDate = ref<Date | null>(null);
 const deliveryDate = ref<Date | null>(null);
@@ -112,15 +113,11 @@ const pendingPurchaseOrderOptions = computed<Option[]>(() =>
         const rawId = order?.id ?? '';
         const numericId = Number(rawId);
         const optionId = Number.isNaN(numericId) ? rawId : numericId;
-        const orderNumber = order?.supplier_order_number || order?.order_number || String(order?.id ?? '');
-        const contactName = order?.contact?.full_name || order?.contact?.business_name || order?.contact_full_name || '';
-        const nameParts = [`Orden ${orderNumber}`];
-        if (contactName) {
-            nameParts.push(contactName);
-        }
+        const orderNumber = order?.document_number || String(order?.id ?? '');
+        const providerLabel = order?.supplier?.full_name || 'Sin proveedor';
         return {
             id: optionId,
-            name: nameParts.join(' · '),
+            name: `${orderNumber} - ${providerLabel}`,
         };
     }),
 );
@@ -400,7 +397,7 @@ function handleInvoiceAddLine() {
     invoiceItemsTableRef.value?.addItem();
 }
 
-async function handleSubmit(sendMail = false, skipDifferenceCheck = false) {
+async function handleSubmit(sendMail = false, skipDifferenceCheck = false, keepOpen = false) {
     if (isReadOnly.value) return;
     successMessage.value = '';
     errorMessage.value = '';
@@ -454,6 +451,11 @@ async function handleSubmit(sendMail = false, skipDifferenceCheck = false) {
     const method = props.dialogType === 'create' ? 'POST' : 'PUT';
     try {
         const { data } = await axios({ method, url, data: formToSend });
+        savedInvoiceId.value = data.data.id;
+        if (keepOpen) {
+            // El llamador gestionará el cierre y el emit después de llamar a /justificar
+            return;
+        }
         if (sendMail) {
             await axios.post(`/gastos/facturas-compra-tela/${data.data.id}/enviar-correo`);
             emit('refresh', 'Factura guardada y enviada por correo correctamente.');
@@ -482,14 +484,41 @@ async function handleDifferenceDialogSave(payload: {
     evidenceData: string;
     evidenceName: string;
 }) {
-    differenceReason.value = payload.reason.trim();
-    localForm.value.reason = differenceReason.value;
+    const trimmedReason = payload.reason.trim();
+    differenceReason.value = trimmedReason;
     differenceEvidenceData.value = payload.evidenceData;
-    localForm.value.evidence_path = payload.evidenceData;
     const sendMail = pendingDifferenceSendMail.value ?? false;
     pendingDifferenceSendMail.value = null;
     differenceDialogOpen.value = false;
-    await handleSubmit(sendMail, true);
+
+    // Guardar la factura sin cerrar el dialog todavía
+    await handleSubmit(sendMail, true, true);
+
+    // Llamar a /justificar para marcar la diferencia y disparar notificaciones
+    const invoiceId = savedInvoiceId.value ?? (localForm.value.id ? Number(localForm.value.id) : null);
+    if (invoiceId) {
+        try {
+            await axios.post(
+                `/gastos/facturas-compra-tela/${invoiceId}/justificar`,
+                {
+                    difference_reason: trimmedReason,
+                    difference_evidence_path: payload.evidenceData,
+                    difference_notes: null,
+                }
+            );
+        } catch (e) {
+            console.error('Error al registrar diferencia en tela:', e);
+        }
+    }
+
+    // Cerrar el dialog y recargar tabla
+    differenceReason.value = '';
+    differenceEvidenceData.value = null;
+    dialogOpen.value = false;
+    emit('refresh', props.dialogType === 'create'
+        ? 'Factura creada correctamente.'
+        : 'Factura actualizada correctamente.'
+    );
 }
 
 function closeDifferenceDialog() {

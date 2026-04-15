@@ -445,7 +445,7 @@ defineExpose({ addItem });
                             >Precio SIN Impuesto <span class="text-red-600">*</span></TableHead
                         >
                         <TableHead :class="[props.telaMode === true ? 'min-w-[170px]' : 'min-w-[160px]', 'text-left']">Impuesto (%)</TableHead>
-                        <TableHead class="min-w-[110px] text-left">Cantidad <span class="text-red-600">*</span></TableHead>
+                        <TableHead class="min-w-[140px] text-left">{{ props.telaMode ? 'Longitud (mts)' : 'Cantidad' }} <span class="text-red-600">*</span></TableHead>
                         <TableHead class="min-w-[160px] text-left">Descripción</TableHead>
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
                             ><span class="inline-flex items-center gap-1">Código proveedor <span class="text-red-600">*</span><HelpTooltip text="Referencia interna del proveedor para identificar esta tela en su catálogo. Aparece en la factura del proveedor." /></span></TableHead
@@ -462,126 +462,167 @@ defineExpose({ addItem });
                 </TableHeader>
 
                 <TableBody>
-                    <TableRow v-for="(item, idx) in localItems" :key="idx">
+                    <TableRow v-for="(item, idx) in localItems" :key="idx" class="items-start">
+                        <!-- Item -->
                         <TableCell :class="[props.telaMode === true ? 'min-w-[220px]' : 'min-w-[150px]', 'p-1 text-left align-top']">
-                            <SelectField
-                                v-model="item.item_id"
-                                :options="itemOptions"
-                                label=""
-                                placeholder="Selecciona item"
-                                :disabled="isReadOnly"
-                                class="w-full"
-                                :action-label="!isReadOnly ? 'Nuevo item' : undefined"
-                                :action-disabled="isReadOnly"
-                                @action="openItemDialog"
-                            />
+                            <div class="flex flex-col">
+                                <SelectField
+                                    v-model="item.item_id"
+                                    :options="itemOptions"
+                                    label=""
+                                    placeholder="Selecciona item"
+                                    :disabled="isReadOnly"
+                                    class="h-10 w-full"
+                                    :action-label="!isReadOnly ? 'Nuevo item' : undefined"
+                                    :action-disabled="isReadOnly"
+                                    @action="openItemDialog"
+                                />
+                                <div class="min-h-[20px]"></div>
+                            </div>
                         </TableCell>
+                        <!-- Precio -->
                         <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '150px' : '120px' }">
-                            <InputField
-                                v-model="item.price"
-                                type="currency"
-                                label=""
-                                :min="0"
-                                :step="0.01"
-                                :decimals="2"
-                                :readonly="isReadOnly"
-                                :disabled="isReadOnly"
-                                class="h-10 w-full"
-                                @input="calcTotals(item)"
-                                :error="isPriceDifferent(item)"
-                            />
-                            <div v-if="getSuggestedPrice(item) !== null" class="mt-1 text-xs text-gray-500">
-                                Valor en la orden:
-                                {{
-                                    Number(getSuggestedPrice(item)).toLocaleString('es-CO', {
-                                        style: 'currency',
-                                        currency: 'COP',
-                                        minimumFractionDigits: 0,
-                                        maximumFractionDigits: 0,
-                                    })
-                                }}
+                            <div class="flex flex-col">
+                                <InputField
+                                    v-model="item.price"
+                                    type="currency"
+                                    label=""
+                                    :min="0"
+                                    :step="0.01"
+                                    :decimals="2"
+                                    :readonly="isReadOnly"
+                                    :disabled="isReadOnly"
+                                    class="h-10 w-full"
+                                    @input="calcTotals(item)"
+                                    :error="isPriceDifferent(item)"
+                                />
+                                <div class="min-h-[20px] mt-1 text-xs text-gray-500">
+                                    <template v-if="getSuggestedPrice(item) !== null">
+                                        Orden:
+                                        {{
+                                            Number(getSuggestedPrice(item)).toLocaleString('es-CO', {
+                                                style: 'currency',
+                                                currency: 'COP',
+                                                minimumFractionDigits: 0,
+                                                maximumFractionDigits: 0,
+                                            })
+                                        }}
+                                    </template>
+                                </div>
                             </div>
                         </TableCell>
+                        <!-- Impuesto -->
                         <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '170px' : '160px' }">
-                            <SelectField
-                                v-model="item.tax"
-                                :options="taxOptions"
-                                label=""
-                                class="w-full"
-                                :disabled="isReadOnly"
-                                :action-label="!isReadOnly ? 'Nuevo impuesto' : undefined"
-                                :action-disabled="isReadOnly"
-                                @action="openTaxDialog"
-                                @update:modelValue="
-                                    (val) => {
-                                        item.tax = val === null ? null : (Number(val) || 0);
-                                        calcTotals(item);
-                                    }
-                                "
-                            />
-                        </TableCell>
-                        <TableCell class="p-1 text-left align-top" style="width: 110px">
-                            <InputField
-                                v-model="item.quantity"
-                                type="number"
-                                label=""
-                                class="h-10 w-full"
-                                @input="calcTotals(item)"
-                                :readonly="isReadOnly"
-                                :disabled="isReadOnly"
-                                :error="isQuantityDifferent(item)"
-                            />
-                            <div v-if="getSuggestedQuantity(item) !== null" class="mt-1 text-xs text-gray-500">
-                                Cantidad real: {{ Number(getSuggestedQuantity(item)).toLocaleString('es-CO') }}
+                            <div class="flex flex-col">
+                                <SelectField
+                                    v-model="item.tax"
+                                    :options="taxOptions"
+                                    label=""
+                                    class="h-10 w-full"
+                                    :disabled="isReadOnly"
+                                    :action-label="!isReadOnly ? 'Nuevo impuesto' : undefined"
+                                    :action-disabled="isReadOnly"
+                                    @action="openTaxDialog"
+                                    @update:modelValue="
+                                        (val) => {
+                                            item.tax = val === null ? null : (Number(val) || 0);
+                                            calcTotals(item);
+                                        }
+                                    "
+                                />
+                                <div class="min-h-[20px]"></div>
                             </div>
                         </TableCell>
+                        <!-- Cantidad -->
+                        <TableCell class="p-1 text-left align-top" style="width: 110px">
+                            <div class="flex flex-col">
+                                <InputField
+                                    v-model="item.quantity"
+                                    type="number"
+                                    label=""
+                                    class="h-10 w-full"
+                                    @input="calcTotals(item)"
+                                    :readonly="isReadOnly"
+                                    :disabled="isReadOnly"
+                                    :error="isQuantityDifferent(item)"
+                                />
+                                <div class="min-h-[20px] mt-1 text-xs text-gray-500">
+                                    <template v-if="getSuggestedQuantity(item) !== null">
+                                        Cantidad: {{ Number(getSuggestedQuantity(item)).toLocaleString('es-CO') }}
+                                    </template>
+                                </div>
+                            </div>
+                        </TableCell>
+                        <!-- Descripción -->
                         <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '220px' : '160px' }">
-                            <InputField v-model="item.description" label="" class="h-10 w-full" :readonly="isReadOnly" :disabled="isReadOnly" />
+                            <div class="flex flex-col">
+                                <InputField v-model="item.description" label="" class="h-10 w-full" :readonly="isReadOnly" :disabled="isReadOnly" />
+                                <div class="min-h-[20px]"></div>
+                            </div>
                         </TableCell>
-                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left" style="width: 160px">
-                            <InputField
-                                v-model="item.supplier_code"
-                                label=""
-                                placeholder="Código proveedor"
-                                class="h-10 w-full"
-                                :readonly="isReadOnly || !isTela(item)"
-                                :disabled="isReadOnly || !isTela(item)"
-                            />
+                        <!-- Código proveedor -->
+                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left align-top" style="width: 160px">
+                            <div class="flex flex-col">
+                                <InputField
+                                    v-model="item.supplier_code"
+                                    label=""
+                                    placeholder="Código proveedor"
+                                    class="h-10 w-full"
+                                    :readonly="isReadOnly || !isTela(item)"
+                                    :disabled="isReadOnly || !isTela(item)"
+                                />
+                                <div class="min-h-[20px]"></div>
+                            </div>
                         </TableCell>
-                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left" style="width: 160px">
-                            <InputField
-                                v-model="item.supplier_color"
-                                label=""
-                                placeholder="Color proveedor"
-                                class="h-10 w-full"
-                                :readonly="isReadOnly || !isTela(item)"
-                                :disabled="isReadOnly || !isTela(item)"
-                            />
+                        <!-- Color proveedor -->
+                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left align-top" style="width: 160px">
+                            <div class="flex flex-col">
+                                <InputField
+                                    v-model="item.supplier_color"
+                                    label=""
+                                    placeholder="Color proveedor"
+                                    class="h-10 w-full"
+                                    :readonly="isReadOnly || !isTela(item)"
+                                    :disabled="isReadOnly || !isTela(item)"
+                                />
+                                <div class="min-h-[20px]"></div>
+                            </div>
                         </TableCell>
-                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left" style="width: 160px">
-                            <InputField
-                                v-model="item.order_width"
-                                type="text"
-                                label=""
-                                :placeholder="isTela(item) ? 'Ancho pedido (cm) *' : 'Ancho pedido'"
-                                class="h-10 w-full"
-                                :readonly="isReadOnly || !isTela(item)"
-                                :disabled="isReadOnly || !isTela(item)"
-                                :required="isTela(item)"
-                            />
+                        <!-- Ancho pedido -->
+                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left align-top" style="width: 160px">
+                            <div class="flex flex-col">
+                                <InputField
+                                    v-model="item.order_width"
+                                    type="text"
+                                    label=""
+                                    :placeholder="isTela(item) ? 'Ancho (cm) *' : 'Ancho pedido'"
+                                    class="h-10 w-full"
+                                    :readonly="isReadOnly || !isTela(item)"
+                                    :disabled="isReadOnly || !isTela(item)"
+                                    :required="isTela(item)"
+                                />
+                                <div class="min-h-[20px]"></div>
+                            </div>
                         </TableCell>
+                        <!-- Total -->
                         <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '120px' : '90px' }">
-                            {{
-                                Number(item.total || 0).toLocaleString('es-CO', {
-                                    style: 'currency',
-                                    currency: 'COP',
-                                    minimumFractionDigits: 0,
-                                    maximumFractionDigits: 0,
-                                })
-                            }}
+                            <div class="flex flex-col">
+                                <div class="flex h-10 items-center text-sm font-medium">
+                                    {{
+                                        Number(item.total || 0).toLocaleString('es-CO', {
+                                            style: 'currency',
+                                            currency: 'COP',
+                                            minimumFractionDigits: 0,
+                                            maximumFractionDigits: 0,
+                                        })
+                                    }}
+                                </div>
+                                <div class="min-h-[20px]"></div>
+                            </div>
                         </TableCell>
-                        <TableCell v-if="showActionsColumn" class="p-1 text-center">
-                            <div class="flex justify-center">
+                        <!-- Acciones -->
+                        <TableCell v-if="showActionsColumn" class="p-1 text-center align-top">
+                            <div class="flex h-10 items-center justify-center">
                                 <DeleteButton @click="removeItem(idx)" />
                             </div>
                         </TableCell>

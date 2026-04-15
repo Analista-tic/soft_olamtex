@@ -54,26 +54,32 @@ const associatedNotesError = ref('');
 const isSendingMail = ref(false);
 const isApprovalDialogOpen = ref(false);
 const invoiceForApproval = ref<PurchaseInvoice | null>(null);
-const approvalStatusFilter = ref('all');
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError, clearAlerts } = useAlertStack();
 
 const statusFilter = ref('all');
 const providerFilter = ref('all');
 const subgroupFilter = ref('all');
-const dateFrom = ref<Date | null>(null);
-const dateTo = ref<Date | null>(null);
+const dateFilter = ref<Date | null>(null);
 const providers = ref<{ id: number; full_name: string }[]>([]);
 const subgroups = ref<{ id: number; name: string }[]>([]);
 const DEFAULT_STATUS_FILTER = 'all';
 const DEFAULT_PROVIDER_FILTER = 'all';
 const DEFAULT_SUBGROUP_FILTER = 'all';
+const statusOptions = [
+    { id: 'all', name: 'Todos los estados' },
+    { id: 'status_pending', name: 'Pendiente' },
+    { id: 'status_approved', name: 'Aprobado' },
+    { id: 'status_rejected', name: 'Rechazado' },
+    { id: 'approval_pending_difference', name: 'Aprobación pendiente' },
+    { id: 'approval_approved', name: 'Diferencia aprobada' },
+    { id: 'approval_difference_rejected', name: 'Diferencia rechazada' },
+];
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
 const isSubgroupFilterActive = computed(() => subgroupFilter.value !== DEFAULT_SUBGROUP_FILTER);
-const isDateFromActive = computed(() => Boolean(dateFrom.value));
-const isDateToActive = computed(() => Boolean(dateTo.value));
+const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
@@ -162,6 +168,34 @@ function getInvoiceStatusTone(
     return 'gray';
 }
 
+function isInvoiceLocked(invoice: PurchaseInvoice): boolean {
+    return (
+        invoice.status === 'approved' ||
+        invoice.status === 'rejected' ||
+        invoice.approval_status === 'approved' ||
+        invoice.approval_status === 'difference_rejected'
+    );
+}
+
+function isInvoiceDeleteLocked(invoice: PurchaseInvoice): boolean {
+    return (
+        invoice.status === 'approved' ||
+        invoice.status === 'rejected' ||
+        invoice.status === 'received' ||
+        invoice.approval_status === 'approved' ||
+        invoice.approval_status === 'difference_rejected'
+    );
+}
+
+function invoiceHasNotes(invoice: PurchaseInvoice): boolean {
+    if (!invoice.children || invoice.children.length === 0) return false;
+    return invoice.children.some(
+        (c) =>
+            c.document_type === 'purchase_credit_note' ||
+            c.document_type === 'purchase_debit_note',
+    );
+}
+
 async function fetchProviders() {
     try {
         const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
@@ -236,11 +270,15 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         page,
         per_page: itemsPerPage,
         search,
-        date_from: toIsoDateString(dateFrom.value) || undefined,
-        date_to: toIsoDateString(dateTo.value) || undefined,
+        date_from: toIsoDateString(dateFilter.value) || undefined,
+        date_to: toIsoDateString(dateFilter.value) || undefined,
     };
-    if (statusFilter.value !== 'all') params.status = statusFilter.value;
-    if (approvalStatusFilter.value !== 'all') params.approval_status = approvalStatusFilter.value;
+    if (statusFilter.value === 'status_pending') params.status = 'pending';
+    if (statusFilter.value === 'status_approved') params.status = 'approved';
+    if (statusFilter.value === 'status_rejected') params.status = 'rejected';
+    if (statusFilter.value === 'approval_pending_difference') params.approval_status = 'pending_difference_approval';
+    if (statusFilter.value === 'approval_approved') params.approval_status = 'approved';
+    if (statusFilter.value === 'approval_difference_rejected') params.approval_status = 'difference_rejected';
     if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
         params.provider_id = isNaN(Number(providerFilter.value)) ? providerFilter.value : Number(providerFilter.value);
     }
@@ -260,16 +298,14 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
 
 // Watcher Ãºnico para filtros y bÃºsqueda
 watch(
-    [statusFilter, providerFilter, subgroupFilter, dateFrom, dateTo, searchQuery, approvalStatusFilter],
-    ([newStatus, newProvider, newSubgroup, newFrom, newTo, newSearch, newApproval], [oldStatus, oldProvider, oldSubgroup, oldFrom, oldTo, oldSearch, oldApproval]) => {
+    [statusFilter, providerFilter, subgroupFilter, dateFilter, searchQuery],
+    ([newStatus, newProvider, newSubgroup, newDate, newSearch], [oldStatus, oldProvider, oldSubgroup, oldDate, oldSearch]) => {
         if (
             newStatus !== oldStatus ||
             newProvider !== oldProvider ||
             newSubgroup !== oldSubgroup ||
-            newFrom !== oldFrom ||
-            newTo !== oldTo ||
-            newSearch !== oldSearch ||
-            newApproval !== oldApproval
+            newDate !== oldDate ||
+            newSearch !== oldSearch
         ) {
             // Solo cambia la página, el watcher de currentPage hará el fetch
             if (currentPage.value !== 1) {
@@ -529,12 +565,7 @@ async function handleDifferenceDecision() {
                     <SelectField
                         v-model="statusFilter"
                         label=""
-                        :options="[
-                            { id: 'all', name: 'Todos los estados' },
-                            { id: 'pending', name: 'Pendiente' },
-                            { id: 'approved', name: 'Aprobado' },
-                            { id: 'rejected', name: 'Rechazado' },
-                        ]"
+                        :options="statusOptions"
                         :button-class="statusButtonClasses"
                     />
                 </FilterField>
@@ -557,23 +588,8 @@ async function handleDifferenceDecision() {
                         :button-class="subgroupButtonClasses"
                     />
                 </FilterField>
-                <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
-                    <DateField v-model="dateFrom" placeholder="Desde" />
-                </FilterField>
-                <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
-                    <DateField v-model="dateTo" placeholder="Hasta" />
-                </FilterField>
-                <FilterField label="Diferencia" :active="approvalStatusFilter !== 'all'" class="min-w-[180px]">
-                    <SelectField
-                        v-model="approvalStatusFilter"
-                        label=""
-                        :options="[
-                            { id: 'all', name: 'Todas' },
-                            { id: 'pending_difference_approval', name: 'Aprobación pendiente' },
-                            { id: 'approved', name: 'Diferencia aprobada' },
-                            { id: 'difference_rejected', name: 'Diferencia rechazada' },
-                        ]"
-                    />
+                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
+                    <DateField v-model="dateFilter" placeholder="Fecha" />
                 </FilterField>
             </FilterBar>
             <div class="relative overflow-auto rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
@@ -628,17 +644,13 @@ async function handleDifferenceDecision() {
                                     </button>
                                     <EditButton
                                         :onClick="() => {
-                                            if (invoice.approval_status === 'approved') {
-                                                showError('No se puede editar una factura aprobada o recibida.');
+                                            if (isInvoiceLocked(invoice)) {
+                                                showError('No se puede editar una factura aprobada, rechazada o con diferencia rechazada.');
                                                 return;
                                             }
                                             openDialogWithPreparation('edit', invoice);
                                         }"
-                                        :class="
-                                            invoice.approval_status === 'approved'
-                                                ? 'opacity-40 cursor-not-allowed pointer-events-none'
-                                                : ''
-                                        "
+                                        :class="isInvoiceLocked(invoice) ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''"
                                     />
                                     <!-- Botón de aprobación de diferencia: visible solo cuando hay diferencia pendiente -->
                                     <button
@@ -653,20 +665,14 @@ async function handleDifferenceDecision() {
                                     <!-- Mostrar siempre el botón; si está aprobado se muestra deshabilitado visualmente
                                          y al hacer clic se muestra un mensaje en vez de intentar eliminar -->
                                     <DeleteButton
-                                        :onClick="
-                                            () => {
-                                                if (invoice.status === 'received' || invoice.approval_status === 'approved') {
-                                                    showError('No se puede eliminar una factura aprobada o recibida.');
-                                                } else {
-                                                    confirmDeleteInvoice(invoice);
-                                                }
+                                        :onClick="() => {
+                                            if (isInvoiceDeleteLocked(invoice)) {
+                                                showError('No se puede eliminar una factura aprobada, rechazada, recibida o con diferencia rechazada.');
+                                            } else {
+                                                confirmDeleteInvoice(invoice);
                                             }
-                                        "
-                                        :customClass="
-                                            invoice.status === 'received' || invoice.approval_status === 'approved'
-                                                ? 'opacity-60 cursor-not-allowed'
-                                                : ''
-                                        "
+                                        }"
+                                        :customClass="isInvoiceDeleteLocked(invoice) ? 'opacity-60 cursor-not-allowed' : ''"
                                     />
                                     <DropdownMenu>
                                         <DropdownMenuTrigger as-child>
@@ -686,10 +692,18 @@ async function handleDifferenceDecision() {
                                             <DropdownMenuItem class="cursor-pointer gap-2" @select="handlePrintAction(invoice, $event)">
                                                 <Printer class="h-4 w-4" /> Imprimir
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem class="cursor-pointer gap-2" @select="handleReceptionAction(invoice, $event)">
+                                            <DropdownMenuItem
+                                                v-if="invoice.status === 'pending_receipt' || invoice.status === 'approved' || invoice.status === 'rejected'"
+                                                class="cursor-pointer gap-2"
+                                                @select="handleReceptionAction(invoice, $event)"
+                                            >
                                                 <Package class="h-4 w-4" /> Ir a recepción
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem class="cursor-pointer gap-2" @select="openAssociatedNotesDialog(invoice, $event)">
+                                            <DropdownMenuItem
+                                                v-if="invoiceHasNotes(invoice)"
+                                                class="cursor-pointer gap-2"
+                                                @select="openAssociatedNotesDialog(invoice, $event)"
+                                            >
                                                 <Eye class="h-4 w-4" /> Ver notas crédito/débito
                                             </DropdownMenuItem>
                                             <DropdownMenuItem

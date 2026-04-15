@@ -28,18 +28,16 @@ const breadcrumbs = [{ title: 'Solicitud de compra', href: '/solicitudes-compra'
 const requests = ref<PurchaseRequest[]>([]);
 const searchQuery = ref('');
 const statusFilter = ref('all');
-const providerFilter = ref('');
-const dateFrom = ref('');
-const dateTo = ref('');
+// Filtro de proveedor eliminado
+const dateFilter = ref('');
 const isLoading = ref(false);
 
 const DEFAULT_STATUS_FILTER = 'all';
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
-const isProviderFilterActive = computed(() => providerFilter.value.trim().length > 0);
-const isDateFromActive = computed(() => Boolean(dateFrom.value));
-const isDateToActive = computed(() => Boolean(dateTo.value));
+// Filtro de proveedor eliminado
+const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const { successMessage, errorMessage, errorType, clearSuccess, clearError, showError, showWarning } = useAlertStack();
@@ -286,9 +284,11 @@ async function fetchRequests() {
     const params: Record<string, unknown> = {};
     if (searchQuery.value.trim()) params.search = searchQuery.value.trim();
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
-    if (providerFilter.value.trim()) params.provider_name = providerFilter.value.trim();
-    if (dateFrom.value) params.date_from = dateFrom.value;
-    if (dateTo.value) params.date_to = dateTo.value;
+    // Filtro de proveedor eliminado
+    if (dateFilter.value) {
+        params.date_from = dateFilter.value;
+        params.date_to = dateFilter.value;
+    }
 
     try {
         const response = await axios.get('/gastos/solicitudes-compra/data', { params });
@@ -318,7 +318,8 @@ async function fetchRequests() {
     }
 }
 
-watch([statusFilter, providerFilter, dateFrom, dateTo], () => {
+
+watch([statusFilter, dateFilter], () => {
     fetchRequests();
 });
 
@@ -371,15 +372,10 @@ onMounted(() => {
                         :button-class="statusButtonClasses"
                     />
                 </FilterField>
-                <FilterField label="Proveedor" :active="isProviderFilterActive" class="min-w-[180px]">
-                    <Input v-model="providerFilter" placeholder="Nombre del proveedor" class="h-10 w-full" />
-                </FilterField>
-                <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
-                    <InputDate v-model="dateFrom" placeholder="Desde" />
-                </FilterField>
-                <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
-                    <InputDate v-model="dateTo" placeholder="Hasta" />
-                </FilterField>
+                <!-- Filtro de proveedor eliminado -->
+<FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
+    <InputDate v-model="dateFilter" placeholder="Fecha" :clearable="true" :show-today="true" />
+</FilterField>
             </FilterBar>
 
             <div class="relative overflow-auto rounded-xl border border-sidebar-border/70">

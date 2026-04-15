@@ -48,8 +48,7 @@ const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 // NUEVOS FILTROS
 const statusFilter = ref('all');
 const providerFilter = ref('all');
-const dateFrom = ref<string | null>(null);
-const dateTo = ref<string | null>(null);
+const dateFilter = ref<string | null>(null);
 const providers = ref<{ id: number; full_name: string }[]>([]);
 
 const DEFAULT_STATUS_FILTER = 'all';
@@ -58,8 +57,7 @@ const DEFAULT_PROVIDER_FILTER = 'all';
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
-const isDateFromActive = computed(() => Boolean(dateFrom.value));
-const isDateToActive = computed(() => Boolean(dateTo.value));
+const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
@@ -189,8 +187,8 @@ async function fetchOrders(page = 1, search = '') {
         page,
         per_page: itemsPerPage,
         search,
-        date_from: dateFrom.value || undefined,
-        date_to: dateTo.value || undefined,
+        date_from: dateFilter.value || undefined,
+        date_to: dateFilter.value || undefined,
     };
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
     if (providerFilter.value !== 'all') params.provider_id = providerFilter.value;
@@ -201,8 +199,7 @@ async function fetchOrders(page = 1, search = '') {
 }
 
 // Actualiza los filtros y la tabla correctamente
-watch([statusFilter, providerFilter, dateFrom, dateTo], () => {
-    // Reinicia la página a 1 cada vez que cambian los filtros
+watch([statusFilter, providerFilter, dateFilter], () => {
     currentPage.value = 1;
     fetchOrders(1, searchQuery.value);
 });
@@ -345,22 +342,9 @@ function handleDialogError(message?: string) {
                         :button-class="providerButtonClasses"
                     />
                 </FilterField>
-                <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
-                    <div class="flex items-center gap-2">
-                        <DatePickerField v-model="dateFrom" label="" placeholder-text="Desde" class="min-w-0 flex-1" />
-                        <Button v-if="isDateFromActive" type="button" variant="ghost" size="sm" class="h-10 px-2 text-xs" @click="dateFrom = null">
-                            Borrar
-                        </Button>
-                    </div>
-                </FilterField>
-                <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
-                    <div class="flex items-center gap-2">
-                        <DatePickerField v-model="dateTo" label="" placeholder-text="Hasta" class="min-w-0 flex-1" />
-                        <Button v-if="isDateToActive" type="button" variant="ghost" size="sm" class="h-10 px-2 text-xs" @click="dateTo = null">
-                            Borrar
-                        </Button>
-                    </div>
-                </FilterField>
+<FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
+    <DatePickerField v-model="dateFilter" label="" placeholder-text="Fecha" :clearable="true" :show-today="true" />
+</FilterField>
             </FilterBar>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>

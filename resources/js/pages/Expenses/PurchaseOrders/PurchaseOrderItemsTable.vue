@@ -177,8 +177,8 @@ function buildItemDialogForm(rowIdx: number): Partial<Item> {
         baseForm.description = description;
     }
 
-    if (suggestedImagePath) {
-        baseForm.img = suggestedImagePath;
+    if (suggestedItem.image_url) {
+        baseForm.img_url = suggestedItem.image_url;
     }
 
     return baseForm;
@@ -251,6 +251,19 @@ async function handleItemDialogSaved(mode: 'create' | 'edit') {
     setTaxFromItem(targetItem);
     calcTotals(targetItem);
     emit('update:items', localItems.value);
+
+    // Esperar a que el watcher de item_id ejecute setDescriptionFromItem (catálogo)
+    await nextTick();
+
+    // Pre-llenar descripción de la fila con la de la solicitud si aún está vacía
+    if (!targetItem.description?.trim() && shouldPrefillItemDialogFromRequest.value) {
+        const suggestedItem = getSuggestedItemForRow(rowIdx);
+        const solicitudDescription = typeof suggestedItem?.description === 'string' ? suggestedItem.description.trim() : '';
+        if (solicitudDescription) {
+            targetItem.description = solicitudDescription;
+            emit('update:items', localItems.value);
+        }
+    }
 }
 
 async function handleTaxDialogSubmit(formData: TaxDialogForm) {
@@ -609,6 +622,14 @@ function selectSuggestedItemInRow(rowIdx: number) {
     emit('update:items', localItems.value);
 }
 
+function openCreateItemDialogForRow(rowIdx: number) {
+    if (hasPurchaseRequestContext.value) {
+        openItemDialogFromRequest(rowIdx);
+    } else {
+        openItemDialog(rowIdx, false);
+    }
+}
+
 defineExpose({ addItem, validateFabricFields, openItemDialog });
 </script>
 
@@ -699,29 +720,45 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                                             placeholder="Selecciona item"
                                             class="w-full"
                                             :disabled="isReadOnly"
+                                            :action-label="!getSuggestedItemForRow(idx) && !isReadOnly ? '+ Nuevo ítem' : undefined"
+                                            :action-disabled="isReadOnly"
+                                            @action="openItemDialog(idx, false)"
+                                            v-if="!isReadOnly"
+                                        />
+                                        <SelectField
+                                            v-else
+                                            v-model="item.item_id"
+                                            :options="itemOptions"
+                                            label=""
+                                            placeholder="Selecciona item"
+                                            class="w-full"
+                                            :disabled="isReadOnly"
                                         />
                                     </div>
-
-                                    <button
-                                        v-if="!isReadOnly && shouldShowRequestCreateAction(item, idx) && !item.item_id"
-                                        type="button"
-                                        class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-primary transition hover:text-primary/80"
-                                        @click.stop="openItemDialogFromRequest(idx)"
-                                    >
-                                        <PlusCircle class="h-3.5 w-3.5" />
-                                    </button>
                                 </div>
 
-                                <button
+                                <div
                                     v-if="!isReadOnly && shouldShowRequestCreateAction(item, idx)"
-                                    type="button"
-                                    class="mt-1 flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-xs text-muted-foreground transition hover:bg-accent hover:text-accent-foreground"
-                                    title="Seleccionar este ítem en la fila"
-                                    @click.stop="selectSuggestedItemInRow(idx)"
+                                    class="mt-1 flex items-center justify-between gap-2"
                                 >
-                                    <Lightbulb class="h-3.5 w-3.5 shrink-0 text-amber-400" />
-                                    <span class="min-w-0 flex-1 truncate">{{ getSuggestedItemLabel(idx) }}</span>
-                                </button>
+                                    <button
+                                        type="button"
+                                        class="flex min-w-0 flex-1 items-center gap-1 rounded px-1 py-0.5 text-left text-xs text-muted-foreground transition hover:bg-accent hover:text-accent-foreground"
+                                        title="Seleccionar este ítem en la fila"
+                                        @click.stop="selectSuggestedItemInRow(idx)"
+                                    >
+                                        <Lightbulb class="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                                        <span class="min-w-0 flex-1 truncate">{{ getSuggestedItemLabel(idx) }}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-primary transition hover:bg-accent hover:text-accent-foreground"
+                                        title="Nuevo ítem"
+                                        @click.stop="openCreateItemDialogForRow(idx)"
+                                    >
+                                        <PlusCircle class="h-4 w-4" />
+                                    </button>
+                                </div>
                             </div>
                         </TableCell>
                         <TableCell class="p-1 text-left align-top" style="width: 120px">

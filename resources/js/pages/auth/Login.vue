@@ -62,6 +62,7 @@ const submit = () => {
                         <div class="field-wrap">
                             <input
                                 id="email"
+                                dusk="campo-email"
                                 v-model="form.email"
                                 type="email"
                                 class="field-input"
@@ -82,6 +83,7 @@ const submit = () => {
                         <div class="field-wrap">
                             <input
                                 id="password"
+                                dusk="campo-password"
                                 v-model="form.password"
                                 :type="showPassword ? 'text' : 'password'"
                                 class="field-input"
@@ -112,7 +114,7 @@ const submit = () => {
                         <a :href="route('password.request')" class="forgot"> ¿Olvidaste tu contraseña? </a>
                     </div>
 
-                    <button type="submit" class="btn-submit" :disabled="form.processing">Iniciar sesión</button>
+                    <button type="submit" dusk="btn-submit" class="btn-submit" :disabled="form.processing">Iniciar sesión</button>
                 </form>
             </div>
 

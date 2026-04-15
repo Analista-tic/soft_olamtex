@@ -94,6 +94,10 @@ class PurchaseInvoiceController extends PurchaseDocumentController
     public function store(Request $request)
     {
         $payload = $this->validateInvoiceRequest($request);
+        $this->validateOrderFabricCompatibility(
+            isset($payload['parent_document_id']) ? (int) $payload['parent_document_id'] : null,
+            false
+        );
         $items = $payload['items'] ?? [];
         $withholdings = $payload['withholdings'] ?? [];
         $invoice = $this->invoiceService->createInvoice($payload, $items, $withholdings);

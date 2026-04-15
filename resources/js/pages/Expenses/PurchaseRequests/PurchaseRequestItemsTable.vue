@@ -4,17 +4,17 @@ import HelpTooltip from '@/components/HelpTooltip.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { PurchaseRequestItem } from '@/domain/Expenses';
 import type { Item } from '@/domain/MasterData';
 import axios from 'axios';
+import type { PurchaseRequestItem } from '@/domain/Expenses';
 import { ImagePlus, X } from 'lucide-vue-next';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const props = defineProps<{ items: PurchaseRequestItem[]; readonly?: boolean }>();
 const emit = defineEmits(['update:items']);
 
-const localItems = ref<PurchaseRequestItem[]>([]);
 const catalogItems = ref<Item[]>([]);
+const localItems = ref<PurchaseRequestItem[]>([]);
 const fileInputRefs = ref<Record<string, HTMLInputElement | null>>({});
 const persistedImageUrls = ref<Record<string, string | null>>({});
 const isSyncingItems = ref(false);
@@ -47,6 +47,11 @@ function calcTotals(item: PurchaseRequestItem) {
     item.total = roundCurrency(price * quantity);
 }
 
+async function fetchItems() {
+    const res = await axios.get('/item/data', { params: { per_page: 1000 } });
+    catalogItems.value = res.data.data;
+}
+
 function normalizeItem(item: Partial<PurchaseRequestItem>): PurchaseRequestItem {
     const uid = typeof item.uid === 'string' && item.uid.trim() ? item.uid.trim() : generateItemUid();
     const imageUrl = typeof item.image_url === 'string' && item.image_url.trim() ? item.image_url : null;
@@ -74,8 +79,10 @@ function normalizeItem(item: Partial<PurchaseRequestItem>): PurchaseRequestItem 
     };
 
     const match = catalogItems.value.find((entry) => Number(entry.id) === Number(normalized.item_id));
-    if (match && !normalized.name) {
-        normalized.name = match.name || '';
+    if (!normalized.name) {
+        if (match) {
+            normalized.name = match.name || '';
+        }
     }
 
     calcTotals(normalized);
@@ -229,11 +236,6 @@ function syncLocalItemsFromProps(items: PurchaseRequestItem[]) {
     isSyncingItems.value = true;
     localItems.value = normalizedItems;
     isSyncingItems.value = false;
-}
-
-async function fetchItems() {
-    const res = await axios.get('/item/data', { params: { per_page: 1000 } });
-    catalogItems.value = res.data.data;
 }
 
 function addItem() {

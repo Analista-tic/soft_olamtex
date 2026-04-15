@@ -5,7 +5,7 @@ import FilterField from '@/components/FilterField.vue';
 import InputDate from '@/components/InputDate.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -16,7 +16,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import type { PageProps as InertiaPageProps } from '@inertiajs/core';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { ArrowLeft, Check, Eye, Package2, Search, X } from 'lucide-vue-next';
+import { AlertTriangle, ArrowLeft, Check, Eye, Package2, Search, X } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import FabricRollDialog from './FabricRollDialog.vue';
 
@@ -308,7 +308,10 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         params.subgroup_id = isNaN(Number(subgroupFilter.value)) ? subgroupFilter.value : Number(subgroupFilter.value);
     }
     try {
-        const response = await axios.get('/gastos/facturas-compra/data', { params });
+        const endpoint = isTelasList.value
+            ? '/gastos/facturas-compra-tela/data'
+            : '/gastos/facturas-compra/data';
+        const response = await axios.get(endpoint, { params });
         invoices.value = Array.isArray(response.data.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
         totalItems.value = typeof response.data.total === 'number' ? response.data.total : 0;
         refreshBlockersForList();
@@ -548,6 +551,10 @@ watch(
 );
 
 function onFabricRollSuccess() {
+    if (selectedInvoice.value && selectedInvoice.value.id && typeof selectedInvoice.value.id === 'number') {
+        fetchSpecificInvoice(selectedInvoice.value.id);
+    }
+    return;
     const invoiceId = selectedInvoice.value?.id;
     const itemName = selectedItem.value?.item?.name || selectedItem.value?.article?.name || 'el ítem';
     if (invoiceId) {
@@ -564,7 +571,7 @@ function onFabricRollSuccess() {
 </script>
 
 <template>
-    <Head :title="specificInvoiceId ? `Recepción - Factura #${specificInvoiceId}` : 'Recepción'" />
+    <Head :title="showInvoiceDetail ? `Recepción - Factura N° ${selectedInvoice?.document_number || specificInvoiceId}` : 'Recepción'" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div ref="pageContentRef" class="flex h-full flex-col gap-4 rounded-xl p-3">
             <AlertStack
@@ -583,7 +590,7 @@ function onFabricRollSuccess() {
                         Volver a la lista
                     </Button>
                     <h1 class="text-base font-bold">
-                        {{ showInvoiceDetail ? `Recepción - Factura #${selectedInvoice?.id}` : 'Recepción' }}
+                        {{ showInvoiceDetail ? `Recepción - Factura N° ${selectedInvoice?.document_number || selectedInvoice?.id}` : 'Recepción' }}
                     </h1>
                 </div>
                 <div class="text-xs text-muted-foreground">
@@ -656,7 +663,7 @@ function onFabricRollSuccess() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>#Factura</TableHead>
+                                <TableHead>N° Factura</TableHead>
                                 <TableHead>Proveedor</TableHead>
                                 <TableHead>Fecha</TableHead>
                                 <TableHead>Total</TableHead>
@@ -667,7 +674,7 @@ function onFabricRollSuccess() {
                         </TableHeader>
                         <TableBody>
                             <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
-                                <TableCell class="font-medium">{{ invoice.id }}</TableCell>
+                                <TableCell class="font-medium">{{ invoice.document_number || invoice.id }}</TableCell>
                                 <TableCell>{{ getInvoiceContact(invoice)?.full_name ?? '—' }}</TableCell>
                                 <TableCell>{{ formatInvoiceDate(invoice.date) }}</TableCell>
                                 <TableCell class="font-medium">
@@ -685,7 +692,7 @@ function onFabricRollSuccess() {
                                         {{ getStatusText(invoice.status || 'pending') }}
                                     </span>
                                 </TableCell>
-                                <TableCell>{{ (invoice.items || []).length }} item(s)</TableCell>
+                                <TableCell>{{ (invoice.items || []).length }} {{ (invoice.items || []).length === 1 ? 'item' : 'items' }}</TableCell>
                                 <TableCell class="flex justify-center gap-1">
                                     <button
                                         class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-primary"
@@ -740,10 +747,10 @@ function onFabricRollSuccess() {
                         </div>
                         <div>
                             <p class="text-sm font-medium text-muted-foreground">Fecha de entrega</p>
-                            <p class="text-sm">{{ selectedInvoice.delivery_date }}</p>
+                            <p class="text-sm">{{ formatInvoiceDate(selectedInvoice.delivery_date) }}</p>
                         </div>
                         <div>
-                            <p class="text-sm font-medium text-muted-foreground"># Factura proveedor</p>
+                            <p class="text-sm font-medium text-muted-foreground">N° Factura proveedor</p>
                             <p class="text-sm">{{ selectedInvoice.supplier_invoice_number || 'N/A' }}</p>
                         </div>
                         <div>
@@ -757,42 +764,41 @@ function onFabricRollSuccess() {
                     <!-- Header de empresa -->
                     <div class="grid grid-cols-3 items-start gap-4 rounded-lg border border-border bg-card p-3">
                         <div>
-                            <div class="text-sm font-semibold">Factura #{{ selectedInvoice.id }}</div>
-                            <p class="text-sm text-muted-foreground">{{ selectedInvoice.supplier_invoice_number || 'Sin número de proveedor' }}</p>
+                            <div class="text-sm font-semibold">Factura N° {{ selectedInvoice.document_number || selectedInvoice.id }}</div>
+                            <div class="mt-2 space-y-1">
+                                <div>
+                                    <p class="text-xs font-medium text-muted-foreground">Proveedor</p>
+                                    <p class="text-sm">{{ getInvoiceContact(selectedInvoice)?.full_name ?? 'N/A' }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-medium text-muted-foreground">Número de identificación</p>
+                                    <p class="text-sm">{{ getInvoiceContact(selectedInvoice)?.id_number ?? 'N/A' }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-medium text-muted-foreground">Número de contacto</p>
+                                    <p class="text-sm">{{ getInvoiceContact(selectedInvoice)?.phone ?? 'N/A' }}</p>
+                                </div>
+                            </div>
                         </div>
                         <div class="relative flex h-full items-center justify-center rounded p-2">
                             <img :src="logoUrl" alt="Logotipo de la empresa" class="max-h-24 w-auto max-w-[160px] object-contain" />
                         </div>
                         <div>
                             <div class="text-sm font-semibold">Datos empresa</div>
-                            <p class="text-sm">
-                                Razón Social:
-                                <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
-                            </p>
-                            <p class="text-sm">
-                                NIT:
-                                <span class="font-normal">{{ company?.nit || 'Sin NIT' }}</span>
-                            </p>
-                            <p class="text-sm">
-                                Correo:
-                                <span class="font-normal">{{ company?.email || 'Sin correo' }}</span>
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Información del proveedor -->
-                    <div class="grid grid-cols-3 gap-4 rounded-lg bg-muted/40 p-3">
-                        <div>
-                            <p class="text-sm font-medium text-muted-foreground">Proveedor</p>
-                            <p class="text-sm">{{ getInvoiceContact(selectedInvoice)?.full_name ?? 'N/A' }}</p>
-                        </div>
-                        <div>
-                            <p class="text-sm font-medium text-muted-foreground">Número de identificación</p>
-                            <p class="text-sm">{{ getInvoiceContact(selectedInvoice)?.id_number ?? 'N/A' }}</p>
-                        </div>
-                        <div>
-                            <p class="text-sm font-medium text-muted-foreground">Número de contacto</p>
-                            <p class="text-sm">{{ getInvoiceContact(selectedInvoice)?.phone ?? 'N/A' }}</p>
+                            <div class="mt-2 space-y-1">
+                                <div>
+                                    <p class="text-xs font-medium text-muted-foreground">Razón Social</p>
+                                    <p class="text-sm">{{ company?.name || 'Sin nombre' }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-medium text-muted-foreground">NIT</p>
+                                    <p class="text-sm">{{ company?.nit || 'Sin NIT' }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-medium text-muted-foreground">Correo</p>
+                                    <p class="text-sm">{{ company?.email || 'Sin correo' }}</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -813,11 +819,11 @@ function onFabricRollSuccess() {
                                         <TableHead class="py-2">Código</TableHead>
                                         <TableHead class="py-2">Descripción</TableHead>
                                         <TableHead class="py-2">Proveedor</TableHead>
-                                        <TableHead class="py-2">Cantidad</TableHead>
+                                        <TableHead class="py-2">{{ isTelasList ? 'Longitud' : 'Cantidad' }}</TableHead>
                                         <TableHead class="py-2">Precio</TableHead>
                                         <TableHead class="py-2">IVA</TableHead>
                                         <TableHead class="py-2">Total</TableHead>
-                                        <TableHead class="py-2">Acciones</TableHead>
+                                        <TableHead v-if="isTelasList" class="w-24 py-2 text-center">Acciones</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -827,7 +833,7 @@ function onFabricRollSuccess() {
                                         <TableCell class="py-2">{{ item.description || '-' }}</TableCell>
                                         <TableCell class="py-2">{{ item.supplier_code || '-' }}</TableCell>
                                         <TableCell class="py-2">{{
-                                            `${item.quantity} ${item.item && 'unit' in item.item ? item.item.unit : 'mts'}`
+                                            `${Number(item.quantity).toFixed(2)} ${item.item && 'unit' in item.item ? item.item.unit : 'mts'}`
                                         }}</TableCell>
                                         <TableCell class="py-2">
                                             {{
@@ -859,10 +865,10 @@ function onFabricRollSuccess() {
                                                 })
                                             }}
                                         </TableCell>
-                                        <TableCell class="py-2">
+                                        <TableCell v-if="isTelasList" class="py-2 text-center">
                                             <template v-if="isFabricItem(item)">
                                                 <button
-                                                    class="flex h-full items-center justify-center text-muted-foreground transition-colors duration-200"
+                                                    class="mx-auto flex h-full items-center justify-center text-muted-foreground transition-colors duration-200"
                                                     :class="
                                                         isInvoiceReceptionApproved(selectedInvoice)
                                                             ? 'cursor-not-allowed opacity-50'
@@ -1127,14 +1133,25 @@ function onFabricRollSuccess() {
 
             <!-- Diálogo de confirmación para rechazar recepción -->
             <Dialog v-model:open="isRejectDialogOpen">
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>¿Está seguro de rechazar esta recepción?</DialogTitle>
-                        <DialogDescription> Esta acción marcará la recepción como rechazada y no se podrá deshacer fácilmente. </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter class="mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
-                        <Button variant="outline" class="w-full md:w-auto" @click="isRejectDialogOpen = false"> Cancelar </Button>
-                        <Button variant="destructive" class="w-full md:w-auto" @click="confirmRejectReception">
+                <DialogContent class="sm:max-w-[440px] p-6">
+                    <div class="flex items-start pr-8">
+                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10 text-destructive mt-1 mr-4 shrink-0">
+                            <AlertTriangle class="h-5 w-5" />
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <DialogHeader class="p-0 text-left">
+                                <DialogTitle class="text-base font-semibold">Rechazar recepción</DialogTitle>
+                            </DialogHeader>
+                            <DialogDescription class="mt-1 text-sm text-muted-foreground">
+                                Esta acción marcará la recepción como rechazada y no se podrá deshacer fácilmente.
+                            </DialogDescription>
+                        </div>
+                    </div>
+                    <DialogFooter class="mt-6 gap-2 sm:justify-end">
+                        <DialogClose as-child>
+                            <Button variant="outline" class="rounded-full px-4 py-2">Cancelar</Button>
+                        </DialogClose>
+                        <Button variant="destructive" class="rounded-full px-4 py-2 flex items-center gap-2" @click="confirmRejectReception">
                             <X class="h-4 w-4" /> Rechazar
                         </Button>
                     </DialogFooter>

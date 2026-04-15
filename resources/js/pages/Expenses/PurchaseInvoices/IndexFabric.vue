@@ -3,6 +3,7 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import InputDate from '@/components/InputDate.vue';
@@ -17,8 +18,9 @@ import type { PurchaseInvoice } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Eye, Mail, MoreVertical, Package, PlusCircle, Printer, Search } from 'lucide-vue-next';
+import { Eye, Mail, MoreVertical, Package, PlusCircle, Printer, Search, ShieldCheck } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
+import InvoiceDifferenceApprovalDialog from './InvoiceDifferenceApprovalDialog.vue';
 import PurchaseInvoiceDialogTelas from './PurchaseInvoiceDialogTelas.vue';
 import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
 
@@ -39,13 +41,14 @@ const totalItems = ref(0);
 const isPrintDialogOpen = ref(false);
 const invoiceToPrint = ref<PurchaseInvoice | null>(null);
 const isSendingMail = ref(false);
+const isApprovalDialogOpen = ref(false);
+const invoiceForApproval = ref<PurchaseInvoice | null>(null);
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError, clearAlerts } = useAlertStack();
 
 const statusFilter = ref('all');
 const providerFilter = ref('all');
 const subgroupFilter = ref('all');
-const dateFrom = ref('');
-const dateTo = ref('');
+const dateFilter = ref('');
 const providers = ref<{ id: number; full_name: string }[]>([]);
 const subgroups = ref<{ id: number; name: string }[]>([]);
 const facturasFabricRoute = '/gastos/facturas-compra-tela';
@@ -58,12 +61,21 @@ const DEFAULT_STATUS_FILTER = 'all';
 const DEFAULT_PROVIDER_FILTER = 'all';
 const DEFAULT_SUBGROUP_FILTER = 'all';
 
+const statusOptions = [
+    { id: 'all', name: 'Todos los estados' },
+    { id: 'status_pending', name: 'Pendiente' },
+    { id: 'status_approved', name: 'Aprobado' },
+    { id: 'status_rejected', name: 'Rechazado' },
+    { id: 'approval_pending_difference', name: 'Aprobación pendiente' },
+    { id: 'approval_approved', name: 'Diferencia aprobada' },
+    { id: 'approval_difference_rejected', name: 'Diferencia rechazada' },
+];
+
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
 const isSubgroupFilterActive = computed(() => subgroupFilter.value !== DEFAULT_SUBGROUP_FILTER);
-const isDateFromActive = computed(() => Boolean(dateFrom.value));
-const isDateToActive = computed(() => Boolean(dateTo.value));
+const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
@@ -193,15 +205,50 @@ async function deleteInvoice(): Promise<void> {
     }
 }
 
+function isInvoiceLocked(invoice: PurchaseInvoice): boolean {
+    return (
+        invoice.status === 'approved' ||
+        invoice.status === 'rejected' ||
+        invoice.approval_status === 'approved' ||
+        invoice.approval_status === 'difference_rejected'
+    );
+}
+
+function isInvoiceDeleteLocked(invoice: PurchaseInvoice): boolean {
+    return (
+        invoice.status === 'approved' ||
+        invoice.status === 'rejected' ||
+        invoice.status === 'received' ||
+        invoice.approval_status === 'approved' ||
+        invoice.approval_status === 'difference_rejected'
+    );
+}
+
+function openApprovalDialog(invoice: PurchaseInvoice) {
+    invoiceForApproval.value = invoice;
+    isApprovalDialogOpen.value = true;
+}
+
+async function handleDifferenceDecision() {
+    isApprovalDialogOpen.value = false;
+    showSuccess('Decisión registrada correctamente.');
+    await fetchInvoices(currentPage.value, searchQuery.value);
+}
+
 async function fetchInvoices(page = 1, search = ''): Promise<void> {
     const params: Record<string, any> = {
         page,
         per_page: itemsPerPage,
         search,
-        date_from: dateFrom.value,
-        date_to: dateTo.value,
+        date_from: dateFilter.value || undefined,
+        date_to: dateFilter.value || undefined,
     };
-    if (statusFilter.value !== 'all') params.status = statusFilter.value;
+    if (statusFilter.value === 'status_pending') params.status = 'pending';
+    else if (statusFilter.value === 'status_approved') params.status = 'approved';
+    else if (statusFilter.value === 'status_rejected') params.status = 'rejected';
+    else if (statusFilter.value === 'approval_pending_difference') params.approval_status = 'pending_difference_approval';
+    else if (statusFilter.value === 'approval_approved') params.approval_status = 'approved';
+    else if (statusFilter.value === 'approval_difference_rejected') params.approval_status = 'difference_rejected';
     if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
         params.provider_id = isNaN(Number(providerFilter.value)) ? providerFilter.value : Number(providerFilter.value);
     }
@@ -221,14 +268,13 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
 
 // Watcher único para filtros y búsqueda
 watch(
-    [statusFilter, providerFilter, subgroupFilter, dateFrom, dateTo, searchQuery],
-    ([newStatus, newProvider, newSubgroup, newFrom, newTo, newSearch], [oldStatus, oldProvider, oldSubgroup, oldFrom, oldTo, oldSearch]) => {
+    [statusFilter, providerFilter, subgroupFilter, dateFilter, searchQuery],
+    ([newStatus, newProvider, newSubgroup, newDate, newSearch], [oldStatus, oldProvider, oldSubgroup, oldDate, oldSearch]) => {
         if (
             newStatus !== oldStatus ||
             newProvider !== oldProvider ||
             newSubgroup !== oldSubgroup ||
-            newFrom !== oldFrom ||
-            newTo !== oldTo ||
+            newDate !== oldDate ||
             newSearch !== oldSearch
         ) {
             // Solo cambia la página, el watcher de currentPage hará el fetch
@@ -322,8 +368,7 @@ function handleDialogError(message?: string) {
                     <button
                         type="button"
                         class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                        :disabled="!invoices.length"
-                        @click="invoices.length && goToReception(invoices[0])"
+                        @click="router.visit(buildReceptionUrl())"
                     >
                         <Package class="h-4 w-4" />
                         Ver Recepciones
@@ -347,12 +392,7 @@ function handleDialogError(message?: string) {
                     <SelectField
                         v-model="statusFilter"
                         label=""
-                        :options="[
-                            { id: 'all', name: 'Todos los estados' },
-                            { id: 'pending', name: 'Pendiente' },
-                            { id: 'approved', name: 'Aprobado' },
-                            { id: 'rejected', name: 'Rechazado' },
-                        ]"
+                        :options="statusOptions"
                         :button-class="statusButtonClasses"
                     />
                 </FilterField>
@@ -375,12 +415,9 @@ function handleDialogError(message?: string) {
                         :button-class="subgroupButtonClasses"
                     />
                 </FilterField>
-                <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
-                    <InputDate v-model="dateFrom" placeholder="dd/mm/aaaa" />
-                </FilterField>
-                <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
-                    <InputDate v-model="dateTo" placeholder="dd/mm/aaaa" />
-                </FilterField>
+<FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
+    <InputDate v-model="dateFilter" placeholder="Fecha" :clearable="true" :show-today="true" />
+</FilterField>
             </FilterBar>
             <div class="relative overflow-auto rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>
@@ -407,39 +444,41 @@ function handleDialogError(message?: string) {
                             <TableCell>{{ formatCurrency(computeInvoiceTotal(invoice)) }}</TableCell>
                             <TableCell class="max-w-32 truncate text-start">{{ invoice.description || '-' }}</TableCell>
                             <TableCell>
-                                <span
-                                    v-if="invoice.status"
-                                    :class="[
-                                        'rounded-full px-2 py-1 text-xs font-medium',
-                                        invoice.status === 'pending_receipt'
-                                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-400'
-                                            : invoice.status === 'approved'
-                                              ? 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400'
-                                              : invoice.status === 'received'
-                                                ? 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400'
-                                                : invoice.status === 'rejected'
-                                                  ? 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400'
-                                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
-                                    ]"
-                                >
-                                    {{
-                                        invoice.status === 'pending_receipt'
-                                            ? 'Pendiente'
-                                            : invoice.status === 'approved'
-                                              ? 'Aprobado'
-                                              : invoice.status === 'received'
-                                                ? 'Recibida'
-                                                : invoice.status === 'rejected'
-                                                  ? 'Rechazada'
-                                                  : 'Sin estado'
-                                    }}
-                                </span>
-                                <span
+                                <TableStatusBadge
+                                    v-if="invoice.approval_status === 'pending_difference_approval'"
+                                    label="Aprobación pendiente"
+                                    tone="yellow"
+                                />
+                                <TableStatusBadge
+                                    v-else-if="invoice.approval_status === 'difference_rejected'"
+                                    label="Diferencia rechazada"
+                                    tone="red"
+                                />
+                                <TableStatusBadge
+                                    v-else-if="invoice.status === 'pending_receipt' || invoice.status === 'pending' || !invoice.status"
+                                    label="Pendiente"
+                                    tone="yellow"
+                                />
+                                <TableStatusBadge
+                                    v-else-if="invoice.status === 'received'"
+                                    label="Recibida"
+                                    tone="green"
+                                />
+                                <TableStatusBadge
+                                    v-else-if="invoice.status === 'approved'"
+                                    label="Aprobada"
+                                    tone="green"
+                                />
+                                <TableStatusBadge
+                                    v-else-if="invoice.status === 'rejected'"
+                                    label="Rechazada"
+                                    tone="red"
+                                />
+                                <TableStatusBadge
                                     v-else
-                                    class="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-800 dark:bg-gray-800 dark:text-gray-300"
-                                >
-                                    Pendiente
-                                </span>
+                                    label="Sin estado"
+                                    tone="gray"
+                                />
                             </TableCell>
                             <TableCell>
                                 <div class="flex flex-wrap justify-center gap-1">
@@ -450,12 +489,35 @@ function handleDialogError(message?: string) {
                                     >
                                         <Eye class="h-4 w-4" />
                                     </button>
-                                    <EditButton :onClick="() => openDialogWithPreparation('edit', invoice)" />
-                                    <!-- Mostrar siempre el botón; si está aprobado se muestra deshabilitado visualmente
-                                         y al hacer clic se muestra un mensaje en vez de intentar eliminar -->
+                                    <EditButton
+                                        :onClick="() => {
+                                            if (isInvoiceLocked(invoice)) {
+                                                showError('No se puede editar una factura aprobada, rechazada o con diferencia rechazada.');
+                                                return;
+                                            }
+                                            openDialogWithPreparation('edit', invoice);
+                                        }"
+                                        :class="isInvoiceLocked(invoice) ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''"
+                                    />
+                                    <!-- Botón de aprobación de diferencia: visible solo cuando hay diferencia pendiente -->
+                                    <button
+                                        v-if="invoice.approval_status === 'pending_difference_approval'"
+                                        type="button"
+                                        class="flex items-center transition-colors duration-200 text-yellow-600 hover:text-yellow-800"
+                                        title="Revisar diferencia — Aprobar o Rechazar"
+                                        @click="openApprovalDialog(invoice)"
+                                    >
+                                        <ShieldCheck class="h-4 w-4" />
+                                    </button>
                                     <DeleteButton
-                                        @click="invoice.status === 'received' ? showError('No se puede eliminar una factura que está recibida.') : confirmDeleteInvoice(invoice)"
-                                        :customClass="invoice.status === 'received' ? 'opacity-60 cursor-not-allowed' : ''"
+                                        :onClick="() => {
+                                            if (isInvoiceDeleteLocked(invoice)) {
+                                                showError('No se puede eliminar una factura aprobada, rechazada, recibida o con diferencia rechazada.');
+                                            } else {
+                                                confirmDeleteInvoice(invoice);
+                                            }
+                                        }"
+                                        :customClass="isInvoiceDeleteLocked(invoice) ? 'opacity-60 cursor-not-allowed' : ''"
                                     />
                                     <DropdownMenu>
                                         <DropdownMenuTrigger as-child>
@@ -512,6 +574,13 @@ function handleDialogError(message?: string) {
             cancel-text="Cancelar"
             :destructive="true"
             @confirm="deleteInvoice"
+        />
+        <InvoiceDifferenceApprovalDialog
+            v-model:open="isApprovalDialogOpen"
+            :invoice="invoiceForApproval"
+            base-route="/gastos/facturas-compra-tela"
+            @approved="handleDifferenceDecision"
+            @rejected="handleDifferenceDecision"
         />
     </AppLayout>
 </template>

@@ -14,6 +14,7 @@ import { computed, ref, watch } from 'vue';
 const props = defineProps<{
     open: boolean;
     invoice: Partial<PurchaseInvoice> | null;
+    baseRoute?: string;
 }>();
 
 const emit = defineEmits<{
@@ -74,8 +75,9 @@ async function handleApprove() {
     if (!props.invoice?.id) return;
     isSubmitting.value = true;
     errorMessage.value = '';
+    const route = props.baseRoute ?? '/gastos/facturas-compra';
     try {
-        const response = await axios.post(`/gastos/facturas-compra/${props.invoice.id}/aprobar-diferencia`, {
+        const response = await axios.post(`${route}/${props.invoice.id}/aprobar-diferencia`, {
             approval_notes: approvalNotes.value || null,
         });
         emit('approved', response.data.data);
@@ -96,8 +98,9 @@ async function handleReject() {
     }
     isSubmitting.value = true;
     errorMessage.value = '';
+    const route = props.baseRoute ?? '/gastos/facturas-compra';
     try {
-        const response = await axios.post(`/gastos/facturas-compra/${props.invoice.id}/rechazar-diferencia`, {
+        const response = await axios.post(`${route}/${props.invoice.id}/rechazar-diferencia`, {
             approval_notes: approvalNotes.value,
         });
         emit('rejected', response.data.data);

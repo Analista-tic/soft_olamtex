@@ -13,8 +13,8 @@ import Label from '@/components/ui/label/Label.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import type { Tax } from '@/domain/Finance';
-import type { Warehouse } from '@/domain/inventory';
 import type { Item } from '@/domain/MasterData';
+import type { Warehouse } from '@/domain/inventory';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 import axios from 'axios';
@@ -126,12 +126,10 @@ async function fetchTaxes() {
 
 async function fetchItems() {
     try {
-        const response = await axios.get('/item/data', {
-            params: { per_page: 1000, status: 1, item_type: 'product' },
-        });
-        items.value = response.data?.data ?? [];
+        const { data } = await axios.get('/item/data', { params: { per_page: 1000, status: 1, item_type: 'product' } });
+        items.value = Array.isArray(data?.data) ? data.data : [];
     } catch (e) {
-        console.error('Error cargando items', e);
+        console.error('Error cargando ítems', e);
         items.value = [];
     }
 }
@@ -567,7 +565,7 @@ async function handleSubmit() {
                                                 :options="itemSelectOptions"
                                                 label=""
                                                 :searchable="true"
-                                                placeholder="Selecciona"
+                                                placeholder="Buscar ítem..."
                                                 class="w-full"
                                             />
                                         </TableCell>

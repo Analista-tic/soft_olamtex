@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Expenses\Concerns;
 use App\Models\Expenses\PurchaseDocument;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 trait ValidatesPurchaseInvoiceRequest
 {
@@ -55,5 +56,43 @@ trait ValidatesPurchaseInvoiceRequest
         unset($validated['purchase_order_id']);
 
         return $validated;
+    }
+
+    /**
+     * Valida que la orden de compra vinculada sea compatible con el tipo de factura.
+     *
+     * @param  int|null  $parentDocumentId  ID de la orden (parent_document_id)
+     * @param  bool      $fabricOnly        true = factura de tela, false = factura normal
+     */
+    protected function validateOrderFabricCompatibility(?int $parentDocumentId, bool $fabricOnly): void
+    {
+        if ($parentDocumentId === null) {
+            return;
+        }
+
+        $order = PurchaseDocument::with('items.item.categorySubGroup')
+            ->where('id', $parentDocumentId)
+            ->where('document_type', PurchaseDocument::TYPE_ORDER)
+            ->first();
+
+        if (!$order) {
+            return;
+        }
+
+        $hasFabricItems = $order->items->contains(
+            fn ($item) => strtolower($item->item?->categorySubGroup?->name ?? '') === 'tela'
+        );
+
+        if ($fabricOnly && !$hasFabricItems) {
+            throw ValidationException::withMessages([
+                'purchase_order_id' => ['La orden seleccionada no contiene ítems de tela y no puede usarse en una Factura de Compra Tela.'],
+            ]);
+        }
+
+        if (!$fabricOnly && $hasFabricItems) {
+            throw ValidationException::withMessages([
+                'purchase_order_id' => ['La orden seleccionada contiene ítems de tela y no puede usarse en una Factura de Compra normal.'],
+            ]);
+        }
     }
 }

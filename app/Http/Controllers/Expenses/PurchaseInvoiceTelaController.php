@@ -6,6 +6,7 @@ use App\Http\Controllers\Expenses\Concerns\ValidatesPurchaseInvoiceRequest;
 use App\Models\Expenses\PurchaseDocument;
 use App\Services\Expenses\PurchaseDocumentInvoiceService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
 class PurchaseInvoiceTelaController extends PurchaseDocumentController
@@ -36,6 +37,10 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
     public function store(Request $request)
     {
         $payload = $this->validateInvoiceRequest($request);
+        $this->validateOrderFabricCompatibility(
+            isset($payload['parent_document_id']) ? (int) $payload['parent_document_id'] : null,
+            true
+        );
         $items = $payload['items'] ?? [];
         $withholdings = $payload['withholdings'] ?? [];
 
@@ -86,6 +91,60 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
 
     protected function buildFilters(Request $request): array
     {
-        return $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id', 'subgroup_id']);
+        return $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id', 'subgroup_id', 'approval_status']);
+    }
+
+    public function justify(Request $request, PurchaseDocument $purchaseInvoice)
+    {
+        $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
+
+        $validated = $request->validate([
+            'difference_reason' => 'required|string',
+            'difference_evidence_path' => 'nullable|string',
+            'difference_notes' => 'nullable|string',
+        ]);
+
+        $invoice = $this->invoiceService()->attachValidationDifference(
+            $purchaseInvoice,
+            $validated['difference_reason'],
+            $validated['difference_evidence_path'] ?? null,
+            $validated['difference_notes'] ?? null
+        );
+
+        return response()->json(['data' => $invoice]);
+    }
+
+    public function approveDifference(Request $request, PurchaseDocument $purchaseInvoice)
+    {
+        $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
+
+        $validated = $request->validate([
+            'approval_notes' => 'nullable|string|max:1000',
+        ]);
+
+        $invoice = $this->invoiceService()->approveDifference(
+            $purchaseInvoice,
+            $validated['approval_notes'] ?? null,
+            Auth::id()
+        );
+
+        return response()->json(['data' => $invoice]);
+    }
+
+    public function rejectDifference(Request $request, PurchaseDocument $purchaseInvoice)
+    {
+        $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
+
+        $validated = $request->validate([
+            'approval_notes' => 'required|string|max:1000',
+        ]);
+
+        $invoice = $this->invoiceService()->rejectDifference(
+            $purchaseInvoice,
+            $validated['approval_notes'],
+            Auth::id()
+        );
+
+        return response()->json(['data' => $invoice]);
     }
 }
