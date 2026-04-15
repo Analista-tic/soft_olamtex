@@ -35,6 +35,7 @@ const breadcrumbs = [{ title: 'Facturas de Compra', href: '/facturas-compra' }];
 const sortBy = ref<string>('date');
 const sortDir = ref<'asc' | 'desc'>('desc');
 const invoices = ref<PurchaseInvoice[]>([]);
+const isLoading = ref(false);
 const isDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
 const isDialogReadOnly = ref(false);
@@ -278,28 +279,29 @@ async function deleteInvoice(): Promise<void> {
 }
 
 async function fetchInvoices(page = 1, search = ''): Promise<void> {
-    const params: Record<string, any> = {
-        page,
-        per_page: itemsPerPage,
-        search,
-        date_from: toIsoDateString(dateFilter.value) || undefined,
-        date_to: toIsoDateString(dateFilter.value) || undefined,
-        sort_by: sortBy.value,
-        sort_dir: sortDir.value,
-    };
-    if (statusFilter.value === 'status_pending') params.status = 'pending';
-    if (statusFilter.value === 'status_approved') params.status = 'approved';
-    if (statusFilter.value === 'status_rejected') params.status = 'rejected';
-    if (statusFilter.value === 'approval_pending_difference') params.approval_status = 'pending_difference_approval';
-    if (statusFilter.value === 'approval_approved') params.approval_status = 'approved';
-    if (statusFilter.value === 'approval_difference_rejected') params.approval_status = 'difference_rejected';
-    if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
-        params.provider_id = isNaN(Number(providerFilter.value)) ? providerFilter.value : Number(providerFilter.value);
-    }
-    if (subgroupFilter.value !== 'all' && subgroupFilter.value !== '' && subgroupFilter.value !== null) {
-        params.subgroup_id = isNaN(Number(subgroupFilter.value)) ? subgroupFilter.value : Number(subgroupFilter.value);
-    }
+    isLoading.value = true;
     try {
+        const params: Record<string, any> = {
+            page,
+            per_page: itemsPerPage,
+            search,
+            date_from: toIsoDateString(dateFilter.value) || undefined,
+            date_to: toIsoDateString(dateFilter.value) || undefined,
+            sort_by: sortBy.value,
+            sort_dir: sortDir.value,
+        };
+        if (statusFilter.value === 'status_pending') params.status = 'pending';
+        if (statusFilter.value === 'status_approved') params.status = 'approved';
+        if (statusFilter.value === 'status_rejected') params.status = 'rejected';
+        if (statusFilter.value === 'approval_pending_difference') params.approval_status = 'pending_difference_approval';
+        if (statusFilter.value === 'approval_approved') params.approval_status = 'approved';
+        if (statusFilter.value === 'approval_difference_rejected') params.approval_status = 'difference_rejected';
+        if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
+            params.provider_id = isNaN(Number(providerFilter.value)) ? providerFilter.value : Number(providerFilter.value);
+        }
+        if (subgroupFilter.value !== 'all' && subgroupFilter.value !== '' && subgroupFilter.value !== null) {
+            params.subgroup_id = isNaN(Number(subgroupFilter.value)) ? subgroupFilter.value : Number(subgroupFilter.value);
+        }
         const response = await axios.get('/gastos/facturas-compra/data', { params });
         invoices.value = Array.isArray(response.data.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
         totalItems.value = typeof response.data.total === 'number' ? response.data.total : 0;
@@ -307,6 +309,8 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         console.log('Error al cargar facturas:', e);
         invoices.value = [];
         totalItems.value = 0;
+    } finally {
+        isLoading.value = false;
     }
 }
 
@@ -642,7 +646,22 @@ async function handleDifferenceDecision() {
                                     </span>
                                 </span>
                             </TableHead>
-                            <TableHead>Fecha de entrega</TableHead>
+                            <TableHead
+                                class="cursor-pointer select-none whitespace-nowrap"
+                                @click="toggleSort('delivery_date')"
+                            >
+                                <span class="inline-flex items-center gap-1">
+                                    Fecha de entrega
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'delivery_date'">
+                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                        </template>
+                                        <template v-else>
+                                            <span class="opacity-30">↕</span>
+                                        </template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Proveedor</TableHead>
                             <TableHead
                                 class="cursor-pointer select-none whitespace-nowrap"
@@ -666,130 +685,146 @@ async function handleDifferenceDecision() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
-                            <TableCell class="font-medium">
-                                {{ invoice.document_number || (invoice.id ? `FAC-${String(invoice.id).padStart(3, '0')}` : '-') }}
-                            </TableCell>
-                            <TableCell>{{ formatDate(invoice.date) }}</TableCell>
-                            <TableCell>{{ formatDate(invoice.delivery_date) }}</TableCell>
-                            <TableCell>{{ invoice.supplier?.full_name || invoice.contact?.full_name || '-' }}</TableCell>
-                            <TableCell>{{ formatCurrency(computeInvoiceTotal(invoice)) }}</TableCell>
-                            <TableCell class="max-w-32 truncate text-start">{{ invoice.description || '-' }}</TableCell>
-                            <TableCell>
-                                <TableStatusBadge
-                                    v-if="invoice.approval_status === 'pending_difference_approval'"
-                                    label="Aprobación pendiente"
-                                    tone="yellow"
-                                />
-                                <TableStatusBadge
-                                    v-else-if="invoice.approval_status === 'difference_rejected'"
-                                    label="Diferencia rechazada"
-                                    tone="red"
-                                />
-                                <TableStatusBadge
-                                    v-else
-                                    :label="invoice.status ? getInvoiceStatusLabel(invoice.status) : 'Pendiente'"
-                                    :tone="invoice.status ? getInvoiceStatusTone(invoice.status) : 'yellow'"
-                                />
-                            </TableCell>
-                            <TableCell>
-                                <div class="flex flex-wrap justify-center gap-1">
-                                    <button
-                                        class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-primary"
-                                        @click="viewInvoiceDetails(invoice)"
-                                        title="Ver detalles"
-                                    >
-                                        <Eye class="h-4 w-4" />
-                                    </button>
-                                    <EditButton
-                                        :onClick="() => {
-                                            if (isInvoiceLocked(invoice)) {
-                                                showError('No se puede editar una factura aprobada, rechazada o con diferencia rechazada.');
-                                                return;
-                                            }
-                                            openDialogWithPreparation('edit', invoice);
-                                        }"
-                                        :class="isInvoiceLocked(invoice) ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''"
-                                    />
-                                    <!-- Botón de aprobación de diferencia: visible solo cuando hay diferencia pendiente -->
-                                    <button
+                        <template v-if="isLoading">
+                            <TableRow>
+                                <TableCell colspan="8">
+                                    <div class="py-6 text-center text-sm text-muted-foreground">Cargando facturas...</div>
+                                </TableCell>
+                            </TableRow>
+                        </template>
+                        <template v-else-if="!invoices.length">
+                            <TableRow>
+                                <TableCell colspan="8">
+                                    <div class="py-6 text-center text-sm text-muted-foreground">No se encontraron facturas.</div>
+                                </TableCell>
+                            </TableRow>
+                        </template>
+                        <template v-else>
+                            <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
+                                <TableCell class="font-medium">
+                                    {{ invoice.document_number || (invoice.id ? `FAC-${String(invoice.id).padStart(3, '0')}` : '-') }}
+                                </TableCell>
+                                <TableCell>{{ formatDate(invoice.date) }}</TableCell>
+                                <TableCell>{{ formatDate(invoice.delivery_date) }}</TableCell>
+                                <TableCell>{{ invoice.supplier?.full_name || invoice.contact?.full_name || '-' }}</TableCell>
+                                <TableCell>{{ formatCurrency(computeInvoiceTotal(invoice)) }}</TableCell>
+                                <TableCell class="max-w-32 truncate text-start">{{ invoice.description || '-' }}</TableCell>
+                                <TableCell>
+                                    <TableStatusBadge
                                         v-if="invoice.approval_status === 'pending_difference_approval'"
-                                        type="button"
-                                        class="flex items-center transition-colors duration-200 text-yellow-600 hover:text-yellow-800"
-                                        title="Revisar diferencia — Aprobar o Rechazar"
-                                        @click="openApprovalDialog(invoice)"
-                                    >
-                                        <ShieldCheck class="h-4 w-4" />
-                                    </button>
-                                    <!-- Mostrar siempre el botón; si está aprobado se muestra deshabilitado visualmente
-                                         y al hacer clic se muestra un mensaje en vez de intentar eliminar -->
-                                    <DeleteButton
-                                        :onClick="() => {
-                                            if (isInvoiceDeleteLocked(invoice)) {
-                                                showError('No se puede eliminar una factura aprobada, rechazada, recibida o con diferencia rechazada.');
-                                            } else {
-                                                confirmDeleteInvoice(invoice);
-                                            }
-                                        }"
-                                        :customClass="isInvoiceDeleteLocked(invoice) ? 'opacity-60 cursor-not-allowed' : ''"
+                                        label="Aprobación pendiente"
+                                        tone="yellow"
                                     />
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
-                                                title="Acciones"
-                                                @click.stop
-                                                @pointerdown.stop
-                                            >
-                                                <MoreVertical :class="actionIconClass" />
-                                                <span class="sr-only">Acciones</span>
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" class="w-48">
-                                            <DropdownMenuItem class="cursor-pointer gap-2" @select="handlePrintAction(invoice, $event)">
-                                                <Printer class="h-4 w-4" /> Imprimir
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                v-if="(invoice.status === 'pending_receipt' || invoice.status === 'approved' || invoice.status === 'rejected') && !isReceptionBlockedForInvoice(invoice)"
-                                                class="cursor-pointer gap-2"
-                                                @select="handleReceptionAction(invoice, $event)"
-                                            >
-                                                <Package class="h-4 w-4" /> Ir a recepción
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                v-if="invoiceHasNotes(invoice)"
-                                                class="cursor-pointer gap-2"
-                                                @select="openAssociatedNotesDialog(invoice, $event)"
-                                            >
-                                                <Eye class="h-4 w-4" /> Ver notas crédito/débito
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                class="cursor-pointer gap-2"
-                                                @select="goToCreditDebitNote(invoice, 'purchase_credit_note', $event)"
-                                            >
-                                                <MinusCircle class="h-4 w-4" /> Crear Nota Crédito
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                class="cursor-pointer gap-2"
-                                                @select="goToCreditDebitNote(invoice, 'purchase_debit_note', $event)"
-                                            >
-                                                <PlusCircle class="h-4 w-4" /> Crear Nota Débito
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                class="cursor-pointer gap-2"
-                                                :class="isSendingMail ? 'cursor-not-allowed opacity-60' : ''"
-                                                :disabled="isSendingMail"
-                                                @select="handleSendMailAction(invoice, $event)"
-                                            >
-                                                <Mail class="h-4 w-4" /> Enviar al correo
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </div>
-                            </TableCell>
-                        </TableRow>
+                                    <TableStatusBadge
+                                        v-else-if="invoice.approval_status === 'difference_rejected'"
+                                        label="Diferencia rechazada"
+                                        tone="red"
+                                    />
+                                    <TableStatusBadge
+                                        v-else
+                                        :label="invoice.status ? getInvoiceStatusLabel(invoice.status) : 'Pendiente'"
+                                        :tone="invoice.status ? getInvoiceStatusTone(invoice.status) : 'yellow'"
+                                    />
+                                </TableCell>
+                                <TableCell>
+                                    <div class="flex flex-wrap justify-center gap-1">
+                                        <button
+                                            class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-primary"
+                                            @click="viewInvoiceDetails(invoice)"
+                                            title="Ver detalles"
+                                        >
+                                            <Eye class="h-4 w-4" />
+                                        </button>
+                                        <EditButton
+                                            :onClick="() => {
+                                                if (isInvoiceLocked(invoice)) {
+                                                    showError('No se puede editar una factura aprobada, rechazada o con diferencia rechazada.');
+                                                    return;
+                                                }
+                                                openDialogWithPreparation('edit', invoice);
+                                            }"
+                                            :class="isInvoiceLocked(invoice) ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''"
+                                        />
+                                        <!-- Botón de aprobación de diferencia: visible solo cuando hay diferencia pendiente -->
+                                        <button
+                                            v-if="invoice.approval_status === 'pending_difference_approval'"
+                                            type="button"
+                                            class="flex items-center transition-colors duration-200 text-yellow-600 hover:text-yellow-800"
+                                            title="Revisar diferencia — Aprobar o Rechazar"
+                                            @click="openApprovalDialog(invoice)"
+                                        >
+                                            <ShieldCheck class="h-4 w-4" />
+                                        </button>
+                                        <!-- Mostrar siempre el botón; si está aprobado se muestra deshabilitado visualmente
+                                             y al hacer clic se muestra un mensaje en vez de intentar eliminar -->
+                                        <DeleteButton
+                                            :onClick="() => {
+                                                if (isInvoiceDeleteLocked(invoice)) {
+                                                    showError('No se puede eliminar una factura aprobada, rechazada, recibida o con diferencia rechazada.');
+                                                } else {
+                                                    confirmDeleteInvoice(invoice);
+                                                }
+                                            }"
+                                            :customClass="isInvoiceDeleteLocked(invoice) ? 'opacity-60 cursor-not-allowed' : ''"
+                                        />
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger as-child>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="actionButtonClass"
+                                                    title="Acciones"
+                                                    @click.stop
+                                                    @pointerdown.stop
+                                                >
+                                                    <MoreVertical :class="actionIconClass" />
+                                                    <span class="sr-only">Acciones</span>
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" class="w-48">
+                                                <DropdownMenuItem class="cursor-pointer gap-2" @select="handlePrintAction(invoice, $event)">
+                                                    <Printer class="h-4 w-4" /> Imprimir
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    v-if="(invoice.status === 'pending_receipt' || invoice.status === 'approved' || invoice.status === 'rejected') && !isReceptionBlockedForInvoice(invoice)"
+                                                    class="cursor-pointer gap-2"
+                                                    @select="handleReceptionAction(invoice, $event)"
+                                                >
+                                                    <Package class="h-4 w-4" /> Ir a recepción
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    v-if="invoiceHasNotes(invoice)"
+                                                    class="cursor-pointer gap-2"
+                                                    @select="openAssociatedNotesDialog(invoice, $event)"
+                                                >
+                                                    <Eye class="h-4 w-4" /> Ver notas crédito/débito
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    class="cursor-pointer gap-2"
+                                                    @select="goToCreditDebitNote(invoice, 'purchase_credit_note', $event)"
+                                                >
+                                                    <MinusCircle class="h-4 w-4" /> Crear Nota Crédito
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    class="cursor-pointer gap-2"
+                                                    @select="goToCreditDebitNote(invoice, 'purchase_debit_note', $event)"
+                                                >
+                                                    <PlusCircle class="h-4 w-4" /> Crear Nota Débito
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    class="cursor-pointer gap-2"
+                                                    :class="isSendingMail ? 'cursor-not-allowed opacity-60' : ''"
+                                                    :disabled="isSendingMail"
+                                                    @select="handleSendMailAction(invoice, $event)"
+                                                >
+                                                    <Mail class="h-4 w-4" /> Enviar al correo
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        </template>
                     </TableBody>
                 </Table>
             </div>

@@ -166,7 +166,7 @@ onMounted(() => fetchTaxes());
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Id</TableHead>
+                            <TableHead>N° Impuesto</TableHead>
                             <TableHead>Nombre</TableHead>
                             <TableHead>Porcentaje</TableHead>
                             <TableHead>Estado</TableHead>

@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Settings\CompanySetting;
+use App\Models\Settings\User;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -46,7 +47,19 @@ class HandleInertiaRequests extends Middleware
             'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
                 'user' => fn () => $request->user()
-                    ? $request->user()->fresh()?->append('avatar_url')
+                    ? (function () use ($request) {
+                        $user = $request->user()->fresh();
+
+                        if (! $user instanceof User) {
+                            return null;
+                        }
+
+                        return [
+                            ...$user->append('avatar_url')->toArray(),
+                            'theme_appearance' => $user->theme_appearance,
+                            'theme_color' => $user->theme_color,
+                        ];
+                    })()
                     : null,
             ],
             'ziggy' => [

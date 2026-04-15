@@ -9,7 +9,14 @@ class ItemInventoryService
 {
     public function paginate(array $filters = [], int $perPage = 10): LengthAwarePaginator
     {
+        $allowedSorts = ['quantity', 'average_cost', 'total'];
+        $sortBy = in_array($filters['sort_by'] ?? null, $allowedSorts, true)
+            ? (string) $filters['sort_by']
+            : 'total';
+        $sortDir = ($filters['sort_dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
+
         return $this->buildQuery($filters)
+            ->orderBy($sortBy, $sortDir)
             ->orderBy('items.name')
             ->paginate($perPage);
     }

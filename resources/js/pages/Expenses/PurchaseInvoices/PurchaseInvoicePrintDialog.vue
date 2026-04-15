@@ -64,7 +64,7 @@ function print() {
                     <div>
                         <div class="mb-4 grid grid-cols-3 items-start gap-4">
                             <div>
-                                <div class="font-bold"># Factura de Compra</div>
+                                <div class="font-bold">N° Factura de Compra</div>
                                 <div>{{ props.invoice?.id }}</div>
                             </div>
                             <div class="flex h-full items-center justify-center rounded p-4">
@@ -110,7 +110,7 @@ function print() {
                                 <div>{{ props.invoice?.delivery_date }}</div>
                             </div>
                             <div>
-                                <div class="font-bold"># Factura proveedor</div>
+                                <div class="font-bold">N° Factura proveedor</div>
                                 <div>{{ props.invoice?.supplier_invoice_number }}</div>
                             </div>
                         </div>

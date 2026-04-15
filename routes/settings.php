@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Settings\AuditLogController;
+use App\Http\Controllers\Settings\AppearanceController;
 use App\Http\Controllers\Settings\AvatarController;
 use App\Http\Controllers\Settings\CompanySettingsController;
 use App\Http\Controllers\StorageFileController;
@@ -125,4 +126,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('settings/appearance', function () {
         return Inertia::render('settings/Appearance');
     })->name('appearance');
+
+    Route::patch('settings/appearance', [AppearanceController::class, 'update'])
+        ->name('settings.appearance.update');
 });

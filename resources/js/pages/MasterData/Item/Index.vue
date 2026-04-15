@@ -67,10 +67,13 @@ const originOptions = [
 const items = ref<Item[]>([]);
 const totalItems = ref(0);
 const currentPage = ref(1);
+const isLoading = ref(false);
 
 const searchQuery = ref('');
 const statusFilter = ref<StatusFilter>(DEFAULT_STATUS_FILTER);
 const originFilter = ref<OriginFilter>(DEFAULT_ORIGIN_FILTER);
+const sortBy = ref<string>('id');
+const sortDir = ref<'asc' | 'desc'>('desc');
 
 const isDialogOpen = ref(false);
 const dialogType = ref<DialogType>('create');
@@ -97,6 +100,18 @@ const isOriginFilterActive = computed(() => originFilter.value !== DEFAULT_ORIGI
 const originButtonClasses = useFilterButtonClasses(isOriginFilterActive);
 
 let activeFetchController: AbortController | null = null;
+
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+
+    currentPage.value = 1;
+    void fetchItems(1);
+}
 
 function getEmptyForm(): Partial<Item> {
     return {
@@ -146,10 +161,13 @@ async function fetchItems(page = 1) {
 
     const controller = new AbortController();
     activeFetchController = controller;
+    isLoading.value = true;
 
     const params: Record<string, unknown> = {
         page,
         per_page: ITEMS_PER_PAGE,
+        sort_by: sortBy.value,
+        sort_dir: sortDir.value,
     };
 
     const normalizedSearch = searchQuery.value.trim();
@@ -184,6 +202,7 @@ async function fetchItems(page = 1) {
     } finally {
         if (activeFetchController === controller) {
             activeFetchController = null;
+            isLoading.value = false;
         }
     }
 }
@@ -452,7 +471,22 @@ onBeforeUnmount(() => {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>ID</TableHead>
+                                <TableHead
+                                    class="cursor-pointer select-none whitespace-nowrap"
+                                    @click="toggleSort('id')"
+                                >
+                                    <span class="inline-flex items-center gap-1">
+                                        N° ítem
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'id'">
+                                                {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
                                 <TableHead>Nombre</TableHead>
                                 <TableHead>Referencia</TableHead>
                                 <TableHead>Descripción</TableHead>
@@ -462,83 +496,99 @@ onBeforeUnmount(() => {
                         </TableHeader>
 
                         <TableBody>
-                            <TableRow
-                                v-for="item in items"
-                                :key="item.id"
-                                :class="[
-                                    'text-center',
-                                    shouldHighlightImportedItem(item)
-                                        ? 'bg-red-50/70 transition-colors hover:bg-red-50 dark:bg-red-500/10 dark:hover:bg-red-500/15'
-                                        : '',
-                                ]"
-                            >
-                                <TableCell>{{ item.id }}</TableCell>
-                                <TableCell>{{ item.name }}</TableCell>
-                                <TableCell>{{ item.reference }}</TableCell>
-                                <TableCell>{{ item.description }}</TableCell>
-                                <TableCell>
-                                    <TableStatusBadge :label="item.status ? 'Habilitado' : 'Deshabilitado'" :tone="item.status ? 'green' : 'red'" />
-                                </TableCell>
+                            <template v-if="isLoading">
+                                <TableRow>
+                                    <TableCell :colspan="6" class="py-6 text-center text-sm text-muted-foreground">
+                                        Cargando ítems...
+                                    </TableCell>
+                                </TableRow>
+                            </template>
+                            <template v-else-if="items.length === 0">
+                                <TableRow>
+                                    <TableCell :colspan="6" class="py-6 text-center text-sm text-muted-foreground">
+                                        No hay ítems registrados.
+                                    </TableCell>
+                                </TableRow>
+                            </template>
+                            <template v-else>
+                                <TableRow
+                                    v-for="item in items"
+                                    :key="item.id"
+                                    :class="[
+                                        'text-center',
+                                        shouldHighlightImportedItem(item)
+                                            ? 'bg-red-50/70 transition-colors hover:bg-red-50 dark:bg-red-500/10 dark:hover:bg-red-500/15'
+                                            : '',
+                                    ]"
+                                >
+                                    <TableCell>{{ item.id }}</TableCell>
+                                    <TableCell>{{ item.name }}</TableCell>
+                                    <TableCell>{{ item.reference }}</TableCell>
+                                    <TableCell>{{ item.description }}</TableCell>
+                                    <TableCell>
+                                        <TableStatusBadge :label="item.status ? 'Habilitado' : 'Deshabilitado'" :tone="item.status ? 'green' : 'red'" />
+                                    </TableCell>
 
-                                <TableCell class="text-center">
-                                    <div class="flex justify-center gap-2">
-                                        <Tooltip>
-                                            <TooltipTrigger as-child>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    :class="actionButtonClass"
-                                                    aria-label="Editar"
-                                                    @click="openDialog('edit', item)"
-                                                >
-                                                    <Pencil :class="actionIconClass" />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Editar</TooltipContent>
-                                        </Tooltip>
+                                    <TableCell class="text-center">
+                                        <div class="flex justify-center gap-2">
+                                            <Tooltip>
+                                                <TooltipTrigger as-child>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        :class="actionButtonClass"
+                                                        aria-label="Editar"
+                                                        @click="openDialog('edit', item)"
+                                                    >
+                                                        <Pencil :class="actionIconClass" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Editar</TooltipContent>
+                                            </Tooltip>
 
-                                        <Tooltip>
-                                            <TooltipTrigger as-child>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    :class="[actionButtonClass, 'text-destructive hover:text-destructive']"
-                                                    aria-label="Eliminar"
-                                                    @click="confirmDeleteItem(item)"
-                                                >
-                                                    <Trash :class="actionIconClass" />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Eliminar</TooltipContent>
-                                        </Tooltip>
+                                            <Tooltip>
+                                                <TooltipTrigger as-child>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        :class="[actionButtonClass, 'text-destructive hover:text-destructive']"
+                                                        aria-label="Eliminar"
+                                                        @click="confirmDeleteItem(item)"
+                                                    >
+                                                        <Trash :class="actionIconClass" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Eliminar</TooltipContent>
+                                            </Tooltip>
 
-                                        <Tooltip>
-                                            <TooltipTrigger as-child>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    :class="[
-                                                        actionButtonClass,
-                                                        item.status ? 'text-red-600 hover:text-red-700' : 'text-emerald-600 hover:text-emerald-700',
-                                                    ]"
-                                                    aria-label="Habilitar o deshabilitar"
-                                                    @click="openStatusDialog(item)"
-                                                >
-                                                    <Ban v-if="item.status" :class="actionIconClass" />
-                                                    <CheckCircle v-else :class="actionIconClass" />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Habilitar o deshabilitar</TooltipContent>
-                                        </Tooltip>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
+                                            <Tooltip>
+                                                <TooltipTrigger as-child>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        :class="[
+                                                            actionButtonClass,
+                                                            item.status ? 'text-red-600 hover:text-red-700' : 'text-emerald-600 hover:text-emerald-700',
+                                                        ]"
+                                                        aria-label="Habilitar o deshabilitar"
+                                                        @click="openStatusDialog(item)"
+                                                    >
+                                                        <Ban v-if="item.status" :class="actionIconClass" />
+                                                        <CheckCircle v-else :class="actionIconClass" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Habilitar o deshabilitar</TooltipContent>
+                                            </Tooltip>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            </template>
                         </TableBody>
                     </Table>
                 </TooltipProvider>
 
                 <Pagination
-                    class="mt-5 flex justify-center"
+                    class="flex justify-center pt-4 pb-2"
                     :items-per-page="ITEMS_PER_PAGE"
                     :total="totalItems"
                     :sibling-count="1"
@@ -546,14 +596,14 @@ onBeforeUnmount(() => {
                     v-model:current-page="currentPage"
                     @page-changed="handlePageChange"
                 >
-                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
+                    <PaginationList v-slot="{ items: paginationItems }" class="flex items-center gap-1">
                         <PaginationFirst />
                         <PaginationPrev />
 
-                        <template v-for="(item, index) in items" :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`">
+                        <template v-for="item in paginationItems" :key="item.type === 'page' ? `page-${item.value}` : item.type">
                             <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
                                 <Button
-                                    class="h-6 w-6 p-0"
+                                    class="h-8 w-8 rounded-md p-0 text-xs font-medium"
                                     :variant="item.value === currentPage ? 'default' : 'outline'"
                                     @click="handlePageChange(item.value as number)"
                                 >

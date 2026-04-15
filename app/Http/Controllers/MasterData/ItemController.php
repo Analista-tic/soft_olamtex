@@ -85,7 +85,7 @@ class ItemController extends Controller
     {
         $filters = $request->only([
             'search', 'status', 'item_type', 'warehouse_id',
-            'origin_type', 'category_sub_group_id', 'category_group_id'
+            'origin_type', 'category_sub_group_id', 'category_group_id', 'sort_by', 'sort_dir'
         ]);
         $perPage = $request->input('per_page', 10);
         $items = $this->service->paginate($filters, $perPage);

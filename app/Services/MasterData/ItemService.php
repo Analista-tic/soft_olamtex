@@ -89,8 +89,14 @@ class ItemService
             );
         }
 
+        $allowedSorts = ['id'];
+        $sortBy = in_array($filters['sort_by'] ?? null, $allowedSorts, true)
+            ? (string) $filters['sort_by']
+            : 'id';
+        $sortDir = ($filters['sort_dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
+
         return $query
-            ->orderByDesc('id')
+            ->orderBy($sortBy, $sortDir)
             ->paginate($perPage);
     }
 

@@ -8,8 +8,6 @@ import type { DefineComponent } from 'vue';
 import { Fragment, createApp, h } from 'vue';
 import { ZiggyVue } from 'ziggy-js';
 import GlobalLoadingOverlay from './components/common/GlobalLoadingOverlay.vue';
-import { initAccentColor } from './composables/useAccentColor';
-import { initializeTheme } from './composables/useAppearance';
 import { useSmartLoading } from './composables/useSmartLoading';
 
 // ImportMeta declarations are provided in resources/js/env.d.ts
@@ -114,8 +112,3 @@ createInertiaApp({
         color: '#4B5563',
     },
 });
-
-// This will set light / dark mode on page load...
-initializeTheme();
-initAccentColor();
-localStorage.setItem('appearance', localStorage.getItem('appearance') || 'light'); // Forzar 'light' si no hay preferencia guardada

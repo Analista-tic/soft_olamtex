@@ -26,6 +26,7 @@ import PurchaseOrderPrintDialog from './PurchaseOrderPrintDialog.vue';
 const breadcrumbs = [{ title: 'Órdenes de Compra', href: '/ordenes-compra' }];
 
 const orders = ref<PurchaseOrder[]>([]);
+const isLoading = ref(false);
 const isDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
 const dialogReadonly = ref(false);
@@ -198,21 +199,26 @@ async function deleteOrder() {
 }
 
 async function fetchOrders(page = 1, search = '') {
-    const params: any = {
-        page,
-        per_page: itemsPerPage,
-        search,
-        date_from: dateFilter.value || undefined,
-        date_to: dateFilter.value || undefined,
-        sort_by: sortBy.value,
-        sort_dir: sortDir.value,
-    };
-    if (statusFilter.value !== 'all') params.status = statusFilter.value;
-    if (providerFilter.value !== 'all') params.provider_id = providerFilter.value;
-    const response = await axios.get('/gastos/ordenes-compra/data', { params });
-    orders.value = response.data.data;
-    totalItems.value = response.data.total;
-    currentPage.value = response.data.current_page;
+    isLoading.value = true;
+    try {
+        const params: any = {
+            page,
+            per_page: itemsPerPage,
+            search,
+            date_from: dateFilter.value || undefined,
+            date_to: dateFilter.value || undefined,
+            sort_by: sortBy.value,
+            sort_dir: sortDir.value,
+        };
+        if (statusFilter.value !== 'all') params.status = statusFilter.value;
+        if (providerFilter.value !== 'all') params.provider_id = providerFilter.value;
+        const response = await axios.get('/gastos/ordenes-compra/data', { params });
+        orders.value = response.data.data;
+        totalItems.value = response.data.total;
+        currentPage.value = response.data.current_page;
+    } finally {
+        isLoading.value = false;
+    }
 }
 
 // Actualiza los filtros y la tabla correctamente
@@ -423,25 +429,41 @@ function handleDialogError(message?: string) {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="order in orders" :key="order.id" class="text-center">
-                            <TableCell class="font-medium">
-                                {{ order.document_number || `ORD-${String(order.id).padStart(3, '0')}` }}
-                            </TableCell>
-                            <TableCell>{{ formatDate(order.date) }}</TableCell>
-                            <TableCell>{{ formatDate(order.delivery_date) }}</TableCell>
-                            <TableCell>{{ order.supplier?.full_name || order.contact?.full_name || '-' }}</TableCell>
-                            <TableCell>{{ formatCurrency(computeOrderTotal(order)) }}</TableCell>
-                            <TableCell class="text-start">{{ order.description || '-' }}</TableCell>
-                            <TableCell>
-                                <TableStatusBadge :label="getOrderStatusLabel(order.status)" :tone="getOrderStatusTone(order.status)" />
-                            </TableCell>
-                            <TableCell class="flex justify-center gap-1">
-                                <Button variant="ghost" size="icon" :class="actionButtonClass" title="Ver orden" @click="viewOrder(order)">
-                                    <Eye :class="actionIconClass" />
-                                    <span class="sr-only">Ver orden</span>
-                                </Button>
-                            </TableCell>
-                        </TableRow>
+                        <template v-if="isLoading">
+                            <TableRow>
+                                <TableCell colspan="8">
+                                    <div class="py-6 text-center text-sm text-muted-foreground">Cargando órdenes...</div>
+                                </TableCell>
+                            </TableRow>
+                        </template>
+                        <template v-else-if="!orders.length">
+                            <TableRow>
+                                <TableCell colspan="8">
+                                    <div class="py-6 text-center text-sm text-muted-foreground">No se encontraron órdenes.</div>
+                                </TableCell>
+                            </TableRow>
+                        </template>
+                        <template v-else>
+                            <TableRow v-for="order in orders" :key="order.id" class="text-center">
+                                <TableCell class="font-medium">
+                                    {{ order.document_number || `ORD-${String(order.id).padStart(3, '0')}` }}
+                                </TableCell>
+                                <TableCell>{{ formatDate(order.date) }}</TableCell>
+                                <TableCell>{{ formatDate(order.delivery_date) }}</TableCell>
+                                <TableCell>{{ order.supplier?.full_name || order.contact?.full_name || '-' }}</TableCell>
+                                <TableCell>{{ formatCurrency(computeOrderTotal(order)) }}</TableCell>
+                                <TableCell class="text-start">{{ order.description || '-' }}</TableCell>
+                                <TableCell>
+                                    <TableStatusBadge :label="getOrderStatusLabel(order.status)" :tone="getOrderStatusTone(order.status)" />
+                                </TableCell>
+                                <TableCell class="flex justify-center gap-1">
+                                    <Button variant="ghost" size="icon" :class="actionButtonClass" title="Ver orden" @click="viewOrder(order)">
+                                        <Eye :class="actionIconClass" />
+                                        <span class="sr-only">Ver orden</span>
+                                    </Button>
+                                </TableCell>
+                            </TableRow>
+                        </template>
                     </TableBody>
                 </Table>
             </div>
