@@ -77,6 +77,12 @@ class PurchaseDocumentService
             ->when($this->shouldApplyFilter($filters['approval_status'] ?? null), fn (Builder $builder) =>
                 $builder->where('approval_status', $filters['approval_status'])
             )
+            ->when(!empty($filters['exclude_difference_rejected']), fn (Builder $builder) =>
+                $builder->where(function (Builder $sub) {
+                    $sub->whereNull('approval_status')
+                        ->orWhere('approval_status', '!=', PurchaseDocument::APPROVAL_DIFFERENCE_REJECTED);
+                })
+            )
             ->when($contactIdFilter !== null, fn (Builder $builder) =>
                 $builder->where('contact_id', $contactIdFilter)
             )

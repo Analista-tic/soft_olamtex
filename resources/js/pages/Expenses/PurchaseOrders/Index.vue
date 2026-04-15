@@ -401,16 +401,14 @@ function handleDialogError(message?: string) {
                                 </span>
                             </TableHead>
                             <TableHead>Proveedor</TableHead>
-                            <TableHead>Total</TableHead>
-                            <TableHead>Descripción</TableHead>
                             <TableHead
                                 class="cursor-pointer select-none whitespace-nowrap"
-                                @click="toggleSort('status')"
+                                @click="toggleSort('total')"
                             >
                                 <span class="inline-flex items-center gap-1">
-                                    Estado
+                                    Total
                                     <span class="text-muted-foreground">
-                                        <template v-if="sortBy === 'status'">
+                                        <template v-if="sortBy === 'total'">
                                             {{ sortDir === 'asc' ? '↑' : '↓' }}
                                         </template>
                                         <template v-else>
@@ -419,6 +417,8 @@ function handleDialogError(message?: string) {
                                     </span>
                                 </span>
                             </TableHead>
+                            <TableHead>Descripción</TableHead>
+                            <TableHead>Estado</TableHead>
                             <TableHead class="text-center">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>

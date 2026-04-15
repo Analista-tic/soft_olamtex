@@ -86,7 +86,7 @@ class FabricRollController extends Controller
 
                 if ($order->productSheet && $order->productSheet->sizes) {
                     $rawSizes = $order->productSheet->sizes;
-                    
+
                     // Procesamiento robusto de tallas - solo tallas activas (true)
                     if (is_array($rawSizes)) {
                         // Si es array asociativo (objeto en JSON), extraer solo las claves con valor true
@@ -248,6 +248,12 @@ class FabricRollController extends Controller
 
     public function receptionShow($invoiceId)
     {
+        $invoice = PurchaseDocument::query()
+            ->where('document_type', PurchaseDocument::TYPE_INVOICE)
+            ->findOrFail($invoiceId);
+
+        $this->abortIfDifferenceRejected($invoice);
+
         return Inertia::render('Expenses/Reception/Reception', [
             'invoiceId' => $invoiceId
         ]);
@@ -265,6 +271,7 @@ class FabricRollController extends Controller
             'contact_id',
             'subgroup_id',
         ]);
+        $filters['exclude_difference_rejected'] = true;
 
         if (($filters['status'] ?? null) === 'pending') {
             $filters['status'] = 'pending_receipt';
@@ -294,6 +301,8 @@ class FabricRollController extends Controller
         if ($purchaseDocument->document_type !== PurchaseDocument::TYPE_INVOICE) {
             abort(404);
         }
+
+        $this->abortIfDifferenceRejected($purchaseDocument);
 
         $scope = $this->resolveReceptionScope($request->query('scope'));
         $purchaseDocument->loadMissing('items.item.categorySubGroup');
@@ -460,6 +469,11 @@ class FabricRollController extends Controller
                 'message' => 'Recepción rechazada correctamente',
                 'data' => $invoice
             ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'No se pudo rechazar la recepción.',
+                'errors' => $e->errors(),
+            ], 422);
         } catch (ModelNotFoundException $e) {
             return response()->json([
                 'message' => 'Factura no encontrada.',
@@ -534,5 +548,26 @@ class FabricRollController extends Controller
             $fallbackName = mb_strtolower(trim((string) ($item->item_name ?? $item->item?->name ?? '')));
             return $fallbackName !== '' && str_contains($fallbackName, 'tela');
         });
+    }
+
+    protected function abortIfDifferenceRejected(PurchaseDocument $invoice): void
+    {
+        if ($this->isDifferenceRejectedInvoice($invoice)) {
+            abort(403, 'La factura tiene diferencia rechazada y no puede gestionarse en recepción.');
+        }
+    }
+
+    protected function isDifferenceRejectedInvoice(PurchaseDocument $invoice): bool
+    {
+        $approvalStatus = mb_strtolower(trim((string) ($invoice->approval_status ?? '')));
+        $status = mb_strtolower(trim((string) ($invoice->status ?? '')));
+
+        return in_array($approvalStatus, [
+            PurchaseDocument::APPROVAL_DIFFERENCE_REJECTED,
+            'diferencia rechazada',
+        ], true) || in_array($status, [
+            PurchaseDocument::APPROVAL_DIFFERENCE_REJECTED,
+            'diferencia rechazada',
+        ], true);
     }
 }

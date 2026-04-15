@@ -115,11 +115,6 @@ function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning
     }
 }
 
-function clearAlert() {
-    successMessage.value = '';
-    errorMessage.value = '';
-}
-
 const DEFAULT_STATUS_FILTER = 'all';
 const DEFAULT_PROVIDER_FILTER = 'all';
 const DEFAULT_SUBGROUP_FILTER = 'all';
@@ -183,6 +178,12 @@ async function fetchSpecificInvoice(invoiceId: number) {
 
         if (response.data && response.data.data) {
             selectedInvoice.value = response.data.data;
+            if (isDifferenceRejectedInvoice(selectedInvoice.value)) {
+                selectedInvoice.value = null;
+                setAlert('La factura tiene diferencia rechazada y no puede gestionarse en recepción.', 'warning');
+                router.visit(invoiceListHref.value);
+                return;
+            }
             console.log('Items de la factura:', selectedInvoice.value?.items);
         } else {
             console.error('Estructura de respuesta inesperada:', response.data);
@@ -303,6 +304,7 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         search,
         date_from: dateFilter.value || undefined,
         date_to: dateFilter.value || undefined,
+        exclude_difference_rejected: true,
     };
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
     if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
@@ -325,14 +327,15 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
                 if (dateB !== dateA) return dateB - dateA;
                 return (b.id ?? 0) - (a.id ?? 0);
             });
-            invoices.value = merged;
+            invoices.value = merged.filter((invoice) => !isDifferenceRejectedInvoice(invoice));
             totalItems.value = (resGeneral.data.total ?? 0) + (resTela.data.total ?? 0);
         } else {
             const endpoint = isTelasList.value
                 ? '/gastos/facturas-compra-tela/data'
                 : '/gastos/facturas-compra/data';
             const response = await axios.get(endpoint, { params });
-            invoices.value = Array.isArray(response.data.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
+            const rawInvoices = Array.isArray(response.data.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
+            invoices.value = rawInvoices.filter((invoice: PurchaseInvoice) => !isDifferenceRejectedInvoice(invoice));
             totalItems.value = typeof response.data.total === 'number' ? response.data.total : 0;
         }
         refreshBlockersForList();
@@ -351,6 +354,18 @@ function calculateInvoiceTotal(invoice: PurchaseInvoice): number {
     return subtotal + iva - retenciones;
 }
 
+function isDifferenceRejectedInvoice(invoice: PurchaseInvoice | null | undefined): boolean {
+    if (!invoice) return false;
+    const status = String(invoice.status ?? '').trim().toLowerCase();
+    const approvalStatus = String(invoice.approval_status ?? '').trim().toLowerCase();
+    return status === 'difference_rejected' || status === 'diferencia rechazada' || approvalStatus === 'difference_rejected' || approvalStatus === 'diferencia rechazada';
+}
+
+function getInvoiceDisplayStatus(invoice: PurchaseInvoice | null | undefined): string {
+    if (!invoice) return 'pending';
+    return isDifferenceRejectedInvoice(invoice) ? 'difference_rejected' : String(invoice.status || 'pending');
+}
+
 function getStatusBadge(status: string) {
     switch (status) {
         case 'pending':
@@ -360,6 +375,7 @@ function getStatusBadge(status: string) {
         case 'received':
             return 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400';
         case 'rejected':
+        case 'difference_rejected':
             return 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400';
         default:
             return 'bg-muted text-foreground';
@@ -377,6 +393,8 @@ function getStatusText(status: string) {
             return 'Aprobado';
         case 'rejected':
             return 'Rechazado';
+        case 'difference_rejected':
+            return 'Diferencia rechazada';
         default:
             return 'Desconocido';
     }
@@ -394,6 +412,9 @@ function getCannotApproveDescription(invoice: PurchaseInvoice | null | undefined
     }
     if (s === 'rejected') {
         return 'Esta factura fue rechazada. No se puede aprobar la recepción.';
+    }
+    if (isDifferenceRejectedInvoice(invoice)) {
+        return 'Esta factura tiene diferencia rechazada y no puede volver al flujo de recepción.';
     }
     return '';
 }
@@ -459,6 +480,7 @@ function closeFabricRollDialog() {
 /** Factura ya recepcionada/aprobada: no se pueden añadir, editar ni eliminar rollos. */
 function isInvoiceReceptionApproved(invoice: PurchaseInvoice | null | undefined): boolean {
     if (!invoice) return false;
+    if (isDifferenceRejectedInvoice(invoice)) return true;
     const s = String(invoice.status ?? '').toLowerCase();
     return s === 'approved' || s === 'received';
 }
@@ -480,6 +502,7 @@ const approvalBlockersByInvoiceId = ref<Record<number, string[]>>({});
 
 function isInvoicePendingReceipt(invoice: PurchaseInvoice | null | undefined): boolean {
     if (!invoice) return false;
+    if (isDifferenceRejectedInvoice(invoice)) return false;
     const s = String(invoice.status ?? '');
     return !['approved', 'received', 'rejected'].includes(s);
 }
@@ -571,10 +594,6 @@ watch(
 );
 
 function onFabricRollSuccess() {
-    if (selectedInvoice.value && selectedInvoice.value.id && typeof selectedInvoice.value.id === 'number') {
-        fetchSpecificInvoice(selectedInvoice.value.id);
-    }
-    return;
     const invoiceId = selectedInvoice.value?.id;
     const itemName = selectedItem.value?.item?.name || selectedItem.value?.article?.name || 'el ítem';
     if (invoiceId) {
@@ -584,8 +603,8 @@ function onFabricRollSuccess() {
     }
     closeFabricRollDialog();
     // Recargar la factura específica para mostrar los rollos actualizados
-    if (selectedInvoice.value && selectedInvoice.value.id && typeof selectedInvoice.value.id === 'number') {
-        fetchSpecificInvoice(selectedInvoice.value.id);
+    if (typeof invoiceId === 'number') {
+        fetchSpecificInvoice(invoiceId);
     }
 }
 </script>
@@ -705,8 +724,8 @@ function onFabricRollSuccess() {
                                     }}
                                 </TableCell>
                                 <TableCell>
-                                    <span :class="['rounded-full px-2 py-1 text-xs font-medium', getStatusBadge(invoice.status || 'pending')]">
-                                        {{ getStatusText(invoice.status || 'pending') }}
+                                    <span :class="['rounded-full px-2 py-1 text-xs font-medium', getStatusBadge(getInvoiceDisplayStatus(invoice))]">
+                                        {{ getStatusText(getInvoiceDisplayStatus(invoice)) }}
                                     </span>
                                 </TableCell>
                                 <TableCell>{{ (invoice.items || []).length }} {{ (invoice.items || []).length === 1 ? 'item' : 'items' }}</TableCell>
@@ -718,7 +737,7 @@ function onFabricRollSuccess() {
                                     >
                                         <Eye class="h-4 w-4" />
                                     </button>
-                                    <template v-if="invoice.status === 'pending_receipt' || !invoice.status">
+                                    <template v-if="isInvoicePendingReceipt(invoice)">
                                         <div class="relative inline-flex">
                                             <button
                                                 class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-green-600"
@@ -772,8 +791,8 @@ function onFabricRollSuccess() {
                         </div>
                         <div>
                             <p class="text-sm font-medium text-muted-foreground">Estado</p>
-                            <span :class="['rounded-full px-2 py-1 text-sm font-medium', getStatusBadge(selectedInvoice.status || 'pending')]">
-                                {{ getStatusText(selectedInvoice.status || 'pending') }}
+                            <span :class="['rounded-full px-2 py-1 text-sm font-medium', getStatusBadge(getInvoiceDisplayStatus(selectedInvoice))]">
+                                {{ getStatusText(getInvoiceDisplayStatus(selectedInvoice)) }}
                             </span>
                         </div>
                     </div>
@@ -1059,10 +1078,7 @@ function onFabricRollSuccess() {
 
                     <!-- Descripción de validación: por qué no se puede aprobar -->
                     <div
-                        v-if="
-                            (selectedInvoice.status === 'pending_receipt' || !selectedInvoice.status) &&
-                            (approvalBlockersLoading || approvalBlockers.length > 0)
-                        "
+                        v-if="isInvoicePendingReceipt(selectedInvoice) && (approvalBlockersLoading || approvalBlockers.length > 0)"
                         class="mt-4 rounded-lg border p-3 text-sm"
                         :class="
                             approvalBlockersLoading
@@ -1088,7 +1104,7 @@ function onFabricRollSuccess() {
 
                     <!-- Botones de acción compactos y fijos -->
                     <div class="sticky bottom-0 z-10 mt-4 flex justify-end gap-2 rounded-b-xl bg-background p-2 shadow-sm">
-                        <template v-if="selectedInvoice.status === 'pending_receipt' || !selectedInvoice.status">
+                        <template v-if="isInvoicePendingReceipt(selectedInvoice)">
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger as-child>
@@ -1127,17 +1143,14 @@ function onFabricRollSuccess() {
                                 <X class="h-4 w-4" /> Rechazar
                             </Button>
                         </template>
-                        <p
-                            v-if="selectedInvoice.status === 'pending_receipt' || !selectedInvoice.status"
-                            class="mt-1 w-full text-right text-xs text-muted-foreground"
-                        >
+                        <p v-if="isInvoicePendingReceipt(selectedInvoice)" class="mt-1 w-full text-right text-xs text-muted-foreground">
                             Al aprobar la recepción la factura pasará a estado <strong>Aprobado</strong>; al rechazarla, a <strong>Rechazado</strong>.
                         </p>
                         <div v-else class="flex flex-col items-end gap-1 text-right">
                             <div class="flex items-center gap-2 text-sm text-muted-foreground">
                                 Estado:
-                                <span :class="['rounded-full px-2 py-1 text-xs font-medium', getStatusBadge(selectedInvoice.status)]">
-                                    {{ getStatusText(selectedInvoice.status) }}
+                                <span :class="['rounded-full px-2 py-1 text-xs font-medium', getStatusBadge(getInvoiceDisplayStatus(selectedInvoice))]">
+                                    {{ getStatusText(getInvoiceDisplayStatus(selectedInvoice)) }}
                                 </span>
                             </div>
                             <p v-if="cannotApproveDescription" class="max-w-md text-xs text-muted-foreground">

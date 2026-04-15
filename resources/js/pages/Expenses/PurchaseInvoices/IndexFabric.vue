@@ -336,8 +336,23 @@ async function sendInvoiceByEmail(invoice: PurchaseInvoice) {
 }
 
 function goToReception(invoice: PurchaseInvoice) {
+    if (isReceptionBlockedForInvoice(invoice)) {
+        showError('La factura tiene diferencia rechazada y no puede volver a recepción.');
+        return;
+    }
     // Navegar a la página de recepción con el ID de la factura
     router.visit(buildReceptionUrl(invoice.id));
+}
+
+function isReceptionBlockedForInvoice(invoice: PurchaseInvoice): boolean {
+    const approvalStatus = String(invoice.approval_status ?? '').trim().toLowerCase();
+    const status = String(invoice.status ?? '').trim().toLowerCase();
+    return (
+        approvalStatus === 'difference_rejected' ||
+        approvalStatus === 'diferencia rechazada' ||
+        status === 'difference_rejected' ||
+        status === 'diferencia rechazada'
+    );
 }
 
 function viewInvoiceDetails(invoice: PurchaseInvoice) {
@@ -559,7 +574,7 @@ function handleDialogError(message?: string) {
                                             <DropdownMenuItem class="cursor-pointer gap-2" @click="openPrintDialog(invoice)">
                                                 <Printer class="h-4 w-4" /> Imprimir
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem class="cursor-pointer gap-2" @click="goToReception(invoice)">
+                                            <DropdownMenuItem v-if="!isReceptionBlockedForInvoice(invoice)" class="cursor-pointer gap-2" @click="goToReception(invoice)">
                                                 <Package class="h-4 w-4" /> Ir a recepción
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
