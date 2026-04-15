@@ -416,7 +416,22 @@ onMounted(() => {
                                 </span>
                             </TableHead>
                             <TableHead>Proveedor</TableHead>
-                            <TableHead>Total estimado</TableHead>
+                            <TableHead
+                                class="cursor-pointer select-none whitespace-nowrap"
+                                @click="toggleSort('total')"
+                            >
+                                <span class="inline-flex items-center gap-1">
+                                    Total estimado
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'total'">
+                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                        </template>
+                                        <template v-else>
+                                            <span class="opacity-30">↕</span>
+                                        </template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Descripción</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead class="text-center">Acciones</TableHead>

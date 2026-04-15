@@ -5,6 +5,7 @@ import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
+import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import {
     Dialog,
     DialogClose,
@@ -75,6 +76,13 @@ const rollToDelete = ref<RollRecord | null>(null);
 
 const canDeleteEditRolls = computed(() => props.canDeleteEditRolls !== false);
 
+const requiredFieldLabels: Record<string, string> = {
+    quantity: 'Longitud (mts)',
+    roll_width: 'Ancho del rollo (cm)',
+    location: 'Ubicación',
+    entry_date: 'Fecha de entrada',
+};
+
 function parseNumber(value: number | string | null | undefined): number {
     if (value === null || value === undefined || value === '') return 0;
     if (typeof value === 'number') return value;
@@ -131,6 +139,33 @@ function setAlert(message: string, type: 'success' | AlertType = 'info'): void {
 function clearAlert(): void {
     successMessage.value = '';
     errorMessage.value = '';
+}
+
+function getMissingRequiredFieldLabels(): string[] {
+    const missing: string[] = [];
+
+    const quantityRaw = String(form.value.quantity ?? '').trim();
+    const rollWidthRaw = String(form.value.roll_width ?? '').trim();
+    const locationRaw = String(form.value.location ?? '').trim();
+    const entryDateRaw = String(form.value.entry_date ?? '').trim();
+
+    if (!quantityRaw) {
+        missing.push(requiredFieldLabels.quantity);
+    }
+
+    if (!rollWidthRaw) {
+        missing.push(requiredFieldLabels.roll_width);
+    }
+
+    if (!locationRaw) {
+        missing.push(requiredFieldLabels.location);
+    }
+
+    if (!entryDateRaw) {
+        missing.push(requiredFieldLabels.entry_date);
+    }
+
+    return missing;
 }
 
 const itemInfo = computed(() => {
@@ -236,6 +271,12 @@ async function loadWarehouses(): Promise<void> {
 async function handleSubmit(): Promise<void> {
     if (!props.item?.id) {
         setAlert('No hay un ítem seleccionado para registrar el rollo.', 'error');
+        return;
+    }
+
+    const missingRequiredFields = getMissingRequiredFieldLabels();
+    if (missingRequiredFields.length > 0) {
+        setAlert(formatRequiredFieldsMessage('Faltan campos obligatorios por completar', missingRequiredFields), 'warning');
         return;
     }
 
