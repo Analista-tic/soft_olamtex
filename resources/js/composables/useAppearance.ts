@@ -84,21 +84,19 @@ export function useAppearance() {
             return;
         }
 
+        localStorage.removeItem(STORAGE_KEY);
+
         const userPref = page.props?.auth?.user?.theme_appearance;
 
         if (userPref) {
             appearance.value = userPref;
-            localStorage.setItem(STORAGE_KEY, userPref);
-            setCookie('appearance', userPref);
             updateTheme(userPref);
 
             return;
         }
 
-        const resolvedAppearance: Appearance = 'system';
-
-        appearance.value = resolvedAppearance;
-        updateTheme(resolvedAppearance);
+        appearance.value = 'system';
+        updateTheme('system');
     }
 
     onMounted(() => {
@@ -107,12 +105,6 @@ export function useAppearance() {
 
     function updateAppearance(value: Appearance) {
         appearance.value = value;
-
-        // Store in localStorage for client-side persistence...
-        localStorage.setItem(STORAGE_KEY, value);
-
-        // Store in cookie for SSR...
-        setCookie('appearance', value);
 
         updateTheme(value);
 

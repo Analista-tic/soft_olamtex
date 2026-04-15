@@ -77,11 +77,12 @@ export function useAccentColor() {
             return;
         }
 
+        localStorage.removeItem(STORAGE_KEY);
+
         const userPref = page.props?.auth?.user?.theme_color;
 
         if (userPref && isAccentColor(userPref)) {
             accentColor.value = userPref;
-            persistAccentColor(userPref);
             applyAccentColor(userPref);
 
             return;
@@ -97,7 +98,6 @@ export function useAccentColor() {
 
     const updateAccentColor = (value: AccentColor) => {
         accentColor.value = value;
-        persistAccentColor(value);
         applyAccentColor(value);
 
         axios
