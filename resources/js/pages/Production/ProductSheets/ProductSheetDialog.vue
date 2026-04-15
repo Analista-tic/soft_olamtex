@@ -33,6 +33,7 @@ import axios from 'axios';
 import { Loader2 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import ImageUploadViewer from '@/components/ImageUploadViewer.vue';
+import TextareaField from '@/components/TextareaField.vue';
 
 interface Props {
     mode: 'create' | 'edit' | 'view'; // Define si es creación, edición o visualización
@@ -124,10 +125,12 @@ interface FormState {
     operational_list_id: number | null;
     collection_id: number | null;
     billing_price: number;
+    costo: number;
     selling_price: number;
     sizes: string;
     woven_product: boolean;
     description: string;
+    observaciones: string;
     flat_sketch_path: string;
     sample_reference: string;
     product_reference: string;
@@ -211,10 +214,12 @@ function createInitialFormState(): FormState {
         operational_list_id: null,
         collection_id: null,
         billing_price: 0,
+        costo: 0,
         selling_price: 0,
         sizes: defaultSizesJson(),
         woven_product: false,
         description: '',
+        observaciones: '',
         flat_sketch_path: '',
         sample_reference: '',
         product_reference: '',
@@ -569,10 +574,12 @@ async function applyTemplate(templateId: number) {
             operational_list_id: toIdOrNull(tpl.operational_list_id),
             collection_id: toIdOrNull(tpl.collection_id),
             billing_price: Number(tpl.billing_price ?? 0),
+            costo: Number(tpl.costo ?? 0),
             selling_price: Number(tpl.selling_price ?? 0),
             sizes: ensureSizesJson(tpl.sizes),
             woven_product: Boolean(tpl.woven_product),
             description: String(tpl.description ?? ''),
+            observaciones: '',
             flat_sketch_path: '',
             sample_reference: normalizeUpperText(tpl.sample_reference ?? ''),
             product_reference: normalizeUpperText(tpl.product_reference ?? ''),
@@ -863,10 +870,12 @@ watch(
                 operational_list_id: toIdOrNull(newProductSheet.operational_list_id),
                 collection_id: toIdOrNull(newProductSheet.collection_id),
                 billing_price: Number(newProductSheet.billing_price ?? 0),
+                costo: Number(newProductSheet.costo ?? 0),
                 selling_price: Number(newProductSheet.selling_price ?? 0),
                 sizes: sizeValue,
                 woven_product: Boolean(newProductSheet.woven_product),
                 description: String(newProductSheet.description ?? ''),
+                observaciones: String((newProductSheet as ProductSheet & { observaciones?: string }).observaciones ?? ''),
                 flat_sketch_path: String(newProductSheet.flat_sketch_path ?? ''),
                 sample_reference: normalizeUpperText(newProductSheet.sample_reference ?? ''),
                 product_reference: normalizeUpperText(newProductSheet.product_reference ?? ''),
@@ -1098,10 +1107,12 @@ function buildBasePayload() {
         fabric_base_id: toIdOrNull(form.value.fabric_base_id),
         yarn_base_id: wovenProduct ? toIdOrNull(form.value.yarn_base_id) : null,
         billing_price: form.value.billing_price ?? 0,
+        costo: form.value.costo ?? 0,
         selling_price: form.value.selling_price ?? 0,
         sizes: ensureSizesJson(form.value.sizes),
         woven_product: wovenProduct ? 1 : 0,
         description: form.value.description ?? '',
+        observaciones: form.value.observaciones ?? '',
         processes: ensureValidProcessesJson(form.value.processes),
         status: form.value.status ?? 'incomplete',
         operational_list_id: toIdOrNull(form.value.operational_list_id),
@@ -1314,7 +1325,7 @@ function handleClose() {
                                 </div>
                             </div>
 
-                            <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Precio facturacion</Label>
@@ -1327,6 +1338,12 @@ function handleClose() {
                                         :disabled="isReadonly"
                                         :error="showFieldErrors ? fieldErrors.billing_price : undefined"
                                     />
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <div class="flex items-center gap-2">
+                                        <Label class="text-sm font-medium">Costo</Label>
+                                    </div>
+                                    <InputField v-model="form.costo" type="currency" label="" placeholder="$ 0" :disabled="isReadonly" />
                                 </div>
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
@@ -1621,7 +1638,19 @@ function handleClose() {
                                         v-model="form.description"
                                         label=""
                                         type="text"
-                                        placeholder="Observaciones del producto"
+                                        placeholder="Descripción corta del producto"
+                                        :disabled="isReadonly"
+                                    />
+                                </div>
+
+                                <!-- Observaciones -->
+                                <div class="flex flex-col gap-1">
+                                    <Label class="text-sm font-medium">Observaciones</Label>
+                                    <TextareaField
+                                        v-model="form.observaciones"
+                                        label=""
+                                        placeholder="Observaciones internas del producto..."
+                                        :rows="3"
                                         :disabled="isReadonly"
                                     />
                                 </div>

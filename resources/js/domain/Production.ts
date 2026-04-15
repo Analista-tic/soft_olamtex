@@ -57,6 +57,7 @@ export type ProductSheet = {
     export_reference?: string | null;
     version?: number | null;
     billing_price?: number | null;
+    costo?: number | null;
     selling_price?: number | null;
     latest_total_cost?: number | null;
     status?: 'complete' | 'incomplete' | string;

@@ -29,6 +29,7 @@ export interface ProductSheet {
     fabric_base_id?: number;
     yarn_base_id?: number | null;
     billing_price?: number;
+    costo?: number;
     selling_price?: number;
     latest_total_cost?: number | null;
     sizes?: string | Record<string, boolean> | string[];

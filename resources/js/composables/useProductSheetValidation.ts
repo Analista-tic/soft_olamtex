@@ -2,7 +2,6 @@ import type { Ref } from 'vue';
 import { computed } from 'vue';
 
 export interface ProductSheetValidationSource {
-    garment_type?: 'superior' | 'inferior' | null;
     section_id: number | null;
     group_id: number | null;
     brand_id: number | null;
@@ -16,7 +15,6 @@ export interface ProductSheetValidationSource {
 
 export interface ProductSheetFieldErrors {
     reference: string;
-    garment_type: string;
     section_id: string;
     group_id: string;
     brand_id: string;
@@ -42,7 +40,6 @@ export function useProductSheetValidation<T extends ProductSheetValidationSource
         const errors: string[] = [];
         const form = params.form.value;
 
-        if (!form.garment_type) errors.push('Tipo de prenda es requerido.');
         if (!form.section_id) errors.push('Sección es requerida.');
         if (!form.group_id) errors.push('Grupo es requerido.');
         if (!form.brand_id) errors.push('Marca es requerida.');
@@ -67,7 +64,6 @@ export function useProductSheetValidation<T extends ProductSheetValidationSource
         const form = params.form.value;
         return {
             reference: !params.activeReference.value.trim() ? 'Referencia es requerida.' : '',
-            garment_type: !form.garment_type ? 'Tipo de prenda es requerido.' : '',
             section_id: !form.section_id ? 'Sección es requerida.' : '',
             group_id: !form.group_id ? 'Grupo es requerido.' : '',
             brand_id: !form.brand_id ? 'Marca es requerida.' : '',

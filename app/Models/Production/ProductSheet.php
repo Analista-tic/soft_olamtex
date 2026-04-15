@@ -19,10 +19,12 @@ class ProductSheet extends Model
         'fabric_base_id',
         'type',
         'billing_price',
+        'costo',
         'selling_price',
         'sizes',
         'woven_product',
         'description',
+        'observaciones',
         'processes',
         'status',
         'yarn_base_id',
@@ -57,6 +59,7 @@ class ProductSheet extends Model
         'parent_id' => 'integer',
         'garment_type' => 'string',
         'is_enabled' => 'boolean',
+        'costo' => 'float',
     ];
 
     // Relaciones eliminadas: section, group, brand, world, yarnBase, fabricBase
