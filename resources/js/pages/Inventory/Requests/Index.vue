@@ -47,6 +47,9 @@ const requests = ref<InventoryRequestRow[]>([]);
 const totalItems = ref(0);
 const searchQuery = ref('');
 const statusFilter = ref('all');
+const isLoading = ref(false);
+const sortBy = ref<'date' | 'delivery_date'>('date');
+const sortDir = ref<'asc' | 'desc'>('desc');
 const currentPage = ref(1);
 const itemsPerPage = 10;
 const successMessage = ref('');
@@ -98,12 +101,15 @@ function formatDate(value?: string | null) {
 }
 
 async function fetchRequests(page = 1, search = '') {
+    isLoading.value = true;
     try {
         const params: Record<string, any> = {
             page,
             per_page: itemsPerPage,
             search,
             status: statusFilter.value,
+            sort_by: sortBy.value,
+            sort_dir: sortDir.value,
         };
         const { data } = await axios.get('/inventario/solicitudes-internas/data', { params });
         requests.value = data.data ?? [];
@@ -113,8 +119,23 @@ async function fetchRequests(page = 1, search = '') {
         currentUserId.value = data.current_user_id ?? null;
         errorMessage.value = '';
     } catch {
+        requests.value = [];
         errorMessage.value = 'No se pudieron cargar las solicitudes.';
+    } finally {
+        isLoading.value = false;
     }
+}
+
+function toggleSort(column: 'date' | 'delivery_date') {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+
+    currentPage.value = 1;
+    fetchRequests(1, searchQuery.value);
 }
 
 function handlePageChange(newPage: number) {
@@ -248,9 +269,33 @@ onMounted(() => {
                     <Table class="text-center">
                         <TableHeader>
                             <TableRow>
-                                <TableHead># Solicitud</TableHead>
-                                <TableHead>Fecha solicitud</TableHead>
-                                <TableHead>Fecha entrega</TableHead>
+                                <TableHead>N° Solicitud</TableHead>
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('date')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Fecha solicitud
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'date'">
+                                                {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('delivery_date')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Fecha entrega
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'delivery_date'">
+                                                {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
                                 <TableHead>Estado</TableHead>
                                 <TableHead>Solicitante</TableHead>
                                 <TableHead>Observacion</TableHead>
@@ -258,78 +303,89 @@ onMounted(() => {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            <TableRow v-for="request in requests" :key="request.id">
-                                <TableCell>{{ request.document_number || `#${request.id}` }}</TableCell>
-                                <TableCell>{{ formatDate(request.date) }}</TableCell>
-                                <TableCell>{{ formatDate(request.delivery_date) }}</TableCell>
-                                <TableCell>
-                                    <TableStatusBadge
-                                        :label="statusLabels[request.status] || request.status"
-                                        :tone="statusTones[request.status] || 'gray'"
-                                    />
-                                </TableCell>
-                                <TableCell>{{ request.requester?.name || '-' }}</TableCell>
-                                <TableCell>{{ request.observation || '-' }}</TableCell>
-                                <TableCell class="text-center">
-                                    <div class="flex items-center justify-center gap-2">
-                                        <Tooltip>
-                                            <TooltipTrigger as-child>
-                                                <Button
-                                                    variant="ghost"
-                                                    :class="actionButtonClass"
-                                                    aria-label="Ver detalle"
-                                                    @click="openViewRequest(request)"
-                                                >
-                                                    <Eye :class="actionIconClass" />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Ver detalle</TooltipContent>
-                                        </Tooltip>
-                                        <Tooltip v-if="canEdit(request)">
-                                            <TooltipTrigger as-child>
-                                                <Button
-                                                    variant="ghost"
-                                                    :class="actionButtonClass"
-                                                    aria-label="Editar"
-                                                    @click="openEditRequest(request)"
-                                                >
-                                                    <Pencil :class="actionIconClass" />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Editar</TooltipContent>
-                                        </Tooltip>
-                                        <Tooltip v-if="canDeliver(request)">
-                                            <TooltipTrigger as-child>
-                                                <Button
-                                                    variant="ghost"
-                                                    :class="[actionButtonClass, actionButtonSuccessClass]"
-                                                    aria-label="Marcar como entregada"
-                                                    @click="openDelivery(request)"
-                                                >
-                                                    <Check :class="actionIconClass" />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Marcar como entregada</TooltipContent>
-                                        </Tooltip>
-                                        <Tooltip v-if="canReject(request)">
-                                            <TooltipTrigger as-child>
-                                                <Button
-                                                    variant="ghost"
-                                                    :class="[actionButtonClass, actionButtonDangerClass]"
-                                                    aria-label="Rechazar solicitud"
-                                                    @click="openReject(request)"
-                                                >
-                                                    <Ban :class="actionIconClass" />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Rechazar solicitud</TooltipContent>
-                                        </Tooltip>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
-                            <TableRow v-if="requests.length === 0">
-                                <TableCell colspan="7" class="text-center text-gray-400">No hay solicitudes registradas.</TableCell>
-                            </TableRow>
+                            <template v-if="isLoading">
+                                <TableRow>
+                                    <TableCell colspan="7">
+                                        <div class="py-6 text-center text-sm text-muted-foreground">Cargando solicitudes internas...</div>
+                                    </TableCell>
+                                </TableRow>
+                            </template>
+                            <template v-else-if="!requests.length">
+                                <TableRow>
+                                    <TableCell colspan="7" class="py-6 text-center text-sm text-muted-foreground">No hay solicitudes registradas.</TableCell>
+                                </TableRow>
+                            </template>
+                            <template v-else>
+                                <TableRow v-for="request in requests" :key="request.id">
+                                    <TableCell>{{ request.document_number || `#${request.id}` }}</TableCell>
+                                    <TableCell>{{ formatDate(request.date) }}</TableCell>
+                                    <TableCell>{{ formatDate(request.delivery_date) }}</TableCell>
+                                    <TableCell>
+                                        <TableStatusBadge
+                                            :label="statusLabels[request.status] || request.status"
+                                            :tone="statusTones[request.status] || 'gray'"
+                                        />
+                                    </TableCell>
+                                    <TableCell>{{ request.requester?.name || '-' }}</TableCell>
+                                    <TableCell>{{ request.observation || '-' }}</TableCell>
+                                    <TableCell class="text-center">
+                                        <div class="flex items-center justify-center gap-2">
+                                            <Tooltip>
+                                                <TooltipTrigger as-child>
+                                                    <Button
+                                                        variant="ghost"
+                                                        :class="actionButtonClass"
+                                                        aria-label="Ver detalle"
+                                                        @click="openViewRequest(request)"
+                                                    >
+                                                        <Eye :class="actionIconClass" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Ver detalle</TooltipContent>
+                                            </Tooltip>
+                                            <Tooltip v-if="canEdit(request)">
+                                                <TooltipTrigger as-child>
+                                                    <Button
+                                                        variant="ghost"
+                                                        :class="actionButtonClass"
+                                                        aria-label="Editar"
+                                                        @click="openEditRequest(request)"
+                                                    >
+                                                        <Pencil :class="actionIconClass" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Editar</TooltipContent>
+                                            </Tooltip>
+                                            <Tooltip v-if="canDeliver(request)">
+                                                <TooltipTrigger as-child>
+                                                    <Button
+                                                        variant="ghost"
+                                                        :class="[actionButtonClass, actionButtonSuccessClass]"
+                                                        aria-label="Marcar como entregada"
+                                                        @click="openDelivery(request)"
+                                                    >
+                                                        <Check :class="actionIconClass" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Marcar como entregada</TooltipContent>
+                                            </Tooltip>
+                                            <Tooltip v-if="canReject(request)">
+                                                <TooltipTrigger as-child>
+                                                    <Button
+                                                        variant="ghost"
+                                                        :class="[actionButtonClass, actionButtonDangerClass]"
+                                                        aria-label="Rechazar solicitud"
+                                                        @click="openReject(request)"
+                                                    >
+                                                        <Ban :class="actionIconClass" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Rechazar solicitud</TooltipContent>
+                                            </Tooltip>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            </template>
                         </TableBody>
                     </Table>
                 </TooltipProvider>

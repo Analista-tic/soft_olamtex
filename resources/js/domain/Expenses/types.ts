@@ -76,8 +76,8 @@ export interface PurchaseInvoice {
     parent?: { document_number?: string | null };
     supplier_invoice_number?: string;
     description?: string;
-    status?: 'pending_receipt' | 'received' | 'approved' | 'rejected';
-    approval_status?: 'pending' | 'approved' | 'rejected' | null;
+    status?: 'pending' | 'pending_receipt' | 'received' | 'approved' | 'rejected';
+    approval_status?: 'pending' | 'pending_difference_approval' | 'approved' | 'rejected' | 'difference_rejected' | null;
     approval_notes?: string | null;
     has_difference?: boolean;
     approved_by_user_id?: number | null;

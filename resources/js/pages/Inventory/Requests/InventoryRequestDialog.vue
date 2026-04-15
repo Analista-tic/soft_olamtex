@@ -169,9 +169,6 @@ async function fetchRequest(id: number) {
     try {
         const { data } = await axios.get(`/inventario/solicitudes-internas/${id}`);
         const payload = data?.data ?? {};
-        const rawImagePath = typeof payload.image === 'string' ? payload.image.trim() : '';
-        const normalizedImagePath = rawImagePath ? `/storage-file/${rawImagePath.replace(/^\/?storage\//, '')}` : null;
-        const resolvedImageUrl = normalizedImagePath || payload.image_url || null;
         localForm.value = {
             id: payload.id,
             document_number: payload.document_number ?? '',
@@ -455,7 +452,7 @@ watch(dialogOpen, (isOpen) => {
                                 <div class="space-y-1">
                                     <InputField
                                         v-model="safeDocumentNumber"
-                                        label="# Solicitud"
+                                        label="N° Solicitud"
                                         placeholder="SINT-001"
                                         :readonly="true"
                                         :disabled="true"

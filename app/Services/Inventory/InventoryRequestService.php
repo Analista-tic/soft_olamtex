@@ -23,6 +23,13 @@ class InventoryRequestService
         $query = InventoryRequest::with(['items.item', 'requester'])
             ->when(!$canManageRequests && $user, fn ($q) => $q->where('created_by_user_id', $user->id));
 
+        $sortBy = $filters['sort_by'] ?? 'date';
+        $sortDir = strtolower((string) ($filters['sort_dir'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
+        $allowedSorts = ['date', 'delivery_date'];
+        if (!in_array($sortBy, $allowedSorts, true)) {
+            $sortBy = 'date';
+        }
+
         if (!empty($filters['search'])) {
             $search = trim($filters['search']);
             $query->where(function ($q) use ($search) {
@@ -46,7 +53,10 @@ class InventoryRequestService
             $query->whereDate('date', '<=', $filters['date_to']);
         }
 
-        return $query->orderByDesc('date')->orderByDesc('id')->paginate($perPage);
+        return $query
+            ->orderBy($sortBy, $sortDir)
+            ->orderByDesc('id')
+            ->paginate($perPage);
     }
 
     public function findOrFail(int $id): InventoryRequest

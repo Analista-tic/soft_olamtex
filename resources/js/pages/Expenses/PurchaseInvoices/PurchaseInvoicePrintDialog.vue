@@ -46,6 +46,10 @@ const totalPagar = computed(() => Number(total.value) - Number(retencionesTotal.
 function print() {
     window.print();
 }
+
+function formatItemTaxPercentage(tax: number | null | undefined): number {
+    return Math.round(Number(tax ?? 0));
+}
 </script>
 
 <template>
@@ -145,7 +149,7 @@ function print() {
                                                 })
                                             }}
                                         </td>
-                                        <td class="border px-2 py-1 text-center print:border print:border-gray-300">{{ Math.round(item.tax) }} %</td>
+                                        <td class="border px-2 py-1 text-center print:border print:border-gray-300">{{ formatItemTaxPercentage(item.tax) }} %</td>
                                         <td class="border py-1 pe-10 ps-0 text-right print:border print:border-gray-300">
                                             {{
                                                 Number(item.total).toLocaleString('es-CO', {

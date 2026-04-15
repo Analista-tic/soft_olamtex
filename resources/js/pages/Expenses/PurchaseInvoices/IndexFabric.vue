@@ -120,25 +120,6 @@ const computeInvoiceTotal = (invoice: PurchaseInvoice) => {
     }, 0);
 };
 
-const getInvoiceItemsPreview = (invoice: PurchaseInvoice) => {
-    const names = (invoice.items || [])
-        .map((item) => {
-            const rawName = item.item?.name || item.item_name || item.description;
-            if (typeof rawName === 'string') {
-                return rawName.trim();
-            }
-            if (rawName != null) {
-                return String(rawName).trim();
-            }
-            return '';
-        })
-        .filter((name) => name.length > 0);
-
-    if (!names.length) return '-';
-    if (names.length <= 2) return names.join(', ');
-    return `${names.slice(0, 2).join(', ')} +${names.length - 2} más`;
-};
-
 function buildReceptionUrl(invoiceId?: number | string) {
     const basePath = invoiceId ? `${receptionBaseRoute}/${invoiceId}` : receptionBaseRoute;
     const query = new URLSearchParams({
