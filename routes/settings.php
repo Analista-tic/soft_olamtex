@@ -20,21 +20,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('configuracion');
 
     Route::get('configuracion/empresa', [CompanySettingsController::class, 'edit'])
-        ->middleware('permission:ver usuarios')
+        ->middleware('permission:ver empresa')
         ->name('configuracion.empresa');
 
     Route::get('configuracion/perfil', [CompanySettingsController::class, 'edit'])
-        ->middleware('permission:ver usuarios')
+        ->middleware('permission:ver perfil')
         ->name('configuracion.perfil')
         ->defaults('section', 'perfil');
 
     Route::get('configuracion/apariencia', [CompanySettingsController::class, 'edit'])
-        ->middleware('permission:ver usuarios')
+        ->middleware('permission:ver personalizacion')
         ->name('configuracion.apariencia')
         ->defaults('section', 'personalizacion');
 
     Route::match(['post', 'patch'], 'configuracion/empresa', [CompanySettingsController::class, 'update'])
-        ->middleware('permission:ver usuarios')
+        ->middleware('permission:editar empresa')
         ->name('configuracion.empresa.update');
 
     Route::get('users', [UserController::class, 'getData'])

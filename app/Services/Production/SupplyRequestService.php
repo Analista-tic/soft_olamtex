@@ -213,7 +213,7 @@ class SupplyRequestService
     private function notifyLogistics(InventoryRequest $request, User $creator): void
     {
         try {
-            $byPermission = User::permission('inventory.requests.attend')
+            $byPermission = User::permission('atender solicitudes insumos')
                 ->where('id', '!=', $creator->id)
                 ->pluck('id');
 

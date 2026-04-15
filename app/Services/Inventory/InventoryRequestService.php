@@ -90,14 +90,14 @@ class InventoryRequestService
             return $this->findOrFail($request->id);
         });
 
-        // Enviar notificación a usuarios con permiso inventory.requests.attend
+        // Enviar notificación a usuarios con permiso atender solicitudes insumos
         $this->notifyInventoryRequestCreated($inventoryRequest, $user);
 
         return $inventoryRequest;
     }
 
     /**
-     * Notifica a los usuarios con permiso inventory.requests.attend o rol admin sobre una nueva solicitud.
+     * Notifica a los usuarios con permiso atender solicitudes insumos o rol admin sobre una nueva solicitud.
      */
     protected function notifyInventoryRequestCreated(InventoryRequest $request, User $creator): void
     {
@@ -118,14 +118,14 @@ class InventoryRequestService
 
     /**
      * Resuelve los destinatarios para notificaciones de solicitudes de inventario.
-     * Incluye usuarios con permiso inventory.requests.attend O rol admin.
+     * Incluye usuarios con permiso atender solicitudes insumos O rol admin.
      *
      * @return \Illuminate\Database\Eloquent\Collection<int, User>
      */
     protected function resolveRecipientsForInventoryRequest(User $excludeUser): \Illuminate\Database\Eloquent\Collection
     {
-        // Usuarios con permiso inventory.requests.attend
-        $byPermission = User::permission('inventory.requests.attend')
+        // Usuarios con permiso atender solicitudes insumos
+        $byPermission = User::permission('atender solicitudes insumos')
             ->where('id', '!=', $excludeUser->id)
             ->pluck('id');
 
