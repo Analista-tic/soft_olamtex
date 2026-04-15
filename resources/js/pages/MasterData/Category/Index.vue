@@ -60,6 +60,7 @@ const currentPage = ref<number>(1);
 const itemsPerPage = 10;
 const totalItems = ref<number>(0);
 const searchQuery = ref<string>(''); // Campo de búsqueda
+const isLoading = ref<boolean>(false);
 const selectedGroup = ref<Option['id'] | ''>(''); // Filtro por grupo
 const successMessage = ref<string>('');
 const errorMessage = ref<string>('');
@@ -131,6 +132,7 @@ async function submitForm(subGroupData: Partial<CategorySubGroup>): Promise<void
 
 async function fetchSubGroups(page: number = 1, search: string = '', groupId: Option['id'] | null = null): Promise<void> {
     console.log('Fetching subgroups:', { page, search, groupId });
+    isLoading.value = true;
     try {
         const response = await axios.get('/categorias/subgrupos-data', {
             params: {
@@ -146,6 +148,9 @@ async function fetchSubGroups(page: number = 1, search: string = '', groupId: Op
         currentPage.value = response.data.current_page;
     } catch (error) {
         console.error('Error al obtener los subgrupos:', error);
+        subGroups.value = [];
+    } finally {
+        isLoading.value = false;
     }
 }
 
@@ -212,22 +217,38 @@ onMounted(() => {
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Id</TableHead>
+                            <TableHead>N° Subgrupo</TableHead>
                             <TableHead>Nombre</TableHead>
                             <TableHead>Grupo</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="(subGroup, index) in subGroups" :key="subGroup.id ?? `subgroup-${index}`">
-                            <TableCell class="font-medium">{{ subGroup.id }}</TableCell>
-                            <TableCell class="font-medium">{{ subGroup.name }}</TableCell>
-                            <TableCell>{{ subGroup.category_group?.name }}</TableCell>
-                            <TableCell class="flex justify-center gap-1">
-                                <EditButton :onClick="() => openDialog('edit', subGroup)" />
-                                <DeleteButton @click="confirmDeleteSubGroup(subGroup)" />
-                            </TableCell>
-                        </TableRow>
+                        <template v-if="isLoading">
+                            <TableRow>
+                                <TableCell colspan="4">
+                                    <div class="py-6 text-center text-sm text-muted-foreground">Cargando subgrupos...</div>
+                                </TableCell>
+                            </TableRow>
+                        </template>
+                        <template v-else-if="!subGroups.length">
+                            <TableRow>
+                                <TableCell colspan="4">
+                                    <div class="py-6 text-center text-sm text-muted-foreground">No hay subgrupos registrados.</div>
+                                </TableCell>
+                            </TableRow>
+                        </template>
+                        <template v-else>
+                            <TableRow v-for="(subGroup, index) in subGroups" :key="subGroup.id ?? `subgroup-${index}`">
+                                <TableCell class="font-medium">{{ subGroup.id }}</TableCell>
+                                <TableCell class="font-medium">{{ subGroup.name }}</TableCell>
+                                <TableCell>{{ subGroup.category_group?.name }}</TableCell>
+                                <TableCell class="flex justify-center gap-1">
+                                    <EditButton :onClick="() => openDialog('edit', subGroup)" />
+                                    <DeleteButton @click="confirmDeleteSubGroup(subGroup)" />
+                                </TableCell>
+                            </TableRow>
+                        </template>
                     </TableBody>
                 </Table>
                 <Pagination

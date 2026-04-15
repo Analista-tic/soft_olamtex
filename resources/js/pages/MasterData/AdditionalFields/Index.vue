@@ -82,6 +82,7 @@ const isReordering = ref(false);
 const searchQuery = ref('');
 const typeFilter = ref('all');
 const statusFilter = ref('all');
+const isLoading = ref(false);
 const currentPage = ref(1);
 const totalItems = ref(0);
 const itemsPerPage = 10;
@@ -257,6 +258,7 @@ async function handleDialogSubmit(fieldData: AdditionalFieldPayload) {
 }
 
 async function fetchAdditionalFields(page = 1, search = '') {
+    isLoading.value = true;
     try {
         const response = await axios.get('/campos-adicionales/data', {
             params: {
@@ -273,7 +275,10 @@ async function fetchAdditionalFields(page = 1, search = '') {
         currentPage.value = response.data.current_page ?? page;
     } catch (error) {
         console.error('Error al obtener los campos adicionales:', error);
+        additionalFields.value = [];
         setError('Error al cargar los campos adicionales.');
+    } finally {
+        isLoading.value = false;
     }
 }
 
@@ -479,39 +484,52 @@ onBeforeUnmount(() => {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow
-                            v-for="(field, index) in additionalFields"
-                            :key="field.id ?? `field-${index}`"
-                            draggable="true"
-                            @dragstart="handleDragStart(field)"
-                            @dragover.prevent="handleDragOver(field, $event)"
-                            @dragleave="handleDragLeave(field)"
-                            @drop.prevent="handleDrop(field)"
-                            @dragend="resetDragState()"
-                            :class="{
-                                'cursor-grab': !isReordering,
-                                'cursor-wait': isReordering,
-                                'opacity-70': field.id && field.id === draggedFieldId,
-                                'bg-slate-50': field.id && field.id === dragOverFieldId,
-                            }"
-                        >
-                            <TableCell class="font-medium">{{ field.name }}</TableCell>
-                            <TableCell>
-                                {{ fieldTypeLabels[field.field_type] ?? field.field_type }}
-                            </TableCell>
-                            <TableCell>{{ field.is_required ? 'Si' : 'No' }}</TableCell>
-                            <TableCell>
-                                <TableStatusBadge :label="field.status ? 'Activo' : 'Inactivo'" :tone="field.status ? 'green' : 'red'" />
-                            </TableCell>
-                            <TableCell>{{ field.options?.length ?? 0 }}</TableCell>
-                            <TableCell class="flex justify-center gap-1">
-                                <EditButton :onClick="() => openDialog('edit', field)" />
-                                <DeleteButton @click="confirmDeleteField(field)" />
-                            </TableCell>
-                        </TableRow>
-                        <TableRow v-if="additionalFields.length === 0">
-                            <TableCell colspan="7" class="px-4 py-2 text-center text-gray-400"> No hay campos adicionales registrados. </TableCell>
-                        </TableRow>
+                        <template v-if="isLoading">
+                            <TableRow>
+                                <TableCell colspan="6">
+                                    <div class="py-6 text-center text-sm text-muted-foreground">Cargando campos adicionales...</div>
+                                </TableCell>
+                            </TableRow>
+                        </template>
+                        <template v-else-if="!additionalFields.length">
+                            <TableRow>
+                                <TableCell colspan="6">
+                                    <div class="py-6 text-center text-sm text-muted-foreground">No hay campos adicionales registrados.</div>
+                                </TableCell>
+                            </TableRow>
+                        </template>
+                        <template v-else>
+                            <TableRow
+                                v-for="(field, index) in additionalFields"
+                                :key="field.id ?? `field-${index}`"
+                                draggable="true"
+                                @dragstart="handleDragStart(field)"
+                                @dragover.prevent="handleDragOver(field, $event)"
+                                @dragleave="handleDragLeave(field)"
+                                @drop.prevent="handleDrop(field)"
+                                @dragend="resetDragState()"
+                                :class="{
+                                    'cursor-grab': !isReordering,
+                                    'cursor-wait': isReordering,
+                                    'opacity-70': field.id && field.id === draggedFieldId,
+                                    'bg-slate-50': field.id && field.id === dragOverFieldId,
+                                }"
+                            >
+                                <TableCell class="font-medium">{{ field.name }}</TableCell>
+                                <TableCell>
+                                    {{ fieldTypeLabels[field.field_type] ?? field.field_type }}
+                                </TableCell>
+                                <TableCell>{{ field.is_required ? 'Si' : 'No' }}</TableCell>
+                                <TableCell>
+                                    <TableStatusBadge :label="field.status ? 'Activo' : 'Inactivo'" :tone="field.status ? 'green' : 'red'" />
+                                </TableCell>
+                                <TableCell>{{ field.options?.length ?? 0 }}</TableCell>
+                                <TableCell class="flex justify-center gap-1">
+                                    <EditButton :onClick="() => openDialog('edit', field)" />
+                                    <DeleteButton @click="confirmDeleteField(field)" />
+                                </TableCell>
+                            </TableRow>
+                        </template>
                     </TableBody>
                 </Table>
                 <Pagination

@@ -57,6 +57,7 @@ const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
+const isLoading = ref(false);
 const DEFAULT_FILTER_VALUE = 'all' as const;
 const typeFilter = ref<string>(DEFAULT_FILTER_VALUE);
 const statusFilter = ref<RetentionStatus | typeof DEFAULT_FILTER_VALUE>(DEFAULT_FILTER_VALUE);
@@ -135,18 +136,26 @@ async function handleDialogSubmit(retentionData: RetentionForm) {
 }
 
 async function fetchRetentions(page = 1, search = '') {
+    isLoading.value = true;
     const statusParam: RetentionStatus | undefined = statusFilter.value === DEFAULT_FILTER_VALUE ? undefined : statusFilter.value;
-
-    const data = await fetchRetentionsPage({
-        page,
-        per_page: itemsPerPage,
-        search,
-        type: typeFilter.value !== DEFAULT_FILTER_VALUE ? typeFilter.value : undefined,
-        status: statusParam,
-    });
-    retentions.value = data.data;
-    totalItems.value = typeof data.total === 'number' ? data.total : retentions.value.length;
-    currentPage.value = typeof data.current_page === 'number' ? data.current_page : 1;
+    try {
+        const data = await fetchRetentionsPage({
+            page,
+            per_page: itemsPerPage,
+            search,
+            type: typeFilter.value !== DEFAULT_FILTER_VALUE ? typeFilter.value : undefined,
+            status: statusParam,
+        });
+        retentions.value = data.data;
+        totalItems.value = typeof data.total === 'number' ? data.total : retentions.value.length;
+        currentPage.value = typeof data.current_page === 'number' ? data.current_page : 1;
+    } catch {
+        retentions.value = [];
+        errorType.value = 'error';
+        errorMessage.value = 'Error al cargar las retenciones.';
+    } finally {
+        isLoading.value = false;
+    }
 }
 
 function handlePageChange(newPage: number) {
@@ -214,7 +223,7 @@ onMounted(() => fetchRetentions());
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Id</TableHead>
+                            <TableHead>N° Retención</TableHead>
                             <TableHead>Nombre</TableHead>
                             <TableHead>Porcentaje</TableHead>
                             <TableHead>Tipo</TableHead>
@@ -224,23 +233,39 @@ onMounted(() => fetchRetentions());
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="(retention, index) in retentions" :key="retention.id ?? retention.name ?? index">
-                            <TableCell class="font-medium">{{ retention.id }}</TableCell>
-                            <TableCell class="font-medium">{{ retention.name }}</TableCell>
-                            <TableCell>{{ Math.trunc(retention.percent) }}%</TableCell>
-                            <TableCell>{{ retention.type }}</TableCell>
-                            <TableCell>{{ retention.description }}</TableCell>
-                            <TableCell>
-                                <TableStatusBadge
-                                    :label="retention.status === 'active' ? 'Activa' : 'Inactiva'"
-                                    :tone="retention.status === 'active' ? 'green' : 'red'"
-                                />
-                            </TableCell>
-                            <TableCell class="flex justify-center gap-1">
-                                <EditButton :onClick="() => openDialog('edit', retention)" />
-                                <DeleteButton @click="confirmDeleteRetention(retention)" />
-                            </TableCell>
-                        </TableRow>
+                        <template v-if="isLoading">
+                            <TableRow>
+                                <TableCell colspan="7">
+                                    <div class="py-6 text-center text-sm text-muted-foreground">Cargando retenciones...</div>
+                                </TableCell>
+                            </TableRow>
+                        </template>
+                        <template v-else-if="!retentions.length">
+                            <TableRow>
+                                <TableCell colspan="7">
+                                    <div class="py-6 text-center text-sm text-muted-foreground">No hay retenciones registradas.</div>
+                                </TableCell>
+                            </TableRow>
+                        </template>
+                        <template v-else>
+                            <TableRow v-for="(retention, index) in retentions" :key="retention.id ?? retention.name ?? index">
+                                <TableCell class="font-medium">{{ retention.id }}</TableCell>
+                                <TableCell class="font-medium">{{ retention.name }}</TableCell>
+                                <TableCell>{{ Math.trunc(retention.percent) }}%</TableCell>
+                                <TableCell>{{ retention.type }}</TableCell>
+                                <TableCell>{{ retention.description }}</TableCell>
+                                <TableCell>
+                                    <TableStatusBadge
+                                        :label="retention.status === 'active' ? 'Activa' : 'Inactiva'"
+                                        :tone="retention.status === 'active' ? 'green' : 'red'"
+                                    />
+                                </TableCell>
+                                <TableCell class="flex justify-center gap-1">
+                                    <EditButton :onClick="() => openDialog('edit', retention)" />
+                                    <DeleteButton @click="confirmDeleteRetention(retention)" />
+                                </TableCell>
+                            </TableRow>
+                        </template>
                     </TableBody>
                 </Table>
                 <Pagination
