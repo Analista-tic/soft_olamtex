@@ -38,8 +38,12 @@ const isTelasList = computed(() => {
     const r = returnToUrl.value;
     return typeof r === 'string' && r.includes('facturas-compra-tela');
 });
+const isAllReceptions = computed(() => {
+    const r = returnToUrl.value;
+    return !r || (!r.includes('facturas-compra-tela') && !r.includes('facturas-compra'));
+});
 const invoiceListHref = computed(() => (isTelasList.value ? '/gastos/facturas-compra-tela' : '/gastos/facturas-compra'));
-const invoiceListTitle = computed(() => (isTelasList.value ? 'Facturas (telas)' : 'Facturas compra'));
+const invoiceListTitle = computed(() => (isTelasList.value ? 'Facturas de compra de telas' : 'Facturas de compra'));
 const breadcrumbs = computed(() => [
     { title: invoiceListTitle.value, href: invoiceListHref.value },
     { title: 'Recepción', href: '/kardex-telas/recepcion' },
@@ -122,8 +126,8 @@ const DEFAULT_SUBGROUP_FILTER = 'all';
 const statusFilter = ref(DEFAULT_STATUS_FILTER);
 const providerFilter = ref(DEFAULT_PROVIDER_FILTER);
 const subgroupFilter = ref(DEFAULT_SUBGROUP_FILTER);
-const dateFrom = ref('');
-const dateTo = ref('');
+const dateFilter = ref('');
+const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 const providers = ref<{ id: number; full_name: string }[]>([]);
 const subgroups = ref<{ id: number; name: string }[]>([]);
 
@@ -297,8 +301,8 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         page,
         per_page: itemsPerPage,
         search,
-        date_from: dateFrom.value,
-        date_to: dateTo.value,
+        date_from: dateFilter.value || undefined,
+        date_to: dateFilter.value || undefined,
     };
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
     if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
@@ -308,12 +312,29 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         params.subgroup_id = isNaN(Number(subgroupFilter.value)) ? subgroupFilter.value : Number(subgroupFilter.value);
     }
     try {
-        const endpoint = isTelasList.value
-            ? '/gastos/facturas-compra-tela/data'
-            : '/gastos/facturas-compra/data';
-        const response = await axios.get(endpoint, { params });
-        invoices.value = Array.isArray(response.data.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
-        totalItems.value = typeof response.data.total === 'number' ? response.data.total : 0;
+        if (isAllReceptions.value) {
+            const [resGeneral, resTela] = await Promise.all([
+                axios.get('/gastos/facturas-compra/data', { params }),
+                axios.get('/gastos/facturas-compra-tela/data', { params }),
+            ]);
+            const general = Array.isArray(resGeneral.data.data) ? resGeneral.data.data : [];
+            const tela = Array.isArray(resTela.data.data) ? resTela.data.data : [];
+            const merged = [...general, ...tela].sort((a, b) => {
+                const dateA = new Date(a.date ?? 0).getTime();
+                const dateB = new Date(b.date ?? 0).getTime();
+                if (dateB !== dateA) return dateB - dateA;
+                return (b.id ?? 0) - (a.id ?? 0);
+            });
+            invoices.value = merged;
+            totalItems.value = (resGeneral.data.total ?? 0) + (resTela.data.total ?? 0);
+        } else {
+            const endpoint = isTelasList.value
+                ? '/gastos/facturas-compra-tela/data'
+                : '/gastos/facturas-compra/data';
+            const response = await axios.get(endpoint, { params });
+            invoices.value = Array.isArray(response.data.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
+            totalItems.value = typeof response.data.total === 'number' ? response.data.total : 0;
+        }
         refreshBlockersForList();
     } catch (e: any) {
         console.log('Error al cargar facturas:', e);
@@ -379,16 +400,15 @@ function getCannotApproveDescription(invoice: PurchaseInvoice | null | undefined
 
 // Watchers y eventos solo para modo lista
 watch(
-    [statusFilter, providerFilter, subgroupFilter, dateFrom, dateTo, searchQuery],
-    ([newStatus, newProvider, newSubgroup, newFrom, newTo, newSearch], [oldStatus, oldProvider, oldSubgroup, oldFrom, oldTo, oldSearch]) => {
+    [statusFilter, providerFilter, subgroupFilter, dateFilter, searchQuery],
+    ([newStatus, newProvider, newSubgroup, newDate, newSearch], [oldStatus, oldProvider, oldSubgroup, oldDate, oldSearch]) => {
         if (!showInvoicesList.value) return; // No ejecutar watchers en modo específico
 
         if (
             newStatus !== oldStatus ||
             newProvider !== oldProvider ||
             newSubgroup !== oldSubgroup ||
-            newFrom !== oldFrom ||
-            newTo !== oldTo ||
+            newDate !== oldDate ||
             newSearch !== oldSearch
         ) {
             if (currentPage.value !== 1) {
@@ -650,11 +670,8 @@ function onFabricRollSuccess() {
                             :button-class="subgroupButtonClasses"
                         />
                     </FilterField>
-                    <FilterField label="Desde" :active="Boolean(dateFrom.valueOf)" class="min-w-[140px]">
-                        <InputDate v-model="dateFrom" label="" placeholder="Desde" />
-                    </FilterField>
-                    <FilterField label="Hasta" :active="Boolean(dateTo.valueOf)" class="min-w-[140px]">
-                        <InputDate v-model="dateTo" label="" placeholder="Hasta" />
+                    <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
+                        <InputDate v-model="dateFilter" placeholder="Fecha" :clearable="true" :show-today="true" />
                     </FilterField>
                 </FilterBar>
 

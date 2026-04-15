@@ -8,7 +8,6 @@ use App\Models\MasterData\Item;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 class InventoryMovementService
 {
@@ -277,16 +276,14 @@ class InventoryMovementService
     protected function getWeightedPrice(int $itemId, int $warehouseId): float
     {
         // Prioridad 1: warehouse_items.weighted_average_price (PP por bodega)
-        if (Schema::hasColumn('warehouse_items', 'weighted_average_price')) {
-            $pp = DB::table('warehouse_items')
-                ->where('item_id', $itemId)
-                ->where('warehouse_id', $warehouseId)
-                ->whereNotNull('weighted_average_price')
-                ->where('weighted_average_price', '>', 0)
-                ->value('weighted_average_price');
-            if ($pp !== null) {
-                return (float) $pp;
-            }
+        $pp = DB::table('warehouse_items')
+            ->where('item_id', $itemId)
+            ->where('warehouse_id', $warehouseId)
+            ->whereNotNull('weighted_average_price')
+            ->where('weighted_average_price', '>', 0)
+            ->value('weighted_average_price');
+        if ($pp !== null) {
+            return (float) $pp;
         }
 
         // Prioridad 2: Último movimiento de esta item+bodega
@@ -320,7 +317,7 @@ class InventoryMovementService
             'updated_at' => now(),
         ];
 
-        if (Schema::hasColumn('warehouse_items', 'weighted_average_price') && $weightedPrice !== null) {
+        if ($weightedPrice !== null) {
             $payload['weighted_average_price'] = $weightedPrice;
         }
 
@@ -488,10 +485,6 @@ class InventoryMovementService
         }
 
         // Sin bodega: PP global ponderado desde warehouse_items
-        if (!Schema::hasColumn('warehouse_items', 'weighted_average_price')) {
-            $item = Item::find($itemId);
-            return $item ? (float) ($item->cost_price ?? 0) : 0;
-        }
         $rows = DB::table('warehouse_items')
             ->where('item_id', $itemId)
             ->whereNotNull('weighted_average_price')

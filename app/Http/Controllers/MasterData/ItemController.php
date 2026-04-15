@@ -156,13 +156,22 @@ class ItemController extends Controller
 
     public function getWarehouses($id)
     {
-        $warehouses = Item::findOrFail($id)
-            ->warehouses()
-            ->select('warehouses.id', 'warehouses.name')
-            ->withPivot(['quantity', 'stock_min', 'stock_max'])
-            ->get();
+        $item = Item::findOrFail($id);
 
-        return response()->json($warehouses);
+        $result = $item->warehouseItems()
+            ->with('warehouse')
+            ->get()
+            ->map(fn ($wi) => [
+                'id'    => $wi->warehouse_id,
+                'name'  => $wi->warehouse->name ?? '',
+                'pivot' => [
+                    'quantity'  => $wi->quantity,
+                    'stock_min' => $wi->stock_min,
+                    'stock_max' => $wi->stock_max,
+                ],
+            ]);
+
+        return response()->json($result);
     }
 
     public function exportExcel()

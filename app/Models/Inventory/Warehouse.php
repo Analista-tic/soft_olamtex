@@ -3,6 +3,7 @@
 namespace App\Models\Inventory;
 
 use App\Models\MasterData\Item;
+use App\Models\Inventory\WarehouseItem;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -17,15 +18,20 @@ class Warehouse extends Model implements \App\Contracts\HasAuditLabel
 
     protected $fillable = ['name', 'observation'];
 
-    public function items()
+    public function warehouseItems(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return $this->belongsToMany(Item::class, 'warehouse_items')
-            ->withPivot(['quantity', 'stock_min', 'stock_max'])
-            ->withTimestamps()
-            ->withCasts([
-                'quantity' => 'decimal:4',
-                'stock_min' => 'decimal:4',
-                'stock_max' => 'decimal:4',
-            ]);
+        return $this->hasMany(WarehouseItem::class);
+    }
+
+    public function items(): \Illuminate\Database\Eloquent\Relations\HasManyThrough
+    {
+        return $this->hasManyThrough(
+            Item::class,
+            WarehouseItem::class,
+            'warehouse_id',
+            'id',
+            'id',
+            'item_id'
+        );
     }
 }

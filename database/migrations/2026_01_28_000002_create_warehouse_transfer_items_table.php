@@ -11,17 +11,13 @@ return new class extends Migration
         Schema::create('warehouse_transfer_items', function (Blueprint $table) {
             $table->id();
             $table->foreignId('warehouse_transfer_id')
-                ->constrained('warehouse_transfers')
-                ->cascadeOnDelete()
-                ->name('wh_transfer_items_transfer_fk');
+                  ->constrained('warehouse_transfers')
+                  ->cascadeOnDelete();
             $table->foreignId('item_id')
-                ->constrained('items')
-                ->restrictOnDelete()
-                ->name('wh_transfer_items_item_fk');
+                  ->constrained('items')
+                  ->cascadeOnDelete();
             $table->decimal('quantity', 15, 4);
             $table->timestamps();
-
-            $table->index(['warehouse_transfer_id', 'item_id'], 'wh_transfer_items_transfer_item_idx');
         });
     }
 

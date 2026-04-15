@@ -758,7 +758,7 @@ function availableWarehouses(idx?: number) {
 
 function addWarehouseStock() {
     warehouseStocks.value.push({
-        warehouse_id: 0,
+        warehouse_id: null,
         name: '',
         quantity: 0,
         stock_min: 0,
@@ -1551,17 +1551,18 @@ onBeforeUnmount(() => {
                                                 class="w-full"
                                                 placeholder="Cantidad"
                                                 :allowNegative="true"
+                                                @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }"
                                             />
                                         </div>
 
                                         <div class="space-y-1">
                                             <Label class="text-xs">Cantidad Min</Label>
-                                            <InputIntegerField v-model="ws.stock_min" label="" type="number" class="w-full" placeholder="Min" />
+                                            <InputIntegerField v-model="ws.stock_min" label="" type="number" class="w-full" placeholder="Min" @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }" />
                                         </div>
 
                                         <div class="space-y-1">
                                             <Label class="text-xs">Cantidad Max</Label>
-                                            <InputIntegerField v-model="ws.stock_max" label="" type="number" class="w-full" placeholder="Max" />
+                                            <InputIntegerField v-model="ws.stock_max" label="" type="number" class="w-full" placeholder="Max" @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }" />
                                         </div>
 
                                         <div class="flex items-end justify-end">
@@ -1655,20 +1656,6 @@ onBeforeUnmount(() => {
                         <div class="md:col-span-1">
                             <InputField v-model="localForm.reference" label="Referencia" required />
                         </div>
-
-                        <div class="flex flex-col justify-end md:col-span-1">
-                            <SwitchField
-                                :model-value="negativeMovementBool"
-                                @update:modelValue="handleNegativeMovementChange"
-                                label="Movimiento Negativo"
-                                :tooltip-text="'Permite que las bodegas registren cantidades negativas cuando lo necesites.'"
-                                :disabled="negativeMovementToggleDisabled"
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <TextareaField v-model="localForm.description" label="Descripción" />
                     </div>
 
                     <!-- Campos adicionales -->

@@ -233,13 +233,13 @@ onMounted(() => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
-            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
-                <div class="flex flex-col gap-1">
+        <DialogContent class="flex max-h-[90vh] w-[95vw] max-w-2xl flex-col gap-0 overflow-hidden p-0">
+            <div class="border-b px-6 pb-4 pt-5">
+                <DialogHeader>
                     <DialogTitle>Entrega de Solicitud</DialogTitle>
-                    <DialogDescription class="pb-2"> Registra la entrega y descuenta stock en la bodega. </DialogDescription>
-                </div>
-            </DialogHeader>
+                    <DialogDescription>Registra la entrega y descuenta stock en la bodega.</DialogDescription>
+                </DialogHeader>
+            </div>
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
@@ -249,19 +249,14 @@ onMounted(() => {
                 @close-success="successMessage = ''"
                 @close-error="errorMessage = ''"
             />
-            <div class="flex-1 overflow-y-auto scroll-smooth px-4 pr-2" style="scrollbar-width: thin">
+            <div class="flex-1 overflow-y-auto px-6 py-4" style="scrollbar-width: thin">
                 <div class="space-y-4">
-                    <div class="grid grid-cols-2 gap-4">
-                        <DatePickerField
-                            v-model="deliveryDate"
-                            label="Fecha de entrega"
-                            helpText="Registra la fecha efectiva de entrega para mantener el inventario sincronizado con la operación."
-                            :required="true"
-                        />
-                        <div class="flex items-center justify-end">
-                            <a href="/bodegas" target="_blank" rel="noopener" class="text-xs text-primary underline"> Gestionar bodegas </a>
-                        </div>
-                    </div>
+                    <DatePickerField
+                        v-model="deliveryDate"
+                        label="Fecha de entrega"
+                        helpText="Registra la fecha efectiva de entrega para mantener el inventario sincronizado con la operación."
+                        :required="true"
+                    />
 
                     <div class="overflow-x-auto rounded-lg border border-border">
                         <Table class="min-w-full table-fixed border-separate border-spacing-x-2 border-spacing-y-1 text-center">
@@ -317,7 +312,7 @@ onMounted(() => {
                 </div>
             </div>
 
-            <DialogFooter class="mt-4 flex flex-shrink-0 justify-end gap-2 border-t px-4 pb-4 pt-4">
+            <DialogFooter class="border-t px-6 py-4">
                 <Button variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
                 <button
                     type="button"
