@@ -58,12 +58,14 @@ class PurchaseInvoiceController extends PurchaseDocumentController
 
     public function getData(Request $request)
     {
+
         $filters = $this->buildFilters($request);
         $filters['exclude_fabric'] = true;
         $documents = $this->service->paginateDocuments(
             PurchaseDocument::TYPE_INVOICE,
             $filters,
-            $request->input('per_page', 20)
+            $request->input('per_page', 20),
+            $request
         );
 
         return response()->json([

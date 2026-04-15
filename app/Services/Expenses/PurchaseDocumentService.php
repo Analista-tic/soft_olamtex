@@ -18,11 +18,20 @@ class PurchaseDocumentService
 {
     protected array $defaultFabricSubgroupNames = ['tela'];
 
-    public function paginateDocuments(string $documentType, array $filters = [], int $perPage = 20): LengthAwarePaginator
+    public function paginateDocuments(string $documentType, array $filters = [], int $perPage = 20, $request = null): LengthAwarePaginator
     {
         $query = $this->buildDocumentQuery($documentType);
         $query = $this->applyDocumentFilters($query, $filters);
 
+        // Soporte de ordenamiento dinámico solo si $request está presente
+        if ($request) {
+            $allowedSorts = ['date', 'delivery_date', 'status'];
+            $sortBy  = in_array($request->get('sort_by'), $allowedSorts)
+                ? $request->get('sort_by')
+                : 'date';
+            $sortDir = $request->get('sort_dir') === 'asc' ? 'asc' : 'desc';
+            return $query->orderBy($sortBy, $sortDir)->orderByDesc('id')->paginate($perPage);
+        }
         return $query->orderByDesc('date')->orderByDesc('id')->paginate($perPage);
     }
 

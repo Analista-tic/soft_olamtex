@@ -45,11 +45,26 @@ const successMessage = ref('');
 const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
+
 // NUEVOS FILTROS
 const statusFilter = ref('all');
 const providerFilter = ref('all');
 const dateFilter = ref<string | null>(null);
 const providers = ref<{ id: number; full_name: string }[]>([]);
+
+// SORT
+const sortBy = ref<string>('date');
+const sortDir = ref<'asc' | 'desc'>('desc');
+
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+    fetchOrders();
+}
 
 const DEFAULT_STATUS_FILTER = 'all';
 const DEFAULT_PROVIDER_FILTER = 'all';
@@ -189,6 +204,8 @@ async function fetchOrders(page = 1, search = '') {
         search,
         date_from: dateFilter.value || undefined,
         date_to: dateFilter.value || undefined,
+        sort_by: sortBy.value,
+        sort_dir: sortDir.value,
     };
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
     if (providerFilter.value !== 'all') params.provider_id = providerFilter.value;
@@ -351,12 +368,57 @@ function handleDialogError(message?: string) {
                     <TableHeader>
                         <TableRow>
                             <TableHead>N° Orden</TableHead>
-                            <TableHead>Fecha de creación</TableHead>
-                            <TableHead>Fecha de entrega</TableHead>
+                            <TableHead
+                                class="cursor-pointer select-none whitespace-nowrap"
+                                @click="toggleSort('date')"
+                            >
+                                <span class="inline-flex items-center gap-1">
+                                    Fecha de creación
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'date'">
+                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                        </template>
+                                        <template v-else>
+                                            <span class="opacity-30">↕</span>
+                                        </template>
+                                    </span>
+                                </span>
+                            </TableHead>
+                            <TableHead
+                                class="cursor-pointer select-none whitespace-nowrap"
+                                @click="toggleSort('delivery_date')"
+                            >
+                                <span class="inline-flex items-center gap-1">
+                                    Fecha de entrega
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'delivery_date'">
+                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                        </template>
+                                        <template v-else>
+                                            <span class="opacity-30">↕</span>
+                                        </template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Proveedor</TableHead>
                             <TableHead>Total</TableHead>
                             <TableHead>Descripción</TableHead>
-                            <TableHead>Estado</TableHead>
+                            <TableHead
+                                class="cursor-pointer select-none whitespace-nowrap"
+                                @click="toggleSort('status')"
+                            >
+                                <span class="inline-flex items-center gap-1">
+                                    Estado
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'status'">
+                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                        </template>
+                                        <template v-else>
+                                            <span class="opacity-30">↕</span>
+                                        </template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead class="text-center">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>

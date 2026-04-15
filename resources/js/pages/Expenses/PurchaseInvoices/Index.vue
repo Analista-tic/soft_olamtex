@@ -31,6 +31,9 @@ import InvoiceDifferenceApprovalDialog from './InvoiceDifferenceApprovalDialog.v
 
 const breadcrumbs = [{ title: 'Facturas de Compra', href: '/facturas-compra' }];
 
+
+const sortBy = ref<string>('date');
+const sortDir = ref<'asc' | 'desc'>('desc');
 const invoices = ref<PurchaseInvoice[]>([]);
 const isDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
@@ -55,6 +58,15 @@ const isSendingMail = ref(false);
 const isApprovalDialogOpen = ref(false);
 const invoiceForApproval = ref<PurchaseInvoice | null>(null);
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError, clearAlerts } = useAlertStack();
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+    fetchInvoices(currentPage.value, searchQuery.value);
+}
 
 const statusFilter = ref('all');
 const providerFilter = ref('all');
@@ -272,6 +284,8 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         search,
         date_from: toIsoDateString(dateFilter.value) || undefined,
         date_to: toIsoDateString(dateFilter.value) || undefined,
+        sort_by: sortBy.value,
+        sort_dir: sortDir.value,
     };
     if (statusFilter.value === 'status_pending') params.status = 'pending';
     if (statusFilter.value === 'status_approved') params.status = 'approved';
@@ -597,7 +611,22 @@ async function handleDifferenceDecision() {
                     <TableHeader>
                         <TableRow>
                             <TableHead>N° Factura</TableHead>
-                            <TableHead>Fecha de creación</TableHead>
+                            <TableHead
+                                class="cursor-pointer select-none whitespace-nowrap"
+                                @click="toggleSort('date')"
+                            >
+                                <span class="inline-flex items-center gap-1">
+                                    Fecha de creación
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'date'">
+                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                        </template>
+                                        <template v-else>
+                                            <span class="opacity-30">↕</span>
+                                        </template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Fecha de entrega</TableHead>
                             <TableHead>Proveedor</TableHead>
                             <TableHead>Total</TableHead>
