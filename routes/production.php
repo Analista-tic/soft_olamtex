@@ -41,11 +41,9 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
     Route::get('ficha-tecnica/{opId}/costos', [TechnicalDataSheetController::class, 'costsSummary'])
         ->name('ficha-tecnica.costs-summary');
     Route::get('ficha-tecnica/{opId}/imprimir', [TechnicalDataSheetController::class, 'printSummary'])
-        ->name('ficha-tecnica.print-summary')
-        ->withoutMiddleware(\App\Http\Middleware\HandleInertiaRequests::class);
+        ->name('ficha-tecnica.print-summary');
     Route::get('ficha-tecnica/{opId}/imprimir-h', [TechnicalDataSheetController::class, 'printSummaryH'])
-        ->name('ficha-tecnica.print-summary-h')
-        ->withoutMiddleware(\App\Http\Middleware\HandleInertiaRequests::class);
+        ->name('ficha-tecnica.print-summary-h');
     Route::get('ficha-tecnica/{opId}/materia-prima', [TechnicalDataSheetController::class, 'rawMaterialsSummary'])
         ->name('ficha-tecnica.raw-materials.index');
     Route::put('ficha-tecnica/{opId}/materia-prima', [TechnicalDataSheetController::class, 'saveRawMaterials'])

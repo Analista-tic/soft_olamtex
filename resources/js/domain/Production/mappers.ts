@@ -94,6 +94,7 @@ export function mapProductSheetDto(dto: ProductSheetDto): ProductSheet {
         fabric_base_id: (dto as any).fabric_base_id ?? (dto as any).base_id,
         yarn_base_id: (dto as any).yarn_base_id ?? null,
         billing_price: (dto as any).billing_price as any,
+        costo: (dto as any).costo as any,
         selling_price: (dto as any).selling_price as any,
         sizes: (dto as any).sizes,
         processes: (dto as any).processes ?? undefined,

@@ -34,6 +34,7 @@ export interface ProductSheetDto {
     fabric_base_id?: number | null;
     yarn_base_id?: number | null;
     billing_price?: number | string | null;
+    costo?: number | string | null;
     selling_price?: number | string | null;
     sizes?: unknown | string | Record<string, boolean> | string[];
     processes?: string | Record<string, boolean>;

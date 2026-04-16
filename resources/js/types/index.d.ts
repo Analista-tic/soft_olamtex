@@ -140,6 +140,7 @@ export interface ProductSheet {
     world_id: number;
     base_id: number;
     billing_price?: number;
+    costo?: number;
     selling_price?: number;
     sizes?: string;
     description?: string;

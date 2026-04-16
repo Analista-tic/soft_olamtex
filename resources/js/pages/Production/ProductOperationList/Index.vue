@@ -305,6 +305,7 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
                 optimal_time: Number(payload.optimal_time),
                 operator_efficiency_factor: payload.operator_efficiency_factor,
                 machine_supplement_factor: payload.machine_supplement_factor,
+                grupo_preparacion: payload.grupo_preparacion ?? null,
                 notes: payload.notes,
                 quantity: payload.quantity ?? 1,
                 fabric_base_id: payload.fabric_base_id ?? null,

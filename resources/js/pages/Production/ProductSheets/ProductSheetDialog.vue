@@ -15,6 +15,7 @@ import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } fr
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useProductSheetValidation } from '@/composables/useProductSheetValidation';
+import { useSmartLoading } from '@/composables/useSmartLoading';
 import type { OptionParams, ProductSheet } from '@/domain/Production';
 import {
     PRODUCT_SHEET_TYPE_PRODUCT,
@@ -32,6 +33,7 @@ import axios from 'axios';
 import { Loader2 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import ImageUploadViewer from '@/components/ImageUploadViewer.vue';
+import TextareaField from '@/components/TextareaField.vue';
 
 interface Props {
     mode: 'create' | 'edit' | 'view'; // Define si es creación, edición o visualización
@@ -68,6 +70,7 @@ const dialogInnerRef = ref<HTMLElement | null>(null);
 const isLoading = ref(false);
 const errorMessage = ref('');
 const errorType = ref<'error' | 'warning' | 'info'>('error');
+const smartLoading = useSmartLoading();
 
 function setError(message: string, type: 'error' | 'warning' | 'info' = 'error'): void {
     errorMessage.value = message;
@@ -122,10 +125,12 @@ interface FormState {
     operational_list_id: number | null;
     collection_id: number | null;
     billing_price: number;
+    costo: number;
     selling_price: number;
     sizes: string;
     woven_product: boolean;
     description: string;
+    observaciones: string;
     flat_sketch_path: string;
     sample_reference: string;
     product_reference: string;
@@ -209,10 +214,12 @@ function createInitialFormState(): FormState {
         operational_list_id: null,
         collection_id: null,
         billing_price: 0,
+        costo: 0,
         selling_price: 0,
         sizes: defaultSizesJson(),
         woven_product: false,
         description: '',
+        observaciones: '',
         flat_sketch_path: '',
         sample_reference: '',
         product_reference: '',
@@ -353,11 +360,11 @@ function syncCatalogOptionsFromProps(): void {
     yarnBaseOptions.value = Array.isArray(props.yarnBases) ? [...props.yarnBases] : [];
 }
 
-async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig): Promise<void> {
+async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig, rawName?: string): Promise<void> {
     if (isReadonly.value) return;
 
     const config = selectCreationConfig[catalogKey];
-    const name = normalizeCollectionName(config.getTerm());
+    const name = normalizeCollectionName(rawName ?? config.getTerm());
 
     if (!name) {
         setError(`Escribe un nombre para agregar ${config.successLabel.toLowerCase()}.`, 'warning');
@@ -376,10 +383,14 @@ async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig
     }
 
     try {
-        const response = await axios.post(route('produccion.product-sheets.parameters.store-option'), {
-            key: catalogKey,
-            name,
-        });
+        const response = await smartLoading.run(
+            () =>
+                axios.post(route('produccion.product-sheets.parameters.store-option'), {
+                    key: catalogKey,
+                    name,
+                }),
+            { label: `Creando ${config.successLabel.toLowerCase()}...` },
+        );
 
         const created = response.data?.data;
         const createdId = toIdOrNull(created?.id ?? null);
@@ -416,6 +427,32 @@ function syncCollectionOptionsFromProps(): void {
     collectionOptions.value = Array.isArray(props.collections) ? [...props.collections] : [];
 }
 
+function findCollectionByName(name: string, options: OptionParams[]): OptionParams | undefined {
+    const normalized = normalizeCollectionName(name).toLowerCase();
+    return options.find((option) => normalizeCollectionName(String(option.name)).toLowerCase() === normalized);
+}
+
+async function refreshCollectionOptionsAndSelect(name: string): Promise<boolean> {
+    try {
+        const response = await axios.get(route('produccion.colecciones.options'));
+        const options = Array.isArray(response.data?.data) ? (response.data.data as OptionParams[]) : [];
+        collectionOptions.value = options;
+
+        const existing = findCollectionByName(name, options);
+        const existingId = toIdOrNull(existing?.id ?? null);
+        if (!existingId) {
+            return false;
+        }
+
+        form.value.collection_id = existingId;
+        collectionSearchTerm.value = '';
+        setError('La colección ya existía y fue seleccionada.', 'info');
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 async function createCollectionFromSelect(rawName?: string): Promise<void> {
     if (isReadonly.value || creatingCollection.value) return;
 
@@ -435,10 +472,14 @@ async function createCollectionFromSelect(rawName?: string): Promise<void> {
 
     creatingCollection.value = true;
     try {
-        const response = await axios.post(route('produccion.colecciones.store'), {
-            name,
-            is_active: true,
-        });
+        const response = await smartLoading.run(
+            () =>
+                axios.post(route('produccion.colecciones.store'), {
+                    name,
+                    is_active: true,
+                }),
+            { label: 'Creando colección...' },
+        );
 
         const created = response.data?.data;
         const createdId = toIdOrNull(created?.id ?? null);
@@ -455,6 +496,13 @@ async function createCollectionFromSelect(rawName?: string): Promise<void> {
         setError('Colección creada y seleccionada.', 'info');
     } catch (err: unknown) {
         if (axios.isAxiosError(err)) {
+            if (err.response?.status === 422) {
+                const recovered = await refreshCollectionOptionsAndSelect(name);
+                if (recovered) {
+                    return;
+                }
+            }
+
             const message = err.response?.data?.message;
             const validationError = err.response?.data?.errors
                 ? Object.values(err.response.data.errors).flat()[0]
@@ -496,7 +544,7 @@ async function loadTemplates() {
 
     isLoadingTemplate.value = true;
     try {
-        const response = await fetchProductSheetTemplates();
+        const response = await smartLoading.run(() => fetchProductSheetTemplates(), { label: 'Cargando plantillas...' });
         templateOptions.value = response.data?.data ?? [];
         templatesLoaded.value = true;
     } catch {
@@ -510,7 +558,7 @@ async function applyTemplate(templateId: number) {
     if (!templateId) return;
     isLoadingTemplate.value = true;
     try {
-        const response = await showProductSheet(templateId);
+        const response = await smartLoading.run(() => showProductSheet(templateId), { label: 'Aplicando plantilla...' });
         const tpl = response.data?.data;
         if (!tpl) return;
 
@@ -526,10 +574,12 @@ async function applyTemplate(templateId: number) {
             operational_list_id: toIdOrNull(tpl.operational_list_id),
             collection_id: toIdOrNull(tpl.collection_id),
             billing_price: Number(tpl.billing_price ?? 0),
+            costo: Number(tpl.costo ?? 0),
             selling_price: Number(tpl.selling_price ?? 0),
             sizes: ensureSizesJson(tpl.sizes),
             woven_product: Boolean(tpl.woven_product),
             description: String(tpl.description ?? ''),
+            observaciones: '',
             flat_sketch_path: '',
             sample_reference: normalizeUpperText(tpl.sample_reference ?? ''),
             product_reference: normalizeUpperText(tpl.product_reference ?? ''),
@@ -804,6 +854,7 @@ watch(
             flatSketchRef.value?.reset();
             const sizeValue = ensureSizesJson(newProductSheet.sizes);
             const normalizedType = normalizeTypeValue(newProductSheet.type);
+            const garmentType = (newProductSheet as ProductSheet & { garment_type?: 'superior' | 'inferior' | null }).garment_type ?? null;
 
             form.value = {
                 ...createInitialFormState(),
@@ -815,14 +866,16 @@ watch(
                 fabric_base_id: toIdOrNull(newProductSheet.fabric_base_id),
                 yarn_base_id: toIdOrNull(newProductSheet.yarn_base_id),
                 type: normalizedType,
-                garment_type: (newProductSheet.garment_type as 'superior' | 'inferior' | null) ?? null,
+                garment_type: garmentType,
                 operational_list_id: toIdOrNull(newProductSheet.operational_list_id),
                 collection_id: toIdOrNull(newProductSheet.collection_id),
                 billing_price: Number(newProductSheet.billing_price ?? 0),
+                costo: Number(newProductSheet.costo ?? 0),
                 selling_price: Number(newProductSheet.selling_price ?? 0),
                 sizes: sizeValue,
                 woven_product: Boolean(newProductSheet.woven_product),
                 description: String(newProductSheet.description ?? ''),
+                observaciones: String((newProductSheet as ProductSheet & { observaciones?: string }).observaciones ?? ''),
                 flat_sketch_path: String(newProductSheet.flat_sketch_path ?? ''),
                 sample_reference: normalizeUpperText(newProductSheet.sample_reference ?? ''),
                 product_reference: normalizeUpperText(newProductSheet.product_reference ?? ''),
@@ -915,9 +968,13 @@ async function validateSampleOperationalList(silent = false): Promise<boolean> {
 
     checkingSampleOperationalList.value = true;
     try {
-        const response = await axios.get(route('produccion.listados-operacionales.data'), {
-            params: { product_sheet_id: productSheetId },
-        });
+        const response = await smartLoading.run(
+            () =>
+                axios.get(route('produccion.listados-operacionales.data'), {
+                    params: { product_sheet_id: productSheetId },
+                }),
+            { label: 'Validando listado operacional...' },
+        );
         const rows = Array.isArray(response.data?.data) ? response.data.data : [];
         hasSampleOperationalList.value = rows.length > 0;
 
@@ -966,7 +1023,8 @@ function closeConvertDialog() {
 }
 
 async function submitConvertDialog(productReference: string) {
-    if (!props.productSheet?.id) {
+    const productSheetId = props.productSheet?.id;
+    if (!productSheetId) {
         setError('No se pudo identificar la sábana.');
         return;
     }
@@ -980,7 +1038,10 @@ async function submitConvertDialog(productReference: string) {
 
     convertLoading.value = true;
     try {
-        const response = await convertSampleToProduct(props.productSheet.id, productReference);
+        const response = await smartLoading.run(
+            () => convertSampleToProduct(productSheetId, productReference),
+            { label: 'Convirtiendo muestra a producto...' },
+        );
         emit('productSheetSaved', {
             success: true,
             message: 'Sábana convertida a producto correctamente.',
@@ -1046,10 +1107,12 @@ function buildBasePayload() {
         fabric_base_id: toIdOrNull(form.value.fabric_base_id),
         yarn_base_id: wovenProduct ? toIdOrNull(form.value.yarn_base_id) : null,
         billing_price: form.value.billing_price ?? 0,
+        costo: form.value.costo ?? 0,
         selling_price: form.value.selling_price ?? 0,
         sizes: ensureSizesJson(form.value.sizes),
         woven_product: wovenProduct ? 1 : 0,
         description: form.value.description ?? '',
+        observaciones: form.value.observaciones ?? '',
         processes: ensureValidProcessesJson(form.value.processes),
         status: form.value.status ?? 'incomplete',
         operational_list_id: toIdOrNull(form.value.operational_list_id),
@@ -1084,21 +1147,26 @@ async function saveProductSheet() {
     isLoading.value = true;
 
     try {
-        const basePayload = buildBasePayload();
-        const payload = buildMultipartPayload(basePayload);
+        const response = await smartLoading.run(
+            async () => {
+                const basePayload = buildBasePayload();
+                const payload = buildMultipartPayload(basePayload);
 
-        const flatSketchToUpload = await (flatSketchRef.value?.getFileForUpload() ?? Promise.resolve(null));
-        if (flatSketchToUpload instanceof File) {
-            payload.append('flat_sketch', flatSketchToUpload);
-        }
+                const flatSketchToUpload = await (flatSketchRef.value?.getFileForUpload() ?? Promise.resolve(null));
+                if (flatSketchToUpload instanceof File) {
+                    payload.append('flat_sketch', flatSketchToUpload);
+                }
 
-        if (isEditMode.value && props.productSheet?.id) {
-            payload.append('_method', 'PUT');
-        }
+                if (isEditMode.value && props.productSheet?.id) {
+                    payload.append('_method', 'PUT');
+                }
 
-        const response = isEditMode.value && props.productSheet?.id
-            ? await updateProductSheet(props.productSheet.id, payload)
-            : await createProductSheet(payload);
+                return isEditMode.value && props.productSheet?.id
+                    ? await updateProductSheet(props.productSheet.id, payload)
+                    : await createProductSheet(payload);
+            },
+            { label: isEditMode.value ? 'Actualizando sábana...' : 'Guardando sábana...' },
+        );
 
         emit('productSheetSaved', {
             success: true,
@@ -1257,7 +1325,7 @@ function handleClose() {
                                 </div>
                             </div>
 
-                            <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Precio facturacion</Label>
@@ -1270,6 +1338,12 @@ function handleClose() {
                                         :disabled="isReadonly"
                                         :error="showFieldErrors ? fieldErrors.billing_price : undefined"
                                     />
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <div class="flex items-center gap-2">
+                                        <Label class="text-sm font-medium">Costo</Label>
+                                    </div>
+                                    <InputField v-model="form.costo" type="currency" label="" placeholder="$ 0" :disabled="isReadonly" />
                                 </div>
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
@@ -1297,7 +1371,7 @@ function handleClose() {
                                         action-label="Agregar sección"
                                         :action-disabled="isReadonly"
                                         @search="(term) => (sectionSearchTerm = String(term ?? ''))"
-                                        @action="createCatalogOption('sections')"
+                                        @action="(term) => createCatalogOption('sections', String(term ?? ''))"
                                         :invalid="showFieldErrors && !!fieldErrors.section_id"
                                         :error-message="showFieldErrors ? fieldErrors.section_id : undefined"
                                     />
@@ -1319,7 +1393,7 @@ function handleClose() {
                                         action-label="Agregar grupo"
                                         :action-disabled="isReadonly"
                                         @search="(term) => (groupSearchTerm = String(term ?? ''))"
-                                        @action="createCatalogOption('groups')"
+                                        @action="(term) => createCatalogOption('groups', String(term ?? ''))"
                                         :invalid="showFieldErrors && !!fieldErrors.group_id"
                                         :error-message="showFieldErrors ? fieldErrors.group_id : undefined"
                                     />
@@ -1340,7 +1414,7 @@ function handleClose() {
                                         action-label="Agregar marca"
                                         :action-disabled="isReadonly"
                                         @search="(term) => (brandSearchTerm = String(term ?? ''))"
-                                        @action="createCatalogOption('brands')"
+                                        @action="(term) => createCatalogOption('brands', String(term ?? ''))"
                                         :invalid="showFieldErrors && !!fieldErrors.brand_id"
                                         :error-message="showFieldErrors ? fieldErrors.brand_id : undefined"
                                     />
@@ -1363,7 +1437,7 @@ function handleClose() {
                                         action-label="Agregar mundo"
                                         :action-disabled="isReadonly"
                                         @search="(term) => (worldSearchTerm = String(term ?? ''))"
-                                        @action="createCatalogOption('worlds')"
+                                        @action="(term) => createCatalogOption('worlds', String(term ?? ''))"
                                         :invalid="showFieldErrors && !!fieldErrors.world_id"
                                         :error-message="showFieldErrors ? fieldErrors.world_id : undefined"
                                     />
@@ -1399,7 +1473,7 @@ function handleClose() {
                                         action-label="Agregar base tela"
                                         :action-disabled="isReadonly"
                                         @search="(term) => (fabricBaseSearchTerm = String(term ?? ''))"
-                                        @action="createCatalogOption('fabric_bases')"
+                                        @action="(term) => createCatalogOption('fabric_bases', String(term ?? ''))"
                                         :invalid="showFieldErrors && !!fieldErrors.fabric_base_id"
                                         :error-message="showFieldErrors ? fieldErrors.fabric_base_id : undefined"
                                     />
@@ -1422,7 +1496,7 @@ function handleClose() {
                                         action-label="Agregar base hilaza"
                                         :action-disabled="isReadonly"
                                         @search="(term) => (yarnBaseSearchTerm = String(term ?? ''))"
-                                        @action="createCatalogOption('yarn_bases')"
+                                        @action="(term) => createCatalogOption('yarn_bases', String(term ?? ''))"
                                         :invalid="showFieldErrors && !!fieldErrors.yarn_base_id"
                                         :error-message="showFieldErrors ? fieldErrors.yarn_base_id : undefined"
                                     />
@@ -1564,7 +1638,19 @@ function handleClose() {
                                         v-model="form.description"
                                         label=""
                                         type="text"
-                                        placeholder="Observaciones del producto"
+                                        placeholder="Descripción corta del producto"
+                                        :disabled="isReadonly"
+                                    />
+                                </div>
+
+                                <!-- Observaciones -->
+                                <div class="flex flex-col gap-1">
+                                    <Label class="text-sm font-medium">Observaciones</Label>
+                                    <TextareaField
+                                        v-model="form.observaciones"
+                                        label=""
+                                        placeholder="Observaciones internas del producto..."
+                                        :rows="3"
                                         :disabled="isReadonly"
                                     />
                                 </div>

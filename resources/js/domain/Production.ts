@@ -50,12 +50,14 @@ export type ProductSheet = {
     id: number;
     reference?: string | null;
     type: 'muestra' | 'producto';
+    garment_type?: 'superior' | 'inferior' | null;
     sample_reference?: string | null;
     product_reference?: string | null;
     product_reference_2?: string | null;
     export_reference?: string | null;
     version?: number | null;
     billing_price?: number | null;
+    costo?: number | null;
     selling_price?: number | null;
     latest_total_cost?: number | null;
     status?: 'complete' | 'incomplete' | string;
