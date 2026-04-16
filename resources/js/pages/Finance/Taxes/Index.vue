@@ -45,6 +45,7 @@ const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
+const isLoading = ref(false);
 const DEFAULT_FILTER_VALUE = 'all';
 const statusFilter = ref(DEFAULT_FILTER_VALUE);
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
@@ -96,14 +97,22 @@ async function handleDialogSubmit(taxData: any) {
 }
 
 async function fetchTaxes(page = 1, search = '') {
+    isLoading.value = true;
     const params: Record<string, any> = { page, per_page: itemsPerPage, search };
     if (statusFilter.value !== DEFAULT_FILTER_VALUE) {
         params.status = statusFilter.value;
     }
-    const { data } = await axios.get('/impuestos/data', { params });
-    taxes.value = data.data;
-    totalItems.value = data.total ?? data.data.length;
-    currentPage.value = data.current_page ?? 1;
+    try {
+        const { data } = await axios.get('/impuestos/data', { params });
+        taxes.value = data.data;
+        totalItems.value = data.total ?? data.data.length;
+        currentPage.value = data.current_page ?? 1;
+    } catch {
+        taxes.value = [];
+        showError('Error al cargar los impuestos.');
+    } finally {
+        isLoading.value = false;
+    }
 }
 
 function handlePageChange(newPage: number) {
@@ -128,17 +137,16 @@ onMounted(() => fetchTaxes());
         />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex flex-col gap-3">
-                <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Gestión de impuestos</h1>
-                    <p class="text-sm text-muted-foreground">
-                        Configura los impuestos que se aplican a productos y servicios. Define el nombre y el porcentaje; luego podrás seleccionarlos
-                        en las facturas y órdenes para calcular los totales.
-                    </p>
+                <div class="flex items-center justify-between gap-3">
+                    <div class="flex flex-col gap-1">
+                        <h1 class="text-lg font-bold">Gestión de impuestos</h1>
+                        <p class="text-sm text-muted-foreground">Define los impuestos aplicables a productos y servicios.</p>
+                    </div>
+                    <Button variant="default" size="pill" class="shrink-0 self-center" @click="openDialog('create')">
+                        <PlusCircle class="h-4 w-4" />
+                        Nuevo Impuesto
+                    </Button>
                 </div>
-                <Button variant="default" size="pill" class="self-end" @click="openDialog('create')">
-                    <PlusCircle class="h-4 w-4" />
-                    Nuevo Impuesto
-                </Button>
             </div>
             <FilterBar align="start" gap="gap-4">
                 <FilterField label="Buscar impuesto" :active="isSearchActive" class="min-w-[240px] flex-1 p-0">
@@ -166,7 +174,7 @@ onMounted(() => fetchTaxes());
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Id</TableHead>
+                            <TableHead>N° Impuesto</TableHead>
                             <TableHead>Nombre</TableHead>
                             <TableHead>Porcentaje</TableHead>
                             <TableHead>Estado</TableHead>
@@ -174,18 +182,34 @@ onMounted(() => fetchTaxes());
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="tax in taxes" :key="tax.id">
-                            <TableCell class="font-medium">{{ tax.id }}</TableCell>
-                            <TableCell class="font-medium">{{ tax.name }}</TableCell>
-                            <TableCell>{{ Math.trunc(tax.percentage) }}%</TableCell>
-                            <TableCell>
-                                <TableStatusBadge :label="tax.status ? 'Activo' : 'Inactivo'" :tone="tax.status ? 'green' : 'red'" />
-                            </TableCell>
-                            <TableCell class="flex justify-center gap-1">
-                                <EditButton :onClick="() => openDialog('edit', tax)" />
-                                <DeleteButton @click="confirmDeleteTax(tax)" />
-                            </TableCell>
-                        </TableRow>
+                        <template v-if="isLoading">
+                            <TableRow>
+                                <TableCell colspan="5">
+                                    <div class="py-6 text-center text-sm text-muted-foreground">Cargando impuestos...</div>
+                                </TableCell>
+                            </TableRow>
+                        </template>
+                        <template v-else-if="!taxes.length">
+                            <TableRow>
+                                <TableCell colspan="5">
+                                    <div class="py-6 text-center text-sm text-muted-foreground">No hay impuestos registrados.</div>
+                                </TableCell>
+                            </TableRow>
+                        </template>
+                        <template v-else>
+                            <TableRow v-for="tax in taxes" :key="tax.id">
+                                <TableCell class="font-medium">{{ tax.id }}</TableCell>
+                                <TableCell class="font-medium">{{ tax.name }}</TableCell>
+                                <TableCell>{{ Math.trunc(tax.percentage) }}%</TableCell>
+                                <TableCell>
+                                    <TableStatusBadge :label="tax.status ? 'Activo' : 'Inactivo'" :tone="tax.status ? 'green' : 'red'" />
+                                </TableCell>
+                                <TableCell class="flex justify-center gap-1">
+                                    <EditButton :onClick="() => openDialog('edit', tax)" />
+                                    <DeleteButton @click="confirmDeleteTax(tax)" />
+                                </TableCell>
+                            </TableRow>
+                        </template>
                     </TableBody>
                 </Table>
                 <Pagination

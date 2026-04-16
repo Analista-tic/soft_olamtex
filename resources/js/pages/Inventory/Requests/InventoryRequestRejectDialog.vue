@@ -68,12 +68,10 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-w-md border border-border p-8">
-            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
-                <div class="flex flex-col gap-1">
-                    <DialogTitle>Rechazar Solicitud</DialogTitle>
-                    <DialogDescription class="pb-2"> Indica el motivo del rechazo. </DialogDescription>
-                </div>
+        <DialogContent class="sm:max-w-md p-6">
+            <DialogHeader>
+                <DialogTitle>Rechazar Solicitud</DialogTitle>
+                <DialogDescription>Indica el motivo del rechazo.</DialogDescription>
             </DialogHeader>
             <AlertStack
                 :success-message="successMessage"
@@ -83,11 +81,11 @@ watch(dialogOpen, (isOpen) => {
                 @close-success="successMessage = ''"
                 @close-error="errorMessage = ''"
             />
-            <div class="px-4 pb-4">
+            <div class="py-2">
                 <TextareaField v-model="reason" label="Motivo" placeholder="Describe el motivo del rechazo" :required="true" />
             </div>
-            <DialogFooter class="mt-4 flex flex-shrink-0 justify-end gap-2 border-t px-4 pb-4 pt-4">
-                <Button variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
+            <DialogFooter>
+                <Button variant="outline" class="rounded-full px-5 py-2" @click="dialogOpen = false">Cancelar</Button>
                 <button
                     type="button"
                     :disabled="isLoading"

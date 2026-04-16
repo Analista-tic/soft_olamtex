@@ -25,6 +25,13 @@ class WarehouseTransferController extends Controller
     {
         $perPage = (int) $request->input('per_page', 50);
         $search = trim((string) $request->input('search', ''));
+        $sortBy = (string) $request->input('sort_by', 'date');
+        $sortDir = strtolower((string) $request->input('sort_dir', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        $allowedSorts = ['date'];
+        if (!in_array($sortBy, $allowedSorts, true)) {
+            $sortBy = 'date';
+        }
 
         $query = WarehouseTransfer::with(['originWarehouse', 'destinationWarehouse', 'items.item']);
 
@@ -35,7 +42,7 @@ class WarehouseTransferController extends Controller
             });
         }
 
-        $transfers = $query->orderByDesc('date')
+        $transfers = $query->orderBy($sortBy, $sortDir)
             ->orderByDesc('id')
             ->paginate(max($perPage, 1));
 

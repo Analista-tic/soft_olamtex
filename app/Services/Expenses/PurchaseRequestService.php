@@ -4,13 +4,14 @@ namespace App\Services\Expenses;
 
 use App\Models\Expenses\PurchaseRequest;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
 class PurchaseRequestService
 {
-    public function paginate(array $filters, int $perPage = 20): LengthAwarePaginator
+    public function paginate(array $filters, int $perPage = 20, ?Request $request = null): LengthAwarePaginator
     {
         $query = PurchaseRequest::with(['requester']);
 
@@ -50,7 +51,19 @@ class PurchaseRequestService
             })->where('status', '!=', \App\Enums\PurchaseRequestStatus::PROCESSED->value);
         }
 
-        $paginator = $query->orderByDesc('date')->orderByDesc('id')->paginate($perPage);
+        $allowedSorts = ['date', 'status', 'total'];
+        $sortBy = in_array($request?->get('sort_by'), $allowedSorts, true)
+            ? (string) $request->get('sort_by')
+            : 'date';
+        $sortDir = $request?->get('sort_dir') === 'asc' ? 'asc' : 'desc';
+
+        if ($sortBy === 'total') {
+            $query->orderByRaw('COALESCE(estimated_amount, 0) ' . $sortDir)->orderByDesc('id');
+        } else {
+            $query->orderBy($sortBy, $sortDir)->orderByDesc('id');
+        }
+
+        $paginator = $query->paginate($perPage);
 
         $paginator->getCollection()->transform(function ($request) {
             if (is_string($request->items)) {
@@ -182,7 +195,8 @@ class PurchaseRequestService
         if ($items && is_array($items) && count($items) > 0) {
             $data['estimated_amount'] = array_reduce($items, function ($sum, $item) {
                 $total = is_numeric($item['total'] ?? 0) ? (float) $item['total'] : 0;
-                return $sum + $total;
+                $totalTax = is_numeric($item['total_tax'] ?? 0) ? (float) $item['total_tax'] : 0;
+                return $sum + $total + $totalTax;
             }, 0.0);
         } else {
             $data['estimated_amount'] = null;

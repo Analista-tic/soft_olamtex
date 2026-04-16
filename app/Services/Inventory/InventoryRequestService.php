@@ -23,6 +23,13 @@ class InventoryRequestService
         $query = InventoryRequest::with(['items.item', 'requester'])
             ->when(!$canManageRequests && $user, fn ($q) => $q->where('created_by_user_id', $user->id));
 
+        $sortBy = $filters['sort_by'] ?? 'date';
+        $sortDir = strtolower((string) ($filters['sort_dir'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
+        $allowedSorts = ['date', 'delivery_date'];
+        if (!in_array($sortBy, $allowedSorts, true)) {
+            $sortBy = 'date';
+        }
+
         if (!empty($filters['search'])) {
             $search = trim($filters['search']);
             $query->where(function ($q) use ($search) {
@@ -46,7 +53,10 @@ class InventoryRequestService
             $query->whereDate('date', '<=', $filters['date_to']);
         }
 
-        return $query->orderByDesc('date')->orderByDesc('id')->paginate($perPage);
+        return $query
+            ->orderBy($sortBy, $sortDir)
+            ->orderByDesc('id')
+            ->paginate($perPage);
     }
 
     public function findOrFail(int $id): InventoryRequest
@@ -80,14 +90,14 @@ class InventoryRequestService
             return $this->findOrFail($request->id);
         });
 
-        // Enviar notificación a usuarios con permiso inventory.requests.attend
+        // Enviar notificación a usuarios con permiso atender solicitudes insumos
         $this->notifyInventoryRequestCreated($inventoryRequest, $user);
 
         return $inventoryRequest;
     }
 
     /**
-     * Notifica a los usuarios con permiso inventory.requests.attend o rol admin sobre una nueva solicitud.
+     * Notifica a los usuarios con permiso atender solicitudes insumos o rol admin sobre una nueva solicitud.
      */
     protected function notifyInventoryRequestCreated(InventoryRequest $request, User $creator): void
     {
@@ -108,14 +118,14 @@ class InventoryRequestService
 
     /**
      * Resuelve los destinatarios para notificaciones de solicitudes de inventario.
-     * Incluye usuarios con permiso inventory.requests.attend O rol admin.
+     * Incluye usuarios con permiso atender solicitudes insumos O rol admin.
      *
      * @return \Illuminate\Database\Eloquent\Collection<int, User>
      */
     protected function resolveRecipientsForInventoryRequest(User $excludeUser): \Illuminate\Database\Eloquent\Collection
     {
-        // Usuarios con permiso inventory.requests.attend
-        $byPermission = User::permission('inventory.requests.attend')
+        // Usuarios con permiso atender solicitudes insumos
+        $byPermission = User::permission('atender solicitudes insumos')
             ->where('id', '!=', $excludeUser->id)
             ->pluck('id');
 

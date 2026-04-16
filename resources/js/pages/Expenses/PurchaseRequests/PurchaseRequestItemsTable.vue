@@ -355,7 +355,6 @@ defineExpose({ addItem });
                                 v-model="item.name"
                                 label=""
                                 placeholder="Escribir item"
-                                list="items-list"
                                 class="w-full"
                                 :readonly="props.readonly"
                                 :disabled="props.readonly"
@@ -457,9 +456,7 @@ defineExpose({ addItem });
                 </TableBody>
             </Table>
         </div>
-        <datalist id="items-list">
-            <option v-for="itemOption in catalogItems" :key="itemOption.id" :value="itemOption.name" />
-        </datalist>
+
 
         <ImagePreviewDialog
             :open="showLightbox"

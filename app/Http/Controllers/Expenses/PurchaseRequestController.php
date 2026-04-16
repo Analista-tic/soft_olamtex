@@ -31,8 +31,9 @@ class PurchaseRequestController extends Controller
         }
 
 
+
         $perPage = $request->input('per_page', 20);
-        $documents = $this->service->paginate($filters, $perPage);
+        $documents = $this->service->paginate($filters, $perPage, $request);
 
         return response()->json([
             'data' => $documents->items(),

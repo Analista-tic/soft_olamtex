@@ -10,11 +10,13 @@ class CreateWarehouseItemsTable extends Migration
     {
         Schema::create('warehouse_items', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('warehouse_id')->constrained();
-            $table->foreignId('item_id')->constrained();
+            $table->foreignId('warehouse_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('item_id')->constrained()->cascadeOnDelete();
             $table->decimal('quantity', 15, 4)->default(0);
-            $table->decimal('stock_min', 15, 4)->default(0)->nullable();
-            $table->decimal('stock_max', 15, 4)->default(0)->nullable();
+            $table->decimal('stock_min', 15, 4)->nullable()->default(0);
+            $table->decimal('stock_max', 15, 4)->nullable()->default(0);
+            $table->decimal('weighted_average_price', 15, 4)->nullable()->default(null);
+            $table->unique(['item_id', 'warehouse_id'], 'warehouse_items_item_warehouse_unique');
             $table->timestamps();
         });
     }

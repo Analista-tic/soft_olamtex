@@ -1,7 +1,19 @@
+import { usePage } from '@inertiajs/vue3';
+import axios from 'axios';
 import { onMounted, ref } from 'vue';
 
 export const accentColors = ['zinc', 'red', 'rose', 'orange', 'green', 'blue', 'yellow', 'violet'] as const;
 export type AccentColor = (typeof accentColors)[number];
+
+interface AccentColorAuthUser {
+    theme_color?: AccentColor | null;
+}
+
+interface AccentColorPageProps {
+    auth?: {
+        user?: AccentColorAuthUser | null;
+    };
+}
 
 const DEFAULT_ACCENT_COLOR: AccentColor = 'blue';
 const STORAGE_KEY = 'accentColor';
@@ -57,17 +69,44 @@ export const initAccentColor = () => {
 };
 
 export function useAccentColor() {
+    const page = usePage<AccentColorPageProps>();
     const accentColor = ref<AccentColor>(DEFAULT_ACCENT_COLOR);
 
+    const initializeAccentColor = () => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+
+        localStorage.removeItem(STORAGE_KEY);
+
+        const userPref = page.props?.auth?.user?.theme_color;
+
+        if (userPref && isAccentColor(userPref)) {
+            accentColor.value = userPref;
+            applyAccentColor(userPref);
+
+            return;
+        }
+
+        accentColor.value = DEFAULT_ACCENT_COLOR;
+        applyAccentColor(DEFAULT_ACCENT_COLOR);
+    };
+
     onMounted(() => {
-        initAccentColor();
-        accentColor.value = getStoredAccentColor();
+        initializeAccentColor();
     });
 
     const updateAccentColor = (value: AccentColor) => {
         accentColor.value = value;
-        persistAccentColor(value);
         applyAccentColor(value);
+
+        axios
+            .patch(route('settings.appearance.update'), {
+                theme_color: value,
+            })
+            .catch(() => {
+                // La UI ya quedó aplicada localmente aunque falle la persistencia remota.
+            });
     };
 
     return {

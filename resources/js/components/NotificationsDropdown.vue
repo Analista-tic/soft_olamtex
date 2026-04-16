@@ -76,10 +76,12 @@ onMounted(() => {
                 aria-label="Notificaciones"
                 title="Notificaciones"
             >
-                <Bell class="h-[18px] w-[18px]" />
-                <Badge v-if="badgeCount" variant="destructive" class="absolute -right-2 -top-2 h-4 min-w-4 px-1 text-[10px] leading-none">
-                    {{ badgeCount }}
-                </Badge>
+                <span class="relative inline-flex h-[18px] w-[18px] items-center justify-center">
+                    <Bell class="h-[18px] w-[18px]" />
+                    <Badge v-if="badgeCount" variant="destructive" class="absolute -right-1.5 -top-1.5 h-4 min-w-4 px-1 text-[10px] leading-none">
+                        {{ badgeCount }}
+                    </Badge>
+                </span>
             </button>
         </PopoverTrigger>
 

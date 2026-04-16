@@ -19,8 +19,6 @@ import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import InputIntegerField from '@/components/InputIntegerField.vue';
 import SelectField from '@/components/SelectField.vue';
-import SwitchField from '@/components/SwitchField.vue';
-import TextareaField from '@/components/TextareaField.vue';
 
 import { Button } from '@/components/ui/button';
 import { DialogFooter } from '@/components/ui/dialog';
@@ -99,8 +97,9 @@ type ItemFormSource = Partial<Item> & {
     tax?: ItemTaxRelation | null; // compat backend
 };
 
-type ItemForm = Omit<Partial<Item>, 'tax_id'> & {
+type ItemForm = Omit<Partial<Item>, 'tax_id' | 'category_sub_group_id'> & {
     tax_id?: Item['tax_id'] | 'none';
+    category_sub_group_id?: number | string;
 };
 
 const normalizeItemType = (value?: string | null): ItemType => (value === 'service' ? 'service' : 'product');
@@ -180,7 +179,7 @@ const subGroupDialogForm = ref<Partial<CategorySubGroup>>({
 });
 
 type WarehouseStockEntry = {
-    warehouse_id: number;
+    warehouse_id: number | null;
     name: string;
     quantity: number;
     stock_min: number;
@@ -758,7 +757,7 @@ function availableWarehouses(idx?: number) {
 
 function addWarehouseStock() {
     warehouseStocks.value.push({
-        warehouse_id: 0,
+        warehouse_id: null,
         name: '',
         quantity: 0,
         stock_min: 0,
@@ -832,34 +831,14 @@ const NEGATIVE_STOCK_WARNING =
     'Este ítem tiene cantidades negativas en una o más bodegas. ' +
     'No puedes desactivar "Movimiento Negativo" mientras exista stock menor que cero.';
 
-const NEGATIVE_MOVEMENT_INVENTORY_WARNING = 'Asocia el ítem con al menos una bodega antes de habilitar movimientos negativos.';
-
-const hasInventoryDetails = computed(() => warehouseStocks.value.length > 0);
-
 const hasNegativeStock = computed(() => warehouseStocks.value.some((w) => Number(w.quantity) < 0));
 
 const negativeMovementBool = computed(() => localForm.value.negative_movement === 1 || localForm.value.negative_movement === true);
-
-const negativeMovementToggleDisabled = computed(() => isViewMode.value);
 
 function showNegativeMovementWarning() {
     errorType.value = 'warning';
     errorMessage.value = NEGATIVE_STOCK_WARNING;
     scrollDialogToTop();
-}
-
-function showNegativeMovementInventoryWarning() {
-    errorType.value = 'warning';
-    errorMessage.value = NEGATIVE_MOVEMENT_INVENTORY_WARNING;
-    scrollDialogToTop();
-}
-
-function handleNegativeMovementChange(val: boolean) {
-    if (hasNegativeStock.value && !val) {
-        showNegativeMovementWarning();
-        return;
-    }
-    localForm.value.negative_movement = val ? 1 : 0;
 }
 
 type AdvancedFormDraft = Partial<Item> & {
@@ -870,6 +849,7 @@ type AdvancedFormDraft = Partial<Item> & {
 
 function buildAdvancedFormDraft(): AdvancedFormDraft {
     const draftTaxId: unknown = localForm.value.tax_id;
+    const draftSubGroupId = Number(localForm.value.category_sub_group_id);
     const isDraftTaxIdBlank =
         draftTaxId === undefined || draftTaxId === null || (typeof draftTaxId === 'string' && (draftTaxId.trim() === '' || draftTaxId === 'none'));
 
@@ -878,6 +858,7 @@ function buildAdvancedFormDraft(): AdvancedFormDraft {
     const draft: AdvancedFormDraft = {
         ...localForm.value,
         tax_id: normalizedTaxId !== undefined && Number.isFinite(normalizedTaxId) ? normalizedTaxId : undefined,
+        category_sub_group_id: Number.isFinite(draftSubGroupId) && draftSubGroupId > 0 ? draftSubGroupId : undefined,
         extra_fields: extraFields.value ? { ...extraFields.value } : {},
         unit_measure: unitMeasure.value,
     };
@@ -1282,7 +1263,7 @@ watch(selectedGroupId, (newVal, oldVal) => {
     if (isInitializing.value) return;
     if (oldVal === null || oldVal === undefined) return;
     if (newVal !== oldVal) {
-        localForm.value.category_sub_group_id = '';
+        localForm.value.category_sub_group_id = undefined;
     }
 });
 
@@ -1551,17 +1532,18 @@ onBeforeUnmount(() => {
                                                 class="w-full"
                                                 placeholder="Cantidad"
                                                 :allowNegative="true"
+                                                @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }"
                                             />
                                         </div>
 
                                         <div class="space-y-1">
                                             <Label class="text-xs">Cantidad Min</Label>
-                                            <InputIntegerField v-model="ws.stock_min" label="" type="number" class="w-full" placeholder="Min" />
+                                            <InputIntegerField v-model="ws.stock_min" label="" type="number" class="w-full" placeholder="Min" @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }" />
                                         </div>
 
                                         <div class="space-y-1">
                                             <Label class="text-xs">Cantidad Max</Label>
-                                            <InputIntegerField v-model="ws.stock_max" label="" type="number" class="w-full" placeholder="Max" />
+                                            <InputIntegerField v-model="ws.stock_max" label="" type="number" class="w-full" placeholder="Max" @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }" />
                                         </div>
 
                                         <div class="flex items-end justify-end">
@@ -1655,20 +1637,6 @@ onBeforeUnmount(() => {
                         <div class="md:col-span-1">
                             <InputField v-model="localForm.reference" label="Referencia" required />
                         </div>
-
-                        <div class="flex flex-col justify-end md:col-span-1">
-                            <SwitchField
-                                :model-value="negativeMovementBool"
-                                @update:modelValue="handleNegativeMovementChange"
-                                label="Movimiento Negativo"
-                                :tooltip-text="'Permite que las bodegas registren cantidades negativas cuando lo necesites.'"
-                                :disabled="negativeMovementToggleDisabled"
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <TextareaField v-model="localForm.description" label="Descripción" />
                     </div>
 
                     <!-- Campos adicionales -->

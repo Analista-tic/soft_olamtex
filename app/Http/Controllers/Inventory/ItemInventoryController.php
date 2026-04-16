@@ -18,7 +18,7 @@ class ItemInventoryController extends Controller
 
     public function getData(Request $request)
     {
-        $filters = $request->only(['search', 'warehouse_id', 'status']);
+        $filters = $request->only(['search', 'warehouse_id', 'status', 'sort_by', 'sort_dir']);
         $perPage = (int) $request->input('per_page', 10);
 
         $data = $this->service->paginate($filters, $perPage);

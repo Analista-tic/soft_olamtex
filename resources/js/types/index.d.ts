@@ -428,8 +428,8 @@ export interface PurchaseInvoice {
     };
     supplier_invoice_number?: string;
     description?: string;
-    status?: string;
-    approval_status?: 'pending' | 'approved' | 'rejected' | null;
+    status?: 'pending' | 'pending_receipt' | 'received' | 'approved' | 'rejected' | string;
+    approval_status?: 'pending' | 'pending_difference_approval' | 'approved' | 'rejected' | 'difference_rejected' | null;
     has_difference?: boolean;
     items: PurchaseInvoiceItem[];
     created_at?: string;

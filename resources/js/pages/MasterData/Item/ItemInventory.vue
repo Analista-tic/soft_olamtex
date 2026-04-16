@@ -60,6 +60,9 @@ const statusButtonClasses = useFilterButtonClasses(isStatusActive);
 const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
+const isLoading = ref(false);
+const sortBy = ref<string>('total');
+const sortDir = ref<'asc' | 'desc'>('desc');
 
 const currencyFormatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' });
 const quantityFormatter = new Intl.NumberFormat('es-CO');
@@ -91,10 +94,25 @@ function formatQuantity(value: number) {
     return quantityFormatter.format(Number(value ?? 0));
 }
 
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+
+    currentPage.value = 1;
+    void fetchItems(1);
+}
+
 async function fetchItems(page = 1) {
+    isLoading.value = true;
     const params: Record<string, unknown> = {
         page,
         per_page: itemsPerPage,
+        sort_by: sortBy.value,
+        sort_dir: sortDir.value,
     };
 
     if (searchQuery.value.trim()) {
@@ -111,10 +129,14 @@ async function fetchItems(page = 1) {
         params.status = resolvedStatusFilter.value;
     }
 
-    const response = await axios.get('/inventario-item/data', { params });
-    items.value = response.data.data ?? [];
-    totalItems.value = response.data.total ?? 0;
-    currentPage.value = response.data.current_page ?? page;
+    try {
+        const response = await axios.get('/inventario-item/data', { params });
+        items.value = response.data.data ?? [];
+        totalItems.value = response.data.total ?? 0;
+        currentPage.value = response.data.current_page ?? page;
+    } finally {
+        isLoading.value = false;
+    }
 }
 
 async function fetchWarehouses() {
@@ -192,26 +214,80 @@ onMounted(() => {
                         <TableRow>
                             <TableHead class="text-start">Nombre ítem</TableHead>
                             <TableHead>Referencia</TableHead>
-                            <TableHead>Cantidad</TableHead>
+                            <TableHead
+                                class="cursor-pointer select-none whitespace-nowrap"
+                                @click="toggleSort('quantity')"
+                            >
+                                <span class="inline-flex items-center gap-1">
+                                    Cantidad
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'quantity'">
+                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                        </template>
+                                        <template v-else>
+                                            <span class="opacity-30">↕</span>
+                                        </template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Estado</TableHead>
-                            <TableHead>Costo promedio</TableHead>
-                            <TableHead>Total</TableHead>
+                            <TableHead
+                                class="cursor-pointer select-none whitespace-nowrap"
+                                @click="toggleSort('average_cost')"
+                            >
+                                <span class="inline-flex items-center gap-1">
+                                    Costo promedio
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'average_cost'">
+                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                        </template>
+                                        <template v-else>
+                                            <span class="opacity-30">↕</span>
+                                        </template>
+                                    </span>
+                                </span>
+                            </TableHead>
+                            <TableHead
+                                class="cursor-pointer select-none whitespace-nowrap"
+                                @click="toggleSort('total')"
+                            >
+                                <span class="inline-flex items-center gap-1">
+                                    Total
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'total'">
+                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                        </template>
+                                        <template v-else>
+                                            <span class="opacity-30">↕</span>
+                                        </template>
+                                    </span>
+                                </span>
+                            </TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="item in items" :key="item.id">
-                            <TableCell class="text-start">{{ item.item_name }}</TableCell>
-                            <TableCell class="text-center">{{ item.reference ?? '-' }}</TableCell>
-                            <TableCell class="text-center">{{ formatQuantity(item.quantity) }}</TableCell>
-                            <TableCell class="text-center">
-                                <StatusBadge :status="item.status" />
-                            </TableCell>
-                            <TableCell class="text-center">{{ formatCurrency(item.average_cost) }}</TableCell>
-                            <TableCell class="text-center">{{ formatCurrency(item.total) }}</TableCell>
-                        </TableRow>
-                        <TableRow v-if="items.length === 0">
-                            <TableCell :colspan="6" class="text-center text-muted-foreground">No hay ítems en el inventario.</TableCell>
-                        </TableRow>
+                        <template v-if="isLoading">
+                            <TableRow>
+                                <TableCell :colspan="6" class="py-6 text-center text-sm text-muted-foreground">Cargando inventario de ítems...</TableCell>
+                            </TableRow>
+                        </template>
+                        <template v-else-if="items.length === 0">
+                            <TableRow>
+                                <TableCell :colspan="6" class="text-center text-muted-foreground">No hay ítems en el inventario.</TableCell>
+                            </TableRow>
+                        </template>
+                        <template v-else>
+                            <TableRow v-for="item in items" :key="item.id">
+                                <TableCell class="text-start">{{ item.item_name }}</TableCell>
+                                <TableCell class="text-center">{{ item.reference ?? '-' }}</TableCell>
+                                <TableCell class="text-center">{{ formatQuantity(item.quantity) }}</TableCell>
+                                <TableCell class="text-center">
+                                    <StatusBadge :status="item.status" />
+                                </TableCell>
+                                <TableCell class="text-center">{{ formatCurrency(item.average_cost) }}</TableCell>
+                                <TableCell class="text-center">{{ formatCurrency(item.total) }}</TableCell>
+                            </TableRow>
+                        </template>
                     </TableBody>
                 </Table>
                 <Pagination

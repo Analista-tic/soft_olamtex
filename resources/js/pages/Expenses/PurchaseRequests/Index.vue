@@ -25,12 +25,24 @@ import PurchaseRequestDialog from './PurchaseRequestDialog.vue';
 
 const breadcrumbs = [{ title: 'Solicitud de compra', href: '/solicitudes-compra' }];
 
+
+const sortBy = ref<string>('date');
+const sortDir = ref<'asc' | 'desc'>('desc');
 const requests = ref<PurchaseRequest[]>([]);
 const searchQuery = ref('');
 const statusFilter = ref('all');
 // Filtro de proveedor eliminado
 const dateFilter = ref('');
 const isLoading = ref(false);
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+    fetchRequests();
+}
 
 const DEFAULT_STATUS_FILTER = 'all';
 
@@ -281,7 +293,11 @@ const canCancel = (request: PurchaseRequest): boolean => request.status === 'dra
 async function fetchRequests() {
     isLoading.value = true;
 
-    const params: Record<string, unknown> = {};
+
+    const params: Record<string, unknown> = {
+        sort_by: sortBy.value,
+        sort_dir: sortDir.value,
+    };
     if (searchQuery.value.trim()) params.search = searchQuery.value.trim();
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
     // Filtro de proveedor eliminado
@@ -383,9 +399,39 @@ onMounted(() => {
                     <TableHeader>
                         <TableRow>
                             <TableHead>N° Solicitud</TableHead>
-                            <TableHead>Fecha</TableHead>
+                            <TableHead
+                                class="cursor-pointer select-none whitespace-nowrap"
+                                @click="toggleSort('date')"
+                            >
+                                <span class="inline-flex items-center gap-1">
+                                    Fecha
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'date'">
+                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                        </template>
+                                        <template v-else>
+                                            <span class="opacity-30">↕</span>
+                                        </template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Proveedor</TableHead>
-                            <TableHead>Total estimado</TableHead>
+                            <TableHead
+                                class="cursor-pointer select-none whitespace-nowrap"
+                                @click="toggleSort('total')"
+                            >
+                                <span class="inline-flex items-center gap-1">
+                                    Total estimado
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'total'">
+                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                        </template>
+                                        <template v-else>
+                                            <span class="opacity-30">↕</span>
+                                        </template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Descripción</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead class="text-center">Acciones</TableHead>

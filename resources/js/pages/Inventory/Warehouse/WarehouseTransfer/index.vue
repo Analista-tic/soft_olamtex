@@ -124,6 +124,9 @@ const transferDialogPayload = computed<DialogTransferPayload | null>(() => {
 const currentPage = ref(1);
 const ITEMS_PER_PAGE = 10;
 const searchQuery = ref('');
+const isLoading = ref(false);
+const sortBy = ref<'date'>('date');
+const sortDir = ref<'asc' | 'desc'>('desc');
 
 const normalizedQuery = computed(() => searchQuery.value.trim().toLowerCase());
 const isSearchActive = computed(() => normalizedQuery.value.length > 0);
@@ -263,14 +266,31 @@ function resolveErrorMessage(error: any): string {
 }
 
 async function loadTransfers() {
+    isLoading.value = true;
     try {
-        const response = await axios.get('/transferencias-bodegas/data', { params: { per_page: 200 } });
+        const response = await axios.get('/transferencias-bodegas/data', {
+            params: { per_page: 200, sort_by: sortBy.value, sort_dir: sortDir.value },
+        });
         const data = response?.data?.data;
         transfersRaw.value = Array.isArray(data) ? data : [];
     } catch {
         showError('No se pudieron cargar las transferencias.');
         transfersRaw.value = [];
+    } finally {
+        isLoading.value = false;
     }
+}
+
+function toggleSort(column: 'date') {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+
+    currentPage.value = 1;
+    loadTransfers();
 }
 
 async function handleTransferSave(data: TransferPayload) {
@@ -447,65 +467,96 @@ onMounted(async () => {
                         <TableHeader>
                             <TableRow>
                                 <TableHead :class="uiPatterns.typography.tableHead">Código</TableHead>
-                                <TableHead :class="uiPatterns.typography.tableHead">Fecha</TableHead>
+                                <TableHead
+                                    :class="`${uiPatterns.typography.tableHead} cursor-pointer select-none whitespace-nowrap`"
+                                    @click="toggleSort('date')"
+                                >
+                                    <span class="inline-flex items-center gap-1">
+                                        Fecha
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'date'">
+                                                {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
                                 <TableHead :class="uiPatterns.typography.tableHead">Bodega origen</TableHead>
                                 <TableHead :class="uiPatterns.typography.tableHead">Bodega destino</TableHead>
                                 <TableHead :class="`${uiPatterns.typography.tableHead} text-center`">Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            <TableRow v-for="transfer in paginatedTransfers" :key="transfer.id">
-                                <TableCell class="font-medium">{{ transfer.id }}</TableCell>
-                                <TableCell class="font-medium">{{ transfer.date }}</TableCell>
-                                <TableCell>{{ transfer.origin }}</TableCell>
-                                <TableCell>{{ transfer.destination }}</TableCell>
-                                <TableCell class="text-center">
-                                    <div class="flex justify-center gap-2">
-                                        <Tooltip>
-                                            <TooltipTrigger as-child>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    :class="actionButtonClass"
-                                                    aria-label="Ver detalle"
-                                                    @click="openTransferDialog('view', transfer)"
-                                                >
-                                                    <Eye :class="actionIconClass" />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Ver detalle</TooltipContent>
-                                        </Tooltip>
-                                        <Tooltip>
-                                            <TooltipTrigger as-child>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    :class="actionButtonClass"
-                                                    aria-label="Editar"
-                                                    @click="openTransferDialog('edit', transfer)"
-                                                >
-                                                    <Pencil :class="actionIconClass" />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Editar</TooltipContent>
-                                        </Tooltip>
-                                        <Tooltip>
-                                            <TooltipTrigger as-child>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    :class="actionButtonClass"
-                                                    aria-label="Eliminar"
-                                                    @click="promptDeleteTransfer(transfer)"
-                                                >
-                                                    <Trash :class="actionIconClass" />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Eliminar</TooltipContent>
-                                        </Tooltip>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
+                            <template v-if="isLoading">
+                                <TableRow>
+                                    <TableCell colspan="5">
+                                        <div class="py-6 text-center text-sm text-muted-foreground">Cargando transferencias...</div>
+                                    </TableCell>
+                                </TableRow>
+                            </template>
+                            <template v-else-if="!paginatedTransfers.length">
+                                <TableRow>
+                                    <TableCell colspan="5">
+                                        <div class="py-6 text-center text-sm text-muted-foreground">No hay transferencias registradas.</div>
+                                    </TableCell>
+                                </TableRow>
+                            </template>
+                            <template v-else>
+                                <TableRow v-for="transfer in paginatedTransfers" :key="transfer.id">
+                                    <TableCell class="font-medium">{{ transfer.id }}</TableCell>
+                                    <TableCell class="font-medium">{{ transfer.date }}</TableCell>
+                                    <TableCell>{{ transfer.origin }}</TableCell>
+                                    <TableCell>{{ transfer.destination }}</TableCell>
+                                    <TableCell class="text-center">
+                                        <div class="flex justify-center gap-2">
+                                            <Tooltip>
+                                                <TooltipTrigger as-child>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        :class="actionButtonClass"
+                                                        aria-label="Ver detalle"
+                                                        @click="openTransferDialog('view', transfer)"
+                                                    >
+                                                        <Eye :class="actionIconClass" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Ver detalle</TooltipContent>
+                                            </Tooltip>
+                                            <Tooltip>
+                                                <TooltipTrigger as-child>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        :class="actionButtonClass"
+                                                        aria-label="Editar"
+                                                        @click="openTransferDialog('edit', transfer)"
+                                                    >
+                                                        <Pencil :class="actionIconClass" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Editar</TooltipContent>
+                                            </Tooltip>
+                                            <Tooltip>
+                                                <TooltipTrigger as-child>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        :class="actionButtonClass"
+                                                        aria-label="Eliminar"
+                                                        @click="promptDeleteTransfer(transfer)"
+                                                    >
+                                                        <Trash :class="actionIconClass" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Eliminar</TooltipContent>
+                                            </Tooltip>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            </template>
                         </TableBody>
                     </Table>
                 </TooltipProvider>

@@ -26,6 +26,7 @@ import PurchaseOrderPrintDialog from './PurchaseOrderPrintDialog.vue';
 const breadcrumbs = [{ title: 'Órdenes de Compra', href: '/ordenes-compra' }];
 
 const orders = ref<PurchaseOrder[]>([]);
+const isLoading = ref(false);
 const isDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
 const dialogReadonly = ref(false);
@@ -45,11 +46,26 @@ const successMessage = ref('');
 const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
+
 // NUEVOS FILTROS
 const statusFilter = ref('all');
 const providerFilter = ref('all');
 const dateFilter = ref<string | null>(null);
 const providers = ref<{ id: number; full_name: string }[]>([]);
+
+// SORT
+const sortBy = ref<string>('date');
+const sortDir = ref<'asc' | 'desc'>('desc');
+
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+    fetchOrders();
+}
 
 const DEFAULT_STATUS_FILTER = 'all';
 const DEFAULT_PROVIDER_FILTER = 'all';
@@ -183,19 +199,26 @@ async function deleteOrder() {
 }
 
 async function fetchOrders(page = 1, search = '') {
-    const params: any = {
-        page,
-        per_page: itemsPerPage,
-        search,
-        date_from: dateFilter.value || undefined,
-        date_to: dateFilter.value || undefined,
-    };
-    if (statusFilter.value !== 'all') params.status = statusFilter.value;
-    if (providerFilter.value !== 'all') params.provider_id = providerFilter.value;
-    const response = await axios.get('/gastos/ordenes-compra/data', { params });
-    orders.value = response.data.data;
-    totalItems.value = response.data.total;
-    currentPage.value = response.data.current_page;
+    isLoading.value = true;
+    try {
+        const params: any = {
+            page,
+            per_page: itemsPerPage,
+            search,
+            date_from: dateFilter.value || undefined,
+            date_to: dateFilter.value || undefined,
+            sort_by: sortBy.value,
+            sort_dir: sortDir.value,
+        };
+        if (statusFilter.value !== 'all') params.status = statusFilter.value;
+        if (providerFilter.value !== 'all') params.provider_id = providerFilter.value;
+        const response = await axios.get('/gastos/ordenes-compra/data', { params });
+        orders.value = response.data.data;
+        totalItems.value = response.data.total;
+        currentPage.value = response.data.current_page;
+    } finally {
+        isLoading.value = false;
+    }
 }
 
 // Actualiza los filtros y la tabla correctamente
@@ -351,35 +374,96 @@ function handleDialogError(message?: string) {
                     <TableHeader>
                         <TableRow>
                             <TableHead>N° Orden</TableHead>
-                            <TableHead>Fecha de creación</TableHead>
-                            <TableHead>Fecha de entrega</TableHead>
+                            <TableHead
+                                class="cursor-pointer select-none whitespace-nowrap"
+                                @click="toggleSort('date')"
+                            >
+                                <span class="inline-flex items-center gap-1">
+                                    Fecha de creación
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'date'">
+                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                        </template>
+                                        <template v-else>
+                                            <span class="opacity-30">↕</span>
+                                        </template>
+                                    </span>
+                                </span>
+                            </TableHead>
+                            <TableHead
+                                class="cursor-pointer select-none whitespace-nowrap"
+                                @click="toggleSort('delivery_date')"
+                            >
+                                <span class="inline-flex items-center gap-1">
+                                    Fecha de entrega
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'delivery_date'">
+                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                        </template>
+                                        <template v-else>
+                                            <span class="opacity-30">↕</span>
+                                        </template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Proveedor</TableHead>
-                            <TableHead>Total</TableHead>
+                            <TableHead
+                                class="cursor-pointer select-none whitespace-nowrap"
+                                @click="toggleSort('total')"
+                            >
+                                <span class="inline-flex items-center gap-1">
+                                    Total
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'total'">
+                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                        </template>
+                                        <template v-else>
+                                            <span class="opacity-30">↕</span>
+                                        </template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Descripción</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead class="text-center">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="order in orders" :key="order.id" class="text-center">
-                            <TableCell class="font-medium">
-                                {{ order.document_number || `ORD-${String(order.id).padStart(3, '0')}` }}
-                            </TableCell>
-                            <TableCell>{{ formatDate(order.date) }}</TableCell>
-                            <TableCell>{{ formatDate(order.delivery_date) }}</TableCell>
-                            <TableCell>{{ order.supplier?.full_name || order.contact?.full_name || '-' }}</TableCell>
-                            <TableCell>{{ formatCurrency(computeOrderTotal(order)) }}</TableCell>
-                            <TableCell class="text-start">{{ order.description || '-' }}</TableCell>
-                            <TableCell>
-                                <TableStatusBadge :label="getOrderStatusLabel(order.status)" :tone="getOrderStatusTone(order.status)" />
-                            </TableCell>
-                            <TableCell class="flex justify-center gap-1">
-                                <Button variant="ghost" size="icon" :class="actionButtonClass" title="Ver orden" @click="viewOrder(order)">
-                                    <Eye :class="actionIconClass" />
-                                    <span class="sr-only">Ver orden</span>
-                                </Button>
-                            </TableCell>
-                        </TableRow>
+                        <template v-if="isLoading">
+                            <TableRow>
+                                <TableCell colspan="8">
+                                    <div class="py-6 text-center text-sm text-muted-foreground">Cargando órdenes...</div>
+                                </TableCell>
+                            </TableRow>
+                        </template>
+                        <template v-else-if="!orders.length">
+                            <TableRow>
+                                <TableCell colspan="8">
+                                    <div class="py-6 text-center text-sm text-muted-foreground">No se encontraron órdenes.</div>
+                                </TableCell>
+                            </TableRow>
+                        </template>
+                        <template v-else>
+                            <TableRow v-for="order in orders" :key="order.id" class="text-center">
+                                <TableCell class="font-medium">
+                                    {{ order.document_number || `ORD-${String(order.id).padStart(3, '0')}` }}
+                                </TableCell>
+                                <TableCell>{{ formatDate(order.date) }}</TableCell>
+                                <TableCell>{{ formatDate(order.delivery_date) }}</TableCell>
+                                <TableCell>{{ order.supplier?.full_name || order.contact?.full_name || '-' }}</TableCell>
+                                <TableCell>{{ formatCurrency(computeOrderTotal(order)) }}</TableCell>
+                                <TableCell class="text-start">{{ order.description || '-' }}</TableCell>
+                                <TableCell>
+                                    <TableStatusBadge :label="getOrderStatusLabel(order.status)" :tone="getOrderStatusTone(order.status)" />
+                                </TableCell>
+                                <TableCell class="flex justify-center gap-1">
+                                    <Button variant="ghost" size="icon" :class="actionButtonClass" title="Ver orden" @click="viewOrder(order)">
+                                        <Eye :class="actionIconClass" />
+                                        <span class="sr-only">Ver orden</span>
+                                    </Button>
+                                </TableCell>
+                            </TableRow>
+                        </template>
                     </TableBody>
                 </Table>
             </div>

@@ -20,8 +20,17 @@ class RolesAndPermissionsSeeder extends Seeder
         // Reset cache
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // Crear permisos
-        $permissions = [
+        $allPermissions = [
+
+            // Datos básicos
+            'ver empresa',
+            'editar empresa',
+            'ver perfil',
+            'editar perfil',
+            'ver personalizacion',
+            'editar personalizacion',
+
+            // Usuarios y roles
             'ver usuarios',
             'crear usuarios',
             'editar usuarios',
@@ -30,16 +39,11 @@ class RolesAndPermissionsSeeder extends Seeder
             'crear roles',
             'editar roles',
             'eliminar roles',
+
+            // Auditoría
             'ver auditoria',
-            'ver listados operacionales',
-            'crear listados operacionales',
-            'editar listados operacionales',
-            'eliminar listados operacionales',
-            'generar listado desde muestra',
-            'ver telas',
-            'crear telas',
-            'editar telas',
-            'eliminar telas',
+
+            // Producción
             'ver programador',
             'crear programador',
             'editar programador',
@@ -49,6 +53,118 @@ class RolesAndPermissionsSeeder extends Seeder
             'editar sabana productos',
             'eliminar sabana productos',
             'editar procesos ficha tecnica',
+
+            // Listados operacionales
+            'ver listados operacionales',
+            'crear listados operacionales',
+            'editar listados operacionales',
+            'eliminar listados operacionales',
+            'generar listado desde muestra',
+
+            // Inventario: telas
+            'ver telas',
+            'crear telas',
+            'editar telas',
+            'eliminar telas',
+
+            // Inventario: pedidos y recepciones
+            'ver pedidos telas',
+            'crear pedidos telas',
+            'editar pedidos telas',
+            'eliminar pedidos telas',
+            'ver recepcion telas',
+            'crear recepcion telas',
+            'editar recepcion telas',
+            'eliminar recepcion telas',
+
+            // Inventario: stock
+            'ver inventario telas',
+            'crear inventario telas',
+            'editar inventario telas',
+            'eliminar inventario telas',
+
+            // Inventario: solicitudes de insumos
+            'ver solicitudes insumos',
+            'crear solicitudes insumos',
+            'atender solicitudes insumos',
+
+            // Ingresos / Ventas
+            'ver ingresos',
+
+            // Gastos / Compras
+            'ver gastos',
+
+            // Financiero
+            'ver financiero',
+
+            // Catálogo de cuentas
+            'ver catalogo cuentas',
+            'crear catalogo cuentas',
+            'editar catalogo cuentas',
+
+            // Comprobantes de egreso
+            'ver comprobantes egreso',
+            'crear comprobantes egreso',
+            'editar comprobantes egreso',
+
+            // Notas crédito / débito
+            'ver notas credito debito',
+            'crear notas credito debito',
+            'editar notas credito debito',
+            'eliminar notas credito debito',
+
+            // Impuestos
+            'ver impuestos',
+            'crear impuestos',
+            'editar impuestos',
+            'eliminar impuestos',
+
+            // Retenciones
+            'ver retenciones',
+            'crear retenciones',
+            'editar retenciones',
+            'eliminar retenciones',
+
+            // Órdenes de compra
+            'ver ordenes compra',
+            'crear ordenes compra',
+            'editar ordenes compra',
+            'eliminar ordenes compra',
+
+            // Facturas de compra
+            'ver facturas compra',
+            'crear facturas compra',
+            'editar facturas compra',
+            'eliminar facturas compra',
+            'aprobar facturas compra',
+        ];
+
+        foreach ($allPermissions as $permission) {
+            Permission::firstOrCreate(['name' => $permission]);
+        }
+
+        // Admin: todos los permisos
+        $admin = Role::firstOrCreate(['name' => 'admin']);
+        $admin->syncPermissions(Permission::all());
+
+        // General: producción + inventario completo
+        $general = Role::firstOrCreate(['name' => 'general']);
+        $general->syncPermissions([
+            'ver empresa',
+            'ver perfil',
+            'editar perfil',
+            'ver personalizacion',
+            'editar personalizacion',
+
+            'ver programador',
+            'ver sabana productos',
+            'ver listados operacionales',
+            'editar procesos ficha tecnica',
+
+            'ver telas',
+            'crear telas',
+            'editar telas',
+            'eliminar telas',
             'ver pedidos telas',
             'crear pedidos telas',
             'editar pedidos telas',
@@ -61,79 +177,20 @@ class RolesAndPermissionsSeeder extends Seeder
             'crear inventario telas',
             'editar inventario telas',
             'eliminar inventario telas',
-            'ver ingresos',
-            'ver gastos',
-            'ver financiero',
-            // Solicitudes de insumos
-            'inventory.requests.attend',
-        ];
 
-        foreach ($permissions as $perm) {
-            Permission::firstOrCreate(['name' => $perm]);
-        }
-
-        // Permisos de Finance
-        $financePermissions = [
-            // Catalogo de cuentas
-            'ver catalogo cuentas',
-            'crear catalogo cuentas',
-            'editar catalogo cuentas',
-
-            // Comprobantes de egreso
-            'ver comprobantes egreso',
-            'crear comprobantes egreso',
-            'editar comprobantes egreso',
-
-            // Notas credito / debito
-            'ver notas credito debito',
-            'crear notas credito debito',
-            'editar notas credito debito',
-            'eliminar notas credito debito',
-
-            // Impuestos
-            'ver impuestos',
-            'crear impuestos',
-            'editar impuestos',
-            'eliminar impuestos',
-
-            // Retenciones
-            'ver retenciones',
-            'crear retenciones',
-            'editar retenciones',
-            'eliminar retenciones',
-
-            // Ordenes de compra
-            'ver ordenes compra',
-            'crear ordenes compra',
-            'editar ordenes compra',
-            'eliminar ordenes compra',
-
-            // Facturas de compra
-            'ver facturas compra',
-            'crear facturas compra',
-            'editar facturas compra',
-            'eliminar facturas compra',
-            'aprobar facturas compra',
-        ];
-
-        foreach ($financePermissions as $permission) {
-            Permission::firstOrCreate(['name' => $permission]);
-        }
-
-        // Crear roles y asignar permisos base
-        $admin = Role::firstOrCreate(['name' => 'admin']);
-        $admin->givePermissionTo(Permission::all());
-
-        $general = Role::firstOrCreate(['name' => 'general']);
-        $general->givePermissionTo([
-            'ver programador',
-            'ver sabana productos',
-            'ver listados operacionales',
+            'ver solicitudes insumos',
+            'crear solicitudes insumos',
         ]);
 
+        // Contabilidad: financiero + compras
         $contabilidad = Role::firstOrCreate(['name' => 'contabilidad']);
-        $contabilidad->givePermissionTo([
-            // Permisos heredados
+        $contabilidad->syncPermissions([
+            'ver empresa',
+            'ver perfil',
+            'editar perfil',
+            'ver personalizacion',
+            'editar personalizacion',
+
             'ver ingresos',
             'ver gastos',
             'ver financiero',
@@ -180,10 +237,39 @@ class RolesAndPermissionsSeeder extends Seeder
             'aprobar facturas compra',
         ]);
 
-        // Rol Logistica: atender solicitudes de insumos
-        $logistica = Role::firstOrCreate(['name' => 'Logistica']);
-        $logistica->givePermissionTo([
-            'inventory.requests.attend',
+        // Logística: inventario completo + atender solicitudes + ver compras
+        $logistica = Role::firstOrCreate(['name' => 'logistica']);
+        $logistica->syncPermissions([
+            'ver empresa',
+            'ver perfil',
+            'editar perfil',
+            'ver personalizacion',
+            'editar personalizacion',
+
+            'ver telas',
+            'crear telas',
+            'editar telas',
+            'eliminar telas',
+            'ver pedidos telas',
+            'crear pedidos telas',
+            'editar pedidos telas',
+            'eliminar pedidos telas',
+            'ver recepcion telas',
+            'crear recepcion telas',
+            'editar recepcion telas',
+            'eliminar recepcion telas',
+            'ver inventario telas',
+            'crear inventario telas',
+            'editar inventario telas',
+            'eliminar inventario telas',
+
+            'ver solicitudes insumos',
+            'crear solicitudes insumos',
+            'atender solicitudes insumos',
+
+            'ver ordenes compra',
+            'ver facturas compra',
+            'ver gastos',
         ]);
 
         // Obtener catalogo de areas desde settings (kind=parameter, key=areas)
@@ -247,7 +333,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'name' => 'Name Contabilidad',
             'area_id' => $contabilidadAreaId,
         ])->save();
-        $contabilidadUser->assignRole($contabilidad);
+        $contabilidadUser->syncRoles([$contabilidad]);
 
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
         $admin->syncPermissions(Permission::all());
@@ -278,19 +364,19 @@ class RolesAndPermissionsSeeder extends Seeder
         ])->save();
         $adminTestUser->syncRoles([$admin]);
 
-        foreach ($usuariosEjemplo as $usuario) {
+        foreach ($usuariosEjemplo as $data) {
             $user = User::firstOrCreate(
-                ['email' => $usuario['email']],
+                ['email' => $data['email']],
                 [
-                    'name' => $usuario['name'],
-                    'password' => $usuario['password'],
+                    'name' => $data['name'],
+                    'password' => $data['password'],
                 ]
             );
             $user->forceFill([
-                'name' => $usuario['name'],
-                'area_id' => $usuario['area_id'],
+                'name' => $data['name'],
+                'area_id' => $data['area_id'],
             ])->save();
-            $user->assignRole($usuario['role']);
+            $user->syncRoles([$data['role']]);
         }
     }
 

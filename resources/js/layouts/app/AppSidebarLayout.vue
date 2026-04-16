@@ -5,6 +5,8 @@ import AppSidebar from '@/components/AppSidebar.vue';
 import AppSidebarHeader from '@/components/AppSidebarHeader.vue';
 import NotificationsDropdown from '@/components/NotificationsDropdown.vue';
 import UserMenuDropdown from '@/components/UserMenuDropdown.vue';
+import { useAccentColor } from '@/composables/useAccentColor';
+import { useAppearance } from '@/composables/useAppearance';
 import type { BreadcrumbItemType } from '@/domain/shared';
 
 interface Props {
@@ -14,6 +16,9 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
     breadcrumbs: () => [],
 });
+
+useAppearance();
+useAccentColor();
 </script>
 
 <template>

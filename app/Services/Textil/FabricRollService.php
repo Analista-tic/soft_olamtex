@@ -119,9 +119,19 @@ class FabricRollService
     {
         $fabricRoll->loadMissing('purchaseDocumentItem.document');
         $doc = $fabricRoll->purchaseDocumentItem?->document;
-        if ($doc && $doc->status === 'approved') {
+        if (!$doc) {
+            return;
+        }
+
+        if ($doc->status === 'approved') {
             throw ValidationException::withMessages([
                 'general' => ['No se puede modificar o eliminar el rollo: la factura ya está recepcionada.'],
+            ]);
+        }
+
+        if ($this->isDifferenceRejectedInvoice($doc)) {
+            throw ValidationException::withMessages([
+                'general' => ['No se puede modificar o eliminar el rollo: la factura tiene diferencia rechazada y no puede gestionarse en recepción.'],
             ]);
         }
     }
@@ -207,6 +217,12 @@ class FabricRollService
         if ($item->document->status === 'approved') {
             throw ValidationException::withMessages([
                 'general' => ['No se pueden añadir más rollos: la factura ya está recepcionada (aprobada).'],
+            ]);
+        }
+
+        if ($this->isDifferenceRejectedInvoice($item->document)) {
+            throw ValidationException::withMessages([
+                'general' => ['No se pueden añadir rollos: la factura tiene diferencia rechazada y no puede gestionarse en recepción.'],
             ]);
         }
     }
@@ -357,6 +373,8 @@ class FabricRollService
         $invoice = PurchaseDocument::with(['items', 'items.item.categorySubGroup'])->where('document_type', PurchaseDocument::TYPE_INVOICE)
             ->findOrFail($invoiceId);
 
+        $this->ensureInvoiceReceptionAllowed($invoice);
+
         $this->validateReceptionTolerances($invoice);
 
         $invoice->update(['status' => 'approved']);
@@ -418,7 +436,33 @@ class FabricRollService
     {
         $invoice = PurchaseDocument::where('document_type', PurchaseDocument::TYPE_INVOICE)
             ->findOrFail($invoiceId);
+
+        $this->ensureInvoiceReceptionAllowed($invoice);
+
         $invoice->update(['status' => 'rejected']);
         return $invoice;
+    }
+
+    protected function ensureInvoiceReceptionAllowed(PurchaseDocument $invoice): void
+    {
+        if ($this->isDifferenceRejectedInvoice($invoice)) {
+            throw ValidationException::withMessages([
+                'general' => ['La factura tiene diferencia rechazada y no puede volver al flujo de recepción.'],
+            ]);
+        }
+    }
+
+    protected function isDifferenceRejectedInvoice(PurchaseDocument $invoice): bool
+    {
+        $approvalStatus = mb_strtolower(trim((string) ($invoice->approval_status ?? '')));
+        $status = mb_strtolower(trim((string) ($invoice->status ?? '')));
+
+        return in_array($approvalStatus, [
+            PurchaseDocument::APPROVAL_DIFFERENCE_REJECTED,
+            'diferencia rechazada',
+        ], true) || in_array($status, [
+            PurchaseDocument::APPROVAL_DIFFERENCE_REJECTED,
+            'diferencia rechazada',
+        ], true);
     }
 }

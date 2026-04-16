@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Inventory;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 class WarehouseItemStockController extends Controller
 {
@@ -27,9 +26,7 @@ class WarehouseItemStockController extends Controller
             'warehouses.name as warehouse_name',
         ];
 
-        if (Schema::hasColumn('warehouse_items', 'weighted_average_price')) {
-            $selectColumns[] = 'warehouse_items.weighted_average_price';
-        }
+        $selectColumns[] = 'warehouse_items.weighted_average_price';
 
         $rows = DB::table('warehouse_items')
             ->select($selectColumns)
@@ -43,19 +40,17 @@ class WarehouseItemStockController extends Controller
 
         // PP ponderado global: sum(qty * pp) / totalQty para bodegas con stock (INVENTARIO_4UTEX)
         $weightedAvgPrice = null;
-        if (Schema::hasColumn('warehouse_items', 'weighted_average_price')) {
-            $weightedSum = 0;
-            $qtySum = 0;
-            foreach ($rows as $r) {
-                $qty = (float) ($r->quantity ?? 0);
-                $pp = isset($r->weighted_average_price) ? (float) $r->weighted_average_price : 0;
-                if ($qty > 0 && $pp > 0) {
-                    $weightedSum += $qty * $pp;
-                    $qtySum += $qty;
-                }
+        $weightedSum = 0;
+        $qtySum = 0;
+        foreach ($rows as $r) {
+            $qty = (float) ($r->quantity ?? 0);
+            $pp = isset($r->weighted_average_price) ? (float) $r->weighted_average_price : 0;
+            if ($qty > 0 && $pp > 0) {
+                $weightedSum += $qty * $pp;
+                $qtySum += $qty;
             }
-            $weightedAvgPrice = $qtySum > 0 ? round($weightedSum / $qtySum, 6) : null;
         }
+        $weightedAvgPrice = $qtySum > 0 ? round($weightedSum / $qtySum, 6) : null;
 
         return response()->json([
             'data' => $rows,

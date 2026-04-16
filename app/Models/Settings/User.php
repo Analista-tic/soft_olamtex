@@ -27,6 +27,8 @@ class User extends Authenticatable implements \App\Contracts\HasAuditLabel
         'area_id',
         'password',
         'avatar_path',
+        'theme_appearance',
+        'theme_color',
     ];
 
     public function area()

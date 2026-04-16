@@ -1,6 +1,19 @@
+import { usePage } from '@inertiajs/vue3';
+import axios from 'axios';
 import { onMounted, ref } from 'vue';
 
 type Appearance = 'light' | 'dark' | 'system';
+const STORAGE_KEY = 'appearance';
+
+interface AppearanceAuthUser {
+    theme_appearance?: Appearance | null;
+}
+
+interface AppearancePageProps {
+    auth?: {
+        user?: AppearanceAuthUser | null;
+    };
+}
 
 export function updateTheme(value: Appearance) {
     if (typeof window === 'undefined') {
@@ -40,7 +53,7 @@ const getStoredAppearance = () => {
         return null;
     }
 
-    return localStorage.getItem('appearance') as Appearance | null;
+    return localStorage.getItem(STORAGE_KEY) as Appearance | null;
 };
 
 const handleSystemThemeChange = () => {
@@ -63,29 +76,45 @@ export function initializeTheme() {
 }
 
 export function useAppearance() {
+    const page = usePage<AppearancePageProps>();
     const appearance = ref<Appearance>('system');
 
-    onMounted(() => {
-        initializeTheme();
-
-        const savedAppearance = localStorage.getItem('appearance') as Appearance | null;
-
-        appearance.value = savedAppearance || 'light'; // Usar 'light' como valor predeterminado
-        if (!savedAppearance) {
-            updateAppearance('light'); // Forzar 'light' si no hay preferencia guardada
+    function initializeAppearance() {
+        if (typeof window === 'undefined') {
+            return;
         }
+
+        localStorage.removeItem(STORAGE_KEY);
+
+        const userPref = page.props?.auth?.user?.theme_appearance;
+
+        if (userPref) {
+            appearance.value = userPref;
+            updateTheme(userPref);
+
+            return;
+        }
+
+        appearance.value = 'system';
+        updateTheme('system');
+    }
+
+    onMounted(() => {
+        initializeAppearance();
     });
 
     function updateAppearance(value: Appearance) {
         appearance.value = value;
 
-        // Store in localStorage for client-side persistence...
-        localStorage.setItem('appearance', value);
-
-        // Store in cookie for SSR...
-        setCookie('appearance', value);
-
         updateTheme(value);
+
+        axios
+            .patch(route('settings.appearance.update'), {
+                theme_appearance: value,
+            })
+            .catch(() => {
+                // La UI ya quedó aplicada localmente aunque falle la persistencia remota.
+            });
     }
 
     return {

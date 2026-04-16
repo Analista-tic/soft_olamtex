@@ -5,9 +5,9 @@ namespace App\Models\MasterData;
 use App\Models\Finance\AccountingAccount;
 use App\Models\Finance\Tax;
 use App\Models\Inventory\Warehouse;
+use App\Models\Inventory\WarehouseItem;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Item extends Model implements \App\Contracts\HasAuditLabel
@@ -76,25 +76,30 @@ class Item extends Model implements \App\Contracts\HasAuditLabel
     }
 
     // Relaciones
-    public function getWarehouseStocks()
-    {
-        return $this->warehouses()->get();
-    }
-
-    public function setWarehouseStock($warehouseId, $quantity, $stockMin, $stockMax)
-    {
-        $this->warehouses()->syncWithoutDetaching([
-            $warehouseId => [
-                'quantity' => $quantity,
+    public function setWarehouseStock(
+        int $warehouseId,
+        float $quantity,
+        float $stockMin = 0,
+        float $stockMax = 0
+    ): void {
+        WarehouseItem::updateOrCreate(
+            [
+                'item_id'      => $this->id,
+                'warehouse_id' => $warehouseId,
+            ],
+            [
+                'quantity'  => $quantity,
                 'stock_min' => $stockMin,
                 'stock_max' => $stockMax,
             ]
-        ]);
+        );
     }
 
-    public function removeWarehouse($warehouseId)
+    public function removeWarehouse(int $warehouseId): void
     {
-        $this->warehouses()->detach($warehouseId);
+        WarehouseItem::where('item_id', $this->id)
+            ->where('warehouse_id', $warehouseId)
+            ->delete();
     }
 
     public function categorySubGroup()
@@ -122,19 +127,21 @@ class Item extends Model implements \App\Contracts\HasAuditLabel
         return $this->belongsTo(AccountingAccount::class, 'cost_of_sale_account_id');
     }
 
-    /**
-     * Bodegas donde está asignado el item con datos de stock en el pivot.
-     */
-    public function warehouses(): BelongsToMany
+    public function warehouseItems(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return $this->belongsToMany(Warehouse::class, 'warehouse_items', 'item_id', 'warehouse_id')
-            ->withPivot(['quantity', 'stock_min', 'stock_max'])
-            ->withTimestamps()
-            ->withCasts([
-                'quantity' => 'decimal:4',
-                'stock_min' => 'decimal:4',
-                'stock_max' => 'decimal:4',
-            ]);
+        return $this->hasMany(WarehouseItem::class);
+    }
+
+    public function warehouses(): \Illuminate\Database\Eloquent\Relations\HasManyThrough
+    {
+        return $this->hasManyThrough(
+            Warehouse::class,
+            WarehouseItem::class,
+            'item_id',
+            'id',
+            'id',
+            'warehouse_id'
+        );
     }
 
     public function getImgUrlAttribute(): ?string

@@ -72,6 +72,7 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
 
     public function getData(Request $request)
     {
+
         $filters = $this->buildFilters($request);
         $filters['fabric_only'] = true;
         $perPage = $request->input('per_page', 20);
@@ -79,7 +80,8 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
         $documents = $this->service->paginateDocuments(
             PurchaseDocument::TYPE_INVOICE,
             $filters,
-            $perPage
+            $perPage,
+            $request
         );
 
         return response()->json([
@@ -91,7 +93,7 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
 
     protected function buildFilters(Request $request): array
     {
-        return $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id', 'subgroup_id', 'approval_status']);
+        return $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id', 'subgroup_id', 'approval_status', 'exclude_difference_rejected']);
     }
 
     public function justify(Request $request, PurchaseDocument $purchaseInvoice)

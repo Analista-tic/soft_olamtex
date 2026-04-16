@@ -6,6 +6,7 @@ use App\Models\Finance\Tax;
 use App\Models\MasterData\CategoryGroup;
 use App\Models\MasterData\CategorySubGroup;
 use App\Models\MasterData\Item;
+use App\Models\Inventory\WarehouseItem;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -186,10 +187,12 @@ class LegacyItemsMigrationService
 
                     if (!empty($payload['warehouses'])) {
                         foreach ($payload['warehouses'] as $wh) {
-                            $item->warehouses()->attach($wh['warehouse_id'], [
-                                'quantity'  => $wh['quantity'],
-                                'stock_min' => $wh['stock_min'],
-                                'stock_max' => $wh['stock_max'],
+                            WarehouseItem::create([
+                                'item_id'      => $item->id,
+                                'warehouse_id' => $wh['warehouse_id'],
+                                'quantity'     => $wh['quantity'],
+                                'stock_min'    => $wh['stock_min'],
+                                'stock_max'    => $wh['stock_max'],
                             ]);
                         }
                     }

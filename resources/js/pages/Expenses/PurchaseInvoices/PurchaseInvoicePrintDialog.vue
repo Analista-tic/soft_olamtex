@@ -46,6 +46,10 @@ const totalPagar = computed(() => Number(total.value) - Number(retencionesTotal.
 function print() {
     window.print();
 }
+
+function formatItemTaxPercentage(tax: number | null | undefined): number {
+    return Math.round(Number(tax ?? 0));
+}
 </script>
 
 <template>
@@ -64,7 +68,7 @@ function print() {
                     <div>
                         <div class="mb-4 grid grid-cols-3 items-start gap-4">
                             <div>
-                                <div class="font-bold"># Factura de Compra</div>
+                                <div class="font-bold">N° Factura de Compra</div>
                                 <div>{{ props.invoice?.id }}</div>
                             </div>
                             <div class="flex h-full items-center justify-center rounded p-4">
@@ -110,7 +114,7 @@ function print() {
                                 <div>{{ props.invoice?.delivery_date }}</div>
                             </div>
                             <div>
-                                <div class="font-bold"># Factura proveedor</div>
+                                <div class="font-bold">N° Factura proveedor</div>
                                 <div>{{ props.invoice?.supplier_invoice_number }}</div>
                             </div>
                         </div>
@@ -145,7 +149,7 @@ function print() {
                                                 })
                                             }}
                                         </td>
-                                        <td class="border px-2 py-1 text-center print:border print:border-gray-300">{{ Math.round(item.tax) }} %</td>
+                                        <td class="border px-2 py-1 text-center print:border print:border-gray-300">{{ formatItemTaxPercentage(item.tax) }} %</td>
                                         <td class="border py-1 pe-10 ps-0 text-right print:border print:border-gray-300">
                                             {{
                                                 Number(item.total).toLocaleString('es-CO', {

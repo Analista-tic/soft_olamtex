@@ -18,11 +18,37 @@ class PurchaseDocumentService
 {
     protected array $defaultFabricSubgroupNames = ['tela'];
 
-    public function paginateDocuments(string $documentType, array $filters = [], int $perPage = 20): LengthAwarePaginator
+    public function paginateDocuments(string $documentType, array $filters = [], int $perPage = 20, $request = null): LengthAwarePaginator
     {
         $query = $this->buildDocumentQuery($documentType);
         $query = $this->applyDocumentFilters($query, $filters);
 
+        // Soporte de ordenamiento dinámico solo si $request está presente
+        if ($request) {
+            $allowedSorts = ['date', 'delivery_date', 'status', 'total'];
+            $sortBy  = in_array($request->get('sort_by'), $allowedSorts)
+                ? $request->get('sort_by')
+                : 'date';
+            $sortDir = $request->get('sort_dir') === 'asc' ? 'asc' : 'desc';
+
+            // Soporte especial para sort por total (para órdenes, solicitudes y facturas)
+            $typesWithTotalSort = [
+                \App\Models\Expenses\PurchaseDocument::TYPE_ORDER,
+                \App\Models\Expenses\PurchaseDocument::TYPE_REQUEST,
+                \App\Models\Expenses\PurchaseDocument::TYPE_INVOICE,
+                'purchase_invoice_fabric', // Si existe un tipo específico para facturas de tela
+            ];
+            if ($sortBy === 'total' && in_array($documentType, $typesWithTotalSort, true)) {
+                $query = $query->addSelect(['total_sum' => function($q) {
+                    $q->selectRaw('COALESCE(SUM(total + COALESCE(total_tax,0)),0)')
+                        ->from('purchase_document_items')
+                        ->whereColumn('purchase_document_items.purchase_document_id', 'purchase_documents.id');
+                }]);
+                return $query->orderBy('total_sum', $sortDir)->orderByDesc('id')->paginate($perPage);
+            }
+
+            return $query->orderBy($sortBy, $sortDir)->orderByDesc('id')->paginate($perPage);
+        }
         return $query->orderByDesc('date')->orderByDesc('id')->paginate($perPage);
     }
 
@@ -67,6 +93,12 @@ class PurchaseDocumentService
             )
             ->when($this->shouldApplyFilter($filters['approval_status'] ?? null), fn (Builder $builder) =>
                 $builder->where('approval_status', $filters['approval_status'])
+            )
+            ->when(!empty($filters['exclude_difference_rejected']), fn (Builder $builder) =>
+                $builder->where(function (Builder $sub) {
+                    $sub->whereNull('approval_status')
+                        ->orWhere('approval_status', '!=', PurchaseDocument::APPROVAL_DIFFERENCE_REJECTED);
+                })
             )
             ->when($contactIdFilter !== null, fn (Builder $builder) =>
                 $builder->where('contact_id', $contactIdFilter)

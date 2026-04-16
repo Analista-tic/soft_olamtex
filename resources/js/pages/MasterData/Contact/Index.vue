@@ -57,6 +57,7 @@ const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
+const isLoading = ref(false);
 const selectedContactType = ref<ContactType | ''>('');
 
 const contactTypeOptions = [
@@ -285,6 +286,7 @@ async function submitForm(contactData: Partial<Contact>): Promise<void> {
 }
 
 async function fetchContacts(page: number = 1, search: string = '', contactType: string | null = null): Promise<void> {
+    isLoading.value = true;
     try {
         const response = await axios.get('/contactos/data', {
             params: { page, per_page: itemsPerPage, search, contact_type: contactType },
@@ -295,7 +297,10 @@ async function fetchContacts(page: number = 1, search: string = '', contactType:
         currentPage.value = response.data.current_page;
     } catch (error) {
         console.error('Error al obtener los contactos:', error);
+        contacts.value = [];
         setError('Ocurrió un error al cargar los contactos.', 'error');
+    } finally {
+        isLoading.value = false;
     }
 }
 
@@ -381,7 +386,7 @@ onBeforeUnmount(() => {
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Id</TableHead>
+                            <TableHead>N° Contacto</TableHead>
                             <TableHead>Nombre</TableHead>
                             <TableHead>Email</TableHead>
                             <TableHead>Teléfono</TableHead>
@@ -390,17 +395,33 @@ onBeforeUnmount(() => {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="(contact, index) in contacts" :key="contact.id ?? `contact-${index}`">
-                            <TableCell class="font-medium">{{ contact.id }}</TableCell>
-                            <TableCell class="font-medium">{{ contact.full_name }}</TableCell>
-                            <TableCell>{{ contact.email }}</TableCell>
-                            <TableCell>{{ contact.phone }}</TableCell>
-                            <TableCell>{{ formatContactType(contact.contact_type) }}</TableCell>
-                            <TableCell class="flex justify-center gap-1">
-                                <EditButton :onClick="() => openDialog('edit', contact)" />
-                                <DeleteButton @click="confirmDeleteContact(contact)" />
-                            </TableCell>
-                        </TableRow>
+                        <template v-if="isLoading">
+                            <TableRow>
+                                <TableCell colspan="6">
+                                    <div class="py-6 text-center text-sm text-muted-foreground">Cargando contactos...</div>
+                                </TableCell>
+                            </TableRow>
+                        </template>
+                        <template v-else-if="!contacts.length">
+                            <TableRow>
+                                <TableCell colspan="6">
+                                    <div class="py-6 text-center text-sm text-muted-foreground">No hay contactos registrados.</div>
+                                </TableCell>
+                            </TableRow>
+                        </template>
+                        <template v-else>
+                            <TableRow v-for="(contact, index) in contacts" :key="contact.id ?? `contact-${index}`">
+                                <TableCell class="font-medium">{{ contact.id }}</TableCell>
+                                <TableCell class="font-medium">{{ contact.full_name }}</TableCell>
+                                <TableCell>{{ contact.email }}</TableCell>
+                                <TableCell>{{ contact.phone }}</TableCell>
+                                <TableCell>{{ formatContactType(contact.contact_type) }}</TableCell>
+                                <TableCell class="flex justify-center gap-1">
+                                    <EditButton :onClick="() => openDialog('edit', contact)" />
+                                    <DeleteButton @click="confirmDeleteContact(contact)" />
+                                </TableCell>
+                            </TableRow>
+                        </template>
                     </TableBody>
                 </Table>
 

@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import type { Warehouse } from '@/domain/inventory';
+import type { Warehouse } from '@/domain/Inventory';
 import type { BreadcrumbItem } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
@@ -48,6 +48,7 @@ const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
+const isLoading = ref(false);
 const actionButtonClass =
     'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 const actionIconClass = 'h-4 w-4';
@@ -150,6 +151,7 @@ async function handleDialogSubmit(warehouseData: Warehouse) {
 }
 
 async function fetchWarehouses(page = 1, search = '') {
+    isLoading.value = true;
     try {
         const response = await axios.get('/bodegas/data', {
             params: { page, per_page: itemsPerPage, search },
@@ -158,8 +160,11 @@ async function fetchWarehouses(page = 1, search = '') {
         totalItems.value = response.data.total;
         currentPage.value = response.data.current_page;
     } catch (error) {
+        warehouses.value = [];
         console.error('Error al obtener los warehouses:', error);
         setError('Error al obtener las bodegas.');
+    } finally {
+        isLoading.value = false;
     }
 }
 
@@ -229,50 +234,66 @@ onMounted(() => {
                     <Table class="text-center">
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Id</TableHead>
+                                <TableHead>N° Bodegas</TableHead>
                                 <TableHead>Nombre</TableHead>
                                 <TableHead>Observación</TableHead>
                                 <TableHead class="text-center">Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            <TableRow v-for="(warehouse, index) in warehouses" :key="warehouse.id ?? `warehouse-${index}`">
-                                <TableCell class="font-medium">{{ warehouse.id }}</TableCell>
-                                <TableCell class="font-medium">{{ warehouse.name }}</TableCell>
-                                <TableCell>{{ warehouse.observation }}</TableCell>
-                                <TableCell class="text-center">
-                                    <div class="flex justify-center gap-2">
-                                        <Tooltip>
-                                            <TooltipTrigger as-child>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    :class="actionButtonClass"
-                                                    aria-label="Editar"
-                                                    @click="openDialog('edit', warehouse)"
-                                                >
-                                                    <Pencil :class="actionIconClass" />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Editar</TooltipContent>
-                                        </Tooltip>
-                                        <Tooltip>
-                                            <TooltipTrigger as-child>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    :class="[actionButtonClass, 'text-destructive hover:text-destructive']"
-                                                    aria-label="Eliminar"
-                                                    @click="confirmDeleteWarehouse(warehouse)"
-                                                >
-                                                    <Trash :class="actionIconClass" />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Eliminar</TooltipContent>
-                                        </Tooltip>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
+                            <template v-if="isLoading">
+                                <TableRow>
+                                    <TableCell colspan="4">
+                                        <div class="py-6 text-center text-sm text-muted-foreground">Cargando bodegas...</div>
+                                    </TableCell>
+                                </TableRow>
+                            </template>
+                            <template v-else-if="!warehouses.length">
+                                <TableRow>
+                                    <TableCell colspan="4">
+                                        <div class="py-6 text-center text-sm text-muted-foreground">No hay bodegas registradas.</div>
+                                    </TableCell>
+                                </TableRow>
+                            </template>
+                            <template v-else>
+                                <TableRow v-for="(warehouse, index) in warehouses" :key="warehouse.id ?? `warehouse-${index}`">
+                                    <TableCell class="font-medium">{{ warehouse.id }}</TableCell>
+                                    <TableCell class="font-medium">{{ warehouse.name }}</TableCell>
+                                    <TableCell>{{ warehouse.observation }}</TableCell>
+                                    <TableCell class="text-center">
+                                        <div class="flex justify-center gap-2">
+                                            <Tooltip>
+                                                <TooltipTrigger as-child>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        :class="actionButtonClass"
+                                                        aria-label="Editar"
+                                                        @click="openDialog('edit', warehouse)"
+                                                    >
+                                                        <Pencil :class="actionIconClass" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Editar</TooltipContent>
+                                            </Tooltip>
+                                            <Tooltip>
+                                                <TooltipTrigger as-child>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        :class="[actionButtonClass, 'text-destructive hover:text-destructive']"
+                                                        aria-label="Eliminar"
+                                                        @click="confirmDeleteWarehouse(warehouse)"
+                                                    >
+                                                        <Trash :class="actionIconClass" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Eliminar</TooltipContent>
+                                            </Tooltip>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            </template>
                         </TableBody>
                     </Table>
                 </TooltipProvider>

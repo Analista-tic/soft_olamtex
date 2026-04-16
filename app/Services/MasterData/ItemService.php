@@ -7,6 +7,7 @@ use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Inventory\InventoryAdjustmentLine;
 use App\Models\Inventory\Warehouse;
+use App\Models\Inventory\WarehouseItem;
 use App\Models\MasterData\CategorySubGroup;
 use App\Models\MasterData\Item;
 use App\Models\Settings\Setting;
@@ -88,8 +89,14 @@ class ItemService
             );
         }
 
+        $allowedSorts = ['id'];
+        $sortBy = in_array($filters['sort_by'] ?? null, $allowedSorts, true)
+            ? (string) $filters['sort_by']
+            : 'id';
+        $sortDir = ($filters['sort_dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
+
         return $query
-            ->orderByDesc('id')
+            ->orderBy($sortBy, $sortDir)
             ->paginate($perPage);
     }
 
@@ -131,7 +138,7 @@ class ItemService
             throw new \RuntimeException("No se puede eliminar el item porque tiene {$message}.");
         }
 
-        $item->warehouses()->detach();
+        WarehouseItem::where('item_id', $item->id)->delete();
 
         try {
             $item->delete();
@@ -840,11 +847,6 @@ class ItemService
         return $warehouses;
     }
 
-    public function warehouseStocks(Item $item)
-    {
-        return $item->getWarehouseStocks();
-    }
-
     protected function buildCreatePayload(array $data): array
     {
         $extraFields = $this->normalizeExtraFields($data['extra_fields'] ?? []);
@@ -1099,24 +1101,27 @@ class ItemService
         throw ValidationException::withMessages($errors);
     }
 
-    protected function syncWarehouses(Item $item, array $warehouses, bool $replace = false): void
-    {
-        $payload = [];
-        foreach ($warehouses as $warehouse) {
-            $payload[$warehouse['warehouse_id']] = [
-                'quantity' => $warehouse['quantity'] ?? 0,
-                'stock_min' => $warehouse['stock_min'] ?? 0,
-                'stock_max' => $warehouse['stock_max'] ?? 0,
-            ];
-        }
-
+    protected function syncWarehouses(
+        Item $item,
+        array $warehouses,
+        bool $replace = false
+    ): void {
         if ($replace) {
-            $item->warehouses()->sync($payload);
-            return;
+            WarehouseItem::where('item_id', $item->id)->delete();
         }
 
-        foreach ($payload as $warehouseId => $values) {
-            $item->warehouses()->attach($warehouseId, $values);
+        foreach ($warehouses as $warehouse) {
+            WarehouseItem::updateOrCreate(
+                [
+                    'item_id'      => $item->id,
+                    'warehouse_id' => $warehouse['warehouse_id'],
+                ],
+                [
+                    'quantity'  => $warehouse['quantity']  ?? 0,
+                    'stock_min' => $warehouse['stock_min'] ?? 0,
+                    'stock_max' => $warehouse['stock_max'] ?? 0,
+                ]
+            );
         }
     }
 
@@ -1124,7 +1129,7 @@ class ItemService
     {
         $reasons = [];
 
-        $warehouseCount = $item->warehouses()->count();
+        $warehouseCount = WarehouseItem::where('item_id', $item->id)->count();
         if ($warehouseCount > 0) {
             $reasons[] = $warehouseCount === 1 ? '1 bodega asignada' : "{$warehouseCount} bodegas asignadas";
         }

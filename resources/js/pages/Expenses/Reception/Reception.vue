@@ -38,8 +38,12 @@ const isTelasList = computed(() => {
     const r = returnToUrl.value;
     return typeof r === 'string' && r.includes('facturas-compra-tela');
 });
+const isAllReceptions = computed(() => {
+    const r = returnToUrl.value;
+    return !r || (!r.includes('facturas-compra-tela') && !r.includes('facturas-compra'));
+});
 const invoiceListHref = computed(() => (isTelasList.value ? '/gastos/facturas-compra-tela' : '/gastos/facturas-compra'));
-const invoiceListTitle = computed(() => (isTelasList.value ? 'Facturas (telas)' : 'Facturas compra'));
+const invoiceListTitle = computed(() => (isTelasList.value ? 'Facturas de compra de telas' : 'Facturas de compra'));
 const breadcrumbs = computed(() => [
     { title: invoiceListTitle.value, href: invoiceListHref.value },
     { title: 'Recepción', href: '/kardex-telas/recepcion' },
@@ -111,19 +115,17 @@ function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning
     }
 }
 
-function clearAlert() {
-    successMessage.value = '';
-    errorMessage.value = '';
-}
-
 const DEFAULT_STATUS_FILTER = 'all';
 const DEFAULT_PROVIDER_FILTER = 'all';
 const DEFAULT_SUBGROUP_FILTER = 'all';
 const statusFilter = ref(DEFAULT_STATUS_FILTER);
 const providerFilter = ref(DEFAULT_PROVIDER_FILTER);
 const subgroupFilter = ref(DEFAULT_SUBGROUP_FILTER);
-const dateFrom = ref('');
-const dateTo = ref('');
+const dateFilter = ref('');
+const isDateFilterActive = computed(() => Boolean(dateFilter.value));
+const sortBy = ref<string>('date');
+const sortDir = ref<'asc' | 'desc'>('desc');
+const isLoading = ref(false);
 const providers = ref<{ id: number; full_name: string }[]>([]);
 const subgroups = ref<{ id: number; name: string }[]>([]);
 
@@ -141,6 +143,10 @@ const showInvoicesList = computed(() => {
 const showInvoiceDetail = computed(() => {
     return selectedInvoice.value !== null;
 });
+const receptionScope = computed<'all' | 'general' | 'fabric'>(() => {
+    if (isAllReceptions.value) return 'all';
+    return isTelasList.value ? 'fabric' : 'general';
+});
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
@@ -148,6 +154,18 @@ const isSubgroupFilterActive = computed(() => subgroupFilter.value !== DEFAULT_S
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
 const subgroupButtonClasses = useFilterButtonClasses(isSubgroupFilterActive);
+
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+
+    currentPage.value = 1;
+    void fetchInvoices(1, searchQuery.value);
+}
 
 async function fetchProviders() {
     try {
@@ -179,6 +197,12 @@ async function fetchSpecificInvoice(invoiceId: number) {
 
         if (response.data && response.data.data) {
             selectedInvoice.value = response.data.data;
+            if (isDifferenceRejectedInvoice(selectedInvoice.value)) {
+                selectedInvoice.value = null;
+                setAlert('La factura tiene diferencia rechazada y no puede gestionarse en recepción.', 'warning');
+                router.visit(invoiceListHref.value);
+                return;
+            }
             console.log('Items de la factura:', selectedInvoice.value?.items);
         } else {
             console.error('Estructura de respuesta inesperada:', response.data);
@@ -293,12 +317,17 @@ async function confirmRejectReception() {
 }
 
 async function fetchInvoices(page = 1, search = ''): Promise<void> {
+    isLoading.value = true;
     const params: Record<string, any> = {
         page,
         per_page: itemsPerPage,
         search,
-        date_from: dateFrom.value,
-        date_to: dateTo.value,
+        date_from: dateFilter.value || undefined,
+        date_to: dateFilter.value || undefined,
+        sort_by: sortBy.value,
+        sort_dir: sortDir.value,
+        scope: receptionScope.value,
+        exclude_difference_rejected: true,
     };
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
     if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
@@ -308,18 +337,19 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         params.subgroup_id = isNaN(Number(subgroupFilter.value)) ? subgroupFilter.value : Number(subgroupFilter.value);
     }
     try {
-        const endpoint = isTelasList.value
-            ? '/gastos/facturas-compra-tela/data'
-            : '/gastos/facturas-compra/data';
-        const response = await axios.get(endpoint, { params });
-        invoices.value = Array.isArray(response.data.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
+        const response = await axios.get('/kardex-telas/recepcion/data', { params });
+        const rawInvoices = Array.isArray(response.data.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
+        invoices.value = rawInvoices.filter((invoice: PurchaseInvoice) => !isDifferenceRejectedInvoice(invoice));
         totalItems.value = typeof response.data.total === 'number' ? response.data.total : 0;
+        currentPage.value = typeof response.data.current_page === 'number' ? response.data.current_page : page;
         refreshBlockersForList();
     } catch (e: any) {
         console.log('Error al cargar facturas:', e);
         invoices.value = [];
         totalItems.value = 0;
         setAlert('Error al cargar facturas. Verifique la conexión o consulte los registros del servidor.', 'error');
+    } finally {
+        isLoading.value = false;
     }
 }
 
@@ -328,6 +358,18 @@ function calculateInvoiceTotal(invoice: PurchaseInvoice): number {
     const iva = (invoice.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0);
     const retenciones = (invoice.withholdings || []).reduce((acc, w) => acc + ((Number(w.base_amount) || 0) * (Number(w.percentage) || 0)) / 100, 0);
     return subtotal + iva - retenciones;
+}
+
+function isDifferenceRejectedInvoice(invoice: PurchaseInvoice | null | undefined): boolean {
+    if (!invoice) return false;
+    const status = String(invoice.status ?? '').trim().toLowerCase();
+    const approvalStatus = String(invoice.approval_status ?? '').trim().toLowerCase();
+    return status === 'difference_rejected' || status === 'diferencia rechazada' || approvalStatus === 'difference_rejected' || approvalStatus === 'diferencia rechazada';
+}
+
+function getInvoiceDisplayStatus(invoice: PurchaseInvoice | null | undefined): string {
+    if (!invoice) return 'pending';
+    return isDifferenceRejectedInvoice(invoice) ? 'difference_rejected' : String(invoice.status || 'pending');
 }
 
 function getStatusBadge(status: string) {
@@ -339,6 +381,7 @@ function getStatusBadge(status: string) {
         case 'received':
             return 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400';
         case 'rejected':
+        case 'difference_rejected':
             return 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400';
         default:
             return 'bg-muted text-foreground';
@@ -356,6 +399,8 @@ function getStatusText(status: string) {
             return 'Aprobado';
         case 'rejected':
             return 'Rechazado';
+        case 'difference_rejected':
+            return 'Diferencia rechazada';
         default:
             return 'Desconocido';
     }
@@ -374,21 +419,23 @@ function getCannotApproveDescription(invoice: PurchaseInvoice | null | undefined
     if (s === 'rejected') {
         return 'Esta factura fue rechazada. No se puede aprobar la recepción.';
     }
+    if (isDifferenceRejectedInvoice(invoice)) {
+        return 'Esta factura tiene diferencia rechazada y no puede volver al flujo de recepción.';
+    }
     return '';
 }
 
 // Watchers y eventos solo para modo lista
 watch(
-    [statusFilter, providerFilter, subgroupFilter, dateFrom, dateTo, searchQuery],
-    ([newStatus, newProvider, newSubgroup, newFrom, newTo, newSearch], [oldStatus, oldProvider, oldSubgroup, oldFrom, oldTo, oldSearch]) => {
+    [statusFilter, providerFilter, subgroupFilter, dateFilter, searchQuery],
+    ([newStatus, newProvider, newSubgroup, newDate, newSearch], [oldStatus, oldProvider, oldSubgroup, oldDate, oldSearch]) => {
         if (!showInvoicesList.value) return; // No ejecutar watchers en modo específico
 
         if (
             newStatus !== oldStatus ||
             newProvider !== oldProvider ||
             newSubgroup !== oldSubgroup ||
-            newFrom !== oldFrom ||
-            newTo !== oldTo ||
+            newDate !== oldDate ||
             newSearch !== oldSearch
         ) {
             if (currentPage.value !== 1) {
@@ -439,6 +486,7 @@ function closeFabricRollDialog() {
 /** Factura ya recepcionada/aprobada: no se pueden añadir, editar ni eliminar rollos. */
 function isInvoiceReceptionApproved(invoice: PurchaseInvoice | null | undefined): boolean {
     if (!invoice) return false;
+    if (isDifferenceRejectedInvoice(invoice)) return true;
     const s = String(invoice.status ?? '').toLowerCase();
     return s === 'approved' || s === 'received';
 }
@@ -460,6 +508,7 @@ const approvalBlockersByInvoiceId = ref<Record<number, string[]>>({});
 
 function isInvoicePendingReceipt(invoice: PurchaseInvoice | null | undefined): boolean {
     if (!invoice) return false;
+    if (isDifferenceRejectedInvoice(invoice)) return false;
     const s = String(invoice.status ?? '');
     return !['approved', 'received', 'rejected'].includes(s);
 }
@@ -551,10 +600,6 @@ watch(
 );
 
 function onFabricRollSuccess() {
-    if (selectedInvoice.value && selectedInvoice.value.id && typeof selectedInvoice.value.id === 'number') {
-        fetchSpecificInvoice(selectedInvoice.value.id);
-    }
-    return;
     const invoiceId = selectedInvoice.value?.id;
     const itemName = selectedItem.value?.item?.name || selectedItem.value?.article?.name || 'el ítem';
     if (invoiceId) {
@@ -564,8 +609,8 @@ function onFabricRollSuccess() {
     }
     closeFabricRollDialog();
     // Recargar la factura específica para mostrar los rollos actualizados
-    if (selectedInvoice.value && selectedInvoice.value.id && typeof selectedInvoice.value.id === 'number') {
-        fetchSpecificInvoice(selectedInvoice.value.id);
+    if (typeof invoiceId === 'number') {
+        fetchSpecificInvoice(invoiceId);
     }
 }
 </script>
@@ -650,11 +695,8 @@ function onFabricRollSuccess() {
                             :button-class="subgroupButtonClasses"
                         />
                     </FilterField>
-                    <FilterField label="Desde" :active="Boolean(dateFrom.valueOf)" class="min-w-[140px]">
-                        <InputDate v-model="dateFrom" label="" placeholder="Desde" />
-                    </FilterField>
-                    <FilterField label="Hasta" :active="Boolean(dateTo.valueOf)" class="min-w-[140px]">
-                        <InputDate v-model="dateTo" label="" placeholder="Hasta" />
+                    <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
+                        <InputDate v-model="dateFilter" placeholder="Fecha" :clearable="true" :show-today="true" />
                     </FilterField>
                 </FilterBar>
 
@@ -665,72 +707,118 @@ function onFabricRollSuccess() {
                             <TableRow>
                                 <TableHead>N° Factura</TableHead>
                                 <TableHead>Proveedor</TableHead>
-                                <TableHead>Fecha</TableHead>
-                                <TableHead>Total</TableHead>
+                                <TableHead
+                                    class="cursor-pointer select-none whitespace-nowrap"
+                                    @click="toggleSort('date')"
+                                >
+                                    <span class="inline-flex items-center gap-1">
+                                        Fecha
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'date'">
+                                                {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead
+                                    class="cursor-pointer select-none whitespace-nowrap"
+                                    @click="toggleSort('total')"
+                                >
+                                    <span class="inline-flex items-center gap-1">
+                                        Total
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'total'">
+                                                {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
                                 <TableHead>Estado</TableHead>
                                 <TableHead>Items</TableHead>
                                 <TableHead>Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
-                                <TableCell class="font-medium">{{ invoice.document_number || invoice.id }}</TableCell>
-                                <TableCell>{{ getInvoiceContact(invoice)?.full_name ?? '—' }}</TableCell>
-                                <TableCell>{{ formatInvoiceDate(invoice.date) }}</TableCell>
-                                <TableCell class="font-medium">
-                                    {{
-                                        calculateInvoiceTotal(invoice).toLocaleString('es-CO', {
-                                            style: 'currency',
-                                            currency: 'COP',
-                                            minimumFractionDigits: 0,
-                                            maximumFractionDigits: 0,
-                                        })
-                                    }}
-                                </TableCell>
-                                <TableCell>
-                                    <span :class="['rounded-full px-2 py-1 text-xs font-medium', getStatusBadge(invoice.status || 'pending')]">
-                                        {{ getStatusText(invoice.status || 'pending') }}
-                                    </span>
-                                </TableCell>
-                                <TableCell>{{ (invoice.items || []).length }} {{ (invoice.items || []).length === 1 ? 'item' : 'items' }}</TableCell>
-                                <TableCell class="flex justify-center gap-1">
-                                    <button
-                                        class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-primary"
-                                        @click="viewInvoice(invoice)"
-                                        title="Ver detalle"
-                                    >
-                                        <Eye class="h-4 w-4" />
-                                    </button>
-                                    <template v-if="invoice.status === 'pending_receipt' || !invoice.status">
-                                        <div class="relative inline-flex">
-                                            <button
-                                                class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-green-600"
-                                                :disabled="getBlockersForInvoiceId(invoice.id).length > 0"
-                                                :title="
-                                                    getBlockersForInvoiceId(invoice.id).length > 0
-                                                        ? getBlockersForInvoiceId(invoice.id).join(' ')
-                                                        : 'Aprobar recepción'
-                                                "
-                                                @click="getBlockersForInvoiceId(invoice.id).length === 0 && approveReception(invoice)"
-                                            >
-                                                <Check class="h-4 w-4" />
-                                            </button>
-                                            <span
-                                                v-if="getBlockersForInvoiceId(invoice.id).length > 0"
-                                                class="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background"
-                                                title="Condiciones no cumplidas para aprobar"
-                                            />
-                                        </div>
+                            <template v-if="isLoading">
+                                <TableRow>
+                                    <TableCell :colspan="7" class="py-6 text-center text-sm text-muted-foreground">
+                                        Cargando recepciones...
+                                    </TableCell>
+                                </TableRow>
+                            </template>
+                            <template v-else-if="!invoices.length">
+                                <TableRow>
+                                    <TableCell :colspan="7" class="py-6 text-center text-sm text-muted-foreground">
+                                        No se encontraron recepciones.
+                                    </TableCell>
+                                </TableRow>
+                            </template>
+                            <template v-else>
+                                <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
+                                    <TableCell class="font-medium">{{ invoice.document_number || invoice.id }}</TableCell>
+                                    <TableCell>{{ getInvoiceContact(invoice)?.full_name ?? '—' }}</TableCell>
+                                    <TableCell>{{ formatInvoiceDate(invoice.date) }}</TableCell>
+                                    <TableCell class="font-medium">
+                                        {{
+                                            calculateInvoiceTotal(invoice).toLocaleString('es-CO', {
+                                                style: 'currency',
+                                                currency: 'COP',
+                                                minimumFractionDigits: 0,
+                                                maximumFractionDigits: 0,
+                                            })
+                                        }}
+                                    </TableCell>
+                                    <TableCell>
+                                        <span :class="['rounded-full px-2 py-1 text-xs font-medium', getStatusBadge(getInvoiceDisplayStatus(invoice))]">
+                                            {{ getStatusText(getInvoiceDisplayStatus(invoice)) }}
+                                        </span>
+                                    </TableCell>
+                                    <TableCell>{{ (invoice.items || []).length }} {{ (invoice.items || []).length === 1 ? 'item' : 'items' }}</TableCell>
+                                    <TableCell class="flex justify-center gap-1">
                                         <button
-                                            class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-red-600"
-                                            @click="showRejectDialog(invoice)"
-                                            title="Rechazar recepción"
+                                            class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-primary"
+                                            @click="viewInvoice(invoice)"
+                                            title="Ver detalle"
                                         >
-                                            <X class="h-4 w-4" />
+                                            <Eye class="h-4 w-4" />
                                         </button>
-                                    </template>
-                                </TableCell>
-                            </TableRow>
+                                        <template v-if="isInvoicePendingReceipt(invoice)">
+                                            <div class="relative inline-flex">
+                                                <button
+                                                    class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-green-600"
+                                                    :disabled="getBlockersForInvoiceId(invoice.id).length > 0"
+                                                    :title="
+                                                        getBlockersForInvoiceId(invoice.id).length > 0
+                                                            ? getBlockersForInvoiceId(invoice.id).join(' ')
+                                                            : 'Aprobar recepción'
+                                                    "
+                                                    @click="getBlockersForInvoiceId(invoice.id).length === 0 && approveReception(invoice)"
+                                                >
+                                                    <Check class="h-4 w-4" />
+                                                </button>
+                                                <span
+                                                    v-if="getBlockersForInvoiceId(invoice.id).length > 0"
+                                                    class="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background"
+                                                    title="Condiciones no cumplidas para aprobar"
+                                                />
+                                            </div>
+                                            <button
+                                                class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-red-600"
+                                                @click="showRejectDialog(invoice)"
+                                                title="Rechazar recepción"
+                                            >
+                                                <X class="h-4 w-4" />
+                                            </button>
+                                        </template>
+                                    </TableCell>
+                                </TableRow>
+                            </template>
                         </TableBody>
                     </Table>
                 </div>
@@ -755,8 +843,8 @@ function onFabricRollSuccess() {
                         </div>
                         <div>
                             <p class="text-sm font-medium text-muted-foreground">Estado</p>
-                            <span :class="['rounded-full px-2 py-1 text-sm font-medium', getStatusBadge(selectedInvoice.status || 'pending')]">
-                                {{ getStatusText(selectedInvoice.status || 'pending') }}
+                            <span :class="['rounded-full px-2 py-1 text-sm font-medium', getStatusBadge(getInvoiceDisplayStatus(selectedInvoice))]">
+                                {{ getStatusText(getInvoiceDisplayStatus(selectedInvoice)) }}
                             </span>
                         </div>
                     </div>
@@ -1042,10 +1130,7 @@ function onFabricRollSuccess() {
 
                     <!-- Descripción de validación: por qué no se puede aprobar -->
                     <div
-                        v-if="
-                            (selectedInvoice.status === 'pending_receipt' || !selectedInvoice.status) &&
-                            (approvalBlockersLoading || approvalBlockers.length > 0)
-                        "
+                        v-if="isInvoicePendingReceipt(selectedInvoice) && (approvalBlockersLoading || approvalBlockers.length > 0)"
                         class="mt-4 rounded-lg border p-3 text-sm"
                         :class="
                             approvalBlockersLoading
@@ -1071,7 +1156,7 @@ function onFabricRollSuccess() {
 
                     <!-- Botones de acción compactos y fijos -->
                     <div class="sticky bottom-0 z-10 mt-4 flex justify-end gap-2 rounded-b-xl bg-background p-2 shadow-sm">
-                        <template v-if="selectedInvoice.status === 'pending_receipt' || !selectedInvoice.status">
+                        <template v-if="isInvoicePendingReceipt(selectedInvoice)">
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger as-child>
@@ -1110,17 +1195,14 @@ function onFabricRollSuccess() {
                                 <X class="h-4 w-4" /> Rechazar
                             </Button>
                         </template>
-                        <p
-                            v-if="selectedInvoice.status === 'pending_receipt' || !selectedInvoice.status"
-                            class="mt-1 w-full text-right text-xs text-muted-foreground"
-                        >
+                        <p v-if="isInvoicePendingReceipt(selectedInvoice)" class="mt-1 w-full text-right text-xs text-muted-foreground">
                             Al aprobar la recepción la factura pasará a estado <strong>Aprobado</strong>; al rechazarla, a <strong>Rechazado</strong>.
                         </p>
                         <div v-else class="flex flex-col items-end gap-1 text-right">
                             <div class="flex items-center gap-2 text-sm text-muted-foreground">
                                 Estado:
-                                <span :class="['rounded-full px-2 py-1 text-xs font-medium', getStatusBadge(selectedInvoice.status)]">
-                                    {{ getStatusText(selectedInvoice.status) }}
+                                <span :class="['rounded-full px-2 py-1 text-xs font-medium', getStatusBadge(getInvoiceDisplayStatus(selectedInvoice))]">
+                                    {{ getStatusText(getInvoiceDisplayStatus(selectedInvoice)) }}
                                 </span>
                             </div>
                             <p v-if="cannotApproveDescription" class="max-w-md text-xs text-muted-foreground">
