@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import ScrollArea from '@/components/ui/scroll-area/ScrollArea.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -8,7 +9,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import type { OperationSection } from '@/domain/product-sheet';
 import { fetchOpOperationalListDetail } from '@/domain/Production';
-import { ChevronDown, ChevronRight } from 'lucide-vue-next';
+import axios from 'axios';
+import { ChevronDown, ChevronRight, ExternalLink, RefreshCw } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 
 type OperationEntry = {
@@ -31,10 +33,31 @@ type OperationEntry = {
 const props = defineProps<{
     opId: string | number | null;
     opLabel?: string;
+    productSheetId?: number | null;
+    canEdit?: boolean;
 }>();
+
+const isSyncing = ref(false);
+const syncMessage = ref('');
+
+async function regenerateSnapshot() {
+    if (!props.opId) return;
+    isSyncing.value = true;
+    syncMessage.value = '';
+    try {
+        const res = await axios.post(`/produccion/ordenes-produccion/${props.opId}/regenerar-snapshot`);
+        syncMessage.value = res.data?.message ?? 'Sincronizado correctamente.';
+        await fetchData();
+    } catch (e: any) {
+        syncMessage.value = e?.response?.data?.message ?? 'Error al sincronizar.';
+    } finally {
+        isSyncing.value = false;
+    }
+}
 
 const emit = defineEmits<{
     (e: 'has-data', value: boolean): void;
+    (e: 'create-listado'): void;
 }>();
 
 const operations = ref<OperationEntry[]>([]);
@@ -179,24 +202,68 @@ watch(
             <Skeleton class="h-10 w-full" />
         </div>
 
-        <div v-else-if="operations.length === 0" class="rounded-lg border border-dashed border-border py-16 text-center">
-            <p class="text-sm text-muted-foreground">No hay operaciones en el listado de esta OP.</p>
-            <p class="mt-1 text-xs text-muted-foreground">El snapshot se genera al crear el programador desde la ficha técnica.</p>
+        <div v-else-if="operations.length === 0" class="rounded-lg border border-dashed border-border px-6 py-12 text-center">
+            <p class="text-sm font-medium text-muted-foreground">Esta orden no tiene listado operacional registrado.</p>
+            <p v-if="canEdit" class="mt-1 text-xs text-muted-foreground">
+                Crea el listado operacional de la sábana para calcular SAM y costos.
+            </p>
+            <div v-if="canEdit" class="mt-5 flex flex-col items-center gap-3">
+                <Button
+                    v-if="productSheetId"
+                    size="sm"
+                    class="gap-2 rounded-full px-5"
+                    @click="emit('create-listado')"
+                >
+                    <ExternalLink class="h-4 w-4" />
+                    Crear listado operacional
+                </Button>
+                <Button
+                    v-if="productSheetId"
+                    variant="outline"
+                    size="sm"
+                    class="gap-2 rounded-full"
+                    :disabled="isSyncing"
+                    @click="regenerateSnapshot"
+                >
+                    <RefreshCw :class="['h-4 w-4', isSyncing && 'animate-spin']" />
+                    {{ isSyncing ? 'Sincronizando...' : 'Sincronizar desde sábana' }}
+                </Button>
+                <p v-if="syncMessage" class="text-xs" :class="syncMessage.includes('Error') ? 'text-destructive' : 'text-green-600'">
+                    {{ syncMessage }}
+                </p>
+            </div>
         </div>
 
         <template v-else>
-            <div class="flex items-center justify-between">
+            <div class="flex items-center justify-between gap-3">
                 <h3 class="text-sm font-semibold text-foreground">
                     {{ opLabel || 'Listado operacional' }}
                     <Badge variant="secondary" class="ml-2">{{ operations.length }} op.</Badge>
                 </h3>
-                <Tabs v-model="viewMode" class="w-auto">
-                    <TabsList class="h-8">
-                        <TabsTrigger value="grouped" class="h-7 px-3 text-xs">Por sección</TabsTrigger>
-                        <TabsTrigger value="flat" class="h-7 px-3 text-xs">Individual</TabsTrigger>
-                    </TabsList>
-                </Tabs>
+                <div class="flex items-center gap-2">
+                    <Button
+                        v-if="productSheetId"
+                        variant="outline"
+                        size="sm"
+                        class="h-8 gap-1.5 rounded-full px-3 text-xs"
+                        :disabled="isSyncing"
+                        :title="'Regenerar snapshot desde el listado operacional actual de la sábana'"
+                        @click="regenerateSnapshot"
+                    >
+                        <RefreshCw :class="['h-3.5 w-3.5', isSyncing && 'animate-spin']" />
+                        {{ isSyncing ? 'Sincronizando...' : 'Sincronizar' }}
+                    </Button>
+                    <Tabs v-model="viewMode" class="w-auto">
+                        <TabsList class="h-8">
+                            <TabsTrigger value="grouped" class="h-7 px-3 text-xs">Por sección</TabsTrigger>
+                            <TabsTrigger value="flat" class="h-7 px-3 text-xs">Individual</TabsTrigger>
+                        </TabsList>
+                    </Tabs>
+                </div>
             </div>
+            <p v-if="syncMessage" class="text-xs" :class="syncMessage.includes('Error') ? 'text-destructive' : 'text-green-600'">
+                {{ syncMessage }}
+            </p>
 
             <TooltipProvider>
                 <!-- Vista agrupada -->

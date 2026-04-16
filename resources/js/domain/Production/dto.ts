@@ -147,6 +147,7 @@ export interface OpBasicInfoDto {
     priceBilling?: number | null;
     priceSale?: number | null;
     description?: string | null;
+    product_sheet_id?: number | null;
 }
 
 export interface OperationalListItemDto {

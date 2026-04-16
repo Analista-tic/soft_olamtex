@@ -46,8 +46,8 @@ class HandleInertiaRequests extends Middleware
             'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
                 'user' => fn () => $request->user()
-                    ? $request->user()->fresh()?->append('avatar_url')->only([
-                        'id', 'name', 'email', 'avatar_url', 'avatar_path', 'email_verified_at', 'roles',
+                    ? $request->user()->fresh(['roles.permissions'])?->append('avatar_url')->makeHidden([
+                        'area_id', 'created_at', 'updated_at',
                     ])
                     : null,
             ],

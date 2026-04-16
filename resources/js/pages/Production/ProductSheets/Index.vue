@@ -484,6 +484,7 @@ onUnmounted(() => {
                             <TableHead>Ref. Muestra</TableHead>
                             <TableHead>Ref. Producto</TableHead>
                             <TableHead>Ref. Prod 2</TableHead>
+                            <TableHead>Nombre</TableHead>
                             <TableHead>Sección</TableHead>
                             <TableHead>Grupo</TableHead>
                             <TableHead>Mundo</TableHead>
@@ -499,7 +500,7 @@ onUnmounted(() => {
                     </TableHeader>
                     <TableBody>
                         <TableRow v-if="productSheets.length === 0">
-                            <TableCell colspan="14" class="py-10 text-center text-sm text-muted-foreground">
+                            <TableCell colspan="15" class="py-10 text-center text-sm text-muted-foreground">
                                 No se encontraron sábanas de producto.
                             </TableCell>
                         </TableRow>
@@ -517,6 +518,9 @@ onUnmounted(() => {
                                 </TableCell>
                                 <TableCell class="font-medium">
                                     {{ product.product_reference_2 ?? '-' }}
+                                </TableCell>
+                                <TableCell class="max-w-[220px] text-left">
+                                    <span class="block truncate" :title="product.description ?? ''">{{ product.description ?? '—' }}</span>
                                 </TableCell>
                                 <TableCell>{{ product.section?.name ?? '' }}</TableCell>
                                 <TableCell>{{ product.group?.name ?? '' }}</TableCell>

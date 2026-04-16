@@ -1633,13 +1633,14 @@ function handleClose() {
 
                                 <!-- Descripción -->
                                 <div class="flex flex-col gap-1">
-                                    <Label class="text-sm font-medium">Descripción</Label>
+                                    <Label class="text-sm font-medium">Nombre del producto<span class="text-red-500">*</span></Label>
                                     <InputField
                                         v-model="form.description"
                                         label=""
                                         type="text"
-                                        placeholder="Descripción corta del producto"
+                                        placeholder="Nombre del producto"
                                         :disabled="isReadonly"
+                                        :error="showFieldErrors ? fieldErrors.description : undefined"
                                     />
                                 </div>
 

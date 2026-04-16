@@ -72,7 +72,7 @@ abstract class BaseProductSheetRequest extends FormRequest
             'selling_price' => 'required|numeric',
             'sizes' => 'required|json',
             'woven_product' => 'required|boolean',
-            'description' => 'nullable|string',
+            'description' => 'required|string',
             'processes' => 'required|json',
             'flat_sketch' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'status' => ['required', Rule::in(['incomplete', 'complete'])],
@@ -92,6 +92,7 @@ abstract class BaseProductSheetRequest extends FormRequest
             'product_reference.required' => 'La referencia de producto es obligatoria para fichas tipo producto.',
             'sample_reference.required' => 'La referencia de muestra es obligatoria cuando el tipo es muestra.',
             'fabric_base_id.required' => 'Base Tela es requerida cuando el producto no es tejido.',
+            'description.required' => 'El nombre del producto es obligatorio.',
         ];
     }
 

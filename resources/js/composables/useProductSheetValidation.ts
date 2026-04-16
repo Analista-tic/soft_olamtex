@@ -6,6 +6,7 @@ export interface ProductSheetValidationSource {
     group_id: number | null;
     brand_id: number | null;
     world_id: number | null;
+    description?: string | null;
     fabric_base_id: number | null;
     billing_price?: number | null;
     operational_list_id: number | null;
@@ -19,6 +20,7 @@ export interface ProductSheetFieldErrors {
     group_id: string;
     brand_id: string;
     world_id: string;
+    description: string;
     fabric_base_id: string;
     billing_price: string;
     yarn_base_id: string;
@@ -44,6 +46,7 @@ export function useProductSheetValidation<T extends ProductSheetValidationSource
         if (!form.group_id) errors.push('Grupo es requerido.');
         if (!form.brand_id) errors.push('Marca es requerida.');
         if (!form.world_id) errors.push('Mundo es requerido.');
+        if (!form.description?.trim()) errors.push('El nombre del producto es obligatorio.');
         if (!requiresYarnBase.value && !form.fabric_base_id) errors.push('Base Tela es requerida.');
         if (!params.activeReference.value.trim()) errors.push('Referencia es requerida.');
 
@@ -68,6 +71,7 @@ export function useProductSheetValidation<T extends ProductSheetValidationSource
             group_id: !form.group_id ? 'Grupo es requerido.' : '',
             brand_id: !form.brand_id ? 'Marca es requerida.' : '',
             world_id: !form.world_id ? 'Mundo es requerido.' : '',
+            description: !form.description?.trim() ? 'El nombre del producto es obligatorio.' : '',
             fabric_base_id: !requiresYarnBase.value && !form.fabric_base_id ? 'Base Tela es requerida.' : '',
             billing_price: '',
             yarn_base_id: requiresYarnBase.value && !form.yarn_base_id ? 'Base hilaza es requerida.' : '',

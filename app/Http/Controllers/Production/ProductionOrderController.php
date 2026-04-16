@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Production;
 use App\Helpers\MonthLabel;
 use App\Http\Controllers\Controller;
 use App\Models\Production\ProductionOrder;
+use App\Services\Production\ProductionOrderService;
 use App\Services\Settings\SettingService;
 use Illuminate\Http\JsonResponse;
 use Inertia\Inertia;
@@ -14,6 +15,7 @@ class ProductionOrderController extends Controller
 {
     public function __construct(
         private SettingService $settingService,
+        private ProductionOrderService $productionOrderService,
     ) {
     }
 
@@ -97,6 +99,20 @@ class ProductionOrderController extends Controller
         return response()->json([
             'production_order' => $productionOrder,
             'product_sheet' => $productSheet,
+        ]);
+    }
+
+    /**
+     * Regenera el snapshot de operaciones de una OP desde el listado operacional actual de su sábana.
+     */
+    public function regenerateSnapshot(ProductionOrder $order): JsonResponse
+    {
+        $operations = $this->productionOrderService->createSnapshotForOrder($order);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Listado operacional sincronizado correctamente.',
+            'operations_count' => $operations->count(),
         ]);
     }
 }

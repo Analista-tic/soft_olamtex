@@ -255,8 +255,9 @@ Route::get('produccion/ordenes-produccion', [ProductionOrderController::class, '
     ->middleware('permission:ver sabana productos')
     ->name('production.orders.index');
 Route::get('produccion/ordenes-produccion/{order}/detalle', [ProductionOrderController::class, 'show'])
-    ->middleware('permission:ver sabana productos')
-    ->name('production.orders.show');
+    ->name('produccion.ordenes-produccion.show');
+Route::post('produccion/ordenes-produccion/{order}/regenerar-snapshot', [ProductionOrderController::class, 'regenerateSnapshot'])
+    ->name('produccion.ordenes-produccion.regenerar-snapshot');
 
 // Programador comercial
 Route::prefix('comercial')->name('comercial.')->group(function () {
