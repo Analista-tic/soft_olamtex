@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\MasterData;
 
+use App\Helpers\NitHelper;
 use App\Http\Controllers\Controller;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\MasterData\Contact;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -41,6 +43,7 @@ class ContactController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate($this->rules(), $this->messages());
+        $this->validateNitDv($request, $validated);
 
         try {
             $uniqueEmails = collect($validated['additional_contacts'] ?? [])
@@ -79,6 +82,7 @@ class ContactController extends Controller
     public function update(Request $request, Contact $contact)
     {
         $validated = $request->validate($this->rules($contact), $this->messages());
+        $this->validateNitDv($request, $validated);
 
         try {
             $uniqueEmails = collect($validated['additional_contacts'] ?? [])
@@ -136,6 +140,25 @@ class ContactController extends Controller
         return PurchaseDocument::where('contact_id', $contact->id)
             ->whereNull('deleted_at')
             ->exists();
+    }
+
+    private function validateNitDv(Request $request, array $validated): void
+    {
+        $idType = $validated['id_type'] ?? $request->input('id_type');
+        $nit = $validated['id_number'] ?? $request->input('id_number');
+        $dvIngresado = $request->input('dv');
+
+        if ($idType !== 'nit' || empty($nit) || is_null($dvIngresado)) {
+            return;
+        }
+
+        $dvCalculado = NitHelper::calcularDV($nit);
+
+        if ((int) $dvIngresado !== $dvCalculado) {
+            throw ValidationException::withMessages([
+                'dv' => 'El digito de verificacion no corresponde al NIT ingresado.',
+            ]);
+        }
     }
 
     private function rules(?Contact $contact = null): array
