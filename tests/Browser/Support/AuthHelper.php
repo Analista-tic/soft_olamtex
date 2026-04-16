@@ -25,4 +25,19 @@ class AuthHelper
             ->click('[dusk="btn-submit"]')
             ->waitUntilMissing('[dusk="campo-email"]', 15);
     }
+
+    public static function loginWithRole(Browser $browser, string $role): User
+    {
+        $user = User::firstOrCreate(
+            ['email' => 'compras_tester@olamtex.test'],
+            [
+                'name' => 'Compras Tester',
+                'password' => bcrypt('password'),
+            ]
+        );
+        $user->syncRoles([$role]);
+        $browser->loginAs($user);
+
+        return $user;
+    }
 }

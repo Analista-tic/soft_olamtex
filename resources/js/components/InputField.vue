@@ -19,6 +19,7 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+defineOptions({ inheritAttrs: false });
 const emit = defineEmits(['update:modelValue']);
 
 const isControlled = computed(() => props.modelValue !== undefined);
@@ -263,6 +264,7 @@ function togglePasswordVisibility() {
         <div class="relative">
             <Input
                 v-if="isControlled"
+                v-bind="$attrs"
                 :id="label"
                 v-model="formattedValue"
                 :type="
@@ -293,6 +295,7 @@ function togglePasswordVisibility() {
 
             <Input
                 v-else
+                v-bind="$attrs"
                 :id="label"
                 :value="formattedValue"
                 :type="
