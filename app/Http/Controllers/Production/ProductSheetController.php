@@ -225,6 +225,7 @@ class ProductSheetController extends Controller
             'filters' => [
                 'search' => $request->filled('search') ? mb_substr((string) $request->input('search'), 0, 80) : null,
                 'status' => $request->input('status'),
+                'type' => $request->input('type'),
                 'section_id' => $request->input('section_id'),
                 'world_id' => $request->input('world_id'),
                 'page' => $request->input('page', 1),
@@ -244,6 +245,10 @@ class ProductSheetController extends Controller
 
         if ($request->has('status') && $request->status != '') {
             $query->where('status', $request->status);
+        }
+
+        if ($request->filled('type') && in_array($request->type, ['muestra', 'producto'], true)) {
+            $query->where('type', $request->type);
         }
 
         if ($request->filled('section_id')) {

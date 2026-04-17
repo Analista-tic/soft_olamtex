@@ -228,18 +228,7 @@ abstract class BaseProductSheetRequest extends FormRequest
      */
     protected function applyTypeValidation(\Illuminate\Contracts\Validation\Validator $validator): void
     {
-        $type = $this->input('type');
-        if (!$type) {
-            return;
-        }
-
-        // PRODUCTO: debe tener listado operacional asignado
-        if ($type === self::TYPE_PRODUCT && !$this->filled('operational_list_id')) {
-            $validator->errors()->add(
-                'operational_list_id',
-                'Las fichas tipo producto requieren un listado operacional asignado.'
-            );
-        }
+        // Sin validaciones adicionales por tipo en este request base.
     }
 
     protected function failedValidation(Validator $validator): void

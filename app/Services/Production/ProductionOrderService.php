@@ -68,7 +68,7 @@ class ProductionOrderService
             'season' => $season,
             'destination_id' => $destinationId,
             'priority' => null,
-            'units' => null,
+            'units' => 1,
             'estimated_delivery_date' => null,
             'ecommerce_units' => null,
             'status' => self::STATUS_INCOMPLETE,

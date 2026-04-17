@@ -334,7 +334,7 @@ class ProgrammerController extends Controller
      */
     public function getData(Request $request)
     {
-        $filters = $request->only(['season', 'priority', 'status', 'destination_id', 'search', 'estimated_delivery_date']);
+        $filters = $request->only(['season', 'priority', 'status', 'type', 'destination_id', 'search', 'estimated_delivery_date']);
         $perPage = $request->input('per_page', 10);
         $page = $request->input('page', 1);
         $requestId = $this->resolveRequestId($request);
@@ -386,6 +386,12 @@ class ProgrammerController extends Controller
 
         if (!empty($filters['status']) && $filters['status'] !== 'all') {
             $query->where('status', $filters['status']);
+        }
+
+        if (!empty($filters['type']) && $filters['type'] !== 'all' && in_array($filters['type'], ['muestra', 'producto'], true)) {
+            $query->whereHas('productSheet', function ($q) use ($filters) {
+                $q->where('type', $filters['type']);
+            });
         }
 
         if (!empty($filters['destination_id']) && $filters['destination_id'] !== 'all') {
