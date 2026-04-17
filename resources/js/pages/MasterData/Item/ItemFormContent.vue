@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { DialogFooter } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
+import { Switch } from '@/components/ui/switch';
 
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 import AdditionalFieldDialog from '@/pages/MasterData/AdditionalFields/AdditionalFieldDialog.vue';
@@ -1636,6 +1637,30 @@ onBeforeUnmount(() => {
 
                         <div class="md:col-span-1">
                             <InputField v-model="localForm.reference" label="Referencia" required />
+                        </div>
+
+                        <div class="md:col-span-1">
+                            <Label class="mb-2 block text-sm font-medium">
+                                Movimiento Negativo
+                            </Label>
+                            <div class="flex items-center gap-2 pt-1">
+                                <Switch
+                                    :checked="negativeMovementBool"
+                                    :disabled="isViewMode || (!negativeMovementBool && hasNegativeStock)"
+                                    @update:checked="
+                                        (val) => {
+                                            if (!val && hasNegativeStock) {
+                                                showNegativeMovementWarning();
+                                            } else {
+                                                localForm.negative_movement = val ? 1 : 0;
+                                            }
+                                        }
+                                    "
+                                />
+                                <span class="text-sm text-muted-foreground">
+                                    {{ negativeMovementBool ? 'Permitido' : 'No permitido' }}
+                                </span>
+                            </div>
                         </div>
                     </div>
 

@@ -16,6 +16,7 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+defineOptions({ inheritAttrs: false });
 const emit = defineEmits(['update:modelValue']);
 
 const localModelValue = ref<string | undefined>(props.modelValue);
@@ -38,6 +39,7 @@ watch(localModelValue, (newValue) => emit('update:modelValue', newValue));
             <span v-if="required" class="text-destructive">*</span>
         </Label>
         <textarea
+            v-bind="$attrs"
             :id="label"
             v-model="localModelValue"
             :placeholder="placeholder"

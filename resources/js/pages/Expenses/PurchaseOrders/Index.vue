@@ -325,7 +325,7 @@ function handleDialogError(message?: string) {
                     <h1 class="text-lg font-bold">Órdenes de Compras y Servicios</h1>
                     <p class="text-sm text-muted-foreground">Lleva el control de las órdenes emitidas a proveedores y su estado de facturación.</p>
                 </div>
-                <Button variant="default" size="pill" :disabled="isPreparingDialog" @click="openDialog('create')">
+                <Button variant="default" size="pill" dusk="btn-nueva-orden" :disabled="isPreparingDialog" @click="openDialog('create')">
                     <PlusCircle class="h-4 w-4" />
                     Nueva Orden
                 </Button>
@@ -454,7 +454,7 @@ function handleDialogError(message?: string) {
                                 <TableCell>{{ formatCurrency(computeOrderTotal(order)) }}</TableCell>
                                 <TableCell class="text-start">{{ order.description || '-' }}</TableCell>
                                 <TableCell>
-                                    <TableStatusBadge :label="getOrderStatusLabel(order.status)" :tone="getOrderStatusTone(order.status)" />
+                                    <TableStatusBadge :dusk="`estado-orden-${order.id}`" :label="getOrderStatusLabel(order.status)" :tone="getOrderStatusTone(order.status)" />
                                 </TableCell>
                                 <TableCell class="flex justify-center gap-1">
                                     <Button variant="ghost" size="icon" :class="actionButtonClass" title="Ver orden" @click="viewOrder(order)">

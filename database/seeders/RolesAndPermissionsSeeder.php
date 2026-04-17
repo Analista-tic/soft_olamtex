@@ -137,6 +137,21 @@ class RolesAndPermissionsSeeder extends Seeder
             'editar facturas compra',
             'eliminar facturas compra',
             'aprobar facturas compra',
+
+            // Visibilidad - Solicitudes de compra
+            'ver propios solicitudes compra',
+            'ver area solicitudes compra',
+            'ver todos solicitudes compra',
+
+            // Visibilidad - Documentos de compra
+            'ver propios documentos compra',
+            'ver area documentos compra',
+            'ver todos documentos compra',
+
+            // Visibilidad - Solicitudes de insumos
+            'ver propios solicitudes insumos',
+            'ver area solicitudes insumos',
+            'ver todos solicitudes insumos',
         ];
 
         foreach ($allPermissions as $permission) {
@@ -147,7 +162,8 @@ class RolesAndPermissionsSeeder extends Seeder
         $admin = Role::firstOrCreate(['name' => 'admin']);
         $admin->syncPermissions(Permission::all());
 
-        // General: producción + inventario completo
+        // General: placeholder - Marketing y Recursos Humanos
+        // Acceso mínimo hasta que se defina su módulo real
         $general = Role::firstOrCreate(['name' => 'general']);
         $general->syncPermissions([
             'ver empresa',
@@ -155,12 +171,25 @@ class RolesAndPermissionsSeeder extends Seeder
             'editar perfil',
             'ver personalizacion',
             'editar personalizacion',
+            'ver solicitudes insumos',
+        ]);
 
+        // Produccion: Producción + Diseño + Comercial
+        $produccion = Role::firstOrCreate(['name' => 'produccion']);
+        $produccion->syncPermissions([
+            'ver empresa',
+            'ver perfil',
+            'editar perfil',
+            'ver personalizacion',
+            'editar personalizacion',
+
+            // Producción
             'ver programador',
             'ver sabana productos',
             'ver listados operacionales',
             'editar procesos ficha tecnica',
 
+            // Inventario completo
             'ver telas',
             'crear telas',
             'editar telas',
@@ -178,8 +207,14 @@ class RolesAndPermissionsSeeder extends Seeder
             'editar inventario telas',
             'eliminar inventario telas',
 
+            // Solicitudes de insumos: puede ver, crear - no atender
             'ver solicitudes insumos',
             'crear solicitudes insumos',
+
+            // Solicitudes de compra: solo las propias
+            'ver gastos',
+            'ver ordenes compra',
+            'ver propios solicitudes compra',
         ]);
 
         // Contabilidad: financiero + compras
@@ -194,8 +229,11 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver ingresos',
             'ver gastos',
             'ver financiero',
+            'ver todos solicitudes compra',
+            'ver todos documentos compra',
+            'ver todos solicitudes insumos',
 
-            // Catalogo de cuentas
+            // Catálogo de cuentas
             'ver catalogo cuentas',
             'crear catalogo cuentas',
             'editar catalogo cuentas',
@@ -205,7 +243,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'crear comprobantes egreso',
             'editar comprobantes egreso',
 
-            // Notas credito / debito
+            // Notas crédito / débito
             'ver notas credito debito',
             'crear notas credito debito',
             'editar notas credito debito',
@@ -223,7 +261,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'editar retenciones',
             'eliminar retenciones',
 
-            // Ordenes de compra
+            // Órdenes de compra
             'ver ordenes compra',
             'crear ordenes compra',
             'editar ordenes compra',
@@ -266,6 +304,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver solicitudes insumos',
             'crear solicitudes insumos',
             'atender solicitudes insumos',
+            'ver area solicitudes insumos',
+            'ver todos documentos compra',
 
             'ver ordenes compra',
             'ver facturas compra',
@@ -280,46 +320,50 @@ class RolesAndPermissionsSeeder extends Seeder
 
         $areas = is_array($areasSetting?->value) ? $areasSetting->value : [];
 
-        $adminAreaId = $this->resolveAreaId($areas, ['TICs', 'Tecnologia', 'Administracion', 'Administración']);
-        $generalAreaId = $this->resolveAreaId($areas, ['Produccion', 'Producción']);
-        $contabilidadAreaId = $this->resolveAreaId($areas, ['Contabilidad']);
-
-        // Crear usuarios de ejemplo para cada área relevante según los procesos de producción
-        $disenoAreaId = $this->resolveAreaId($areas, ['Diseño', 'I&D', 'Tejido']);
-        $logisticaAreaId = $this->resolveAreaId($areas, ['Logística']);
-
         $usuariosEjemplo = [
             // GERENCIA
-            [ 'name' => 'Luis Felipe Aristizabal Echeverry', 'email' => 'l.aristizabal@olamtex.co', 'password' => Hash::make('admin123'), 'area_id' => $adminAreaId, 'role' => $admin ],
-            // PRODUCCIÓN ADMIN
-            [ 'name' => 'Carlos Alberto Palacio Herrera', 'email' => 'c.palacio@olamtex.co', 'password' => Hash::make('prod123'), 'area_id' => $generalAreaId, 'role' => $general ],
-            [ 'name' => 'Juan Camilo Velez Jimenez', 'email' => 'j.velez@olamtex.co', 'password' => Hash::make('prod123'), 'area_id' => $generalAreaId, 'role' => $general ],
-            [ 'name' => 'Laura Milena Gañan Giraldo', 'email' => 'l.ganan@olamtex.co', 'password' => Hash::make('prod123'), 'area_id' => $generalAreaId, 'role' => $general ],
-            // DISEÑO o I&D
-            [ 'name' => 'Maria Alejandra Aguirre Jaimes', 'email' => 'm.aguirre@olamtex.co', 'password' => Hash::make('diseno123'), 'area_id' => $disenoAreaId, 'role' => $general ],
-            [ 'name' => 'Laura Alvarez Cardona', 'email' => 'l.alvarez@olamtex.co', 'password' => Hash::make('diseno123'), 'area_id' => $disenoAreaId, 'role' => $general ],
-            [ 'name' => 'Luisa Maria Campillo Velasquez', 'email' => 'l.campillo@olamtex.co', 'password' => Hash::make('diseno123'), 'area_id' => $disenoAreaId, 'role' => $general ],
-            [ 'name' => 'Sophia Gaviria Castaño', 'email' => 's.gaviria@olamtex.co', 'password' => Hash::make('diseno123'), 'area_id' => $disenoAreaId, 'role' => $general ],
-            [ 'name' => 'Maria Alejandra Perez Cifuentes', 'email' => 'm.perez@olamtex.co', 'password' => Hash::make('diseno123'), 'area_id' => $disenoAreaId, 'role' => $general ],
-            // LOGÍSTICA
-            [ 'name' => 'Yordan Alexis Quiroga Paniagua', 'email' => 'y.quiroga@olamtex.co', 'password' => Hash::make('logistica123'), 'area_id' => $logisticaAreaId, 'role' => $logistica ],
-            // FINANCIERA
-            [ 'name' => 'Cristian Felipe Giraldo Herrera', 'email' => 'c.giraldo@olamtex.co', 'password' => Hash::make('financiera123'), 'area_id' => $contabilidadAreaId, 'role' => $contabilidad ],
-            [ 'name' => 'Juan Esteban Corrales Marín', 'email' => 'v.meja@olamtex.co', 'password' => Hash::make('financiera123'), 'area_id' => $contabilidadAreaId, 'role' => $contabilidad ],
-            [ 'name' => 'Juanita Ramirez Henao', 'email' => 'j.ramirez@olamtex.co', 'password' => Hash::make('financiera123'), 'area_id' => $contabilidadAreaId, 'role' => $contabilidad ],
+            ['name' => 'Luis Felipe Aristizabal Echeverry', 'email' => 'l.aristizabal@olamtex.co',  'password' => Hash::make('admin123'),      'area_id' => $this->resolveAreaId($areas, ['Gerencia']),               'role' => $admin],
+
             // TICS
-            [ 'name' => 'Kenier Steven Morales Cardenas', 'email' => 'k.morales@olamtex.co', 'password' => Hash::make('tics123'), 'area_id' => $adminAreaId, 'role' => $admin ],
-            [ 'name' => 'Manuela Arroyo Gomez', 'email' => 'm.arroyo@olamtex.co', 'password' => Hash::make('tics123'), 'area_id' => $adminAreaId, 'role' => $admin ],
-            // CULTURA Y DSLO HUMANO
-            [ 'name' => 'Laura Cardona Osorio', 'email' => 'l.cardona@olamtex.co', 'password' => Hash::make('cultura123'), 'area_id' => $adminAreaId, 'role' => $admin ],
-            [ 'name' => 'Katherine Restrepo Ramírez', 'email' => 'k.ramirez@olamtex.co', 'password' => Hash::make('cultura123'), 'area_id' => $adminAreaId, 'role' => $admin ],
-            [ 'name' => 'Valentina Galvis Alzate', 'email' => 'v.galvis@olamtex.co', 'password' => Hash::make('cultura123'), 'area_id' => $adminAreaId, 'role' => $admin ],
-            // COMERCIAL Y MARKETING
-            [ 'name' => 'Diana Camila Cano Vallejo', 'email' => 'd.cano@olamtex.co', 'password' => Hash::make('comercial123'), 'area_id' => $adminAreaId, 'role' => $admin ],
-            [ 'name' => 'Angie Julieth Salamanca Villa', 'email' => 'a.salamanca@olamtex.co', 'password' => Hash::make('comercial123'), 'area_id' => $adminAreaId, 'role' => $admin ],
-            [ 'name' => 'Valentina Velez Florez', 'email' => 'v.velez@olamtex.co', 'password' => Hash::make('comercial123'), 'area_id' => $adminAreaId, 'role' => $admin ],
-            [ 'name' => 'Ximena Gutiérrez Trejos', 'email' => 'x.gutierrez@olamtex.co', 'password' => Hash::make('comercial123'), 'area_id' => $adminAreaId, 'role' => $admin ],
-            [ 'name' => 'Sergio Alejandro Pedraza', 'email' => 's.pedraza@olamtex.co', 'password' => Hash::make('comercial123'), 'area_id' => $adminAreaId, 'role' => $admin ],
+            ['name' => 'Kenier Steven Morales Cardenas',    'email' => 'k.morales@olamtex.co',       'password' => Hash::make('tics123'),       'area_id' => $this->resolveAreaId($areas, ['Tics']),                   'role' => $admin],
+            ['name' => 'Manuela Arroyo Gomez',              'email' => 'm.arroyo@olamtex.co',        'password' => Hash::make('tics123'),       'area_id' => $this->resolveAreaId($areas, ['Tics']),                   'role' => $admin],
+
+            // DESARROLLO ORGANIZACIONAL
+            ['name' => 'Cristian Felipe Giraldo Herrera',   'email' => 'c.giraldo@olamtex.co',       'password' => Hash::make('desarrollo123'), 'area_id' => $this->resolveAreaId($areas, ['Desarrollo Organizacional']), 'role' => $admin],
+
+            // PRODUCCIÓN
+            ['name' => 'Carlos Alberto Palacio Herrera',    'email' => 'c.palacio@olamtex.co',       'password' => Hash::make('prod123'),       'area_id' => $this->resolveAreaId($areas, ['Producción', 'Produccion']), 'role' => $produccion],
+            ['name' => 'Juan Camilo Velez Jimenez',         'email' => 'j.velez@olamtex.co',         'password' => Hash::make('prod123'),       'area_id' => $this->resolveAreaId($areas, ['Producción', 'Produccion']), 'role' => $produccion],
+            ['name' => 'Laura Milena Gañan Giraldo',        'email' => 'l.ganan@olamtex.co',         'password' => Hash::make('prod123'),       'area_id' => $this->resolveAreaId($areas, ['Producción', 'Produccion']), 'role' => $produccion],
+
+            // DISEÑO
+            ['name' => 'Maria Alejandra Aguirre Jaimes',    'email' => 'm.aguirre@olamtex.co',       'password' => Hash::make('diseno123'),     'area_id' => $this->resolveAreaId($areas, ['Diseño']),                 'role' => $produccion],
+            ['name' => 'Laura Alvarez Cardona',             'email' => 'l.alvarez@olamtex.co',       'password' => Hash::make('diseno123'),     'area_id' => $this->resolveAreaId($areas, ['Diseño']),                 'role' => $produccion],
+            ['name' => 'Luisa Maria Campillo Velasquez',    'email' => 'l.campillo@olamtex.co',      'password' => Hash::make('diseno123'),     'area_id' => $this->resolveAreaId($areas, ['Diseño']),                 'role' => $produccion],
+            ['name' => 'Sophia Gaviria Castaño',            'email' => 's.gaviria@olamtex.co',       'password' => Hash::make('diseno123'),     'area_id' => $this->resolveAreaId($areas, ['Diseño']),                 'role' => $produccion],
+            ['name' => 'Maria Alejandra Perez Cifuentes',   'email' => 'm.perez@olamtex.co',         'password' => Hash::make('diseno123'),     'area_id' => $this->resolveAreaId($areas, ['Diseño']),                 'role' => $produccion],
+
+            // COMERCIAL
+            ['name' => 'Ximena Gutiérrez Trejos',           'email' => 'x.gutierrez@olamtex.co',     'password' => Hash::make('comercial123'),  'area_id' => $this->resolveAreaId($areas, ['Comercial']),              'role' => $produccion],
+            ['name' => 'Angie Julieth Salamanca Villa',     'email' => 'a.salamanca@olamtex.co',     'password' => Hash::make('comercial123'),  'area_id' => $this->resolveAreaId($areas, ['Comercial']),              'role' => $produccion],
+            ['name' => 'Valentina Velez Florez',            'email' => 'v.velez@olamtex.co',         'password' => Hash::make('comercial123'),  'area_id' => $this->resolveAreaId($areas, ['Comercial']),              'role' => $produccion],
+
+            // MARKETING
+            ['name' => 'Sergio Alejandro Pedraza',          'email' => 's.pedraza@olamtex.co',       'password' => Hash::make('marketing123'),  'area_id' => $this->resolveAreaId($areas, ['Marketing']),              'role' => $general],
+            ['name' => 'Diana Camila Cano Vallejo',         'email' => 'd.cano@olamtex.co',          'password' => Hash::make('marketing123'),  'area_id' => $this->resolveAreaId($areas, ['Marketing']),              'role' => $general],
+
+            // RECURSOS HUMANOS
+            ['name' => 'Laura Cardona Osorio',              'email' => 'l.cardona@olamtex.co',       'password' => Hash::make('cultura123'),    'area_id' => $this->resolveAreaId($areas, ['Recursos Humanos']),       'role' => $general],
+            ['name' => 'Katherine Restrepo Ramírez',        'email' => 'k.ramirez@olamtex.co',       'password' => Hash::make('cultura123'),    'area_id' => $this->resolveAreaId($areas, ['Recursos Humanos']),       'role' => $general],
+            ['name' => 'Valentina Galvis Alzate',           'email' => 'v.galvis@olamtex.co',        'password' => Hash::make('cultura123'),    'area_id' => $this->resolveAreaId($areas, ['Recursos Humanos']),       'role' => $general],
+
+            // FINANCIERA
+            ['name' => 'Valeria Mejía Cano',                'email' => 'v.mejia@olamtex.co',         'password' => Hash::make('financiera123'), 'area_id' => $this->resolveAreaId($areas, ['Financiero']),             'role' => $contabilidad],
+            ['name' => 'Juan Esteban Corrales Marín',       'email' => 'j.corrales@olamtex.co',      'password' => Hash::make('financiera123'), 'area_id' => $this->resolveAreaId($areas, ['Financiero']),             'role' => $contabilidad],
+            ['name' => 'Juanita Ramirez Henao',             'email' => 'j.ramirez@olamtex.co',       'password' => Hash::make('financiera123'), 'area_id' => $this->resolveAreaId($areas, ['Financiero']),             'role' => $contabilidad],
+
+            // LOGÍSTICA
+            ['name' => 'Yordan Alexis Quiroga Paniagua',    'email' => 'y.quiroga@olamtex.co',       'password' => Hash::make('logistica123'),  'area_id' => $this->resolveAreaId($areas, ['Logística', 'Logistica']), 'role' => $logistica],
         ];
 
         $contabilidadUser = User::firstOrCreate(
@@ -331,7 +375,7 @@ class RolesAndPermissionsSeeder extends Seeder
         );
         $contabilidadUser->forceFill([
             'name' => 'Name Contabilidad',
-            'area_id' => $contabilidadAreaId,
+            'area_id' => $this->resolveAreaId($areas, ['Contabilidad']),
         ])->save();
         $contabilidadUser->syncRoles([$contabilidad]);
 
@@ -347,7 +391,7 @@ class RolesAndPermissionsSeeder extends Seeder
         );
         $superAdminUser->forceFill([
             'name' => 'Super Admin',
-            'area_id' => $adminAreaId,
+            'area_id' => $this->resolveAreaId($areas, ['TICs', 'Tecnologia', 'Administracion', 'Administración']),
         ])->save();
         $superAdminUser->syncRoles([$admin]);
 
@@ -360,7 +404,7 @@ class RolesAndPermissionsSeeder extends Seeder
         );
         $adminTestUser->forceFill([
             'name' => 'Admin Pruebas',
-            'area_id' => $adminAreaId,
+            'area_id' => $this->resolveAreaId($areas, ['TICs', 'Tecnologia', 'Administracion', 'Administración']),
         ])->save();
         $adminTestUser->syncRoles([$admin]);
 

@@ -364,7 +364,7 @@ onMounted(() => {
                     <h1 class="text-lg font-bold">Solicitud de Compra y Servicios</h1>
                     <p class="text-sm text-muted-foreground">Gestiona las solicitudes emitidas a proveedores y mantente al tanto de su estado.</p>
                 </div>
-                <Button variant="default" size="pill" @click="openCreateRequest">
+                <Button variant="default" size="pill" dusk="btn-nueva-solicitud" @click="openCreateRequest">
                     <PlusCircle class="h-4 w-4" />
                     Nueva solicitud
                 </Button>
@@ -460,7 +460,7 @@ onMounted(() => {
                                 <TableCell>{{ formatCurrency(computeRequestTotal(request)) }}</TableCell>
                                 <TableCell class="max-w-[200px] truncate">{{ request.description || '-' }}</TableCell>
                                 <TableCell>
-                                    <TableStatusBadge :label="getStatusLabel(request.status)" :tone="getStatusTone(request.status)" />
+                                    <TableStatusBadge :dusk="`estado-solicitud-${request.id}`" :label="getStatusLabel(request.status)" :tone="getStatusTone(request.status)" />
                                 </TableCell>
                                 <TableCell class="flex items-center justify-center gap-2">
                                     <button

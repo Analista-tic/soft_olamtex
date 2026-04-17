@@ -195,7 +195,7 @@ class PurchaseRequestService
         if ($items && is_array($items) && count($items) > 0) {
             $data['estimated_amount'] = array_reduce($items, function ($sum, $item) {
                 $total = is_numeric($item['total'] ?? 0) ? (float) $item['total'] : 0;
-                $totalTax = is_numeric($item['total_tax'] ?? 0) ? (float) $item['total_tax'] : 0;
+                $totalTax = is_numeric($item['total_tax'] ?? 0) ? (float) ($item['total_tax'] ?? 0) : 0;
                 return $sum + $total + $totalTax;
             }, 0.0);
         } else {

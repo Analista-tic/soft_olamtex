@@ -2,17 +2,36 @@
 import GroupSelect from '@/components/GroupSelect.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import type { Contact, ContactIdType, ContactPersonType, ContactType } from '@/domain/MasterData';
 import { useMasterDataStore } from '@/stores/masterData';
 import { useDebounceFn } from '@vueuse/core';
 import { computed, onMounted, ref, watch } from 'vue';
 import colombiaData from '../../../data/colombia.json';
 
-type ContactFormState = Partial<Omit<Contact, 'contact_type' | 'id_type' | 'person_type'>> & {
+type ContactFormState = Partial<Omit<Contact, 'contact_type' | 'id_type' | 'person_type' | 'dv'>> & {
     contact_type?: ContactType | '';
     id_type?: ContactIdType | '';
     person_type?: ContactPersonType | '';
+    dv?: string | null;
 };
+
+const PRIMOS_DV = [71, 67, 59, 53, 47, 43, 41, 37, 29, 23, 19, 17, 13, 7, 3];
+
+function calcularDV(nit: string): string {
+    const soloNumeros = nit.replace(/\D/g, '');
+    if (!soloNumeros) return '';
+
+    const nitPadded = soloNumeros.padStart(15, '0').slice(-15);
+    const suma = nitPadded.split('').reduce((acc, digit, i) => acc + parseInt(digit, 10) * PRIMOS_DV[i], 0);
+    const residuo = suma % 11;
+
+    if (residuo === 0) return '0';
+    if (residuo === 1) return '1';
+
+    return String(11 - residuo);
+}
 
 const contactTypeOptions = [
     { id: 'proveedor', name: 'Proveedor' },
@@ -80,6 +99,18 @@ function normalizeFormPayload(form?: ContactFormState | Record<string, any>): Co
 }
 
 const internalForm = ref<ContactFormState>(Object.assign({}, defaultForm, normalizeFormPayload(props.form)));
+
+watch(
+    [() => internalForm.value.id_type, () => internalForm.value.id_number],
+    ([tipo, numero]) => {
+        if (tipo !== 'nit') {
+            internalForm.value.dv = null;
+            return;
+        }
+
+        internalForm.value.dv = calcularDV(String(numero ?? ''));
+    },
+);
 
 watch(
     () => props.form,
@@ -196,11 +227,21 @@ const validateField = (field: string) => {
             :options="idTypeOptions"
         />
         <div class="mb-4 grid grid-cols-5 gap-4">
-            <div class="col-span-4">
+            <div :class="internalForm.id_type === 'nit' ? 'col-span-4' : 'col-span-5'">
                 <InputField v-model="internalForm.id_number" label="Numero de identificacion" required placeholder="Numero de identificacion" />
             </div>
-            <div class="col-span-1">
-                <InputField v-model="internalForm.dv" label="DV" placeholder="DV" />
+            <div v-if="internalForm.id_type === 'nit'" class="col-span-1">
+                <div class="grid w-full items-center gap-1.5">
+                    <Label for="dv">DV</Label>
+                    <Input
+                        id="dv"
+                        :model-value="internalForm.dv ?? ''"
+                        readonly
+                        placeholder="-"
+                        tabindex="-1"
+                        class="cursor-not-allowed bg-muted text-center"
+                    />
+                </div>
             </div>
         </div>
         <InputField v-model="internalForm.full_name" label="Nombre completo o razon social" required placeholder="Nombre completo" class="mb-4" />

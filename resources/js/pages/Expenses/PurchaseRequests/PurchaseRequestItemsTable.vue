@@ -352,6 +352,7 @@ defineExpose({ addItem });
                     <TableRow v-for="(item, idx) in localItems" :key="item.uid || idx">
                         <TableCell class="min-w-[150px] p-1 text-left">
                             <InputField
+                                :dusk="`item-${idx}-nombre`"
                                 v-model="item.name"
                                 label=""
                                 placeholder="Escribir item"
@@ -363,6 +364,7 @@ defineExpose({ addItem });
                         </TableCell>
                         <TableCell class="p-1 text-left" style="width: 120px">
                             <InputField
+                                :dusk="`item-${idx}-precio`"
                                 v-model="item.price"
                                 type="currency"
                                 label=""
@@ -376,6 +378,7 @@ defineExpose({ addItem });
                         </TableCell>
                         <TableCell class="p-1 text-left" style="width: 110px">
                             <InputField
+                                :dusk="`item-${idx}-cantidad`"
                                 v-model="item.quantity"
                                 type="number"
                                 label=""
@@ -387,6 +390,7 @@ defineExpose({ addItem });
                         </TableCell>
                         <TableCell class="p-1 text-left" style="width: 160px">
                             <InputField
+                                :dusk="`item-${idx}-descripcion`"
                                 v-model="item.description"
                                 label=""
                                 class="h-10 w-full"

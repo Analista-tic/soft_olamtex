@@ -585,7 +585,7 @@ watch(dialogOpen, (isOpen) => {
                                             <Label class="text-sm font-medium">Fecha</Label>
                                             <HelpTooltip text="Fecha de la solicitud." aria-label="Ayuda sobre fecha" />
                                         </div>
-                                        <DatePickerField v-model="requestDateModel" :disabled="isReadOnly" :clearable="true" :show-today="true" />
+                                        <DatePickerField v-model="requestDateModel" dusk="input-fecha" :disabled="isReadOnly" :clearable="true" :show-today="true" />
                                     </div>
                                 </div>
 
@@ -599,6 +599,7 @@ watch(dialogOpen, (isOpen) => {
                                             />
                                         </div>
                                         <InputField
+                                            dusk="input-proveedor"
                                             label=""
                                             :model-value="localForm.provider_name ?? ''"
                                             @update:model-value="localForm.provider_name = $event || null"
@@ -634,6 +635,7 @@ watch(dialogOpen, (isOpen) => {
                                         />
                                     </div>
                                     <TextareaField
+                                        dusk="input-descripcion"
                                         label=""
                                         :model-value="localForm.description || ''"
                                         @update:model-value="localForm.description = $event"
@@ -655,6 +657,7 @@ watch(dialogOpen, (isOpen) => {
                                     <button
                                         v-if="!isReadOnly"
                                         type="button"
+                                        dusk="btn-agregar-item"
                                         class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-4 py-2 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                         @click="itemsTableRef?.addItem()"
                                     >
@@ -675,10 +678,10 @@ watch(dialogOpen, (isOpen) => {
 
                 <DialogFooter class="shrink-0 border-t border-border px-5 py-4 justify-end gap-2">
                     <Button variant="outline" size="pill" @click="dialogOpen = false">Cancelar</Button>
-                    <Button v-if="!props.readonly && !isReadOnly" variant="default" size="pill" :disabled="isLoading || isBlockingLoading" @click="handleSubmitSafe(false)">
+                    <Button v-if="!props.readonly && !isReadOnly" variant="default" size="pill" dusk="btn-guardar-borrador" :disabled="isLoading || isBlockingLoading" @click="handleSubmitSafe(false)">
                         {{ isLoading ? 'Guardando...' : 'Guardar' }}
                     </Button>
-                    <Button v-if="!props.readonly && !isReadOnly && canSendToApproval" variant="default" size="pill" :disabled="isLoading || isBlockingLoading" @click="handleSubmitSafe(true)">
+                    <Button v-if="!props.readonly && !isReadOnly && canSendToApproval" variant="default" size="pill" dusk="btn-guardar-y-enviar" :disabled="isLoading || isBlockingLoading" @click="handleSubmitSafe(true)">
                         {{ isLoading ? 'Guardando...' : 'Guardar y enviar a aprobacion' }}
                     </Button>
                 </DialogFooter>

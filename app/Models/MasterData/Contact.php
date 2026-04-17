@@ -2,12 +2,13 @@
 
 namespace App\Models\MasterData;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Contact extends Model implements \App\Contracts\HasAuditLabel
 {
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     public const CONTACT_TYPES = [
         'proveedor',

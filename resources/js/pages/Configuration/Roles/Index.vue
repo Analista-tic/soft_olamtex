@@ -28,6 +28,7 @@ import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
+import { PERMISSION_MODULES, resolvePermissionGroup } from '@/lib/permissionModules';
 import RoleDialog from './RoleDialog.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 
@@ -99,35 +100,7 @@ function resolveApiMessage(error: unknown, fallback: string): string {
 
 // ...existing code...
 
-const permissionGroups = [
-    { label: 'Usuarios', tokens: ['usuarios'] },
-    { label: 'Roles', tokens: ['roles'] },
-    { label: 'Auditoria', tokens: ['auditoria'] },
-    { label: 'Listados Operacionales', tokens: ['listados operacionales', 'listado desde muestra'] },
-    { label: 'Pedidos Telas', tokens: ['pedidos telas'] },
-    { label: 'Recepcion Telas', tokens: ['recepcion telas'] },
-    { label: 'Inventario Telas', tokens: ['inventario telas'] },
-    { label: 'Telas', tokens: ['telas'] },
-    { label: 'Programador', tokens: ['programador'] },
-    { label: 'Sabana Productos', tokens: ['sabana productos'] },
-];
-
-function normalizeText(value: string): string {
-    return value
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '');
-}
-
-function resolvePermissionGroup(permission: string): string {
-    const normalized = normalizeText(permission);
-    for (const group of permissionGroups) {
-        if (group.tokens.some((token) => normalized.includes(token))) {
-            return group.label;
-        }
-    }
-    return 'Otros';
-}
+const permissionGroups = PERMISSION_MODULES;
 
 function getPermissionChips(role: Role): Array<{ label: string; count: number }> {
     const counts = new Map<string, number>();
@@ -347,6 +320,5 @@ onMounted(async () => {
 
     <RoleDialog :isOpen="isEditDialogOpen" :role="roleToEdit" :permissions="formattedPermissions" @close="closeDialog" @submit="handleRoleSubmit" />
 </template>
-
 
 

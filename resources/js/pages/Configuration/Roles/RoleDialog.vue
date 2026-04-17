@@ -4,11 +4,11 @@ import InputField from '@/components/InputField.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { ref, watch } from 'vue';
+import { PERMISSIONS_BY_MODULE } from '@/lib/permissionModules';
+import { computed, ref, watch } from 'vue';
 
 const emit = defineEmits(['submit', 'close']);
 
@@ -18,12 +18,7 @@ const props = defineProps({
     permissions: { type: Array as () => Array<{ name: string; module: string }>, default: () => [] },
 });
 
-const permissionsByModule: Record<string, string[]> = {
-    Usuarios: ['ver usuarios', 'crear usuarios', 'editar usuarios', 'eliminar usuarios'],
-    Telas: ['ver telas', 'crear telas', 'editar telas', 'eliminar telas'],
-    Programador: ['ver programador', 'crear programador', 'editar programador', 'eliminar programador'],
-    'Sábana Productos': ['ver sabana productos', 'crear sabana productos', 'editar sabana productos', 'eliminar sabana productos'],
-};
+const permissionsByModule = PERMISSIONS_BY_MODULE;
 
 const form = ref<{
     id: number | null;
@@ -41,6 +36,15 @@ const form = ref<{
 
 const localIsOpen = ref(props.isOpen);
 const globalSelectAll = ref(false);
+const moduleAllSelected = computed<Record<string, boolean>>(() => {
+    const result: Record<string, boolean> = {};
+    for (const module in permissionsByModule) {
+        result[module] = permissionsByModule[module].every(
+            (p) => form.value.permissions.includes(p)
+        );
+    }
+    return result;
+});
 
 watch(
     () => props.isOpen,
@@ -66,20 +70,6 @@ watch(
                 name: newRole.name,
                 permissions: [...(newRole.permissions || []).map((p: { name: string }) => p.name)],
             };
-            // ...existing code...
-            setTimeout(() => {
-                for (const module in permissionsByModule) {
-                    const modulePermissions = permissionsByModule[module];
-                    const allSelected = modulePermissions.every((permission) => form.value.permissions.includes(permission));
-                    const checkbox = document.getElementById(`select-all-${module}`) as HTMLInputElement;
-                    if (checkbox) {
-                        checkbox.checked = allSelected;
-                        if (checkbox.labels && checkbox.labels[0]) {
-                            checkbox.labels[0].textContent = allSelected ? 'Deseleccionar todos' : 'Seleccionar todos';
-                        }
-                    }
-                }
-            }, 0);
         } else {
             form.value = { id: null, name: '', permissions: [] };
         }
@@ -90,42 +80,11 @@ watch(
 // ...eliminado watch de área...
 
 watch(
-    () => form.value.permissions,
-    (newPermissions) => {
-        for (const module in permissionsByModule) {
-            const modulePermissions = permissionsByModule[module];
-            const allSelected = modulePermissions.every((permission) => newPermissions.includes(permission));
-            const checkbox = document.getElementById(`select-all-${module}`) as HTMLInputElement;
-            if (checkbox) {
-                checkbox.checked = allSelected;
-                if (checkbox.labels && checkbox.labels[0]) {
-                    checkbox.labels[0].textContent = allSelected ? 'Deseleccionar todos' : 'Seleccionar todos';
-                }
-            }
-        }
-    },
-    { immediate: true },
-);
-
-watch(
     () => globalSelectAll.value,
     (isChecked) => {
-        if (isChecked) {
-            form.value.permissions = Object.values(permissionsByModule).flat();
-        } else {
-            form.value.permissions = [];
-        }
-
-        // Actualizar el estado de los checkboxes de cada módulo
-        for (const module in permissionsByModule) {
-            const checkbox = document.getElementById(`select-all-${module}`) as HTMLInputElement;
-            if (checkbox) {
-                checkbox.checked = isChecked;
-                if (checkbox.labels && checkbox.labels[0]) {
-                    checkbox.labels[0].textContent = isChecked ? 'Deseleccionar todos' : 'Seleccionar todos';
-                }
-            }
-        }
+        form.value.permissions = isChecked
+            ? Object.values(permissionsByModule).flat()
+            : [];
     },
 );
 
@@ -144,21 +103,10 @@ function closeDialog() {
 
 function toggleModulePermissions(module: string, isChecked: boolean): void {
     const permissions = permissionsByModule[module] || [];
-
     if (isChecked) {
         form.value.permissions = Array.from(new Set([...form.value.permissions, ...permissions]));
     } else {
-        form.value.permissions = form.value.permissions.filter((permission) => !permissions.includes(permission));
-    }
-
-    // Actualizar el estado del checkbox general
-    const checkbox = document.getElementById(`select-all-${module}`) as HTMLInputElement;
-    if (checkbox) {
-        const allSelected = permissions.every((permission) => form.value.permissions.includes(permission));
-        checkbox.checked = allSelected;
-        if (checkbox.labels && checkbox.labels[0]) {
-            checkbox.labels[0].textContent = allSelected ? 'Deseleccionar todos' : 'Seleccionar todos';
-        }
+        form.value.permissions = form.value.permissions.filter((p) => !permissions.includes(p));
     }
 }
 
@@ -171,21 +119,27 @@ function handleCheckboxChange(event: Event, module: string): void {
 
 <template>
     <Dialog v-model:open="localIsOpen">
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
+        <FormDialogContent size="md" class="overflow-hidden p-0 !h-[90vh]">
             <TooltipProvider>
-                <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
+
+                <!-- Header fijo -->
+                <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-6 py-4 dark:border-sidebar-border">
                     <DialogTitle>{{ role?.id ? 'Editar Rol' : 'Crear Rol' }}</DialogTitle>
                     <DialogDescription>
                         {{ role?.id ? 'Edita la información del rol.' : 'Completa la información para crear un nuevo rol.' }}
                     </DialogDescription>
                 </DialogHeader>
 
-                <div class="flex-1 overflow-y-auto scroll-smooth px-2" style="scrollbar-width: thin">
+                <!-- Área scrollable -->
+                <div class="no-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-5">
                     <form @submit.prevent="submit">
-                        <!-- Eliminado campo de área -->
-                        <div class="mb-4 flex flex-col gap-1">
+
+                        <!-- Nombre del rol -->
+                        <div class="mb-6 flex flex-col gap-1.5">
                             <div class="flex items-center gap-2">
-                                <Label class="text-sm font-medium"> Nombre del Rol<span class="text-red-500">*</span> </Label>
+                                <Label class="text-sm font-medium">
+                                    Nombre del Rol<span class="text-destructive">*</span>
+                                </Label>
                                 <HelpTooltip
                                     text="Nombre descriptivo para el rol que agrupa permisos específicos (ej: Administrador, Vendedor, etc.)."
                                     aria-label="Ayuda sobre nombre del rol"
@@ -194,70 +148,92 @@ function handleCheckboxChange(event: Event, module: string): void {
                             <InputField label="" v-model="form.name" placeholder="Nombre del rol" required />
                         </div>
 
-                        <div class="mb-4">
-                            <div class="flex items-center justify-between">
+                        <!-- Permisos -->
+                        <div class="mb-2">
+                            <div class="mb-3 flex items-center justify-between">
                                 <div class="flex items-center gap-2">
-                                    <label class="mb-2 block text-sm font-medium text-foreground">Permisos</label>
+                                    <span class="text-sm font-medium text-foreground">Permisos</span>
                                     <HelpTooltip
-                                        text="Selecciona los permisos que tendrá este rol. Los usuarios con este rol podrán realizar solo las acciones permitidas."
+                                        text="Selecciona los permisos que tendrá este rol."
                                         aria-label="Ayuda sobre permisos"
                                     />
                                 </div>
-                                <div class="flex items-center">
-                                    <input type="checkbox" id="global-select-all" v-model="globalSelectAll" class="mr-1" />
-                                    <label for="global-select-all" class="text-xs text-foreground">Seleccionar todos los módulos</label>
-                                </div>
+                                <label class="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+                                    <input
+                                        type="checkbox"
+                                        id="global-select-all"
+                                        v-model="globalSelectAll"
+                                        class="accent-primary h-3.5 w-3.5 cursor-pointer"
+                                    />
+                                    Seleccionar todos los módulos
+                                </label>
                             </div>
-                            <div class="grid grid-cols-2 gap-5">
-                                <Card v-for="(permissions, module) in permissionsByModule" :key="module" class="rounded-lg shadow-md">
-                                    <CardHeader class="p-2">
-                                        <CardDescription class="flex items-center justify-between">
-                                            <CardTitle class="text-center text-base font-semibold text-muted-foreground">{{ module }}</CardTitle>
-                                            <div class="flex items-center">
-                                                <input
-                                                    type="checkbox"
-                                                    :id="`select-all-${module}`"
-                                                    @change="handleCheckboxChange($event, module)"
-                                                    class="mr-1"
-                                                />
-                                                <label :for="`select-all-${module}`" class="text-xs text-foreground">Seleccionar todos</label>
-                                            </div>
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent class="px-3">
-                                        <div class="grid grid-cols-1 gap-1 sm:grid-cols-2">
-                                            <div v-for="permission in permissions" :key="permission" class="flex items-center">
-                                                <input type="checkbox" :id="permission" :value="permission" v-model="form.permissions" class="mr-1" />
-                                                <label :for="permission" class="text-sm text-muted-foreground">{{ permission }}</label>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div
+                                    v-for="(permissions, module) in permissionsByModule"
+                                    :key="module"
+                                    class="rounded-lg border border-border bg-muted/30 p-3"
+                                >
+                                    <!-- Cabecera del módulo -->
+                                    <div class="mb-2.5 flex items-center justify-between">
+                                        <span class="text-xs font-semibold uppercase tracking-wide text-foreground">
+                                            {{ module }}
+                                        </span>
+                                        <label class="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground">
+                                            <input
+                                                type="checkbox"
+                                                :id="`select-all-${module}`"
+                                                :checked="moduleAllSelected[module]"
+                                                @change="handleCheckboxChange($event, module)"
+                                                class="accent-primary h-3.5 w-3.5 cursor-pointer"
+                                            />
+                                            {{ moduleAllSelected[module] ? 'Deseleccionar' : 'Todos' }}
+                                        </label>
+                                    </div>
+
+                                    <!-- Permisos del módulo -->
+                                    <div class="flex flex-col gap-1.5">
+                                        <label
+                                            v-for="permission in permissions"
+                                            :key="permission"
+                                            :for="permission"
+                                            class="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                :id="permission"
+                                                :value="permission"
+                                                v-model="form.permissions"
+                                                class="accent-primary h-3.5 w-3.5 shrink-0 cursor-pointer"
+                                            />
+                                            {{ permission }}
+                                        </label>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        <DialogFooter class="mt-4 flex flex-shrink-0 flex-col gap-2 border-t pt-4 md:flex-row md:justify-end">
-                            <div class="w-full md:w-auto">
-                                <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="closeDialog">
-                                    Cancelar
-                                </Button>
-                            </div>
-                            <div class="w-full md:w-auto">
-                                <Button
-                                    type="submit"
-                                    class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
-                                >
-                                    {{ role?.id ? 'Guardar Cambios' : 'Crear Rol' }}
-                                </Button>
-                            </div>
-                        </DialogFooter>
                     </form>
                 </div>
+
+                <!-- Footer fijo -->
+                <div class="shrink-0 border-t border-border px-6 py-4">
+                    <div class="flex justify-end gap-2">
+                        <Button variant="outline" size="pill" class="min-w-[120px]" @click="closeDialog">
+                            Cancelar
+                        </Button>
+                        <Button
+                            size="pill"
+                            class="min-w-[120px]"
+                            @click="submit"
+                        >
+                            {{ role?.id ? 'Guardar Cambios' : 'Crear Rol' }}
+                        </Button>
+                    </div>
+                </div>
+
             </TooltipProvider>
         </FormDialogContent>
     </Dialog>
 </template>
-
-<style scoped>
-/* Eliminé los estilos personalizados */
-</style>

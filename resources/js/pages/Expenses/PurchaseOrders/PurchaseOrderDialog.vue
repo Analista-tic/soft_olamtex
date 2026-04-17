@@ -825,6 +825,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                             />
                                         </div>
                                         <SelectField
+                                            dusk="select-proveedor"
                                             v-model="localForm.contact_id"
                                             label=""
                                             :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
@@ -879,6 +880,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                             />
                                         </div>
                                         <DatePickerField
+                                            dusk="input-fecha-entrega"
                                             v-model="deliveryDateModel"
                                             label=""
                                             :disabled="!canEdit || isReadOnly"
@@ -899,6 +901,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                         </div>
                                         <InputField
                                             v-model="localForm.supplier_order_number"
+                                            dusk="input-supplier-order"
                                             label=""
                                             :disabled="isReadOnly"
                                             :readonly="isReadOnly"
@@ -914,6 +917,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                             <Button
                                                 v-if="!isReadOnly"
                                                 type="button"
+                                                dusk="btn-agregar-item-orden"
                                                 variant="outline"
                                                 size="pill"
                                                 class="border-primary/40 bg-background text-primary hover:bg-primary/10 hover:text-primary"
@@ -980,6 +984,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                     <button
                         v-if="!isReadOnly"
                         type="button"
+                        dusk="btn-guardar-orden"
                         :disabled="isLoading || isSendingMail || isBlockingLoading"
                         class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
                         @click.prevent="handleSubmit(false)"
