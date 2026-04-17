@@ -387,10 +387,10 @@ onBeforeUnmount(() => {
                     <TableHeader>
                         <TableRow>
                             <TableHead>N° Contacto</TableHead>
-                            <TableHead>Nombre</TableHead>
-                            <TableHead>Email</TableHead>
-                            <TableHead>Teléfono</TableHead>
                             <TableHead>Tipo</TableHead>
+                            <TableHead>Nombre</TableHead>
+                            <TableHead>Numero de identificacion</TableHead>
+                            <TableHead>Telefono</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -412,10 +412,10 @@ onBeforeUnmount(() => {
                         <template v-else>
                             <TableRow v-for="(contact, index) in contacts" :key="contact.id ?? `contact-${index}`">
                                 <TableCell class="font-medium">{{ contact.id }}</TableCell>
-                                <TableCell class="font-medium">{{ contact.full_name }}</TableCell>
-                                <TableCell>{{ contact.email }}</TableCell>
-                                <TableCell>{{ contact.phone }}</TableCell>
                                 <TableCell>{{ formatContactType(contact.contact_type) }}</TableCell>
+                                <TableCell class="font-medium">{{ contact.full_name }}</TableCell>
+                                <TableCell>{{ contact.id_number }}</TableCell>
+                                <TableCell>{{ contact.phone }}</TableCell>
                                 <TableCell class="flex justify-center gap-1">
                                     <EditButton :onClick="() => openDialog('edit', contact)" />
                                     <DeleteButton @click="confirmDeleteContact(contact)" />

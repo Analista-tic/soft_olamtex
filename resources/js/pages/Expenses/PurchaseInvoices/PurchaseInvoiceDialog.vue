@@ -870,6 +870,7 @@ watch(dialogOpen, (isOpen) => {
                                         <label class="text-sm font-medium">Proveedor<span class="text-red-500">*</span></label>
                                         <SelectField
                                             v-model="localForm.contact_id"
+                                            dusk="factura-select-proveedor"
                                             label=""
                                             :options="contacts.map((c) => ({ id: Number(c.id), name: c.full_name }))"
                                             :disabled="isReadOnly"
