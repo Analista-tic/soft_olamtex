@@ -36,6 +36,7 @@ class PurchaseInvoiceTest extends DuskTestCase
     public function un_usuario_autorizado_puede_crear_una_factura_de_compra(): void
     {
         // Arrange — proveedor e ítem en BD de testing
+        Contact::query()->forceDelete();
         Contact::where('email', 'proveedor.factura.test@test.com')->forceDelete();
         $proveedor = Contact::create([
             'contact_type' => 'proveedor',
@@ -46,6 +47,7 @@ class PurchaseInvoiceTest extends DuskTestCase
             'email'        => 'proveedor.factura.test@test.com',
         ]);
 
+        Item::query()->forceDelete();
         Item::where('name', 'Ítem Factura Test')->forceDelete();
         $subGroup = CategorySubGroup::first();
         $item = Item::create([
@@ -111,6 +113,17 @@ class PurchaseInvoiceTest extends DuskTestCase
             $browser->pause(300);
             $browser->type('[dusk="factura-item-0-item"]', $itemNombre);
             $browser->pause(800);
+            $browser->screenshot('debug-c05-item-dropdown');
+
+            $html2 = $browser->script('
+                const opts = Array.from(document.querySelectorAll("[role=option]"));
+                return {
+                    count: opts.length,
+                    texts: opts.map(o => o.textContent.trim()).slice(0, 5)
+                };
+            ');
+            dump($html2);
+            $browser->screenshot('debug-c05-item-dropdown');
             $browser->keys('[dusk="factura-item-0-item"]', \Facebook\WebDriver\WebDriverKeys::ARROW_DOWN);
             $browser->pause(200);
             $browser->keys('[dusk="factura-item-0-item"]', \Facebook\WebDriver\WebDriverKeys::ENTER);
