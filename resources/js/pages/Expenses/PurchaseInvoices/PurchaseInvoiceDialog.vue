@@ -906,6 +906,7 @@ watch(dialogOpen, (isOpen) => {
                                             :clearable="true"
                                             :show-today="true"
                                             required
+                                            dusk="factura-input-fecha-factura"
                                         />
                                     </div>
                                     <div class="flex flex-col gap-1">
@@ -920,6 +921,7 @@ watch(dialogOpen, (isOpen) => {
                                             :clearable="true"
                                             :show-today="true"
                                             required
+                                            dusk="factura-input-fecha-entrega"
                                         />
                                     </div>
                                     <div class="flex flex-col gap-1">
@@ -927,7 +929,7 @@ watch(dialogOpen, (isOpen) => {
                                             <label class="text-sm font-medium">N° factura proveedor<span class="text-red-500">*</span></label>
                                             <HelpTooltip text="Número que aparece impreso en la factura física del proveedor. Es obligatorio para la trazabilidad." aria-label="Ayuda sobre número de factura proveedor" />
                                         </div>
-                                        <InputField v-model="localForm.supplier_invoice_number" label="" :readonly="isReadOnly" :disabled="isReadOnly" required />
+                                        <InputField v-model="localForm.supplier_invoice_number" label="" :readonly="isReadOnly" :disabled="isReadOnly" required dusk="factura-input-numero-proveedor" />
                                     </div>
                                 </div>
 
@@ -1040,7 +1042,7 @@ watch(dialogOpen, (isOpen) => {
                 </FormDialogBody>
                 <FormDialogFooter class="justify-end gap-4 bg-background">
                     <Button type="button" variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
-                    <Button v-if="!isReadOnly" variant="default" size="pill" :disabled="isLoading || isSendingMail || isBlockingLoading" @click.prevent="handleSubmit(false)">
+                    <Button v-if="!isReadOnly" variant="default" size="pill" :disabled="isLoading || isSendingMail || isBlockingLoading" @click.prevent="handleSubmit(false)" dusk="btn-guardar-factura">
                         {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
                     </Button>
                     <Button v-if="!isReadOnly" variant="default" size="pill" :disabled="isLoading || isSendingMail || isBlockingLoading" @click.prevent="handleSubmit(true)">

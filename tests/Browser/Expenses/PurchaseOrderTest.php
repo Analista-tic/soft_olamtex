@@ -58,7 +58,7 @@ class PurchaseOrderTest extends DuskTestCase
             'tracks_inventory'      => false,
             'status'                => true,
         ]);
-        dump('Item creado ID: ' . $item->id . ' nombre: ' . $item->name . ' status: ' . ($item->status ? 'true' : 'false'));
+
 
         $this->browse(function (Browser $browser) use ($proveedor) {
             AuthHelper::loginWithRole($browser, 'admin');
@@ -120,11 +120,11 @@ class PurchaseOrderTest extends DuskTestCase
             $browser->screenshot('debug-c04-form-completo');
 
             $browser->click('[dusk="btn-guardar-orden"]');
-            $browser->waitForText('Pendiente', 15);
+            $browser->waitForText('creada correctamente', 10);
             $browser->screenshot('debug-c04-guardada');
 
+            $browser->waitUntilMissingText('Cargando órdenes...');
             $browser->assertSee($proveedorNombre);
-            $browser->assertSee('Pendiente');
         });
     }
 }

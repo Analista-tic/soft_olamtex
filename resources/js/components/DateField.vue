@@ -24,9 +24,12 @@ const props = withDefaults(
     },
 );
 
+
 const emit = defineEmits<{
     (e: 'update:modelValue', value: Date | null): void;
 }>();
+
+defineOptions({ inheritAttrs: false });
 
 const stringModel = computed<string | null>({
     get: () => toIsoDateString(props.modelValue) ?? null,
@@ -36,6 +39,7 @@ const stringModel = computed<string | null>({
 
 <template>
     <DatePickerField
+        v-bind="$attrs"
         v-model="stringModel"
         :label="props.label"
         :placeholder-text="props.placeholder"

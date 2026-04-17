@@ -579,7 +579,7 @@ async function handleDifferenceDecision() {
                         <Package class="h-4 w-4" />
                         Ver Recepciones
                     </button>
-                    <Button variant="default" size="pill" :disabled="isPreparingDialog" @click="openDialogWithPreparation('create')">
+                    <Button variant="default" size="pill" :disabled="isPreparingDialog" @click="openDialogWithPreparation('create')" dusk="btn-nueva-factura">
                         <PlusCircle class="h-4 w-4" />
                         Nueva Factura
                     </Button>
@@ -714,16 +714,19 @@ async function handleDifferenceDecision() {
                                         v-if="invoice.approval_status === 'pending_difference_approval'"
                                         label="Aprobación pendiente"
                                         tone="yellow"
+                                        :dusk="`estado-factura-${invoice.id}`"
                                     />
                                     <TableStatusBadge
                                         v-else-if="invoice.approval_status === 'difference_rejected'"
                                         label="Diferencia rechazada"
                                         tone="red"
+                                        :dusk="`estado-factura-${invoice.id}`"
                                     />
                                     <TableStatusBadge
                                         v-else
                                         :label="invoice.status ? getInvoiceStatusLabel(invoice.status) : 'Pendiente'"
                                         :tone="invoice.status ? getInvoiceStatusTone(invoice.status) : 'yellow'"
+                                        :dusk="`estado-factura-${invoice.id}`"
                                     />
                                 </TableCell>
                                 <TableCell>
