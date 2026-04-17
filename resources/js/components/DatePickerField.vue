@@ -38,6 +38,8 @@ const emit = defineEmits<{
     (e: 'update:modelValue', v: string | null): void;
 }>();
 
+defineOptions({ inheritAttrs: false });
+
 function parseModelValue(value: ModelValue): DateValue | undefined {
     if (!value) return undefined;
 
@@ -138,6 +140,12 @@ const calendarPlaceholderValue = computed(() => calendarPlaceholder.value as Dat
                     </span>
                 </button>
             </PopoverTrigger>
+            <input
+                type="hidden"
+                v-bind="$attrs"
+                :value="modelValue ?? ''"
+                @change="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
+            />
 
             <PopoverPortal>
                 <PopoverContent

@@ -713,10 +713,11 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                             <div class="min-w-0">
                                 <div class="flex items-center gap-1.5">
                                     <div class="min-w-0 flex-1">
-                                        <SelectField
-                                            v-model="item.item_id"
-                                            :options="itemOptions"
-                                            label=""
+                                <SelectField
+                                    :dusk="`orden-item-${idx}-item`"
+                                    v-model="item.item_id"
+                                    :options="itemOptions"
+                                    label=""
                                             placeholder="Selecciona item"
                                             class="w-full"
                                             :disabled="isReadOnly"
@@ -763,6 +764,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                         </TableCell>
                         <TableCell class="p-1 text-left align-top" style="width: 120px">
                             <InputField
+                                :dusk="`orden-item-${idx}-precio`"
                                 v-model="item.price"
                                 type="currency"
                                 label=""
@@ -792,6 +794,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                         </TableCell>
                         <TableCell class="p-1 text-left align-top" style="width: 110px">
                             <InputField
+                                :dusk="`orden-item-${idx}-cantidad`"
                                 v-model="item.quantity"
                                 type="number"
                                 label=""
@@ -801,7 +804,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                             />
                         </TableCell>
                         <TableCell class="p-1 text-left align-top" style="width: 160px">
-                            <InputField v-model="item.description" label="" class="h-10 w-full" :disabled="isReadOnly" />
+                            <InputField :dusk="`orden-item-${idx}-descripcion`" v-model="item.description" label="" class="h-10 w-full" :disabled="isReadOnly" />
                         </TableCell>
                         <TableCell v-if="isTela(item)" class="p-1 text-left align-top" style="width: 150px">
                             <InputField
@@ -823,6 +826,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                         </TableCell>
                         <TableCell v-if="isTela(item)" class="p-1 text-left align-top" style="width: 150px">
                             <InputField
+                                :dusk="`orden-item-${idx}-ancho`"
                                 v-model="item.order_width"
                                 type="number"
                                 label=""
