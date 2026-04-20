@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import DatePickerField from '@/components/DatePickerField.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -18,31 +18,18 @@ import {
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { BreadcrumbItem, PaginatedData, SharedData } from '@/domain/shared';
+import type { AuditLog as SharedAuditLog, BreadcrumbItem, PaginatedData, SharedData } from '@/domain/shared';
+import Input from '@/components/ui/input/Input.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Eye } from 'lucide-vue-next';
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { Eye, Search } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 
-interface AuditLog {
-    id: number;
-    user_id: number | null;
-    user_name: string | null;
-    action: string;
-    auditable_type: string | null;
-    auditable_id: string | number | null;
-    module: string | null;
-    module_label?: string;
-    resource_label?: string;
-    company_id?: number | null;
-    old_values?: Record<string, unknown> | null;
-    new_values?: Record<string, unknown> | null;
-    created_at: string | null;
+interface AuditLog extends SharedAuditLog {
     user_area?: string | null;
     user_role?: string | null;
-    [key: string]: any;
 }
 interface AuditPageProps extends SharedData {
     logs: PaginatedData<AuditLog>;
@@ -52,6 +39,8 @@ interface AuditPageProps extends SharedData {
         action?: string | null;
         start_date?: string | null;
         end_date?: string | null;
+        sort_by?: string | null;
+        sort_dir?: 'asc' | 'desc' | null;
     };
 }
 
@@ -81,8 +70,7 @@ const filters = reactive({
     area: '',
 });
 // Opciones de área
-type AreaOption = { id: number | string; name: string };
-type NumericAreaOption = { id: number; name: string };
+type AreaOption = { id: number; name: string };
 const areaOptions = ref<AreaOption[]>([]);
 const areaSelectOptions = computed(() => [{ id: '', name: 'Todas las áreas' }, ...areaOptions.value]);
 const selectedAreaId = ref(filters.area ?? '');
@@ -118,7 +106,7 @@ function normalizeAreas(payload: unknown): AreaOption[] {
             }
             return null;
         })
-        .filter((area): area is NumericAreaOption => Boolean(area));
+        .filter((area): area is AreaOption => Boolean(area));
 }
 
 async function fetchAreas() {
@@ -135,15 +123,12 @@ onMounted(() => {
     fetchAreas();
 });
 
-const actionOptions = [
-    { id: 'all', value: null, label: 'Todos' },
-    { id: 'created', value: 'created', label: 'Creado' },
-    { id: 'updated', value: 'updated', label: 'Actualizado' },
-    { id: 'deleted', value: 'deleted', label: 'Eliminado' },
+const actionOptionsForSelect = [
+    { id: '', name: 'Todos' },
+    { id: 'created', name: 'Creado' },
+    { id: 'updated', name: 'Actualizado' },
+    { id: 'deleted', name: 'Eliminado' },
 ];
-
-// SelectField expects { id, name }
-const actionOptionsForSelect = actionOptions.map((o) => ({ id: String(o.value ?? ''), name: o.label }));
 
 const selectAction = ref<string | null>(filters.action ?? null);
 const selectModule = ref<string | null>(filters.module ?? '');
@@ -165,6 +150,8 @@ const totalItems = ref(props.logs?.total ?? 0);
 const itemsPerPage = ref(props.logs?.per_page ?? 50);
 const lastPage = ref(props.logs?.last_page ?? 1);
 const currentPage = ref(props.logs?.current_page ?? 1);
+const sortBy = ref<string>(props.filters.sort_by ?? 'created_at');
+const sortDir = ref<'asc' | 'desc'>(props.filters.sort_dir === 'asc' ? 'asc' : 'desc');
 
 const moduleCandidates = ref(new Map<string, string>());
 
@@ -195,11 +182,14 @@ const diffCache = new Map<number, DiffEntry[]>();
 const detailDialogOpen = ref(false);
 const detailLog = ref<AuditLog | null>(null);
 const detailDiffEntries = ref<DiffEntry[]>([]);
+let userSearchDebounce: number | undefined;
 
 async function fetchLogs(page = 1) {
     const params: Record<string, unknown> = {
         page,
         per_page: itemsPerPage.value,
+        sort_by: sortBy.value,
+        sort_dir: sortDir.value,
     };
     const userFilter = filters.user.trim();
     if (userFilter) {
@@ -236,6 +226,18 @@ async function fetchLogs(page = 1) {
     }
 }
 
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+
+    currentPage.value = 1;
+    fetchLogs(1);
+}
+
 watch(selectModule, (value) => {
     const normalized = value ?? '';
     const previous = filters.module;
@@ -260,7 +262,11 @@ watch(
         if (value === oldValue) {
             return;
         }
-        fetchLogs(1);
+
+        window.clearTimeout(userSearchDebounce);
+        userSearchDebounce = window.setTimeout(() => {
+            fetchLogs(1);
+        }, 250);
     },
 );
 
@@ -316,13 +322,10 @@ const actionVerbMap: Record<string, string> = {
     deleted: 'eliminó',
 };
 
-const actionGradientClasses: Record<string, string> = {
-    // Creado -> Verde
-    created: 'bg-gradient-to-r from-emerald-100 via-emerald-50 to-emerald-100 border-emerald-200 text-emerald-700',
-    // Actualizado -> Azul
-    updated: 'bg-gradient-to-r from-sky-100 via-sky-50 to-sky-100 border-sky-200 text-sky-700',
-    // Eliminado -> Rojo
-    deleted: 'bg-gradient-to-r from-rose-100 via-rose-50 to-rose-100 border-rose-200 text-rose-700',
+const actionToneMap: Record<string, 'green' | 'blue' | 'red' | 'gray'> = {
+    created: 'green',
+    updated: 'blue',
+    deleted: 'red',
 };
 
 const fieldLabelTranslations: Record<string, string> = {
@@ -367,19 +370,8 @@ function translateDiffLabel(key: string): string {
     return fieldLabelTranslations[key] ?? humanizeFieldKey(key);
 }
 
-const defaultActionGradientClass = 'bg-gradient-to-r from-muted/60 via-background to-muted/60 border-border text-muted-foreground';
-
-function getActionGradient(action: string | null) {
-    return actionGradientClasses[action ?? ''] ?? defaultActionGradientClass;
-}
-
-function translateModuleName(module: string | null | undefined) {
-    if (!module) return 'General';
-    return module;
-}
-
-function translateResourceName(label: string) {
-    return label;
+function getActionTone(action: string | null): 'green' | 'blue' | 'red' | 'gray' {
+    return actionToneMap[action ?? ''] ?? 'gray';
 }
 
 function formatTimestamp(value: string | null) {
@@ -405,12 +397,11 @@ function formatResource(log: AuditLog) {
     }
     const segments = log.auditable_type.split('\\');
     const label = segments.at(-1) ?? log.auditable_type;
-    const translatedLabel = translateResourceName(label);
-    return log.auditable_id ? `${translatedLabel} #${log.auditable_id}` : translatedLabel;
+    return log.auditable_id ? `${label} #${log.auditable_id}` : label;
 }
 
 function formatModuleLabel(log: AuditLog) {
-    const moduleLabel = log.module_label ?? translateModuleName(log.module);
+    const moduleLabel = log.module_label ?? log.module ?? 'General';
     if (log.company_id) {
         return `${moduleLabel} · Empresa #${log.company_id}`;
     }
@@ -634,6 +625,10 @@ watch(detailDialogOpen, (value) => {
         detailDiffEntries.value = [];
     }
 });
+
+onBeforeUnmount(() => {
+    window.clearTimeout(userSearchDebounce);
+});
 </script>
 
 <template>
@@ -650,58 +645,85 @@ watch(detailDialogOpen, (value) => {
                 </p>
             </div>
 
-            <!-- FILTROS: UNA SOLA FILA (mismo estilo que Items) -->
-            <div class="mb-2">
-                <FilterBar align="start" gap="gap-4" noMargin>
-                    <FilterField label="Usuario" :active="filters.user.trim().length > 0" class="min-w-[220px]">
-                        <Input id="audit-filter-user" v-model="filters.user" placeholder="Nombre del usuario" class="h-10 w-full" />
-                    </FilterField>
-                    <FilterField label="Área" :active="isAreaFilterActive" class="min-w-[200px]">
-                        <SelectField
-                            v-model="selectedAreaId"
-                            :options="areaSelectOptions"
-                            placeholder="Todas las áreas"
-                            :button-class="areaFilterButtonClasses"
+            <!-- FILTROS -->
+            <FilterBar>
+                <FilterField label="Buscar usuario" :active="filters.user.trim().length > 0" class="min-w-[220px] flex-1 p-0">
+                    <div class="relative">
+                        <Input
+                            id="audit-filter-user"
+                            v-model="filters.user"
+                            placeholder="Buscar usuario"
+                            class="h-10 w-full rounded-md border border-input bg-background pl-10 text-sm focus:border-primary focus:ring-0"
                         />
-                    </FilterField>
-                    <FilterField label="Módulo" :active="Boolean(selectModule?.trim())" class="min-w-[220px]">
-                        <SelectField
-                            :options="moduleOptions"
-                            v-model="selectModule"
-                            :placeholder="'Ej. Gastos'"
-                            :searchable="true"
-                            :button-class="moduleButtonClasses"
-                        />
-                    </FilterField>
-                    <FilterField label="Acción" :active="Boolean(selectAction)" class="min-w-[200px]">
-                        <SelectField
-                            :options="actionOptionsForSelect"
-                            v-model="selectAction"
-                            :placeholder="'Filtrar por acción'"
-                            :searchable="false"
-                            :button-class="actionButtonClasses"
-                        />
-                    </FilterField>
-                    <FilterField label="Fecha" :active="dateFilterActive" class="min-w-[220px]">
-                        <DatePickerField v-model="dateFilterModel" label="" placeholder-text="dd/mm/aaaa" class="w-full" />
-                    </FilterField>
-                </FilterBar>
-            </div>
+                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+                            <Search :size="20" class="text-muted-foreground" />
+                        </span>
+                    </div>
+                </FilterField>
+                <FilterField label="Área" :active="isAreaFilterActive" class="min-w-[180px]">
+                    <SelectField
+                        v-model="selectedAreaId"
+                        :options="areaSelectOptions"
+                        placeholder="Área"
+                        :button-class="areaFilterButtonClasses"
+                    />
+                </FilterField>
+                <FilterField label="Módulo" :active="Boolean(selectModule?.trim())" class="min-w-[180px]">
+                    <SelectField
+                        :options="moduleOptions"
+                        v-model="selectModule"
+                        placeholder="Módulo"
+                        :searchable="true"
+                        :button-class="moduleButtonClasses"
+                    />
+                </FilterField>
+                <FilterField label="Acción" :active="Boolean(selectAction)" class="min-w-[180px]">
+                    <SelectField
+                        :options="actionOptionsForSelect"
+                        v-model="selectAction"
+                        placeholder="Acción"
+                        :searchable="false"
+                        :button-class="actionButtonClasses"
+                    />
+                </FilterField>
+                <FilterField label="Fecha" :active="dateFilterActive" class="min-w-[180px]">
+                    <DatePickerField
+                        v-model="dateFilterModel"
+                        label=""
+                        placeholder-text="dd/mm/aaaa"
+                        class="w-full"
+                        :clearable="true"
+                        :show-today="true"
+                    />
+                </FilterField>
+            </FilterBar>
 
             <!-- TARJETA / TABLA: mismo “card” que en Gestión de Ítems -->
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border md:min-h-min">
                 <Table class="text-sm">
                     <TableHeader>
                         <TableRow>
-                            <TableHead class="px-4 py-2 text-left">Fecha</TableHead>
-                            <TableHead class="w-[150px] px-4 py-2 text-left">Área</TableHead>
-                            <TableHead class="w-[180px] px-4 py-2 text-left">Rol</TableHead>
+                            <TableHead class="cursor-pointer select-none px-4 py-2 text-left whitespace-nowrap" @click="toggleSort('created_at')">
+                                <span class="inline-flex items-center gap-1">
+                                    Fecha
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'created_at'">
+                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                        </template>
+                                        <template v-else>
+                                            <span class="opacity-30">↕</span>
+                                        </template>
+                                    </span>
+                                </span>
+                            </TableHead>
+                            <TableHead class="w-[110px] px-4 py-2 text-left">Área</TableHead>
+                            <TableHead class="w-[130px] px-4 py-2 text-left">Rol</TableHead>
                             <TableHead class="w-[220px] px-4 py-2 text-left">Usuario</TableHead>
                             <TableHead class="px-4 py-2 text-left">Acción</TableHead>
                             <TableHead class="px-4 py-2 text-left">Módulo</TableHead>
                             <TableHead class="px-4 py-2 text-left">Recurso</TableHead>
                             <TableHead class="px-4 py-2 text-left">Descripción</TableHead>
-                            <TableHead class="w-[70px] px-4 py-2 pr-6 text-right"></TableHead>
+                            <TableHead class="w-[70px] px-4 py-2 pr-6 text-right">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
 
@@ -737,9 +759,7 @@ watch(detailDialogOpen, (value) => {
 
                             <!-- ACCIÓN -->
                             <TableCell class="px-4 py-3 text-left">
-                                <Badge variant="outline" :class="getActionGradient(log.action)">
-                                    {{ actionLabel(log.action) }}
-                                </Badge>
+                                <TableStatusBadge :label="actionLabel(log.action)" :tone="getActionTone(log.action)" />
                             </TableCell>
 
                             <!-- MÓDULO -->
@@ -879,6 +899,3 @@ watch(detailDialogOpen, (value) => {
         </Dialog>
     </AppLayout>
 </template>
-
-
-

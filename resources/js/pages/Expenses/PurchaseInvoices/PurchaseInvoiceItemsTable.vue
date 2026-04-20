@@ -378,14 +378,6 @@ function setFieldsFromOrder(item: PurchaseInvoiceItem) {
     }
 }
 
-function syncInvoiceItemsTaxWithCatalog() {
-    localItems.value.forEach((invoiceItem) => {
-        if (invoiceItem.item_id == null) return;
-        setTaxFromItem(invoiceItem);
-        calcTotals(invoiceItem);
-    });
-}
-
 watch(
     () => itemMap.value.size,
     (size) => {
