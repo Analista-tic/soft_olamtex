@@ -333,8 +333,15 @@ function resetForm(source: Partial<PurchaseOrder> = props.form) {
 
 async function fetchContacts() {
     try {
-        const { data } = await axios.get<{ data: Contact[] }>('/contactos/data', { params: { per_page: 1000 } });
-        contacts.value = data.data;
+        const [res1, res2] = await Promise.all([
+            axios.get<{ data: Contact[] }>('/contactos/data', {
+                params: { contact_type: 'proveedor', per_page: 1000 },
+            }),
+            axios.get<{ data: Contact[] }>('/contactos/data', {
+                params: { contact_type: 'cliente_proveedor', per_page: 1000 },
+            }),
+        ]);
+        contacts.value = [...res1.data.data, ...res2.data.data];
     } catch (e) {
         contacts.value = [];
         console.error('Error fetching contacts:', e);
@@ -432,9 +439,9 @@ async function loadRequestToOrder(requestId: number) {
     selectedPurchaseRequest.value = request;
 
     // Cargar contactos si no están cargados
-    if (!contacts.value.length) await fetchContacts();
 
     // Aplicar automáticamente los datos de la solicitud
+    if (!contacts.value.length) await fetchContacts();
     applyRequestSuggestion();
 
     selectedPurchaseRequestId.value = Number(requestId);
@@ -833,6 +840,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                             label=""
                                             :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
                                             :disabled="isReadOnly || !canEdit"
+                                            :searchable="true"
                                             :action-label="(!isReadOnly && canEdit) ? 'Nuevo contacto' : undefined"
                                             :action-disabled="isReadOnly || !canEdit"
                                             required

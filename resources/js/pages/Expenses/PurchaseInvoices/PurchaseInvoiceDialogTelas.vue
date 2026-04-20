@@ -254,16 +254,15 @@ watch(
 
 async function fetchContacts() {
     try {
-        const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
-        let contactsArray: Contact[] = [];
-        if (Array.isArray(response.data?.data?.data)) {
-            contactsArray = response.data.data.data;
-        } else if (Array.isArray(response.data?.data)) {
-            contactsArray = response.data.data;
-        } else if (Array.isArray(response.data)) {
-            contactsArray = response.data;
-        }
-        contacts.value = contactsArray;
+        const [res1, res2] = await Promise.all([
+            axios.get<{ data: Contact[] }>('/contactos/data', {
+                params: { contact_type: 'proveedor', per_page: 1000 },
+            }),
+            axios.get<{ data: Contact[] }>('/contactos/data', {
+                params: { contact_type: 'cliente_proveedor', per_page: 1000 },
+            }),
+        ]);
+        contacts.value = [...res1.data.data, ...res2.data.data];
     } catch {
         contacts.value = [];
     }
@@ -751,6 +750,7 @@ watch(dialogOpen, (isOpen) => {
                                 label=""
                                 :options="contacts.map((c) => ({ id: Number(c.id), name: c.full_name }))"
                                 :disabled="isReadOnly"
+                                :searchable="true"
                                 required
                                 :key="contacts.length + '-' + localForm.contact_id"
                             />
