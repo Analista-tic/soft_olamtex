@@ -63,6 +63,7 @@ class CategorySubGroupController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%$search%")
+                    ->orWhereRaw('CAST(id AS CHAR) LIKE ?', ["%{$search}%"])
                     ->orWhereHas('categoryGroup', function ($gq) use ($search) {
                         $gq->where('name', 'like', "%$search%");
                     });
