@@ -724,27 +724,30 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                             <DialogDescription> Completa los campos y añade los ítems de la orden. </DialogDescription>
                         </div>
                         <div v-if="!isReadOnly" class="w-full shrink-0 sm:w-[340px]">
-                            <div class="flex items-end gap-2">
-                                <div class="flex-1 min-w-0">
-                                    <SelectField
-                                        v-model="selectedPurchaseRequestValue"
-                                        :options="pendingPurchaseRequestOptions"
-                                        label="Cargar desde solicitud aprobada"
-                                        placeholder="Selecciona una solicitud aprobada para autocompletar"
-                                        :disabled="isReadOnly || !pendingPurchaseRequestOptions.length || dialogType === 'edit'"
-                                        :searchable="pendingPurchaseRequestOptions.length >= 6"
-                                        search-placeholder="Buscar solicitud..."
-                                    />
+                            <div class="space-y-1">
+                                <label class="text-sm font-medium leading-none text-foreground">Cargar desde solicitud aprobada</label>
+                                <div class="flex items-center gap-2">
+                                    <div class="flex-1 min-w-0">
+                                        <SelectField
+                                            v-model="selectedPurchaseRequestValue"
+                                            :options="pendingPurchaseRequestOptions"
+                                            label=""
+                                            placeholder="Selecciona una solicitud aprobada para autocompletar"
+                                            :disabled="isReadOnly || !pendingPurchaseRequestOptions.length || dialogType === 'edit'"
+                                            :searchable="pendingPurchaseRequestOptions.length >= 6"
+                                            search-placeholder="Buscar solicitud..."
+                                        />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        class="flex-shrink-0 h-7 w-7 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
+                                        :disabled="!selectedPurchaseRequestId || isReadOnly || dialogType === 'edit'"
+                                        title="Limpiar selección"
+                                        @click="selectedPurchaseRequestId = null; resetForm()"
+                                    >
+                                        <X class="h-3.5 w-3.5" />
+                                    </button>
                                 </div>
-                                <button
-                                    type="button"
-                                    class="shrink-0 h-7 w-7 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
-                                    :disabled="!selectedPurchaseRequestId || isReadOnly || dialogType === 'edit'"
-                                    title="Limpiar selección"
-                                    @click="selectedPurchaseRequestId = null; resetForm()"
-                                >
-                                    <X class="h-3.5 w-3.5" />
-                                </button>
                             </div>
                         </div>
                     </div>

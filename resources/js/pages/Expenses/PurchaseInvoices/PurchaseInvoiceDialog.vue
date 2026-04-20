@@ -724,29 +724,32 @@ watch(dialogOpen, (isOpen) => {
                             </DialogDescription>
                         </div>
                         <div v-if="!isReadOnly" class="w-full shrink-0 sm:w-[340px]">
-                            <div class="flex items-end gap-2">
-                                <div class="flex-1 min-w-0">
-                                    <SelectField
-                                        v-model="selectedPurchaseOrderValue"
-                                        :options="pendingPurchaseOrderOptions"
-                                        label="Cargar desde orden pendiente"
-                                        placeholder="Selecciona una orden existente"
-                                        :disabled="isReadOnly"
-                                        :readonly="isReadOnly"
-                                        :searchable="pendingPurchaseOrderOptions.length >= 6"
-                                        search-placeholder="Buscar orden de compra..."
-                                        tooltip-text="Selecciona una orden de compra aprobada para pre-llenar automáticamente los ítems de esta factura."
-                                    />
+                            <div class="space-y-1">
+                                <label class="text-sm font-medium leading-none text-foreground">Cargar desde orden pendiente</label>
+                                <div class="flex items-center gap-2">
+                                    <div class="flex-1 min-w-0">
+                                        <SelectField
+                                            v-model="selectedPurchaseOrderValue"
+                                            :options="pendingPurchaseOrderOptions"
+                                            label=""
+                                            placeholder="Selecciona una orden existente"
+                                            :disabled="isReadOnly"
+                                            :readonly="isReadOnly"
+                                            :searchable="pendingPurchaseOrderOptions.length >= 6"
+                                            search-placeholder="Buscar orden de compra..."
+                                            tooltip-text="Selecciona una orden de compra aprobada para pre-llenar automáticamente los ítems de esta factura."
+                                        />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        class="flex-shrink-0 h-7 w-7 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
+                                        :disabled="!selectedPurchaseOrderId || isReadOnly"
+                                        title="Limpiar selección"
+                                        @click="selectedPurchaseOrderId = null; resetForm()"
+                                    >
+                                        <X class="h-3.5 w-3.5" />
+                                    </button>
                                 </div>
-                                <button
-                                    type="button"
-                                    class="shrink-0 h-7 w-7 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
-                                    :disabled="!selectedPurchaseOrderId || isReadOnly"
-                                    title="Limpiar selección"
-                                    @click="selectedPurchaseOrderId = null; resetForm()"
-                                >
-                                    <X class="h-3.5 w-3.5" />
-                                </button>
                             </div>
                         </div>
                     </div>
