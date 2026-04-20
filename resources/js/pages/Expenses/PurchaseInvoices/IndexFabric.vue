@@ -60,10 +60,8 @@ function toggleSort(column: string) {
 
 const statusFilter = ref('all');
 const providerFilter = ref('all');
-const subgroupFilter = ref('all');
 const dateFilter = ref('');
 const providers = ref<{ id: number; full_name: string }[]>([]);
-const subgroups = ref<{ id: number; name: string }[]>([]);
 const facturasFabricRoute = '/gastos/facturas-compra-tela';
 const receptionBaseRoute = '/kardex-telas/recepcion';
 const receptionReturnParam = 'return_to';
@@ -72,7 +70,6 @@ const receptionInvoiceTypeValue = 'fabric';
 
 const DEFAULT_STATUS_FILTER = 'all';
 const DEFAULT_PROVIDER_FILTER = 'all';
-const DEFAULT_SUBGROUP_FILTER = 'all';
 
 const statusOptions = [
     { id: 'all', name: 'Todos los estados' },
@@ -87,12 +84,10 @@ const statusOptions = [
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
-const isSubgroupFilterActive = computed(() => subgroupFilter.value !== DEFAULT_SUBGROUP_FILTER);
 const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
-const subgroupButtonClasses = useFilterButtonClasses(isSubgroupFilterActive);
 
 const formatDate = (value?: string | null) => {
     if (!value) return '-';
@@ -136,16 +131,6 @@ async function fetchProviders() {
     } catch (e) {
         console.log('Error al cargar proveedores:', e);
         providers.value = [];
-    }
-}
-
-async function fetchSubgroups() {
-    try {
-        const { data } = await axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } });
-        subgroups.value = Array.isArray(data?.data) ? data.data : [];
-    } catch (error) {
-        console.log('Error al cargar subgrupos:', error);
-        subgroups.value = [];
     }
 }
 
@@ -250,9 +235,6 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
             params.provider_id = isNaN(Number(providerFilter.value)) ? providerFilter.value : Number(providerFilter.value);
         }
-        if (subgroupFilter.value !== 'all' && subgroupFilter.value !== '' && subgroupFilter.value !== null) {
-            params.subgroup_id = isNaN(Number(subgroupFilter.value)) ? subgroupFilter.value : Number(subgroupFilter.value);
-        }
         const response = await axios.get('/gastos/facturas-compra-tela/data', { params });
         invoices.value = Array.isArray(response.data.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
         totalItems.value = typeof response.data.total === 'number' ? response.data.total : 0;
@@ -267,12 +249,11 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
 
 // Watcher único para filtros y búsqueda
 watch(
-    [statusFilter, providerFilter, subgroupFilter, dateFilter, searchQuery],
-    ([newStatus, newProvider, newSubgroup, newDate, newSearch], [oldStatus, oldProvider, oldSubgroup, oldDate, oldSearch]) => {
+    [statusFilter, providerFilter, dateFilter, searchQuery],
+    ([newStatus, newProvider, newDate, newSearch], [oldStatus, oldProvider, oldDate, oldSearch]) => {
         if (
             newStatus !== oldStatus ||
             newProvider !== oldProvider ||
-            newSubgroup !== oldSubgroup ||
             newDate !== oldDate ||
             newSearch !== oldSearch
         ) {
@@ -296,7 +277,6 @@ watch(currentPage, (newPage, oldPage) => {
 onMounted(() => {
     fetchInvoices();
     fetchProviders();
-    fetchSubgroups();
 });
 
 function openPrintDialog(invoice: PurchaseInvoice) {
@@ -421,17 +401,9 @@ function handleDialogError(message?: string) {
                         :button-class="providerButtonClasses"
                     />
                 </FilterField>
-                <FilterField label="Subgrupo" :active="isSubgroupFilterActive" class="min-w-[180px]">
-                    <SelectField
-                        v-model="subgroupFilter"
-                        label=""
-                        :options="[{ id: 'all', name: 'Todos los subgrupos' }, ...subgroups.map((sub) => ({ id: String(sub.id), name: sub.name }))]"
-                        :button-class="subgroupButtonClasses"
-                    />
+                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
+                    <InputDate v-model="dateFilter" placeholder="Fecha" :clearable="true" :show-today="true" />
                 </FilterField>
-<FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
-    <InputDate v-model="dateFilter" placeholder="Fecha" :clearable="true" :show-today="true" />
-</FilterField>
             </FilterBar>
             <div class="relative overflow-auto rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>

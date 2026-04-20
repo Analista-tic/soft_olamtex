@@ -93,7 +93,7 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
 
     protected function buildFilters(Request $request): array
     {
-        return $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id', 'subgroup_id', 'approval_status', 'exclude_difference_rejected']);
+        return $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id', 'approval_status', 'exclude_difference_rejected']);
     }
 
     public function justify(Request $request, PurchaseDocument $purchaseInvoice)
