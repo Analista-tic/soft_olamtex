@@ -51,12 +51,34 @@ class PurchaseInvoiceTest extends DuskTestCase
         Item::where('name', 'Ítem Factura Test')->forceDelete();
         $subGroup = CategorySubGroup::first();
         $item = Item::create([
-            'category_sub_group_id' => $subGroup->id,
-            'name'                  => 'Factura Item SA',
-            'description'           => 'Ítem creado para prueba de factura',
-            'item_type'             => 'service',
-            'tracks_inventory'      => false,
-            'status'                => true,
+	    'category_sub_group_id' => $subGroup->id,
+        'name'                  => 'Factura Item SA',
+        'description'           => 'Ítem creado para prueba de factura',
+        'item_type'             => 'service',
+        'tracks_inventory'      => false,
+        'status'                => true,
+    ]);
+
+        $itemEnBD = \App\Models\MasterData\Item::where('name', 'Factura Item SA')->first();
+        dump([
+            'encontrado' => $itemEnBD ? 'SI' : 'NO',
+            'id'         => $itemEnBD?->id,
+            'status'     => $itemEnBD?->status,
+            'deleted_at' => $itemEnBD?->deleted_at,
+            'item_type'  => $itemEnBD?->item_type,
+        ]);
+
+        $response = $browser ?? null; // placeholder
+        // Verificar el endpoint directamente
+        $apiResponse = \Illuminate\Support\Facades\Http::get('http://localhost:8000/item/data', [
+            'per_page' => 2000,
+            'status' => 'true',
+        ]);
+        dump([
+            'api_status' => $apiResponse->status(),
+            'api_total'  => $apiResponse->json('total') ?? 'no total',
+            'api_count'  => count($apiResponse->json('data') ?? []),
+            'api_first'  => $apiResponse->json('data.0.name') ?? 'ninguno',
         ]);
 
         $proveedorNombre = 'Factura Test SA';

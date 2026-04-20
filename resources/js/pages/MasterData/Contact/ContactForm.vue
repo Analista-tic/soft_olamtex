@@ -177,7 +177,17 @@ const errors = ref<Record<string, string[]>>({});
 const locationValue = computed({
     get() {
         if (!internalForm.value.municipality || !internalForm.value.department) return '';
-        return `${internalForm.value.municipality}||${internalForm.value.department}`;
+        const key = `${internalForm.value.municipality}||${internalForm.value.department}`;
+        const exists = locationOptions.value.some((opt) => opt.id === key);
+
+        if (!exists) {
+            const match = allLocationOptions.find((opt) => opt.id === key);
+            if (match) {
+                locationOptions.value = [match, ...locationOptions.value.slice(0, 49)];
+            }
+        }
+
+        return key;
     },
     set(val: string | undefined) {
         if (!val) {

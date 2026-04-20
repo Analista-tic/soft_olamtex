@@ -14,28 +14,66 @@ use Inertia\Inertia;
 
 class ContactController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $sortBy = $request->input('sort_by', 'id');
+        $sortDirection = $request->input('sort_direction', $request->input('sort_dir', 'asc'));
+        $allowedSorts = ['id', 'id_number'];
+
+        if (! in_array($sortBy, $allowedSorts, true)) {
+            $sortBy = 'id';
+        }
+
+        if (! in_array($sortDirection, ['asc', 'desc'], true)) {
+            $sortDirection = 'asc';
+        }
+
         return Inertia::render('MasterData/Contact/Index', [
             'contacts' => Contact::all(),
+            'filters' => [
+                'sort_by' => $sortBy,
+                'sort_direction' => $sortDirection,
+            ],
         ]);
     }
 
     public function getData(Request $request)
     {
         $contactType = $request->input('contact_type');
+        $sortBy = $request->input('sort_by', 'id');
+        $sortDirection = $request->input('sort_direction', $request->input('sort_dir', 'asc'));
+        $allowedSorts = ['id', 'id_number'];
 
-        $contacts = Contact::query()
+        if (! in_array($sortBy, $allowedSorts, true)) {
+            $sortBy = 'id';
+        }
+
+        if (! in_array($sortDirection, ['asc', 'desc'], true)) {
+            $sortDirection = 'asc';
+        }
+
+        $query = Contact::query()
             ->when($request->search, fn ($query, $search) =>
                 $query->where(function ($q) use ($search) {
                     $q->where('full_name', 'like', "%$search%")
-                        ->orWhere('email', 'like', "%$search%");
+                        ->orWhere('email', 'like', "%$search%")
+                        ->orWhere('id_number', 'like', "%$search%")
+                        ->orWhere('phone', 'like', "%$search%")
+                        ->orWhereRaw('CAST(id AS CHAR) LIKE ?', ["%{$search}%"])
+                        ->orWhere('contact_type', 'like', "%$search%");
                 }))
             ->when(in_array($contactType, Contact::CONTACT_TYPES, true), fn ($query) =>
                 $query->where('contact_type', $contactType))
             ->when($request->group_id, fn ($query, $groupId) =>
-                $query->whereJsonContains('groups', $groupId))
-            ->paginate($request->get('per_page', 10));
+                $query->whereJsonContains('groups', $groupId));
+
+        if ($sortBy === 'id_number') {
+            $query->orderByRaw("(id_number + 0) {$sortDirection}");
+        } else {
+            $query->orderBy($sortBy, $sortDirection);
+        }
+
+        $contacts = $query->paginate($request->get('per_page', 10));
 
         return response()->json($contacts);
     }
