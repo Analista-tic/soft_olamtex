@@ -30,6 +30,13 @@ import { PlusCircle, Search } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import ContactDialog from './ContactDialog.vue';
 
+const props = defineProps<{
+    filters?: {
+        sort_by?: string;
+        sort_direction?: 'asc' | 'desc';
+    };
+}>();
+
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Contactos', href: '/contactos' }];
 
 const contacts = ref<Contact[]>([]);
@@ -59,6 +66,8 @@ const totalItems = ref(0);
 const searchQuery = ref('');
 const isLoading = ref(false);
 const selectedContactType = ref<ContactType | ''>('');
+const sortBy = ref(props.filters?.sort_by ?? 'id');
+const sortDir = ref<'asc' | 'desc'>(props.filters?.sort_direction ?? 'asc');
 
 const contactTypeOptions = [
     { id: '', name: 'Todos los tipos' },
@@ -289,7 +298,14 @@ async function fetchContacts(page: number = 1, search: string = '', contactType:
     isLoading.value = true;
     try {
         const response = await axios.get('/contactos/data', {
-            params: { page, per_page: itemsPerPage, search, contact_type: contactType },
+            params: {
+                page,
+                per_page: itemsPerPage,
+                search,
+                contact_type: contactType,
+                sort_by: sortBy.value,
+                sort_direction: sortDir.value,
+            },
         });
 
         contacts.value = response.data.data;
@@ -315,6 +331,17 @@ function formatContactType(contactType?: string): string {
 function handlePageChange(newPage: number): void {
     currentPage.value = newPage;
     fetchContacts(newPage, searchQuery.value, selectedContactType.value || null);
+}
+
+function toggleSort(column: 'id' | 'id_number'): void {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'asc';
+    }
+
+    fetchContacts(1, searchQuery.value, selectedContactType.value || null);
 }
 
 watch([searchQuery, selectedContactType], ([newQuery, newType]: [string, string]) => {
@@ -364,7 +391,12 @@ onBeforeUnmount(() => {
             <FilterBar align="start">
                 <FilterField label="Buscar contacto" :active="isSearchActive" class="min-w-[220px] flex-1 p-0">
                     <div class="relative w-full">
-                        <Input id="search_contact" v-model="searchQuery" placeholder="Buscar por nombre o email" class="h-10 w-full pl-10" />
+                        <Input
+                            id="search_contact"
+                            v-model="searchQuery"
+                            placeholder="Buscar por nombre, email, identificación o teléfono"
+                            class="h-10 w-full pl-10"
+                        />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                             <Search :size="20" class="text-muted-foreground" />
                         </span>
@@ -386,11 +418,41 @@ onBeforeUnmount(() => {
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead>N° Contacto</TableHead>
-                            <TableHead>Nombre</TableHead>
-                            <TableHead>Email</TableHead>
-                            <TableHead>Teléfono</TableHead>
+                            <TableHead
+                                class="cursor-pointer select-none whitespace-nowrap"
+                                @click="toggleSort('id')"
+                            >
+                                <span class="inline-flex items-center gap-1">
+                                    N° Contacto
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'id'">
+                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                        </template>
+                                        <template v-else>
+                                            <span class="opacity-30">↕</span>
+                                        </template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Tipo</TableHead>
+                            <TableHead>Nombre</TableHead>
+                            <TableHead
+                                class="cursor-pointer select-none whitespace-nowrap"
+                                @click="toggleSort('id_number')"
+                            >
+                                <span class="inline-flex items-center gap-1">
+                                    Numero de identificacion
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'id_number'">
+                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                        </template>
+                                        <template v-else>
+                                            <span class="opacity-30">↕</span>
+                                        </template>
+                                    </span>
+                                </span>
+                            </TableHead>
+                            <TableHead>Telefono</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -412,10 +474,10 @@ onBeforeUnmount(() => {
                         <template v-else>
                             <TableRow v-for="(contact, index) in contacts" :key="contact.id ?? `contact-${index}`">
                                 <TableCell class="font-medium">{{ contact.id }}</TableCell>
-                                <TableCell class="font-medium">{{ contact.full_name }}</TableCell>
-                                <TableCell>{{ contact.email }}</TableCell>
-                                <TableCell>{{ contact.phone }}</TableCell>
                                 <TableCell>{{ formatContactType(contact.contact_type) }}</TableCell>
+                                <TableCell class="font-medium">{{ contact.full_name }}</TableCell>
+                                <TableCell>{{ contact.id_number }}</TableCell>
+                                <TableCell>{{ contact.phone }}</TableCell>
                                 <TableCell class="flex justify-center gap-1">
                                     <EditButton :onClick="() => openDialog('edit', contact)" />
                                     <DeleteButton @click="confirmDeleteContact(contact)" />

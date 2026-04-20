@@ -20,11 +20,57 @@ class InventoryAdjustmentController extends Controller
      */
     public function getData(Request $request)
     {
-        $filters = $request->only(['search', 'type', 'date_from', 'date_to']);
         $perPage = $request->input('per_page', 10);
-        $adjustments = $this->service->paginate($filters, $perPage);
+        $sortBy = $request->input('sort_by', 'date');
+        $sortDir = in_array($request->input('sort_direction'), ['asc', 'desc'], true)
+            ? $request->input('sort_direction')
+            : 'desc';
+        $allowedSorts = ['date', 'total'];
 
-        return response()->json($adjustments);
+        if (!in_array($sortBy, $allowedSorts, true)) {
+            $sortBy = 'date';
+        }
+
+        $query = InventoryAdjustment::query();
+
+        if ($request->filled('search')) {
+            $search = trim((string) $request->input('search'));
+            $query->where(function ($q) use ($search) {
+                $q->where('document_number', 'like', "%{$search}%")
+                    ->orWhere('observation', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('type') && in_array($request->input('type'), ['entrada', 'salida'], true)) {
+            $query->where('type', $request->input('type'));
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('date', '>=', $request->input('date_from'));
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('date', '<=', $request->input('date_to'));
+        }
+
+        if ($sortBy === 'total') {
+            $query->orderByRaw("CAST(total AS DECIMAL(15,4)) {$sortDir}");
+        } else {
+            $query->orderBy($sortBy, $sortDir);
+        }
+
+        $adjustments = $query
+            ->orderByDesc('id')
+            ->paginate($perPage);
+
+        return response()->json([
+            'data' => $adjustments->items(),
+            'total' => $adjustments->total(),
+            'current_page' => $adjustments->currentPage(),
+            'last_page' => $adjustments->lastPage(),
+            'sort_by' => $sortBy,
+            'sort_direction' => $sortDir,
+        ]);
     }
 
     /**

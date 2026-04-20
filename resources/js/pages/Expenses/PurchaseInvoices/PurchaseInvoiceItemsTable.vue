@@ -476,6 +476,7 @@ defineExpose({ addItem });
                                     :action-label="!isReadOnly ? 'Nuevo item' : undefined"
                                     :action-disabled="isReadOnly"
                                     @action="openItemDialog"
+                                    :dusk="`factura-item-${idx}-item`"
                                 />
                                 <div class="min-h-[20px]"></div>
                             </div>
@@ -495,6 +496,7 @@ defineExpose({ addItem });
                                     class="h-10 w-full"
                                     @input="calcTotals(item)"
                                     :error="isPriceDifferent(item)"
+                                    :dusk="`factura-item-${idx}-precio`"
                                 />
                                 <div class="min-h-[20px] mt-1 text-xs text-gray-500">
                                     <template v-if="getSuggestedPrice(item) !== null">
@@ -545,6 +547,7 @@ defineExpose({ addItem });
                                     :readonly="isReadOnly"
                                     :disabled="isReadOnly"
                                     :error="isQuantityDifferent(item)"
+                                    :dusk="`factura-item-${idx}-cantidad`"
                                 />
                                 <div class="min-h-[20px] mt-1 text-xs text-gray-500">
                                     <template v-if="getSuggestedQuantity(item) !== null">
@@ -556,7 +559,7 @@ defineExpose({ addItem });
                         <!-- Descripción -->
                         <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '220px' : '160px' }">
                             <div class="flex flex-col">
-                                <InputField v-model="item.description" label="" class="h-10 w-full" :readonly="isReadOnly" :disabled="isReadOnly" />
+                                <InputField v-model="item.description" label="" class="h-10 w-full" :readonly="isReadOnly" :disabled="isReadOnly" :dusk="`factura-item-${idx}-descripcion`" />
                                 <div class="min-h-[20px]"></div>
                             </div>
                         </TableCell>
@@ -600,6 +603,7 @@ defineExpose({ addItem });
                                     :readonly="isReadOnly || !isTela(item)"
                                     :disabled="isReadOnly || !isTela(item)"
                                     :required="isTela(item)"
+                                    :dusk="`factura-item-${idx}-ancho`"
                                 />
                                 <div class="min-h-[20px]"></div>
                             </div>

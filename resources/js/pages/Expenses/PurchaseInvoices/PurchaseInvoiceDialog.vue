@@ -724,29 +724,32 @@ watch(dialogOpen, (isOpen) => {
                             </DialogDescription>
                         </div>
                         <div v-if="!isReadOnly" class="w-full shrink-0 sm:w-[340px]">
-                            <div class="flex items-end gap-2">
-                                <div class="flex-1 min-w-0">
-                                    <SelectField
-                                        v-model="selectedPurchaseOrderValue"
-                                        :options="pendingPurchaseOrderOptions"
-                                        label="Cargar desde orden pendiente"
-                                        placeholder="Selecciona una orden existente"
-                                        :disabled="isReadOnly"
-                                        :readonly="isReadOnly"
-                                        :searchable="pendingPurchaseOrderOptions.length >= 6"
-                                        search-placeholder="Buscar orden de compra..."
-                                        tooltip-text="Selecciona una orden de compra aprobada para pre-llenar automáticamente los ítems de esta factura."
-                                    />
+                            <div class="space-y-1">
+                                <label class="text-sm font-medium leading-none text-foreground">Cargar desde orden pendiente</label>
+                                <div class="flex items-center gap-2">
+                                    <div class="flex-1 min-w-0">
+                                        <SelectField
+                                            v-model="selectedPurchaseOrderValue"
+                                            :options="pendingPurchaseOrderOptions"
+                                            label=""
+                                            placeholder="Selecciona una orden existente"
+                                            :disabled="isReadOnly"
+                                            :readonly="isReadOnly"
+                                            :searchable="pendingPurchaseOrderOptions.length >= 6"
+                                            search-placeholder="Buscar orden de compra..."
+                                            tooltip-text="Selecciona una orden de compra aprobada para pre-llenar automáticamente los ítems de esta factura."
+                                        />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        class="flex-shrink-0 h-7 w-7 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
+                                        :disabled="!selectedPurchaseOrderId || isReadOnly"
+                                        title="Limpiar selección"
+                                        @click="selectedPurchaseOrderId = null; resetForm()"
+                                    >
+                                        <X class="h-3.5 w-3.5" />
+                                    </button>
                                 </div>
-                                <button
-                                    type="button"
-                                    class="shrink-0 h-7 w-7 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
-                                    :disabled="!selectedPurchaseOrderId || isReadOnly"
-                                    title="Limpiar selección"
-                                    @click="selectedPurchaseOrderId = null; resetForm()"
-                                >
-                                    <X class="h-3.5 w-3.5" />
-                                </button>
                             </div>
                         </div>
                     </div>
@@ -870,6 +873,7 @@ watch(dialogOpen, (isOpen) => {
                                         <label class="text-sm font-medium">Proveedor<span class="text-red-500">*</span></label>
                                         <SelectField
                                             v-model="localForm.contact_id"
+                                            dusk="factura-select-proveedor"
                                             label=""
                                             :options="contacts.map((c) => ({ id: Number(c.id), name: c.full_name }))"
                                             :disabled="isReadOnly"
@@ -906,6 +910,7 @@ watch(dialogOpen, (isOpen) => {
                                             :clearable="true"
                                             :show-today="true"
                                             required
+                                            dusk="factura-input-fecha-factura"
                                         />
                                     </div>
                                     <div class="flex flex-col gap-1">
@@ -920,6 +925,7 @@ watch(dialogOpen, (isOpen) => {
                                             :clearable="true"
                                             :show-today="true"
                                             required
+                                            dusk="factura-input-fecha-entrega"
                                         />
                                     </div>
                                     <div class="flex flex-col gap-1">
@@ -927,7 +933,7 @@ watch(dialogOpen, (isOpen) => {
                                             <label class="text-sm font-medium">N° factura proveedor<span class="text-red-500">*</span></label>
                                             <HelpTooltip text="Número que aparece impreso en la factura física del proveedor. Es obligatorio para la trazabilidad." aria-label="Ayuda sobre número de factura proveedor" />
                                         </div>
-                                        <InputField v-model="localForm.supplier_invoice_number" label="" :readonly="isReadOnly" :disabled="isReadOnly" required />
+                                        <InputField v-model="localForm.supplier_invoice_number" label="" :readonly="isReadOnly" :disabled="isReadOnly" required dusk="factura-input-numero-proveedor" />
                                     </div>
                                 </div>
 
@@ -1040,7 +1046,7 @@ watch(dialogOpen, (isOpen) => {
                 </FormDialogBody>
                 <FormDialogFooter class="justify-end gap-4 bg-background">
                     <Button type="button" variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
-                    <Button v-if="!isReadOnly" variant="default" size="pill" :disabled="isLoading || isSendingMail || isBlockingLoading" @click.prevent="handleSubmit(false)">
+                    <Button v-if="!isReadOnly" variant="default" size="pill" :disabled="isLoading || isSendingMail || isBlockingLoading" @click.prevent="handleSubmit(false)" dusk="btn-guardar-factura">
                         {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
                     </Button>
                     <Button v-if="!isReadOnly" variant="default" size="pill" :disabled="isLoading || isSendingMail || isBlockingLoading" @click.prevent="handleSubmit(true)">

@@ -31,6 +31,7 @@ class DatabaseSeeder extends Seeder
 
             // === DATOS HISTÓRICOS (opcional) ===
             LegacyItemsSeeder::class,
+            LegacyContactsSeeder::class,
         ]);
     }
 }

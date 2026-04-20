@@ -47,6 +47,8 @@ const adjustments = ref<InventoryAdjustment[]>([]);
 const totalItems = ref(0);
 const searchQuery = ref('');
 const typeFilter = ref('all');
+const sortBy = ref<'date' | 'total'>('date');
+const sortDir = ref<'asc' | 'desc'>('desc');
 const currentPage = ref(1);
 const itemsPerPage = 10;
 const isAdjustmentFormOpen = ref(false);
@@ -83,8 +85,24 @@ const getAdjustmentTypeLabel = (adjustment: InventoryAdjustment) => {
     return getInventoryAdjustmentReasonLabel(adjustment.movement_reason ?? adjustment.type);
 };
 
+function toggleSort(column: 'date' | 'total') {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+    fetchAdjustments(currentPage.value, searchQuery.value);
+}
+
 async function fetchAdjustments(page = 1, search = '') {
-    const params: Record<string, any> = { page, per_page: itemsPerPage, search };
+    const params: Record<string, any> = {
+        page,
+        per_page: itemsPerPage,
+        search,
+        sort_by: sortBy.value,
+        sort_direction: sortDir.value,
+    };
     if (typeFilter.value !== 'all') {
         params.type = typeFilter.value;
     }
@@ -95,6 +113,8 @@ async function fetchAdjustments(page = 1, search = '') {
     adjustments.value = data.data ?? [];
     totalItems.value = data.total ?? 0;
     currentPage.value = data.current_page ?? page;
+    sortBy.value = data.sort_by ?? sortBy.value;
+    sortDir.value = data.sort_direction ?? sortDir.value;
 }
 
 function handlePageChange(newPage: number) {
@@ -269,10 +289,40 @@ onMounted(() => {
                     <TableHeader>
                         <TableRow>
                             <TableHead>N° Documento</TableHead>
-                            <TableHead>Fecha</TableHead>
+                            <TableHead
+                                class="cursor-pointer select-none whitespace-nowrap"
+                                @click="toggleSort('date')"
+                            >
+                                <span class="inline-flex items-center gap-1">
+                                    Fecha
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'date'">
+                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                        </template>
+                                        <template v-else>
+                                            <span class="opacity-30">↕</span>
+                                        </template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Tipo</TableHead>
                             <TableHead>Observación</TableHead>
-                            <TableHead>Total</TableHead>
+                            <TableHead
+                                class="cursor-pointer select-none whitespace-nowrap"
+                                @click="toggleSort('total')"
+                            >
+                                <span class="inline-flex items-center gap-1">
+                                    Total
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'total'">
+                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                        </template>
+                                        <template v-else>
+                                            <span class="opacity-30">↕</span>
+                                        </template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead class="w-[140px]">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -396,5 +446,3 @@ onMounted(() => {
         </Dialog>
     </AppLayout>
 </template>
-
-

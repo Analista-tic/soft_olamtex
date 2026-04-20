@@ -197,7 +197,7 @@ onMounted(() => {
             <FilterBar align="start" gap="gap-4">
                 <FilterField label="Buscar subgrupo" :active="isSearchActive" class="min-w-[240px] flex-1 p-0">
                     <div class="relative w-full">
-                        <Input id="search_subgroup" v-model="searchQuery" placeholder="Buscar por nombre" class="h-10 w-full pl-10" />
+                        <Input id="search_subgroup" v-model="searchQuery" placeholder="Buscar por nombre o grupo" class="h-10 w-full pl-10" />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                             <Search :size="20" class="text-muted-foreground" />
                         </span>
