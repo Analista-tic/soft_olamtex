@@ -29,7 +29,7 @@ class PurchaseDocumentController extends Controller
     {
         $filters = $request->only(['search', 'status', 'provider_id', 'date_from', 'date_to', 'subgroup_id', 'fabric_only', 'exclude_fabric']);
         // Pasar $request como cuarto parámetro solo si se provee (para sort)
-        $documents = $this->service->paginateDocuments($documentType, $filters, $perPage, $request);
+        $documents = $this->service->paginateDocuments($documentType, $filters, $perPage, $request, $request->user());
 
         return response()->json([
             'data' => $documents->items(),

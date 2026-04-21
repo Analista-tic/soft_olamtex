@@ -51,22 +51,42 @@ Route::prefix('finanzas')->name('finanzas.')->group(function () {
     Route::get('/comprobantes-egreso/crear', [ExpenseVoucherController::class, 'create'])->name('expense-vouchers.create')->middleware('permission:crear comprobantes egreso');
     Route::get('/comprobantes-egreso/{voucher}/editar', [ExpenseVoucherController::class, 'edit'])->name('expense-vouchers.edit')->middleware('permission:editar comprobantes egreso');
     Route::post('/comprobantes-egreso/{voucher}/anular', [ExpenseVoucherController::class, 'void'])->name('expense-vouchers.void')
-        ->middleware('permission:editar comprobantes egreso');
+        ->middleware('permission:anular comprobantes egreso');
     Route::get('/comprobantes-egreso/{voucher}', [ExpenseVoucherController::class, 'show'])->name('expense-vouchers.show')->middleware('permission:ver comprobantes egreso');
     Route::post('/comprobantes-egreso', [ExpenseVoucherController::class, 'store'])->name('expense-vouchers.store')->middleware('permission:crear comprobantes egreso');
     Route::put('/comprobantes-egreso/{voucher}', [ExpenseVoucherController::class, 'update'])->name('expense-vouchers.update')->middleware('permission:editar comprobantes egreso');
 
     // Recibos de caja
-    Route::get('/recibos-caja', fn () => Inertia::render('Finance/CashReceipts/Index'))->name('cash-receipts.index');
-    Route::get('/recibos-caja/data', [\App\Http\Controllers\Finance\CashReceiptController::class, 'index'])->name('cash-receipts.data');
-    Route::get('/recibos-caja/crear', fn () => Inertia::render('Finance/CashReceipts/CashReceiptForm'))->name('cash-receipts.create');
-    Route::post('/recibos-caja', [\App\Http\Controllers\Finance\CashReceiptController::class, 'store'])->name('cash-receipts.store');
-    Route::get('/recibos-caja/pending-invoices', [\App\Http\Controllers\Finance\CashReceiptController::class, 'pendingInvoices'])->name('cash-receipts.pending-invoices');
-    Route::get('/recibos-caja/customers', [\App\Http\Controllers\Finance\CashReceiptController::class, 'customers'])->name('cash-receipts.customers');
-    Route::get('/recibos-caja/accounts', [\App\Http\Controllers\Finance\CashReceiptController::class, 'accounts'])->name('cash-receipts.accounts');
-    Route::get('/recibos-caja/payment-methods', [\App\Http\Controllers\Finance\CashReceiptController::class, 'paymentMethods'])->name('cash-receipts.payment-methods');
-    Route::get('/recibos-caja/{receipt}', [\App\Http\Controllers\Finance\CashReceiptController::class, 'show'])->name('cash-receipts.show');
-    Route::post('/recibos-caja/{receipt}/void', [\App\Http\Controllers\Finance\CashReceiptController::class, 'void'])->name('cash-receipts.void');
+    Route::get('/recibos-caja', fn () => Inertia::render('Finance/CashReceipts/Index'))
+        ->middleware('permission:ver propios recibos caja|ver todos recibos caja')
+        ->name('cash-receipts.index');
+    Route::get('/recibos-caja/data', [\App\Http\Controllers\Finance\CashReceiptController::class, 'index'])
+        ->middleware('permission:ver propios recibos caja|ver todos recibos caja')
+        ->name('cash-receipts.data');
+    Route::get('/recibos-caja/crear', fn () => Inertia::render('Finance/CashReceipts/CashReceiptForm'))
+        ->middleware('permission:ver propios recibos caja|ver todos recibos caja')
+        ->name('cash-receipts.create');
+    Route::post('/recibos-caja', [\App\Http\Controllers\Finance\CashReceiptController::class, 'store'])
+        ->middleware('permission:ver propios recibos caja|ver todos recibos caja')
+        ->name('cash-receipts.store');
+    Route::get('/recibos-caja/pending-invoices', [\App\Http\Controllers\Finance\CashReceiptController::class, 'pendingInvoices'])
+        ->middleware('permission:ver propios recibos caja|ver todos recibos caja')
+        ->name('cash-receipts.pending-invoices');
+    Route::get('/recibos-caja/customers', [\App\Http\Controllers\Finance\CashReceiptController::class, 'customers'])
+        ->middleware('permission:ver propios recibos caja|ver todos recibos caja')
+        ->name('cash-receipts.customers');
+    Route::get('/recibos-caja/accounts', [\App\Http\Controllers\Finance\CashReceiptController::class, 'accounts'])
+        ->middleware('permission:ver propios recibos caja|ver todos recibos caja')
+        ->name('cash-receipts.accounts');
+    Route::get('/recibos-caja/payment-methods', [\App\Http\Controllers\Finance\CashReceiptController::class, 'paymentMethods'])
+        ->middleware('permission:ver propios recibos caja|ver todos recibos caja')
+        ->name('cash-receipts.payment-methods');
+    Route::get('/recibos-caja/{receipt}', [\App\Http\Controllers\Finance\CashReceiptController::class, 'show'])
+        ->middleware('permission:ver propios recibos caja|ver todos recibos caja')
+        ->name('cash-receipts.show');
+    Route::post('/recibos-caja/{receipt}/void', [\App\Http\Controllers\Finance\CashReceiptController::class, 'void'])
+        ->middleware('permission:anular recibo caja')
+        ->name('cash-receipts.void');
 
     // === CATÁLOGO DE CUENTAS ===
     Route::prefix('catalogo-cuentas')->name('account-chart.')->middleware('permission:ver catalogo cuentas')->group(function () {
@@ -75,8 +95,12 @@ Route::prefix('finanzas')->name('finanzas.')->group(function () {
         Route::get('/data', [AccountingAccountController::class, 'data'])->name('data');
         Route::get('/options', [AccountingAccountController::class, 'options'])->name('options');
         Route::get('/{id}/data', [AccountingAccountController::class, 'item'])->name('item');
-        Route::get('/{id}/movimientos', [AccountingAccountController::class, 'movements'])->name('movements');
-        Route::get('/{id}/movimientos/data', [AccountingAccountController::class, 'movementsData'])->name('movements.data');
+        Route::get('/{id}/movimientos', [AccountingAccountController::class, 'movements'])
+            ->middleware('permission:ver movimientos cuenta contable')
+            ->name('movements');
+        Route::get('/{id}/movimientos/data', [AccountingAccountController::class, 'movementsData'])
+            ->middleware('permission:ver movimientos cuenta contable')
+            ->name('movements.data');
         Route::get('/{id}/editar', [AccountingAccountController::class, 'edit'])->name('edit')->middleware('permission:editar catalogo cuentas');
         Route::get('/{id}', [AccountingAccountController::class, 'show'])->name('show');
         Route::post('/', [AccountingAccountController::class, 'store'])->name('store')->middleware('permission:crear catalogo cuentas');

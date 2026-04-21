@@ -38,7 +38,7 @@ class InventoryMovementController extends Controller
         ];
 
         $perPage = (int) $request->input('per_page', 20);
-        $paginator = $this->service->paginate($filters, $perPage);
+        $paginator = $this->service->paginate($filters, $perPage, $request->user());
 
         return response()->json([
             'data' => $paginator->items(),

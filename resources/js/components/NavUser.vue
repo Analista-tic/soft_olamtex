@@ -68,6 +68,8 @@ const underConstructionHref = (title: string) =>
         titulo: title,
     });
 
+const configurationAccessPermission = 'ver usuarios';
+
 const footerNavItems: NavItem[] = [
     {
         title: 'Reportes',
@@ -84,7 +86,7 @@ const footerNavItems: NavItem[] = [
         title: 'Configuración',
         href: '/configuracion',
         icon: Settings,
-        permission: 'ver usuarios',
+        permission: configurationAccessPermission,
     },
 ];
 
@@ -263,6 +265,9 @@ function onProfileDropdownOpenChange(open: boolean) {
 
 // Cargar contador al montar
 onMounted(() => {
+    void auth.fetchUser().catch(() => {
+        // El menú se renderiza con lo disponible si no se pueden cargar permisos.
+    });
     fetchUnreadCount();
 });
 </script>

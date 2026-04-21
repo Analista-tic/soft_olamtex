@@ -28,7 +28,10 @@ class QuoteController extends Controller
     {
         $perPage = (int) $request->integer('per_page', 10);
         $filters = $request->only(['search', 'status', 'contact_id', 'client_id', 'date_from', 'date_to']);
-        $documents = $this->service->paginateDocuments(SaleDocument::TYPE_QUOTE, $filters, $perPage);
+        $documents = $this->service->paginateDocuments(
+            SaleDocument::TYPE_QUOTE, $filters, $perPage,
+            $request->user(), 'ver propios cotizaciones', 'ver area cotizaciones', 'ver todos cotizaciones'
+        );
 
         return response()->json([
             'data' => $documents->items(),

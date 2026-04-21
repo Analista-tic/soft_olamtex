@@ -228,7 +228,7 @@ function handleSubmit() {
                                 />
                                 <button
                                     type="button"
-                                    class="flex h-10 w-10 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary hover:text-primary-foreground"
+                                    class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                     @click="addValueEntry"
                                 >
                                     <Plus class="h-4 w-4" />

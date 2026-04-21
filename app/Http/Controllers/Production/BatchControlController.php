@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Production;
 
 use App\Enums\EstatusOperacionOrden;
 use App\Helpers\MonthLabel;
+use App\Helpers\ScopeHelper;
 use App\Http\Controllers\Controller;
 use App\Models\Production\BatchControlDelivery;
 use App\Models\Production\BatchControlNovelty;
@@ -131,6 +132,8 @@ class BatchControlController extends Controller
         ->withCount(['pendingNovelties'])
         ->orderBy('batch_priority')
         ->orderByDesc('id');
+
+        ScopeHelper::apply($query, $request->user(), 'ver propios control lotes', 'ver area control lotes', 'ver todos control lotes');
 
         $orders = $query->get();
 

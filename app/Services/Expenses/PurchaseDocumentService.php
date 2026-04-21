@@ -2,6 +2,7 @@
 
 namespace App\Services\Expenses;
 
+use App\Helpers\ScopeHelper;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Settings\User;
@@ -18,10 +19,11 @@ class PurchaseDocumentService
 {
     protected array $defaultFabricSubgroupNames = ['tela'];
 
-    public function paginateDocuments(string $documentType, array $filters = [], int $perPage = 20, $request = null): LengthAwarePaginator
+    public function paginateDocuments(string $documentType, array $filters = [], int $perPage = 20, $request = null, ?User $user = null): LengthAwarePaginator
     {
         $query = $this->buildDocumentQuery($documentType);
         $query = $this->applyDocumentFilters($query, $filters);
+        $this->applyScopeForDocumentType($query, $documentType, $user);
 
         // Soporte de ordenamiento dinámico solo si $request está presente
         if ($request) {
@@ -50,6 +52,19 @@ class PurchaseDocumentService
             return $query->orderBy($sortBy, $sortDir)->orderByDesc('id')->paginate($perPage);
         }
         return $query->orderByDesc('date')->orderByDesc('id')->paginate($perPage);
+    }
+
+    private function applyScopeForDocumentType(Builder $query, string $documentType, ?User $user): void
+    {
+        $typeMap = [
+            PurchaseDocument::TYPE_ORDER   => ['ver propios ordenes compra',   'ver area ordenes compra',   'ver todos ordenes compra'],
+            PurchaseDocument::TYPE_INVOICE => ['ver propios facturas compra',  'ver area facturas compra',  'ver todos facturas compra'],
+        ];
+
+        $permissions = $typeMap[$documentType] ?? null;
+        if ($permissions) {
+            ScopeHelper::apply($query, $user, $permissions[0], $permissions[1], $permissions[2]);
+        }
     }
 
     public function buildDocumentQuery(string $documentType): Builder

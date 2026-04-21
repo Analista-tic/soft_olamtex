@@ -115,6 +115,29 @@ function handleCheckboxChange(event: Event, module: string): void {
     const target = event.target as HTMLInputElement;
     toggleModulePermissions(module, target.checked);
 }
+
+const searchPermissions = ref('');
+
+const filteredPermissionModules = computed(() => {
+    const query = searchPermissions.value
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+    if (!query) return permissionsByModule;
+
+    const result: Record<string, string[]> = {};
+    for (const [module, perms] of Object.entries(permissionsByModule)) {
+        const moduleNorm = module.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const matchedPerms = perms.filter((p) => {
+            const pNorm = p.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            return pNorm.includes(query) || moduleNorm.includes(query);
+        });
+        if (matchedPerms.length > 0) {
+            result[module] = matchedPerms;
+        }
+    }
+    return result;
+});
 </script>
 
 <template>
@@ -169,9 +192,19 @@ function handleCheckboxChange(event: Event, module: string): void {
                                 </label>
                             </div>
 
+                            <div class="mb-3">
+                                <input
+                                    v-model="searchPermissions"
+                                    type="text"
+                                    placeholder="Buscar permiso..."
+                                    class="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                                />
+                            </div>
+
                             <div class="grid grid-cols-2 gap-3">
+                                <template v-if="Object.keys(filteredPermissionModules).length > 0">
                                 <div
-                                    v-for="(permissions, module) in permissionsByModule"
+                                    v-for="(permissions, module) in filteredPermissionModules"
                                     :key="module"
                                     class="rounded-lg border border-border bg-muted/30 p-3"
                                 >
@@ -211,6 +244,10 @@ function handleCheckboxChange(event: Event, module: string): void {
                                         </label>
                                     </div>
                                 </div>
+                                </template>
+                                <p v-else class="col-span-2 py-4 text-center text-xs text-muted-foreground">
+                                    No se encontraron permisos
+                                </p>
                             </div>
                         </div>
 

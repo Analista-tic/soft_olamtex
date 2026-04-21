@@ -25,13 +25,13 @@ Route::prefix('bodegas')->name('warehouses.')->group(function () {
 });
 
 // === TRANSFERENCIAS DE BODEGA ===
-Route::prefix('transferencias-bodegas')->name('warehouse-transfers.')->group(function () {
+Route::prefix('transferencias-bodegas')->name('warehouse-transfers.')->middleware('permission:ver transferencias bodegas')->group(function () {
     Route::get('/', [WarehouseTransferController::class, 'index'])->name('index');
     Route::get('/data', [WarehouseTransferController::class, 'getData'])->name('data');
     Route::get('/{transfer}', [WarehouseTransferController::class, 'show'])->name('show');
-    Route::post('/', [WarehouseTransferController::class, 'store'])->name('store');
-    Route::put('/{transfer}', [WarehouseTransferController::class, 'update'])->name('update');
-    Route::delete('/{transfer}', [WarehouseTransferController::class, 'destroy'])->name('destroy');
+    Route::post('/', [WarehouseTransferController::class, 'store'])->name('store')->middleware('permission:crear transferencias bodegas');
+    Route::put('/{transfer}', [WarehouseTransferController::class, 'update'])->name('update')->middleware('permission:editar transferencias bodegas');
+    Route::delete('/{transfer}', [WarehouseTransferController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar transferencias bodegas');
 });
 
 // === INVENTARIO DE ÍTEMS ===
@@ -51,8 +51,8 @@ Route::prefix('inventario/solicitudes-internas')->name('inventory-requests.')->g
     Route::get('/{inventoryRequest}', [InventoryRequestController::class, 'show'])->name('show');
     Route::post('/', [InventoryRequestController::class, 'store'])->name('store');
     Route::put('/{inventoryRequest}', [InventoryRequestController::class, 'update'])->name('update');
-    Route::post('/{inventoryRequest}/deliver', [InventoryRequestController::class, 'deliver'])->name('deliver');
-    Route::post('/{inventoryRequest}/reject', [InventoryRequestController::class, 'reject'])->name('reject');
+    Route::post('/{inventoryRequest}/deliver', [InventoryRequestController::class, 'deliver'])->name('deliver')->middleware('permission:entregar solicitudes insumos');
+    Route::post('/{inventoryRequest}/reject', [InventoryRequestController::class, 'reject'])->name('reject')->middleware('permission:rechazar solicitudes insumos');
 });
 
 // === INVENTARIO GENERAL ===
@@ -63,15 +63,15 @@ Route::prefix('inventario-item')->name('inventario-item.')->group(function () {
 Route::get('/warehouse-items', [WarehouseItemStockController::class, 'index']);
 
 // === CAMPOS ADICIONALES ===
-Route::prefix('campos-adicionales')->name('inventory.additional-fields.')->group(function () {
+Route::prefix('campos-adicionales')->name('inventory.additional-fields.')->middleware('permission:ver campos adicionales')->group(function () {
     Route::get('/', [AdditionalFieldController::class, 'index'])->name('index');
     Route::get('/options', [AdditionalFieldController::class, 'options'])->name('options');
     Route::get('/data', [AdditionalFieldController::class, 'getData'])->name('data');
-    Route::post('/', [AdditionalFieldController::class, 'store'])->name('store');
-    Route::post('/reorder', [AdditionalFieldController::class, 'reorder'])->name('reorder');
+    Route::post('/', [AdditionalFieldController::class, 'store'])->name('store')->middleware('permission:crear campos adicionales');
+    Route::post('/reorder', [AdditionalFieldController::class, 'reorder'])->name('reorder')->middleware('permission:editar campos adicionales');
     Route::get('/{additionalField}', [AdditionalFieldController::class, 'show'])->name('show');
-    Route::put('/{additionalField}', [AdditionalFieldController::class, 'update'])->name('update');
-    Route::delete('/{additionalField}', [AdditionalFieldController::class, 'destroy'])->name('destroy');
+    Route::put('/{additionalField}', [AdditionalFieldController::class, 'update'])->name('update')->middleware('permission:editar campos adicionales');
+    Route::delete('/{additionalField}', [AdditionalFieldController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar campos adicionales');
 });
 
 // === AJUSTES DE INVENTARIO ===
@@ -95,5 +95,5 @@ Route::prefix('movimientos-inventario')->name('movimientos-inventario.')->group(
     Route::post('/transfer', [InventoryMovementController::class, 'storeTransfer'])->name('transfer');
     Route::post('/', [InventoryMovementController::class, 'store'])->name('store');
     Route::get('/{id}', [InventoryMovementController::class, 'show'])->name('show');
-    Route::delete('/{id}', [InventoryMovementController::class, 'destroy'])->name('destroy');
+    Route::delete('/{id}', [InventoryMovementController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar movimiento inventario');
 });

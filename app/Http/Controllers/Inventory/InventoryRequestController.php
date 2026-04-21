@@ -8,7 +8,6 @@ use App\Services\Inventory\InventoryRequestService;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -24,11 +23,11 @@ class InventoryRequestController extends Controller
     public function getData(Request $request)
     {
         $user = Auth::user();
-        $canManageRequests = $this->canManageRequests($user);
         $filters = $request->only(['search', 'status', 'date_from', 'date_to', 'sort_by', 'sort_dir']);
         $perPage = $request->input('per_page', 10);
 
-        $requests = $this->service->paginate($filters, $perPage, $user, $canManageRequests);
+        $requests = $this->service->paginate($filters, $perPage, $user);
+        $canManageRequests = $user && $user->hasAnyPermission(['gestionar solicitudes internas', 'aprobar solicitudes internas']);
         $rows = array_map(function (InventoryRequest $req) {
             $hasMissing = $req->relationLoaded('items')
                 ? $req->items->contains(fn ($item) => $item->item_id === null)
@@ -240,7 +239,7 @@ class InventoryRequestController extends Controller
     private function ensureCanView(InventoryRequest $inventoryRequest): void
     {
         $user = $this->requireUser();
-        if ($this->canManageRequests($user)) {
+        if ($user->hasAnyPermission(['gestionar solicitudes internas', 'aprobar solicitudes internas', 'ver todos solicitudes insumos', 'ver area solicitudes insumos'])) {
             return;
         }
 
@@ -259,48 +258,10 @@ class InventoryRequestController extends Controller
 
     private function ensureCanManage(InventoryRequest $inventoryRequest): void
     {
-        if (!$this->canManageRequests($this->requireUser())) {
+        $user = $this->requireUser();
+        if (!$user->hasAnyPermission(['gestionar solicitudes internas', 'aprobar solicitudes internas'])) {
             abort(403, 'No tiene permiso para gestionar solicitudes internas.');
         }
-    }
-
-    private function canManageRequests($user): bool
-    {
-        if (!$user) {
-            return false;
-        }
-
-        if (
-            $user->can('gestionar solicitudes internas')
-            || $user->can('aprobar solicitudes internas')
-            || $user->can('inventory.requests.manage')
-        ) {
-            return true;
-        }
-
-        if (!$user->relationLoaded('roles')) {
-            $user->loadMissing('roles');
-        }
-
-        $normalizedRoleNames = collect($user->roles ?? [])
-            ->pluck('name')
-            ->filter()
-            ->map(fn ($name) => (string) Str::of(trim((string) $name))->ascii()->lower())
-            ->values()
-            ->all();
-
-        if (in_array('admin', $normalizedRoleNames, true)) {
-            return true;
-        }
-
-        $logisticsRoles = ['logistica', 'logistics'];
-        foreach ($logisticsRoles as $role) {
-            if (in_array($role, $normalizedRoleNames, true)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function requireUser()

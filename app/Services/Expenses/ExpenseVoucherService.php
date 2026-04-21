@@ -2,10 +2,12 @@
 
 namespace App\Services\Expenses;
 
+use App\Helpers\ScopeHelper;
 use App\Models\Expenses\ExpenseVoucher;
 use App\Models\Inventory\InventoryPeriodLock;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchasePayment;
+use App\Models\Settings\User;
 use App\Services\Finance\AccountingPostingService;
 use App\Services\Finance\TreasuryVoucherService;
 use Illuminate\Support\Collection;
@@ -25,7 +27,7 @@ class ExpenseVoucherService
     ) {
     }
 
-    public function paginate(array $filters = [], int $perPage = 10)
+    public function paginate(array $filters = [], int $perPage = 10, ?User $user = null)
     {
         $search = trim((string) ($filters['search'] ?? ''));
         $providerId = isset($filters['provider_id']) ? (int) $filters['provider_id'] : null;
@@ -39,6 +41,8 @@ class ExpenseVoucherService
             ->leftJoin('finance_expense_vouchers as vouchers', 'vouchers.voucher_number', '=', 'purchase_payments.voucher_number')
             ->leftJoin('contacts', 'contacts.id', '=', 'purchase_documents.contact_id')
             ->selectRaw("{$voucherKeyExpression} AS voucher_key");
+
+        ScopeHelper::apply($matchingVoucherKeys, $user, 'ver propios comprobantes egreso', 'ver area comprobantes egreso', 'ver todos comprobantes egreso', 'purchase_payments.created_by_user_id');
 
         if ($search !== '') {
             $matchingVoucherKeys->where(function ($builder) use ($search) {

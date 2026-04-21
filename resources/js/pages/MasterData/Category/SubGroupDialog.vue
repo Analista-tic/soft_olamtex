@@ -165,7 +165,6 @@ function submitForm() {
                                     label=""
                                     :options="localGroups.map((group: CategoryGroup) => ({ id: group.id, name: group.name }))"
                                     v-model="form.category_group_id"
-                                    :clearable="true"
                                     required
                                     placeholder="Selecciona un grupo"
                                     :button-class="'w-full'"
@@ -189,12 +188,11 @@ function submitForm() {
                             <button
                                 v-if="dialogType === 'create'"
                                 type="button"
-                                class="ml-2 flex items-center justify-center bg-transparent shadow-none disabled:cursor-not-allowed disabled:opacity-50"
-                                style="height: 2.5rem"
+                                class="ml-2 mt-5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 @click="addSubGroupToList"
                                 :disabled="!subGroupName.trim()"
                             >
-                                <Plus class="mt-5 h-6 w-6 cursor-pointer transition-colors hover:text-primary" />
+                                <Plus class="h-4 w-4" />
                             </button>
                         </div>
                         <div v-if="dialogType === 'create'" class="mt-4 space-y-2">

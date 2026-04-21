@@ -28,7 +28,10 @@ class SalesInvoiceController extends Controller
     {
         $perPage = (int) $request->integer('per_page', 10);
         $filters = $request->only(['search', 'status', 'payment_status', 'contact_id', 'client_id', 'date_from', 'date_to', 'origin']);
-        $documents = $this->service->paginateDocuments(SaleDocument::TYPE_INVOICE, $filters, $perPage);
+        $documents = $this->service->paginateDocuments(
+            SaleDocument::TYPE_INVOICE, $filters, $perPage,
+            $request->user(), 'ver propios facturas venta', 'ver area facturas venta', 'ver todos facturas venta'
+        );
 
         $documents->setCollection(
             $documents->getCollection()

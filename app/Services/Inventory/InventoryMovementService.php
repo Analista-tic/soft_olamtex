@@ -2,9 +2,11 @@
 
 namespace App\Services\Inventory;
 
+use App\Helpers\ScopeHelper;
 use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\InventoryPeriodLock;
 use App\Models\MasterData\Item;
+use App\Models\Settings\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -96,8 +98,8 @@ class InventoryMovementService
                 }
             } else { // ajuste
                 // En ajustes, la cantidad puede ser positiva o negativa
-                $adjustmentQuantity = isset($data['adjustment_quantity']) 
-                    ? (float) $data['adjustment_quantity'] 
+                $adjustmentQuantity = isset($data['adjustment_quantity'])
+                    ? (float) $data['adjustment_quantity']
                     : $quantity;
                 $newStock = $previousStock + $adjustmentQuantity;
             }
@@ -107,7 +109,7 @@ class InventoryMovementService
             // Para entradas, el precio unitario es obligatorio para recalcular el promedio
             $hasUnitPrice = array_key_exists('unit_price', $data) && $data['unit_price'] !== null && $data['unit_price'] !== '';
             $unitPrice = $hasUnitPrice ? (float) $data['unit_price'] : null;
-            
+
             // Validar que las entradas tengan precio unitario
             if ($data['type'] === 'entrada' && ! $hasUnitPrice) {
                 throw new \InvalidArgumentException('Las entradas de inventario requieren un precio unitario para calcular el costo promedio ponderado.');
@@ -116,7 +118,7 @@ class InventoryMovementService
             if ($data['type'] === 'entrada' && $unitPrice !== null && $unitPrice < 0) {
                 throw new \InvalidArgumentException('Las entradas de inventario no permiten precio unitario negativo.');
             }
-            
+
             $newWeightedPrice = $this->calculateWeightedAverage(
                 $previousStock,
                 $previousWeightedPrice,
@@ -174,7 +176,7 @@ class InventoryMovementService
      * Calcular precio ponderado según el método de promedio ponderado.
      *
      * MÉTODO DE PROMEDIO PONDERADO:
-     * 
+     *
      * 1. Multiplica la cantidad comprada por su costo unitario en cada compra.
      * 2. Suma el costo total de todas las compras.
      * 3. Divide ese total entre la cantidad total de unidades compradas.
@@ -219,7 +221,7 @@ class InventoryMovementService
 
         // Precio efectivo a usar en el cálculo
         $effectivePrice = $unitPrice ?? $previousPrice;
-        
+
         // Calcular nuevo stock total
         $newStock = $previousStock + $quantity;
 
@@ -394,9 +396,10 @@ class InventoryMovementService
     /**
      * Paginar todos los movimientos con filtros.
      */
-    public function paginate(array $filters = [], int $perPage = 20): LengthAwarePaginator
+    public function paginate(array $filters = [], int $perPage = 20, ?User $user = null): LengthAwarePaginator
     {
         $query = InventoryMovement::with(['item', 'warehouse', 'createdBy']);
+        ScopeHelper::apply($query, $user, 'ver propios movimientos inventario', null, 'ver todos movimientos inventario');
 
         if (!empty($filters['item_id'])) {
             $query->where('item_id', $filters['item_id']);
@@ -534,10 +537,10 @@ class InventoryMovementService
 
     /**
      * Crear movimiento de devolución de venta.
-     * 
+     *
      * Las devoluciones de ventas regresan al inventario con el costo promedio vigente
      * en la fecha de la devolución. NO se usa el precio de venta original.
-     * 
+     *
      * @param array $data item_id, warehouse_id, quantity, notes (requeridos);
      *   date, source_type, source_id, created_by_user_id (opcionales)
      * @return InventoryMovement
@@ -563,10 +566,10 @@ class InventoryMovementService
 
     /**
      * Crear movimiento de devolución de compra.
-     * 
+     *
      * Las devoluciones de compras salen del inventario usando el costo promedio vigente
      * en la fecha de la devolución. NO se usa el precio de compra original.
-     * 
+     *
      * @param array $data Datos de la devolución:
      *   - item_id, warehouse_id, quantity (requeridos)
      *   - notes (requerido)
