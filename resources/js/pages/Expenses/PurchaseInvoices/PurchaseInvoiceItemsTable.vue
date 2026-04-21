@@ -35,6 +35,10 @@ const taxDialogLoading = ref(false);
 type TaxDialogForm = Pick<Tax, 'name' | 'percentage' | 'status'> & { id?: number };
 const taxForm = ref<TaxDialogForm>({ name: '', percentage: 0, status: true });
 const isItemDialogOpen = ref(false);
+const itemDialogTargetRowIndex = ref<number | null>(null);
+const itemCatalogSnapshotBeforeCreate = ref<number[]>([]);
+const createdItemCandidateId = ref<number | null>(null);
+const pendingItemDialogRefresh = ref<Promise<void> | null>(null);
 const itemDialogForm = ref<Partial<Item>>({
     reference: '',
     description: '',
@@ -231,6 +235,11 @@ function openTaxDialog() {
     isTaxDialogOpen.value = true;
 }
 
+function detectCreatedItemId(previousIds: number[], currentItems: Item[]): number | null {
+    const newItem = currentItems.find((item) => !previousIds.includes(Number(item.id)));
+    return newItem ? Number(newItem.id) : null;
+}
+
 async function handleTaxDialogSubmit(formData: TaxDialogForm) {
     taxDialogLoading.value = true;
     try {
@@ -244,7 +253,12 @@ async function handleTaxDialogSubmit(formData: TaxDialogForm) {
     }
 }
 
-function openItemDialog() {
+function openItemDialog(targetRowIdx: number | null = null) {
+    itemDialogTargetRowIndex.value = targetRowIdx;
+    itemCatalogSnapshotBeforeCreate.value = catalogItems.value
+        .map((item) => Number(item.id))
+        .filter((id) => Number.isFinite(id));
+    createdItemCandidateId.value = null;
     itemDialogForm.value = {
         reference: '',
         description: '',
@@ -256,8 +270,30 @@ function openItemDialog() {
 }
 
 async function handleItemDialogRefresh() {
-    cachedItems = null;
-    await fetchItems();
+    const previousIds = [...itemCatalogSnapshotBeforeCreate.value];
+    pendingItemDialogRefresh.value = (async () => {
+        cachedItems = null;
+        await fetchItems();
+        createdItemCandidateId.value = detectCreatedItemId(previousIds, catalogItems.value);
+    })();
+    await pendingItemDialogRefresh.value;
+    pendingItemDialogRefresh.value = null;
+}
+
+async function handleItemDialogSaved(mode: 'create' | 'edit') {
+    if (mode !== 'create') return;
+
+    if (pendingItemDialogRefresh.value) {
+        await pendingItemDialogRefresh.value;
+    } else {
+        await handleItemDialogRefresh();
+    }
+
+    const rowIdx = itemDialogTargetRowIndex.value;
+    if (rowIdx == null || rowIdx < 0 || rowIdx >= localItems.value.length || createdItemCandidateId.value == null) return;
+
+    localItems.value[rowIdx].item_id = createdItemCandidateId.value;
+    itemDialogTargetRowIndex.value = null;
 }
 
 function addItem() {
@@ -467,7 +503,7 @@ defineExpose({ addItem });
                                     class="h-10 w-full"
                                     :action-label="!isReadOnly ? 'Nuevo item' : undefined"
                                     :action-disabled="isReadOnly"
-                                    @action="openItemDialog"
+                                    @action="() => openItemDialog(idx)"
                                     :dusk="`factura-item-${idx}-item`"
                                 />
                                 <div class="min-h-[20px]"></div>
@@ -634,6 +670,7 @@ defineExpose({ addItem });
             dialog-type="create"
             :form="itemDialogForm"
             @refresh="handleItemDialogRefresh"
+            @saved="handleItemDialogSaved"
             @close="isItemDialogOpen = false"
         />
         <TaxDialog

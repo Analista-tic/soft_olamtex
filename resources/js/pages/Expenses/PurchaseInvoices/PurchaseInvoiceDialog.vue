@@ -46,6 +46,7 @@ type PurchaseInvoiceWithProviderName = Partial<PurchaseInvoice> & { provider_nam
 const localForm = ref<PurchaseInvoiceWithProviderName>(createDefaultForm());
 const contacts = ref<Contact[]>([]);
 const isContactDialogOpen = ref(false);
+const contactDialogError = ref('');
 const contactDialogForm = ref<Partial<Contact>>({ groups: [] });
 const isLoading = ref(false);
 const isSubmittingDialog = ref(false);
@@ -318,21 +319,28 @@ function handleContactFormUpdate(updatedContact: Partial<Contact>) {
 
 async function handleContactDialogSubmit(contactData: Partial<Contact>) {
     try {
+        const previousIds = contacts.value
+            .map((c) => Number(c.id))
+            .filter((id) => Number.isFinite(id));
+
         await axios.post('/contactos', contactData);
         isContactDialogOpen.value = false;
         await fetchContacts();
 
-        const createdContact = contacts.value.find((contact) => {
-            const matchesEmail = contactData.email && contact.email === contactData.email;
-            const matchesIdNumber = contactData.id_number && contact.id_number === contactData.id_number;
-            return Boolean(matchesEmail || matchesIdNumber);
-        });
-
-        if (createdContact?.id) {
-            localForm.value.contact_id = Number(createdContact.id);
+        const newContact = contacts.value.find((c) => !previousIds.includes(Number(c.id)));
+        if (newContact?.id) {
+            localForm.value.contact_id = Number(newContact.id);
         }
-    } catch (error) {
-        console.error('Error al guardar el contacto:', error);
+    } catch (error: any) {
+        const validationErrors = error?.response?.data?.errors;
+        if (validationErrors) {
+            const messages = Object.values(validationErrors)
+                .flat()
+                .join(' ');
+            contactDialogError.value = messages;
+        } else {
+            contactDialogError.value = 'Ocurrió un error al guardar el contacto.';
+        }
     }
 }
 
@@ -1083,7 +1091,8 @@ watch(dialogOpen, (isOpen) => {
         :isOpen="isContactDialogOpen"
         dialog-type="create"
         :contactData="contactDialogForm"
-        @close="isContactDialogOpen = false"
+        :externalError="contactDialogError"
+        @close="isContactDialogOpen = false; contactDialogError = ''"
         @submit="handleContactDialogSubmit"
         @update:contactData="handleContactFormUpdate"
     />

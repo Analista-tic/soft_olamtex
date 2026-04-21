@@ -22,6 +22,7 @@ import FabricRollDialog from './FabricRollDialog.vue';
 
 interface PageProps extends InertiaPageProps {
     invoiceId?: string | number;
+    receptionScope?: 'all' | 'general' | 'fabric';
     [key: string]: any;
 }
 
@@ -34,13 +35,17 @@ const returnToUrl = computed(() => {
 });
 
 /** Breadcrumbs: enlazan a la lista de facturas correspondiente (telas o compra) según origen. */
-const isTelasList = computed(() => {
-    const r = returnToUrl.value;
-    return typeof r === 'string' && r.includes('facturas-compra-tela');
+const receptionScope = computed<'all' | 'general' | 'fabric'>(() => {
+    const s = props.receptionScope;
+    return s === 'general' || s === 'fabric' ? s : 'all';
 });
-const isAllReceptions = computed(() => {
-    const r = returnToUrl.value;
-    return !r || (!r.includes('facturas-compra-tela') && !r.includes('facturas-compra'));
+
+const isTelasList = computed(() => {
+    if (receptionScope.value === 'fabric') return true;
+    if (receptionScope.value === 'general') return false;
+    const inv = selectedInvoice.value;
+    if (!inv || !Array.isArray(inv.items)) return false;
+    return inv.items.some((row: any) => isFabricItem(row));
 });
 const invoiceListHref = computed(() => (isTelasList.value ? '/gastos/facturas-compra-tela' : '/gastos/facturas-compra'));
 const invoiceListTitle = computed(() => (isTelasList.value ? 'Facturas de compra de telas' : 'Facturas de compra'));
@@ -143,10 +148,6 @@ const showInvoicesList = computed(() => {
 const showInvoiceDetail = computed(() => {
     return selectedInvoice.value !== null;
 });
-const receptionScope = computed<'all' | 'general' | 'fabric'>(() => {
-    if (isAllReceptions.value) return 'all';
-    return isTelasList.value ? 'fabric' : 'general';
-});
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
@@ -192,7 +193,7 @@ async function fetchSpecificInvoice(invoiceId: number) {
     isLoadingSpecificInvoice.value = true;
     try {
         console.log('Cargando factura ID:', invoiceId);
-        const response = await axios.get(`/gastos/facturas-compra/${invoiceId}`);
+        const response = await axios.get(`/kardex-telas/recepcion/facturas/${invoiceId}`);
         console.log('Respuesta de la factura:', response.data);
 
         if (response.data && response.data.data) {
@@ -474,7 +475,9 @@ function openFabricRollDialog(item: any) {
 }
 
 function isFabricItem(item: any): boolean {
-    const name = (item?.item?.name ?? item?.article?.name ?? '').toString().toLowerCase();
+    const subgroup = (item?.item?.category_sub_group?.name ?? '').toString().toLowerCase().trim();
+    if (subgroup !== '') return subgroup.includes('tela');
+    const name = (item?.item_name ?? item?.item?.name ?? '').toString().toLowerCase().trim();
     return name.includes('tela');
 }
 

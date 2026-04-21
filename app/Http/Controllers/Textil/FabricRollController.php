@@ -241,12 +241,16 @@ class FabricRollController extends Controller
         return "{$normalized} m";
     }
 
-    public function reception()
+    public function reception(Request $request)
     {
-        return Inertia::render('Expenses/Reception/Reception');
+        $scope = $this->resolveReceptionScope($request->query('scope', 'all'));
+
+        return Inertia::render('Expenses/Reception/Reception', [
+            'receptionScope' => $scope,
+        ]);
     }
 
-    public function receptionShow($invoiceId)
+    public function receptionShow(Request $request, $invoiceId)
     {
         $invoice = PurchaseDocument::query()
             ->where('document_type', PurchaseDocument::TYPE_INVOICE)
@@ -254,8 +258,11 @@ class FabricRollController extends Controller
 
         $this->abortIfDifferenceRejected($invoice);
 
+        $scope = $this->resolveReceptionScope($request->query('scope', 'all'));
+
         return Inertia::render('Expenses/Reception/Reception', [
-            'invoiceId' => $invoiceId
+            'invoiceId' => $invoiceId,
+            'receptionScope' => $scope,
         ]);
     }
 
