@@ -55,7 +55,7 @@ class PurchaseDocumentService
     public function buildDocumentQuery(string $documentType): Builder
     {
         return PurchaseDocument::with([
-            'items.item',
+            'items.item.categorySubGroup:id,name',
             'supplier:id,full_name,id_number,phone,email',
             'creator:id,name',
             'executor:id,name',
@@ -246,7 +246,7 @@ class PurchaseDocumentService
     public function loadWithRelations(PurchaseDocument $document): PurchaseDocument
     {
         $document->load([
-            'items.item',
+            'items.item.categorySubGroup:id,name',
             'supplier',
             'creator',
             'executor',
