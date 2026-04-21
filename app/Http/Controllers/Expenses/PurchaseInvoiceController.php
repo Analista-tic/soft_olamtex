@@ -65,7 +65,8 @@ class PurchaseInvoiceController extends PurchaseDocumentController
             PurchaseDocument::TYPE_INVOICE,
             $filters,
             $request->input('per_page', 20),
-            $request
+            $request,
+            auth()->user()
         );
 
         return response()->json([

@@ -11,9 +11,10 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 // === RETENCIONES ===
+Route::get('retenciones/data', [RetentionController::class, 'data'])->name('retenciones.data');
+
 Route::prefix('retenciones')->name('retenciones.')->middleware('permission:ver retenciones')->group(function () {
     Route::get('/', [RetentionController::class, 'index'])->name('index');
-    Route::get('/data', [RetentionController::class, 'data'])->name('data');
     Route::get('/{id}', [RetentionController::class, 'show'])->name('show');
     Route::post('/', [RetentionController::class, 'store'])->name('store')->middleware('permission:crear retenciones');
     Route::put('/{id}', [RetentionController::class, 'update'])->name('update')->middleware('permission:editar retenciones');
@@ -21,9 +22,10 @@ Route::prefix('retenciones')->name('retenciones.')->middleware('permission:ver r
 });
 
 // === IMPUESTOS ===
+Route::get('impuestos/data', [TaxController::class, 'data'])->name('impuestos.data');
+
 Route::prefix('impuestos')->name('impuestos.')->middleware('permission:ver impuestos')->group(function () {
     Route::get('/', [TaxController::class, 'index'])->name('index');
-    Route::get('/data', [TaxController::class, 'data'])->name('data');
     Route::get('/{id}', [TaxController::class, 'show'])->name('show');
     Route::post('/', [TaxController::class, 'store'])->name('store')->middleware('permission:crear impuestos');
     Route::put('/{id}', [TaxController::class, 'update'])->name('update')->middleware('permission:editar impuestos');

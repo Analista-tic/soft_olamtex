@@ -294,7 +294,8 @@ class FabricRollController extends Controller
             PurchaseDocument::TYPE_INVOICE,
             $filters,
             (int) $request->input('per_page', 10),
-            $request
+            $request,
+            auth()->user()
         );
 
         return response()->json([

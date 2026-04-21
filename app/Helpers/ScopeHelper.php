@@ -37,8 +37,14 @@ class ScopeHelper
         }
 
         // 1. Ver todos — sin restricción
-        if ($allPermission && $user->hasPermissionTo($allPermission)) {
-            return $query;
+        if ($allPermission) {
+            try {
+                if ($user->hasPermissionTo($allPermission)) {
+                    return $query;
+                }
+            } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist $e) {
+                // permiso no registrado en BD, continuar con scope normal
+            }
         }
 
         // 2. Ver área — usuarios del mismo área

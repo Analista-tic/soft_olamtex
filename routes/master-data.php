@@ -21,9 +21,10 @@ Route::prefix('categorias')->name('categorias.')->middleware('permission:ver cat
 });
 
 // === CONTACTOS ===
+Route::get('contactos/data', [ContactController::class, 'getData'])->name('contactos.getData');
+
 Route::prefix('contactos')->name('contactos.')->middleware('permission:ver contactos')->group(function () {
     Route::get('/', [ContactController::class, 'index'])->name('index');
-    Route::get('/data', [ContactController::class, 'getData'])->name('getData');
     Route::post('/', [ContactController::class, 'store'])->name('store')->middleware('permission:crear contactos');
     Route::get('/{contact}', [ContactController::class, 'show'])->name('show');
     Route::put('/{contact}', [ContactController::class, 'update'])->name('update')->middleware('permission:editar contactos');

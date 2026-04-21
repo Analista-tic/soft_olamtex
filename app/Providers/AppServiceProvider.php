@@ -44,6 +44,7 @@ use App\Models\Settings\Setting;
 use App\Models\Textil\FabricRoll;
 use App\Observers\AuditObserver;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
@@ -64,6 +65,20 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Gate::before(function ($user, $ability) {
+            $isAdmin = method_exists($user, 'roles')
+                ? ($user->relationLoaded('roles')
+                    ? $user->roles->contains('name', 'admin')
+                    : $user->roles()->where('name', 'admin')->exists())
+                : false;
+
+            if ($isAdmin) {
+                return true;
+            }
+
+            return null;
+        });
+
         Schema::defaultStringLength(191); // Limita las cadenas a 191 caracteres
 
         if (app()->isProduction()) {
