@@ -801,14 +801,19 @@ function onFabricRollSuccess() {
                                                             ? getBlockersForInvoiceId(invoice.id).join(' ')
                                                             : 'Aprobar recepción'
                                                     "
-                                                    @click="getBlockersForInvoiceId(invoice.id).length === 0 && approveReception(invoice)"
+                                                    @click="
+                                                        getBlockersForInvoiceId(invoice.id).length > 0
+                                                            ? setAlert(getBlockersForInvoiceId(invoice.id).join(' '), 'warning')
+                                                            : approveReception(invoice)
+                                                    "
                                                 >
                                                     <Check class="h-4 w-4" />
                                                 </button>
                                                 <span
                                                     v-if="getBlockersForInvoiceId(invoice.id).length > 0"
-                                                    class="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background"
+                                                    class="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 cursor-pointer rounded-full bg-destructive ring-2 ring-background"
                                                     title="Condiciones no cumplidas para aprobar"
+                                                    @click="setAlert(getBlockersForInvoiceId(invoice.id).join(' '), 'warning')"
                                                 />
                                             </div>
                                             <button
