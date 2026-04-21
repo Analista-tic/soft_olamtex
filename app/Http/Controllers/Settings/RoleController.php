@@ -6,11 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Services\Settings\RoleService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Spatie\Permission\Models\Permission;
 
 class RoleController extends Controller
 {
     public function __construct(protected RoleService $service) {}
+
     /**
      * Display a listing of the resource.
      */
@@ -18,9 +18,10 @@ class RoleController extends Controller
     {
         $roles = $this->service->listAll();
         $permissions = $this->service->allPermissions();
+
         return Inertia::render('Configuration/Roles/Index', [
             'roles' => $roles,
-            'permissions' => $permissions
+            'permissions' => $permissions,
         ]);
     }
 
@@ -39,37 +40,12 @@ class RoleController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:roles,name',
-            'area_id' => [
-                'nullable',
-                'integer',
-                'required_without:area_name',
-                function ($attribute, $value, $fail) {
-                    if ($value === null) {
-                        return;
-                    }
-                    $areas = \App\Models\MasterData\Parameter::where('nombre', 'areas')->first();
-                    $ids = collect($areas ? $areas->valor : [])->pluck('id')->toArray();
-                    if (!in_array($value, $ids)) {
-                        $fail('El área seleccionada no es válida.');
-                    }
-                }
-            ],
-            'area_name' => [
-                'nullable',
-                'string',
-                'max:255',
-                'required_without:area_id',
-                function ($attribute, $value, $fail) {
-                    if ($value !== null && trim((string) $value) === '') {
-                        $fail('El nombre del área es obligatorio.');
-                    }
-                }
-            ],
             'permissions' => 'nullable|array',
             'permissions.*' => 'exists:permissions,name',
         ]);
 
         $role = $this->service->create($validated);
+
         return response()->json($role, 201);
     }
 
@@ -98,32 +74,6 @@ class RoleController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:roles,name,' . $role->id,
-            'area_id' => [
-                'nullable',
-                'integer',
-                'required_without:area_name',
-                function ($attribute, $value, $fail) {
-                    if ($value === null) {
-                        return;
-                    }
-                    $areas = \App\Models\MasterData\Parameter::where('nombre', 'areas')->first();
-                    $ids = collect($areas ? $areas->valor : [])->pluck('id')->toArray();
-                    if (!in_array($value, $ids)) {
-                        $fail('El área seleccionada no es válida.');
-                    }
-                }
-            ],
-            'area_name' => [
-                'nullable',
-                'string',
-                'max:255',
-                'required_without:area_id',
-                function ($attribute, $value, $fail) {
-                    if ($value !== null && trim((string) $value) === '') {
-                        $fail('El nombre del área es obligatorio.');
-                    }
-                }
-            ],
             'permissions' => 'nullable|array',
             'permissions.*' => 'exists:permissions,name',
         ]);
@@ -149,8 +99,9 @@ class RoleController extends Controller
      */
     public function getData(Request $request)
     {
-        $perPage = $request->input('perPage', 10);
-        $data = $this->service->paginate($request->all(), $perPage);
+        $perPage = (int) $request->input('per_page', $request->input('perPage', 10));
+        $page = (int) $request->input('page', 1);
+        $data = $this->service->paginate($request->all(), $perPage, $page);
 
         return response()->json($data);
     }

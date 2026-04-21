@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
@@ -24,7 +23,6 @@ const props = defineProps<{
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'submit', payload: Partial<CategorySubGroup> & { subgroups?: Partial<CategorySubGroup>[] }): void;
-    (e: 'notify', payload: { type: 'success' | 'error'; message: string }): void;
 }>();
 
 const internalIsOpen = ref(props.isOpen);
@@ -84,27 +82,6 @@ async function handleGroupCreated(newGroup: Partial<CategoryGroup>) {
     }
 }
 
-async function deleteGroup(groupId: number) {
-    try {
-        const response = await axios.delete(`/categorias/grupos/${groupId}`);
-        emit('notify', { type: 'success', message: response.data?.message || 'Grupo eliminado correctamente.' });
-
-        localGroups.value = localGroups.value.filter((group) => group.id !== groupId);
-
-        // Si el grupo eliminado estaba seleccionado, limpiarlo del formulario
-        if (form.value.category_group_id === groupId) {
-            form.value.category_group_id = null;
-        }
-    } catch (error: unknown) {
-        if (axios.isAxiosError(error) && error.response?.data?.message) {
-            emit('notify', { type: 'error', message: error.response.data.message });
-        } else {
-            console.error('Error al eliminar el grupo:', error);
-            emit('notify', { type: 'error', message: 'Ocurrió un error al intentar eliminar el grupo. Por favor, inténtalo de nuevo.' });
-        }
-    }
-}
-
 const isGroupDialogOpen = ref(false);
 
 function openGroupDialog() {
@@ -128,8 +105,10 @@ async function initializeDialog() {
     try {
         await nextTick();
         form.value = { ...props.subGroupData };
-        subGroupName.value = '';
         subGroupList.value = [];
+        subGroupName.value = props.dialogType === 'edit'
+            ? (props.subGroupData.name ?? '')
+            : '';
     } finally {
         isInitializingDialog.value = false;
     }
@@ -153,27 +132,11 @@ function removeSubGroupFromList(index: number) {
 }
 
 function submitForm() {
-    emit('submit', { ...form.value, subgroups: subGroupList.value });
-}
-
-const isDeleteDialogOpen = ref(false);
-const groupToDelete = ref<number | null>(null);
-
-function openDeleteDialog(groupId: number) {
-    groupToDelete.value = groupId;
-    isDeleteDialogOpen.value = true;
-}
-
-function closeDeleteDialog() {
-    isDeleteDialogOpen.value = false;
-    groupToDelete.value = null;
-}
-
-async function confirmDeleteGroup() {
-    if (groupToDelete.value !== null) {
-        await deleteGroup(groupToDelete.value);
+    if (props.dialogType === 'edit') {
+        emit('submit', { ...form.value, name: subGroupName.value.trim() });
+    } else {
+        emit('submit', { ...form.value, subgroups: subGroupList.value });
     }
-    closeDeleteDialog();
 }
 </script>
 
@@ -190,46 +153,41 @@ async function confirmDeleteGroup() {
                 <div class="flex-1 overflow-y-auto scroll-smooth px-2" style="scrollbar-width: thin">
                     <div class="space-y-4">
                         <div class="space-y-2 pt-5">
-                            <div class="flex items-center gap-2">
-                                <div class="flex flex-1 flex-col gap-1">
-                                    <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium"> Grupo<span class="text-destructive">*</span> </Label>
-                                        <HelpTooltip
-                                            text="Selecciona el grupo principal que alojará este subgrupo."
-                                            aria-label="Ayuda sobre el grupo"
-                                        />
-                                    </div>
-                                    <SelectField
-                                        label=""
-                                        :options="localGroups.map((group: CategoryGroup) => ({ id: group.id, name: group.name }))"
-                                        v-model="form.category_group_id"
-                                        required
-                                        placeholder="Selecciona un grupo"
-                                        :button-class="'w-full'"
-                                        searchable
-                                    >
-                                        <template #header>
-                                            <button
-                                                type="button"
-                                                class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                                                @click.stop="openGroupDialogFromDropdown"
-                                            >
-                                                <Plus class="mr-2 h-4 w-4" />
-                                                Nuevo grupo
-                                            </button>
-                                        </template>
-                                    </SelectField>
+                            <div class="flex flex-1 flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <Label class="text-sm font-medium"> Grupo<span class="text-destructive">*</span> </Label>
+                                    <HelpTooltip
+                                        text="Selecciona el grupo principal que alojará este subgrupo."
+                                        aria-label="Ayuda sobre el grupo"
+                                    />
                                 </div>
-                                <X
-                                    class="mt-5 h-6 w-6 cursor-pointer transition-colors hover:text-destructive"
-                                    :disabled="!form.category_group_id"
-                                    @click="() => form.category_group_id != null && openDeleteDialog(form.category_group_id)"
-                                />
+                                <SelectField
+                                    label=""
+                                    :options="localGroups.map((group: CategoryGroup) => ({ id: group.id, name: group.name }))"
+                                    v-model="form.category_group_id"
+                                    :clearable="true"
+                                    required
+                                    placeholder="Selecciona un grupo"
+                                    :button-class="'w-full'"
+                                    searchable
+                                >
+                                    <template #header>
+                                        <button
+                                            type="button"
+                                            class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                                            @click.stop="openGroupDialogFromDropdown"
+                                        >
+                                            <Plus class="mr-2 h-4 w-4" />
+                                            Nuevo grupo
+                                        </button>
+                                    </template>
+                                </SelectField>
                             </div>
                         </div>
                         <div class="flex items-center">
                             <InputField v-model="subGroupName" label="Nombre del Subgrupo" placeholder="Escribe el nombre del subgrupo" />
                             <button
+                                v-if="dialogType === 'create'"
                                 type="button"
                                 class="ml-2 flex items-center justify-center bg-transparent shadow-none disabled:cursor-not-allowed disabled:opacity-50"
                                 style="height: 2.5rem"
@@ -239,7 +197,7 @@ async function confirmDeleteGroup() {
                                 <Plus class="mt-5 h-6 w-6 cursor-pointer transition-colors hover:text-primary" />
                             </button>
                         </div>
-                        <div class="mt-4 space-y-2">
+                        <div v-if="dialogType === 'create'" class="mt-4 space-y-2">
                             <p class="flex flex-wrap gap-2">
                                 <span
                                     v-for="(subGroup, index) in subGroupList"
@@ -270,15 +228,4 @@ async function confirmDeleteGroup() {
         </FormDialogContent>
     </Dialog>
     <GroupDialog v-model:isOpen="isGroupDialogOpen" @created="handleGroupCreated" @close="closeGroupDialog" />
-
-    <!-- Diálogo de confirmación para eliminar -->
-    <ConfirmDialog
-        v-model:open="isDeleteDialogOpen"
-        title="Confirmar Eliminación"
-        description="¿Estás seguro de que deseas eliminar este grupo? Esta acción no se puede deshacer."
-        confirm-text="Eliminar"
-        cancel-text="Cancelar"
-        :destructive="true"
-        @confirm="confirmDeleteGroup"
-    />
 </template>

@@ -44,6 +44,7 @@ const props = withDefaults(
         actionDisabled?: boolean;
         actionClass?: string;
         actionSticky?: boolean;
+        clearable?: boolean;
         invalid?: boolean;
         errorMessage?: string;
         loading?: boolean;
@@ -65,6 +66,7 @@ const props = withDefaults(
         actionDisabled: false,
         actionClass: '',
         actionSticky: true,
+        clearable: false,
         invalid: false,
         errorMessage: '',
         loading: false,
@@ -207,6 +209,11 @@ function removeSelected(optionId: Option['id']) {
     if (!props.multiple) return;
     if (!isLocalModelArray(localModelValue.value)) return;
     localModelValue.value = localModelValue.value.filter((id) => id != optionId);
+}
+
+function clearSelection() {
+    localModelValue.value = props.multiple ? [] : null;
+    searchTerm.value = '';
 }
 
 const placeholderText = computed(() => {
@@ -418,6 +425,16 @@ watch(
                             :disabled="disabled"
                             @input="handleInput"
                         />
+                        <button
+                            v-if="clearable && localModelValue !== null && localModelValue !== undefined && localModelValue !== '' && !(Array.isArray(localModelValue) && localModelValue.length === 0)"
+                            type="button"
+                            class="pointer-events-auto absolute right-7 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground/70 transition hover:text-destructive"
+                            :class="[disabled ? 'pointer-events-none opacity-60' : '']"
+                            :disabled="disabled"
+                            @click.stop.prevent="clearSelection"
+                        >
+                            <X class="h-3.5 w-3.5" />
+                        </button>
                         <ComboboxButton
                             class="pointer-events-auto absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-transparent bg-transparent p-0 text-muted-foreground/70 transition hover:text-muted-foreground"
                             :class="[disabled ? 'pointer-events-none opacity-60' : '']"
