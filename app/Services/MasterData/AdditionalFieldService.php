@@ -175,14 +175,20 @@ class AdditionalFieldService
             return null;
         }
 
-        $sanitized = array_values(array_filter(array_map(function ($value) {
-            if ($value === null) {
-                return null;
-            }
-            return TextNormalizer::titleCaseWords($value);
-        }, $options), fn($value) => $value !== ''));
+        $sanitized = [];
+        $seen = [];
 
-        $sanitized = array_values(array_unique($sanitized));
+        foreach ($options as $value) {
+            $display = TextNormalizer::titleCaseWords($value);
+            $semanticKey = TextNormalizer::semanticKey($display);
+
+            if ($display === '' || $semanticKey === '' || isset($seen[$semanticKey])) {
+                continue;
+            }
+
+            $seen[$semanticKey] = true;
+            $sanitized[] = $display;
+        }
 
         return $sanitized ?: null;
     }
@@ -193,9 +199,9 @@ class AdditionalFieldService
             return null;
         }
 
-        $normalized = in_array($fieldType, ['text', 'textarea', 'select'], true)
+        $normalized = $fieldType === 'select'
             ? TextNormalizer::titleCaseWords($value)
-            : preg_replace('/\s+/u', ' ', trim((string) $value));
+            : TextNormalizer::normalizeDisplayText($value);
 
         return $normalized !== null && $normalized !== '' ? $normalized : null;
     }

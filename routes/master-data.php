@@ -52,6 +52,7 @@ Route::prefix('parametros')->name('parametros.')->middleware('permission:ver par
     Route::get('/', [ParameterController::class, 'index'])->name('index');
     Route::get('/data', [ParameterController::class, 'data'])->name('data');
     Route::post('/', [ParameterController::class, 'store'])->name('store')->middleware('permission:editar parametros');
+    Route::get('/{id}/deletion-check', [ParameterController::class, 'deletionCheck'])->name('deletion-check')->middleware('permission:editar parametros');
     Route::get('/{id}', [ParameterController::class, 'show'])->name('show');
     Route::put('/{id}', [ParameterController::class, 'update'])->name('update')->middleware('permission:editar parametros');
     Route::delete('/{id}', [ParameterController::class, 'destroy'])->name('destroy')->middleware('permission:editar parametros');

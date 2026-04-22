@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Parameter, ParameterListQuery, ParameterPayload } from './types';
+import type { Parameter, ParameterDeletionCheck, ParameterListQuery, ParameterPayload } from './types';
 
 export type {
     AdditionalContact,
@@ -16,6 +16,7 @@ export type {
     ExtraFields,
     Item,
     Parameter,
+    ParameterDeletionCheck,
     ParameterDialogFormState,
     ParameterListQuery,
     ParameterPayload,
@@ -51,4 +52,8 @@ export function updateParameter(id: number, payload: ParameterPayload) {
 
 export function deleteParameter(id: number) {
     return axios.delete(`${PARAMETERS_ENDPOINT}/${id}`);
+}
+
+export function getParameterDeletionCheck(id: number) {
+    return axios.get<ParameterDeletionCheck>(`${PARAMETERS_ENDPOINT}/${id}/deletion-check`);
 }

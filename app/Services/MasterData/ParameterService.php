@@ -2,13 +2,20 @@
 
 namespace App\Services\MasterData;
 
+use App\Exceptions\MasterData\ParameterInUseException;
 use App\Models\Settings\Setting;
+use App\Support\TextNormalizer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class ParameterService
 {
+    public function __construct(
+        protected ParameterUsageService $usageService,
+    ) {
+    }
+
     public function list(array $filters = []): Collection
     {
         $query = Setting::parameters();
@@ -65,31 +72,127 @@ class ParameterService
 
     public function delete(int $id): void
     {
-        $setting = Setting::findOrFail($id);
+        $setting = $this->find($id);
+        $deletionCheck = $this->getDeletionCheck($id);
 
-        if ($setting->kind !== Setting::KIND_PARAMETER) {
-            abort(422, 'Solo se pueden eliminar parámetros.');
+        if (! ($deletionCheck['can_delete'] ?? false)) {
+            throw new ParameterInUseException($deletionCheck);
         }
 
         $setting->delete();
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function getDeletionCheck(int $id): array
+    {
+        return $this->usageService->inspect($this->find($id));
+    }
+
     protected function normalizeValue(mixed $value): mixed
     {
         if (is_string($value)) {
-            $trimmed = trim($value);
+            $trimmed = TextNormalizer::normalizeDisplayText($value);
+
+            if ($trimmed === '') {
+                return '';
+            }
 
             if ($trimmed !== '' && in_array($trimmed[0], ['{', '['], true)) {
                 $decoded = json_decode($trimmed, true);
                 if (json_last_error() === JSON_ERROR_NONE) {
-                    return $decoded;
+                    return $this->normalizeValue($decoded);
                 }
             }
 
+            return $trimmed;
+        }
+
+        if (! is_array($value)) {
             return $value;
         }
 
+        if (! array_is_list($value)) {
+            return $value;
+        }
+
+        if ($this->isNamedChipList($value)) {
+            $normalized = [];
+            $seen = [];
+
+            foreach ($value as $entry) {
+                if (! is_array($entry)) {
+                    continue;
+                }
+
+                $display = TextNormalizer::titleCaseWords($entry['name'] ?? null);
+                $semanticKey = TextNormalizer::semanticKey($display);
+
+                if ($display === '' || $semanticKey === '' || isset($seen[$semanticKey])) {
+                    continue;
+                }
+
+                $seen[$semanticKey] = true;
+                $normalized[] = [
+                    ...$entry,
+                    'name' => $display,
+                ];
+            }
+
+            return $normalized;
+        }
+
+        if ($this->isScalarChipList($value)) {
+            $normalized = [];
+            $seen = [];
+
+            foreach ($value as $entry) {
+                $display = TextNormalizer::titleCaseWords($entry);
+                $semanticKey = TextNormalizer::semanticKey($display);
+
+                if ($display === '' || $semanticKey === '' || isset($seen[$semanticKey])) {
+                    continue;
+                }
+
+                $seen[$semanticKey] = true;
+                $normalized[] = $display;
+            }
+
+            return $normalized;
+        }
+
         return $value;
+    }
+
+    private function isNamedChipList(array $value): bool
+    {
+        if ($value === []) {
+            return true;
+        }
+
+        foreach ($value as $entry) {
+            if (! is_array($entry) || ! array_key_exists('name', $entry)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isScalarChipList(array $value): bool
+    {
+        if ($value === []) {
+            return true;
+        }
+
+        foreach ($value as $entry) {
+            if (is_array($entry) || is_object($entry)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function determineKey(array $data): string

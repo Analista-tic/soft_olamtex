@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ChipInputField from '@/components/ChipInputField.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
@@ -8,8 +9,9 @@ import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } fr
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import type { CategoryGroup, CategorySubGroup } from '@/domain/MasterData';
+import { normalizeTitleCaseWords } from '@/lib/textNormalizer';
 import axios from 'axios';
-import { Plus, X } from 'lucide-vue-next';
+import { Plus } from 'lucide-vue-next';
 import { nextTick, ref, watch } from 'vue';
 import GroupDialog from './GroupDialog.vue';
 
@@ -27,6 +29,11 @@ const emit = defineEmits<{
 
 const internalIsOpen = ref(props.isOpen);
 const isInitializingDialog = ref(false);
+const form = ref<Partial<CategorySubGroup>>({ ...props.subGroupData });
+const localGroups = ref<CategoryGroup[]>([...props.groups]);
+const isGroupDialogOpen = ref(false);
+const subGroupName = ref('');
+const subGroupValues = ref<string[]>([]);
 
 watch(
     () => props.isOpen,
@@ -36,6 +43,7 @@ watch(
             await initializeDialog();
             return;
         }
+
         isInitializingDialog.value = false;
     },
 );
@@ -50,8 +58,6 @@ watch(
     },
 );
 
-const form = ref<Partial<CategorySubGroup>>({ ...props.subGroupData });
-
 watch(
     () => props.subGroupData,
     (newData: Partial<CategorySubGroup>) => {
@@ -60,7 +66,6 @@ watch(
     { deep: true },
 );
 
-const localGroups = ref<CategoryGroup[]>([...props.groups]);
 watch(
     () => props.groups,
     (newGroups: CategoryGroup[]) => {
@@ -81,8 +86,6 @@ async function handleGroupCreated(newGroup: Partial<CategoryGroup>) {
         isGroupDialogOpen.value = false;
     }
 }
-
-const isGroupDialogOpen = ref(false);
 
 function openGroupDialog() {
     isGroupDialogOpen.value = true;
@@ -105,38 +108,28 @@ async function initializeDialog() {
     try {
         await nextTick();
         form.value = { ...props.subGroupData };
-        subGroupList.value = [];
+        subGroupValues.value = [];
         subGroupName.value = props.dialogType === 'edit'
-            ? (props.subGroupData.name ?? '')
+            ? normalizeTitleCaseWords(props.subGroupData.name)
             : '';
     } finally {
         isInitializingDialog.value = false;
     }
 }
 
-const subGroupName = ref('');
-const subGroupList = ref<Partial<CategorySubGroup>[]>([]);
-
-function addSubGroupToList() {
-    if (subGroupName.value.trim()) {
-        subGroupList.value.push({
-            name: subGroupName.value.trim(),
-            category_group_id: form.value.category_group_id,
-        });
-        subGroupName.value = '';
-    }
-}
-
-function removeSubGroupFromList(index: number) {
-    subGroupList.value.splice(index, 1);
-}
-
 function submitForm() {
     if (props.dialogType === 'edit') {
-        emit('submit', { ...form.value, name: subGroupName.value.trim() });
-    } else {
-        emit('submit', { ...form.value, subgroups: subGroupList.value });
+        emit('submit', { ...form.value, name: normalizeTitleCaseWords(subGroupName.value) });
+        return;
     }
+
+    emit('submit', {
+        ...form.value,
+        subgroups: subGroupValues.value.map((name) => ({
+            name,
+            category_group_id: form.value.category_group_id,
+        })),
+    });
 }
 </script>
 
@@ -183,33 +176,24 @@ function submitForm() {
                                 </SelectField>
                             </div>
                         </div>
-                        <div class="flex items-center">
-                            <InputField v-model="subGroupName" label="Nombre del Subgrupo" placeholder="Escribe el nombre del subgrupo" />
-                            <button
-                                v-if="dialogType === 'create'"
-                                type="button"
-                                class="ml-2 mt-5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                @click="addSubGroupToList"
-                                :disabled="!subGroupName.trim()"
-                            >
-                                <Plus class="h-4 w-4" />
-                            </button>
-                        </div>
-                        <div v-if="dialogType === 'create'" class="mt-4 space-y-2">
-                            <p class="flex flex-wrap gap-2">
-                                <span
-                                    v-for="(subGroup, index) in subGroupList"
-                                    :key="index"
-                                    class="flex items-center space-x-2 rounded-full bg-muted px-3 py-1 text-sm"
-                                >
-                                    <span>{{ subGroup.name }}</span>
-                                    <X
-                                        class="mr-2 h-4 w-4 cursor-pointer transition-colors hover:text-destructive"
-                                        @click="removeSubGroupFromList(index)"
-                                    />
-                                </span>
-                            </p>
-                        </div>
+
+                        <ChipInputField
+                            v-if="dialogType === 'create'"
+                            v-model="subGroupValues"
+                            label="Nombre del Subgrupo"
+                            placeholder="Escribe el nombre del subgrupo"
+                            empty-text="Sin subgrupos agregados."
+                            :required="true"
+                            case-mode="title-case"
+                        />
+
+                        <InputField
+                            v-else
+                            v-model="subGroupName"
+                            label="Nombre del Subgrupo"
+                            placeholder="Escribe el nombre del subgrupo"
+                            @keydown.enter.prevent="submitForm"
+                        />
                     </div>
                 </div>
                 <DialogFooter class="mt-4 flex flex-shrink-0 justify-end gap-2 border-t pt-4">

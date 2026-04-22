@@ -131,6 +131,26 @@ export interface Parameter extends Timestamps {
     status: boolean;
 }
 
+export interface ParameterDeletionUsage {
+    type: 'system' | 'record';
+    label: string;
+    detail: string;
+    count?: number;
+}
+
+export interface ParameterDeletionCheck {
+    can_delete: boolean;
+    title: string;
+    message: string;
+    suggested_action?: 'deactivate' | null;
+    parameter: {
+        id: number;
+        key: string;
+        label: string;
+    };
+    usages: ParameterDeletionUsage[];
+}
+
 export type ParameterDialogFormState = {
     id?: number | string;
     key?: string;
