@@ -1313,7 +1313,7 @@ function handleClose() {
                                 <!-- Ref. Prod 1 — visible cuando type = producto -->
                                 <div v-if="form.type === TYPE_PRODUCT" class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium">Ref. Prod 1<span class="text-red-500">*</span></Label>
+                                        <Label class="text-sm font-medium">Ref 1. Producto<span class="text-red-500">*</span></Label>
                                     </div>
                                     <InputField
                                         v-model="form.product_reference"
@@ -1327,7 +1327,7 @@ function handleClose() {
                                 <!-- Ref. Prod 2 — visible cuando type = producto -->
                                 <div v-if="form.type === TYPE_PRODUCT" class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium">Ref. Prod 2</Label>
+                                        <Label class="text-sm font-medium">Ref 2. Producto</Label>
                                     </div>
                                     <InputField
                                         v-model="form.product_reference_2"
