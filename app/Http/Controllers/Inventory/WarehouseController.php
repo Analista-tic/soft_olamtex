@@ -18,12 +18,7 @@ class WarehouseController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255', // Renombrado de nombre a name
-            'observation' => 'required|string|max:255', // Renombrado de observacion a observation
-        ]);
-
-        return Warehouse::create($request->all());
+        return Warehouse::create($this->validateWarehouse($request));
     }
 
     public function show($id)
@@ -34,7 +29,7 @@ class WarehouseController extends Controller
     public function update(Request $request, $id)
     {
         $warehouse = Warehouse::findOrFail($id);
-        $warehouse->update($request->all());
+        $warehouse->update($this->validateWarehouse($request));
 
         return $warehouse;
     }
@@ -72,5 +67,21 @@ class WarehouseController extends Controller
         return response()->json(
             Warehouse::select('id', 'name')->orderBy('name')->get()
         );
+    }
+
+    /**
+     * @return array{name: string, observation: string}
+     */
+    private function validateWarehouse(Request $request): array
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'observation' => ['required', 'string', 'max:255'],
+        ]);
+
+        return [
+            'name' => trim((string) $validated['name']),
+            'observation' => trim((string) $validated['observation']),
+        ];
     }
 }

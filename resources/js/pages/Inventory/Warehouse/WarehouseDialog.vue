@@ -83,13 +83,13 @@ function handleSubmit() {
                         </div>
                         <div class="flex flex-col gap-1">
                             <div class="flex items-center gap-2">
-                                <Label class="text-sm font-medium"> Observación </Label>
+                                <Label class="text-sm font-medium"> Observación<span class="text-red-500">*</span> </Label>
                                 <HelpTooltip
                                     text="Notas adicionales sobre la ubicación, características o uso de esta bodega."
                                     aria-label="Ayuda sobre observación"
                                 />
                             </div>
-                            <InputField v-model="observationValue" label="" placeholder="Observaciones opcionales" />
+                            <InputField v-model="observationValue" label="" placeholder="Agrega una observación" />
                         </div>
                     </div>
                 </TooltipProvider>

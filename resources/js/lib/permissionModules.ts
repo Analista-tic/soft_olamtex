@@ -204,6 +204,9 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'crear transferencias bodegas',
             'editar transferencias bodegas',
             'eliminar transferencias bodegas',
+            'ver propios transferencias bodegas',
+            'ver area transferencias bodegas',
+            'ver todos transferencias bodegas',
         ],
     },
     {

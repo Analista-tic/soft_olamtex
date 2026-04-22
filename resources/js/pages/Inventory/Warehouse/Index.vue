@@ -21,15 +21,17 @@ import type { Warehouse } from '@/domain/Inventory';
 import type { BreadcrumbItem } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
+import { useAuthStore } from '@/stores/auth';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Pencil, PlusCircle, Search, Trash } from 'lucide-vue-next';
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import WarehouseDialog from './WarehouseDialog.vue';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Bodegas', href: '/bodegas' }];
 
 const warehouses = ref<Warehouse[]>([]);
+const authStore = useAuthStore();
 const warehouseToDelete = ref<Warehouse | null>(null);
 const isDialogOpen = ref(false);
 const isDeleteDialogOpen = ref(false);
@@ -52,6 +54,7 @@ const isLoading = ref(false);
 const actionButtonClass =
     'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 const actionIconClass = 'h-4 w-4';
+const canAccessWarehouseTransfers = computed(() => authStore.can('ver transferencias bodegas'));
 
 const setError = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'error') => {
     if (message) {
@@ -121,7 +124,15 @@ async function handleDialogSubmit(warehouseData: Warehouse) {
     const method = dialogType.value === 'create' ? 'POST' : 'PUT';
 
     try {
-        await axios({ method, url, data: { ...warehouseData, name: trimmedName, observation: trimmedObservation } });
+        await axios({
+            method,
+            url,
+            data: {
+                ...warehouseData,
+                name: trimmedName,
+                observation: trimmedObservation,
+            },
+        });
         successMessage.value = dialogType.value === 'create' ? 'Bodega creada correctamente.' : 'Bodega actualizada correctamente.';
         fetchWarehouses();
         closeDialog();
@@ -134,8 +145,6 @@ async function handleDialogSubmit(warehouseData: Warehouse) {
             const lower = (rawMessage || '').toLowerCase();
             if (validationErrors?.name?.length || lower.includes('already') || lower.includes('taken')) {
                 setError('Ya existe una bodega con ese nombre.', 'warning');
-            } else if (lower.includes('observation') && lower.includes('required')) {
-                setError('La observación es obligatoria.', 'warning');
             } else if (rawMessage) {
                 setError(rawMessage, 'warning');
             } else {
@@ -177,8 +186,13 @@ watch(searchQuery, (newQuery) => {
     fetchWarehouses(1, newQuery);
 });
 
-onMounted(() => {
-    fetchWarehouses();
+onMounted(async () => {
+    await Promise.all([
+        fetchWarehouses(),
+        authStore.fetchUser().catch((error) => {
+            console.error('Error al obtener permisos del usuario:', error);
+        }),
+    ]);
 });
 </script>
 
@@ -203,7 +217,12 @@ onMounted(() => {
                     </p>
                 </div>
                 <div class="flex gap-2">
-                    <Button variant="outline" class="rounded-full px-4 py-2 text-sm font-semibold" @click="navigateToWarehouseTransfers">
+                    <Button
+                        v-if="canAccessWarehouseTransfers"
+                        variant="outline"
+                        class="rounded-full px-4 py-2 text-sm font-semibold"
+                        @click="navigateToWarehouseTransfers"
+                    >
                         Transferencia de bodegas
                     </Button>
                     <Button variant="default" size="pill" @click="openDialog('create')">
@@ -259,7 +278,7 @@ onMounted(() => {
                                 <TableRow v-for="(warehouse, index) in warehouses" :key="warehouse.id ?? `warehouse-${index}`">
                                     <TableCell class="font-medium">{{ warehouse.id }}</TableCell>
                                     <TableCell class="font-medium">{{ warehouse.name }}</TableCell>
-                                    <TableCell>{{ warehouse.observation }}</TableCell>
+                                    <TableCell>{{ warehouse.observation || '-' }}</TableCell>
                                     <TableCell class="text-center">
                                         <div class="flex justify-center gap-2">
                                             <Tooltip>

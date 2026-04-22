@@ -87,6 +87,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver solicitudes insumos',
             'crear solicitudes insumos',
             'atender solicitudes insumos',
+            'ver transferencias bodegas',
+            'crear transferencias bodegas',
+            'editar transferencias bodegas',
+            'eliminar transferencias bodegas',
 
             // Ingresos / Ventas
             'ver ingresos',
@@ -160,6 +164,11 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver propios solicitudes insumos',
             'ver area solicitudes insumos',
             'ver todos solicitudes insumos',
+
+            // Visibilidad - Transferencias de bodegas
+            'ver propios transferencias bodegas',
+            'ver area transferencias bodegas',
+            'ver todos transferencias bodegas',
         ];
 
         foreach ($allPermissions as $permission) {
@@ -314,6 +323,11 @@ class RolesAndPermissionsSeeder extends Seeder
             'atender solicitudes insumos',
             'ver area solicitudes insumos',
             'ver todos documentos compra',
+            'ver transferencias bodegas',
+            'crear transferencias bodegas',
+            'editar transferencias bodegas',
+            'eliminar transferencias bodegas',
+            'ver todos transferencias bodegas',
 
             'ver ordenes compra',
             'ver facturas compra',

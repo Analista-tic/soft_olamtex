@@ -31,8 +31,17 @@ export const useAuthStore = defineStore('auth', {
         hasRole(role: string): boolean {
             return this.roles.includes(role);
         },
+        hasAnyRole(roles: string[]): boolean {
+            return roles.some((role) => this.roles.includes(role));
+        },
         can(permission: string): boolean {
             return this.permissions.includes(permission);
+        },
+        canAny(permissions: string[]): boolean {
+            return permissions.some((permission) => this.permissions.includes(permission));
+        },
+        canAll(permissions: string[]): boolean {
+            return permissions.every((permission) => this.permissions.includes(permission));
         },
     },
 });
