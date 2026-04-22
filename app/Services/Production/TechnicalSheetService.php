@@ -26,9 +26,12 @@ class TechnicalSheetService
     private const COST_MINUTE_KEY     = 'minute_cost';
     private const FIXED_COST_RATE     = 0.1458; // 14,58 %
     private const FIXED_PROCESS_TYPES = ['CORTE', 'CONFECCION', 'TERMINACION'];
+    private const PROCESS_TYPE_ALIASES = [
+        'BORDADO' => 'ESTAMPADO',
+    ];
     private const DEFAULT_PROCESS_TYPES = [
         'CORTE', 'CONFECCION', 'TERMINACION',
-        'ESTAMPADO', 'BORDADO', 'LAVANDERIA', 'OTRO',
+        'ESTAMPADO', 'LAVANDERIA', 'OTRO',
     ];
 
     public function __construct(
@@ -248,7 +251,7 @@ class TechnicalSheetService
     {
         $configured = $this->settingService
             ->getCatalogOptions('process_types')
-            ->map(fn(array $option) => strtoupper(trim((string) ($option['name'] ?? ''))))
+            ->map(fn(array $option) => $this->normalizeProcessTypeName((string) ($option['name'] ?? '')))
             ->filter(fn(string $name) => $name !== '')
             ->values()
             ->all();
@@ -260,7 +263,7 @@ class TechnicalSheetService
         $merged = array_merge($configured, self::DEFAULT_PROCESS_TYPES);
         $unique = [];
         foreach ($merged as $type) {
-            $normalized = strtoupper(trim((string) $type));
+            $normalized = $this->normalizeProcessTypeName((string) $type);
             if ($normalized === '' || in_array($normalized, $unique, true)) {
                 continue;
             }
@@ -290,7 +293,7 @@ class TechnicalSheetService
         return $processes->map(fn (TechnicalSheetProcess $p) => [
             'id'          => (string) $p->id,
             'order'       => (int) $p->sequence,
-            'type'        => $p->type,
+            'type'        => $this->normalizeProcessTypeName((string) $p->type),
             'supplier'    => $this->nullableText($p->supplier),
             'manualPrice' => $p->manual_price !== null ? (float) $p->manual_price : null,
             'fixedCost'   => (float) $p->fixed_cost,
@@ -351,7 +354,7 @@ class TechnicalSheetService
     public function normalizeProcessesRows(array $rows, ?array $allowedTypes = null): array
     {
         $normalizedAllowedTypes = collect($allowedTypes ?? $this->getConfiguredProcessTypes())
-            ->map(fn($value) => strtoupper(trim((string) $value)))
+            ->map(fn($value) => $this->normalizeProcessTypeName((string) $value))
             ->filter(fn(string $value) => $value !== '')
             ->values()
             ->all();
@@ -366,7 +369,7 @@ class TechnicalSheetService
                 continue;
             }
 
-            $type = strtoupper(trim((string) ($row['type'] ?? 'OTRO')));
+            $type = $this->normalizeProcessTypeName((string) ($row['type'] ?? 'OTRO'));
             if (!in_array($type, $normalizedAllowedTypes, true)) {
                 $type = 'OTRO';
             }
@@ -448,6 +451,13 @@ class TechnicalSheetService
      * Calcula los costos de procesos (corte, confección, terminación) para una hoja.
      * Usa fixedCost cuando está disponible (procesos en BD); si no, recalcula.
      */
+    private function normalizeProcessTypeName(string $type): string
+    {
+        $normalized = strtoupper(trim($type));
+
+        return self::PROCESS_TYPE_ALIASES[$normalized] ?? $normalized;
+    }
+
     public function calculateProcessesForSheet(int $opId, ?int $productSheetId): array
     {
         $payload = $this->buildProcessesPayload($opId, $productSheetId);

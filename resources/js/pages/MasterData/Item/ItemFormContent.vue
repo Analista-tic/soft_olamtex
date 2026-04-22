@@ -98,8 +98,24 @@ type ItemTaxRelation = {
     percentage?: number | string | null;
 };
 
+type ItemWarehouseStockSource = {
+    warehouse_id?: number | string | null;
+    name?: string | null;
+    warehouse_name?: string | null;
+    quantity?: number | string | null;
+    stock_min?: number | string | null;
+    stock_max?: number | string | null;
+    weighted_average_price?: number | string | null;
+    warehouse?: {
+        id?: number | string | null;
+        name?: string | null;
+    } | null;
+};
+
 type ItemFormSource = Partial<Item> & {
     tax?: ItemTaxRelation | null; // compat backend
+    warehouse_stocks?: ItemWarehouseStockSource[] | null;
+    warehouse_items?: ItemWarehouseStockSource[] | null;
 };
 
 type ItemForm = Omit<Partial<Item>, 'tax_id' | 'category_sub_group_id'> & {
@@ -439,6 +455,7 @@ function applyFormData(source: ItemFormSource) {
     localForm.value = mapItemToFormState(source);
     unitMeasure.value = getInitialUnitMeasure(source);
     fillExtraFields(source.extra_fields);
+    warehouseStocks.value = normalizeWarehouseStocksFromSource(source);
 
     imageFile.value = null;
     if (fileInputRef.value) fileInputRef.value.value = '';
@@ -455,8 +472,10 @@ async function loadItemDetails(itemId: number) {
     try {
         const { data } = await axios.get(`/item/${itemId}`);
         applyFormData(data);
+        return data as ItemFormSource;
     } catch (error) {
         console.error('Error al cargar el item:', error);
+        return null;
     }
 }
 
@@ -592,17 +611,10 @@ async function fetchAdditionalFields(force = false) {
 
 async function fetchWarehouseStocks(itemId: number) {
     try {
-        const { data } = await axios.get(`/bodegas/${itemId}/warehouses`);
-        warehouseStocks.value = data.map((w: any) => ({
-            warehouse_id: w.id,
-            name: w.name,
-            quantity: w.pivot.quantity,
-            stock_min: w.pivot.stock_min,
-            stock_max: w.pivot.stock_max,
-        }));
+        const { data } = await axios.get<ItemFormSource>(`/item/${itemId}`);
+        warehouseStocks.value = normalizeWarehouseStocksFromSource(data);
     } catch (e) {
         console.log(e);
-        warehouseStocks.value = [];
     }
 }
 
@@ -636,7 +648,6 @@ async function loadSecondaryFormData(itemId?: number): Promise<void> {
         await Promise.all([
             fetchWarehouses(),
             ...(props.showAdvancedSections ? [fetchAccountingAccounts()] : []),
-            itemId ? refreshWarehouseStocksForCurrentItem(itemId) : Promise.resolve(),
         ]);
     } finally {
         isSecondaryLoading.value = false;
@@ -661,14 +672,55 @@ async function hydrateOpenForm() {
     try {
         await loadFormCatalogs();
         await loadItemDetails(itemId);
+        await loadSecondaryFormData(itemId);
     } finally {
         isItemHydrationLoading.value = false;
     }
 
-    void loadSecondaryFormData(itemId);
-
     updateNameField();
     syncGroupFromSubgroup();
+}
+
+function normalizeWarehouseStocksFromSource(source: ItemFormSource | null | undefined): WarehouseStockEntry[] {
+    if (!source) return [];
+
+    const rows = Array.isArray(source.warehouse_stocks) && source.warehouse_stocks.length > 0
+        ? source.warehouse_stocks
+        : Array.isArray(source.warehouse_items)
+          ? source.warehouse_items
+          : [];
+
+    return rows
+        .map((row) => {
+            const warehouseId = row.warehouse_id ?? row.warehouse?.id ?? null;
+            const parsedWarehouseId = warehouseId !== null && warehouseId !== undefined && String(warehouseId).trim() !== ''
+                ? Number(warehouseId)
+                : null;
+
+            return {
+                warehouse_id: Number.isFinite(parsedWarehouseId) ? parsedWarehouseId : null,
+                name: String(row.name ?? row.warehouse_name ?? row.warehouse?.name ?? '').trim(),
+                quantity: toNumericValue(row.quantity),
+                stock_min: toNumericValue(row.stock_min),
+                stock_max: toNumericValue(row.stock_max),
+            } satisfies WarehouseStockEntry;
+        })
+        .filter((row) => row.warehouse_id !== null);
+}
+
+function toNumericValue(value: unknown): number {
+    if (typeof value === 'number') {
+        return Number.isFinite(value) ? value : 0;
+    }
+
+    if (typeof value === 'string') {
+        const normalized = value.trim().replace(/,/g, '.');
+        if (!normalized) return 0;
+        const parsed = Number(normalized);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    return 0;
 }
 
 function openGroupDialog() {
@@ -1547,18 +1599,19 @@ onBeforeUnmount(() => {
                                                 class="w-full"
                                                 placeholder="Cantidad"
                                                 :allowNegative="true"
+                                                :allowDecimal="true"
                                                 @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }"
                                             />
                                         </div>
 
                                         <div class="space-y-1">
                                             <Label class="text-xs">Cantidad Min</Label>
-                                            <InputIntegerField v-model="ws.stock_min" label="" type="number" class="w-full" placeholder="Min" @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }" />
+                                            <InputIntegerField v-model="ws.stock_min" label="" type="number" class="w-full" placeholder="Min" :allowDecimal="true" @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }" />
                                         </div>
 
                                         <div class="space-y-1">
                                             <Label class="text-xs">Cantidad Max</Label>
-                                            <InputIntegerField v-model="ws.stock_max" label="" type="number" class="w-full" placeholder="Max" @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }" />
+                                            <InputIntegerField v-model="ws.stock_max" label="" type="number" class="w-full" placeholder="Max" :allowDecimal="true" @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }" />
                                         </div>
 
                                         <div class="flex items-end justify-end">

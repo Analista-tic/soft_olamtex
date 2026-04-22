@@ -115,6 +115,11 @@ const normalizeTypeValue = (value?: string) => normalizeProductSheetType(value);
 
 const developmentProcessLabel = 'Desarrollo de muestras';
 const developmentProcessAliases = ['Desarrollo de muestra', 'Desarrollo de Muestra', 'Desarrollo de Muestras'];
+const processAliases: Record<string, string> = {
+    Bordado: 'Estampado',
+    Estampando: 'Estampado',
+    Sublimado: 'Estampado',
+};
 const hasAppliedDefaultSampleProcess = ref(false);
 const mandatoryProcesses = ['Muestras', 'Confección', 'Terminación', 'Bodega'];
 const flatSketchRef = ref<InstanceType<typeof ImageUploadViewer> | null>(null);
@@ -629,8 +634,6 @@ const allProcesses = ref([
     'Corte',
     'Logística',
     'Estampado',
-    'Bordado',
-    'Sublimado',
     'Desarrollo de muestras',
     'Muestras',
     'Confección',
@@ -646,6 +649,13 @@ function parseProcessesValue(value?: unknown): Record<string, boolean> {
         if (parsed[alias]) {
             parsed[developmentProcessLabel] = true;
             delete parsed[alias];
+        }
+    }
+
+    for (const [legacy, current] of Object.entries(processAliases)) {
+        if (parsed[legacy]) {
+            parsed[current] = true;
+            delete parsed[legacy];
         }
     }
 

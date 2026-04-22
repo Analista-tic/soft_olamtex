@@ -34,7 +34,6 @@ const DEFAULT_PROCESS_OPTIONS: Option[] = [
     { id: 'CONFECCION', name: 'CONFECCION' },
     { id: 'TERMINACION', name: 'TERMINACION' },
     { id: 'ESTAMPADO', name: 'ESTAMPADO' },
-    { id: 'BORDADO', name: 'BORDADO' },
     { id: 'LAVANDERIA', name: 'LAVANDERIA' },
     { id: 'OTRO', name: 'OTRO' },
 ];
@@ -82,9 +81,10 @@ function deepCloneRows(value: LocalProcessRow[]): LocalProcessRow[] {
 function normalizeProcessTypeOptions(options: Option[]): Option[] {
     const normalized = options
         .map((option) => {
-            const name = String(option?.name ?? '')
+            const rawName = String(option?.name ?? '')
                 .trim()
                 .toUpperCase();
+            const name = rawName === 'BORDADO' ? 'ESTAMPADO' : rawName;
 
             if (!name) {
                 return null;

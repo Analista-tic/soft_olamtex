@@ -206,7 +206,7 @@ export type ProcessSummary = {
     operationalList?: { id: number | string; name: string | null } | null;
 };
 
-export type OpProcessType = 'CORTE' | 'CONFECCION' | 'TERMINACION' | 'ESTAMPADO' | 'BORDADO' | 'LAVANDERIA' | 'OTRO' | (string & {});
+export type OpProcessType = 'CORTE' | 'CONFECCION' | 'TERMINACION' | 'ESTAMPADO' | 'LAVANDERIA' | 'OTRO' | (string & {});
 
 export type OpProcessRow = {
     id?: string;

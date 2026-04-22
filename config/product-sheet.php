@@ -18,8 +18,6 @@ return [
         'Corte',
         'Logística',
         'Estampado',
-        'Bordado',
-        'Sublimado',
         'Desarrollo de muestras',
         'Muestras',
         'Confección',
@@ -57,6 +55,8 @@ return [
     'batch_control_process_aliases' => [
         'Muestra' => 'Muestras',
         'Estampando' => 'Estampado',
+        'Bordado' => 'Estampado',
+        'Sublimado' => 'Estampado',
         'Desarrollo de Muestras' => 'Desarrollo de muestras',
     ],
 
@@ -73,10 +73,10 @@ return [
     'processes_allowed_by_type' => [
         // MUESTRA: procesos previos a producción + Muestras (donde termina el flujo).
         // Excluye "Desarrollo de muestras" (es de PRODUCTO) y todo lo posterior a Muestras.
-        'muestra' => ['I&D', 'Tejido', 'Corte', 'Logística', 'Estampado', 'Bordado', 'Sublimado', 'Muestras'],
+        'muestra' => ['I&D', 'Tejido', 'Corte', 'Logística', 'Estampado', 'Muestras'],
         // PRODUCTO: todo excepto "Muestras" (que es exclusivo del flujo muestra).
         'producto' => [
-            'I&D', 'Tejido', 'Corte', 'Logística', 'Estampado', 'Bordado', 'Sublimado',
+            'I&D', 'Tejido', 'Corte', 'Logística', 'Estampado',
             'Desarrollo de muestras', 'Confección', 'Lavandería', 'Terminación',
             'Inspección y aprobación', 'Bodega',
         ],

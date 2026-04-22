@@ -838,9 +838,9 @@ class ItemService
 
             $warehouses[] = [
                 'warehouse_id' => (int) $warehouseId,
-                'quantity' => is_numeric($warehouse['quantity'] ?? null) ? (int) $warehouse['quantity'] : 0,
-                'stock_min' => is_numeric($warehouse['stock_min'] ?? null) ? (int) $warehouse['stock_min'] : 0,
-                'stock_max' => is_numeric($warehouse['stock_max'] ?? null) ? (int) $warehouse['stock_max'] : 0,
+                'quantity' => is_numeric($warehouse['quantity'] ?? null) ? (float) $warehouse['quantity'] : 0.0,
+                'stock_min' => is_numeric($warehouse['stock_min'] ?? null) ? (float) $warehouse['stock_min'] : 0.0,
+                'stock_max' => is_numeric($warehouse['stock_max'] ?? null) ? (float) $warehouse['stock_max'] : 0.0,
             ];
         }
 

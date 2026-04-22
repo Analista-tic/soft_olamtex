@@ -67,19 +67,9 @@ const stampingProcessGuide = ref<{ supplier: string | null; price: number | null
 });
 
 const localStorageKey = computed(() => `op_additional_info_${props.opId}`);
-const opCode = computed(() =>
-    String(props.opBasicInfo?.opCode ?? '')
-        .trim()
-        .toUpperCase(),
-);
-const isEmbroidery = computed(() => {
-    // Regla negocio: MFT/MUT => Bordado; MF/MU => Estampado.
-    if (!opCode.value) return false;
-    return opCode.value.startsWith('MFT') || opCode.value.startsWith('MUT');
-});
-const stampingDisplayName = computed(() => (isEmbroidery.value ? 'Bordado' : 'Estampado'));
-const stampingDisplayNameLower = computed(() => (isEmbroidery.value ? 'bordado' : 'estampado'));
-const stampingDialogDisplayName = computed(() => (activeStampingDialogSection.value === 'laundry' ? 'Lavanderia' : stampingDisplayName.value));
+const stampingDisplayName = computed(() => 'Estampado');
+const stampingDisplayNameLower = computed(() => 'estampado');
+const stampingDialogDisplayName = computed(() => (activeStampingDialogSection.value === 'laundry' ? 'Lavanderia' : 'Estampado'));
 
 const cuttingData = computed<AdditionalInfo['cutting']>({
     get: () => data.value.cutting,
@@ -197,7 +187,7 @@ function resolveDefaultSectionVisibility(): SectionVisibility {
     if (props.enabledSections && Object.keys(props.enabledSections).length > 0) {
         return {
             cutting: Boolean(props.enabledSections.cutting),
-            stamping: Boolean(props.enabledSections.stamping) || isEmbroidery.value,
+            stamping: Boolean(props.enabledSections.stamping),
             laundry: true,
         };
     }
@@ -213,8 +203,7 @@ function resolveDefaultSectionVisibility(): SectionVisibility {
     if (detected.length > 0) {
         return {
             cutting: detected.includes('CORTE'),
-            stamping:
-                detected.some((item) => item.includes('ESTAMPADO') || item.includes('BORDADO') || item.includes('ESTAMPA')) || isEmbroidery.value,
+            stamping: detected.some((item) => item.includes('ESTAMPADO') || item.includes('BORDADO') || item.includes('ESTAMPA')),
             laundry: true,
         };
     }
@@ -413,7 +402,7 @@ function resolveGuideProcessTypes(section: 'stamping' | 'laundry'): string[] {
         return ['LAVANDERIA'];
     }
 
-    return isEmbroidery.value ? ['BORDADO'] : ['ESTAMPADO', 'ESTAMPA'];
+    return ['ESTAMPADO', 'BORDADO', 'ESTAMPA'];
 }
 
 async function loadStampingProcessGuide(section: 'stamping' | 'laundry' = activeStampingDialogSection.value): Promise<void> {
@@ -486,13 +475,6 @@ watch(
     { deep: true },
 );
 
-watch(
-    () => opCode.value,
-    () => {
-        sectionVisibility.value = resolveDefaultSectionVisibility();
-        void loadStampingProcessGuide(activeStampingDialogSection.value);
-    },
-);
 </script>
 
 <template>
