@@ -3,6 +3,7 @@ import AlertBox from '@/components/AlertBox.vue';
 import DialogActionButtons from '@/components/common/DialogActionButtons.vue';
 import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import ProcessSelector from '@/components/ProcessSelector.vue';
@@ -15,7 +16,6 @@ import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } fr
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useProductSheetValidation } from '@/composables/useProductSheetValidation';
-import { useSmartLoading } from '@/composables/useSmartLoading';
 import type { OptionParams, ProductSheet } from '@/domain/Production';
 import {
     PRODUCT_SHEET_TYPE_PRODUCT,
@@ -63,14 +63,22 @@ const emit = defineEmits<{
     (e: 'error', message: string): void;
     (e: 'update:open', value: boolean): void;
     (e: 'close'): void;
+    (e: 'loading-state', value: boolean): void;
 }>();
 
 const localOpen = ref(props.open);
 const dialogInnerRef = ref<HTMLElement | null>(null);
-const isLoading = ref(false);
+const isCatalogBootstrapLoading = ref(false);
+const isItemHydrationLoading = ref(false);
+const isBlockingLoading = computed(() =>
+  isCatalogBootstrapLoading.value || isItemHydrationLoading.value
+);
 const errorMessage = ref('');
 const errorType = ref<'error' | 'warning' | 'info'>('error');
-const smartLoading = useSmartLoading();
+
+watch(isBlockingLoading, (value) => {
+  emit('loading-state', value);
+}, { immediate: true });
 
 function setError(message: string, type: 'error' | 'warning' | 'info' = 'error'): void {
     errorMessage.value = message;
@@ -383,13 +391,9 @@ async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig
     }
 
     try {
-        const response = await smartLoading.run(
-            () =>
-                axios.post(route('produccion.product-sheets.parameters.store-option'), {
-                    key: catalogKey,
-                    name,
-                }),
-            { label: `Creando ${config.successLabel.toLowerCase()}...` },
+        const response = await axios.post(
+            route('produccion.product-sheets.parameters.store-option'),
+            { key: catalogKey, name }
         );
 
         const created = response.data?.data;
@@ -472,13 +476,9 @@ async function createCollectionFromSelect(rawName?: string): Promise<void> {
 
     creatingCollection.value = true;
     try {
-        const response = await smartLoading.run(
-            () =>
-                axios.post(route('produccion.colecciones.store'), {
-                    name,
-                    is_active: true,
-                }),
-            { label: 'Creando colección...' },
+        const response = await axios.post(
+            route('produccion.colecciones.store'),
+            { name, is_active: true }
         );
 
         const created = response.data?.data;
@@ -536,29 +536,28 @@ function handleCollectionAction(rawSearchTerm?: string): void {
 // Template (crear desde plantilla)
 const templateOptions = ref<Array<{ id: number | string; name: string }>>([]);
 const selectedTemplateId = ref<number | null>(null);
-const isLoadingTemplate = ref(false);
 const templatesLoaded = ref(false);
 
 async function loadTemplates() {
-    if (templatesLoaded.value || isLoadingTemplate.value) return;
+    if (templatesLoaded.value || isCatalogBootstrapLoading.value) return;
 
-    isLoadingTemplate.value = true;
+    isCatalogBootstrapLoading.value = true;
     try {
-        const response = await smartLoading.run(() => fetchProductSheetTemplates(), { label: 'Cargando plantillas...' });
+        const response = await fetchProductSheetTemplates();
         templateOptions.value = response.data?.data ?? [];
         templatesLoaded.value = true;
     } catch {
         templateOptions.value = [];
     } finally {
-        isLoadingTemplate.value = false;
+        isCatalogBootstrapLoading.value = false;
     }
 }
 
 async function applyTemplate(templateId: number) {
     if (!templateId) return;
-    isLoadingTemplate.value = true;
+    isCatalogBootstrapLoading.value = true;
     try {
-        const response = await smartLoading.run(() => showProductSheet(templateId), { label: 'Aplicando plantilla...' });
+        const response = await showProductSheet(templateId);
         const tpl = response.data?.data;
         if (!tpl) return;
 
@@ -594,7 +593,7 @@ async function applyTemplate(templateId: number) {
         console.error('Error al cargar template:', err);
         setError('No se pudo cargar la plantilla seleccionada.');
     } finally {
-        isLoadingTemplate.value = false;
+        isCatalogBootstrapLoading.value = false;
     }
 }
 
@@ -968,12 +967,9 @@ async function validateSampleOperationalList(silent = false): Promise<boolean> {
 
     checkingSampleOperationalList.value = true;
     try {
-        const response = await smartLoading.run(
-            () =>
-                axios.get(route('produccion.listados-operacionales.data'), {
-                    params: { product_sheet_id: productSheetId },
-                }),
-            { label: 'Validando listado operacional...' },
+        const response = await axios.get(
+            route('produccion.listados-operacionales.data'),
+            { params: { product_sheet_id: productSheetId } }
         );
         const rows = Array.isArray(response.data?.data) ? response.data.data : [];
         hasSampleOperationalList.value = rows.length > 0;
@@ -983,7 +979,7 @@ async function validateSampleOperationalList(silent = false): Promise<boolean> {
         }
 
         return hasSampleOperationalList.value;
-    } catch (error) {
+    } catch {
         hasSampleOperationalList.value = false;
         if (!silent) {
             setError('No se pudo validar el listado operacional de la muestra.');
@@ -1038,9 +1034,9 @@ async function submitConvertDialog(productReference: string) {
 
     convertLoading.value = true;
     try {
-        const response = await smartLoading.run(
-            () => convertSampleToProduct(productSheetId, productReference),
-            { label: 'Convirtiendo muestra a producto...' },
+        const response = await convertSampleToProduct(
+            productSheetId,
+            productReference
         );
         emit('productSheetSaved', {
             success: true,
@@ -1136,7 +1132,7 @@ function buildMultipartPayload(basePayload: Record<string, unknown>): FormData {
 
 
 async function saveProductSheet() {
-    if (isLoading.value) return;
+    if (isItemHydrationLoading.value) return;
     errorMessage.value = '';
 
     if (!validateForm()) {
@@ -1144,29 +1140,24 @@ async function saveProductSheet() {
     }
 
     determineStatus();
-    isLoading.value = true;
+    isItemHydrationLoading.value = true;
 
     try {
-        const response = await smartLoading.run(
-            async () => {
-                const basePayload = buildBasePayload();
-                const payload = buildMultipartPayload(basePayload);
+        const basePayload = buildBasePayload();
+        const payload = buildMultipartPayload(basePayload);
 
-                const flatSketchToUpload = await (flatSketchRef.value?.getFileForUpload() ?? Promise.resolve(null));
-                if (flatSketchToUpload instanceof File) {
-                    payload.append('flat_sketch', flatSketchToUpload);
-                }
+        const flatSketchToUpload = await (flatSketchRef.value?.getFileForUpload() ?? Promise.resolve(null));
+        if (flatSketchToUpload instanceof File) {
+            payload.append('flat_sketch', flatSketchToUpload);
+        }
 
-                if (isEditMode.value && props.productSheet?.id) {
-                    payload.append('_method', 'PUT');
-                }
+        if (isEditMode.value && props.productSheet?.id) {
+            payload.append('_method', 'PUT');
+        }
 
-                return isEditMode.value && props.productSheet?.id
-                    ? await updateProductSheet(props.productSheet.id, payload)
-                    : await createProductSheet(payload);
-            },
-            { label: isEditMode.value ? 'Actualizando sábana...' : 'Guardando sábana...' },
-        );
+        const response = isEditMode.value && props.productSheet?.id
+            ? await updateProductSheet(props.productSheet.id, payload)
+            : await createProductSheet(payload);
 
         emit('productSheetSaved', {
             success: true,
@@ -1193,7 +1184,7 @@ async function saveProductSheet() {
         emit('error', errMsg);
         setError(errMsg);
     } finally {
-        isLoading.value = false;
+        isItemHydrationLoading.value = false;
     }
 }
 
@@ -1274,7 +1265,7 @@ function handleClose() {
                             label=""
                             :options="templateOptions"
                             placeholder="Sin plantilla (nuevo)"
-                            :disabled="isLoadingTemplate"
+                            :disabled="isCatalogBootstrapLoading"
                         />
                         <span v-if="form.parent_id" class="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
                             Nueva versión
@@ -1283,6 +1274,13 @@ function handleClose() {
                 </div>
             </DialogHeader>
             <div ref="dialogInnerRef" class="min-h-0 flex-1 overflow-y-auto scroll-smooth px-6 py-4" style="scrollbar-width: thin">
+                <FormLoadingOverlay
+                  :active="isBlockingLoading"
+                  :delay-ms="0"
+                  message="Cargando sábana de producto..."
+                  description="Preparando catálogos y datos iniciales."
+                />
+                <fieldset :disabled="isBlockingLoading" class="w-full">
                     <div class="grid gap-6 sm:grid-cols-[minmax(0,1fr)_340px]">
                         <div class="space-y-4">
 
@@ -1676,14 +1674,15 @@ function handleClose() {
                             </div>
                         </div>
                     </div>
-                </div>
+                </fieldset>
+            </div>
 
             <DialogFooter class="shrink-0 flex flex-wrap items-center justify-end gap-2 border-t border-border px-6 py-4">
                 <Button
                     v-if="showConvertButton"
                     variant="ghost"
                     class="rounded-full border border-dashed border-primary/60 px-5 py-2 text-sm font-semibold text-primary"
-                    :disabled="isLoading"
+                    :disabled="isBlockingLoading"
                     @click="openConvertDialog"
                 >
                     Convertir a Producto
@@ -1695,7 +1694,7 @@ function handleClose() {
                     v-if="!isViewMode"
                     cancel-label="Cancelar"
                     :submit-label="isEditMode ? 'Actualizar' : 'Guardar'"
-                    :loading="isLoading"
+                    :loading="isBlockingLoading"
                     @cancel="handleClose"
                     @submit="saveProductSheet"
                 />

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
@@ -77,6 +78,8 @@ const productSheetToDelete = ref<ProductSheet | null>(null);
 const isEditDialogOpen = ref(false); // Estado para el diálogo de edición/creación
 const isViewMode = ref(false); // Estado para modo de solo lectura
 const isDeleteDialogOpen = ref(false); // Estado para el diálogo de confirmación de eliminación
+const isDeleting = ref(false);
+const isFetchingSheets = ref(false);
 const editProductSheetData = ref<ProductSheet | undefined>(undefined); // Cambiar null por undefined
 const currentPage = ref(1);
 const itemsPerPage = 10;
@@ -157,8 +160,9 @@ function confirmDeleteProductSheet(product: ProductSheet) {
 }
 
 async function deleteProductSheet() {
-    if (!productSheetToDelete.value) return;
+    if (!productSheetToDelete.value || isDeleting.value) return;
 
+    isDeleting.value = true;
     try {
         const response = await deleteProductSheetRequest(productSheetToDelete.value.id);
         const index = productSheets.value.findIndex((product) => product.id === productSheetToDelete.value!.id);
@@ -193,6 +197,8 @@ async function deleteProductSheet() {
         }
 
         error(errorText);
+    } finally {
+        isDeleting.value = false;
     }
 }
 
@@ -326,6 +332,7 @@ async function fetchProductSheets(page = 1, search = '', status = 'all', section
 
     const controller = new AbortController();
     activeFetchController = controller;
+    isFetchingSheets.value = true;
 
     try {
         const normalizedSearch = search.trim();
@@ -360,6 +367,7 @@ async function fetchProductSheets(page = 1, search = '', status = 'all', section
         if (activeFetchController === controller) {
             activeFetchController = null;
         }
+        isFetchingSheets.value = false;
     }
 }
 
@@ -498,12 +506,19 @@ onUnmounted(() => {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-if="productSheets.length === 0">
+                        <TableRow v-if="isFetchingSheets">
                             <TableCell colspan="14" class="py-10 text-center text-sm text-muted-foreground">
-                                No se encontraron sábanas de producto.
+                                Cargando sábanas de productos...
                             </TableCell>
                         </TableRow>
-                        <TableRow v-for="product in productSheets" v-else :key="product.id" class="text-center" :class="{ 'opacity-50': product.is_enabled === false }">
+
+                        <template v-else>
+                            <TableRow v-if="productSheets.length === 0">
+                                <TableCell colspan="14" class="py-10 text-center text-sm text-muted-foreground">
+                                    No se encontraron sábanas de producto.
+                                </TableCell>
+                            </TableRow>
+                            <TableRow v-for="product in productSheets" v-else :key="product.id" class="text-center" :class="{ 'opacity-50': product.is_enabled === false }">
                                 <TableCell class="font-medium">
                                     <div class="flex flex-row items-center justify-center gap-1 whitespace-nowrap">
                                         <span class="whitespace-nowrap">{{ product.sample_reference ?? (product.type === 'muestra' ? resolveProductSheetReference(product) : '-') }}</span>
@@ -558,48 +573,49 @@ onUnmounted(() => {
                                     />
                                 </TableCell>
                                 <TableCell class="text-center">
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger as-child>
-                                            <Button variant="ghost" size="icon" :class="actionButtonClass" aria-label="Acciones">
-                                                <MoreVertical class="h-4 w-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" class="w-48">
-                                            <DropdownMenuItem v-if="canView" class="cursor-pointer gap-2" @click="viewProductSheet(product)">
-                                                <Eye class="h-4 w-4" /> Ver detalle
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem v-if="canEdit" class="cursor-pointer gap-2" @click="openEditDialog(product)">
-                                                <Pencil class="h-4 w-4" /> Editar
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                v-if="canEdit"
-                                                class="cursor-pointer gap-2"
-                                                :class="product.is_enabled !== false ? 'text-amber-600' : 'text-green-600'"
-                                                @click="handleToggleEnabled(product)"
-                                            >
-                                                <Power class="h-4 w-4" />
-                                                {{ product.is_enabled !== false ? 'Deshabilitar' : 'Habilitar' }}
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                v-if="canEdit && product.type === 'muestra' && !product.product_reference"
-                                                class="cursor-pointer gap-2"
-                                                :disabled="convertRowLoading"
-                                                @click="openRowConvertDialog(product)"
-                                            >
-                                                <Repeat2 class="h-4 w-4" /> Convertir a producto
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                v-if="canDelete"
-                                                class="cursor-pointer gap-2 text-destructive focus:text-destructive"
-                                                @click="confirmDeleteProductSheet(product)"
-                                            >
-                                                <Trash class="h-4 w-4" /> Eliminar
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
+                                    <div class="flex items-center justify-center gap-1">
+                                        <button v-if="canView" type="button" :class="actionButtonClass" aria-label="Ver detalle" @click="viewProductSheet(product)">
+                                            <Eye class="h-4 w-4" />
+                                        </button>
+                                        <button v-if="canEdit" type="button" :class="actionButtonClass" aria-label="Editar" @click="openEditDialog(product)">
+                                            <Pencil class="h-4 w-4" />
+                                        </button>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger as-child>
+                                                <Button variant="ghost" size="icon" :class="actionButtonClass" aria-label="Acciones">
+                                                    <MoreVertical class="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" class="w-48">
+                                                <DropdownMenuItem
+                                                    v-if="canEdit"
+                                                    class="cursor-pointer gap-2"
+                                                    :class="product.is_enabled !== false ? 'text-amber-600' : 'text-green-600'"
+                                                    @click="handleToggleEnabled(product)"
+                                                >
+                                                    <Power class="h-4 w-4" />
+                                                    {{ product.is_enabled !== false ? 'Deshabilitar' : 'Habilitar' }}
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    v-if="canEdit && product.type === 'muestra' && !product.product_reference"
+                                                    class="cursor-pointer gap-2"
+                                                    :disabled="convertRowLoading"
+                                                    @click="openRowConvertDialog(product)"
+                                                >
+                                                    <Repeat2 class="h-4 w-4" /> Convertir a producto
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    v-if="canDelete"
+                                                    class="cursor-pointer gap-2 text-destructive focus:text-destructive"
+                                                    @click="confirmDeleteProductSheet(product)"
+                                                >
+                                                    <Trash class="h-4 w-4" /> Eliminar
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
                                 </TableCell>
-                        </TableRow>
-                    </TableBody>
+                        </TableRow>                        </template>                    </TableBody>
                 </Table>
                 <Pagination
                     class="mt-5 flex justify-center"
@@ -641,6 +657,7 @@ onUnmounted(() => {
         :brands="props.brands"
         :worlds="props.worlds"
         :fabricBases="props.fabricBases"
+        @loading-state="() => {}"
         :yarnBases="props.yarnBases"
         :operationalLists="props.operationalLists"
         :collections="props.collections"
@@ -710,34 +727,13 @@ onUnmounted(() => {
         </AlertDialogContent>
     </AlertDialog>
 
-    <AlertDialog v-model:open="isDeleteDialogOpen" @close="isDeleteDialogOpen = false">
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>Confirmar eliminación</AlertDialogTitle>
-                <AlertDialogDescription>
-                    ¿Estás seguro de que deseas eliminar este product sheet? Esta acción no se puede deshacer.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter class="flex flex-col gap-2 md:flex-row md:justify-end">
-                <AlertDialogCancel asChild>
-                    <button
-                        type="button"
-                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                        @click="isDeleteDialogOpen = false"
-                    >
-                        Cancelar
-                    </button>
-                </AlertDialogCancel>
-                <AlertDialogAction asChild>
-                    <Button
-                        variant="destructive"
-                        class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
-                        @click="deleteProductSheet"
-                    >
-                        Eliminar
-                    </Button>
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+        v-model:open="isDeleteDialogOpen"
+        title="Eliminar sábana de producto"
+        description="¿Estás seguro de que deseas eliminar esta sábana de producto? Esta acción no se puede deshacer."
+        confirm-text="Eliminar"
+        cancel-text="Cancelar"
+        :destructive="true"
+        @confirm="deleteProductSheet"
+    />
 </template>

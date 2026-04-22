@@ -13,6 +13,7 @@ import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { PurchaseInvoice } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
 import type { PageProps as InertiaPageProps } from '@inertiajs/core';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -181,7 +182,7 @@ async function fetchProviders() {
 
 async function fetchSubgroups() {
     try {
-        const response = await axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } });
+        const response = await axios.get(catalogLookupRoutes.categorySubGroups, { params: { per_page: 1000 } });
         subgroups.value = response.data.data || [];
     } catch (e: any) {
         console.log('Error al cargar subgrupos:', e);

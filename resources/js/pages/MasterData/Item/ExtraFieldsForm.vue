@@ -17,6 +17,7 @@ const props = withDefaults(
         readonly?: boolean;
         showLabel?: boolean;
         fieldOptions?: Record<string, string[]>;
+        canCreateAdditionalField?: boolean;
         // Metadata de campos adicionales (vista de AdditionalField)
         additionalFieldsMeta?: AdditionalField[];
     }>(),
@@ -24,6 +25,7 @@ const props = withDefaults(
         readonly: false,
         showLabel: true,
         fieldOptions: () => ({}),
+        canCreateAdditionalField: true,
         additionalFieldsMeta: () => [],
     },
 );
@@ -268,7 +270,7 @@ function isAddDisabled() {
                     placeholder="Selecciona un campo"
                     :disabled="props.readonly"
                 >
-                    <template #header>
+                    <template v-if="props.canCreateAdditionalField" #header>
                         <Button
                             type="button"
                             size="sm"

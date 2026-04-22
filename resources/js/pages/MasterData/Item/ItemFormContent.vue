@@ -32,6 +32,7 @@ import GroupDialog from '@/pages/MasterData/Category/GroupDialog.vue';
 import SubGroupDialog from '@/pages/MasterData/Category/SubGroupDialog.vue';
 import ExtraFieldsForm from '@/pages/MasterData/Item/ExtraFieldsForm.vue';
 
+import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
 import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
 
 import type { Tax } from '@/domain/Finance';
@@ -49,6 +50,7 @@ import type { Option } from '@/domain/shared/types';
 
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
+import { useAuthStore } from '@/stores/auth';
 
 import unitMeasureData from '@/data/unitMeasures.json';
 
@@ -80,6 +82,8 @@ const emit = defineEmits<{
     (e: 'error', message: string): void;
     (e: 'loading-state', value: boolean): void;
 }>();
+
+const authStore = useAuthStore();
 
 const isCatalogBootstrapLoading = ref(false);
 const isItemHydrationLoading = ref(false);
@@ -227,6 +231,10 @@ const unitMeasure = ref(getInitialUnitMeasure(props.form));
 
 const isViewMode = computed(() => props.dialogType === 'view');
 const currentItemType = computed<ItemType>(() => normalizeItemType(localForm.value.item_type));
+const canCreateCategories = computed(() => authStore.can('crear categorias'));
+const canCreateTaxes = computed(() => authStore.can('crear impuestos'));
+const canCreateAdditionalFields = computed(() => authStore.can('crear campos adicionales'));
+const canCreateWarehouses = computed(() => authStore.can('crear bodegas'));
 
 const groupOptions = computed(() =>
     categoryGroups.value.map((group) => ({
@@ -454,7 +462,7 @@ async function loadItemDetails(itemId: number) {
 
 async function fetchWarehouses() {
     try {
-        const { data } = await axios.get('/bodegas/data', { params: { per_page: 1000 } });
+        const { data } = await axios.get(catalogLookupRoutes.warehouses, { params: { per_page: 1000 } });
         warehouses.value = data.data;
     } catch (error) {
         console.error('Error al obtener las bodegas:', error);
@@ -465,11 +473,11 @@ async function fetchCategorySubGroups(force = false) {
     try {
         const raw: any[] =
             !force && props.preloadedSubGroups && props.preloadedSubGroups.length > 0
-                ? props.preloadedSubGroups
+                  ? props.preloadedSubGroups
                 : !force && cachedCategorySubGroups
                   ? cachedCategorySubGroups
                   : (
-                        await axios.get('/categorias/subgrupos-data', {
+                        await axios.get(catalogLookupRoutes.categorySubGroups, {
                             params: { per_page: 1000 },
                         })
                     ).data.data;
@@ -494,10 +502,10 @@ async function fetchTaxes(force = false) {
     try {
         const raw: Tax[] =
             !force && props.preloadedTaxes && props.preloadedTaxes.length > 0
-                ? props.preloadedTaxes
+                  ? props.preloadedTaxes
                 : !force && cachedTaxes
                   ? cachedTaxes
-                  : (await axios.get('/impuestos/data', { params: { per_page: 100, status: true } })).data.data;
+                  : (await axios.get(catalogLookupRoutes.taxes, { params: { per_page: 100, status: true } })).data.data;
 
         cachedTaxes = (raw ?? []).filter((t: any) => t.status);
         taxes.value = [...cachedTaxes];
@@ -509,7 +517,7 @@ async function fetchTaxes(force = false) {
 
 async function fetchAccountingAccounts() {
     try {
-        const { data } = await axios.get('/catalogo-cuentas/options', {
+        const { data } = await axios.get(catalogLookupRoutes.accountingAccounts, {
             params: { account_type: 'income,asset,cost', allows_entries: true },
         });
         const all: AccountingAccountOption[] = data.data ?? [];
@@ -544,7 +552,7 @@ async function fetchAdditionalFields(force = false) {
             return;
         }
 
-        const { data } = await axios.get('/campos-adicionales/options');
+        const { data } = await axios.get(catalogLookupRoutes.additionalFields);
         const payload: any[] = Array.isArray(data?.data ?? data) ? (data?.data ?? data) : [];
 
         const normalizedFields: AdditionalField[] = payload
@@ -664,10 +672,12 @@ async function hydrateOpenForm() {
 }
 
 function openGroupDialog() {
+    if (!canCreateCategories.value) return;
     isGroupDialogOpen.value = true;
 }
 
 function openSubGroupDialog() {
+    if (!canCreateCategories.value) return;
     subGroupDialogForm.value = {
         name: '',
         category_group_id: selectedGroupId.value ? Number(selectedGroupId.value) : undefined,
@@ -701,6 +711,7 @@ async function handleSubGroupSubmit(formData: Partial<CategorySubGroup>) {
 }
 
 function openTaxDialog() {
+    if (!canCreateTaxes.value) return;
     taxForm.value = { name: '', percentage: 0, status: true };
     isTaxDialogOpen.value = true;
 }
@@ -719,6 +730,7 @@ async function handleTaxDialogSubmit(formData: TaxDialogSubmitPayload) {
 }
 
 function openAdditionalFieldDialog() {
+    if (!canCreateAdditionalFields.value) return;
     additionalFieldDialogForm.value = createAdditionalFieldForm();
     additionalFieldDialogOpen.value = true;
 }
@@ -1108,6 +1120,7 @@ function handleItemTypeSelect(type: ItemType) {
 
 function openCatalog(to: 'warehouse') {
     if (typeof window === 'undefined') return;
+    if (to === 'warehouse' && !canCreateWarehouses.value) return;
 
     const routes: Record<'warehouse', string> = {
         warehouse: '/bodegas',
@@ -1272,6 +1285,7 @@ onMounted(async () => {
     if (typeof window !== 'undefined') {
         window.addEventListener(INVENTORY_ADJUSTMENT_SAVED_EVENT, handleInventoryAdjustmentSaved);
     }
+    await authStore.fetchUser();
     await fetchCategorySubGroups();
     // nextTick para asegurar que syncGroupFromSubgroup ya corrió
     await nextTick();
@@ -1400,7 +1414,7 @@ onBeforeUnmount(() => {
                                         search-placeholder="Buscar..."
                                         :show-placeholder-option="false"
                                     >
-                                        <template #header>
+                                        <template v-if="canCreateCategories" #header>
                                             <Button
                                                 type="button"
                                                 size="sm"
@@ -1426,7 +1440,7 @@ onBeforeUnmount(() => {
                                         search-placeholder="Buscar..."
                                         :show-placeholder-option="false"
                                     >
-                                        <template #header>
+                                        <template v-if="canCreateCategories" #header>
                                             <Button
                                                 type="button"
                                                 size="sm"
@@ -1451,7 +1465,7 @@ onBeforeUnmount(() => {
                                         search-placeholder="Buscar..."
                                         :show-placeholder-option="false"
                                     >
-                                        <template #header>
+                                        <template v-if="canCreateTaxes" #header>
                                             <Button
                                                 type="button"
                                                 size="sm"
@@ -1509,7 +1523,7 @@ onBeforeUnmount(() => {
                                                 placeholder="Bodega"
                                                 :searchable="false"
                                             >
-                                                <template #header>
+                                                <template v-if="canCreateWarehouses" #header>
                                                     <Button
                                                         type="button"
                                                         size="sm"
@@ -1679,6 +1693,7 @@ onBeforeUnmount(() => {
                             :extra-field-names="extraFieldNames"
                             v-model:extra-fields="extraFields"
                             :readonly="isViewMode"
+                            :can-create-additional-field="canCreateAdditionalFields"
                             @create-additional-field="openAdditionalFieldDialog"
                             :field-options="additionalFieldOptions"
                             :additional-fields-meta="additionalFieldsMeta"

@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             CompanySettingSeeder::class,
             SettingsFieldParametersSeeder::class,
             RolesAndPermissionsSeeder::class,
+            RolePermissionMatrixAdjustmentSeeder::class,
 
             // === MAESTROS DE DATOS ===
             CategorySeeder::class,

@@ -16,6 +16,7 @@ import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { PurchaseInvoice } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
 import { formatDateDDMMYYYY, toIsoDateString } from '@/lib/date';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -221,7 +222,7 @@ async function fetchProviders() {
 
 async function fetchSubgroups() {
     try {
-        const { data } = await axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } });
+        const { data } = await axios.get(catalogLookupRoutes.categorySubGroups, { params: { per_page: 1000 } });
         subgroups.value = Array.isArray(data?.data) ? data.data : [];
     } catch (error) {
         console.log('Error al cargar subgrupos:', error);

@@ -10,6 +10,10 @@ use App\Http\Controllers\Expenses\ExpenseVoucherController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
+// === LOOKUPS DE CATALOGOS PARA REFERENCIA ===
+Route::get('catalogos/cuentas-contables/options', [AccountingAccountController::class, 'options'])
+    ->name('catalogos.accounting-accounts.options');
+
 // === RETENCIONES ===
 Route::get('retenciones/data', [RetentionController::class, 'data'])->name('retenciones.data');
 

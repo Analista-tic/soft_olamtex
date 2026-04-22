@@ -62,6 +62,8 @@ const totalItems = ref<number>(0);
 const searchQuery = ref<string>(''); // Campo de búsqueda
 const isLoading = ref<boolean>(false);
 const selectedGroup = ref<Option['id'] | ''>(''); // Filtro por grupo
+const sortBy = ref<string>('id');
+const sortDir = ref<'asc' | 'desc'>('desc');
 const successMessage = ref<string>('');
 const errorMessage = ref<string>('');
 
@@ -140,6 +142,8 @@ async function fetchSubGroups(page: number = 1, search: string = '', groupId: Op
                 per_page: itemsPerPage,
                 search,
                 group_id: typeof groupId === 'string' && groupId !== '' ? Number(groupId) : groupId,
+                sort_by: sortBy.value,
+                sort_dir: sortDir.value,
             },
         });
 
@@ -152,6 +156,17 @@ async function fetchSubGroups(page: number = 1, search: string = '', groupId: Op
     } finally {
         isLoading.value = false;
     }
+}
+
+function toggleSort(column: string): void {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+
+    fetchSubGroups(1, searchQuery.value, normalizedGroupId.value);
 }
 
 function handlePageChange(newPage: number): void {
@@ -217,7 +232,19 @@ onMounted(() => {
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead>N° Subgrupo</TableHead>
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('id')">
+                                <span class="inline-flex items-center gap-1">
+                                    N° Subgrupo
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'id'">
+                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                        </template>
+                                        <template v-else>
+                                            <span class="opacity-30">↕</span>
+                                        </template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Nombre</TableHead>
                             <TableHead>Grupo</TableHead>
                             <TableHead>Acciones</TableHead>

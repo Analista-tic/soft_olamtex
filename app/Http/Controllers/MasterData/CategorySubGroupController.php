@@ -79,6 +79,16 @@ class CategorySubGroupController extends Controller
             $query->where('category_group_id', $request->group_id);
         }
 
+        $sortBy = $request->get('sort_by', 'id');
+        $sortDir = $request->get('sort_dir', 'desc') === 'asc' ? 'asc' : 'desc';
+        $allowedSorts = ['id', 'name'];
+
+        if (! in_array($sortBy, $allowedSorts, true)) {
+            $sortBy = 'id';
+        }
+
+        $query->orderBy($sortBy, $sortDir);
+
         $subgroups = $query->paginate($request->get('per_page', 10)); // Manejar paginación
 
         return response()->json([
