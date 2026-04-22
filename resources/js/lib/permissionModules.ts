@@ -458,14 +458,14 @@ export const PERMISSION_MODULES: PermissionModule[] = [
 
     // ── Acceso por Módulo ──────────────────────────────────────────
     {
-        label: 'Acceso por Módulo',
-        tokens: ['ver gastos', 'ver ingresos', 'ver financiero'],
+        label: 'Acceso a Secciones del Menú',
+        tokens: ['ver ingresos', 'ver gastos', 'ver financiero'],
         permissions: [
-            'ver gastos',
             'ver ingresos',
+            'ver gastos',
             'ver financiero',
         ],
-        category: 'General',
+        category: 'Configuración',
     },
 ];
 
@@ -478,7 +478,6 @@ export const PERMISSION_CATEGORIES: string[] = [
     'Gastos',
     'Ingresos',
     'Financiero',
-    'General',
 ];
 
 /**
