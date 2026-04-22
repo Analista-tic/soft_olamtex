@@ -459,11 +459,33 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     // ── Acceso por Módulo ──────────────────────────────────────────
     {
         label: 'Acceso a Secciones del Menú',
-        tokens: ['ver ingresos', 'ver gastos', 'ver financiero'],
+        tokens: [
+            'ver ingresos', 'ver gastos', 'ver financiero',
+            'ver solicitudes compra', 'ver documentos compra',
+            'ver facturas compra', 'ver solicitudes insumos',
+            'ver inventario telas', 'ver programador',
+            'ver sabana productos', 'ver listados operacionales',
+            'ver telas rollos', 'ver descargue telas orden',
+        ],
         permissions: [
+            // Ingresos
             'ver ingresos',
-            'ver gastos',
+            // Gastos
+            'ver todos solicitudes compra',
+            'ver todos documentos compra',
+            'ver facturas compra',
+            // Financiero
             'ver financiero',
+            // Inventarios
+            'ver solicitudes insumos',
+            'ver inventario telas',
+            // Producción
+            'ver programador',
+            'ver sabana productos',
+            'ver listados operacionales',
+            // TEXTIL PACK
+            'ver telas rollos',
+            'ver descargue telas orden',
         ],
         category: 'Configuración',
     },
