@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { PERMISSIONS_BY_MODULE } from '@/lib/permissionModules';
+import { PERMISSION_CATEGORIES, PERMISSION_MODULES, PERMISSIONS_BY_MODULE } from '@/lib/permissionModules';
 import { computed, ref, watch } from 'vue';
 
 const emit = defineEmits(['submit', 'close']);
@@ -19,6 +19,25 @@ const props = defineProps({
 });
 
 const permissionsByModule = PERMISSIONS_BY_MODULE;
+
+const modulesByCategory = computed(() => {
+    const result: Record<string, Record<string, string[]>> = {};
+
+    for (const category of PERMISSION_CATEGORIES) {
+        const modulesInCategory = PERMISSION_MODULES.filter((m) => m.category === category);
+        if (modulesInCategory.length === 0) continue;
+
+        const filtered: Record<string, string[]> = {};
+        for (const mod of modulesInCategory) {
+            if (!filteredPermissionModules.value[mod.label]) continue;
+            filtered[mod.label] = filteredPermissionModules.value[mod.label];
+        }
+        if (Object.keys(filtered).length > 0) {
+            result[category] = filtered;
+        }
+    }
+    return result;
+});
 
 const form = ref<{
     id: number | null;
@@ -201,54 +220,68 @@ const filteredPermissionModules = computed(() => {
                                 />
                             </div>
 
-                            <div class="grid grid-cols-2 gap-3">
-                                <template v-if="Object.keys(filteredPermissionModules).length > 0">
+                            <div v-if="Object.keys(modulesByCategory).length > 0" class="space-y-5">
                                 <div
-                                    v-for="(permissions, module) in filteredPermissionModules"
-                                    :key="module"
-                                    class="rounded-lg border border-border bg-muted/30 p-3"
+                                    v-for="(modules, category) in modulesByCategory"
+                                    :key="category"
                                 >
-                                    <!-- Cabecera del módulo -->
-                                    <div class="mb-2.5 flex items-center justify-between">
-                                        <span class="text-xs font-semibold uppercase tracking-wide text-foreground">
-                                            {{ module }}
+                                    <!-- Cabecera de categoría -->
+                                    <div class="mb-3 flex items-center gap-2">
+                                        <span class="text-xs font-bold uppercase tracking-widest text-primary">
+                                            {{ category }}
                                         </span>
-                                        <label class="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground">
-                                            <input
-                                                type="checkbox"
-                                                :id="`select-all-${module}`"
-                                                :checked="moduleAllSelected[module]"
-                                                @change="handleCheckboxChange($event, module)"
-                                                class="accent-primary h-3.5 w-3.5 cursor-pointer"
-                                            />
-                                            {{ moduleAllSelected[module] ? 'Deseleccionar' : 'Todos' }}
-                                        </label>
+                                        <div class="h-px flex-1 bg-border" />
                                     </div>
 
-                                    <!-- Permisos del módulo -->
-                                    <div class="flex flex-col gap-1.5">
-                                        <label
-                                            v-for="permission in permissions"
-                                            :key="permission"
-                                            :for="permission"
-                                            class="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted"
+                                    <!-- Módulos de la categoría -->
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div
+                                            v-for="(permissions, module) in modules"
+                                            :key="module"
+                                            class="rounded-lg border border-border bg-muted/30 p-3"
                                         >
-                                            <input
-                                                type="checkbox"
-                                                :id="permission"
-                                                :value="permission"
-                                                v-model="form.permissions"
-                                                class="accent-primary h-3.5 w-3.5 shrink-0 cursor-pointer"
-                                            />
-                                            {{ permission }}
-                                        </label>
+                                            <!-- Cabecera del módulo — igual que antes -->
+                                            <div class="mb-2.5 flex items-center justify-between">
+                                                <span class="text-xs font-semibold uppercase tracking-wide text-foreground">
+                                                    {{ module }}
+                                                </span>
+                                                <label class="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground">
+                                                    <input
+                                                        type="checkbox"
+                                                        :id="`select-all-${module}`"
+                                                        :checked="moduleAllSelected[module]"
+                                                        @change="handleCheckboxChange($event, module)"
+                                                        class="accent-primary h-3.5 w-3.5 cursor-pointer"
+                                                    />
+                                                    {{ moduleAllSelected[module] ? 'Deseleccionar' : 'Todos' }}
+                                                </label>
+                                            </div>
+
+                                            <!-- Permisos del módulo — igual que antes -->
+                                            <div class="flex flex-col gap-1.5">
+                                                <label
+                                                    v-for="permission in permissions"
+                                                    :key="permission"
+                                                    :for="permission"
+                                                    class="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        :id="permission"
+                                                        :value="permission"
+                                                        v-model="form.permissions"
+                                                        class="accent-primary h-3.5 w-3.5 shrink-0 cursor-pointer"
+                                                    />
+                                                    {{ permission }}
+                                                </label>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                                </template>
-                                <p v-else class="col-span-2 py-4 text-center text-xs text-muted-foreground">
-                                    No se encontraron permisos
-                                </p>
                             </div>
+                            <p v-else class="py-4 text-center text-xs text-muted-foreground">
+                                No se encontraron permisos
+                            </p>
                         </div>
 
                     </form>
