@@ -16,6 +16,7 @@ import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } fr
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useProductSheetValidation } from '@/composables/useProductSheetValidation';
+import { useSmartLoading } from '@/composables/useSmartLoading';
 import type { OptionParams, ProductSheet } from '@/domain/Production';
 import {
     PRODUCT_SHEET_TYPE_PRODUCT,
@@ -66,6 +67,7 @@ const emit = defineEmits<{
     (e: 'loading-state', value: boolean): void;
 }>();
 
+const smartLoading = useSmartLoading();
 const localOpen = ref(props.open);
 const dialogInnerRef = ref<HTMLElement | null>(null);
 const isCatalogBootstrapLoading = ref(false);
