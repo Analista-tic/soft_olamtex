@@ -490,16 +490,13 @@ onUnmounted(() => {
                     <TableHeader>
                         <TableRow>
                             <TableHead>Ref. Muestra</TableHead>
-                            <TableHead>Ref. Producto</TableHead>
-                            <TableHead>Ref. Prod 2</TableHead>
+                            <TableHead>Ref 1. Producto</TableHead>
+                            <TableHead>Ref 2. Producto</TableHead>
                             <TableHead>Sección</TableHead>
                             <TableHead>Grupo</TableHead>
                             <TableHead>Mundo</TableHead>
                             <TableHead>Base</TableHead>
                             <TableHead>Dibujo</TableHead>
-                            <TableHead>Precio Fact</TableHead>
-                            <TableHead>Costo</TableHead>
-                            <TableHead>Precio Venta</TableHead>
                             <TableHead>Costo Total</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead class="text-center">Acciones</TableHead>
@@ -507,14 +504,14 @@ onUnmounted(() => {
                     </TableHeader>
                     <TableBody>
                         <TableRow v-if="isFetchingSheets">
-                            <TableCell colspan="14" class="py-10 text-center text-sm text-muted-foreground">
+                            <TableCell colspan="11" class="py-10 text-center text-sm text-muted-foreground">
                                 Cargando sábanas de productos...
                             </TableCell>
                         </TableRow>
 
                         <template v-else>
                             <TableRow v-if="productSheets.length === 0">
-                                <TableCell colspan="14" class="py-10 text-center text-sm text-muted-foreground">
+                                <TableCell colspan="11" class="py-10 text-center text-sm text-muted-foreground">
                                     No se encontraron sábanas de producto.
                                 </TableCell>
                             </TableRow>
@@ -559,9 +556,6 @@ onUnmounted(() => {
                                         </div>
                                     </div>
                                 </TableCell>
-                                <TableCell>{{ formatCopCurrency(product.billing_price) }}</TableCell>
-                                <TableCell>{{ formatCopCurrency(product.costo) }}</TableCell>
-                                <TableCell>{{ formatCopCurrency(product.selling_price) }}</TableCell>
                                 <TableCell>
                                     <span v-if="product.latest_total_cost != null">{{ formatCopCurrency(product.latest_total_cost) }}</span>
                                     <span v-else class="text-muted-foreground">—</span>
