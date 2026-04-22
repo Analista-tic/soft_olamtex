@@ -144,13 +144,14 @@ function clearDialogPrepareFallbackTimer() {
 }
 
 function startDialogPreparationLoading() {
+    // Eliminado smartLoading.start: el loading del diálogo es solo local
     if (dialogPreparationLoadingId) return;
-    dialogPreparationLoadingId = smartLoading.start({ label: 'Cargando información...' });
+    dialogPreparationLoadingId = Symbol('dialogPreparationLoadingId');
 }
 
 function stopDialogPreparationLoading() {
+    // Eliminado smartLoading.stop: el loading del diálogo es solo local
     if (!dialogPreparationLoadingId) return;
-    smartLoading.stop(dialogPreparationLoadingId);
     dialogPreparationLoadingId = null;
 }
 
@@ -528,7 +529,6 @@ onBeforeUnmount(() => {
         :contactData="form"
         :external-error="errorMessage"
         :external-error-type="errorType"
-        :defer-content="isPreparingDialog"
         @close="closeDialog"
         @submit="submitForm"
         @loading-state="handleDialogLoadingState"

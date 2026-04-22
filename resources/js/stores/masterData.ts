@@ -8,6 +8,7 @@ interface Group {
 
 interface MasterDataState {
     groups: Group[];
+    groupsError: string | null;
     groupsLoaded: boolean;
     groupsLoading: boolean;
 }
@@ -15,6 +16,7 @@ interface MasterDataState {
 export const useMasterDataStore = defineStore('masterData', {
     state: (): MasterDataState => ({
         groups: [],
+        groupsError: null,
         groupsLoaded: false,
         groupsLoading: false,
     }),
@@ -22,6 +24,7 @@ export const useMasterDataStore = defineStore('masterData', {
         async fetchGroups(): Promise<void> {
             if (this.groupsLoaded || this.groupsLoading) return;
             this.groupsLoading = true;
+            this.groupsError = null;
             try {
                 const response = await axios.get('/categorias/grupos');
                 this.groups = response.data.map((g: any) => ({
@@ -30,6 +33,7 @@ export const useMasterDataStore = defineStore('masterData', {
                 }));
                 this.groupsLoaded = true;
             } catch (error) {
+                this.groupsError = 'No se pudieron cargar las categorias proveedor/cliente.';
                 console.error('Error cargando grupos:', error);
             } finally {
                 this.groupsLoading = false;

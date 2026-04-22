@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import type { Contact, ContactIdType, ContactPersonType, ContactType } from '@/domain/MasterData';
 import { useMasterDataStore } from '@/stores/masterData';
 import { useDebounceFn } from '@vueuse/core';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import colombiaData from '../../../data/colombia.json';
 
 type ContactFormState = Partial<Omit<Contact, 'contact_type' | 'id_type' | 'person_type' | 'dv'>> & {
@@ -184,10 +184,6 @@ const updateLocationOptions = (searchQuery: string = '') => {
 };
 
 const masterDataStore = useMasterDataStore();
-
-onMounted(() => {
-    masterDataStore.fetchGroups();
-});
 
 const errors = ref<Record<string, string[]>>({});
 

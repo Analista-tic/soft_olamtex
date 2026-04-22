@@ -46,10 +46,16 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             // Producción / Inventario / Textil pack
             'actualizar tiempo estandar operacion',
             'ver control lotes',
+            'ver propios control lotes',
+            'ver area control lotes',
+            'ver todos control lotes',
             'entregar lote produccion',
             'reportar novedad lote',
             'resolver novedad lote',
             'registrar consumo tela corte',
+            'ver propios programacion produccion',
+            'ver area programacion produccion',
+            'ver todos programacion produccion',
             'ver telas rollos',
             'crear telas rollos',
             'editar telas rollos',
@@ -102,6 +108,7 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
         $sharedProductionInventoryTextil = [
             // Producción
             'ver programador',
+            'ver todos programacion produccion',
             'crear programador',
             'editar programador',
             'eliminar programador',
@@ -117,6 +124,7 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'editar procesos ficha tecnica',
             'actualizar tiempo estandar operacion',
             'ver control lotes',
+            'ver todos control lotes',
             'entregar lote produccion',
             'reportar novedad lote',
             'resolver novedad lote',

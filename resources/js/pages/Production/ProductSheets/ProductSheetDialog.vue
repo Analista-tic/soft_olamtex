@@ -1710,14 +1710,11 @@ function handleClose() {
                 >
                     Convertir a Producto
                 </Button>
-                <Button v-if="isViewMode" variant="outline" size="sm" class="rounded-full px-5 py-2 text-sm font-semibold" @click="handleClose">
-                    Cerrar
-                </Button>
                 <DialogActionButtons
-                    v-if="!isViewMode"
-                    cancel-label="Cancelar"
+                    :cancel-label="isViewMode ? 'Cerrar' : 'Cancelar'"
                     :submit-label="isEditMode ? 'Actualizar' : 'Guardar'"
                     :loading="isBlockingLoading"
+                    :show-submit="!isViewMode"
                     @cancel="handleClose"
                     @submit="saveProductSheet"
                 />

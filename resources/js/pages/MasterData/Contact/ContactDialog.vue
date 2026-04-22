@@ -1,117 +1,120 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import DialogDescription from '@/components/ui/dialog/DialogDescription.vue';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'; // Importar tabs de shadcn
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { AdditionalContact, Contact } from '@/domain/MasterData';
 import type { Branch } from '@/domain/shared';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
+import { useMasterDataStore } from '@/stores/masterData';
 import { computed, nextTick, ref, watch } from 'vue';
 import AdditionalContactsList from './AdditionalContactsList.vue';
-import BranchesList from './BranchesList.vue'; // Componente para manejar sucursales
+import BranchesList from './BranchesList.vue';
 import ContactForm from './ContactForm.vue';
 
-// Extender el tipo Contact para incluir las propiedades adicionales
 interface ExtendedContact extends Contact {
     branches?: Branch[];
     additional_contacts?: AdditionalContact[];
 }
 
-// Cambiar el tipo de `contactData` y `form` para usar ExtendedContact
 const props = defineProps<{
     isOpen: boolean;
     dialogType: 'create' | 'edit';
     contactData: Partial<ExtendedContact>;
     externalError?: string;
     externalErrorType?: 'success' | 'error' | 'info' | 'warning';
-    deferContent?: boolean;
 }>();
 
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'submit', contactData: Partial<Contact>): void;
-    (e: 'update:contactData', updatedContact: Partial<Contact>): void; // Agregar este evento
+    (e: 'update:contactData', updatedContact: Partial<Contact>): void;
     (e: 'loading-state', value: boolean): void;
 }>();
 
-// Estado interno del diálogo
 const internalIsOpen = ref(props.isOpen);
-const isInitializingDialog = ref(false);
+const isCatalogBootstrapLoading = ref(false);
+const isContactHydrationLoading = ref(false);
 const additionalContactsListRef = ref<InstanceType<typeof AdditionalContactsList> | null>(null);
 const branchesListRef = ref<InstanceType<typeof BranchesList> | null>(null);
+const masterDataStore = useMasterDataStore();
+const blockingLoadErrorMessage = ref('');
 
-// Formulario reactivo con valores iniciales
+const hasBlockingLoadError = computed(() => blockingLoadErrorMessage.value.trim() !== '');
+const isBlockingLoading = computed(() => isCatalogBootstrapLoading.value || isContactHydrationLoading.value);
+const canRenderForm = computed(() => !isBlockingLoading.value && !hasBlockingLoadError.value);
+const dialogTitle = computed(() => (props.dialogType === 'create' ? 'Crear Contacto' : 'Editar Contacto'));
+const shouldEmitLoadingState = computed(() => internalIsOpen.value && isBlockingLoading.value);
+
 const form = ref<Partial<ExtendedContact>>({
     ...props.contactData,
     additional_contacts: props.contactData.additional_contacts ?? [],
     branches: props.contactData.branches ?? [],
 });
 
-// Título del diálogo basado en el tipo
-const dialogTitle = computed(() => (props.dialogType === 'create' ? 'Crear Contacto' : 'Editar Contacto'));
-const shouldEmitLoadingState = computed(() => internalIsOpen.value && isInitializingDialog.value);
+const errors = ref<Record<string, string[]>>({});
+const alertMessage = ref('');
+const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
-// Watchers para sincronización
 watch(
     () => props.isOpen,
     async (newValue) => {
         internalIsOpen.value = newValue;
-        if (newValue) {
-            await initializeDialog();
+
+        if (!newValue) {
             return;
         }
-        isInitializingDialog.value = false;
+
+        await initializeDialog();
     },
 );
 
 watch(internalIsOpen, (newValue) => {
     if (!newValue) {
-        isInitializingDialog.value = false;
+        isCatalogBootstrapLoading.value = false;
+        isContactHydrationLoading.value = false;
         emit('close');
     }
 });
 
-// Resetear el formulario con los datos actuales
-const resetForm = () => {
-    form.value = {
-        ...props.contactData,
-        additional_contacts: props.contactData.additional_contacts ?? [],
-    };
-};
+watch(
+    shouldEmitLoadingState,
+    (value) => {
+        emit('loading-state', value);
+    },
+    { immediate: true },
+);
 
-async function initializeDialog() {
-    isInitializingDialog.value = true;
-    try {
-        await nextTick();
-        resetForm();
-        alertMessage.value = '';
-        errors.value = {};
-    } finally {
-        isInitializingDialog.value = false;
-    }
-}
+watch(
+    () => props.externalError,
+    (msg) => {
+        if (!msg) {
+            return;
+        }
 
-const closeDialog = () => {
-    internalIsOpen.value = false;
-};
+        alertType.value = props.externalErrorType || 'warning';
+        alertMessage.value = msg;
 
-const errors = ref<Record<string, string[]>>({}); // Manejo de errores
-const alertMessage = ref('');
-const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
+        const dialogEl = document.querySelector('[role="dialog"]');
+        dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+);
 
 const fieldLabels: Record<string, string> = {
-    email: 'Correo electrónico',
-    id_number: 'Número de identificación',
+    email: 'Correo electronico',
+    id_number: 'Numero de identificacion',
     contact_type: 'Tipo de contacto',
-    groups: 'Categoría proveedor/cliente',
-    id_type: 'Tipo de identificación',
-    full_name: 'Nombre completo o razón social',
+    groups: 'Categoria proveedor/cliente',
+    id_type: 'Tipo de identificacion',
+    full_name: 'Nombre completo o razon social',
     person_type: 'Tipo de persona',
     department: 'Departamento',
     municipality: 'Municipio',
 };
+
 const requiredFieldKeys: (keyof Partial<Contact>)[] = [
     'contact_type',
     'groups',
@@ -122,147 +125,152 @@ const requiredFieldKeys: (keyof Partial<Contact>)[] = [
     'department',
     'email',
 ];
+
 const requiredFieldLabels = requiredFieldKeys.map((key) => fieldLabels[key as string] || String(key));
 const emptyFieldsMessage = formatRequiredFieldsMessage('Se debe completar todos los campos obligatorios', requiredFieldLabels);
+
+const resetForm = () => {
+    form.value = {
+        ...props.contactData,
+        additional_contacts: props.contactData.additional_contacts ?? [],
+        branches: props.contactData.branches ?? [],
+    };
+};
+
+async function bootstrapCatalogs() {
+    isCatalogBootstrapLoading.value = true;
+
+    try {
+        await masterDataStore.fetchGroups();
+
+        if (masterDataStore.groupsError) {
+            blockingLoadErrorMessage.value = masterDataStore.groupsError;
+            return;
+        }
+
+        if (!masterDataStore.groupsLoaded && masterDataStore.groups.length === 0) {
+            blockingLoadErrorMessage.value = 'No se pudieron cargar los catalogos del formulario de contacto.';
+        }
+    } finally {
+        isCatalogBootstrapLoading.value = false;
+    }
+}
+
+async function initializeDialog() {
+    isContactHydrationLoading.value = true;
+    blockingLoadErrorMessage.value = '';
+
+    try {
+        await bootstrapCatalogs();
+        resetForm();
+        alertMessage.value = '';
+        errors.value = {};
+
+        if (blockingLoadErrorMessage.value) {
+            alertType.value = 'error';
+            alertMessage.value = blockingLoadErrorMessage.value;
+        }
+
+        await nextTick();
+    } finally {
+        isContactHydrationLoading.value = false;
+    }
+}
+
+const closeDialog = () => {
+    internalIsOpen.value = false;
+};
 
 const translateValidationMessage = (field: string, msg: string): string => {
     const lower = msg.toLowerCase();
     const label = fieldLabels[field] || 'Campo';
+
     if (lower.includes('email') && lower.includes('already been taken')) {
-        return 'El correo electrónico ya está registrado.';
+        return 'El correo electronico ya esta registrado.';
     }
+
     if ((lower.includes('id') || lower.includes('number')) && lower.includes('already been taken')) {
-        return 'El número de identificación ya está registrado.';
+        return 'El numero de identificacion ya esta registrado.';
     }
-    if (field === 'email' && lower.includes('único')) {
-        return 'El correo electrónico ya está registrado.';
+
+    if (field === 'email' && lower.includes('unico')) {
+        return 'El correo electronico ya esta registrado.';
     }
-    if (field === 'id_number' && lower.includes('único')) {
-        return 'El número de identificación ya está registrado.';
+
+    if (field === 'id_number' && lower.includes('unico')) {
+        return 'El numero de identificacion ya esta registrado.';
     }
+
     if (lower.includes('required')) {
         return `${label}: es obligatorio.`;
     }
+
     if (lower.includes('has already been taken')) {
-        return 'Este valor ya está registrado.';
+        return 'Este valor ya esta registrado.';
     }
+
     return msg;
 };
-
-watch(
-    () => props.externalError,
-    (msg) => {
-        if (msg) {
-            alertType.value = props.externalErrorType || 'warning';
-            alertMessage.value = msg;
-            const dialogEl = document.querySelector('[role="dialog"]');
-            dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-    },
-);
-
-watch(
-    shouldEmitLoadingState,
-    (value) => {
-        emit('loading-state', value);
-    },
-    { immediate: true },
-);
 
 const areRequiredFieldsEmpty = () => {
     const isEmptyValue = (value: unknown) => {
         if (Array.isArray(value)) {
             return value.length === 0;
         }
+
         if (value === null || value === undefined) {
             return true;
         }
+
         if (typeof value === 'string') {
             return value.trim() === '';
         }
+
         return false;
     };
 
     return requiredFieldKeys.every((field) => isEmptyValue((form.value as any)[field]));
 };
 
-const submitForm = async () => {
-    try {
-        // Aviso temprano si todos los campos obligatorios están vacíos
-        if (areRequiredFieldsEmpty()) {
-            alertMessage.value = emptyFieldsMessage;
-            alertType.value = 'warning';
-            const dialogEl = document.querySelector('[role="dialog"]');
-            dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
-            return;
-        }
-
-        // Validación básica antes de emitir
-        if (!form.value.full_name?.trim()) {
-            errors.value.full_name = ['El nombre completo es obligatorio.'];
-            return;
-        }
-
-        // Validar contactos adicionales
-        const invalidAdditionalContacts = form.value.additional_contacts?.some((contact) => !contact.name?.trim() || !contact.email?.trim());
-        if (invalidAdditionalContacts) {
-            errors.value.additional_contacts = ['Todos los contactos adicionales deben tener nombre y correo válidos.'];
-            return;
-        }
-        if (hasDuplicateAdditionalContacts()) {
-            additionalContactsListRef.value?.showDuplicateAlert();
-            return;
-        }
-        if (hasDuplicateBranches()) {
-            branchesListRef.value?.showDuplicateAlert();
-            return;
-        }
-
-        await emit('submit', {
-            ...form.value,
-            additional_contacts: form.value.additional_contacts ?? [], // Asegurar que se envíen los contactos adicionales
-        });
-        errors.value = {}; // Limpiar errores si todo es exitoso
-    } catch (error) {
-        handleErrors(error); // Manejar errores de la respuesta
-    }
-};
-
 const handleErrors = (errorResponse: any) => {
     const validationErrors = errorResponse?.response?.data?.errors;
+
     if (validationErrors) {
         errors.value = validationErrors;
+
         const translated = Object.entries(validationErrors)
-            .flatMap(([field, msgs]) => (msgs as string[]).map((m) => translateValidationMessage(field, m)))
+            .flatMap(([field, msgs]) => (msgs as string[]).map((message) => translateValidationMessage(field, message)))
             .join('. ');
+
         alertType.value = 'warning';
-        alertMessage.value = translated || 'Error de validación.';
+        alertMessage.value = translated || 'Error de validacion.';
+
         const dialogEl = document.querySelector('[role="dialog"]');
         dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
         return;
     }
+
     alertType.value = 'error';
-    alertMessage.value = 'Ocurrió un error inesperado. Intenta nuevamente.';
+    alertMessage.value = 'Ocurrio un error inesperado. Intenta nuevamente.';
     console.error('Error inesperado:', errorResponse);
 };
 
 const hasDuplicateAdditionalContacts = () => {
     const contacts = form.value.additional_contacts ?? [];
-
     const seen = new Set<string>();
 
-    for (const c of contacts) {
-        const name = (c.name ?? '').trim().toLowerCase();
-        const email = (c.email ?? '').trim().toLowerCase();
-        const phone = (c.phone ?? '').trim();
+    for (const contact of contacts) {
+        const name = (contact.name ?? '').trim().toLowerCase();
+        const email = (contact.email ?? '').trim().toLowerCase();
+        const phone = (contact.phone ?? '').trim();
 
-        // ignorar líneas totalmente vacías por si acaso
         if (!name && !email && !phone) continue;
 
         const key = `${name}|${email}|${phone}`;
         if (seen.has(key)) {
-            return true; // ya había uno igual
+            return true;
         }
+
         seen.add(key);
     }
 
@@ -271,13 +279,12 @@ const hasDuplicateAdditionalContacts = () => {
 
 const hasDuplicateBranches = () => {
     const branches = form.value.branches ?? [];
-
     const seen = new Set<string>();
 
-    for (const b of branches) {
-        const name = (b.name ?? '').trim().toLowerCase();
-        const address = (b.address ?? '').trim().toLowerCase();
-        const phone = (b.phone ?? '').trim();
+    for (const branch of branches) {
+        const name = (branch.name ?? '').trim().toLowerCase();
+        const address = (branch.address ?? '').trim().toLowerCase();
+        const phone = (branch.phone ?? '').trim();
 
         if (!name && !address && !phone) continue;
 
@@ -285,20 +292,69 @@ const hasDuplicateBranches = () => {
         if (seen.has(key)) {
             return true;
         }
+
         seen.add(key);
     }
 
     return false;
 };
 
-// Actualizar contactos adicionales
+const submitForm = async () => {
+    if (isBlockingLoading.value || hasBlockingLoadError.value) {
+        return;
+    }
+
+    try {
+        if (areRequiredFieldsEmpty()) {
+            alertMessage.value = emptyFieldsMessage;
+            alertType.value = 'warning';
+
+            const dialogEl = document.querySelector('[role="dialog"]');
+            dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+        }
+
+        if (!form.value.full_name?.trim()) {
+            errors.value.full_name = ['El nombre completo es obligatorio.'];
+            return;
+        }
+
+        const invalidAdditionalContacts = form.value.additional_contacts?.some(
+            (contact) => !contact.name?.trim() || !contact.email?.trim(),
+        );
+
+        if (invalidAdditionalContacts) {
+            errors.value.additional_contacts = ['Todos los contactos adicionales deben tener nombre y correo validos.'];
+            return;
+        }
+
+        if (hasDuplicateAdditionalContacts()) {
+            additionalContactsListRef.value?.showDuplicateAlert();
+            return;
+        }
+
+        if (hasDuplicateBranches()) {
+            branchesListRef.value?.showDuplicateAlert();
+            return;
+        }
+
+        await emit('submit', {
+            ...form.value,
+            additional_contacts: form.value.additional_contacts ?? [],
+        });
+
+        errors.value = {};
+    } catch (error) {
+        handleErrors(error);
+    }
+};
+
 const updateAdditionalContacts = (contacts: AdditionalContact[]) => {
     form.value.additional_contacts = contacts;
     emit('update:contactData', { ...form.value });
 };
 
-// Estado interno para las sucursales
-const updateBranches = (branches: any[]) => {
+const updateBranches = (branches: Branch[]) => {
     form.value.branches = branches;
     emit('update:contactData', { ...form.value });
 };
@@ -306,7 +362,12 @@ const updateBranches = (branches: any[]) => {
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <FormDialogContent v-if="!props.deferContent" class="flex max-h-[95vh] max-w-[150vh] flex-col px-2 py-2">
+        <FormDialogContent
+            size="lg"
+            class="flex h-[95vh] max-h-[95vh] w-full flex-col overflow-hidden p-0"
+            content-class="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+            :scrollable="false"
+        >
             <DialogHeader class="border-b px-5 py-4 pr-12">
                 <DialogTitle>{{ dialogTitle }}</DialogTitle>
                 <DialogDescription>
@@ -315,62 +376,58 @@ const updateBranches = (branches: any[]) => {
                 </DialogDescription>
             </DialogHeader>
 
-            <div class="min-h-0 flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
-                <AlertStack :error-message="alertMessage" :error-type="alertType" @close-error="alertMessage = ''" />
-                <!-- Pestañas -->
-                <Tabs defaultValue="basic-info" class="pt-1">
-                    <TabsList class="flex justify-center space-x-4">
-                        <TabsTrigger value="basic-info" class="flex-1 py-2 text-center">Información básica</TabsTrigger>
-                        <TabsTrigger value="additional-info" class="flex-1 py-2 text-center">Contactos adicionales</TabsTrigger>
-                        <TabsTrigger value="branches" class="flex-1 py-2 text-center">Sucursales</TabsTrigger>
-                    </TabsList>
+            <form class="flex min-h-0 flex-1 flex-col" novalidate @submit.prevent="submitForm">
+                <div class="relative flex-1 overflow-y-auto scroll-smooth px-5 py-4" :class="{ 'min-h-[420px]': isBlockingLoading }" style="scrollbar-width: thin">
+                    <FormLoadingOverlay
+                        :active="isBlockingLoading"
+                        :delay-ms="0"
+                        message="Cargando formulario de contacto..."
+                        description="Preparando catalogos y datos iniciales necesarios."
+                    />
 
-                    <TabsContent value="basic-info">
-                        <ContactForm v-model:form="form" :errors="errors" class="border-b pb-6" />
-                    </TabsContent>
+                    <AlertStack :error-message="alertMessage" :error-type="alertType" @close-error="alertMessage = ''" />
 
-                    <TabsContent value="additional-info">
-                        <AdditionalContactsList
-                            ref="additionalContactsListRef"
-                            :additionalContacts="form.additional_contacts ?? []"
-                            @update:additionalContacts="updateAdditionalContacts"
-                        />
-                        <p v-if="errors.additional_contacts" class="mt-2 text-sm text-destructive">
-                            {{ errors.additional_contacts[0] }}
-                        </p>
-                    </TabsContent>
+                    <fieldset v-if="canRenderForm" :disabled="isBlockingLoading" class="space-y-3">
+                        <Tabs default-value="basic-info" class="pt-1">
+                            <TabsList class="flex justify-center space-x-4">
+                                <TabsTrigger value="basic-info" class="flex-1 py-2 text-center">Informacion basica</TabsTrigger>
+                                <TabsTrigger value="additional-info" class="flex-1 py-2 text-center">Contactos adicionales</TabsTrigger>
+                                <TabsTrigger value="branches" class="flex-1 py-2 text-center">Sucursales</TabsTrigger>
+                            </TabsList>
 
-                    <TabsContent value="branches">
-                        <BranchesList ref="branchesListRef" :branches="form.branches ?? []" @update:branches="updateBranches" />
-                    </TabsContent>
-                </Tabs>
-            </div>
-            <DialogFooter class="border-t border-border px-5 py-4 justify-end gap-2">
-                <Button variant="outline" size="pill" @click="closeDialog"> Cancelar </Button>
-                <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                    @click="submitForm"
-                >
+                            <TabsContent value="basic-info">
+                                <ContactForm v-model:form="form" class="pb-6" />
+                            </TabsContent>
+
+                            <TabsContent value="additional-info">
+                                <AdditionalContactsList
+                                    ref="additionalContactsListRef"
+                                    :additionalContacts="form.additional_contacts ?? []"
+                                    @update:additionalContacts="updateAdditionalContacts"
+                                />
+                                <p v-if="errors.additional_contacts" class="mt-2 text-sm text-destructive">
+                                    {{ errors.additional_contacts[0] }}
+                                </p>
+                            </TabsContent>
+
+                            <TabsContent value="branches">
+                                <BranchesList ref="branchesListRef" :branches="form.branches ?? []" @update:branches="updateBranches" />
+                            </TabsContent>
+                        </Tabs>
+                    </fieldset>
+
+                    <div v-else-if="hasBlockingLoadError" class="flex min-h-[240px] items-center justify-center text-center text-sm text-muted-foreground">
+                        {{ blockingLoadErrorMessage }}
+                    </div>
+                </div>
+            </form>
+
+            <DialogFooter class="justify-end gap-2 border-t border-border px-5 py-4">
+                <Button variant="outline" size="pill" @click="closeDialog">Cancelar</Button>
+                <Button type="button" variant="default" size="pill" class="shadow-sm" :disabled="isBlockingLoading || hasBlockingLoadError" @click="submitForm">
                     {{ dialogType === 'create' ? 'Crear' : 'Actualizar' }}
-                </button>
+                </Button>
             </DialogFooter>
         </FormDialogContent>
     </Dialog>
 </template>
-
-<style scoped>
-/* Estilos específicos si son necesarios */
-.tabs-list {
-    display: flex;
-    justify-content: center;
-    gap: 1rem;
-}
-
-.tabs-trigger {
-    flex: 1;
-    text-align: center;
-    padding: 0.5rem 1rem;
-    font-size: 1.1rem;
-}
-</style>

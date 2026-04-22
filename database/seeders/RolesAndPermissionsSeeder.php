@@ -48,6 +48,13 @@ class RolesAndPermissionsSeeder extends Seeder
             'crear programador',
             'editar programador',
             'eliminar programador',
+            'ver propios programacion produccion',
+            'ver area programacion produccion',
+            'ver todos programacion produccion',
+            'ver control lotes',
+            'ver propios control lotes',
+            'ver area control lotes',
+            'ver todos control lotes',
             'ver sabana productos',
             'crear sabana productos',
             'editar sabana productos',
@@ -202,6 +209,9 @@ class RolesAndPermissionsSeeder extends Seeder
 
             // Producción
             'ver programador',
+            'ver todos programacion produccion',
+            'ver control lotes',
+            'ver todos control lotes',
             'ver sabana productos',
             'ver listados operacionales',
             'editar procesos ficha tecnica',
