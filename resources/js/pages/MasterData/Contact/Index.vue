@@ -206,13 +206,26 @@ async function openDialog(type: 'create' | 'edit', contact: Contact | null = nul
 
     dialogType.value = type;
     clearMessages();
-    form.value = type === 'edit' && contact ? { ...contact } : { id: undefined, full_name: '', email: '', phone: '' };
 
-    await nextTick();
-    if (token !== dialogPrepareToken) return;
+    if (type === 'edit' && contact) {
+        // Loader local: muestra el modal vacío y luego hidrata
+        form.value = { id: contact.id }; // Solo ID para iniciar
+        isDialogOpen.value = true;
+        armDialogPreparationFallback(token);
 
-    isDialogOpen.value = true;
-    armDialogPreparationFallback(token);
+        try {
+            const { data } = await axios.get(`/contactos/${contact.id}`);
+            form.value = { ...data };
+        } catch (e) {
+            // Manejo de error opcional: podrías mostrar un mensaje si falla la carga
+        }
+    } else {
+        form.value = { id: undefined, full_name: '', email: '', phone: '' };
+        await nextTick();
+        if (token !== dialogPrepareToken) return;
+        isDialogOpen.value = true;
+        armDialogPreparationFallback(token);
+    }
 }
 
 function closeDialog(): void {
