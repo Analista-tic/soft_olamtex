@@ -1287,19 +1287,30 @@ function handleClose() {
                         <div class="space-y-4">
 
                             <!-- Primera seccion: Identificacion del producto (3 referencias) -->
-                            <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                                <div v-if="form.type === TYPE_SAMPLE" class="flex flex-col gap-1">
+                            <div class="mb-4 grid grid-cols-3 gap-4">
+                                <!-- Ref. Muestra — visible en tipo muestra (obligatorio)
+                                     y en tipo producto (opcional, muestra de origen) -->
+                                <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium">Ref. Muestra<span class="text-red-500">*</span></Label>
+                                        <Label class="text-sm font-medium">
+                                            <template v-if="form.type === TYPE_SAMPLE">
+                                                Ref. Muestra<span class="text-red-500">*</span>
+                                            </template>
+                                            <template v-else>
+                                                Ref. Muestra de origen
+                                            </template>
+                                        </Label>
                                     </div>
                                     <InputField
                                         v-model="form.sample_reference"
                                         label=""
-                                        placeholder="ej: MU1"
+                                        :placeholder="form.type === TYPE_SAMPLE ? 'ej: MU1' : 'Opcional'"
                                         :disabled="isReadonly"
                                         :error="showFieldErrors && fieldErrors.reference && form.type === TYPE_SAMPLE ? fieldErrors.reference : undefined"
                                     />
                                 </div>
+
+                                <!-- Ref. Prod 1 — visible cuando type = producto -->
                                 <div v-if="form.type === TYPE_PRODUCT" class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Ref. Prod 1<span class="text-red-500">*</span></Label>
@@ -1312,6 +1323,8 @@ function handleClose() {
                                         :error="showFieldErrors && fieldErrors.reference && form.type === TYPE_PRODUCT ? fieldErrors.reference : undefined"
                                     />
                                 </div>
+
+                                <!-- Ref. Prod 2 — visible cuando type = producto -->
                                 <div v-if="form.type === TYPE_PRODUCT" class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Ref. Prod 2</Label>
