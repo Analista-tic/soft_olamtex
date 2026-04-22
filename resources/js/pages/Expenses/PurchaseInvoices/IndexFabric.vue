@@ -65,8 +65,8 @@ const providers = ref<{ id: number; full_name: string }[]>([]);
 const facturasFabricRoute = '/gastos/facturas-compra-tela';
 const receptionBaseRoute = '/kardex-telas/recepcion';
 const receptionReturnParam = 'return_to';
-const receptionInvoiceTypeParam = 'invoice_type';
-const receptionInvoiceTypeValue = 'fabric';
+const receptionScopeParam = 'scope';
+const receptionScopeValue = 'fabric';
 
 const DEFAULT_STATUS_FILTER = 'all';
 const DEFAULT_PROVIDER_FILTER = 'all';
@@ -119,7 +119,7 @@ function buildReceptionUrl(invoiceId?: number | string) {
     const basePath = invoiceId ? `${receptionBaseRoute}/${invoiceId}` : receptionBaseRoute;
     const query = new URLSearchParams({
         [receptionReturnParam]: facturasFabricRoute,
-        [receptionInvoiceTypeParam]: receptionInvoiceTypeValue,
+        [receptionScopeParam]: receptionScopeValue,
     });
     return `${basePath}?${query.toString()}`;
 }

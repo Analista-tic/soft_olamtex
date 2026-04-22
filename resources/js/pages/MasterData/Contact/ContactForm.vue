@@ -149,6 +149,20 @@ const allLocationOptions = colombiaData.flatMap((department: any) =>
 const locationOptions = ref(allLocationOptions.slice(0, 50));
 const isLoadingLocations = ref(false);
 
+const getSelectedLocationKey = () => {
+    if (!internalForm.value.municipality || !internalForm.value.department) return '';
+    return `${internalForm.value.municipality}||${internalForm.value.department}`;
+};
+
+const syncSelectedLocationOption = (key: string) => {
+    if (!key || locationOptions.value.some((opt) => opt.id === key)) return;
+
+    const match = allLocationOptions.find((opt) => opt.id === key);
+    if (!match) return;
+
+    locationOptions.value = [match, ...locationOptions.value.filter((opt) => opt.id !== key).slice(0, 49)];
+};
+
 const updateLocationOptions = (searchQuery: string = '') => {
     if (isLoadingLocations.value) return;
 
@@ -156,6 +170,7 @@ const updateLocationOptions = (searchQuery: string = '') => {
 
     if (!query) {
         locationOptions.value = allLocationOptions.slice(0, 50);
+        syncSelectedLocationOption(getSelectedLocationKey());
         return;
     }
 
@@ -163,6 +178,7 @@ const updateLocationOptions = (searchQuery: string = '') => {
 
     setTimeout(() => {
         locationOptions.value = allLocationOptions.filter((opt) => opt.searchText.includes(query)).slice(0, 100);
+        syncSelectedLocationOption(getSelectedLocationKey());
         isLoadingLocations.value = false;
     }, 0);
 };
@@ -174,20 +190,14 @@ onMounted(() => {
 });
 
 const errors = ref<Record<string, string[]>>({});
+
+watch(getSelectedLocationKey, (key) => {
+    syncSelectedLocationOption(key);
+}, { immediate: true });
+
 const locationValue = computed({
     get() {
-        if (!internalForm.value.municipality || !internalForm.value.department) return '';
-        const key = `${internalForm.value.municipality}||${internalForm.value.department}`;
-        const exists = locationOptions.value.some((opt) => opt.id === key);
-
-        if (!exists) {
-            const match = allLocationOptions.find((opt) => opt.id === key);
-            if (match) {
-                locationOptions.value = [match, ...locationOptions.value.slice(0, 49)];
-            }
-        }
-
-        return key;
+        return getSelectedLocationKey();
     },
     set(val: string | undefined) {
         if (!val) {
@@ -236,7 +246,7 @@ const validateField = (field: string) => {
             :searchable="true"
             :options="idTypeOptions"
         />
-        <div class="mb-4 grid grid-cols-5 gap-4">
+        <div class="grid grid-cols-5 gap-4">
             <div :class="internalForm.id_type === 'nit' ? 'col-span-4' : 'col-span-5'">
                 <InputField v-model="internalForm.id_number" label="Numero de identificacion" required placeholder="Numero de identificacion" />
             </div>
@@ -254,15 +264,16 @@ const validateField = (field: string) => {
                 </div>
             </div>
         </div>
-        <InputField v-model="internalForm.full_name" label="Nombre completo o razon social" required placeholder="Nombre completo" class="mb-4" />
         <SelectField
             v-model="internalForm.person_type"
             label="Tipo de persona"
             required
             :options="personTypeOptions"
-            class="mb-4"
+            :error="errors.person_type?.[0]"
             :searchable="false"
+            @input="validateField('person_type')"
         />
+        <InputField v-model="internalForm.full_name" label="Nombre completo o razon social" required placeholder="Nombre completo" />
         <div class="md:col-span-2">
             <SelectField
                 v-model="locationValue"
@@ -282,7 +293,7 @@ const validateField = (field: string) => {
                 "
             />
         </div>
-        <div class="col-span-full mb-4 grid grid-cols-3 gap-4">
+        <div class="col-span-full grid grid-cols-3 gap-4">
             <InputField v-model="internalForm.address" label="Direccion" placeholder="Direccion" />
             <InputField
                 v-model="internalForm.email"

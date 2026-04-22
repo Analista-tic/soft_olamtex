@@ -28,7 +28,10 @@ class SalesOrderController extends Controller
     {
         $perPage = (int) $request->integer('per_page', 10);
         $filters = $request->only(['search', 'status', 'contact_id', 'client_id', 'date_from', 'date_to', 'origin']);
-        $documents = $this->service->paginateDocuments(SaleDocument::TYPE_SALES_ORDER, $filters, $perPage);
+        $documents = $this->service->paginateDocuments(
+            SaleDocument::TYPE_SALES_ORDER, $filters, $perPage,
+            $request->user(), 'ver propios pedidos venta', 'ver area pedidos venta', 'ver todos pedidos venta'
+        );
 
         return response()->json([
             'data' => $documents->items(),

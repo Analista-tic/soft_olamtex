@@ -2,6 +2,7 @@
 
 namespace App\Services\Inventory;
 
+use App\Helpers\ScopeHelper;
 use App\Models\Inventory\InventoryRequest;
 use App\Models\Inventory\InventoryRequestItem;
 use App\Models\Settings\User;
@@ -18,10 +19,10 @@ class InventoryRequestService
 {
     public function __construct(protected InventoryMovementService $movementService) {}
 
-    public function paginate(array $filters, int $perPage, ?User $user, bool $canManageRequests): LengthAwarePaginator
+    public function paginate(array $filters, int $perPage, ?User $user): LengthAwarePaginator
     {
-        $query = InventoryRequest::with(['items.item', 'requester'])
-            ->when(!$canManageRequests && $user, fn ($q) => $q->where('created_by_user_id', $user->id));
+        $query = InventoryRequest::with(['items.item', 'requester']);
+        ScopeHelper::apply($query, $user, 'ver propios solicitudes insumos', 'ver area solicitudes insumos', 'ver todos solicitudes insumos');
 
         $sortBy = $filters['sort_by'] ?? 'date';
         $sortDir = strtolower((string) ($filters['sort_dir'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';

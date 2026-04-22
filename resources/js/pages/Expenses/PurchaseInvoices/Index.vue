@@ -103,14 +103,14 @@ const actionIconClass = 'h-4 w-4';
 const facturasRoute = '/gastos/facturas-compra';
 const receptionBaseRoute = '/kardex-telas/recepcion';
 const receptionReturnParam = 'return_to';
-const receptionInvoiceTypeParam = 'invoice_type';
-const receptionInvoiceTypeValue = 'general';
+const receptionScopeParam = 'scope';
+const receptionScopeValue = 'general';
 
 function buildReceptionUrl(invoiceId?: number | string) {
     const basePath = invoiceId ? `${receptionBaseRoute}/${invoiceId}` : receptionBaseRoute;
     const query = new URLSearchParams({
         [receptionReturnParam]: facturasRoute,
-        [receptionInvoiceTypeParam]: receptionInvoiceTypeValue,
+        [receptionScopeParam]: receptionScopeValue,
     });
     return `${basePath}?${query.toString()}`;
 }

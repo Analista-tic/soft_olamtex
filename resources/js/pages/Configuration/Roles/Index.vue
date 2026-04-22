@@ -125,10 +125,9 @@ async function fetchRoles(page = 1) {
     try {
         const params: Record<string, unknown> = {
             page,
-            perPage: itemsPerPage,
+            per_page: itemsPerPage,
             query: searchQuery.value.trim(),
         };
-        // ...existing code...
 
         const { data } = await axios.get('/roles-data', {
             params,
@@ -154,7 +153,7 @@ async function deleteRole() {
         await axios.delete(`/roles/${roleToEdit.value.id}`);
         showSuccess('Rol eliminado correctamente.');
         isEditDialogOpen.value = false;
-        fetchRoles();
+        await fetchRoles(currentPage.value);
     } catch (error) {
         console.error('Error al eliminar el rol:', error);
         showError(resolveApiMessage(error, 'Error al eliminar el rol.'));
@@ -167,6 +166,7 @@ function closeDialog() {
 }
 
 function handlePageChange(page: number) {
+    currentPage.value = page;
     fetchRoles(page);
 }
 
@@ -179,7 +179,7 @@ async function handleRoleSubmit(role: RolePayload) {
         }
         showSuccess(roleToEdit.value ? 'Rol actualizado correctamente.' : 'Rol creado correctamente.');
         isEditDialogOpen.value = false;
-        fetchRoles();
+        await fetchRoles(currentPage.value);
     } catch (error) {
         console.error('Error al guardar el rol:', error);
         const message = resolveApiMessage(error, 'Error al guardar el rol.');
@@ -320,5 +320,4 @@ onMounted(async () => {
 
     <RoleDialog :isOpen="isEditDialogOpen" :role="roleToEdit" :permissions="formattedPermissions" @close="closeDialog" @submit="handleRoleSubmit" />
 </template>
-
 

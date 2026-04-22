@@ -37,6 +37,7 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
     Route::get('ficha-tecnica/{opId}/procesos', [TechnicalDataSheetController::class, 'processesSummary'])
         ->name('ficha-tecnica.processes-summary');
     Route::post('ficha-tecnica/{opId}/procesos', [TechnicalDataSheetController::class, 'saveProcesses'])
+        ->middleware('permission:editar procesos ficha tecnica')
         ->name('ficha-tecnica.processes.save');
     Route::get('ficha-tecnica/{opId}/costos', [TechnicalDataSheetController::class, 'costsSummary'])
         ->name('ficha-tecnica.costs-summary');
@@ -234,7 +235,7 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
             ->middleware('permission:eliminar listados operacionales|eliminar sabana productos')
             ->name('destroy');
         Route::post('/{operation}/update-standard-time', [OperationController::class, 'updateStandardTime'])
-            ->middleware('permission:editar listados operacionales|editar sabana productos')
+            ->middleware('permission:actualizar tiempo estandar operacion')
             ->name('update-standard-time');
         Route::get('/{operation}/audit-log', [OperationController::class, 'auditLog'])
             ->middleware('permission:ver listados operacionales|ver sabana productos')
@@ -286,16 +287,16 @@ Route::prefix('control-de-lotes')->name('control-de-lotes.')->group(function () 
     Route::get('/', [BatchControlController::class, 'index'])->name('index');
     Route::get('/data', [BatchControlController::class, 'getData'])->name('data');
     Route::get('/opciones-operaciones', [BatchControlController::class, 'catalogOptions'])->name('catalog-options');
-    Route::post('/{order}/entregar', [BatchControlController::class, 'deliver'])->name('deliver');
+    Route::post('/{order}/entregar', [BatchControlController::class, 'deliver'])->name('deliver')->middleware('permission:entregar lote produccion');
     Route::patch('/prioridades', [BatchControlController::class, 'updatePriorities'])->name('update-priorities');
     Route::patch('/{order}/fecha-estimada', [BatchControlController::class, 'updateEstimatedDate'])->name('update-estimated-date');
     Route::get('/{order}/historial', [BatchControlController::class, 'deliveryHistory'])->name('delivery-history');
     Route::get('/{order}/consumo-telas-corte', [BatchControlController::class, 'getCutFabricConsumption'])->name('cut-fabric-consumption');
-    Route::put('/{order}/consumo-telas-corte', [BatchControlController::class, 'saveCutFabricConsumption'])->name('save-cut-fabric-consumption');
+    Route::put('/{order}/consumo-telas-corte', [BatchControlController::class, 'saveCutFabricConsumption'])->name('save-cut-fabric-consumption')->middleware('permission:registrar consumo tela corte');
 
     // Novedades / Devoluciones
-    Route::post('/{order}/novedades', [BatchControlController::class, 'reportNovelty'])->name('report-novelty');
-    Route::patch('/{order}/novedades/{novelty}/resolver', [BatchControlController::class, 'resolveNovelty'])->name('resolve-novelty');
+    Route::post('/{order}/novedades', [BatchControlController::class, 'reportNovelty'])->name('report-novelty')->middleware('permission:reportar novedad lote');
+    Route::patch('/{order}/novedades/{novelty}/resolver', [BatchControlController::class, 'resolveNovelty'])->name('resolve-novelty')->middleware('permission:resolver novedad lote');
     Route::get('/{order}/novedades', [BatchControlController::class, 'novelties'])->name('novelties');
 
     // Operaciones de ficha técnica (muestras)

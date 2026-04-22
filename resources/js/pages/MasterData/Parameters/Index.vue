@@ -18,8 +18,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import AppLayout from '@/layouts/AppLayout.vue';
 
 import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
-import type { Parameter, ParameterListQuery, ParameterStatusFilter } from '@/domain/MasterData';
-import { createParameter, deleteParameter, getParameters, mapParameterToDialogForm, updateParameter } from '@/domain/MasterData';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import type { Parameter, ParameterDeletionCheck, ParameterListQuery, ParameterStatusFilter } from '@/domain/MasterData';
+import { createParameter, deleteParameter, getParameterDeletionCheck, getParameters, mapParameterToDialogForm, updateParameter } from '@/domain/MasterData';
 import type { BreadcrumbItem } from '@/domain/shared';
 import type { ParameterDialogModel } from './ParameterDialog.vue';
 import ParameterDialog from './ParameterDialog.vue';
@@ -71,19 +72,16 @@ const isLoading = ref(false);
 
 const successMessage = ref('');
 const errorMessage = ref('');
+const errorTitle = ref('Aviso');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
 const isDeleteDialogOpen = ref(false);
 const parameterToDelete = ref<ParameterItem | null>(null);
+const parameterDeletionCheck = ref<ParameterDeletionCheck | null>(null);
+const isDeleteCheckLoading = ref(false);
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
-
-/**
- * Si tu SelectField espera button-class con clases,
- * mantenemos el composable original (sin cambiar rutas ni componentes).
- */
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 
 function toParameterItem(parameter: Parameter): ParameterItem {
@@ -96,6 +94,7 @@ function toParameterItem(parameter: Parameter): ParameterItem {
 function clearMessages() {
     successMessage.value = '';
     errorMessage.value = '';
+    errorTitle.value = 'Aviso';
 }
 
 function setSuccess(message: string) {
@@ -104,10 +103,27 @@ function setSuccess(message: string) {
     errorType.value = 'success';
 }
 
-function setError(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'error') {
+function setError(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'error', title = 'Aviso') {
     successMessage.value = '';
     errorMessage.value = message;
+    errorTitle.value = title;
     errorType.value = type;
+}
+
+function summarizeDeletionBlock(check: Partial<ParameterDeletionCheck> | null | undefined) {
+    const baseMessage = String(check?.message ?? 'No se puede eliminar el parámetro.');
+    const usageDetails = Array.isArray(check?.usages)
+        ? check.usages
+              .map((usage) => String(usage?.detail ?? '').trim())
+              .filter((detail) => detail !== '')
+              .slice(0, 3)
+        : [];
+
+    if (usageDetails.length === 0) {
+        return baseMessage;
+    }
+
+    return `${baseMessage} Usos detectados: ${usageDetails.join(' ')}`;
 }
 
 function normalizeStatusFilter(value: ParameterStatusFilter): ParameterListQuery['status'] {
@@ -320,9 +336,40 @@ async function handleDialogSubmit(form: ParameterDialogModel) {
     }
 }
 
-function confirmDeleteParameter(parameter: ParameterItem) {
-    parameterToDelete.value = parameter;
-    isDeleteDialogOpen.value = true;
+async function confirmDeleteParameter(parameter: ParameterItem) {
+    if (isDeleteCheckLoading.value) return;
+
+    clearMessages();
+    isDeleteCheckLoading.value = true;
+
+    try {
+        const { data } = await getParameterDeletionCheck(parameter.id);
+
+        if (data.can_delete) {
+            parameterToDelete.value = parameter;
+            parameterDeletionCheck.value = data;
+            isDeleteDialogOpen.value = true;
+            return;
+        }
+
+        parameterToDelete.value = null;
+        parameterDeletionCheck.value = null;
+        setError(
+            summarizeDeletionBlock(data),
+            'warning',
+            data.title || 'No se puede eliminar el parámetro',
+        );
+    } catch (error: any) {
+        const responseData = error?.response?.data as Partial<ParameterDeletionCheck> | undefined;
+
+        setError(
+            summarizeDeletionBlock(responseData),
+            responseData?.can_delete === false ? 'warning' : 'error',
+            responseData?.title || 'No se pudo validar la eliminación',
+        );
+    } finally {
+        isDeleteCheckLoading.value = false;
+    }
 }
 
 async function deleteParameterConfirmed() {
@@ -332,18 +379,29 @@ async function deleteParameterConfirmed() {
         await deleteParameter(parameterToDelete.value.id);
         setSuccess('Parámetro eliminado correctamente.');
         await fetchParameters();
-    } catch {
-        setError('No se pudo eliminar el parámetro.');
+    } catch (error: any) {
+        const responseData = error?.response?.data as Partial<ParameterDeletionCheck> | undefined;
+
+        if (error?.response?.status === 409) {
+            setError(
+                summarizeDeletionBlock(responseData),
+                'warning',
+                responseData?.title || 'No se puede eliminar el parámetro',
+            );
+        } else {
+            setError(responseData?.message ?? 'No se pudo eliminar el parámetro.');
+        }
     } finally {
         isDeleteDialogOpen.value = false;
         parameterToDelete.value = null;
+        parameterDeletionCheck.value = null;
     }
 }
 
 function truncateString(value: string, maxLength = 80) {
     const trimmed = value.trim();
     if (trimmed.length <= maxLength) return trimmed;
-    return `${trimmed.slice(0, maxLength)}…`;
+    return `${trimmed.slice(0, maxLength)}...`;
 }
 
 function isObjectWithName(item: unknown): item is { name: string } {
@@ -394,7 +452,6 @@ onMounted(() => {
     void fetchParameters();
 });
 
-// Debounce para evitar spamear el endpoint al tipear
 let searchDebounce: number | undefined;
 
 watch([searchQuery, statusFilter], () => {
@@ -418,9 +475,9 @@ onBeforeUnmount(() => {
         <AlertStack
             :success-message="successMessage"
             :error-message="errorMessage"
+            :error-title="errorTitle"
             :error-type="errorType"
             success-title="Operación exitosa"
-            error-title="Aviso"
             @close-success="successMessage = ''"
             @close-error="errorMessage = ''"
         />
@@ -443,7 +500,7 @@ onBeforeUnmount(() => {
             <FilterBar align="start" gap="gap-4" noMargin>
                 <FilterField label="Buscar parámetro" :active="isSearchActive" class="min-w-[220px] flex-1 p-0">
                     <div class="relative w-full">
-                        <Input id="search_parameters" v-model="searchQuery" placeholder="Buscar por Nombre" class="h-10 w-full pl-11" />
+                        <Input id="search_parameters" v-model="searchQuery" placeholder="Buscar por nombre" class="h-10 w-full pl-11" />
                         <span class="pointer-events-none absolute inset-y-0 start-2 flex items-center justify-center">
                             <Search class="text-muted-foreground" />
                         </span>
@@ -470,7 +527,7 @@ onBeforeUnmount(() => {
 
                         <TableBody>
                             <TableRow v-if="isLoading">
-                                <TableCell colspan="5" class="text-center text-sm text-muted-foreground"> Cargando parámetros... </TableCell>
+                                <TableCell colspan="5" class="text-center text-sm text-muted-foreground">Cargando parámetros...</TableCell>
                             </TableRow>
 
                             <TableRow v-else-if="parameters.length === 0">
@@ -532,8 +589,8 @@ onBeforeUnmount(() => {
 
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"
-            title="Confirmar eliminación"
-            description="¿Estás seguro de que deseas eliminar este parámetro? Esta acción no se puede deshacer."
+            :title="parameterDeletionCheck?.title ?? 'Confirmar eliminación'"
+            :description="parameterDeletionCheck?.message ?? '¿Deseas eliminar este parámetro? Esta acción no se puede deshacer.'"
             confirm-text="Eliminar"
             cancel-text="Cancelar"
             :destructive="true"

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Production;
 
 use App\Helpers\MonthLabel;
+use App\Helpers\ScopeHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Production\StoreProgrammerRequest;
 use App\Http\Requests\Production\UpdateProgrammerRequest;
@@ -50,10 +51,10 @@ class ProgrammerController extends Controller
         $yarnBases = $catalogs['yarn_bases']->keyBy('id');
         $destinations = $catalogs['destinations'];
 
-        $displayReferenceSql = "CASE 
-            WHEN type = 'muestra' THEN sample_reference 
-            WHEN type = 'producto' THEN product_reference 
-            ELSE NULL 
+        $displayReferenceSql = "CASE
+            WHEN type = 'muestra' THEN sample_reference
+            WHEN type = 'producto' THEN product_reference
+            ELSE NULL
         END";
 
         $productSheets = ProductSheet::query()
@@ -169,6 +170,7 @@ class ProgrammerController extends Controller
                         'status' => $status,
                         'current_process' => config('product-sheet.batch_control_processes.0', 'I&D'),
                         'source' => 'manual',
+                        'created_by_user_id' => $request->user()?->id,
                     ]);
 
                     $order->op_code = $this->productionOrderService->nextOpCode(
@@ -375,6 +377,8 @@ class ProgrammerController extends Controller
             ->with([
                 'productSheet:id,type,sample_reference,product_reference,section_id,group_id',
             ]);
+
+        ScopeHelper::apply($query, $request->user(), 'ver propios programacion produccion', 'ver area programacion produccion', 'ver todos programacion produccion');
 
         if (!empty($filters['season']) && $filters['season'] !== 'all') {
             $query->where('season', $filters['season']);

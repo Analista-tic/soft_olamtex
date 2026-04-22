@@ -2,10 +2,12 @@
 
 namespace App\Services\Finance;
 
+use App\Helpers\ScopeHelper;
 use App\Models\Finance\CashReceipt;
 use App\Models\Finance\JournalEntry;
 use App\Models\Income\SaleDocument;
 use App\Models\Income\SalePayment;
+use App\Models\Settings\User;
 use App\Services\Income\SalesInvoiceService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -22,7 +24,7 @@ class CashReceiptService
     ) {
     }
 
-    public function paginate(array $filters = [], int $perPage = 10): LengthAwarePaginator
+    public function paginate(array $filters = [], int $perPage = 10, ?User $user = null): LengthAwarePaginator
     {
         $query = CashReceipt::query()
             ->with([
@@ -33,6 +35,8 @@ class CashReceiptService
             ])
             ->withSum('salePayments as total', 'amount')
             ->orderByDesc('id');
+
+        ScopeHelper::apply($query, $user, 'ver propios recibos caja', null, 'ver todos recibos caja');
 
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') {

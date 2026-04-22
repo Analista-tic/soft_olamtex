@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ChipInputField from '@/components/ChipInputField.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
 import FormDialogBody from '@/components/FormDialogBody.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
@@ -14,8 +15,7 @@ import { Label } from '@/components/ui/label';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { mapAdditionalFieldToDialogForm } from '@/domain/MasterData';
 import type { AdditionalField, AdditionalFieldDialogFormState, AdditionalFieldPayload, AdditionalFieldType } from '@/domain/MasterData';
-import { normalizeTitleCaseWords } from '@/lib/textNormalizer';
-import { Plus } from 'lucide-vue-next';
+import { normalizeChipDisplay, normalizeUniqueChipList } from '@/lib/textNormalizer';
 import { computed, nextTick, ref, watch } from 'vue';
 
 const fieldTypeOptions: Array<{ id: AdditionalFieldType; name: string }> = [
@@ -58,56 +58,35 @@ const localForm = ref<AdditionalFieldDialogFormState>({
 });
 const isInitializingDialog = ref(false);
 const localOptions = ref<string[]>([]);
-const newOptionInput = ref('');
-const optionSearchQuery = ref('');
-
-const filteredOptions = computed(() => {
-    const q = optionSearchQuery.value.trim().toLowerCase();
-    if (!q) return localOptions.value;
-    return localOptions.value.filter((opt) =>
-        opt.toLowerCase().includes(q)
-    );
-});
-
-const showOptionSearch = computed(() => localOptions.value.length > 10);
 const formError = ref('');
-
-function normalizeOptionEntry(value: unknown): string {
-    return normalizeTitleCaseWords(value);
-}
-
-const hasOptionValues = computed(() => {
-    return localOptions.value.some((value) => String(value ?? '').trim() !== '');
-});
-
-const hasDuplicateOptions = computed(() => {
-    const normalized = localOptions.value.map((value) => normalizeOptionEntry(value).toLocaleLowerCase('es-CO')).filter(Boolean);
-    return new Set(normalized).size !== normalized.length;
-});
 const shouldEmitLoadingState = computed(() => props.open && isInitializingDialog.value);
 
 const isSelectField = computed(() => localForm.value.field_type === 'select');
 const defaultValueOptions = computed(() => {
-    if (!isSelectField.value) return [];
-    return localOptions.value
-        .map((value) => String(value ?? '').trim())
-        .filter((value) => value !== '')
-        .map((value) => ({ id: value, name: value }));
+    if (!isSelectField.value) {
+        return [];
+    }
+
+    return normalizeUniqueChipList(localOptions.value, undefined, 'title-case').map((value) => ({ id: value, name: value }));
 });
 const defaultValueInputType = computed((): 'text' | 'number' | 'date' => {
     if (localForm.value.field_type === 'number' || localForm.value.field_type === 'decimal') {
         return 'number';
     }
+
     if (localForm.value.field_type === 'date') {
         return 'date';
     }
+
     return 'text';
 });
 
 watch(
     [() => props.open, () => props.form],
     ([isOpen, formValue]) => {
-        if (!isOpen) return;
+        if (!isOpen) {
+            return;
+        }
 
         localForm.value = {
             ...defaultForm,
@@ -115,11 +94,7 @@ watch(
         };
 
         const optionsFromProps = Array.isArray(localForm.value.options) ? localForm.value.options : [];
-        localOptions.value = optionsFromProps
-            .map((option) => normalizeOptionEntry(option))
-            .filter((option) => option !== '');
-        newOptionInput.value = '';
-        optionSearchQuery.value = '';
+        localOptions.value = normalizeUniqueChipList(optionsFromProps, undefined, 'title-case');
         formError.value = '';
     },
     { immediate: true },
@@ -133,18 +108,6 @@ watch(
         }
     },
     { immediate: true },
-);
-
-watch(
-    localOptions,
-    (options) => {
-        const normalizedOptions = options.map((value) => normalizeOptionEntry(value)).filter((value) => value !== '');
-        const hasDiff = normalizedOptions.length !== options.length || normalizedOptions.some((value, index) => value !== options[index]);
-        if (hasDiff) {
-            localOptions.value = normalizedOptions;
-        }
-    },
-    { deep: true },
 );
 
 watch(
@@ -172,27 +135,6 @@ watch(
     { immediate: true },
 );
 
-function addOptionFromInput() {
-    const candidate = normalizeOptionEntry(newOptionInput.value);
-    if (!candidate) {
-        return;
-    }
-
-    if (localOptions.value.includes(candidate)) {
-        newOptionInput.value = '';
-        return;
-    }
-
-    localOptions.value = [...localOptions.value, candidate];
-    newOptionInput.value = '';
-}
-
-function removeOption(index: number) {
-    const options = [...localOptions.value];
-    options.splice(index, 1);
-    localOptions.value = options;
-}
-
 function handleClose() {
     emit('update:open', false);
     emit('cancel');
@@ -209,7 +151,7 @@ function slugify(value: string): string {
 }
 
 function buildPayload(preparedOptions: string[]): AdditionalFieldPayload {
-    const label = String(localForm.value.name ?? '').trim();
+    const label = normalizeChipDisplay(localForm.value.name);
     const existingKey = (props.form as Partial<AdditionalField> & { key?: string })?.key ?? '';
     const fallbackKey = existingKey || label;
     const generatedKey = slugify(fallbackKey || '');
@@ -233,7 +175,7 @@ function buildPayload(preparedOptions: string[]): AdditionalFieldPayload {
 }
 
 function handleSubmit() {
-    const preparedOptions = isSelectField.value ? localOptions.value.map((value) => normalizeOptionEntry(value)).filter((value) => value) : [];
+    const preparedOptions = isSelectField.value ? normalizeUniqueChipList(localOptions.value, undefined, 'title-case') : [];
 
     if (isSelectField.value && preparedOptions.length === 0) {
         formError.value = 'Debe agregar al menos una opción para los campos de tipo lista.';
@@ -241,7 +183,6 @@ function handleSubmit() {
     }
 
     formError.value = '';
-
     emit('submit', buildPayload(preparedOptions));
 }
 </script>
@@ -335,64 +276,14 @@ function handleSubmit() {
                             </div>
 
                             <div v-if="isSelectField" class="space-y-2">
-                                <p class="text-sm font-medium">
-                                    Valores <span class="text-destructive">*</span>
-                                </p>
-                                <div class="flex gap-2">
-                                    <InputField
-                                        v-model="newOptionInput"
-                                        label=""
-                                        placeholder="Agregar valor"
-                                        @keydown.enter.prevent="addOptionFromInput"
-                                    />
-                                    <button
-                                        type="button"
-                                        class="flex h-10 w-10 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                                        @click="addOptionFromInput"
-                                    >
-                                        <Plus class="h-4 w-4" />
-                                    </button>
-                                </div>
-                                <div v-if="showOptionSearch" class="relative w-full">
-                                    <input
-                                        v-model="optionSearchQuery"
-                                        type="text"
-                                        placeholder="Buscar opción..."
-                                        class="h-9 w-full rounded-md border border-input bg-background
-                                               pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground
-                                               focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
-                                    />
-                                    <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-muted-foreground"
-                                             viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-                                        </svg>
-                                    </span>
-                                </div>
-                                <div v-if="hasOptionValues" class="flex flex-wrap gap-2">
-                                    <span
-                                        v-for="(option, index) in filteredOptions"
-                                        :key="`option-chip-${index}`"
-                                        class="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground"
-                                    >
-                                        {{ option }}
-                                        <button
-                                            v-if="localOptions.length > 1"
-                                            type="button"
-                                            class="text-muted-foreground hover:text-foreground"
-                                            @click="removeOption(localOptions.indexOf(option))"
-                                        >×</button>
-                                    </span>
-                                </div>
-                                <p
-                                    v-if="showOptionSearch && filteredOptions.length === 0 && optionSearchQuery.trim()"
-                                    class="text-xs text-muted-foreground"
-                                >
-                                    Sin resultados para "{{ optionSearchQuery }}"
-                                </p>
-                                <p v-else class="text-xs text-muted-foreground">Sin valores registrados.</p>
-                                <p v-if="hasDuplicateOptions" class="text-xs text-red-600">Cada opción debe ser única.</p>
+                                <ChipInputField
+                                    v-model="localOptions"
+                                    label="Valores"
+                                    placeholder="Agregar valor"
+                                    empty-text="Sin valores registrados."
+                                    :required="true"
+                                    case-mode="title-case"
+                                />
                             </div>
 
                             <p v-if="formError" class="text-sm text-red-600">{{ formError }}</p>
@@ -448,7 +339,7 @@ function handleSubmit() {
                         <Button variant="outline" size="pill" @click="handleClose">Cancelar</Button>
                         <button
                             type="button"
-                            :disabled="loading || hasDuplicateOptions"
+                            :disabled="loading"
                             class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                             @click="handleSubmit"
                         >

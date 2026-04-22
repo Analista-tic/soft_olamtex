@@ -52,6 +52,7 @@ class ProductionOrder extends Model
         'process_estimated_dates',
         'cut_fabric_consumption',
         'source',
+        'created_by_user_id',
     ];
 
     protected $casts = [
@@ -60,6 +61,7 @@ class ProductionOrder extends Model
         'process_estimated_dates' => 'array',
         'cut_fabric_consumption' => 'array',
         'batch_priority' => 'integer',
+        'created_by_user_id' => 'integer',
     ];
 
     protected $appends = [
@@ -115,6 +117,11 @@ class ProductionOrder extends Model
     }
 
     // ─── Relaciones ───────────────────────────────────────
+
+    public function creator()
+    {
+        return $this->belongsTo(\App\Models\Settings\User::class, 'created_by_user_id');
+    }
 
     /**
      * Sábana de producto (diseño/producto base).

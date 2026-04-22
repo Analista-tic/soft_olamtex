@@ -61,7 +61,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
 
     // ── Producción ─────────────────────────────────────────────────
     {
-        label: 'Programador',
+        label: 'Programación de Producción',
         tokens: ['programador'],
         permissions: [
             'ver programador',
@@ -89,13 +89,32 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'editar listados operacionales',
             'eliminar listados operacionales',
             'generar listado desde muestra',
+            'actualizar tiempo estandar operacion',
+        ],
+    },
+    {
+        label: 'Ficha Técnica',
+        tokens: ['ficha tecnica', 'procesos ficha'],
+        permissions: [
+            'editar procesos ficha tecnica',
+        ],
+    },
+    {
+        label: 'Control de Lotes',
+        tokens: ['control lotes', 'lote produccion', 'novedad lote', 'consumo tela corte'],
+        permissions: [
+            'ver control lotes',
+            'entregar lote produccion',
+            'reportar novedad lote',
+            'resolver novedad lote',
+            'registrar consumo tela corte',
         ],
     },
 
-    // ── Inventario ─────────────────────────────────────────────────
+    // ── Inventario (Telas — TEXTIL PACK) ──────────────────────────
     {
         label: 'Telas',
-        tokens: ['telas'],
+        tokens: ['ver telas', 'crear telas', 'editar telas', 'eliminar telas'],
         permissions: [
             'ver telas',
             'crear telas',
@@ -104,7 +123,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         ],
     },
     {
-        label: 'Pedidos Telas',
+        label: 'Pedidos de Telas',
         tokens: ['pedidos telas'],
         permissions: [
             'ver pedidos telas',
@@ -114,7 +133,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         ],
     },
     {
-        label: 'Recepción Telas',
+        label: 'Recepción de Telas',
         tokens: ['recepcion telas'],
         permissions: [
             'ver recepcion telas',
@@ -124,7 +143,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         ],
     },
     {
-        label: 'Inventario Telas',
+        label: 'Inventario de Telas',
         tokens: ['inventario telas'],
         permissions: [
             'ver inventario telas',
@@ -133,24 +152,134 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'eliminar inventario telas',
         ],
     },
+
+    // ── TEXTIL PACK ────────────────────────────────────────────────
     {
-        label: 'Solicitudes Insumos',
+        label: 'TEXTIL PACK — Rollos de Tela',
+        tokens: ['telas rollos'],
+        permissions: [
+            'ver telas rollos',
+            'crear telas rollos',
+            'editar telas rollos',
+            'eliminar telas rollos',
+        ],
+    },
+    {
+        label: 'TEXTIL PACK — Recepción de Telas',
+        tokens: ['recepcion tela'],
+        permissions: [
+            'aprobar recepcion tela',
+            'rechazar recepcion tela',
+        ],
+    },
+    {
+        label: 'TEXTIL PACK — Descargue de Telas',
+        tokens: ['descargue telas'],
+        permissions: [
+            'ver descargue telas orden',
+            'crear descargue telas orden',
+        ],
+    },
+
+    // ── Inventario (Insumos) ───────────────────────────────────────
+    {
+        label: 'Solicitudes de Insumos',
         tokens: ['solicitudes insumos'],
         permissions: [
             'ver solicitudes insumos',
             'crear solicitudes insumos',
             'atender solicitudes insumos',
+            'entregar solicitudes insumos',
+            'rechazar solicitudes insumos',
+            'ver propios solicitudes insumos',
+            'ver area solicitudes insumos',
+            'ver todos solicitudes insumos',
+        ],
+    },
+    {
+        label: 'Transferencias de Bodegas',
+        tokens: ['transferencias bodegas'],
+        permissions: [
+            'ver transferencias bodegas',
+            'crear transferencias bodegas',
+            'editar transferencias bodegas',
+            'eliminar transferencias bodegas',
+            'ver propios transferencias bodegas',
+            'ver area transferencias bodegas',
+            'ver todos transferencias bodegas',
+        ],
+    },
+    {
+        label: 'Movimientos de Inventario',
+        tokens: ['movimientos inventario'],
+        permissions: [
+            'ver propios movimientos inventario',
+            'ver todos movimientos inventario',
+            'eliminar movimiento inventario',
+        ],
+    },
+
+    // ── Ingresos ───────────────────────────────────────────────────
+    {
+        label: 'Cotizaciones',
+        tokens: ['cotizaciones', 'cotizacion a pedido'],
+        permissions: [
+            'ver propios cotizaciones',
+            'ver area cotizaciones',
+            'ver todos cotizaciones',
+            'convertir cotizacion a pedido',
+        ],
+    },
+    {
+        label: 'Pedidos de Venta',
+        tokens: ['pedidos venta'],
+        permissions: [
+            'ver propios pedidos venta',
+            'ver area pedidos venta',
+            'ver todos pedidos venta',
+            'convertir pedido a factura venta',
+        ],
+    },
+    {
+        label: 'Facturas de Venta',
+        tokens: ['facturas venta', 'emitir factura venta', 'anular factura venta'],
+        permissions: [
+            'ver propios facturas venta',
+            'ver area facturas venta',
+            'ver todos facturas venta',
+            'emitir factura venta',
+            'anular factura venta',
+        ],
+    },
+    {
+        label: 'Notas Crédito/Débito Venta',
+        tokens: ['nota credito debito venta'],
+        permissions: [
+            'emitir nota credito debito venta',
+            'anular nota credito debito venta',
+        ],
+    },
+    {
+        label: 'Recibos de Caja',
+        tokens: ['recibos caja', 'recibo caja'],
+        permissions: [
+            'ver propios recibos caja',
+            'ver todos recibos caja',
+            'anular recibo caja',
         ],
     },
 
     // ── Compras ────────────────────────────────────────────────────
     {
-        label: 'Solicitudes Compra',
+        label: 'Solicitudes de Compra',
         tokens: ['solicitudes compra'],
         permissions: [
             'ver propios solicitudes compra',
             'ver area solicitudes compra',
             'ver todos solicitudes compra',
+            'aprobar solicitudes compra',
+            'rechazar solicitudes compra',
+            'cancelar solicitudes compra',
         ],
     },
     {
@@ -161,10 +290,11 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'crear ordenes compra',
             'editar ordenes compra',
             'eliminar ordenes compra',
+            'aprobar orden compra',
         ],
     },
     {
-        label: 'Facturas Compra',
+        label: 'Facturas de Compra',
         tokens: ['facturas compra'],
         permissions: [
             'ver facturas compra',
@@ -172,10 +302,12 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'editar facturas compra',
             'eliminar facturas compra',
             'aprobar facturas compra',
+            'recibir factura compra',
+            'anular factura compra',
         ],
     },
     {
-        label: 'Documentos Compra',
+        label: 'Documentos de Compra',
         tokens: ['documentos compra'],
         permissions: [
             'ver propios documentos compra',
@@ -186,21 +318,23 @@ export const PERMISSION_MODULES: PermissionModule[] = [
 
     // ── Financiero ─────────────────────────────────────────────────
     {
-        label: 'Catálogo Cuentas',
-        tokens: ['catalogo cuentas'],
+        label: 'Catálogo de Cuentas',
+        tokens: ['catalogo cuentas', 'movimientos cuenta contable'],
         permissions: [
             'ver catalogo cuentas',
             'crear catalogo cuentas',
             'editar catalogo cuentas',
+            'ver movimientos cuenta contable',
         ],
     },
     {
-        label: 'Comprobantes Egreso',
+        label: 'Comprobantes de Egreso',
         tokens: ['comprobantes egreso'],
         permissions: [
             'ver comprobantes egreso',
             'crear comprobantes egreso',
             'editar comprobantes egreso',
+            'anular comprobantes egreso',
         ],
     },
     {
@@ -234,9 +368,58 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         ],
     },
 
-    // ── Visibilidad general ────────────────────────────────────────
+    // ── Datos Maestros ─────────────────────────────────────────────
     {
-        label: 'Visibilidad',
+        label: 'Contactos',
+        tokens: ['contactos'],
+        permissions: [
+            'ver contactos',
+            'crear contactos',
+            'editar contactos',
+            'eliminar contactos',
+        ],
+    },
+    {
+        label: 'Catálogo de Ítems',
+        tokens: ['catalogo items', 'activar desactivar item', 'carga masiva items', 'exportar items'],
+        permissions: [
+            'activar desactivar item',
+            'carga masiva items',
+            'exportar items',
+        ],
+    },
+    {
+        label: 'Categorías',
+        tokens: ['categorias'],
+        permissions: [
+            'ver categorias',
+            'crear categorias',
+            'editar categorias',
+            'eliminar categorias',
+        ],
+    },
+    {
+        label: 'Campos Adicionales',
+        tokens: ['campos adicionales'],
+        permissions: [
+            'ver campos adicionales',
+            'crear campos adicionales',
+            'editar campos adicionales',
+            'eliminar campos adicionales',
+        ],
+    },
+    {
+        label: 'Parámetros',
+        tokens: ['parametros'],
+        permissions: [
+            'ver parametros',
+            'editar parametros',
+        ],
+    },
+
+    // ── Acceso por Módulo ──────────────────────────────────────────
+    {
+        label: 'Acceso por Módulo',
         tokens: ['ver gastos', 'ver ingresos', 'ver financiero'],
         permissions: [
             'ver gastos',

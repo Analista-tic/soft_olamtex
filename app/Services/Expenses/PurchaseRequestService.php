@@ -2,7 +2,9 @@
 
 namespace App\Services\Expenses;
 
+use App\Helpers\ScopeHelper;
 use App\Models\Expenses\PurchaseRequest;
+use App\Models\Settings\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -11,9 +13,10 @@ use Illuminate\Support\Facades\Storage;
 
 class PurchaseRequestService
 {
-    public function paginate(array $filters, int $perPage = 20, ?Request $request = null): LengthAwarePaginator
+    public function paginate(array $filters, int $perPage = 20, ?Request $request = null, ?User $user = null): LengthAwarePaginator
     {
         $query = PurchaseRequest::with(['requester']);
+        ScopeHelper::apply($query, $user, 'ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra', 'requester_user_id');
 
         if (!empty($filters['search'])) {
             $search = $filters['search'];

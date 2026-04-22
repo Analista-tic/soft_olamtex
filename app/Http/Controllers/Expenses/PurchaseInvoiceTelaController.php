@@ -81,7 +81,8 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
             PurchaseDocument::TYPE_INVOICE,
             $filters,
             $perPage,
-            $request
+            $request,
+            auth()->user()
         );
 
         return response()->json([

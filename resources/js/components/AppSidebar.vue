@@ -44,6 +44,8 @@ type ModuleSectionGroup = {
     items: NavItem[];
 };
 
+type PermissionRequirement = string | string[];
+
 type ModuleSection = {
     title: string;
     icon: LucideIcon;
@@ -78,12 +80,12 @@ const moduleSections: ModuleSection[] = [
             {
                 label: 'Compras',
                 items: [
-                    { title: 'Solicitud de compra', href: '/gastos/solicitudes-compra', permission: 'ver telas' },
-                    { title: 'Orden de compra', href: '/gastos/ordenes-compra', permission: 'ver telas' },
-                    { title: 'Factura de compra', href: '/gastos/facturas-compra', permission: 'ver telas' },
-                    { title: 'Factura de compra tela', href: '/gastos/facturas-compra-tela', permission: 'ver telas' },
+                    { title: 'Solicitud de compra', href: '/gastos/solicitudes-compra', permission: 'ver gastos' },
+                    { title: 'Orden de compra', href: '/gastos/ordenes-compra', permission: 'ver gastos' },
+                    { title: 'Factura de compra', href: '/gastos/facturas-compra', permission: 'ver gastos' },
+                    { title: 'Factura de compra tela', href: '/gastos/facturas-compra-tela', permission: 'ver gastos' },
                     { title: 'Recepciones', href: '/kardex-telas/recepcion' },
-                    { title: 'Notas Crédito / Débito', href: '/notas-credito-debito?context=purchase', permission: 'ver telas' },
+                    { title: 'Notas Crédito / Débito', href: '/notas-credito-debito?context=purchase', permission: 'ver gastos' },
                 ],
             },
             {
@@ -192,9 +194,44 @@ const moduleSections: ModuleSection[] = [
     },
 ];
 
+const sectionPermissions: Partial<Record<ModuleSection['title'], PermissionRequirement>> = {
+    Ingresos: 'ver ingresos',
+    Gastos: ['ver todos solicitudes compra', 'ver todos documentos compra', 'ver facturas compra'],
+    Financiero: 'ver financiero',
+    Inventarios: ['ver solicitudes insumos', 'ver inventario telas'],
+    Producción: ['ver programador', 'ver sabana productos', 'ver listados operacionales'],
+    'TEXTIL PACK': ['atender solicitudes insumos', 'ver todos solicitudes insumos'],
+};
+
+const hasPermissionAccess = (permission?: PermissionRequirement) => {
+    if (!permission) {
+        return true;
+    }
+
+    if (Array.isArray(permission)) {
+        return permission.some((entry) => auth.can(entry));
+    }
+
+    return auth.can(permission);
+};
+
 const { state, setOpen } = useSidebar();
 const isSidebarCollapsed = computed(() => state.value === 'collapsed');
-const filteredFooterNavItems = computed<NavItem[]>(() => footerNavItems.filter((item) => (item.permission ? auth.can(item.permission) : true)));
+const visibleModuleSections = computed<ModuleSection[]>(() =>
+    moduleSections
+        .filter((section) => hasPermissionAccess(sectionPermissions[section.title]))
+        .map((section) => ({
+            ...section,
+            groups: section.groups
+                .map((group) => ({
+                    ...group,
+                    items: group.items.filter((item) => hasPermissionAccess(item.permission)),
+                }))
+                .filter((group) => group.items.length > 0),
+        }))
+        .filter((section) => section.groups.length > 0),
+);
+const filteredFooterNavItems = computed<NavItem[]>(() => footerNavItems.filter((item) => hasPermissionAccess(item.permission)));
 
 const page = usePage();
 const currentUrl = computed(() => {
@@ -243,12 +280,14 @@ const isRouteActive = (href: string) => {
     return current.pathname === targetUrl.pathname || current.pathname.startsWith(`${targetUrl.pathname}/`);
 };
 
+const getVisibleSections = () => visibleModuleSections.value;
+
 const getActiveSectionTitle = () => {
-    return moduleSections.find((section) => section.groups.some((group) => group.items.some((item) => isRouteActive(item.href))))?.title;
+    return getVisibleSections().find((section) => section.groups.some((group) => group.items.some((item) => isRouteActive(item.href))))?.title;
 };
 
 const buildSectionStates = (openTitle?: string) =>
-    moduleSections.reduce(
+    getVisibleSections().reduce(
         (acc, section) => {
             acc[section.title] = Boolean(openTitle && section.title === openTitle);
             return acc;
@@ -265,7 +304,7 @@ const resetSectionStates = () => {
 const toggleSection = (title: string, open?: boolean) => {
     const nextState: Record<string, boolean> = {};
 
-    moduleSections.forEach((section) => {
+    getVisibleSections().forEach((section) => {
         if (section.title === title) {
             nextState[section.title] = open ?? !sectionStates.value[section.title];
             return;
@@ -310,6 +349,13 @@ watch(
         openSectionForActiveRoute();
     },
     { immediate: true },
+);
+
+watch(
+    () => visibleModuleSections.value.map((section) => section.title).join('|'),
+    () => {
+        sectionStates.value = buildSectionStates(getActiveSectionTitle());
+    },
 );
 </script>
 
@@ -372,7 +418,7 @@ watch(
             </div>
 
             <!-- Secciones de módulos -->
-            <template v-for="section in moduleSections" :key="section.title">
+            <template v-for="section in visibleModuleSections" :key="section.title">
                 <Collapsible
                     :open="sectionStates[section.title] ?? true"
                     class="group/collapsible"

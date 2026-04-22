@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\MasterData;
 
+use App\Exceptions\MasterData\ParameterInUseException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\MasterData\StoreParameterRequest;
 use App\Http\Requests\MasterData\UpdateParameterRequest;
@@ -49,9 +50,18 @@ class ParameterController extends Controller
         return response()->json($parameter);
     }
 
+    public function deletionCheck($id): JsonResponse
+    {
+        return response()->json($this->service->getDeletionCheck((int) $id));
+    }
+
     public function destroy($id)
     {
-        $this->service->delete((int) $id);
+        try {
+            $this->service->delete((int) $id);
+        } catch (ParameterInUseException $exception) {
+            return response()->json($exception->context(), 409);
+        }
 
         return response()->noContent();
     }
@@ -59,6 +69,7 @@ class ParameterController extends Controller
     public function areas(): JsonResponse
     {
         $setting = Setting::parameters()->where('key', 'areas')->first();
+
         return response()->json($setting ? $setting->value : []);
     }
 }

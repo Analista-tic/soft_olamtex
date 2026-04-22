@@ -22,6 +22,7 @@ import { useAlertStack } from '@/composables/useAlert';
 import type { Warehouse, WarehouseOption } from '@/domain/inventory';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
+import { useAuthStore } from '@/stores/auth';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Eye, Pencil, PlusCircle, Search, Trash } from 'lucide-vue-next';
@@ -77,6 +78,7 @@ type DialogTransferPayload = {
 
 // --- Estado reactivo principal ---
 const isTransferDialogOpen = ref(false);
+const authStore = useAuthStore();
 const warehouses = ref<Warehouse[]>([]);
 // Garantiza el tipo WarehouseOption[] para el diálogo
 const warehouseOptions = computed<WarehouseOption[]>(() =>
@@ -174,7 +176,10 @@ const paginatedTransfers = computed(() => {
 });
 
 const hasEnoughWarehouses = computed(() => warehouses.value.length >= 2);
-const canCreateTransfer = computed(() => !isLoadingWarehouses.value && hasEnoughWarehouses.value);
+const canCreateTransferPermission = computed(() => authStore.can('crear transferencias bodegas'));
+const canEditTransferPermission = computed(() => authStore.can('editar transferencias bodegas'));
+const canDeleteTransferPermission = computed(() => authStore.can('eliminar transferencias bodegas'));
+const canCreateTransfer = computed(() => canCreateTransferPermission.value && !isLoadingWarehouses.value && hasEnoughWarehouses.value);
 const showNotEnoughMessage = computed(() => !isLoadingWarehouses.value && !hasEnoughWarehouses.value);
 
 // --- Breadcrumbs ---
@@ -366,6 +371,10 @@ watch(isTransferDialogOpen, (isOpen) => {
 });
 
 onMounted(async () => {
+    await authStore.fetchUser().catch((error) => {
+        console.error('Error al obtener permisos del usuario:', error);
+    });
+
     isLoadingWarehouses.value = true;
     warehouseLoadError.value = null;
 
@@ -406,6 +415,7 @@ onMounted(async () => {
                     </p>
                 </div>
                 <button
+                    v-if="canCreateTransferPermission"
                     type="button"
                     class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     :disabled="!canCreateTransfer"
@@ -525,7 +535,7 @@ onMounted(async () => {
                                                 </TooltipTrigger>
                                                 <TooltipContent>Ver detalle</TooltipContent>
                                             </Tooltip>
-                                            <Tooltip>
+                                            <Tooltip v-if="canEditTransferPermission">
                                                 <TooltipTrigger as-child>
                                                     <Button
                                                         variant="ghost"
@@ -539,7 +549,7 @@ onMounted(async () => {
                                                 </TooltipTrigger>
                                                 <TooltipContent>Editar</TooltipContent>
                                             </Tooltip>
-                                            <Tooltip>
+                                            <Tooltip v-if="canDeleteTransferPermission">
                                                 <TooltipTrigger as-child>
                                                     <Button
                                                         variant="ghost"
@@ -597,4 +607,3 @@ onMounted(async () => {
         />
     </AppLayout>
 </template>
-

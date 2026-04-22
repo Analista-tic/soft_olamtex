@@ -56,6 +56,7 @@ class ExpenseVoucherController extends Controller
         $paginator = $this->expenseVoucherService->paginate(
             $validated,
             (int) ($validated['per_page'] ?? 10),
+            $request->user(),
         );
 
         return response()->json([

@@ -6,7 +6,9 @@ use App\Enums\Income\PaymentStatus;
 use App\Enums\Income\QuoteStatus;
 use App\Enums\Income\SalesInvoiceStatus;
 use App\Enums\Income\SalesOrderStatus;
+use App\Helpers\ScopeHelper;
 use App\Models\Income\SaleDocument;
+use App\Models\Settings\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -36,10 +38,11 @@ class SaleDocumentService
         });
     }
 
-    public function paginateDocuments(string $documentType, array $filters = [], int $perPage = 20): LengthAwarePaginator
+    public function paginateDocuments(string $documentType, array $filters = [], int $perPage = 20, ?User $user = null, ?string $ownPermission = null, ?string $areaPermission = null, ?string $allPermission = null): LengthAwarePaginator
     {
         $query = $this->buildDocumentQuery($documentType);
         $query = $this->applyDocumentFilters($query, $filters);
+        ScopeHelper::apply($query, $user, $ownPermission, $areaPermission, $allPermission);
 
         return $query->orderByDesc('date')->orderByDesc('id')->paginate($perPage);
     }

@@ -87,6 +87,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver solicitudes insumos',
             'crear solicitudes insumos',
             'atender solicitudes insumos',
+            'ver transferencias bodegas',
+            'crear transferencias bodegas',
+            'editar transferencias bodegas',
+            'eliminar transferencias bodegas',
 
             // Ingresos / Ventas
             'ver ingresos',
@@ -130,6 +134,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'crear ordenes compra',
             'editar ordenes compra',
             'eliminar ordenes compra',
+            'ver propios ordenes compra',
+            'ver area ordenes compra',
+            'ver todos ordenes compra',
 
             // Facturas de compra
             'ver facturas compra',
@@ -137,6 +144,11 @@ class RolesAndPermissionsSeeder extends Seeder
             'editar facturas compra',
             'eliminar facturas compra',
             'aprobar facturas compra',
+
+            // Visibilidad - Facturas de compra
+            'ver propios facturas compra',
+            'ver area facturas compra',
+            'ver todos facturas compra',
 
             // Visibilidad - Solicitudes de compra
             'ver propios solicitudes compra',
@@ -152,6 +164,11 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver propios solicitudes insumos',
             'ver area solicitudes insumos',
             'ver todos solicitudes insumos',
+
+            // Visibilidad - Transferencias de bodegas
+            'ver propios transferencias bodegas',
+            'ver area transferencias bodegas',
+            'ver todos transferencias bodegas',
         ];
 
         foreach ($allPermissions as $permission) {
@@ -306,6 +323,11 @@ class RolesAndPermissionsSeeder extends Seeder
             'atender solicitudes insumos',
             'ver area solicitudes insumos',
             'ver todos documentos compra',
+            'ver transferencias bodegas',
+            'crear transferencias bodegas',
+            'editar transferencias bodegas',
+            'eliminar transferencias bodegas',
+            'ver todos transferencias bodegas',
 
             'ver ordenes compra',
             'ver facturas compra',

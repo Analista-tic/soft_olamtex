@@ -30,6 +30,7 @@ class CashReceiptController extends Controller
         $paginator = $this->cashReceiptService->paginate(
             $validated,
             (int) ($validated['per_page'] ?? 10),
+            $request->user(),
         );
 
         return response()->json([

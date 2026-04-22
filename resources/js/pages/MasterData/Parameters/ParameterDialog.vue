@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ChipInputField from '@/components/ChipInputField.vue';
 import { Button } from '@/components/ui/button';
 import FormDialogBody from '@/components/FormDialogBody.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
@@ -8,8 +9,8 @@ import InputField from '@/components/InputField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { mapParameterToDialogForm } from '@/domain/MasterData';
 import type { ParameterDialogFormState } from '@/domain/MasterData';
+import { normalizeUniqueChipList } from '@/lib/textNormalizer';
 import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
-import { Plus } from 'lucide-vue-next';
 import { computed, nextTick, ref, watch } from 'vue';
 
 export type ParameterDialogModel = ParameterDialogFormState;
@@ -41,21 +42,7 @@ const localForm = ref<ParameterDialogModel>({
     ...mapParameterToDialogForm(props.form),
 });
 const valueList = ref<string[]>([]);
-const newValueInput = ref('');
-const valueSearchQuery = ref('');
-
-const filteredValueList = computed(() => {
-    const q = valueSearchQuery.value.trim().toLowerCase();
-    if (!q) return valueList.value;
-    return valueList.value.filter((item) =>
-        item.toLowerCase().includes(q)
-    );
-});
-
-const showValueSearch = computed(() => valueList.value.length > 10);
 const isInitializingDialog = ref(false);
-// const hasValues = computed(() => valueList.value.length > 0);
-const hasDuplicateOptions = computed(() => false);
 const isViewMode = computed(() => props.dialogType === 'view');
 const shouldEmitLoadingState = computed(() => props.open && isInitializingDialog.value);
 
@@ -69,18 +56,15 @@ watch(
         if (!value) {
             localForm.value = { ...defaultForm };
             valueList.value = [];
-            newValueInput.value = '';
-            valueSearchQuery.value = '';
             return;
         }
 
         localForm.value = mapParameterToDialogForm(value);
-        valueList.value = parseValueList(localForm.value.value);
-        newValueInput.value = '';
-        valueSearchQuery.value = '';
+        valueList.value = normalizeUniqueChipList(parseValueList(localForm.value.value), undefined, 'title-case');
     },
     { immediate: true },
 );
+
 watch(
     () => props.open,
     async (isOpen) => {
@@ -94,6 +78,7 @@ watch(
             await nextTick();
             if (props.dialogType === 'create' && !props.form) {
                 localForm.value = { ...defaultForm };
+                valueList.value = [];
             }
         } finally {
             isInitializingDialog.value = false;
@@ -115,7 +100,7 @@ function parseValueList(value: unknown): string[] {
     }
 
     if (Array.isArray(value)) {
-        return value.map((entry) => displayEntry(entry)).filter((v): v is string => typeof v === 'string' && v.length > 0);
+        return value.map((entry) => displayEntry(entry)).filter((entry): entry is string => entry !== '');
     }
 
     if (typeof value === 'string') {
@@ -124,45 +109,35 @@ function parseValueList(value: unknown): string[] {
             try {
                 const parsed = JSON.parse(trimmed);
                 if (Array.isArray(parsed)) {
-                    return parsed.map((entry) => displayEntry(entry)).filter((v): v is string => typeof v === 'string' && v.length > 0);
+                    return parsed.map((entry) => displayEntry(entry)).filter((entry): entry is string => entry !== '');
                 }
             } catch {
-                // ignore
+                // ignore invalid JSON and preserve raw value
             }
         }
-        return [trimmed];
+
+        return trimmed === '' ? [] : [trimmed];
     }
 
-    return [displayEntry(value)];
+    const entry = displayEntry(value);
+    return entry !== '' ? [entry] : [];
 }
 
-function displayEntry(entry: unknown) {
+function displayEntry(entry: unknown): string {
     if (entry === null || entry === undefined) {
-        return '-';
+        return '';
     }
+
     if (typeof entry === 'object') {
         return (
             (entry as Record<string, unknown>).name?.toString() ??
             (entry as Record<string, unknown>).label?.toString() ??
-            ((entry as Record<string, unknown>).id ? String((entry as Record<string, unknown>).id) : undefined) ??
-            JSON.stringify(entry)
+            ((entry as Record<string, unknown>).id ? String((entry as Record<string, unknown>).id) : '') ??
+            ''
         );
     }
+
     return String(entry);
-}
-
-function addValueEntry() {
-    const trimmed = newValueInput.value.trim();
-    if (!trimmed) {
-        return;
-    }
-
-    valueList.value = [...valueList.value, trimmed];
-    newValueInput.value = '';
-}
-
-function removeValueEntry(index: number) {
-    valueList.value = valueList.value.filter((_, i) => i !== index);
 }
 
 function buildPayloadValue() {
@@ -215,66 +190,15 @@ function handleSubmit() {
                             required
                             :disabled="isViewMode"
                         />
-                        <div class="space-y-2">
-                            <p class="text-sm font-medium">
-                                Valores <span class="text-destructive">*</span>
-                            </p>
-                            <div v-if="!isViewMode" class="flex gap-2">
-                                <InputField
-                                    v-model="newValueInput"
-                                    label=""
-                                    placeholder="Agregar valor"
-                                    @keydown.enter.prevent="addValueEntry()"
-                                />
-                                <button
-                                    type="button"
-                                    class="flex h-10 w-10 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary hover:text-primary-foreground"
-                                    @click="addValueEntry"
-                                >
-                                    <Plus class="h-4 w-4" />
-                                </button>
-                            </div>
-                            <div v-if="showValueSearch" class="relative w-full">
-                                <input
-                                    v-model="valueSearchQuery"
-                                    type="text"
-                                    placeholder="Buscar valor..."
-                                    class="h-9 w-full rounded-md border border-input bg-background
-                                           pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground
-                                           focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
-                                />
-                                <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-muted-foreground"
-                                         viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-                                    </svg>
-                                </span>
-                            </div>
-                            <div v-if="valueList.length" class="flex flex-wrap gap-2">
-                                <span
-                                    v-for="(item, index) in filteredValueList"
-                                    :key="`value-chip-${index}`"
-                                    class="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-semibold text-foreground"
-                                >
-                                    {{ item }}
-                                    <button
-                                        v-if="!isViewMode"
-                                        type="button"
-                                        class="text-muted-foreground transition-colors hover:text-foreground"
-                                        @click="removeValueEntry(index)"
-                                        aria-label="Eliminar valor"
-                                    >×</button>
-                                </span>
-                            </div>
-                            <p
-                                v-if="showValueSearch && filteredValueList.length === 0 && valueSearchQuery.trim()"
-                                class="text-xs text-muted-foreground"
-                            >
-                                Sin resultados para "{{ valueSearchQuery }}"
-                            </p>
-                            <p v-else class="text-xs text-muted-foreground">Sin valores registrados.</p>
-                        </div>
+                        <ChipInputField
+                            v-model="valueList"
+                            label="Valores"
+                            placeholder="Agregar valor"
+                            empty-text="Sin valores registrados."
+                            :required="true"
+                            :disabled="isViewMode"
+                            case-mode="title-case"
+                        />
                         <TextareaField
                             v-model="localForm.description"
                             label="Descripción"
@@ -307,7 +231,7 @@ function handleSubmit() {
                     <button
                         v-if="!isViewMode"
                         type="button"
-                        :disabled="loading || hasDuplicateOptions"
+                        :disabled="loading"
                         class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
                         @click="handleSubmit"
                     >

@@ -16,7 +16,7 @@ import {
 } from '@/domain/Finance';
 import RetentionDialog from '@/pages/Finance/Retention/RetentionDialog.vue';
 import { CirclePlus } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
 defineOptions({ name: 'WithholdingTable' });
 
@@ -45,6 +45,8 @@ const retentionDialogType = ref<'create' | 'edit'>('create');
 const retentionDialogForm = ref<RetentionForm>(createRetentionForm());
 const successMessage = ref('');
 const retentionSelectKey = ref(0);
+const activeWithholdingRowIndex = ref<number | null>(null);
+const suppressWatchSync = ref(false);
 
 async function fetchRetentions() {
     try {
@@ -60,6 +62,7 @@ onMounted(fetchRetentions);
 watch(
     () => props.modelValue,
     (val) => {
+        if (suppressWatchSync.value) return;
         localWithholdings.value = Array.isArray(val) ? val.map((w) => ({ ...w })) : [];
     },
     { immediate: true },
@@ -105,14 +108,15 @@ function removeWithholding(idx: number) {
     emit('update:modelValue', newList);
 }
 
-function openRetentionDialog() {
+function openRetentionDialog(rowIdx: number | null = null) {
     if (isReadOnly.value) return;
+    activeWithholdingRowIndex.value = rowIdx;
     retentionDialogForm.value = createRetentionForm();
     retentionDialogOpen.value = true;
 }
 
-function openRetentionDialogFromDropdown() {
-    openRetentionDialog();
+function openRetentionDialogFromDropdown(rowIdx: number | null = null) {
+    openRetentionDialog(rowIdx);
     // Forzar el cierre/redibujo del select
     retentionSelectKey.value += 1;
 }
@@ -121,10 +125,27 @@ async function handleRetentionSubmit(formData: RetentionForm) {
     if (isReadOnly.value) return;
     retentionDialogLoading.value = true;
     try {
+        const previousNames = retentions.value.map((r) => r.name);
+
         await createRetentionRequest(mapRetentionFormToPayload(formData));
         await fetchRetentions();
         retentionDialogOpen.value = false;
         successMessage.value = 'Retención guardada correctamente.';
+
+        const rowIdx = activeWithholdingRowIndex.value;
+        if (rowIdx !== null && rowIdx >= 0) {
+            const newRetention = retentions.value.find((r) => !previousNames.includes(r.name));
+            if (newRetention && localWithholdings.value[rowIdx]) {
+                suppressWatchSync.value = true;
+                localWithholdings.value[rowIdx].name = newRetention.name;
+                localWithholdings.value[rowIdx].percentage = newRetention.percent;
+                emit('update:modelValue', localWithholdings.value);
+                await nextTick();
+                suppressWatchSync.value = false;
+            }
+        }
+
+        activeWithholdingRowIndex.value = null;
     } catch (e) {
         console.error('Error al crear retención', e);
     } finally {
@@ -135,10 +156,7 @@ async function handleRetentionSubmit(formData: RetentionForm) {
 
 <template>
     <div class="relative">
-        <AlertStack
-            :success-message="successMessage"
-            @close-success="successMessage = ''"
-        />
+        <AlertStack :success-message="successMessage" @close-success="successMessage = ''" />
         <div class="mb-2 flex items-center justify-between">
             <span class="inline-flex items-center gap-1 text-xs font-semibold">Retenciones <HelpTooltip text="Las retenciones son descuentos tributarios que se aplican sobre el valor de la compra según la normativa colombiana (ReteIVA, ReteICA, ReteRenta)." /></span>
             <div class="flex items-center gap-2">
@@ -148,7 +166,7 @@ async function handleRetentionSubmit(formData: RetentionForm) {
                 </Button>
             </div>
         </div>
-        <div class="min-w-full rounded text-xs" v-if="localWithholdings.length">
+        <div v-if="localWithholdings.length" class="min-w-full rounded text-xs">
             <table class="min-w-full rounded text-xs">
                 <thead>
                     <tr>
@@ -173,7 +191,7 @@ async function handleRetentionSubmit(formData: RetentionForm) {
                                 :showPlaceholderOption="false"
                                 :action-label="!isReadOnly ? 'Nueva retención' : undefined"
                                 :action-disabled="isReadOnly"
-                                @action="openRetentionDialogFromDropdown"
+                                @action="() => openRetentionDialogFromDropdown(idx)"
                                 @update:modelValue="
                                     (val) => {
                                         const found = retentions.find((r) => r.name === val);

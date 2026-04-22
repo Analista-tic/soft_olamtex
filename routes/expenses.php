@@ -19,10 +19,18 @@ Route::prefix('gastos')->name('gastos.')->group(function () {
         Route::delete('/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])->name('destroy');
 
         // Acciones de transición de estados
-        Route::post('/{purchaseRequest}/send-to-approval', [PurchaseRequestController::class, 'sendToApproval'])->name('send-to-approval');
-        Route::post('/{purchaseRequest}/approve', [PurchaseRequestController::class, 'approve'])->name('approve');
-        Route::post('/{purchaseRequest}/reject', [PurchaseRequestController::class, 'reject'])->name('reject');
-        Route::post('/{purchaseRequest}/cancel', [PurchaseRequestController::class, 'cancel'])->name('cancel');
+        Route::post('/{purchaseRequest}/send-to-approval', [PurchaseRequestController::class, 'sendToApproval'])
+            ->middleware('permission:aprobar solicitudes compra')
+            ->name('send-to-approval');
+        Route::post('/{purchaseRequest}/approve', [PurchaseRequestController::class, 'approve'])
+            ->middleware('permission:aprobar solicitudes compra')
+            ->name('approve');
+        Route::post('/{purchaseRequest}/reject', [PurchaseRequestController::class, 'reject'])
+            ->middleware('permission:rechazar solicitudes compra')
+            ->name('reject');
+        Route::post('/{purchaseRequest}/cancel', [PurchaseRequestController::class, 'cancel'])
+            ->middleware('permission:cancelar solicitudes compra')
+            ->name('cancel');
     });
 
     // === ORDENES DE COMPRA ===
@@ -41,7 +49,7 @@ Route::prefix('gastos')->name('gastos.')->group(function () {
             ->middleware('permission:editar ordenes compra');
         Route::patch('/{purchaseDocument}/approve', [PurchaseOrderController::class, 'approve'])
             ->name('approve')
-            ->middleware('permission:editar ordenes compra');
+            ->middleware('permission:aprobar orden compra');
     });
 
     // === FACTURAS DE COMPRA ===
@@ -57,8 +65,8 @@ Route::prefix('gastos')->name('gastos.')->group(function () {
         Route::post('/{purchaseDocument}/justificar', [PurchaseInvoiceController::class, 'justify'])->name('justify')->middleware('permission:editar facturas compra');
         Route::post('/{purchaseDocument}/aprobar-diferencia', [PurchaseInvoiceController::class, 'approveDifference'])->name('approve-difference')->middleware('permission:aprobar facturas compra');
         Route::post('/{purchaseDocument}/rechazar-diferencia', [PurchaseInvoiceController::class, 'rejectDifference'])->name('reject-difference')->middleware('permission:aprobar facturas compra');
-        Route::patch('/{purchaseDocument}/recibir', [PurchaseInvoiceController::class, 'receive'])->name('receive')->middleware('permission:editar facturas compra');
-        Route::patch('/{purchaseDocument}/rechazar', [PurchaseInvoiceController::class, 'reject'])->name('reject')->middleware('permission:editar facturas compra');
+        Route::patch('/{purchaseDocument}/recibir', [PurchaseInvoiceController::class, 'receive'])->name('receive')->middleware('permission:recibir factura compra');
+        Route::patch('/{purchaseDocument}/rechazar', [PurchaseInvoiceController::class, 'reject'])->name('reject')->middleware('permission:anular factura compra');
     });
 
     // === CUENTAS POR PAGAR (LEGACY DESCONTINUADO) ===
@@ -72,13 +80,13 @@ Route::prefix('gastos')->name('gastos.')->group(function () {
     });
 
     // === FACTURAS DE COMPRA TELAS ===
-    Route::prefix('facturas-compra-tela')->name('purchase-invoices-fabric.')->group(function () {
+    Route::prefix('facturas-compra-tela')->name('purchase-invoices-fabric.')->middleware('permission:ver facturas compra')->group(function () {
         Route::get('/', [PurchaseInvoiceTelaController::class, 'indexFabric'])->name('index');
         Route::get('/data', [PurchaseInvoiceTelaController::class, 'getData'])->name('getData');
-        Route::post('/', [PurchaseInvoiceTelaController::class, 'store'])->name('store');
+        Route::post('/', [PurchaseInvoiceTelaController::class, 'store'])->name('store')->middleware('permission:crear facturas compra');
         Route::get('/{purchaseInvoice}', [PurchaseInvoiceTelaController::class, 'show'])->name('show');
-        Route::put('/{purchaseInvoice}', [PurchaseInvoiceTelaController::class, 'update'])->name('update');
-        Route::delete('/{purchaseInvoice}', [PurchaseInvoiceTelaController::class, 'destroy'])->name('destroy');
+        Route::put('/{purchaseInvoice}', [PurchaseInvoiceTelaController::class, 'update'])->name('update')->middleware('permission:editar facturas compra');
+        Route::delete('/{purchaseInvoice}', [PurchaseInvoiceTelaController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar facturas compra');
         Route::post('/{purchaseInvoice}/justificar', [PurchaseInvoiceTelaController::class, 'justify'])->name('justify')->middleware('permission:editar facturas compra');
         Route::post('/{purchaseInvoice}/aprobar-diferencia', [PurchaseInvoiceTelaController::class, 'approveDifference'])->name('approve-difference')->middleware('permission:aprobar facturas compra');
         Route::post('/{purchaseInvoice}/rechazar-diferencia', [PurchaseInvoiceTelaController::class, 'rejectDifference'])->name('reject-difference')->middleware('permission:aprobar facturas compra');

@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import type { BreadcrumbItem } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useAuthStore } from '@/stores/auth';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Head, Link } from '@inertiajs/vue3';
+import { computed, onMounted } from 'vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -24,10 +27,39 @@ const underConstructionHref = (title: string) =>
         titulo: title,
     });
 
-const modules = [
+type PermissionRequirement = string | string[];
+
+type ConfigurationOption = {
+    name: string;
+    href: string;
+};
+
+type ConfigurationModule = {
+    title: string;
+    description: string;
+    options: ConfigurationOption[];
+    permission?: PermissionRequirement;
+};
+
+const auth = useAuthStore();
+
+const hasPermissionAccess = (permission?: PermissionRequirement) => {
+    if (!permission) {
+        return true;
+    }
+
+    if (Array.isArray(permission)) {
+        return permission.some((entry) => auth.can(entry));
+    }
+
+    return auth.can(permission);
+};
+
+const modules: ConfigurationModule[] = [
     {
         title: 'Ingresos',
         description: 'Gestión de ingresos y del proceso comercial.',
+        permission: 'ver ingresos',
         options: [
             { name: 'Cotizaciones', href: underConstructionHref('Cotizaciones') },
             { name: 'Pedidos', href: underConstructionHref('Pedidos') },
@@ -39,6 +71,7 @@ const modules = [
     {
         title: 'Gastos',
         description: 'Gestión de compras y proveedores.',
+        permission: ['ver todos solicitudes compra', 'ver todos documentos compra', 'ver facturas compra'],
         options: [
             { name: 'Solicitud de compra', href: '/gastos/solicitudes-compra' },
             { name: 'Notas Crédito / Débito', href: underConstructionHref('Notas Crédito / Débito compras') },
@@ -49,6 +82,7 @@ const modules = [
     {
         title: 'Financiero',
         description: 'Núcleo contable y fiscal.',
+        permission: 'ver financiero',
         options: [
             { name: 'Impuestos', href: '/impuestos' },
             { name: 'Retenciones', href: '/retenciones' },
@@ -59,6 +93,7 @@ const modules = [
     {
         title: 'Inventarios',
         description: 'Control físico y financiero del stock.',
+        permission: ['ver solicitudes insumos', 'ver inventario telas'],
         options: [
             { name: 'Solicitudes internas por área', href: '/inventario/solicitudes-internas' },
             { name: 'Bodegas', href: '/bodegas' },
@@ -70,6 +105,7 @@ const modules = [
     {
         title: 'Producción',
         description: 'Planear y ejecutar la fabricación/servicio.',
+        permission: ['ver programador', 'ver sabana productos', 'ver listados operacionales'],
         options: [
             { name: 'Listado operacional', href: route('produccion.listados-operacionales.index') },
             { name: 'Base de datos de operaciones', href: underConstructionHref('Base de datos de operaciones') },
@@ -97,6 +133,9 @@ const modules = [
     {
         title: 'Configuración General',
         description: 'Define reglas base de operación.',
+        // Requiere permiso administrativo. No visible para roles operativos
+        // (ej: produccion). Revisar si se agregan secciones relevantes en el futuro.
+        permission: 'ver usuarios',
         options: [
             { name: 'Centro de costos', href: underConstructionHref('Centro de costos') },
             { name: 'Monedas', href: underConstructionHref('Monedas') },
@@ -105,6 +144,7 @@ const modules = [
     {
         title: 'TEXTIL PACK',
         description: 'Capacidades especiales para la industria textil.',
+        permission: 'ver inventario telas',
         options: [
             { name: 'Inventario textil', href: route('kardex-telas.index') },
             { name: 'Inventario telas por rollo', href: route('kardex-telas.inventario-rollos') },
@@ -116,6 +156,7 @@ const modules = [
     {
         title: 'Accesos y Permisos',
         description: 'Administra usuarios, roles y permisos de acceso.',
+        permission: ['ver roles', 'ver usuarios'],
         options: [
             { name: 'Usuarios', href: '/usuarios' },
             { name: 'Roles y Permisos', href: '/roles' },
@@ -124,6 +165,7 @@ const modules = [
     {
         title: 'Comercial',
         description: 'Administra parámetros y configuraciones.',
+        permission: 'ver ingresos',
         options: [
             { name: 'Colecciones', href: route('produccion.colecciones.index') },
             { name: 'Secciones', href: '' },
@@ -137,6 +179,7 @@ const modules = [
     {
         title: 'Diseño',
         description: 'Administra parámetros y configuraciones.',
+        permission: 'ver usuarios',
         options: [
             { name: 'Temporadas', href: '' },
             { name: 'Destinos', href: '' },
@@ -144,6 +187,14 @@ const modules = [
         ],
     },
 ];
+
+const visibleModules = computed(() => modules.filter((module) => hasPermissionAccess(module.permission)));
+
+onMounted(() => {
+    void auth.fetchUser().catch(() => {
+        // La vista mantiene solo módulos públicos si no se pueden cargar permisos.
+    });
+});
 </script>
 
 <template>
@@ -158,7 +209,7 @@ const modules = [
             </div>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div
-                    v-for="module in modules"
+                    v-for="module in visibleModules"
                     :key="module.title"
                     class="group relative flex flex-col rounded-lg border border-border bg-card p-4 shadow-md transition-shadow hover:shadow-lg"
                 >
@@ -168,13 +219,15 @@ const modules = [
                     <p class="mt-1 text-xs text-muted-foreground">
                         {{ module.description }}
                     </p>
-                    <ul class="mt-3 space-y-1 text-sm text-muted-foreground">
-                        <li v-for="option in module.options" :key="option.name" class="transition-colors hover:text-primary">
-                            <Link :href="option.href" class="relative z-10 block text-current">
-                                {{ option.name }}
-                            </Link>
-                        </li>
-                    </ul>
+                    <ScrollArea class="mt-3 max-h-48">
+                        <ul class="space-y-1 pr-3 text-sm text-muted-foreground">
+                            <li v-for="option in module.options" :key="option.name" class="transition-colors hover:text-primary">
+                                <Link :href="option.href" class="relative z-10 block text-current">
+                                    {{ option.name }}
+                                </Link>
+                            </li>
+                        </ul>
+                    </ScrollArea>
                     <div class="pointer-events-none absolute inset-0 rounded-lg ring-2 ring-transparent group-hover:ring-ring"></div>
                 </div>
             </div>

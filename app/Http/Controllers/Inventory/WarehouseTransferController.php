@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Inventory;
 
+use App\Helpers\ScopeHelper;
 use App\Http\Controllers\Concerns\HandlesValidationErrors;
 use App\Http\Controllers\Controller;
 use App\Models\Inventory\WarehouseTransfer;
@@ -34,6 +35,7 @@ class WarehouseTransferController extends Controller
         }
 
         $query = WarehouseTransfer::with(['originWarehouse', 'destinationWarehouse', 'items.item']);
+        ScopeHelper::apply($query, $request->user(), 'ver propios transferencias bodegas', 'ver area transferencias bodegas', 'ver todos transferencias bodegas');
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {

@@ -74,6 +74,7 @@ class ProductionOrderService
             'status' => self::STATUS_INCOMPLETE,
             'current_process' => config('product-sheet.batch_control_processes.0', 'I&D'),
             'source' => 'auto',
+            'created_by_user_id' => \Illuminate\Support\Facades\Auth::id(),
         ]);
 
         $order->op_code = $this->nextOpCode($productSheet->type, (bool) $productSheet->woven_product);

@@ -108,4 +108,3 @@ const isHoverExpanded = computed(() => !open.value && hoverOpen.value);
         </div>
     </div>
 </template>
-

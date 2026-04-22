@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar';
 import type { NavItem } from '@/domain/shared';
 import { Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
@@ -45,46 +44,45 @@ const isRouteActive = (href: string) => {
         <SidebarGroupContent>
             <SidebarMenu>
                 <SidebarMenuItem v-for="item in items" :key="item.title">
-                    <Tooltip :disabled="!isSidebarCollapsed" :delay-duration="120" :disable-hoverable-content="true">
-                        <TooltipTrigger as-child>
-                            <Link
-                                v-if="!isExternal(item.href)"
-                                :href="item.href"
-                                class="sidebar-item mx-1 flex h-10 items-center rounded-md text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                                :class="{ 'bg-sidebar-accent/50 text-primary': isRouteActive(item.href) }"
+                    <SidebarMenuButton
+                        v-if="!isExternal(item.href)"
+                        as-child
+                        size="lg"
+                        :tooltip="item.title"
+                        :is-active="isRouteActive(item.href)"
+                        class="mx-1 h-10 rounded-md px-0 text-sidebar-foreground/80 hover:text-sidebar-foreground data-[active=true]:bg-sidebar-accent/50 data-[active=true]:text-primary"
+                    >
+                        <Link :href="item.href" class="flex w-full items-center">
+                            <div class="icon-column flex h-10 w-[56px] shrink-0 items-center justify-center">
+                                <component v-if="item.icon" :is="item.icon" class="size-[18px] shrink-0 text-current" />
+                            </div>
+                            <span
+                                class="label-column whitespace-nowrap text-sm font-medium text-current transition-all duration-200 ease-out"
+                                :class="isSidebarCollapsed ? 'w-0 overflow-hidden opacity-0' : 'opacity-100'"
                             >
-                                <div class="icon-column flex h-10 w-[56px] shrink-0 items-center justify-center">
-                                    <component :is="item.icon" class="size-[18px] shrink-0" />
-                                </div>
-                                <span
-                                    class="label-column whitespace-nowrap text-sm font-medium transition-all duration-200 ease-out"
-                                    :class="isSidebarCollapsed ? 'w-0 overflow-hidden opacity-0' : 'opacity-100'"
-                                >
-                                    {{ item.title }}
-                                </span>
-                            </Link>
-                            <a
-                                v-else
-                                :href="item.href"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="sidebar-item mx-1 flex h-10 items-center rounded-md text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                                {{ item.title }}
+                            </span>
+                        </Link>
+                    </SidebarMenuButton>
+                    <SidebarMenuButton
+                        v-else
+                        as-child
+                        size="lg"
+                        :tooltip="item.title"
+                        class="mx-1 h-10 rounded-md px-0 text-sidebar-foreground/80 hover:text-sidebar-foreground"
+                    >
+                        <a :href="item.href" target="_blank" rel="noopener noreferrer" class="flex w-full items-center">
+                            <div class="icon-column flex h-10 w-[56px] shrink-0 items-center justify-center">
+                                <component v-if="item.icon" :is="item.icon" class="size-[18px] shrink-0 text-current" />
+                            </div>
+                            <span
+                                class="label-column whitespace-nowrap text-sm font-medium text-current transition-all duration-200 ease-out"
+                                :class="isSidebarCollapsed ? 'w-0 overflow-hidden opacity-0' : 'opacity-100'"
                             >
-                                <div class="icon-column flex h-10 w-[56px] shrink-0 items-center justify-center">
-                                    <component :is="item.icon" class="size-[18px] shrink-0" />
-                                </div>
-                                <span
-                                    class="label-column whitespace-nowrap text-sm font-medium transition-all duration-200 ease-out"
-                                    :class="isSidebarCollapsed ? 'w-0 overflow-hidden opacity-0' : 'opacity-100'"
-                                >
-                                    {{ item.title }}
-                                </span>
-                            </a>
-                        </TooltipTrigger>
-                        <TooltipContent v-if="isSidebarCollapsed" side="right" align="center">
-                            {{ item.title }}
-                        </TooltipContent>
-                    </Tooltip>
+                                {{ item.title }}
+                            </span>
+                        </a>
+                    </SidebarMenuButton>
                 </SidebarMenuItem>
             </SidebarMenu>
         </SidebarGroupContent>
