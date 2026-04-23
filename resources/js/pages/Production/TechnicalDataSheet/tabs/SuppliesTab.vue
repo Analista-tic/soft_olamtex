@@ -904,8 +904,9 @@ watch(
                     </div>
                 </div>
 
-                <div class="max-h-[520px] overflow-auto rounded-md border border-border">
-                    <Table>
+                <div class="min-w-0 overflow-hidden">
+                    <div class="max-h-[520px] w-full overflow-auto rounded-md border border-border">
+                        <Table>
                         <TableHeader class="sticky top-0 z-10 bg-background">
                             <TableRow>
                                 <TableHead class="w-[180px] min-w-[100px] text-left">Tipo de insumo</TableHead>
@@ -1175,7 +1176,8 @@ watch(
                                 </TableCell>
                             </TableRow>
                         </TableBody>
-                    </Table>
+                        </Table>
+                    </div>
                 </div>
 
                 <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -1220,8 +1222,9 @@ watch(
                     </DialogTitle>
                 </DialogHeader>
 
-                <div v-if="measurementsRow" class="mt-2 overflow-auto rounded-md border border-border">
-                    <table class="w-full text-sm">
+                <div v-if="measurementsRow" class="min-w-0 overflow-hidden">
+                    <div class="mt-2 w-full overflow-auto rounded-md border border-border">
+                        <table class="w-full text-sm">
                         <thead class="bg-muted/50">
                             <tr>
                                 <th class="border-b px-3 py-2 text-left font-medium text-muted-foreground">Talla</th>
@@ -1260,7 +1263,8 @@ watch(
                                 </td>
                             </tr>
                         </tbody>
-                    </table>
+                        </table>
+                    </div>
                 </div>
 
                 <!-- Promedio M.CORTE → cantidad programada -->

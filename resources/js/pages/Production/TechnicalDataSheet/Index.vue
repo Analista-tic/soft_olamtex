@@ -426,7 +426,7 @@ onBeforeUnmount(() => {
     <Head title="Ficha Tecnica" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
+        <div class="flex h-full flex-1 flex-col gap-4 overflow-hidden rounded-xl p-3">
             <h1 :class="uiPatterns.typography.pageTitle">Ficha Tecnica</h1>
             <p class="max-w-4xl text-sm text-muted-foreground">
                 Selecciona una orden de produccion para consultar su informacion basica y revisar el dibujo plano de referencia en vista ampliada.
@@ -485,7 +485,7 @@ onBeforeUnmount(() => {
             </div>
 
             <template v-else>
-                <div class="flex min-h-0 flex-1 flex-col gap-4">
+                <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
                     <div class="shrink-0 rounded-lg border border-border bg-background p-4">
                         <transition
                             enter-active-class="transition-all duration-200 ease-out"
@@ -586,7 +586,7 @@ onBeforeUnmount(() => {
                         </div>
                     </div>
 
-                    <Tabs v-model="activeTab" :default-value="defaultTabValue" class="flex min-h-0 w-full flex-1 flex-col">
+                    <Tabs v-model="activeTab" :default-value="defaultTabValue" class="flex min-h-0 w-full min-w-0 flex-1 flex-col">
                         <div class="mb-3 flex justify-center">
                             <TabsList class="inline-flex w-fit flex-nowrap items-center gap-1 rounded-full border border-border bg-muted/40 p-1">
                                 <TabsTrigger
