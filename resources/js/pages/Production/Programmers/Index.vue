@@ -460,8 +460,8 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                     />
                 </div>
             </div>
-            <FilterBar align="start" gap="gap-4">
-                <FilterField label="Buscar referencia" :active="searchQuery.trim().length > 0" class="min-w-[220px] max-w-sm flex-1 p-0">
+            <FilterBar align="start" gap="gap-3" class="flex-nowrap">
+                <FilterField label="Buscar referencia" :active="searchQuery.trim().length > 0" class="min-w-[180px] max-w-[220px] flex-1 p-0">
                     <div class="relative w-full">
                         <Input id="search" v-model="searchQuery" type="text" placeholder="Buscar por referencia" class="h-10 w-full pl-10" />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
@@ -469,7 +469,7 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                         </span>
                     </div>
                 </FilterField>
-                <FilterField label="Temporada" :active="seasonIsActive" class="min-w-[160px]">
+                <FilterField label="Temporada" :active="seasonIsActive" class="min-w-0 flex-1">
                     <SelectField
                         v-model="filters.season"
                         placeholder="Filtrar Temporada"
@@ -477,7 +477,7 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                         :button-class="seasonButtonClasses"
                     />
                 </FilterField>
-                <FilterField label="Prioridad" :active="priorityIsActive" class="min-w-[160px]">
+                <FilterField label="Prioridad" :active="priorityIsActive" class="min-w-0 flex-1">
                     <SelectField
                         v-model="filters.priority"
                         placeholder="Filtrar Prioridad"
@@ -485,7 +485,7 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                         :button-class="priorityButtonClasses"
                     />
                 </FilterField>
-                <FilterField label="Estado" :active="statusIsActive" class="min-w-[160px]">
+                <FilterField label="Estado" :active="statusIsActive" class="min-w-0 flex-1">
                     <SelectField
                         v-model="filters.status"
                         placeholder="Filtrar Estado"
@@ -497,7 +497,7 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                         :button-class="statusButtonClasses"
                     />
                 </FilterField>
-                <FilterField label="Destino" :active="destinationIsActive" class="min-w-[160px]">
+                <FilterField label="Destino" :active="destinationIsActive" class="min-w-0 flex-1">
                     <SelectField
                         v-model="filters.destination_id"
                         placeholder="Filtrar Destino"
@@ -505,7 +505,7 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                         :button-class="destinationButtonClasses"
                     />
                 </FilterField>
-                <FilterField label="Fecha entrega" :active="deliveryDateIsActive" class="min-w-[220px]">
+                <FilterField label="Fecha entrega" :active="deliveryDateIsActive" class="min-w-[180px] shrink-0">
                     <div class="flex items-center gap-2">
                         <Popover>
                             <PopoverTrigger as-child>
@@ -724,6 +724,5 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
         </AlertDialogContent>
     </AlertDialog>
 </template>
-
 
 
