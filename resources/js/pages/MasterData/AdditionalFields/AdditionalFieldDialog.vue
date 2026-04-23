@@ -191,7 +191,7 @@ function handleSubmit() {
     <Dialog :open="open" @update:open="emit('update:open', $event)">
         <FormDialogContent
             v-if="!props.deferContent"
-            class="flex h-[95vh] max-h-[95vh] w-full max-w-2xl flex-col overflow-hidden p-0"
+            class="w-full max-w-2xl overflow-hidden p-0"
             content-class="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
             :scrollable="false"
         >

@@ -89,7 +89,7 @@ function handleInteractOutside(event: unknown) {
                 )
             "
         >
-            <div class="flex h-full max-h-[calc(100vh-3rem)] flex-col">
+            <div class="flex max-h-[calc(100vh-3rem)] min-h-0 flex-col">
                 <slot />
             </div>
 
