@@ -23,6 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
+import { useRetentionsStore } from '@/stores/finance/retentions';
 import { Head } from '@inertiajs/vue3';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -43,6 +44,7 @@ import {
 } from '@/domain/Finance';
 
 const retentions = ref<Retention[]>([]);
+const retentionsStore = useRetentionsStore();
 const retentionToDelete = ref<Retention | null>(null);
 const isDialogOpen = ref(false);
 const isDeleteDialogOpen = ref(false);
@@ -125,6 +127,7 @@ async function handleDialogSubmit(retentionData: RetentionForm) {
             await updateRetentionRequest(retentionData.id as number, payload);
         }
         successMessage.value = dialogType.value === 'create' ? 'Retención creada correctamente.' : 'Retención actualizada correctamente.';
+        retentionsStore.invalidate();
         await fetchRetentions();
         closeDialog();
     } catch {

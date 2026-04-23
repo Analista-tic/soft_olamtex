@@ -67,6 +67,16 @@ const sortDir = ref<'asc' | 'desc'>('desc');
 const successMessage = ref<string>('');
 const errorMessage = ref<string>('');
 
+function handleNotify(payload: { type: 'success' | 'error'; message: string }): void {
+    if (payload.type === 'success') {
+        successMessage.value = payload.message;
+        errorMessage.value = '';
+    } else {
+        errorMessage.value = payload.message;
+        successMessage.value = '';
+    }
+}
+
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isGroupFilterActive = computed(() => selectedGroup.value !== '' && selectedGroup.value != null);
 const groupFilterButtonClasses = useFilterButtonClasses(isGroupFilterActive);
@@ -320,17 +330,7 @@ onMounted(() => {
         :groups="props.groups"
         @close="closeDialog"
         @submit="submitForm"
-        @notify="
-            (payload) => {
-                if (payload.type === 'success') {
-                    successMessage = payload.message;
-                    errorMessage = '';
-                } else {
-                    errorMessage = payload.message;
-                    successMessage = '';
-                }
-            }
-        "
+        @notify="handleNotify"
     />
     <ConfirmDialog
         v-model:open="isDeleteDialogOpen"

@@ -282,7 +282,7 @@ export const useInventoryStore = defineStore('inventory', {
 ```vue
 <!-- pages/Inventory/Item/Index.vue -->
 <script setup lang="ts">
-import { useInventoryStore } from '@/stores/inventory';
+import { useInventoryStore } from '@/stores/inventory/inventory';
 import type { Item } from '@/domain/inventory';
 
 const inventoryStore = useInventoryStore();

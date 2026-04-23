@@ -28,6 +28,7 @@ Route::prefix('categorias')->name('categorias.')->middleware('permission:ver cat
 
 // === CONTACTOS ===
 Route::get('contactos/data', [ContactController::class, 'getData'])->name('contactos.getData');
+Route::get('contactos/list', [ContactController::class, 'list'])->name('contactos.list');
 
 Route::prefix('contactos')->name('contactos.')->middleware('permission:ver contactos')->group(function () {
     Route::get('/', [ContactController::class, 'index'])->name('index');

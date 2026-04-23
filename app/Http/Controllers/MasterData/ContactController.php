@@ -78,6 +78,21 @@ class ContactController extends Controller
         return response()->json($contacts);
     }
 
+    public function list(Request $request)
+    {
+        $contactType = $request->input('contact_type');
+
+        $query = Contact::query()
+            ->select('id', 'full_name', 'id_number', 'contact_type')
+            ->orderBy('full_name');
+
+        if (in_array($contactType, Contact::CONTACT_TYPES, true)) {
+            $query->where('contact_type', $contactType);
+        }
+
+        return response()->json($query->get());
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate($this->rules(), $this->messages());

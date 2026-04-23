@@ -20,6 +20,7 @@ import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { Warehouse } from '@/domain/Inventory';
 import type { Option } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useWarehousesStore } from '@/stores/inventory/warehouses';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Search } from 'lucide-vue-next';
@@ -39,6 +40,8 @@ type InventoryViewItem = {
 };
 
 const breadcrumbs = [{ title: 'Inventario de Ítems', href: '/inventario-item' }];
+
+const warehousesStore = useWarehousesStore();
 
 const statusOptions: Option[] = [
     { id: 'all', name: 'Todos' },
@@ -144,10 +147,10 @@ async function fetchItems(page = 1) {
 
 async function fetchWarehouses() {
     try {
-        const response = await axios.get('/bodegas/data', { params: { per_page: 1000 } });
+        await warehousesStore.fetchWarehouses();
         warehouses.value = [
             { id: '', name: 'Todos' },
-            ...(response.data.data ?? [])
+            ...warehousesStore.items
                 .filter((warehouse: Warehouse) => warehouse.id != null)
                 .map((warehouse: Warehouse) => ({
                     id: warehouse.id!,

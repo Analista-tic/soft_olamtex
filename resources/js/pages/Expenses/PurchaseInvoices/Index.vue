@@ -201,10 +201,13 @@ function isInvoiceDeleteLocked(invoice: PurchaseInvoice): boolean {
     );
 }
 
-function invoiceHasNotes(invoice: PurchaseInvoice): boolean {
+type PurchaseInvoiceTreeNode = PurchaseInvoice & { document_type?: string | null };
+type PurchaseInvoiceWithChildren = PurchaseInvoice & { children?: PurchaseInvoiceTreeNode[] };
+
+function invoiceHasNotes(invoice: PurchaseInvoiceWithChildren): boolean {
     if (!invoice.children || invoice.children.length === 0) return false;
     return invoice.children.some(
-        (c) =>
+        (c: PurchaseInvoiceTreeNode) =>
             c.document_type === 'purchase_credit_note' ||
             c.document_type === 'purchase_debit_note',
     );

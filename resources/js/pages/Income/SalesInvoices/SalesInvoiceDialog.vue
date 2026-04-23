@@ -15,7 +15,7 @@ import { mapToCreateSalesInvoiceDto, type SalesInvoice, type SalesInvoiceItem, t
 import type { Contact } from '@/domain/MasterData';
 import PurchaseInvoiceWithholdingsTable from '@/pages/Expenses/PurchaseInvoices/PurchaseInvoiceWithholdingsTable.vue';
 import QuoteItemsTable from '@/pages/Income/Quotes/QuoteItemsTable.vue';
-import { useIncomeStore } from '@/stores/income';
+import { useIncomeStore } from '@/stores/income/income';
 import axios from 'axios';
 import { Plus } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';

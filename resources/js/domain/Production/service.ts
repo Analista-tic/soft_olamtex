@@ -633,7 +633,7 @@ function normalizeRollState(data: RollStateDto | null | undefined): RollState {
                   rawMaterialUid: line.rawMaterialUid ?? null,
                   fabricItemId: line.fabricItemId ?? null,
                   rollId: line.rollId ?? null,
-                  location: (line as Record<string, unknown>).location != null ? String((line as Record<string, unknown>).location) : null,
+                  location: ((line as unknown) as Record<string, unknown>).location != null ? String(((line as unknown) as Record<string, unknown>).location) : null,
                   createdAt: line.createdAt,
                   updatedAt: line.updatedAt,
               }))

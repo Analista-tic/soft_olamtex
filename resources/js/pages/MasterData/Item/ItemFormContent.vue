@@ -1715,7 +1715,7 @@ onBeforeUnmount(() => {
                                     :checked="negativeMovementBool"
                                     :disabled="isViewMode || (!negativeMovementBool && hasNegativeStock)"
                                     @update:checked="
-                                        (val) => {
+                                        (val: boolean | 'indeterminate') => {
                                             if (!val && hasNegativeStock) {
                                                 showNegativeMovementWarning();
                                             } else {

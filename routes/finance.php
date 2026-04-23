@@ -16,6 +16,7 @@ Route::get('catalogos/cuentas-contables/options', [AccountingAccountController::
 
 // === RETENCIONES ===
 Route::get('retenciones/data', [RetentionController::class, 'data'])->name('retenciones.data');
+Route::get('retenciones/list', [RetentionController::class, 'list'])->name('retenciones.list');
 
 Route::prefix('retenciones')->name('retenciones.')->middleware('permission:ver retenciones')->group(function () {
     Route::get('/', [RetentionController::class, 'index'])->name('index');

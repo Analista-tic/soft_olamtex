@@ -10,6 +10,7 @@ interface AppearanceAuthUser {
 }
 
 interface AppearancePageProps {
+    [key: string]: unknown;
     auth?: {
         user?: AppearanceAuthUser | null;
     };

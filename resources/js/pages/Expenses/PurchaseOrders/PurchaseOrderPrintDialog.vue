@@ -134,7 +134,7 @@ function print() {
                                             })
                                         }}
                                     </td>
-                                    <td class="border px-2 py-1 text-center print:border print:border-gray-300">{{ Math.round(item.tax) }} %</td>
+                                    <td class="border px-2 py-1 text-center print:border print:border-gray-300">{{ Math.round(item.tax ?? 0) }} %</td>
                                     <td class="border py-1 pe-10 ps-0 text-right print:border print:border-gray-300">
                                         {{
                                             Number(item.total).toLocaleString('es-CO', {

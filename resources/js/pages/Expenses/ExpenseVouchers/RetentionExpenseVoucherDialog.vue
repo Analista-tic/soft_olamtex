@@ -10,12 +10,12 @@ import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import {
     createRetentionForm,
     createRetention as createRetentionRequest,
-    fetchRetentionsPage,
     mapRetentionFormToPayload,
     type Retention,
     type RetentionForm,
 } from '@/domain/Finance';
 import RetentionDialog from '@/pages/Finance/Retention/RetentionDialog.vue';
+import { useRetentionsStore } from '@/stores/finance/retentions';
 import { Plus, X } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
@@ -109,6 +109,7 @@ const dialogOpen = computed({
 
 const { isBootstrapping, isBlockingLoading, canRenderForm, startLoadingRun, isCurrentLoadingRun, cancelLoadingRun } =
     useDialogLoadingState(dialogOpen);
+const retentionsStore = useRetentionsStore();
 
 // ─── Lines state ──────────────────────────────────────────────────────────────
 
@@ -168,9 +169,10 @@ function getRetentionPercent(retentionId: number | null): number {
 async function loadRetentionOptions(): Promise<void> {
     loadingRetentions.value = true;
     try {
-        const response = await fetchRetentionsPage({ per_page: 1000, status: 'active' });
-        retentionOptions.value = (response.data ?? [])
+        await retentionsStore.fetchRetentions();
+        retentionOptions.value = retentionsStore.items
             .filter((r): r is Retention & { id: number } => r.id != null)
+            .filter((r) => r.status === 'active')
             .map((r) => ({
                 id: Number(r.id),
                 name: `${r.name} (${r.percent}%)`,
@@ -263,6 +265,7 @@ async function handleRetentionSubmit(formData: RetentionForm): Promise<void> {
     retentionDialogLoading.value = true;
     try {
         const created = await createRetentionRequest(mapRetentionFormToPayload(formData));
+        retentionsStore.invalidate();
         await loadRetentionOptions();
 
         if (created.id != null && rowToAssignNewRetention.value != null) {

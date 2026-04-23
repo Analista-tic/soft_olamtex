@@ -5,7 +5,7 @@ import SelectField from '@/components/SelectField.vue';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { Contact, ContactIdType, ContactPersonType, ContactType } from '@/domain/MasterData';
-import { useMasterDataStore } from '@/stores/masterData';
+import { useMasterDataStore } from '@/stores/masterData/masterData';
 import { useDebounceFn } from '@vueuse/core';
 import { computed, ref, watch } from 'vue';
 import colombiaData from '../../../data/colombia.json';

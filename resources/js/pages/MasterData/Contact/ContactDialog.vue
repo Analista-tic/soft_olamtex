@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { AdditionalContact, Contact } from '@/domain/MasterData';
 import type { Branch } from '@/domain/shared';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
-import { useMasterDataStore } from '@/stores/masterData';
+import { useMasterDataStore } from '@/stores/masterData/masterData';
 import { computed, nextTick, ref, watch } from 'vue';
 import AdditionalContactsList from './AdditionalContactsList.vue';
 import BranchesList from './BranchesList.vue';

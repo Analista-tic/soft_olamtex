@@ -258,6 +258,14 @@ const worldSearchTerm = ref('');
 const fabricBaseSearchTerm = ref('');
 const yarnBaseSearchTerm = ref('');
 const collectionSearchTerm = ref('');
+const loadingSectionSelect = ref(false);
+const loadingGroupSelect = ref(false);
+const loadingBrandSelect = ref(false);
+const loadingWorldSelect = ref(false);
+const loadingFabricBaseSelect = ref(false);
+const loadingYarnBaseSelect = ref(false);
+const loadingCollectionSelect = ref(false);
+const loadingTemplateSelect = ref(false);
 const creatingCollection = ref(false);
 const collectionActionLabel = computed(() => {
     if (creatingCollection.value) {
@@ -364,6 +372,15 @@ const selectCreationConfig = {
     },
 } as const;
 
+const selectLoadingConfig = {
+    sections: loadingSectionSelect,
+    groups: loadingGroupSelect,
+    brands: loadingBrandSelect,
+    worlds: loadingWorldSelect,
+    fabric_bases: loadingFabricBaseSelect,
+    yarn_bases: loadingYarnBaseSelect,
+} as const;
+
 function syncCatalogOptionsFromProps(): void {
     sectionOptions.value = Array.isArray(props.sections) ? [...props.sections] : [];
     groupOptions.value = Array.isArray(props.groups) ? [...props.groups] : [];
@@ -377,6 +394,7 @@ async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig
     if (isReadonly.value) return;
 
     const config = selectCreationConfig[catalogKey];
+    const selectLoading = selectLoadingConfig[catalogKey];
     const name = normalizeCollectionName(rawName ?? config.getTerm());
 
     if (!name) {
@@ -395,6 +413,7 @@ async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig
         return;
     }
 
+    selectLoading.value = true;
     try {
         const response = await axios.post(
             route('produccion.product-sheets.parameters.store-option'),
@@ -425,6 +444,8 @@ async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig
         }
 
         setError(`No se pudo crear ${config.successLabel.toLowerCase()}.`);
+    } finally {
+        selectLoading.value = false;
     }
 }
 
@@ -442,6 +463,7 @@ function findCollectionByName(name: string, options: OptionParams[]): OptionPara
 }
 
 async function refreshCollectionOptionsAndSelect(name: string): Promise<boolean> {
+    loadingCollectionSelect.value = true;
     try {
         const response = await axios.get(route('produccion.colecciones.options'));
         const options = Array.isArray(response.data?.data) ? (response.data.data as OptionParams[]) : [];
@@ -459,6 +481,8 @@ async function refreshCollectionOptionsAndSelect(name: string): Promise<boolean>
         return true;
     } catch {
         return false;
+    } finally {
+        loadingCollectionSelect.value = false;
     }
 }
 
@@ -480,6 +504,7 @@ async function createCollectionFromSelect(rawName?: string): Promise<void> {
     }
 
     creatingCollection.value = true;
+    loadingCollectionSelect.value = true;
     try {
         const response = await axios.post(
             route('produccion.colecciones.store'),
@@ -524,6 +549,7 @@ async function createCollectionFromSelect(rawName?: string): Promise<void> {
         setError('No se pudo crear la colección.');
     } finally {
         creatingCollection.value = false;
+        loadingCollectionSelect.value = false;
     }
 }
 
@@ -543,24 +569,33 @@ const templateOptions = ref<Array<{ id: number | string; name: string }>>([]);
 const selectedTemplateId = ref<number | null>(null);
 const templatesLoaded = ref(false);
 
-async function loadTemplates() {
-    if (templatesLoaded.value || isCatalogBootstrapLoading.value) return;
+async function fetchTemplateOptions(): Promise<void> {
+    if (templatesLoaded.value) return;
 
-    isCatalogBootstrapLoading.value = true;
     try {
         const response = await fetchProductSheetTemplates();
         templateOptions.value = response.data?.data ?? [];
         templatesLoaded.value = true;
     } catch {
         templateOptions.value = [];
+    }
+}
+
+async function loadTemplates(): Promise<void> {
+    if (templatesLoaded.value || loadingTemplateSelect.value) return;
+
+    loadingTemplateSelect.value = true;
+    try {
+        await fetchTemplateOptions();
     } finally {
-        isCatalogBootstrapLoading.value = false;
+        loadingTemplateSelect.value = false;
     }
 }
 
 async function applyTemplate(templateId: number) {
-    if (!templateId) return;
-    isCatalogBootstrapLoading.value = true;
+    if (!templateId || loadingTemplateSelect.value) return;
+
+    loadingTemplateSelect.value = true;
     try {
         const response = await showProductSheet(templateId);
         const tpl = response.data?.data;
@@ -598,7 +633,7 @@ async function applyTemplate(templateId: number) {
         console.error('Error al cargar template:', err);
         setError('No se pudo cargar la plantilla seleccionada.');
     } finally {
-        isCatalogBootstrapLoading.value = false;
+        loadingTemplateSelect.value = false;
     }
 }
 
@@ -856,50 +891,73 @@ function toIdOrNull(value: unknown): number | null {
     return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-watch(
-    () => props.productSheet,
-    (newProductSheet) => {
-        if ((isEditMode.value || isViewMode.value) && newProductSheet) {
-            flatSketchRef.value?.reset();
-            const sizeValue = ensureSizesJson(newProductSheet.sizes);
-            const normalizedType = normalizeTypeValue(newProductSheet.type);
-            const garmentType = (newProductSheet as ProductSheet & { garment_type?: 'superior' | 'inferior' | null }).garment_type ?? null;
+function hydrateFormFromProductSheet(productSheet: ProductSheet): void {
+    flatSketchRef.value?.reset();
+    const sizeValue = ensureSizesJson(productSheet.sizes);
+    const normalizedType = normalizeTypeValue(productSheet.type);
+    const garmentType = (productSheet as ProductSheet & { garment_type?: 'superior' | 'inferior' | null }).garment_type ?? null;
 
-            form.value = {
-                ...createInitialFormState(),
-                id: newProductSheet.id,
-                section_id: toIdOrNull(newProductSheet.section_id),
-                group_id: toIdOrNull(newProductSheet.group_id),
-                brand_id: toIdOrNull(newProductSheet.brand_id),
-                world_id: toIdOrNull(newProductSheet.world_id),
-                fabric_base_id: toIdOrNull(newProductSheet.fabric_base_id),
-                yarn_base_id: toIdOrNull(newProductSheet.yarn_base_id),
-                type: normalizedType,
-                garment_type: garmentType,
-                operational_list_id: toIdOrNull(newProductSheet.operational_list_id),
-                collection_id: toIdOrNull(newProductSheet.collection_id),
-                billing_price: Number(newProductSheet.billing_price ?? 0),
-                costo: Number(newProductSheet.costo ?? 0),
-                selling_price: Number(newProductSheet.selling_price ?? 0),
-                sizes: sizeValue,
-                woven_product: Boolean(newProductSheet.woven_product),
-                description: String(newProductSheet.description ?? ''),
-                observaciones: String((newProductSheet as ProductSheet & { observaciones?: string }).observaciones ?? ''),
-                flat_sketch_path: String(newProductSheet.flat_sketch_path ?? ''),
-                sample_reference: normalizeUpperText(newProductSheet.sample_reference ?? ''),
-                product_reference: normalizeUpperText(newProductSheet.product_reference ?? ''),
-                product_reference_2: normalizeUpperText(newProductSheet.product_reference_2 ?? newProductSheet.export_reference ?? ''),
-                processes: normalizeProcessesForForm(newProductSheet.processes),
-                status: newProductSheet.status === 'complete' ? 'complete' : 'incomplete',
-                version: Number(newProductSheet.version ?? 1),
-                parent_id: newProductSheet.parent_id ?? null,
-            };
-            form.value.reference = form.value.type === TYPE_SAMPLE ? form.value.sample_reference : form.value.product_reference;
-            isConvertDialogOpen.value = false;
-        }
-    },
-    { immediate: true },
-);
+    form.value = {
+        ...createInitialFormState(),
+        id: productSheet.id,
+        section_id: toIdOrNull(productSheet.section_id),
+        group_id: toIdOrNull(productSheet.group_id),
+        brand_id: toIdOrNull(productSheet.brand_id),
+        world_id: toIdOrNull(productSheet.world_id),
+        fabric_base_id: toIdOrNull(productSheet.fabric_base_id),
+        yarn_base_id: toIdOrNull(productSheet.yarn_base_id),
+        type: normalizedType,
+        garment_type: garmentType,
+        operational_list_id: toIdOrNull(productSheet.operational_list_id),
+        collection_id: toIdOrNull(productSheet.collection_id),
+        billing_price: Number(productSheet.billing_price ?? 0),
+        costo: Number(productSheet.costo ?? 0),
+        selling_price: Number(productSheet.selling_price ?? 0),
+        sizes: sizeValue,
+        woven_product: Boolean(productSheet.woven_product),
+        description: String(productSheet.description ?? ''),
+        observaciones: String((productSheet as ProductSheet & { observaciones?: string }).observaciones ?? ''),
+        flat_sketch_path: String(productSheet.flat_sketch_path ?? ''),
+        sample_reference: normalizeUpperText(productSheet.sample_reference ?? ''),
+        product_reference: normalizeUpperText(productSheet.product_reference ?? ''),
+        product_reference_2: normalizeUpperText(productSheet.product_reference_2 ?? productSheet.export_reference ?? ''),
+        processes: normalizeProcessesForForm(productSheet.processes),
+        status: productSheet.status === 'complete' ? 'complete' : 'incomplete',
+        version: Number(productSheet.version ?? 1),
+        parent_id: productSheet.parent_id ?? null,
+    };
+    form.value.reference = form.value.type === TYPE_SAMPLE ? form.value.sample_reference : form.value.product_reference;
+    isConvertDialogOpen.value = false;
+}
+
+async function initializeDialog(): Promise<void> {
+    isCatalogBootstrapLoading.value = true;
+
+    try {
+        errorMessage.value = '';
+
+        await Promise.all([
+            Promise.resolve(syncCatalogOptionsFromProps()),
+            Promise.resolve(syncCollectionOptionsFromProps()),
+            Promise.resolve().then(() => {
+                if (isCreateMode.value) {
+                    resetForm();
+                    return;
+                }
+
+                if ((isEditMode.value || isViewMode.value) && props.productSheet) {
+                    hydrateFormFromProductSheet(props.productSheet);
+                }
+            }),
+            isCreateMode.value ? loadTemplates() : Promise.resolve(),
+            (isEditMode.value || isViewMode.value) && props.productSheet?.id
+                ? validateSampleOperationalList(true)
+                : Promise.resolve(true),
+        ]);
+    } finally {
+        isCatalogBootstrapLoading.value = false;
+    }
+}
 
 watch(
     () => [props.sections, props.groups, props.brands, props.worlds, props.fabricBases, props.yarnBases],
@@ -924,15 +982,21 @@ watch(
         if (!newValue) {
             resetForm();
         } else {
-            errorMessage.value = '';
-            if (isCreateMode.value) {
-                resetForm();
-            } else if ((isEditMode.value || isViewMode.value) && props.productSheet?.id) {
-                void validateSampleOperationalList(true);
-            }
+            void initializeDialog();
         }
     },
     { immediate: true },
+);
+
+watch(
+    () => props.productSheet,
+    (newProductSheet, oldProductSheet) => {
+        if (!props.open) return;
+        if (newProductSheet === oldProductSheet) return;
+        if ((isEditMode.value || isViewMode.value) && newProductSheet) {
+            void initializeDialog();
+        }
+    },
 );
 
 watch(localOpen, (newValue) => {
@@ -940,16 +1004,6 @@ watch(localOpen, (newValue) => {
         emit('update:open', false);
     }
 });
-
-// Cargar templates cuando se abre el dialog en modo creación
-watch(
-    () => props.open,
-    (isOpen) => {
-        if (isOpen && isCreateMode.value) {
-            loadTemplates();
-        }
-    },
-);
 
 // Aplicar template cuando se selecciona
 watch(selectedTemplateId, (newId) => {
@@ -1276,6 +1330,7 @@ function handleClose() {
                             :options="templateOptions"
                             placeholder="Sin plantilla (nuevo)"
                             :disabled="isCatalogBootstrapLoading"
+                            :loading="loadingTemplateSelect"
                         />
                         <span v-if="form.parent_id" class="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
                             Nueva versión
@@ -1384,6 +1439,7 @@ function handleClose() {
                                         v-model="form.section_id"
                                         label=""
                                         :options="sectionOptions"
+                                        :loading="loadingSectionSelect"
                                         required
                                         placeholder="Seleccione sección"
                                         :disabled="isReadonly"
@@ -1406,6 +1462,7 @@ function handleClose() {
                                         v-model="form.group_id"
                                         label=""
                                         :options="groupOptions"
+                                        :loading="loadingGroupSelect"
                                         required
                                         placeholder="Seleccione grupo"
                                         :disabled="isReadonly"
@@ -1427,6 +1484,7 @@ function handleClose() {
                                         v-model="form.brand_id"
                                         label=""
                                         :options="brandOptions"
+                                        :loading="loadingBrandSelect"
                                         required
                                         placeholder="Seleccione marca"
                                         :disabled="isReadonly"
@@ -1450,6 +1508,7 @@ function handleClose() {
                                         v-model="form.world_id"
                                         label=""
                                         :options="worldOptions"
+                                        :loading="loadingWorldSelect"
                                         required
                                         placeholder="Seleccione mundo"
                                         :disabled="isReadonly"
@@ -1486,6 +1545,7 @@ function handleClose() {
                                         v-model="form.fabric_base_id"
                                         label=""
                                         :options="fabricBaseOptions"
+                                        :loading="loadingFabricBaseSelect"
                                         :required="!form.woven_product"
                                         placeholder="Seleccione base tela"
                                         :disabled="isReadonly"
@@ -1509,6 +1569,7 @@ function handleClose() {
                                         v-model="form.yarn_base_id"
                                         label=""
                                         :options="yarnBaseOptions"
+                                        :loading="loadingYarnBaseSelect"
                                         required
                                         placeholder="Seleccione base hilaza"
                                         :disabled="isReadonly"
@@ -1683,6 +1744,7 @@ function handleClose() {
                                         v-model="form.collection_id"
                                         label=""
                                         :options="collectionOptions"
+                                        :loading="loadingCollectionSelect"
                                         placeholder="Sin colección"
                                         :disabled="isReadonly"
                                         :searchable="true"

@@ -25,6 +25,7 @@ import type { InventoryMovement, Warehouse } from '@/domain/Inventory';
 import type { Item } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useWarehousesStore } from '@/stores/inventory/warehouses';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Eye, Search } from 'lucide-vue-next';
@@ -50,10 +51,10 @@ const itemsPerPage = 20;
 const isLoading = ref(false);
 const selectedMovement = ref<InventoryMovement | null>(null);
 const isDetailDialogOpen = ref(false);
+const warehousesStore = useWarehousesStore();
 
 // Items y warehouses para filtros
 const rawItemOptions = ref<Item[]>([]);
-const warehouses = ref<Warehouse[]>([]);
 
 const DEFAULT_TYPE_FILTER = 'all';
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
@@ -86,7 +87,7 @@ const itemOptions = computed<Option[]>(() => [
 
 const warehouseOptions = computed<Option[]>(() => [
     { id: ALL_WAREHOUSES_FILTER, name: 'Todas las bodegas' },
-    ...warehouses.value
+    ...warehousesStore.items
         .filter((warehouse): warehouse is Warehouse & { id: number } => typeof warehouse.id === 'number')
         .map((warehouse) => ({ id: warehouse.id, name: warehouse.name })),
 ]);
@@ -185,10 +186,8 @@ async function fetchMovements(page = 1, search = '') {
 
 async function fetchWarehouses() {
     try {
-        const { data } = await axios.get('/bodegas/data', { params: { per_page: 1000 } });
-        warehouses.value = Array.isArray(data.data) ? data.data : [];
+        await warehousesStore.fetchWarehouses();
     } catch (error) {
-        warehouses.value = [];
         console.error('Error al cargar bodegas:', error);
     }
 }

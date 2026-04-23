@@ -23,6 +23,7 @@ import type { PurchaseInvoice } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import PurchaseInvoiceDialog from '@/pages/Expenses/PurchaseInvoices/PurchaseInvoiceDialog.vue';
 import PurchaseInvoiceDialogTelas from '@/pages/Expenses/PurchaseInvoices/PurchaseInvoiceDialogTelas.vue';
+import { useContactsStore } from '@/stores/masterData/contacts';
 import { uiPatterns } from '@/lib/ui-patterns';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -52,7 +53,7 @@ type AccountsPayableRow = {
 const breadcrumbs = [{ title: 'Cuentas por pagar', href: '/gastos/cuentas-por-pagar' }];
 
 const rows = ref<AccountsPayableRow[]>([]);
-const providers = ref<{ id: number; full_name: string }[]>([]);
+const contactsStore = useContactsStore();
 const isLoading = ref(false);
 
 const searchQuery = ref('');
@@ -66,7 +67,7 @@ const ITEMS_PER_PAGE = 10;
 
 const providerOptions = computed(() => [
     { id: 'all', name: 'Todos los proveedores' },
-    ...providers.value.map((provider) => ({
+    ...contactsStore.items.map((provider) => ({
         id: String(provider.id),
         name: provider.full_name,
     })),
@@ -119,11 +120,9 @@ function debtTone(tone?: string): 'green' | 'red' | 'yellow' | 'gray' {
 
 async function fetchProviders() {
     try {
-        const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
-        providers.value = Array.isArray(response.data?.data) ? response.data.data : [];
+        await contactsStore.fetchContacts();
     } catch (error) {
         console.error('Error al cargar proveedores para CxP', error);
-        providers.value = [];
     }
 }
 

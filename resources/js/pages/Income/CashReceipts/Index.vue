@@ -34,7 +34,7 @@ import type { BreadcrumbItem, Option } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import { uiPatterns } from '@/lib/ui-patterns';
-import { useIncomeStore } from '@/stores/income';
+import { useIncomeStore } from '@/stores/income/income';
 import { Head } from '@inertiajs/vue3';
 import { Ban, PlusCircle, Search, Wallet } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';

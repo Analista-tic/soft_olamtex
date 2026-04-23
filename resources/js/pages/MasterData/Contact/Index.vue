@@ -24,6 +24,7 @@ import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmart
 import type { Contact, ContactType } from '@/domain/MasterData';
 import type { BreadcrumbItem } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useContactsStore } from '@/stores/masterData/contacts';
 import { Head } from '@inertiajs/vue3';
 import axios, { type AxiosError } from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
@@ -38,6 +39,7 @@ const props = defineProps<{
 }>();
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Contactos', href: '/contactos' }];
+const contactsStore = useContactsStore();
 
 const contacts = ref<Contact[]>([]);
 const contactToDelete = ref<Contact | null>(null);
@@ -288,6 +290,7 @@ async function submitForm(contactData: Partial<Contact>): Promise<void> {
 
     try {
         await axios({ method, url, data: contactData });
+        contactsStore.invalidate();
         await fetchContacts(currentPage.value, searchQuery.value, selectedContactType.value || null);
         closeDialog();
         successMessage.value = dialogType.value === 'create' ? 'El contacto se guardó correctamente.' : 'El contacto se actualizó correctamente.';

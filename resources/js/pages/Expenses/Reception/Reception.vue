@@ -14,6 +14,7 @@ import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { PurchaseInvoice } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
+import { useContactsStore } from '@/stores/masterData/contacts';
 import type { PageProps as InertiaPageProps } from '@inertiajs/core';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -132,7 +133,7 @@ const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 const sortBy = ref<string>('date');
 const sortDir = ref<'asc' | 'desc'>('desc');
 const isLoading = ref(false);
-const providers = ref<{ id: number; full_name: string }[]>([]);
+const contactsStore = useContactsStore();
 const subgroups = ref<{ id: number; name: string }[]>([]);
 
 // Computed para determinar si hay un ID específico en la URL
@@ -171,12 +172,9 @@ function toggleSort(column: string) {
 
 async function fetchProviders() {
     try {
-        const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
-        const raw = response.data?.data ?? response.data;
-        providers.value = Array.isArray(raw) ? raw : [];
+        await contactsStore.fetchContacts();
     } catch (e: any) {
         console.warn('Error al cargar proveedores:', e);
-        providers.value = [];
     }
 }
 
@@ -683,7 +681,7 @@ function onFabricRollSuccess() {
                             label=""
                             :options="[
                                 { id: 'all', name: 'Todos los proveedores' },
-                                ...providers.map((prov) => ({ id: String(prov.id), name: prov.full_name })),
+                                ...contactsStore.items.map((prov) => ({ id: String(prov.id), name: prov.full_name })),
                             ]"
                             :button-class="providerButtonClasses"
                         />

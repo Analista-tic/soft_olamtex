@@ -10,6 +10,7 @@ interface AccentColorAuthUser {
 }
 
 interface AccentColorPageProps {
+    [key: string]: unknown;
     auth?: {
         user?: AccentColorAuthUser | null;
     };

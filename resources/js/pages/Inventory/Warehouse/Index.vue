@@ -22,6 +22,7 @@ import type { BreadcrumbItem } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { useAuthStore } from '@/stores/auth';
+import { useWarehousesStore } from '@/stores/inventory/warehouses';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Pencil, PlusCircle, Search, Trash } from 'lucide-vue-next';
@@ -32,6 +33,7 @@ const breadcrumbs: BreadcrumbItem[] = [{ title: 'Bodegas', href: '/bodegas' }];
 
 const warehouses = ref<Warehouse[]>([]);
 const authStore = useAuthStore();
+const warehousesStore = useWarehousesStore();
 const warehouseToDelete = ref<Warehouse | null>(null);
 const isDialogOpen = ref(false);
 const isDeleteDialogOpen = ref(false);
@@ -133,6 +135,7 @@ async function handleDialogSubmit(warehouseData: Warehouse) {
                 observation: trimmedObservation,
             },
         });
+        warehousesStore.invalidate();
         successMessage.value = dialogType.value === 'create' ? 'Bodega creada correctamente.' : 'Bodega actualizada correctamente.';
         fetchWarehouses();
         closeDialog();
