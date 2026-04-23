@@ -433,7 +433,7 @@ onBeforeUnmount(() => {
             </p>
 
             <div class="flex items-end gap-3">
-                <div class="max-w-md flex-1">
+                <div class="flex-1">
                     <SelectField
                         v-model="selectedOpId"
                         label="Orden de produccion"
@@ -539,14 +539,14 @@ onBeforeUnmount(() => {
                                         <p class="mb-3 text-[11px] text-muted-foreground">Referencia visual del producto</p>
 
                                         <button
-                                            v-if="drawingUrl && !drawingLoadFailed"
+                                            v-if="hasDrawing"
                                             type="button"
                                             class="flex max-h-[220px] min-h-[160px] w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/20 transition hover:bg-muted/40 focus:outline-none focus:ring-2 focus:ring-primary/30"
                                             :disabled="!drawingUrl"
                                             @click="openDrawing"
                                         >
                                             <img
-                                                :src="drawingUrl"
+                                                :src="drawingUrl ?? undefined"
                                                 class="max-h-[200px] w-auto max-w-full object-contain"
                                                 alt="Dibujo plano"
                                                 @error="onDrawingError"
