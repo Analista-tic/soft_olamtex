@@ -34,7 +34,7 @@ import {
 } from '@/domain/Finance';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
-import axios from 'axios';
+import { useContactsStore } from '@/stores/masterData/contacts';
 import { Head, router } from '@inertiajs/vue3';
 import { Download, Eye, FileSearch, Printer } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
@@ -57,11 +57,6 @@ type AccountProp = {
     allows_entries: boolean;
     is_active: boolean;
     parent?: { id: number; code: string; name: string } | null;
-};
-
-type ContactOption = {
-    id: number;
-    full_name: string;
 };
 
 const props = defineProps<{
@@ -92,6 +87,7 @@ const breadcrumbs = computed(() => [
 ]);
 
 const { successMessage, errorMessage, errorType, error, clear } = useGlobalAlert();
+const contactsStore = useContactsStore();
 
 const accountId = ref<number>(props.account.id);
 const dateFrom = ref<string | null>(null);
@@ -257,14 +253,10 @@ async function fetchAccounts(): Promise<void> {
 
 async function fetchContacts(): Promise<void> {
     try {
-        const response = await axios.get<{ data?: ContactOption[] }>('/contactos/data', {
-            params: { per_page: 1000 },
-        });
-
-        const rows = Array.isArray(response.data.data) ? response.data.data : [];
+        await contactsStore.fetchContacts();
         contactOptions.value = [
             { id: 'all', name: 'Todos los terceros' },
-            ...rows.map((row) => ({ id: row.id, name: row.full_name })),
+            ...contactsStore.items.map((row) => ({ id: row.id, name: row.full_name })),
         ];
     } catch (err) {
         contactOptions.value = [{ id: 'all', name: 'Todos los terceros' }];

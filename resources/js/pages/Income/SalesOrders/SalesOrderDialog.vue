@@ -11,9 +11,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import { mapToCreateSalesOrderDto, type Quote, type SalesOrder, type SalesOrderItem } from '@/domain/Income';
-import type { Contact } from '@/domain/MasterData';
 import QuoteItemsTable from '@/pages/Income/Quotes/QuoteItemsTable.vue';
-import { useIncomeStore } from '@/stores/income';
+import { useIncomeStore } from '@/stores/income/income';
+import { useContactsStore } from '@/stores/masterData/contacts';
 import axios from 'axios';
 import { Plus } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
@@ -31,9 +31,9 @@ const emit = defineEmits<{
 }>();
 
 const incomeStore = useIncomeStore();
+const contactsStore = useContactsStore();
 
 const isSaving = ref(false);
-const contacts = ref<Contact[]>([]);
 const localSalesOrder = ref<Partial<SalesOrder>>(createDefaultSalesOrder());
 const originQuote = ref<Quote | null>(null);
 const successMessage = ref('');
@@ -176,7 +176,7 @@ const canConvert = computed(() => props.mode === 'view' && ['confirmed', 'in_pro
 const disableClientField = computed(() => isReadOnly.value || hasOriginQuote.value);
 
 const contactOptions = computed(() =>
-    contacts.value.map((contact) => ({
+    contactsStore.items.map((contact) => ({
         id: contact.id,
         name: contact.full_name,
     })),
@@ -243,11 +243,7 @@ function formatCurrency(value: number): string {
 }
 
 async function fetchContacts() {
-    const response = await axios.get('/contactos/data', {
-        params: { per_page: 1000 },
-    });
-
-    contacts.value = response.data.data ?? [];
+    await contactsStore.fetchContacts();
 }
 
 function preloadFromQuote(quote: Quote) {

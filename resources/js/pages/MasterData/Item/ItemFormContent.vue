@@ -32,6 +32,7 @@ import GroupDialog from '@/pages/MasterData/Category/GroupDialog.vue';
 import SubGroupDialog from '@/pages/MasterData/Category/SubGroupDialog.vue';
 import ExtraFieldsForm from '@/pages/MasterData/Item/ExtraFieldsForm.vue';
 
+import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
 import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
 
 import type { Tax } from '@/domain/Finance';
@@ -49,6 +50,7 @@ import type { Option } from '@/domain/shared/types';
 
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
+import { useAuthStore } from '@/stores/auth';
 
 import unitMeasureData from '@/data/unitMeasures.json';
 
@@ -81,6 +83,8 @@ const emit = defineEmits<{
     (e: 'loading-state', value: boolean): void;
 }>();
 
+const authStore = useAuthStore();
+
 const isCatalogBootstrapLoading = ref(false);
 const isItemHydrationLoading = ref(false);
 const isSecondaryLoading = ref(false);
@@ -94,8 +98,24 @@ type ItemTaxRelation = {
     percentage?: number | string | null;
 };
 
+type ItemWarehouseStockSource = {
+    warehouse_id?: number | string | null;
+    name?: string | null;
+    warehouse_name?: string | null;
+    quantity?: number | string | null;
+    stock_min?: number | string | null;
+    stock_max?: number | string | null;
+    weighted_average_price?: number | string | null;
+    warehouse?: {
+        id?: number | string | null;
+        name?: string | null;
+    } | null;
+};
+
 type ItemFormSource = Partial<Item> & {
     tax?: ItemTaxRelation | null; // compat backend
+    warehouse_stocks?: ItemWarehouseStockSource[] | null;
+    warehouse_items?: ItemWarehouseStockSource[] | null;
 };
 
 type ItemForm = Omit<Partial<Item>, 'tax_id' | 'category_sub_group_id'> & {
@@ -227,6 +247,10 @@ const unitMeasure = ref(getInitialUnitMeasure(props.form));
 
 const isViewMode = computed(() => props.dialogType === 'view');
 const currentItemType = computed<ItemType>(() => normalizeItemType(localForm.value.item_type));
+const canCreateCategories = computed(() => authStore.can('crear categorias'));
+const canCreateTaxes = computed(() => authStore.can('crear impuestos'));
+const canCreateAdditionalFields = computed(() => authStore.can('crear campos adicionales'));
+const canCreateWarehouses = computed(() => authStore.can('crear bodegas'));
 
 const groupOptions = computed(() =>
     categoryGroups.value.map((group) => ({
@@ -431,6 +455,7 @@ function applyFormData(source: ItemFormSource) {
     localForm.value = mapItemToFormState(source);
     unitMeasure.value = getInitialUnitMeasure(source);
     fillExtraFields(source.extra_fields);
+    warehouseStocks.value = normalizeWarehouseStocksFromSource(source);
 
     imageFile.value = null;
     if (fileInputRef.value) fileInputRef.value.value = '';
@@ -447,14 +472,16 @@ async function loadItemDetails(itemId: number) {
     try {
         const { data } = await axios.get(`/item/${itemId}`);
         applyFormData(data);
+        return data as ItemFormSource;
     } catch (error) {
         console.error('Error al cargar el item:', error);
+        return null;
     }
 }
 
 async function fetchWarehouses() {
     try {
-        const { data } = await axios.get('/bodegas/data', { params: { per_page: 1000 } });
+        const { data } = await axios.get(catalogLookupRoutes.warehouses, { params: { per_page: 1000 } });
         warehouses.value = data.data;
     } catch (error) {
         console.error('Error al obtener las bodegas:', error);
@@ -465,11 +492,11 @@ async function fetchCategorySubGroups(force = false) {
     try {
         const raw: any[] =
             !force && props.preloadedSubGroups && props.preloadedSubGroups.length > 0
-                ? props.preloadedSubGroups
+                  ? props.preloadedSubGroups
                 : !force && cachedCategorySubGroups
                   ? cachedCategorySubGroups
                   : (
-                        await axios.get('/categorias/subgrupos-data', {
+                        await axios.get(catalogLookupRoutes.categorySubGroups, {
                             params: { per_page: 1000 },
                         })
                     ).data.data;
@@ -494,10 +521,10 @@ async function fetchTaxes(force = false) {
     try {
         const raw: Tax[] =
             !force && props.preloadedTaxes && props.preloadedTaxes.length > 0
-                ? props.preloadedTaxes
+                  ? props.preloadedTaxes
                 : !force && cachedTaxes
                   ? cachedTaxes
-                  : (await axios.get('/impuestos/data', { params: { per_page: 100, status: true } })).data.data;
+                  : (await axios.get(catalogLookupRoutes.taxes, { params: { per_page: 100, status: true } })).data.data;
 
         cachedTaxes = (raw ?? []).filter((t: any) => t.status);
         taxes.value = [...cachedTaxes];
@@ -509,7 +536,7 @@ async function fetchTaxes(force = false) {
 
 async function fetchAccountingAccounts() {
     try {
-        const { data } = await axios.get('/catalogo-cuentas/options', {
+        const { data } = await axios.get(catalogLookupRoutes.accountingAccounts, {
             params: { account_type: 'income,asset,cost', allows_entries: true },
         });
         const all: AccountingAccountOption[] = data.data ?? [];
@@ -544,7 +571,7 @@ async function fetchAdditionalFields(force = false) {
             return;
         }
 
-        const { data } = await axios.get('/campos-adicionales/options');
+        const { data } = await axios.get(catalogLookupRoutes.additionalFields);
         const payload: any[] = Array.isArray(data?.data ?? data) ? (data?.data ?? data) : [];
 
         const normalizedFields: AdditionalField[] = payload
@@ -584,17 +611,10 @@ async function fetchAdditionalFields(force = false) {
 
 async function fetchWarehouseStocks(itemId: number) {
     try {
-        const { data } = await axios.get(`/bodegas/${itemId}/warehouses`);
-        warehouseStocks.value = data.map((w: any) => ({
-            warehouse_id: w.id,
-            name: w.name,
-            quantity: w.pivot.quantity,
-            stock_min: w.pivot.stock_min,
-            stock_max: w.pivot.stock_max,
-        }));
+        const { data } = await axios.get<ItemFormSource>(`/item/${itemId}`);
+        warehouseStocks.value = normalizeWarehouseStocksFromSource(data);
     } catch (e) {
         console.log(e);
-        warehouseStocks.value = [];
     }
 }
 
@@ -628,7 +648,6 @@ async function loadSecondaryFormData(itemId?: number): Promise<void> {
         await Promise.all([
             fetchWarehouses(),
             ...(props.showAdvancedSections ? [fetchAccountingAccounts()] : []),
-            itemId ? refreshWarehouseStocksForCurrentItem(itemId) : Promise.resolve(),
         ]);
     } finally {
         isSecondaryLoading.value = false;
@@ -653,21 +672,64 @@ async function hydrateOpenForm() {
     try {
         await loadFormCatalogs();
         await loadItemDetails(itemId);
+        await loadSecondaryFormData(itemId);
     } finally {
         isItemHydrationLoading.value = false;
     }
-
-    void loadSecondaryFormData(itemId);
 
     updateNameField();
     syncGroupFromSubgroup();
 }
 
+function normalizeWarehouseStocksFromSource(source: ItemFormSource | null | undefined): WarehouseStockEntry[] {
+    if (!source) return [];
+
+    const rows = Array.isArray(source.warehouse_stocks) && source.warehouse_stocks.length > 0
+        ? source.warehouse_stocks
+        : Array.isArray(source.warehouse_items)
+          ? source.warehouse_items
+          : [];
+
+    return rows
+        .map((row) => {
+            const warehouseId = row.warehouse_id ?? row.warehouse?.id ?? null;
+            const parsedWarehouseId = warehouseId !== null && warehouseId !== undefined && String(warehouseId).trim() !== ''
+                ? Number(warehouseId)
+                : null;
+
+            return {
+                warehouse_id: Number.isFinite(parsedWarehouseId) ? parsedWarehouseId : null,
+                name: String(row.name ?? row.warehouse_name ?? row.warehouse?.name ?? '').trim(),
+                quantity: toNumericValue(row.quantity),
+                stock_min: toNumericValue(row.stock_min),
+                stock_max: toNumericValue(row.stock_max),
+            } satisfies WarehouseStockEntry;
+        })
+        .filter((row) => row.warehouse_id !== null);
+}
+
+function toNumericValue(value: unknown): number {
+    if (typeof value === 'number') {
+        return Number.isFinite(value) ? value : 0;
+    }
+
+    if (typeof value === 'string') {
+        const normalized = value.trim().replace(/,/g, '.');
+        if (!normalized) return 0;
+        const parsed = Number(normalized);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    return 0;
+}
+
 function openGroupDialog() {
+    if (!canCreateCategories.value) return;
     isGroupDialogOpen.value = true;
 }
 
 function openSubGroupDialog() {
+    if (!canCreateCategories.value) return;
     subGroupDialogForm.value = {
         name: '',
         category_group_id: selectedGroupId.value ? Number(selectedGroupId.value) : undefined,
@@ -701,6 +763,7 @@ async function handleSubGroupSubmit(formData: Partial<CategorySubGroup>) {
 }
 
 function openTaxDialog() {
+    if (!canCreateTaxes.value) return;
     taxForm.value = { name: '', percentage: 0, status: true };
     isTaxDialogOpen.value = true;
 }
@@ -719,6 +782,7 @@ async function handleTaxDialogSubmit(formData: TaxDialogSubmitPayload) {
 }
 
 function openAdditionalFieldDialog() {
+    if (!canCreateAdditionalFields.value) return;
     additionalFieldDialogForm.value = createAdditionalFieldForm();
     additionalFieldDialogOpen.value = true;
 }
@@ -1108,6 +1172,7 @@ function handleItemTypeSelect(type: ItemType) {
 
 function openCatalog(to: 'warehouse') {
     if (typeof window === 'undefined') return;
+    if (to === 'warehouse' && !canCreateWarehouses.value) return;
 
     const routes: Record<'warehouse', string> = {
         warehouse: '/bodegas',
@@ -1272,6 +1337,7 @@ onMounted(async () => {
     if (typeof window !== 'undefined') {
         window.addEventListener(INVENTORY_ADJUSTMENT_SAVED_EVENT, handleInventoryAdjustmentSaved);
     }
+    await authStore.fetchUser();
     await fetchCategorySubGroups();
     // nextTick para asegurar que syncGroupFromSubgroup ya corrió
     await nextTick();
@@ -1400,7 +1466,7 @@ onBeforeUnmount(() => {
                                         search-placeholder="Buscar..."
                                         :show-placeholder-option="false"
                                     >
-                                        <template #header>
+                                        <template v-if="canCreateCategories" #header>
                                             <Button
                                                 type="button"
                                                 size="sm"
@@ -1426,7 +1492,7 @@ onBeforeUnmount(() => {
                                         search-placeholder="Buscar..."
                                         :show-placeholder-option="false"
                                     >
-                                        <template #header>
+                                        <template v-if="canCreateCategories" #header>
                                             <Button
                                                 type="button"
                                                 size="sm"
@@ -1451,7 +1517,7 @@ onBeforeUnmount(() => {
                                         search-placeholder="Buscar..."
                                         :show-placeholder-option="false"
                                     >
-                                        <template #header>
+                                        <template v-if="canCreateTaxes" #header>
                                             <Button
                                                 type="button"
                                                 size="sm"
@@ -1509,7 +1575,7 @@ onBeforeUnmount(() => {
                                                 placeholder="Bodega"
                                                 :searchable="false"
                                             >
-                                                <template #header>
+                                                <template v-if="canCreateWarehouses" #header>
                                                     <Button
                                                         type="button"
                                                         size="sm"
@@ -1533,18 +1599,19 @@ onBeforeUnmount(() => {
                                                 class="w-full"
                                                 placeholder="Cantidad"
                                                 :allowNegative="true"
+                                                :allowDecimal="true"
                                                 @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }"
                                             />
                                         </div>
 
                                         <div class="space-y-1">
                                             <Label class="text-xs">Cantidad Min</Label>
-                                            <InputIntegerField v-model="ws.stock_min" label="" type="number" class="w-full" placeholder="Min" @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }" />
+                                            <InputIntegerField v-model="ws.stock_min" label="" type="number" class="w-full" placeholder="Min" :allowDecimal="true" @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }" />
                                         </div>
 
                                         <div class="space-y-1">
                                             <Label class="text-xs">Cantidad Max</Label>
-                                            <InputIntegerField v-model="ws.stock_max" label="" type="number" class="w-full" placeholder="Max" @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }" />
+                                            <InputIntegerField v-model="ws.stock_max" label="" type="number" class="w-full" placeholder="Max" :allowDecimal="true" @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }" />
                                         </div>
 
                                         <div class="flex items-end justify-end">
@@ -1648,7 +1715,7 @@ onBeforeUnmount(() => {
                                     :checked="negativeMovementBool"
                                     :disabled="isViewMode || (!negativeMovementBool && hasNegativeStock)"
                                     @update:checked="
-                                        (val) => {
+                                        (val: boolean | 'indeterminate') => {
                                             if (!val && hasNegativeStock) {
                                                 showNegativeMovementWarning();
                                             } else {
@@ -1679,6 +1746,7 @@ onBeforeUnmount(() => {
                             :extra-field-names="extraFieldNames"
                             v-model:extra-fields="extraFields"
                             :readonly="isViewMode"
+                            :can-create-additional-field="canCreateAdditionalFields"
                             @create-additional-field="openAdditionalFieldDialog"
                             :field-options="additionalFieldOptions"
                             :additional-fields-meta="additionalFieldsMeta"

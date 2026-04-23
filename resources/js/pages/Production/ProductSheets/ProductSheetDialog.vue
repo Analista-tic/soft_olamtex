@@ -3,6 +3,7 @@ import AlertBox from '@/components/AlertBox.vue';
 import DialogActionButtons from '@/components/common/DialogActionButtons.vue';
 import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import ProcessSelector from '@/components/ProcessSelector.vue';
@@ -15,7 +16,6 @@ import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } fr
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useProductSheetValidation } from '@/composables/useProductSheetValidation';
-import { useSmartLoading } from '@/composables/useSmartLoading';
 import type { OptionParams, ProductSheet } from '@/domain/Production';
 import {
     PRODUCT_SHEET_TYPE_PRODUCT,
@@ -66,14 +66,22 @@ const emit = defineEmits<{
     (e: 'error', message: string): void;
     (e: 'update:open', value: boolean): void;
     (e: 'close'): void;
+    (e: 'loading-state', value: boolean): void;
 }>();
 
 const localOpen = ref(props.open);
 const dialogInnerRef = ref<HTMLElement | null>(null);
-const isLoading = ref(false);
+const isCatalogBootstrapLoading = ref(false);
+const isItemHydrationLoading = ref(false);
+const isBlockingLoading = computed(() =>
+  isCatalogBootstrapLoading.value || isItemHydrationLoading.value
+);
 const errorMessage = ref('');
 const errorType = ref<'error' | 'warning' | 'info'>('error');
-const smartLoading = useSmartLoading();
+
+watch(isBlockingLoading, (value) => {
+  emit('loading-state', value);
+}, { immediate: true });
 
 function setError(message: string, type: 'error' | 'warning' | 'info' = 'error'): void {
     errorMessage.value = message;
@@ -110,6 +118,11 @@ const normalizeTypeValue = (value?: string) => normalizeProductSheetType(value);
 
 const developmentProcessLabel = 'Desarrollo de muestras';
 const developmentProcessAliases = ['Desarrollo de muestra', 'Desarrollo de Muestra', 'Desarrollo de Muestras'];
+const processAliases: Record<string, string> = {
+    Bordado: 'Estampado',
+    Estampando: 'Estampado',
+    Sublimado: 'Estampado',
+};
 const hasAppliedDefaultSampleProcess = ref(false);
 const mandatoryProcesses = ['Muestras', 'Confección', 'Terminación', 'Bodega'];
 const flatSketchRef = ref<InstanceType<typeof ImageUploadViewer> | null>(null);
@@ -248,6 +261,14 @@ const worldSearchTerm = ref('');
 const fabricBaseSearchTerm = ref('');
 const yarnBaseSearchTerm = ref('');
 const collectionSearchTerm = ref('');
+const loadingSectionSelect = ref(false);
+const loadingGroupSelect = ref(false);
+const loadingBrandSelect = ref(false);
+const loadingWorldSelect = ref(false);
+const loadingFabricBaseSelect = ref(false);
+const loadingYarnBaseSelect = ref(false);
+const loadingCollectionSelect = ref(false);
+const loadingTemplateSelect = ref(false);
 const creatingCollection = ref(false);
 const collectionActionLabel = computed(() => {
     if (creatingCollection.value) {
@@ -354,6 +375,15 @@ const selectCreationConfig = {
     },
 } as const;
 
+const selectLoadingConfig = {
+    sections: loadingSectionSelect,
+    groups: loadingGroupSelect,
+    brands: loadingBrandSelect,
+    worlds: loadingWorldSelect,
+    fabric_bases: loadingFabricBaseSelect,
+    yarn_bases: loadingYarnBaseSelect,
+} as const;
+
 function syncCatalogOptionsFromProps(): void {
     sectionOptions.value = Array.isArray(props.sections) ? [...props.sections] : [];
     groupOptions.value = Array.isArray(props.groups) ? [...props.groups] : [];
@@ -367,6 +397,7 @@ async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig
     if (isReadonly.value) return;
 
     const config = selectCreationConfig[catalogKey];
+    const selectLoading = selectLoadingConfig[catalogKey];
     const name = normalizeCollectionName(rawName ?? config.getTerm());
 
     if (!name) {
@@ -385,14 +416,11 @@ async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig
         return;
     }
 
+    selectLoading.value = true;
     try {
-        const response = await smartLoading.run(
-            () =>
-                axios.post(route('produccion.product-sheets.parameters.store-option'), {
-                    key: catalogKey,
-                    name,
-                }),
-            { label: `Creando ${config.successLabel.toLowerCase()}...` },
+        const response = await axios.post(
+            route('produccion.product-sheets.parameters.store-option'),
+            { key: catalogKey, name }
         );
 
         const created = response.data?.data;
@@ -419,6 +447,8 @@ async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig
         }
 
         setError(`No se pudo crear ${config.successLabel.toLowerCase()}.`);
+    } finally {
+        selectLoading.value = false;
     }
 }
 
@@ -436,6 +466,7 @@ function findCollectionByName(name: string, options: OptionParams[]): OptionPara
 }
 
 async function refreshCollectionOptionsAndSelect(name: string): Promise<boolean> {
+    loadingCollectionSelect.value = true;
     try {
         const response = await axios.get(route('produccion.colecciones.options'));
         const options = Array.isArray(response.data?.data) ? (response.data.data as OptionParams[]) : [];
@@ -453,6 +484,8 @@ async function refreshCollectionOptionsAndSelect(name: string): Promise<boolean>
         return true;
     } catch {
         return false;
+    } finally {
+        loadingCollectionSelect.value = false;
     }
 }
 
@@ -474,14 +507,11 @@ async function createCollectionFromSelect(rawName?: string): Promise<void> {
     }
 
     creatingCollection.value = true;
+    loadingCollectionSelect.value = true;
     try {
-        const response = await smartLoading.run(
-            () =>
-                axios.post(route('produccion.colecciones.store'), {
-                    name,
-                    is_active: true,
-                }),
-            { label: 'Creando colección...' },
+        const response = await axios.post(
+            route('produccion.colecciones.store'),
+            { name, is_active: true }
         );
 
         const created = response.data?.data;
@@ -522,6 +552,7 @@ async function createCollectionFromSelect(rawName?: string): Promise<void> {
         setError('No se pudo crear la colección.');
     } finally {
         creatingCollection.value = false;
+        loadingCollectionSelect.value = false;
     }
 }
 
@@ -539,7 +570,6 @@ function handleCollectionAction(rawSearchTerm?: string): void {
 // Template (crear desde plantilla)
 const templateOptions = ref<Array<{ id: number | string; name: string }>>([]);
 const selectedTemplateId = ref<number | null>(null);
-const isLoadingTemplate = ref(false);
 const templatesLoaded = ref(false);
 const isSizesParameterDialogOpen = ref(false);
 const isSizesParameterLoading = ref(false);
@@ -734,26 +764,35 @@ async function handleSizesParameterSubmit(payload: ParameterDialogFormState) {
     }
 }
 
-async function loadTemplates() {
-    if (templatesLoaded.value || isLoadingTemplate.value) return;
+async function fetchTemplateOptions(): Promise<void> {
+    if (templatesLoaded.value) return;
 
-    isLoadingTemplate.value = true;
     try {
         const response = await fetchProductSheetTemplates();
         templateOptions.value = response.data?.data ?? [];
         templatesLoaded.value = true;
     } catch {
         templateOptions.value = [];
+    }
+}
+
+async function loadTemplates(): Promise<void> {
+    if (templatesLoaded.value || loadingTemplateSelect.value) return;
+
+    loadingTemplateSelect.value = true;
+    try {
+        await fetchTemplateOptions();
     } finally {
-        isLoadingTemplate.value = false;
+        loadingTemplateSelect.value = false;
     }
 }
 
 async function applyTemplate(templateId: number) {
-    if (!templateId) return;
-    isLoadingTemplate.value = true;
+    if (!templateId || loadingTemplateSelect.value) return;
+
+    loadingTemplateSelect.value = true;
     try {
-        const response = await smartLoading.run(() => showProductSheet(templateId), { label: 'Aplicando plantilla...' });
+        const response = await showProductSheet(templateId);
         const tpl = response.data?.data;
         if (!tpl) return;
 
@@ -789,7 +828,7 @@ async function applyTemplate(templateId: number) {
         console.error('Error al cargar template:', err);
         setError('No se pudo cargar la plantilla seleccionada.');
     } finally {
-        isLoadingTemplate.value = false;
+        loadingTemplateSelect.value = false;
     }
 }
 
@@ -821,8 +860,6 @@ const allProcesses = ref([
     'Corte',
     'Logística',
     'Estampado',
-    'Bordado',
-    'Sublimado',
     'Desarrollo de muestras',
     'Muestras',
     'Confección',
@@ -838,6 +875,13 @@ function parseProcessesValue(value?: unknown): Record<string, boolean> {
         if (parsed[alias]) {
             parsed[developmentProcessLabel] = true;
             delete parsed[alias];
+        }
+    }
+
+    for (const [legacy, current] of Object.entries(processAliases)) {
+        if (parsed[legacy]) {
+            parsed[current] = true;
+            delete parsed[legacy];
         }
     }
 
@@ -1038,50 +1082,73 @@ function toIdOrNull(value: unknown): number | null {
     return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-watch(
-    () => props.productSheet,
-    (newProductSheet) => {
-        if ((isEditMode.value || isViewMode.value) && newProductSheet) {
-            flatSketchRef.value?.reset();
-            const sizeValue = ensureSizesJson(newProductSheet.sizes);
-            const normalizedType = normalizeTypeValue(newProductSheet.type);
-            const garmentType = (newProductSheet as ProductSheet & { garment_type?: 'superior' | 'inferior' | null }).garment_type ?? null;
+function hydrateFormFromProductSheet(productSheet: ProductSheet): void {
+    flatSketchRef.value?.reset();
+    const sizeValue = ensureSizesJson(productSheet.sizes);
+    const normalizedType = normalizeTypeValue(productSheet.type);
+    const garmentType = (productSheet as ProductSheet & { garment_type?: 'superior' | 'inferior' | null }).garment_type ?? null;
 
-            form.value = {
-                ...createInitialFormState(),
-                id: newProductSheet.id,
-                section_id: toIdOrNull(newProductSheet.section_id),
-                group_id: toIdOrNull(newProductSheet.group_id),
-                brand_id: toIdOrNull(newProductSheet.brand_id),
-                world_id: toIdOrNull(newProductSheet.world_id),
-                fabric_base_id: toIdOrNull(newProductSheet.fabric_base_id),
-                yarn_base_id: toIdOrNull(newProductSheet.yarn_base_id),
-                type: normalizedType,
-                garment_type: garmentType,
-                operational_list_id: toIdOrNull(newProductSheet.operational_list_id),
-                collection_id: toIdOrNull(newProductSheet.collection_id),
-                billing_price: Number(newProductSheet.billing_price ?? 0),
-                costo: Number(newProductSheet.costo ?? 0),
-                selling_price: Number(newProductSheet.selling_price ?? 0),
-                sizes: sizeValue,
-                woven_product: Boolean(newProductSheet.woven_product),
-                description: String(newProductSheet.description ?? ''),
-                observaciones: String((newProductSheet as ProductSheet & { observaciones?: string }).observaciones ?? ''),
-                flat_sketch_path: String(newProductSheet.flat_sketch_path ?? ''),
-                sample_reference: normalizeUpperText(newProductSheet.sample_reference ?? ''),
-                product_reference: normalizeUpperText(newProductSheet.product_reference ?? ''),
-                product_reference_2: normalizeUpperText(newProductSheet.product_reference_2 ?? newProductSheet.export_reference ?? ''),
-                processes: normalizeProcessesForForm(newProductSheet.processes),
-                status: newProductSheet.status === 'complete' ? 'complete' : 'incomplete',
-                version: Number(newProductSheet.version ?? 1),
-                parent_id: newProductSheet.parent_id ?? null,
-            };
-            form.value.reference = form.value.type === TYPE_SAMPLE ? form.value.sample_reference : form.value.product_reference;
-            isConvertDialogOpen.value = false;
-        }
-    },
-    { immediate: true },
-);
+    form.value = {
+        ...createInitialFormState(),
+        id: productSheet.id,
+        section_id: toIdOrNull(productSheet.section_id),
+        group_id: toIdOrNull(productSheet.group_id),
+        brand_id: toIdOrNull(productSheet.brand_id),
+        world_id: toIdOrNull(productSheet.world_id),
+        fabric_base_id: toIdOrNull(productSheet.fabric_base_id),
+        yarn_base_id: toIdOrNull(productSheet.yarn_base_id),
+        type: normalizedType,
+        garment_type: garmentType,
+        operational_list_id: toIdOrNull(productSheet.operational_list_id),
+        collection_id: toIdOrNull(productSheet.collection_id),
+        billing_price: Number(productSheet.billing_price ?? 0),
+        costo: Number(productSheet.costo ?? 0),
+        selling_price: Number(productSheet.selling_price ?? 0),
+        sizes: sizeValue,
+        woven_product: Boolean(productSheet.woven_product),
+        description: String(productSheet.description ?? ''),
+        observaciones: String((productSheet as ProductSheet & { observaciones?: string }).observaciones ?? ''),
+        flat_sketch_path: String(productSheet.flat_sketch_path ?? ''),
+        sample_reference: normalizeUpperText(productSheet.sample_reference ?? ''),
+        product_reference: normalizeUpperText(productSheet.product_reference ?? ''),
+        product_reference_2: normalizeUpperText(productSheet.product_reference_2 ?? productSheet.export_reference ?? ''),
+        processes: normalizeProcessesForForm(productSheet.processes),
+        status: productSheet.status === 'complete' ? 'complete' : 'incomplete',
+        version: Number(productSheet.version ?? 1),
+        parent_id: productSheet.parent_id ?? null,
+    };
+    form.value.reference = form.value.type === TYPE_SAMPLE ? form.value.sample_reference : form.value.product_reference;
+    isConvertDialogOpen.value = false;
+}
+
+async function initializeDialog(): Promise<void> {
+    isCatalogBootstrapLoading.value = true;
+
+    try {
+        errorMessage.value = '';
+
+        await Promise.all([
+            Promise.resolve(syncCatalogOptionsFromProps()),
+            Promise.resolve(syncCollectionOptionsFromProps()),
+            Promise.resolve().then(() => {
+                if (isCreateMode.value) {
+                    resetForm();
+                    return;
+                }
+
+                if ((isEditMode.value || isViewMode.value) && props.productSheet) {
+                    hydrateFormFromProductSheet(props.productSheet);
+                }
+            }),
+            isCreateMode.value ? loadTemplates() : Promise.resolve(),
+            (isEditMode.value || isViewMode.value) && props.productSheet?.id
+                ? validateSampleOperationalList(true)
+                : Promise.resolve(true),
+        ]);
+    } finally {
+        isCatalogBootstrapLoading.value = false;
+    }
+}
 
 watch(
     () => [props.sections, props.groups, props.brands, props.worlds, props.fabricBases, props.yarnBases],
@@ -1107,15 +1174,21 @@ watch(
             resetForm();
         } else {
             errorMessage.value = '';
-            void refreshSizesFromParameter();
-            if (isCreateMode.value) {
-                resetForm();
-            } else if ((isEditMode.value || isViewMode.value) && props.productSheet?.id) {
-                void validateSampleOperationalList(true);
-            }
+            void initializeDialog();
         }
     },
     { immediate: true },
+);
+
+watch(
+    () => props.productSheet,
+    (newProductSheet, oldProductSheet) => {
+        if (!props.open) return;
+        if (newProductSheet === oldProductSheet) return;
+        if ((isEditMode.value || isViewMode.value) && newProductSheet) {
+            void initializeDialog();
+        }
+    },
 );
 
 watch(localOpen, (newValue) => {
@@ -1123,16 +1196,6 @@ watch(localOpen, (newValue) => {
         emit('update:open', false);
     }
 });
-
-// Cargar templates cuando se abre el dialog en modo creación
-watch(
-    () => props.open,
-    (isOpen) => {
-        if (isOpen && isCreateMode.value) {
-            loadTemplates();
-        }
-    },
-);
 
 // Aplicar template cuando se selecciona
 watch(selectedTemplateId, (newId) => {
@@ -1160,12 +1223,9 @@ async function validateSampleOperationalList(silent = false): Promise<boolean> {
 
     checkingSampleOperationalList.value = true;
     try {
-        const response = await smartLoading.run(
-            () =>
-                axios.get(route('produccion.listados-operacionales.data'), {
-                    params: { product_sheet_id: productSheetId },
-                }),
-            { label: 'Validando listado operacional...' },
+        const response = await axios.get(
+            route('produccion.listados-operacionales.data'),
+            { params: { product_sheet_id: productSheetId } }
         );
         const rows = Array.isArray(response.data?.data) ? response.data.data : [];
         hasSampleOperationalList.value = rows.length > 0;
@@ -1175,7 +1235,7 @@ async function validateSampleOperationalList(silent = false): Promise<boolean> {
         }
 
         return hasSampleOperationalList.value;
-    } catch (error) {
+    } catch {
         hasSampleOperationalList.value = false;
         if (!silent) {
             setError('No se pudo validar el listado operacional de la muestra.');
@@ -1230,9 +1290,9 @@ async function submitConvertDialog(productReference: string) {
 
     convertLoading.value = true;
     try {
-        const response = await smartLoading.run(
-            () => convertSampleToProduct(productSheetId, productReference),
-            { label: 'Convirtiendo muestra a producto...' },
+        const response = await convertSampleToProduct(
+            productSheetId,
+            productReference
         );
         emit('productSheetSaved', {
             success: true,
@@ -1328,7 +1388,7 @@ function buildMultipartPayload(basePayload: Record<string, unknown>): FormData {
 
 
 async function saveProductSheet() {
-    if (isLoading.value) return;
+    if (isItemHydrationLoading.value) return;
     errorMessage.value = '';
 
     if (!validateForm()) {
@@ -1336,29 +1396,24 @@ async function saveProductSheet() {
     }
 
     determineStatus();
-    isLoading.value = true;
+    isItemHydrationLoading.value = true;
 
     try {
-        const response = await smartLoading.run(
-            async () => {
-                const basePayload = buildBasePayload();
-                const payload = buildMultipartPayload(basePayload);
+        const basePayload = buildBasePayload();
+        const payload = buildMultipartPayload(basePayload);
 
-                const flatSketchToUpload = await (flatSketchRef.value?.getFileForUpload() ?? Promise.resolve(null));
-                if (flatSketchToUpload instanceof File) {
-                    payload.append('flat_sketch', flatSketchToUpload);
-                }
+        const flatSketchToUpload = await (flatSketchRef.value?.getFileForUpload() ?? Promise.resolve(null));
+        if (flatSketchToUpload instanceof File) {
+            payload.append('flat_sketch', flatSketchToUpload);
+        }
 
-                if (isEditMode.value && props.productSheet?.id) {
-                    payload.append('_method', 'PUT');
-                }
+        if (isEditMode.value && props.productSheet?.id) {
+            payload.append('_method', 'PUT');
+        }
 
-                return isEditMode.value && props.productSheet?.id
-                    ? await updateProductSheet(props.productSheet.id, payload)
-                    : await createProductSheet(payload);
-            },
-            { label: isEditMode.value ? 'Actualizando sábana...' : 'Guardando sábana...' },
-        );
+        const response = isEditMode.value && props.productSheet?.id
+            ? await updateProductSheet(props.productSheet.id, payload)
+            : await createProductSheet(payload);
 
         emit('productSheetSaved', {
             success: true,
@@ -1385,7 +1440,7 @@ async function saveProductSheet() {
         emit('error', errMsg);
         setError(errMsg);
     } finally {
-        isLoading.value = false;
+        isItemHydrationLoading.value = false;
     }
 }
 
@@ -1467,7 +1522,8 @@ function handleClose() {
                             label=""
                             :options="templateOptions"
                             placeholder="Sin plantilla (nuevo)"
-                            :disabled="isLoadingTemplate"
+                            :disabled="isCatalogBootstrapLoading"
+                            :loading="loadingTemplateSelect"
                         />
                         <span v-if="form.parent_id" class="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
                             Nueva versión
@@ -1476,26 +1532,44 @@ function handleClose() {
                 </div>
             </DialogHeader>
             <div ref="dialogInnerRef" class="min-h-0 flex-1 overflow-y-auto scroll-smooth px-6 py-4" style="scrollbar-width: thin">
+                <FormLoadingOverlay
+                  :active="isBlockingLoading"
+                  :delay-ms="0"
+                  message="Cargando sábana de producto..."
+                  description="Preparando catálogos y datos iniciales."
+                />
+                <fieldset :disabled="isBlockingLoading" class="w-full">
                     <div class="grid gap-6 sm:grid-cols-[minmax(0,1fr)_340px]">
                         <div class="space-y-4">
 
                             <!-- Primera seccion: Identificacion del producto (3 referencias) -->
-                            <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                                <div v-if="form.type === TYPE_SAMPLE" class="flex flex-col gap-1">
+                            <div class="mb-4 grid grid-cols-3 gap-4">
+                                <!-- Ref. Muestra — visible en tipo muestra (obligatorio)
+                                     y en tipo producto (opcional, muestra de origen) -->
+                                <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium">Ref. Muestra<span class="text-red-500">*</span></Label>
+                                        <Label class="text-sm font-medium">
+                                            <template v-if="form.type === TYPE_SAMPLE">
+                                                Ref. Muestra<span class="text-red-500">*</span>
+                                            </template>
+                                            <template v-else>
+                                                Ref. Muestra de origen
+                                            </template>
+                                        </Label>
                                     </div>
                                     <InputField
                                         v-model="form.sample_reference"
                                         label=""
-                                        placeholder="ej: MU1"
+                                        :placeholder="form.type === TYPE_SAMPLE ? 'ej: MU1' : 'Opcional'"
                                         :disabled="isReadonly"
                                         :error="showFieldErrors && fieldErrors.reference && form.type === TYPE_SAMPLE ? fieldErrors.reference : undefined"
                                     />
                                 </div>
+
+                                <!-- Ref. Prod 1 — visible cuando type = producto -->
                                 <div v-if="form.type === TYPE_PRODUCT" class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium">Ref. Prod 1<span class="text-red-500">*</span></Label>
+                                        <Label class="text-sm font-medium">Ref 1. Producto<span class="text-red-500">*</span></Label>
                                     </div>
                                     <InputField
                                         v-model="form.product_reference"
@@ -1505,9 +1579,11 @@ function handleClose() {
                                         :error="showFieldErrors && fieldErrors.reference && form.type === TYPE_PRODUCT ? fieldErrors.reference : undefined"
                                     />
                                 </div>
+
+                                <!-- Ref. Prod 2 — visible cuando type = producto -->
                                 <div v-if="form.type === TYPE_PRODUCT" class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium">Ref. Prod 2</Label>
+                                        <Label class="text-sm font-medium">Ref 2. Producto</Label>
                                     </div>
                                     <InputField
                                         v-model="form.product_reference_2"
@@ -1556,6 +1632,7 @@ function handleClose() {
                                         v-model="form.section_id"
                                         label=""
                                         :options="sectionOptions"
+                                        :loading="loadingSectionSelect"
                                         required
                                         placeholder="Seleccione sección"
                                         :disabled="isReadonly"
@@ -1578,6 +1655,7 @@ function handleClose() {
                                         v-model="form.group_id"
                                         label=""
                                         :options="groupOptions"
+                                        :loading="loadingGroupSelect"
                                         required
                                         placeholder="Seleccione grupo"
                                         :disabled="isReadonly"
@@ -1599,6 +1677,7 @@ function handleClose() {
                                         v-model="form.brand_id"
                                         label=""
                                         :options="brandOptions"
+                                        :loading="loadingBrandSelect"
                                         required
                                         placeholder="Seleccione marca"
                                         :disabled="isReadonly"
@@ -1622,6 +1701,7 @@ function handleClose() {
                                         v-model="form.world_id"
                                         label=""
                                         :options="worldOptions"
+                                        :loading="loadingWorldSelect"
                                         required
                                         placeholder="Seleccione mundo"
                                         :disabled="isReadonly"
@@ -1658,6 +1738,7 @@ function handleClose() {
                                         v-model="form.fabric_base_id"
                                         label=""
                                         :options="fabricBaseOptions"
+                                        :loading="loadingFabricBaseSelect"
                                         :required="!form.woven_product"
                                         placeholder="Seleccione base tela"
                                         :disabled="isReadonly"
@@ -1681,6 +1762,7 @@ function handleClose() {
                                         v-model="form.yarn_base_id"
                                         label=""
                                         :options="yarnBaseOptions"
+                                        :loading="loadingYarnBaseSelect"
                                         required
                                         placeholder="Seleccione base hilaza"
                                         :disabled="isReadonly"
@@ -1864,6 +1946,7 @@ function handleClose() {
                                         v-model="form.collection_id"
                                         label=""
                                         :options="collectionOptions"
+                                        :loading="loadingCollectionSelect"
                                         placeholder="Sin colección"
                                         :disabled="isReadonly"
                                         :searchable="true"
@@ -1878,26 +1961,24 @@ function handleClose() {
                             </div>
                         </div>
                     </div>
-                </div>
+                </fieldset>
+            </div>
 
             <DialogFooter class="shrink-0 flex flex-wrap items-center justify-end gap-2 border-t border-border px-6 py-4">
                 <Button
                     v-if="showConvertButton"
                     variant="ghost"
                     class="rounded-full border border-dashed border-primary/60 px-5 py-2 text-sm font-semibold text-primary"
-                    :disabled="isLoading"
+                    :disabled="isBlockingLoading"
                     @click="openConvertDialog"
                 >
                     Convertir a Producto
                 </Button>
-                <Button v-if="isViewMode" variant="outline" size="sm" class="rounded-full px-5 py-2 text-sm font-semibold" @click="handleClose">
-                    Cerrar
-                </Button>
                 <DialogActionButtons
-                    v-if="!isViewMode"
-                    cancel-label="Cancelar"
+                    :cancel-label="isViewMode ? 'Cerrar' : 'Cancelar'"
                     :submit-label="isEditMode ? 'Actualizar' : 'Guardar'"
-                    :loading="isLoading"
+                    :loading="isBlockingLoading"
+                    :show-submit="!isViewMode"
                     @cancel="handleClose"
                     @submit="saveProductSheet"
                 />

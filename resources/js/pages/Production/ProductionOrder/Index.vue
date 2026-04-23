@@ -131,6 +131,7 @@ const { successMessage, errorMessage, errorType, showError, clearSuccess, clearE
 
 const scope = ref<SectionScope>('samples');
 const isLoading = ref(false);
+const hasLoadError = ref(false);
 const allRows = ref<Programmer[]>([]);
 const selectedProgrammerId = ref<number | null>(null);
 const isProductionOrderDialogOpen = ref(false);
@@ -232,10 +233,12 @@ async function fetchRows() {
         });
 
         allRows.value = Array.isArray(response.data?.data) ? response.data.data : [];
+        hasLoadError.value = false;
         clearError();
     } catch (error) {
         if (axios.isCancel(error)) return;
         allRows.value = [];
+        hasLoadError.value = true;
         showError('No se pudo cargar el listado de órdenes de producción.');
     } finally {
         if (activeFetchController === controller) activeFetchController = null;
@@ -482,6 +485,14 @@ onUnmounted(() => {
                                                 </TableRow>
                                             </template>
 
+                                            <template v-else-if="hasLoadError">
+                                                <TableRow>
+                                                    <TableCell colspan="8" class="py-8 text-center text-sm text-muted-foreground">
+                                                        No fue posible cargar las Ã³rdenes de producciÃ³n.
+                                                    </TableCell>
+                                                </TableRow>
+                                            </template>
+
                                             <template v-else-if="rows.length === 0">
                                                 <TableRow>
                                                     <TableCell colspan="8" class="py-8 text-center text-sm text-muted-foreground">
@@ -591,6 +602,3 @@ onUnmounted(() => {
         @create-tech-sheet="handleCreateTechSheetFromDialog"
     />
 </template>
-
-
-

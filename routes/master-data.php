@@ -8,7 +8,13 @@ use App\Http\Controllers\MasterData\ParameterController;
 use App\Http\Controllers\Production\SectionController;
 use Illuminate\Support\Facades\Route;
 
-// === CATEGORÍAS ===
+// === LOOKUPS DE CATALOGOS PARA REFERENCIA ===
+Route::prefix('catalogos/categorias')->name('catalogos.categorias.')->group(function () {
+    Route::get('grupos', [CategoryGroupController::class, 'getData'])->name('groups');
+    Route::get('subgrupos', [CategorySubGroupController::class, 'getData'])->name('subgroups');
+});
+
+// === CATEGORIAS ===
 Route::prefix('categorias')->name('categorias.')->middleware('permission:ver categorias')->group(function () {
     Route::get('grupos', [CategoryGroupController::class, 'getData'])->name('groups.getData');
     Route::post('grupos', [CategoryGroupController::class, 'store'])->name('groups.store')->middleware('permission:crear categorias');
@@ -22,6 +28,7 @@ Route::prefix('categorias')->name('categorias.')->middleware('permission:ver cat
 
 // === CONTACTOS ===
 Route::get('contactos/data', [ContactController::class, 'getData'])->name('contactos.getData');
+Route::get('contactos/list', [ContactController::class, 'list'])->name('contactos.list');
 
 Route::prefix('contactos')->name('contactos.')->middleware('permission:ver contactos')->group(function () {
     Route::get('/', [ContactController::class, 'index'])->name('index');
@@ -31,7 +38,7 @@ Route::prefix('contactos')->name('contactos.')->middleware('permission:ver conta
     Route::delete('/{contact}', [ContactController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar contactos');
 });
 
-// === ÍTEMS ===
+// === ITEMS ===
 Route::prefix('item')->name('item.')->group(function () {
     Route::get('/descargar-plantilla', [ItemController::class, 'downloadTemplate'])->name('descargar-plantilla');
     Route::get('/exportar-excel', [ItemController::class, 'exportExcel'])->name('exportar-excel')->middleware('permission:exportar items');
@@ -47,7 +54,7 @@ Route::prefix('item')->name('item.')->group(function () {
     Route::post('/{id}/toggle-status', [ItemController::class, 'toggleStatus'])->name('toggle-status')->middleware('permission:activar desactivar item');
 });
 
-// === PARÁMETROS ===
+// === PARAMETROS ===
 Route::prefix('parametros')->name('parametros.')->middleware('permission:ver parametros')->group(function () {
     Route::get('/', [ParameterController::class, 'index'])->name('index');
     Route::get('/data', [ParameterController::class, 'data'])->name('data');
@@ -58,5 +65,5 @@ Route::prefix('parametros')->name('parametros.')->middleware('permission:ver par
     Route::delete('/{id}', [ParameterController::class, 'destroy'])->name('destroy')->middleware('permission:editar parametros');
 });
 
-// === CATÁLOGOS PARA CAMPOS PARAMETRIZABLES ===
+// === CATALOGOS PARA CAMPOS PARAMETRIZABLES ===
 Route::get('catalogos/sections', [SectionController::class, 'data']);

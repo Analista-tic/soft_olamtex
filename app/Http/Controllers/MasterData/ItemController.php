@@ -12,6 +12,7 @@ use Inertia\Inertia;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class ItemController extends Controller
@@ -30,7 +31,10 @@ class ItemController extends Controller
 
     public function show($id)
     {
-        return $this->service->findWithRelations($id);
+        $item = $this->service->findWithRelations($id, ['categorySubGroup', 'tax', 'warehouseItems.warehouse']);
+        $item->setAttribute('warehouse_stocks', $this->normalizeWarehouseStocks($item));
+
+        return $item;
     }
 
     public function store(Request $request)
@@ -158,20 +162,15 @@ class ItemController extends Controller
     {
         $item = Item::findOrFail($id);
 
-        $result = $item->warehouseItems()
-            ->with('warehouse')
-            ->get()
-            ->map(fn ($wi) => [
-                'id'    => $wi->warehouse_id,
-                'name'  => $wi->warehouse->name ?? '',
-                'pivot' => [
-                    'quantity'  => $wi->quantity,
-                    'stock_min' => $wi->stock_min,
-                    'stock_max' => $wi->stock_max,
-                ],
-            ]);
-
-        return response()->json($result);
+        return response()->json($this->normalizeWarehouseStocks($item)->map(fn (array $stock) => [
+            'id' => $stock['warehouse_id'],
+            'name' => $stock['name'],
+            'pivot' => [
+                'quantity' => $stock['quantity'],
+                'stock_min' => $stock['stock_min'],
+                'stock_max' => $stock['stock_max'],
+            ],
+        ]));
     }
 
     public function exportExcel()
@@ -339,6 +338,25 @@ class ItemController extends Controller
             $path = $request->file('image')->store($folder, 'public');
             $data['img'] = $path;
         }
+    }
+
+    private function normalizeWarehouseStocks(Item $item): Collection
+    {
+        $item->loadMissing('warehouseItems.warehouse');
+
+        return $item->warehouseItems
+            ->sortByDesc(fn ($warehouseItem) => (float) ($warehouseItem->quantity ?? 0))
+            ->values()
+            ->map(fn ($warehouseItem) => [
+                'warehouse_id' => $warehouseItem->warehouse_id,
+                'name' => $warehouseItem->warehouse->name ?? '',
+                'quantity' => (float) ($warehouseItem->quantity ?? 0),
+                'stock_min' => (float) ($warehouseItem->stock_min ?? 0),
+                'stock_max' => (float) ($warehouseItem->stock_max ?? 0),
+                'weighted_average_price' => $warehouseItem->weighted_average_price !== null
+                    ? (float) $warehouseItem->weighted_average_price
+                    : null,
+            ]);
     }
 
 

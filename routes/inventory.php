@@ -12,6 +12,9 @@ use App\Http\Controllers\MasterData\ItemController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
+// === LOOKUPS DE CATALOGOS PARA REFERENCIA ===
+Route::get('catalogos/campos-adicionales/options', [AdditionalFieldController::class, 'options'])->name('catalogos.additional-fields.options');
+
 // === BODEGAS ===
 Route::prefix('bodegas')->name('warehouses.')->group(function () {
     Route::get('/', [WarehouseController::class, 'index'])->name('index');

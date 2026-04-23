@@ -458,14 +458,14 @@ onBeforeUnmount(() => {
     <Head title="Ficha Tecnica" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
+        <div class="flex h-full flex-1 flex-col gap-4 overflow-hidden rounded-xl p-3">
             <h1 :class="uiPatterns.typography.pageTitle">Ficha Tecnica</h1>
             <p class="max-w-4xl text-sm text-muted-foreground">
                 Selecciona una orden de produccion para consultar su informacion basica y revisar el dibujo plano de referencia en vista ampliada.
             </p>
 
             <div class="flex items-end gap-3">
-                <div class="max-w-md flex-1">
+                <div class="flex-1">
                     <SelectField
                         v-model="selectedOpId"
                         label="Orden de produccion"
@@ -481,27 +481,25 @@ onBeforeUnmount(() => {
                     <p v-else-if="opOptions.length === 0" class="mt-2 text-sm text-muted-foreground">No hay resultados</p>
                 </div>
                 <Button
-                    v-if="selectedOpId && selectedOp"
+                    type="button"
                     variant="outline"
-                    size="sm"
-                    :disabled="isPrinting"
-                    class="mb-[2px] shrink-0"
-                    title="Imprimir resumen completo de la ficha técnica"
+                    class="flex h-10 shrink-0 items-center gap-2 rounded-full border-primary/40 px-5 text-sm font-semibold text-primary hover:bg-primary/10 dark:border-primary/60 dark:text-primary"
+                    :disabled="isPrinting || !selectedOpId || !selectedOp"
+                    :title="'Imprimir resumen completo de la ficha técnica'"
                     @click="printSummary"
                 >
-                    <Printer class="mr-2 h-4 w-4" />
+                    <Printer class="h-4 w-4" />
                     {{ isPrinting ? 'Generando...' : 'Imprimir ficha' }}
                 </Button>
                 <Button
-                    v-if="selectedOpId && selectedOp"
+                    type="button"
                     variant="outline"
-                    size="sm"
-                    :disabled="isPrintingH"
-                    class="mb-[2px] shrink-0"
-                    title="Imprimir ficha en formato horizontal (2 páginas, 3 columnas) — prueba"
+                    class="flex h-10 shrink-0 items-center gap-2 rounded-full border-primary/40 px-5 text-sm font-semibold text-primary hover:bg-primary/10 dark:border-primary/60 dark:text-primary"
+                    :disabled="isPrintingH || !selectedOpId || !selectedOp"
+                    :title="'Imprimir ficha en formato horizontal (2 páginas, 3 columnas) — prueba'"
                     @click="printSummaryH"
                 >
-                    <Printer class="mr-2 h-4 w-4" />
+                    <Printer class="h-4 w-4" />
                     {{ isPrintingH ? 'Generando...' : 'Imprimir H (prueba)' }}
                 </Button>
             </div>
@@ -519,7 +517,7 @@ onBeforeUnmount(() => {
             </div>
 
             <template v-else>
-                <div class="flex min-h-0 flex-1 flex-col gap-4">
+                <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
                     <div class="shrink-0 rounded-lg border border-border bg-background p-4">
                         <transition
                             enter-active-class="transition-all duration-200 ease-out"
@@ -573,14 +571,14 @@ onBeforeUnmount(() => {
                                         <p class="mb-3 text-[11px] text-muted-foreground">Referencia visual del producto</p>
 
                                         <button
-                                            v-if="drawingUrl && !drawingLoadFailed"
+                                            v-if="hasDrawing"
                                             type="button"
                                             class="flex max-h-[220px] min-h-[160px] w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/20 transition hover:bg-muted/40 focus:outline-none focus:ring-2 focus:ring-primary/30"
                                             :disabled="!drawingUrl"
                                             @click="openDrawing"
                                         >
                                             <img
-                                                :src="drawingUrl"
+                                                :src="drawingUrl ?? undefined"
                                                 class="max-h-[200px] w-auto max-w-full object-contain"
                                                 alt="Dibujo plano"
                                                 @error="onDrawingError"
@@ -620,7 +618,7 @@ onBeforeUnmount(() => {
                         </div>
                     </div>
 
-                    <Tabs v-model="activeTab" :default-value="defaultTabValue" class="flex min-h-0 w-full flex-1 flex-col">
+                    <Tabs v-model="activeTab" :default-value="defaultTabValue" class="flex min-h-0 w-full min-w-0 flex-1 flex-col">
                         <div class="mb-3 flex justify-center">
                             <TabsList class="inline-flex w-fit flex-nowrap items-center gap-1 rounded-full border border-border bg-muted/40 p-1">
                                 <TabsTrigger

@@ -12,7 +12,7 @@ import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import type { CashReceipt, CashReceiptApplication } from '@/domain/Income';
-import { useIncomeStore } from '@/stores/income';
+import { useIncomeStore } from '@/stores/income/income';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
 

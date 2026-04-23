@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import { mapToCreateSaleCreditDebitNoteDto, type SaleCreditDebitNote, type SaleNoteItem, type SalesInvoice } from '@/domain/Income';
 import QuoteItemsTable from '@/pages/Income/Quotes/QuoteItemsTable.vue';
-import { useIncomeStore } from '@/stores/income';
+import { useIncomeStore } from '@/stores/income/income';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
 

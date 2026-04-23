@@ -14,7 +14,7 @@ import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import { mapToCreateQuoteDto, type Quote, type QuoteItem } from '@/domain/Income';
 import type { Contact } from '@/domain/MasterData';
 import QuoteItemsTable from '@/pages/Income/Quotes/QuoteItemsTable.vue';
-import { useIncomeStore } from '@/stores/income';
+import { useIncomeStore } from '@/stores/income/income';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
 

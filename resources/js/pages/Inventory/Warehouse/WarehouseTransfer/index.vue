@@ -19,10 +19,11 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
-import type { Warehouse, WarehouseOption } from '@/domain/inventory';
+import type { Warehouse, WarehouseOption } from '@/domain/Inventory';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 import { useAuthStore } from '@/stores/auth';
+import { useWarehousesStore } from '@/stores/inventory/warehouses';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Eye, Pencil, PlusCircle, Search, Trash } from 'lucide-vue-next';
@@ -79,10 +80,12 @@ type DialogTransferPayload = {
 // --- Estado reactivo principal ---
 const isTransferDialogOpen = ref(false);
 const authStore = useAuthStore();
-const warehouses = ref<Warehouse[]>([]);
+const warehousesStore = useWarehousesStore();
 // Garantiza el tipo WarehouseOption[] para el diálogo
 const warehouseOptions = computed<WarehouseOption[]>(() =>
-    warehouses.value.filter((w): w is Warehouse & { id: number } => typeof w.id === 'number').map((w) => ({ id: w.id, name: w.name })),
+    warehousesStore.items
+        .filter((w): w is Warehouse & { id: number } => typeof w.id === 'number')
+        .map((w) => ({ id: w.id, name: w.name })),
 );
 const isLoadingWarehouses = ref(false);
 const warehouseLoadError = ref<string | null>(null);
@@ -175,7 +178,7 @@ const paginatedTransfers = computed(() => {
     return filteredTransfers.value.slice(start, start + ITEMS_PER_PAGE);
 });
 
-const hasEnoughWarehouses = computed(() => warehouses.value.length >= 2);
+const hasEnoughWarehouses = computed(() => warehousesStore.items.length >= 2);
 const canCreateTransferPermission = computed(() => authStore.can('crear transferencias bodegas'));
 const canEditTransferPermission = computed(() => authStore.can('editar transferencias bodegas'));
 const canDeleteTransferPermission = computed(() => authStore.can('eliminar transferencias bodegas'));
@@ -379,14 +382,9 @@ onMounted(async () => {
     warehouseLoadError.value = null;
 
     try {
-        const response = await axios.get('/bodegas/data', { params: { per_page: 100 } });
-        const data = response?.data?.data;
-        warehouses.value = (Array.isArray(data) ? data : []).filter(
-            (warehouse): warehouse is Warehouse & { id: number } => typeof warehouse.id === 'number',
-        );
+        await warehousesStore.fetchWarehouses();
     } catch {
         warehouseLoadError.value = 'No se pudieron cargar las bodegas. Intenta nuevamente.';
-        warehouses.value = [];
     } finally {
         isLoadingWarehouses.value = false;
     }

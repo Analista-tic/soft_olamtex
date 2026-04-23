@@ -521,8 +521,9 @@ onMounted(() => {
                 <p class="text-sm font-medium text-foreground">No hay hilos registrados. Agrega una linea para iniciar.</p>
             </div>
 
-            <div v-else class="max-h-[460px] overflow-auto rounded-md border border-border">
-                <Table>
+            <div v-else class="min-w-0 overflow-hidden">
+                <div class="max-h-[460px] w-full overflow-auto rounded-md border border-border">
+                    <Table>
                     <TableHeader class="sticky top-0 z-10 bg-background">
                         <TableRow>
                             <TableHead class="min-w-[170px] text-left">Hilo</TableHead>
@@ -688,7 +689,8 @@ onMounted(() => {
                             </TableCell>
                         </TableRow>
                     </TableBody>
-                </Table>
+                    </Table>
+                </div>
             </div>
 
             <div class="mt-4 flex items-center justify-between gap-3">

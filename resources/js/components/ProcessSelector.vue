@@ -22,10 +22,10 @@ const selectedProcessIds = ref<string[]>([]);
 // Procesos permitidos y obligatorios según tipo (alineado con config processes_allowed_by_type)
 const allowedProcessesByType: Record<string, string[]> = {
     // MUESTRA: pre-producción + Muestras. Termina ahí, sin Desarrollo de muestras ni post-Muestras.
-    muestra: ['I&D', 'Tejido', 'Corte', 'Logística', 'Estampado', 'Bordado', 'Sublimado', 'Muestras'],
+    muestra: ['I&D', 'Tejido', 'Corte', 'Logística', 'Estampado', 'Muestras'],
     // PRODUCTO: todo excepto Muestras.
     producto: [
-        'I&D', 'Tejido', 'Corte', 'Logística', 'Estampado', 'Bordado', 'Sublimado',
+        'I&D', 'Tejido', 'Corte', 'Logística', 'Estampado',
         'Desarrollo de muestras', 'Confección', 'Lavandería', 'Terminación',
         'Inspección y aprobación', 'Bodega',
     ],
@@ -65,8 +65,6 @@ const processOrder = [
     'Corte',
     'Logística',
     'Estampado',
-    'Bordado',
-    'Sublimado',
     'Desarrollo de muestras',
     'Muestras',
     'Confección',
@@ -95,6 +93,8 @@ const processOptions = computed(() => {
 const processAliases: Record<string, string> = {
     Muestra: 'Muestras',
     Estampando: 'Estampado',
+    Bordado: 'Estampado',
+    Sublimado: 'Estampado',
     'Desarrollo de muestra': 'Desarrollo de muestras',
     'Desarrollo de Muestra': 'Desarrollo de muestras',
     'Desarrollo de Muestras': 'Desarrollo de muestras',

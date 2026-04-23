@@ -17,9 +17,10 @@ import {
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { Warehouse } from '@/domain/inventory';
+import type { Warehouse } from '@/domain/Inventory';
 import type { Option } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useWarehousesStore } from '@/stores/inventory/warehouses';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Search } from 'lucide-vue-next';
@@ -39,6 +40,8 @@ type InventoryViewItem = {
 };
 
 const breadcrumbs = [{ title: 'Inventario de Ítems', href: '/inventario-item' }];
+
+const warehousesStore = useWarehousesStore();
 
 const statusOptions: Option[] = [
     { id: 'all', name: 'Todos' },
@@ -65,7 +68,10 @@ const sortBy = ref<string>('total');
 const sortDir = ref<'asc' | 'desc'>('desc');
 
 const currencyFormatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' });
-const quantityFormatter = new Intl.NumberFormat('es-CO');
+const quantityFormatter = new Intl.NumberFormat('es-CO', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+});
 
 const selectedWarehouseId = computed<number | undefined>(() => {
     const value = warehouseFilter.value;
@@ -141,10 +147,10 @@ async function fetchItems(page = 1) {
 
 async function fetchWarehouses() {
     try {
-        const response = await axios.get('/bodegas/data', { params: { per_page: 1000 } });
+        await warehousesStore.fetchWarehouses();
         warehouses.value = [
             { id: '', name: 'Todos' },
-            ...(response.data.data ?? [])
+            ...warehousesStore.items
                 .filter((warehouse: Warehouse) => warehouse.id != null)
                 .map((warehouse: Warehouse) => ({
                     id: warehouse.id!,
@@ -280,7 +286,7 @@ onMounted(() => {
                             <TableRow v-for="item in items" :key="item.id">
                                 <TableCell class="text-start">{{ item.item_name }}</TableCell>
                                 <TableCell class="text-center">{{ item.reference ?? '-' }}</TableCell>
-                                <TableCell class="text-center">{{ formatQuantity(item.quantity) }}</TableCell>
+                                <TableCell class="text-right font-medium tabular-nums">{{ formatQuantity(item.quantity) }}</TableCell>
                                 <TableCell class="text-center">
                                     <StatusBadge :status="item.status" />
                                 </TableCell>

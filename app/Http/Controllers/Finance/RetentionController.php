@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Finance\RetentionRequest;
+use App\Models\Finance\Retention;
 use App\Services\Finance\RetentionService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -49,5 +50,15 @@ class RetentionController extends Controller
             'total' => $retentions->total(),
             'current_page' => $retentions->currentPage()
         ]);
+    }
+
+    public function list(Request $request)
+    {
+        return response()->json(
+            Retention::select('id', 'name', 'percent', 'type', 'status')
+                ->where('status', 'active')
+                ->orderBy('name')
+                ->get()
+        );
     }
 }

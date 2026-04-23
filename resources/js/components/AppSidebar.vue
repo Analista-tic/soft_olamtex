@@ -181,12 +181,12 @@ const moduleSections: ModuleSection[] = [
             {
                 label: 'Inventario Textil',
                 items: [
-                    { title: 'Inventario tela por rollos', href: route('kardex-telas.inventario-rollos'), permission: 'ver sabana productos' },
-                    { title: 'Descargue de telas por orden', href: route('kardex-telas.descargue-orden'), permission: 'ver sabana productos' },
+                    { title: 'Inventario tela por rollos', href: route('kardex-telas.inventario-rollos'), permission: 'ver telas rollos' },
+                    { title: 'Descargue de telas por orden', href: route('kardex-telas.descargue-orden'), permission: 'ver descargue telas orden' },
                     {
                         title: 'Salida de telas por orden',
                         href: underConstructionHref('Salida de telas por orden'),
-                        permission: 'ver sabana productos',
+                        permission: 'ver telas rollos',
                     },
                 ],
             },
@@ -200,7 +200,7 @@ const sectionPermissions: Partial<Record<ModuleSection['title'], PermissionRequi
     Financiero: 'ver financiero',
     Inventarios: ['ver solicitudes insumos', 'ver inventario telas'],
     Producción: ['ver programador', 'ver sabana productos', 'ver listados operacionales'],
-    'TEXTIL PACK': ['atender solicitudes insumos', 'ver todos solicitudes insumos'],
+    'TEXTIL PACK': ['ver telas rollos', 'ver descargue telas orden', 'ver sabana productos'],
 };
 
 const hasPermissionAccess = (permission?: PermissionRequirement) => {

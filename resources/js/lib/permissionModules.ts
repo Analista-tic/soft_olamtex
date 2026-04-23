@@ -13,6 +13,7 @@ export interface PermissionModule {
     label: string;
     tokens: string[];
     permissions: string[];
+    category: string;
 }
 
 export const PERMISSION_MODULES: PermissionModule[] = [
@@ -28,6 +29,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'ver personalizacion',
             'editar personalizacion',
         ],
+        category: 'Configuración',
     },
 
     // ── Configuración del sistema ──────────────────────────────────
@@ -40,6 +42,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'editar usuarios',
             'eliminar usuarios',
         ],
+        category: 'Configuración',
     },
     {
         label: 'Roles',
@@ -50,6 +53,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'editar roles',
             'eliminar roles',
         ],
+        category: 'Configuración',
     },
     {
         label: 'Auditoría',
@@ -57,6 +61,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         permissions: [
             'ver auditoria',
         ],
+        category: 'Configuración',
     },
 
     // ── Producción ─────────────────────────────────────────────────
@@ -69,6 +74,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'editar programador',
             'eliminar programador',
         ],
+        category: 'Producción',
     },
     {
         label: 'Sábana Productos',
@@ -79,6 +85,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'editar sabana productos',
             'eliminar sabana productos',
         ],
+        category: 'Producción',
     },
     {
         label: 'Listados Operacionales',
@@ -91,6 +98,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'generar listado desde muestra',
             'actualizar tiempo estandar operacion',
         ],
+        category: 'Producción',
     },
     {
         label: 'Ficha Técnica',
@@ -98,6 +106,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         permissions: [
             'editar procesos ficha tecnica',
         ],
+        category: 'Producción',
     },
     {
         label: 'Control de Lotes',
@@ -109,6 +118,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'resolver novedad lote',
             'registrar consumo tela corte',
         ],
+        category: 'Producción',
     },
 
     // ── Inventario (Telas — TEXTIL PACK) ──────────────────────────
@@ -121,6 +131,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'editar telas',
             'eliminar telas',
         ],
+        category: 'TEXTIL PACK',
     },
     {
         label: 'Pedidos de Telas',
@@ -131,6 +142,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'editar pedidos telas',
             'eliminar pedidos telas',
         ],
+        category: 'TEXTIL PACK',
     },
     {
         label: 'Recepción de Telas',
@@ -141,6 +153,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'editar recepcion telas',
             'eliminar recepcion telas',
         ],
+        category: 'TEXTIL PACK',
     },
     {
         label: 'Inventario de Telas',
@@ -151,6 +164,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'editar inventario telas',
             'eliminar inventario telas',
         ],
+        category: 'TEXTIL PACK',
     },
 
     // ── TEXTIL PACK ────────────────────────────────────────────────
@@ -163,6 +177,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'editar telas rollos',
             'eliminar telas rollos',
         ],
+        category: 'TEXTIL PACK',
     },
     {
         label: 'TEXTIL PACK — Recepción de Telas',
@@ -171,6 +186,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'aprobar recepcion tela',
             'rechazar recepcion tela',
         ],
+        category: 'TEXTIL PACK',
     },
     {
         label: 'TEXTIL PACK — Descargue de Telas',
@@ -179,6 +195,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'ver descargue telas orden',
             'crear descargue telas orden',
         ],
+        category: 'TEXTIL PACK',
     },
 
     // ── Inventario (Insumos) ───────────────────────────────────────
@@ -195,6 +212,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'ver area solicitudes insumos',
             'ver todos solicitudes insumos',
         ],
+        category: 'Inventario',
     },
     {
         label: 'Transferencias de Bodegas',
@@ -208,6 +226,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'ver area transferencias bodegas',
             'ver todos transferencias bodegas',
         ],
+        category: 'Inventario',
     },
     {
         label: 'Movimientos de Inventario',
@@ -217,6 +236,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'ver todos movimientos inventario',
             'eliminar movimiento inventario',
         ],
+        category: 'Inventario',
     },
 
     // ── Ingresos ───────────────────────────────────────────────────
@@ -229,6 +249,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'ver todos cotizaciones',
             'convertir cotizacion a pedido',
         ],
+        category: 'Ingresos',
     },
     {
         label: 'Pedidos de Venta',
@@ -239,6 +260,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'ver todos pedidos venta',
             'convertir pedido a factura venta',
         ],
+        category: 'Ingresos',
     },
     {
         label: 'Facturas de Venta',
@@ -250,6 +272,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'emitir factura venta',
             'anular factura venta',
         ],
+        category: 'Ingresos',
     },
     {
         label: 'Notas Crédito/Débito Venta',
@@ -258,6 +281,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'emitir nota credito debito venta',
             'anular nota credito debito venta',
         ],
+        category: 'Ingresos',
     },
     {
         label: 'Recibos de Caja',
@@ -267,6 +291,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'ver todos recibos caja',
             'anular recibo caja',
         ],
+        category: 'Ingresos',
     },
 
     // ── Compras ────────────────────────────────────────────────────
@@ -281,6 +306,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'rechazar solicitudes compra',
             'cancelar solicitudes compra',
         ],
+        category: 'Gastos',
     },
     {
         label: 'Órdenes de Compra',
@@ -292,6 +318,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'eliminar ordenes compra',
             'aprobar orden compra',
         ],
+        category: 'Gastos',
     },
     {
         label: 'Facturas de Compra',
@@ -305,6 +332,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'recibir factura compra',
             'anular factura compra',
         ],
+        category: 'Gastos',
     },
     {
         label: 'Documentos de Compra',
@@ -314,6 +342,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'ver area documentos compra',
             'ver todos documentos compra',
         ],
+        category: 'Gastos',
     },
 
     // ── Financiero ─────────────────────────────────────────────────
@@ -326,6 +355,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'editar catalogo cuentas',
             'ver movimientos cuenta contable',
         ],
+        category: 'Financiero',
     },
     {
         label: 'Comprobantes de Egreso',
@@ -336,6 +366,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'editar comprobantes egreso',
             'anular comprobantes egreso',
         ],
+        category: 'Gastos',
     },
     {
         label: 'Notas Crédito / Débito',
@@ -346,6 +377,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'editar notas credito debito',
             'eliminar notas credito debito',
         ],
+        category: 'Financiero',
     },
     {
         label: 'Impuestos',
@@ -356,6 +388,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'editar impuestos',
             'eliminar impuestos',
         ],
+        category: 'Financiero',
     },
     {
         label: 'Retenciones',
@@ -366,6 +399,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'editar retenciones',
             'eliminar retenciones',
         ],
+        category: 'Financiero',
     },
 
     // ── Datos Maestros ─────────────────────────────────────────────
@@ -378,6 +412,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'editar contactos',
             'eliminar contactos',
         ],
+        category: 'Datos Maestros',
     },
     {
         label: 'Catálogo de Ítems',
@@ -387,6 +422,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'carga masiva items',
             'exportar items',
         ],
+        category: 'Datos Maestros',
     },
     {
         label: 'Categorías',
@@ -397,6 +433,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'editar categorias',
             'eliminar categorias',
         ],
+        category: 'Datos Maestros',
     },
     {
         label: 'Campos Adicionales',
@@ -407,6 +444,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'editar campos adicionales',
             'eliminar campos adicionales',
         ],
+        category: 'Datos Maestros',
     },
     {
         label: 'Parámetros',
@@ -415,18 +453,53 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'ver parametros',
             'editar parametros',
         ],
+        category: 'Configuración',
     },
 
     // ── Acceso por Módulo ──────────────────────────────────────────
     {
-        label: 'Acceso por Módulo',
-        tokens: ['ver gastos', 'ver ingresos', 'ver financiero'],
-        permissions: [
-            'ver gastos',
-            'ver ingresos',
-            'ver financiero',
+        label: 'Acceso a Secciones del Menú',
+        tokens: [
+            'ver ingresos', 'ver gastos', 'ver financiero',
+            'ver solicitudes compra', 'ver documentos compra',
+            'ver facturas compra', 'ver solicitudes insumos',
+            'ver inventario telas', 'ver programador',
+            'ver sabana productos', 'ver listados operacionales',
+            'ver telas rollos', 'ver descargue telas orden',
         ],
+        permissions: [
+            // Ingresos
+            'ver ingresos',
+            // Gastos
+            'ver todos solicitudes compra',
+            'ver todos documentos compra',
+            'ver facturas compra',
+            // Financiero
+            'ver financiero',
+            // Inventarios
+            'ver solicitudes insumos',
+            'ver inventario telas',
+            // Producción
+            'ver programador',
+            'ver sabana productos',
+            'ver listados operacionales',
+            // TEXTIL PACK
+            'ver telas rollos',
+            'ver descargue telas orden',
+        ],
+        category: 'Configuración',
     },
+];
+
+export const PERMISSION_CATEGORIES: string[] = [
+    'Configuración',
+    'Datos Maestros',
+    'Producción',
+    'TEXTIL PACK',
+    'Inventario',
+    'Gastos',
+    'Ingresos',
+    'Financiero',
 ];
 
 /**

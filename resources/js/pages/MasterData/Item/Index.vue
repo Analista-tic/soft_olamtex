@@ -31,6 +31,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 import type { Item } from '@/domain/MasterData';
+import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
 import BulkUploadDialog from './BulkUploadDialog.vue';
 import ItemDialog from './ItemDialog.vue';
 
@@ -353,8 +354,8 @@ onMounted(async () => {
     // cuando el usuario abra el dialog de edición
     try {
         const [sgRes, taxRes] = await Promise.all([
-            axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } }),
-            axios.get('/impuestos/data', { params: { per_page: 100, status: true } }),
+            axios.get(catalogLookupRoutes.categorySubGroups, { params: { per_page: 1000 } }),
+            axios.get(catalogLookupRoutes.taxes, { params: { per_page: 100, status: true } }),
         ]);
         preloadedSubGroups.value = sgRes.data?.data ?? [];
         preloadedTaxes.value = (taxRes.data?.data ?? []).filter((t: any) => t.status);

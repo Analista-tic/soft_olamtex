@@ -1159,10 +1159,10 @@ table.dt .row-stage td {
                 </table>
             @endif
 
-            {{-- Estampado / Bordado --}}
+            {{-- Estampado --}}
             @if(!empty($additionalInfo['stamping']))
                 @php $stamp = $additionalInfo['stamping']; @endphp
-                <div class="sec-title a-sec">Estampado / Bordado</div>
+                <div class="sec-title a-sec">Estampado</div>
                 @if(!empty($stamp['designNotes']))
                     <div class="note-box a-note"><strong>Notas de diseño:</strong> {{ $stamp['designNotes'] }}</div>
                 @endif

@@ -10,6 +10,7 @@ interface Props {
     modelValue?: string | number;
     readonly?: boolean;
     allowNegative?: boolean;
+    allowDecimal?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -19,14 +20,25 @@ const localModelValue = ref<string | number | undefined>(props.modelValue);
 
 // --- función de sanitizado reutilizable ---
 function sanitize(value: string): string {
-    if (props.allowNegative) {
-        // permitir solo dígitos y '-' y quedarnos con un solo '-' al inicio
-        let cleaned = value.replace(/[^\d-]/g, '');
-        cleaned = cleaned.replace(/(?!^)-/g, ''); // elimina '-' que no estén al inicio
-        return cleaned;
+    const rawValue = String(value ?? '');
+    const allowsNegative = Boolean(props.allowNegative);
+    const allowsDecimal = Boolean(props.allowDecimal);
+
+    let cleaned = rawValue.replace(allowsDecimal ? /[^\d.-]/g : /[^\d-]/g, '');
+
+    const hasNegativePrefix = allowsNegative && cleaned.startsWith('-');
+    cleaned = cleaned.replace(/-/g, '');
+
+    if (allowsDecimal) {
+        const hasTrailingDot = cleaned.endsWith('.');
+        const [integerPart = '', ...decimalParts] = cleaned.split('.');
+        const decimalPart = decimalParts.join('');
+        const decimalSeparator = decimalParts.length > 0 || hasTrailingDot ? '.' : '';
+
+        return `${hasNegativePrefix ? '-' : ''}${integerPart}${decimalSeparator}${decimalPart}`;
     }
-    // solo dígitos
-    return value.replace(/[^0-9]/g, '');
+
+    return `${hasNegativePrefix ? '-' : ''}${cleaned}`;
 }
 
 const formattedValue = computed({
@@ -34,7 +46,13 @@ const formattedValue = computed({
         if (localModelValue.value != null && localModelValue.value !== '') {
             const strValue = String(localModelValue.value);
 
-            const regex = props.allowNegative ? /^-?\d+$/ : /^\d+$/;
+            const regex = props.allowDecimal
+                ? props.allowNegative
+                    ? /^-?\d*(\.\d*)?$/
+                    : /^\d*(\.\d*)?$/
+                : props.allowNegative
+                  ? /^-?\d+$/
+                  : /^\d+$/;
             if (!regex.test(strValue)) return '';
 
             return strValue;

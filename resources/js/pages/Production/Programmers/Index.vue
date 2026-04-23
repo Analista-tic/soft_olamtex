@@ -742,4 +742,3 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
 </template>
 
 
-

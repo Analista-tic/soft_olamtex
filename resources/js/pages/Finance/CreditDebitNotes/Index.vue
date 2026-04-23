@@ -34,6 +34,7 @@ import {
     type NoteKind,
 } from '@/domain/Finance';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useContactsStore } from '@/stores/masterData/contacts';
 import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { ChevronDown, PlusCircle, Search } from 'lucide-vue-next';
@@ -97,7 +98,7 @@ const itemsPerPage = 10;
 const isLoading = ref(false);
 const context = ref<NoteContext>('purchase');
 
-const providers = ref<Array<{ id: number; full_name: string }>>([]);
+const contactsStore = useContactsStore();
 const invoiceReferences = ref<Array<{ id: number; document_number?: string | null }>>([]);
 
 /**
@@ -166,7 +167,7 @@ const searchPlaceholder = computed(() =>
 
 const providerOptions = computed(() => [
     { id: 'all', name: counterpartAllLabel.value },
-    ...providers.value.map((p) => ({ id: String(p.id), name: p.full_name })),
+    ...contactsStore.items.map((p) => ({ id: String(p.id), name: p.full_name })),
 ]);
 
 const typeOptions = computed(() => [
@@ -211,7 +212,7 @@ function getNoteStatusTone(status?: string | null): 'yellow' | 'green' | 'red' |
 
 function resolveProviderName(contactId: number | null): string {
     if (!contactId) return '-';
-    return providers.value.find((p) => asNumber(p.id) === asNumber(contactId))?.full_name ?? `#${contactId}`;
+    return contactsStore.items.find((p) => asNumber(p.id) === asNumber(contactId))?.full_name ?? `#${contactId}`;
 }
 
 function resolveParentNumber(parentDocumentId: number): string {
@@ -308,8 +309,7 @@ const filteredNotes = computed(() => {
  * Fetchers
  */
 async function fetchProviders(): Promise<void> {
-    const data = await safeGet<any>('/contactos/data', { params: { per_page: 1000 } });
-    providers.value = Array.isArray(data?.data) ? data!.data : [];
+    await contactsStore.fetchContacts();
 }
 
 async function fetchInvoiceReferences(): Promise<void> {

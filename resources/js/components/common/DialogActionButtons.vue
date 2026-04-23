@@ -9,6 +9,7 @@ const props = withDefaults(
         loadingLabel?: string;
         loading?: boolean;
         disabled?: boolean;
+        showSubmit?: boolean;
         submitVariant?: 'default' | 'destructive';
     }>(),
     {
@@ -17,6 +18,7 @@ const props = withDefaults(
         loadingLabel: 'Guardando...',
         loading: false,
         disabled: false,
+        showSubmit: true,
         submitVariant: 'default',
     },
 );
@@ -35,6 +37,7 @@ const effectiveSubmitLabel = computed(() => (props.loading ? props.loadingLabel 
             {{ props.cancelLabel }}
         </Button>
         <Button
+            v-if="props.showSubmit"
             :variant="props.submitVariant"
             size="pill"
             class="shadow-sm"

@@ -39,7 +39,7 @@ import type { BreadcrumbItem, Option } from '@/domain/shared';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
-import { useIncomeStore } from '@/stores/income';
+import { useIncomeStore } from '@/stores/income/income';
 import { Head } from '@inertiajs/vue3';
 import { Ban, ChevronDown, PlusCircle, Receipt, Search, Send, Trash2 } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';

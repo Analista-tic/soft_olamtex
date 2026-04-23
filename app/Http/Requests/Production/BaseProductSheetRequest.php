@@ -29,6 +29,8 @@ abstract class BaseProductSheetRequest extends FormRequest
         'Desarrollo de Muestra' => 'Desarrollo de muestras',
         'Desarrollo de Muestras' => 'Desarrollo de muestras',
         'Estampando' => 'Estampado',
+        'Bordado' => 'Estampado',
+        'Sublimado' => 'Estampado',
     ];
     protected const TYPE_PRODUCT = 'producto';
     protected const TYPE_SAMPLE = 'muestra';

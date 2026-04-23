@@ -706,9 +706,9 @@ table.dt .row-total { font-weight:700; }
                 </table>
             @endif
 
-            {{-- Estampado / Bordado notas --}}
+            {{-- Estampado notas --}}
             @if(!empty($additionalInfo['stamping']['designNotes']))
-                <div class="sec-title a-sec">Estampado / Bordado</div>
+                <div class="sec-title a-sec">Estampado</div>
                 <div class="note-box a-note"><strong>Notas:</strong> {{ $additionalInfo['stamping']['designNotes'] }}</div>
             @endif
 

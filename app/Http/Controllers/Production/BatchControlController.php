@@ -28,6 +28,55 @@ use Inertia\Response;
 
 class BatchControlController extends Controller
 {
+    private function batchProcessAliases(): array
+    {
+        return config('product-sheet.batch_control_process_aliases', []);
+    }
+
+    private function normalizeBatchProcessName(?string $process): ?string
+    {
+        $normalized = trim((string) $process);
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        return $this->batchProcessAliases()[$normalized] ?? $normalized;
+    }
+
+    private function normalizeBatchProcessDates(array $dates): array
+    {
+        $normalized = [];
+
+        foreach ($dates as $process => $date) {
+            $resolvedProcess = $this->normalizeBatchProcessName(is_string($process) ? $process : null);
+            if ($resolvedProcess === null) {
+                continue;
+            }
+
+            $normalized[$resolvedProcess] = $date;
+        }
+
+        return $normalized;
+    }
+
+    private function batchProcessVariants(?string $process): array
+    {
+        $normalized = $this->normalizeBatchProcessName($process);
+        if ($normalized === null) {
+            return [];
+        }
+
+        $variants = [$normalized];
+        foreach ($this->batchProcessAliases() as $legacy => $canonical) {
+            if ($canonical === $normalized) {
+                $variants[] = $legacy;
+            }
+        }
+
+        return array_values(array_unique(array_filter(array_map('trim', $variants))));
+    }
+
     private function inferColorFromText(?string $value): ?string
     {
         $text = trim((string) $value);
@@ -166,7 +215,7 @@ class BatchControlController extends Controller
             $groupId = $ps?->group_id ?? null;
 
             // Fechas estimadas por proceso (JSON)
-            $allDates = $p->process_estimated_dates ?? [];
+            $allDates = $this->normalizeBatchProcessDates(is_array($p->process_estimated_dates) ? $p->process_estimated_dates : []);
 
             // Calcular deadline por proceso (soporta fecha o datetime con hora)
             $deadlines = [];
@@ -188,13 +237,18 @@ class BatchControlController extends Controller
             }
 
             // Última entrega (observaciones del paso anterior)
+            $currentProcess = $this->normalizeBatchProcessName($p->current_process);
             $lastDelivery = $p->lastDelivery;
 
             // Fecha en que llegó al proceso actual (entrega donde to_process = current)
-            $arrivalDelivery = BatchControlDelivery::where('production_order_id', $p->id)
-                ->where('to_process', $p->current_process)
-                ->orderByDesc('created_at')
-                ->first();
+            $arrivalDelivery = null;
+            $currentProcessVariants = $this->batchProcessVariants($currentProcess);
+            if (!empty($currentProcessVariants)) {
+                $arrivalDelivery = BatchControlDelivery::where('production_order_id', $p->id)
+                    ->whereIn('to_process', $currentProcessVariants)
+                    ->orderByDesc('created_at')
+                    ->first();
+            }
             $currentProcessArrivedAt = $arrivalDelivery?->created_at?->format('Y-m-d H:i');
 
             // Estado de plazo para la orden completa (fecha final de entrega)
@@ -207,7 +261,7 @@ class BatchControlController extends Controller
             return [
                 'id' => $p->id,
                 'op_code' => $p->op_code,
-                'current_process' => $p->current_process,
+                'current_process' => $currentProcess,
                 'referencia' => $displayRef ?: 'Sin referencia',
                 'temporada' => is_numeric($p->season)
                     ? MonthLabel::fromNumber((int) $p->season)
@@ -228,8 +282,8 @@ class BatchControlController extends Controller
                 'process_estimated_dates' => $allDates,
                 'deadline_statuses' => $deadlines,
                 'last_delivery' => $lastDelivery ? [
-                    'from_process' => $lastDelivery->from_process,
-                    'to_process' => $lastDelivery->to_process,
+                    'from_process' => $this->normalizeBatchProcessName($lastDelivery->from_process),
+                    'to_process' => $this->normalizeBatchProcessName($lastDelivery->to_process),
                     'observations' => $lastDelivery->observations,
                     'delivered_at' => $lastDelivery->created_at?->toIso8601String(),
                 ] : null,
@@ -258,35 +312,39 @@ class BatchControlController extends Controller
         ]);
 
         $processes = config('product-sheet.batch_control_processes', []);
-        if (!in_array($validated['to_process'], $processes, true)) {
+        $toProcess = $this->normalizeBatchProcessName($validated['to_process']);
+        if ($toProcess === null || !in_array($toProcess, $processes, true)) {
             return response()->json(['message' => 'El proceso destino no es válido.'], 422);
         }
 
-        if ($validated['to_process'] === $order->current_process) {
-            return response()->json(['message' => 'El proceso destino debe ser diferente al actual.'], 422);
+        $fromProcess = $this->normalizeBatchProcessName($order->current_process);
+        if ($fromProcess === null) {
+            return response()->json(['message' => 'La orden no tiene un proceso actual valido.'], 422);
         }
 
-        $fromProcess = $order->current_process;
+        if ($toProcess === $fromProcess) {
+            return response()->json(['message' => 'El proceso destino debe ser diferente al actual.'], 422);
+        }
 
         // Registrar la entrega
         BatchControlDelivery::create([
             'production_order_id' => $order->id,
             'from_process' => $fromProcess,
-            'to_process' => $validated['to_process'],
+            'to_process' => $toProcess,
             'observations' => $validated['observations'] ?? null,
             'delivered_by' => $request->user()?->id,
         ]);
 
         // Avanzar al nuevo proceso (las fechas estimadas por estado se mantienen)
         $order->update([
-            'current_process' => $validated['to_process'],
+            'current_process' => $toProcess,
         ]);
 
         return response()->json([
-            'message' => "Orden entregada de {$fromProcess} a {$validated['to_process']}.",
+            'message' => "Orden entregada de {$fromProcess} a {$toProcess}.",
             'data' => [
                 'id' => $order->id,
-                'current_process' => $order->current_process,
+                'current_process' => $toProcess,
             ],
         ]);
     }
@@ -323,14 +381,21 @@ class BatchControlController extends Controller
             'estimated_date' => 'nullable|date',
         ]);
 
-        $process = $request->input('process');
+        $process = $this->normalizeBatchProcessName($request->input('process'));
+        if ($process === null || !in_array($process, config('product-sheet.batch_control_processes', []), true)) {
+            return response()->json(['message' => 'El proceso no es valido.'], 422);
+        }
         $date = $request->input('estimated_date');
 
         // Validar que la fecha del proceso no sea anterior a la llegada al proceso
-        $arrivalDelivery = BatchControlDelivery::where('production_order_id', $order->id)
-            ->where('to_process', $process)
-            ->orderByDesc('created_at')
-            ->first();
+        $arrivalDelivery = null;
+        $processVariants = $this->batchProcessVariants($process);
+        if (!empty($processVariants)) {
+            $arrivalDelivery = BatchControlDelivery::where('production_order_id', $order->id)
+                ->whereIn('to_process', $processVariants)
+                ->orderByDesc('created_at')
+                ->first();
+        }
         if ($date && $arrivalDelivery?->created_at) {
             $processDate = Carbon::parse($date);
             $arrivedAt = $arrivalDelivery->created_at;
@@ -353,7 +418,7 @@ class BatchControlController extends Controller
             }
         }
 
-        $dates = $order->process_estimated_dates ?? [];
+        $dates = $this->normalizeBatchProcessDates(is_array($order->process_estimated_dates) ? $order->process_estimated_dates : []);
 
         if ($date) {
             $dates[$process] = $date;
@@ -386,8 +451,8 @@ class BatchControlController extends Controller
             ->get()
             ->map(fn (BatchControlDelivery $d) => [
                 'id' => $d->id,
-                'from_process' => $d->from_process,
-                'to_process' => $d->to_process,
+                'from_process' => $this->normalizeBatchProcessName($d->from_process),
+                'to_process' => $this->normalizeBatchProcessName($d->to_process),
                 'observations' => $d->observations,
                 'delivered_by_name' => $d->deliveredByUser?->name ?? 'N/A',
                 'delivered_at' => $d->created_at?->format('d/m/Y H:i'),
@@ -690,14 +755,16 @@ class BatchControlController extends Controller
         ]);
 
         $processes = config('product-sheet.batch_control_processes', []);
+        $toProcess = $this->normalizeBatchProcessName($validated['to_process']);
+        $currentProcess = $this->normalizeBatchProcessName($order->current_process);
 
-        if (!in_array($validated['to_process'], $processes, true)) {
+        if ($toProcess === null || $currentProcess === null || !in_array($toProcess, $processes, true)) {
             return response()->json(['message' => 'El proceso destino no es válido.'], 422);
         }
 
         // Validar que to_process sea un estado anterior al actual
-        $currentIdx = array_search($order->current_process, $processes);
-        $targetIdx = array_search($validated['to_process'], $processes);
+        $currentIdx = array_search($currentProcess, $processes, true);
+        $targetIdx = array_search($toProcess, $processes, true);
 
         if ($currentIdx === false || $targetIdx === false || $targetIdx >= $currentIdx) {
             return response()->json([
@@ -707,8 +774,8 @@ class BatchControlController extends Controller
 
         $novelty = BatchControlNovelty::create([
             'production_order_id' => $order->id,
-            'from_process' => $order->current_process,
-            'to_process' => $validated['to_process'],
+            'from_process' => $currentProcess,
+            'to_process' => $toProcess,
             'description' => $validated['description'],
             'status' => 'pending',
             'reported_by' => $request->user()?->id,
@@ -716,11 +783,11 @@ class BatchControlController extends Controller
 
         // Mover la orden al proceso anterior (desaparece del tab actual, pasa al anterior)
         $order->update([
-            'current_process' => $validated['to_process'],
+            'current_process' => $toProcess,
         ]);
 
         return response()->json([
-            'message' => "Novedad reportada a {$validated['to_process']}. La orden ha sido enviada al proceso anterior.",
+            'message' => "Novedad reportada a {$toProcess}. La orden ha sido enviada al proceso anterior.",
             'data' => [
                 'id' => $novelty->id,
                 'from_process' => $novelty->from_process,
@@ -773,8 +840,8 @@ class BatchControlController extends Controller
             ->get()
             ->map(fn (BatchControlNovelty $n) => [
                 'id' => $n->id,
-                'from_process' => $n->from_process,
-                'to_process' => $n->to_process,
+                'from_process' => $this->normalizeBatchProcessName($n->from_process),
+                'to_process' => $this->normalizeBatchProcessName($n->to_process),
                 'description' => $n->description,
                 'status' => $n->status,
                 'reported_by_name' => $n->reportedByUser?->name ?? 'N/A',

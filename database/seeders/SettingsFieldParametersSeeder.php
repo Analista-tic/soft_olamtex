@@ -426,7 +426,6 @@ class SettingsFieldParametersSeeder extends Seeder
                         'CONFECCION',
                         'TERMINACION',
                         'ESTAMPADO',
-                        'BORDADO',
                         'LAVANDERIA',
                         'OTRO',
                     ]),

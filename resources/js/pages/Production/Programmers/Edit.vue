@@ -4,6 +4,7 @@ import { computed, ref } from 'vue';
 
 import AlertStack from '@/components/common/AlertStack.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -138,6 +139,8 @@ const isDialogOpen = ref(false);
 const dialogMode = ref<'edit' | 'view'>('edit');
 const programmer = ref<EditableProgrammer>(createEmptyProgrammer());
 const isLoading = ref(false);
+const isFormInitializing = ref(false);
+const canRenderForm = computed(() => !isFormInitializing.value);
 
 const dialogInnerRef = ref<HTMLElement | null>(null);
 
@@ -377,19 +380,24 @@ function initializeEcommerceSizes() {
     }
 }
 
-function openDialog(selectedProgrammer: Programmer, mode: 'edit' | 'view' = 'edit') {
-    dialogMode.value = mode;
+async function openDialog(selectedProgrammer: Programmer, mode: 'edit' | 'view' = 'edit') {
+    isFormInitializing.value = true;
+    try {
+        dialogMode.value = mode;
 
-    programmer.value = {
-        ...createEmptyProgrammer(),
-        ...selectedProgrammer,
-        season: normalizeSeasonValue(selectedProgrammer.season ?? selectedProgrammer.season_display),
-        estimated_delivery_date: normalizeIsoDate(selectedProgrammer.estimated_delivery_date),
-    };
+        programmer.value = {
+            ...createEmptyProgrammer(),
+            ...selectedProgrammer,
+            season: normalizeSeasonValue(selectedProgrammer.season ?? selectedProgrammer.season_display),
+            estimated_delivery_date: normalizeIsoDate(selectedProgrammer.estimated_delivery_date),
+        };
 
-    initializeEcommerceSizes();
-    isDialogOpen.value = true;
-    clearAlerts();
+        initializeEcommerceSizes();
+        isDialogOpen.value = true;
+        clearAlerts();
+    } finally {
+        isFormInitializing.value = false;
+    }
 }
 
 defineExpose({ openDialog });
@@ -506,8 +514,14 @@ watch(
                     @close-error="clearError"
                 />
 
-                <div ref="dialogInnerRef" class="min-h-0 flex-1 overflow-y-auto px-6 py-4" style="scrollbar-width: thin">
-                    <div class="space-y-4 pt-2">
+                <div ref="dialogInnerRef" class="relative min-h-0 flex-1 overflow-y-auto px-6 py-4" style="scrollbar-width: thin">
+                    <FormLoadingOverlay
+                        :active="isFormInitializing"
+                        message="Cargando programado..."
+                        :delay-ms="100"
+                    />
+
+                    <div v-if="canRenderForm" class="space-y-4 pt-2">
                         <section>
                             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <!-- Referencia -->

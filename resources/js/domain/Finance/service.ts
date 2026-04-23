@@ -26,22 +26,17 @@ import type {
     TreasuryVoucherDraft,
 } from './types';
 import type {
-    CreditDebitNoteDto,
     AccountingAccountDto,
     AccountingAccountMovementChartDto,
     AccountingAccountMovementRowDto,
     AccountingAccountMovementSummaryDto,
     ExpenseVoucherRecordDto,
     ExpenseVoucherListItemDto,
-    RetentionDto,
-    TaxDto,
     TreasuryOpenDocumentDto,
     TreasurySelectOptionDto,
     TreasuryThirdPartyDto,
 } from './dto';
 import {
-    mapCreditDebitNoteFromApi,
-    mapCreditDebitNoteToApi,
     mapExpenseVoucherPayloadToApi,
     mapExpenseVoucherListItemFromApi,
     mapExpenseVoucherRecordFromApi,
@@ -49,11 +44,9 @@ import {
     mapAccountingAccountMovementChartFromApi,
     mapAccountingAccountMovementRowFromApi,
     mapAccountingAccountMovementSummaryFromApi,
-    mapRetentionDto,
     mapTreasuryOpenDocumentFromApi,
     mapTreasuryOptionFromApi,
     mapTreasuryThirdPartyFromApi,
-    mapTaxDto,
 } from './mappers';
 
 const TAX_ENDPOINT = '/impuestos';

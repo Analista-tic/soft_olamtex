@@ -4,9 +4,23 @@ namespace App\Helpers;
 
 use App\Models\Settings\User;
 use Illuminate\Database\Eloquent\Builder;
+use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 
 class ScopeHelper
 {
+    private static function userHasPermission(?User $user, ?string $permission): bool
+    {
+        if ($user === null || $permission === null || trim($permission) === '') {
+            return false;
+        }
+
+        try {
+            return $user->hasPermissionTo($permission);
+        } catch (PermissionDoesNotExist) {
+            return false;
+        }
+    }
+
     /**
      * Aplica el filtro de visibilidad por alcance a una query Builder.
      *
@@ -37,18 +51,12 @@ class ScopeHelper
         }
 
         // 1. Ver todos — sin restricción
-        if ($allPermission) {
-            try {
-                if ($user->hasPermissionTo($allPermission)) {
-                    return $query;
-                }
-            } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist $e) {
-                // permiso no registrado en BD, continuar con scope normal
-            }
+        if (self::userHasPermission($user, $allPermission)) {
+            return $query;
         }
 
         // 2. Ver área — usuarios del mismo área
-        if ($areaPermission && $user->hasPermissionTo($areaPermission)) {
+        if (self::userHasPermission($user, $areaPermission)) {
             if ($user->area_id) {
                 $areaUserIds = User::where('area_id', $user->area_id)->pluck('id');
                 return $query->whereIn($ownerField, $areaUserIds);
@@ -58,7 +66,7 @@ class ScopeHelper
         }
 
         // 3. Ver propios
-        if ($ownPermission && $user->hasPermissionTo($ownPermission)) {
+        if (self::userHasPermission($user, $ownPermission)) {
             return $query->where($ownerField, $user->id);
         }
 

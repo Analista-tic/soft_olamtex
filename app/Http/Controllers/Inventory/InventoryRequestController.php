@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
 use App\Models\Inventory\InventoryRequest;
+use App\Models\Settings\User;
 use App\Services\Inventory\InventoryRequestService;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -27,7 +28,7 @@ class InventoryRequestController extends Controller
         $perPage = $request->input('per_page', 10);
 
         $requests = $this->service->paginate($filters, $perPage, $user);
-        $canManageRequests = $user && $user->hasAnyPermission(['gestionar solicitudes internas', 'aprobar solicitudes internas']);
+        $canManageRequests = $user ? $this->hasInventoryRequestManagePermission($user) : false;
         $rows = array_map(function (InventoryRequest $req) {
             $hasMissing = $req->relationLoaded('items')
                 ? $req->items->contains(fn ($item) => $item->item_id === null)
@@ -239,7 +240,7 @@ class InventoryRequestController extends Controller
     private function ensureCanView(InventoryRequest $inventoryRequest): void
     {
         $user = $this->requireUser();
-        if ($user->hasAnyPermission(['gestionar solicitudes internas', 'aprobar solicitudes internas', 'ver todos solicitudes insumos', 'ver area solicitudes insumos'])) {
+        if ($this->hasInventoryRequestManagePermission($user) || $user->hasAnyPermission(['ver todos solicitudes insumos', 'ver area solicitudes insumos'])) {
             return;
         }
 
@@ -259,15 +260,28 @@ class InventoryRequestController extends Controller
     private function ensureCanManage(InventoryRequest $inventoryRequest): void
     {
         $user = $this->requireUser();
-        if (!$user->hasAnyPermission(['gestionar solicitudes internas', 'aprobar solicitudes internas'])) {
+        if (! $this->hasInventoryRequestManagePermission($user)) {
             abort(403, 'No tiene permiso para gestionar solicitudes internas.');
         }
     }
 
-    private function requireUser()
+    private function hasInventoryRequestManagePermission(User $user): bool
+    {
+        return $user->hasAnyPermission([
+            // Permisos legacy (compatibilidad hacia atras)
+            'gestionar solicitudes internas',
+            'aprobar solicitudes internas',
+            // Permisos vigentes por ruta y rol
+            'atender solicitudes insumos',
+            'entregar solicitudes insumos',
+            'rechazar solicitudes insumos',
+        ]);
+    }
+
+    private function requireUser(): User
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user instanceof User) {
             abort(401, 'Usuario no autenticado.');
         }
 

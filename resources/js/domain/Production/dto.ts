@@ -213,7 +213,7 @@ export interface ProcessSummaryDto {
     operationalList: { id: number | string; name: string | null } | null;
 }
 
-export type OpProcessTypeDto = 'CORTE' | 'CONFECCION' | 'TERMINACION' | 'ESTAMPADO' | 'BORDADO' | 'LAVANDERIA' | 'OTRO' | (string & {});
+export type OpProcessTypeDto = 'CORTE' | 'CONFECCION' | 'TERMINACION' | 'ESTAMPADO' | 'LAVANDERIA' | 'OTRO' | (string & {});
 
 export interface OpProcessRowDto {
     id?: string;

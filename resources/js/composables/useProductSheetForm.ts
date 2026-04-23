@@ -82,6 +82,11 @@ export const SIZE_GROUPS = {
 
 const DEVELOPMENT_PROCESS_LABEL = 'Desarrollo de muestras';
 const DEVELOPMENT_PROCESS_ALIASES = ['Desarrollo de muestra', 'Desarrollo de Muestra', 'Desarrollo de Muestras'];
+const PROCESS_ALIASES: Record<string, string> = {
+    Bordado: 'Estampado',
+    Estampando: 'Estampado',
+    Sublimado: 'Estampado',
+};
 const MANDATORY_PROCESSES = ['Muestras', 'Confección', 'Terminación', 'Bodega'];
 
 // ─── Helpers puros ────────────────────────────────────────────────────────────
@@ -165,7 +170,7 @@ export function createInitialFormState(): FormState {
 // ─── Procesos ─────────────────────────────────────────────────────────────────
 
 export const ALL_PROCESSES = [
-    'I&D', 'Tejido', 'Corte', 'Logística', 'Estampado', 'Bordado', 'Sublimado',
+    'I&D', 'Tejido', 'Corte', 'Logística', 'Estampado',
     'Desarrollo de muestras', 'Muestras', 'Confección', 'Lavandería',
     'Terminación', 'Inspección y aprobación', 'Bodega',
 ];
@@ -177,6 +182,13 @@ export function parseProcessesValue(value: unknown, allProcesses: string[]): Rec
         if (parsed[alias]) {
             parsed[DEVELOPMENT_PROCESS_LABEL] = true;
             delete parsed[alias];
+        }
+    }
+
+    for (const [legacy, current] of Object.entries(PROCESS_ALIASES)) {
+        if (parsed[legacy]) {
+            parsed[current] = true;
+            delete parsed[legacy];
         }
     }
 

@@ -15,6 +15,7 @@ import SizeSelector from '@/components/SizeSelector.vue';
 import SwitchField from '@/components/SwitchField.vue';
 import Label from '@/components/ui/label/Label.vue';
 import type { OptionParams } from '@/domain/Production';
+import type { Option } from '@/domain/shared';
 
 interface Props {
     wovenProduct: boolean;
@@ -37,8 +38,8 @@ const props = defineProps<Props>();
 
 const emit = defineEmits<{
     (e: 'update:wovenProduct', value: boolean): void;
-    (e: 'update:fabricBaseId', value: number | null): void;
-    (e: 'update:yarnBaseId', value: number | null): void;
+    (e: 'update:fabricBaseId', value: Option['id'] | Option['id'][] | null | undefined): void;
+    (e: 'update:yarnBaseId', value: Option['id'] | Option['id'][] | null | undefined): void;
     (e: 'update:sizes', value: string): void;
     (e: 'search:fabricBase', term: string): void;
     (e: 'search:yarnBase', term: string): void;

@@ -7,6 +7,7 @@ import CreateProductSheetDialog from '../ProductSheets/ProductSheetDialog.vue';
 import EcommerceSizesDialog from './EcommerceSizesDialog.vue';
 
 import AlertStack from '@/components/common/AlertStack.vue';
+import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -164,7 +165,9 @@ const formErrors = ref<Array<{ lotIndex: number; fields: string[] }>>([]);
 const dialogInnerRef = ref<HTMLElement | null>(null);
 
 const isSubmitting = ref(false);
+const isFormInitializing = ref(false);
 const saveDisabled = computed(() => formErrors.value.length > 0);
+const canRenderForm = computed(() => !isFormInitializing.value);
 
 const allProductSheets = ref<ProductSheet[]>(Array.isArray(props.productSheets) ? [...props.productSheets] : []);
 
@@ -601,13 +604,18 @@ async function createProgrammer() {
     }
 }
 
-function resetForm() {
-    form.value = { lotsCount: null, productSheetId: null };
-    lotsForm.value = [];
-    formErrors.value = [];
-    productSheetDialogOpen.value = false;
-    dialogInnerRef.value = null;
-    clearAlert();
+async function resetForm() {
+    isFormInitializing.value = true;
+    try {
+        form.value = { lotsCount: null, productSheetId: null };
+        lotsForm.value = [];
+        formErrors.value = [];
+        productSheetDialogOpen.value = false;
+        dialogInnerRef.value = null;
+        clearAlert();
+    } finally {
+        isFormInitializing.value = false;
+    }
 }
 
 function closeDialog() {
@@ -660,8 +668,14 @@ watch(
             />
 
             <TooltipProvider>
-                <div ref="dialogInnerRef" class="min-h-0 flex-1 overflow-y-auto scroll-smooth px-6 py-3" style="scrollbar-width: thin">
-                    <div class="grid grid-cols-1 gap-3">
+                <div ref="dialogInnerRef" class="relative min-h-0 flex-1 overflow-y-auto scroll-smooth px-6 py-3" style="scrollbar-width: thin">
+                    <FormLoadingOverlay
+                        :active="isFormInitializing"
+                        message="Preparando formulario..."
+                        :delay-ms="100"
+                    />
+
+                    <div v-if="canRenderForm" class="grid grid-cols-1 gap-3">
                         <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                             <!-- Referencia -->
                             <div class="flex flex-col gap-1">

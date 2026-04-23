@@ -51,7 +51,7 @@ const isReadOnly = computed(() => !!props.isReadOnly);
 const itemMap = computed(() => new Map<number, Item>(catalogItems.value.map((a) => [a.id, a])));
 const taxById = computed(() => new Map<number, Tax>(taxes.value.map((tax) => [Number(tax.id), tax])));
 const taxOptions = computed(() => [
-    { id: null as null, name: DEFAULT_TAX_LABEL },
+    { id: 0, name: DEFAULT_TAX_LABEL },
     ...taxes.value
         .filter((tax): tax is Tax => !isDefaultTax(tax))
         .map((tax) => ({

@@ -98,9 +98,9 @@ const iconCls = 'h-4 w-4';
             <span class="sr-only">{{ isActiveRow ? 'Salida de insumos' : 'Ver salida de insumos' }}</span>
         </Button>
 
-        <!-- Info estampado (Estampado/Bordado): visible para todos -->
+        <!-- Info estampado: visible para todos -->
         <Button
-            v-if="activeProcess === 'Estampado' || activeProcess === 'Bordado'"
+            v-if="activeProcess === 'Estampado'"
             variant="ghost"
             size="icon"
             :class="[actionBtn, 'text-violet-600 hover:bg-violet-50 hover:text-violet-700']"

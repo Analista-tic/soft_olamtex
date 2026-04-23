@@ -24,6 +24,7 @@ import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmart
 import type { Contact, ContactType } from '@/domain/MasterData';
 import type { BreadcrumbItem } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useContactsStore } from '@/stores/masterData/contacts';
 import { Head } from '@inertiajs/vue3';
 import axios, { type AxiosError } from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
@@ -38,6 +39,7 @@ const props = defineProps<{
 }>();
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Contactos', href: '/contactos' }];
+const contactsStore = useContactsStore();
 
 const contacts = ref<Contact[]>([]);
 const contactToDelete = ref<Contact | null>(null);
@@ -144,13 +146,14 @@ function clearDialogPrepareFallbackTimer() {
 }
 
 function startDialogPreparationLoading() {
+    // Eliminado smartLoading.start: el loading del diálogo es solo local
     if (dialogPreparationLoadingId) return;
-    dialogPreparationLoadingId = smartLoading.start({ label: 'Cargando información...' });
+    dialogPreparationLoadingId = Symbol('dialogPreparationLoadingId');
 }
 
 function stopDialogPreparationLoading() {
+    // Eliminado smartLoading.stop: el loading del diálogo es solo local
     if (!dialogPreparationLoadingId) return;
-    smartLoading.stop(dialogPreparationLoadingId);
     dialogPreparationLoadingId = null;
 }
 
@@ -205,13 +208,26 @@ async function openDialog(type: 'create' | 'edit', contact: Contact | null = nul
 
     dialogType.value = type;
     clearMessages();
-    form.value = type === 'edit' && contact ? { ...contact } : { id: undefined, full_name: '', email: '', phone: '' };
 
-    await nextTick();
-    if (token !== dialogPrepareToken) return;
+    if (type === 'edit' && contact) {
+        // Loader local: muestra el modal vacío y luego hidrata
+        form.value = { id: contact.id }; // Solo ID para iniciar
+        isDialogOpen.value = true;
+        armDialogPreparationFallback(token);
 
-    isDialogOpen.value = true;
-    armDialogPreparationFallback(token);
+        try {
+            const { data } = await axios.get(`/contactos/${contact.id}`);
+            form.value = { ...data };
+        } catch (e) {
+            // Manejo de error opcional: podrías mostrar un mensaje si falla la carga
+        }
+    } else {
+        form.value = { id: undefined, full_name: '', email: '', phone: '' };
+        await nextTick();
+        if (token !== dialogPrepareToken) return;
+        isDialogOpen.value = true;
+        armDialogPreparationFallback(token);
+    }
 }
 
 function closeDialog(): void {
@@ -274,6 +290,7 @@ async function submitForm(contactData: Partial<Contact>): Promise<void> {
 
     try {
         await axios({ method, url, data: contactData });
+        contactsStore.invalidate();
         await fetchContacts(currentPage.value, searchQuery.value, selectedContactType.value || null);
         closeDialog();
         successMessage.value = dialogType.value === 'create' ? 'El contacto se guardó correctamente.' : 'El contacto se actualizó correctamente.';
@@ -528,7 +545,6 @@ onBeforeUnmount(() => {
         :contactData="form"
         :external-error="errorMessage"
         :external-error-type="errorType"
-        :defer-content="isPreparingDialog"
         @close="closeDialog"
         @submit="submitForm"
         @loading-state="handleDialogLoadingState"
