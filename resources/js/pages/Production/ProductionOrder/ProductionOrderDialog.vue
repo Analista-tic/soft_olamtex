@@ -529,31 +529,27 @@ onUnmounted(() => {
                 </template>
             </div>
 
-            <DialogFooter
-                class="mt-3 flex shrink-0 flex-col gap-2 border-t border-border/40 bg-background px-4 pt-3 md:flex-row md:items-center md:justify-end"
-            >
-                <div class="w-full md:w-auto">
-                    <button
-                        type="button"
-                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                        @click="closeDialog"
-                    >
-                        Cerrar
-                    </button>
-                </div>
-                <div class="w-full md:w-auto">
-                    <Button
-                        variant="default"
-                        type="button"
-                        class="mx-auto flex w-full max-w-[200px] items-center justify-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
-                        :disabled="!hasData"
-                        @click="handleCreateTechSheet"
-                    >
-                        <ClipboardPen class="h-4 w-4" />
-                        Ver ficha técnica
-                    </Button>
-                </div>
-            </DialogFooter>
+                        <DialogFooter class="flex shrink-0 items-center justify-end gap-3 border-t border-border/40 bg-background px-6 py-4">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                class="rounded-full px-5 py-2 text-sm font-semibold"
+                                @click="closeDialog"
+                            >
+                                Cerrar
+                            </Button>
+
+                            <Button
+                                variant="default"
+                                type="button"
+                                class="rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+                                :disabled="!hasData"
+                                @click="handleCreateTechSheet"
+                            >
+                                <ClipboardPen class="h-4 w-4" />
+                                Ver ficha técnica
+                            </Button>
+                        </DialogFooter>
         </FormDialogContent>
     </Dialog>
 </template>
