@@ -39,7 +39,7 @@ class StoreProductOperationListRequest extends FormRequest
             'operator_efficiency_factor' => [
                 'required',
                 'numeric',
-                'min:1.0',
+                'min:0.5',
                 'max:2.0',
             ],
             'machine_supplement_factor' => [
@@ -63,9 +63,9 @@ class StoreProductOperationListRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'operator_efficiency_factor.min' => 'El factor de eficiencia del operario debe ser al menos 1.0 (100%).',
+            'operator_efficiency_factor.min' => 'El factor de eficiencia del operario debe ser al menos 0.5 (equivale a 200% en F. op.).',
             'operator_efficiency_factor.max' => 'El factor de eficiencia del operario no puede superar 2.0 (200%).',
-            'operator_efficiency_factor.between' => 'El factor de eficiencia debe estar entre 1.0 y 2.0.',
+            'operator_efficiency_factor.between' => 'El factor de eficiencia debe estar entre 0.5 y 2.0.',
             'machine_supplement_factor.min' => 'El suplemento de máquina debe ser al menos 1.0 (sin suplemento).',
             'machine_supplement_factor.max' => 'El suplemento de máquina no puede superar 5.0 (500%).',
             'optimal_time.min' => 'El tiempo óptimo debe ser mayor a 0.',

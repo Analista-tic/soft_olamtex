@@ -4,10 +4,11 @@ import DeleteButton from '@/components/common/DeleteButton.vue';
 import DialogActionButtons from '@/components/common/DialogActionButtons.vue';
 import DraggableTableRow from '@/components/DraggableTableRow.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormDialogFooter from '@/components/FormDialogFooter.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import type { FabricBaseOption, MachineOption, OperationOption, OperationSection, ProductOperationPayload } from '@/domain/product-sheet/types';
 import { Check, GripVertical, Pencil, Plus, PlusCircle, X } from 'lucide-vue-next';
@@ -134,6 +135,12 @@ function normalizeComparableId(value: number | string | null | undefined): strin
     return String(value ?? '').trim();
 }
 
+function idsMatch(a: number | string | null | undefined, b: number | string | null | undefined): boolean {
+    const left = normalizeComparableId(a);
+    const right = normalizeComparableId(b);
+    return left !== '' && right !== '' && left === right;
+}
+
 function buildProductSheetLabel(sheet: ProductSheetDialogOption): string {
     const parts = [
         String(sheet.sample_reference ?? '').trim().toUpperCase(),
@@ -167,14 +174,14 @@ const NONE_FABRIC_BASE_LABEL = 'NS / NINGUNA';
 /** Fabric base heredada de la sábana seleccionada. */
 const selectedSheetFabricBaseId = computed(() => {
     if (!productSheetId.value) return null;
-    const sheet = props.productSheets.find((s) => s.id === productSheetId.value);
+    const sheet = props.productSheets.find((s) => idsMatch(s.id, productSheetId.value));
     return sheet?.fabric_base_id ?? null;
 });
 
 const selectedSheetFabricFactor = computed(() => {
     const id = selectedSheetFabricBaseId.value;
     if (id == null) return 1.0;
-    const opt = fabricBasesList.value.find((f) => f.id === id || f.id == id);
+    const opt = fabricBasesList.value.find((f) => idsMatch(f.id, id));
     const factor = opt?.factor ?? opt?.factor_base ?? opt?.factor_base_tela ?? null;
     const num = Number(factor);
     return Number.isFinite(num) && num > 0 ? num : 1.0;
@@ -183,13 +190,13 @@ const selectedSheetFabricFactor = computed(() => {
 const selectedSheetFabricBaseName = computed(() => {
     const id = selectedSheetFabricBaseId.value;
     if (id == null) return NONE_FABRIC_BASE_LABEL;
-    const opt = fabricBasesList.value.find((f) => f.id === id || f.id == id);
+    const opt = fabricBasesList.value.find((f) => idsMatch(f.id, id));
     return opt?.nombre ?? opt?.name ?? opt?.codigo ?? String(id);
 });
 
-function isSectionPreparacion(sectionId: number | null): boolean {
-    if (!sectionId) return false;
-    const section = sectionsList.value.find((s) => s.id === sectionId);
+function isSectionPreparacion(sectionId: number | string | null): boolean {
+    if (sectionId === null || sectionId === undefined || String(sectionId).trim() === '') return false;
+    const section = sectionsList.value.find((s) => idsMatch(s.id, sectionId));
     return (section?.type ?? '').toLowerCase() === 'preparacion';
 }
 
@@ -245,6 +252,29 @@ function addPreparationGroupFromSelect(rawName?: string) {
     clearValidationError();
 }
 
+function addPreparationGroupFromEditRow(rawName?: string) {
+    const group = normalizePreparationGroupName(rawName ?? preparationGroupSearchTerm.value);
+
+    if (!group) {
+        const msg = 'Escribe el nombre del grupo para agregarlo.';
+        setValidationError(msg);
+        emit('validation-error', msg);
+        return;
+    }
+
+    const existing = preparationGroupsList.value.find((g) => g.toLowerCase() === group.toLowerCase());
+    if (!existing) {
+        preparationGroupsList.value = [...preparationGroupsList.value, group];
+    }
+
+    if (editRow.value) {
+        editRow.value.grupo_preparacion = existing ?? group;
+    }
+
+    preparationGroupSearchTerm.value = '';
+    clearValidationError();
+}
+
 watch(
     () => props.open,
     (value) => {
@@ -265,7 +295,7 @@ watch(
     () => currentRow.value.operation_id,
     (opId) => {
         if (!opId) return;
-        const op = operationsList.value.find((o) => o.id === opId);
+        const op = operationsList.value.find((o) => idsMatch(o.id, opId));
         if (!op) return;
         if (op.section_id) currentRow.value.section_id = Number(op.section_id);
         // Auto-set machine from operation
@@ -308,7 +338,7 @@ const productSheetId = ref<number | string | null>(availableProductSheets.value[
 /** garment_type de la sábana actualmente seleccionada (superior | inferior | null). */
 const selectedGarmentType = computed(() => {
     if (!productSheetId.value) return null;
-    return props.productSheets.find((s) => s.id === productSheetId.value)?.garment_type ?? null;
+    return props.productSheets.find((s) => idsMatch(s.id, productSheetId.value))?.garment_type ?? null;
 });
 
 watch(
@@ -318,7 +348,7 @@ watch(
             productSheetId.value = null;
             return;
         }
-        if (!next.some((s) => s.id === productSheetId.value)) productSheetId.value = next[0].id;
+        if (!next.some((s) => idsMatch(s.id, productSheetId.value))) productSheetId.value = next[0].id;
     },
     { deep: true },
 );
@@ -403,7 +433,7 @@ function saveEditRow(i: number) {
 }
 
 function getSupplementForRow(row: OperationRow): number {
-    const m = machinesList.value.find((m) => m.id === row.machine_id);
+    const m = machinesList.value.find((m) => idsMatch(m.id, row.machine_id));
     const f = m?.supplement_factor ?? 1;
     return typeof f === 'number' && f >= 1 ? f : 1;
 }
@@ -441,11 +471,11 @@ function getOpsPerHour(row: OperationRow): number {
 }
 
 function getSectionName(id: number | null): string {
-    return sectionsList.value.find((s) => s.id === id)?.name ?? '-';
+    return sectionsList.value.find((s) => idsMatch(s.id, id))?.name ?? '-';
 }
 
 function getOperationName(id: number | null): string {
-    return operationsList.value.find((o) => o.id === id)?.name ?? '-';
+    return operationsList.value.find((o) => idsMatch(o.id, id))?.name ?? '-';
 }
 
 function getOperationOptionLabel(operation: OperationOption): string {
@@ -460,7 +490,7 @@ function getOperationOptionLabel(operation: OperationOption): string {
 }
 
 function getMachineName(id: string | number | null): string {
-    const m = machinesList.value.find((m) => m.id === id);
+    const m = machinesList.value.find((m) => idsMatch(m.id, id));
     if (!m) return '-';
     const code = (m.code ?? '').trim();
     const name = (m.name ?? '').trim();
@@ -581,11 +611,12 @@ function saveOperations() {
         const n = parseInt(String(v), 10);
         return Number.isFinite(n) ? n : null;
     };
+    const sheetIdNumeric = toNumOrNull(productSheetId.value);
     const sheetFabricId = toNumOrNull(selectedSheetFabricBaseId.value);
     const payload: ProductOperationPayload[] = operationList.value.map((row, i) => {
         const factorOp = Number(row.factor_operario ?? 100);
         return {
-            product_sheet_id: typeof productSheetId.value === 'number' ? productSheetId.value : null,
+            product_sheet_id: sheetIdNumeric,
             section_id: row.section_id,
             operation_id: row.operation_id,
             machine_id: row.machine_id,
@@ -677,7 +708,7 @@ function resetForm() {
 
                     <!-- Fila para añadir (encabezados sutiles) -->
                     <div v-if="!readonly" class="grid grid-cols-12 gap-2 px-1 py-1 text-[11px] font-medium text-muted-foreground/80">
-                        <div class="col-span-4 flex items-center gap-1">
+                        <div class="col-span-3 flex items-center gap-1">
                             Operación
                             <HelpTooltip text="Nombre de la operación según catálogo." />
                         </div>
@@ -697,14 +728,14 @@ function resetForm() {
                             SAM total
                             <HelpTooltip text="SAM total unitario: (SAM base / F.op.) × suplemento máq. × factor base tela." />
                         </div>
-                        <div class="col-span-2 flex items-center gap-1">
+                        <div class="col-span-3 flex items-center gap-1">
                             Grupo prep.
                             <HelpTooltip text="Solo para secciones de tipo PREPARACIÓN. Reagrupa operaciones dentro de la sección." />
                         </div>
                         <div class="col-span-1"></div>
                     </div>
                     <div v-if="!readonly" class="grid grid-cols-12 items-end gap-2 px-1 py-2">
-                        <div class="col-span-4">
+                        <div class="col-span-3">
                             <SelectField
                                 v-model="currentRow.operation_id"
                                 :options="operationsList.map((o) => ({ id: o.id, name: getOperationOptionLabel(o) }))"
@@ -742,7 +773,7 @@ function resetForm() {
                                 {{ getSamUnitario(currentRow).toFixed(2) }}
                             </div>
                         </div>
-                        <div class="col-span-2">
+                        <div class="col-span-3">
                             <SelectField
                                 v-if="isSectionPreparacion(currentRow.section_id)"
                                 v-model="currentRow.grupo_preparacion"
@@ -792,7 +823,7 @@ function resetForm() {
                                     <tr class="text-[11px] text-muted-foreground/90" style="border-bottom: 1px solid hsl(var(--border) / 0.5)">
                                         <th class="w-7 py-2.5"></th>
                                         <th class="w-7 px-3 py-2.5 text-left font-medium">#</th>
-                                        <th class="px-3 py-2.5 text-left font-medium">
+                                        <th class="w-[300px] px-3 py-2.5 text-left font-medium">
                                             <span class="inline-flex items-center gap-1">Operación <HelpTooltip text="Nombre de la operación." /></span>
                                         </th>
                                         <th class="w-52 px-3 py-2.5 text-left font-medium">
@@ -810,7 +841,7 @@ function resetForm() {
                                         <th class="w-14 px-3 py-2.5 text-right font-medium">
                                             <span class="inline-flex items-center justify-end gap-1">Op./h <HelpTooltip text="Operaciones por hora (60 ÷ SAM total)." /></span>
                                         </th>
-                                        <th class="w-24 px-3 py-2.5 text-left font-medium">
+                                        <th class="w-32 px-3 py-2.5 text-left font-medium">
                                             <span class="inline-flex items-center gap-1">Grupo <HelpTooltip text="Grupo de preparación (solo secciones PREPARACIÓN)." /></span>
                                         </th>
                                         <th v-if="!readonly" class="w-16"></th>
@@ -875,7 +906,7 @@ function resetForm() {
                                                 action-label="Agregar grupo"
                                                 :action-disabled="readonly"
                                                 @search="(term) => (preparationGroupSearchTerm = String(term ?? ''))"
-                                                @action="(term) => addPreparationGroupFromSelect(String(term ?? ''))"
+                                                @action="(term) => addPreparationGroupFromEditRow(String(term ?? ''))"
                                             />
                                             <span
                                                 v-else-if="isSectionPreparacion(row.section_id) && row.grupo_preparacion"
@@ -962,7 +993,7 @@ function resetForm() {
                 </div>
             </TooltipProvider>
 
-            <DialogFooter class="mt-4 flex flex-shrink-0 items-center justify-end gap-2 pt-5" style="border-top: 1px solid hsl(var(--border) / 0.4)">
+            <FormDialogFooter class="flex items-center justify-end gap-2">
                 <DialogActionButtons
                     v-if="!readonly"
                     cancel-label="Cancelar"
@@ -970,10 +1001,10 @@ function resetForm() {
                     @cancel="localOpen = false"
                     @submit="saveOperations"
                 />
-                <Button v-else variant="outline" size="sm" class="rounded-full px-5 py-2 text-sm font-semibold" @click="localOpen = false">
+                <Button v-else variant="outline" @click="localOpen = false">
                     Cerrar
                 </Button>
-            </DialogFooter>
+            </FormDialogFooter>
         </FormDialogContent>
     </Dialog>
 </template>

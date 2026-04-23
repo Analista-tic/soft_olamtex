@@ -76,6 +76,27 @@ function formatValue(v: number | undefined): string {
     return Number(v).toFixed(4);
 }
 
+function formatOperatorPercent(v: number | undefined): string {
+    if (v === undefined || v === null || Number(v) <= 0) return '-';
+    return `${(100 / Number(v)).toFixed(2)}%`;
+}
+
+function getBeforeValue(entry: HistoryEntry): string {
+    if (entry.operator_efficiency_factor_anterior !== undefined && entry.operator_efficiency_factor_anterior !== null) {
+        return formatOperatorPercent(entry.operator_efficiency_factor_anterior);
+    }
+
+    return formatValue(entry.machine_supplement_factor_anterior ?? entry.fabric_base_factor_anterior ?? entry.sam_base_anterior);
+}
+
+function getAfterValue(entry: HistoryEntry): string {
+    if (entry.operator_efficiency_factor_nuevo !== undefined && entry.operator_efficiency_factor_nuevo !== null) {
+        return formatOperatorPercent(entry.operator_efficiency_factor_nuevo);
+    }
+
+    return formatValue(entry.machine_supplement_factor_nuevo ?? entry.fabric_base_factor_nuevo ?? entry.sam_base_nuevo);
+}
+
 function formatDate(d: string | undefined): string {
     if (!d) return '-';
     const date = new Date(d);
@@ -91,7 +112,7 @@ function formatDate(d: string | undefined): string {
 function getChangeDescription(entry: HistoryEntry): string {
     const parts: string[] = [];
     if (entry.operator_efficiency_factor_anterior !== entry.operator_efficiency_factor_nuevo) {
-        parts.push('Factor operario');
+        parts.push('Factor operario (%)');
     }
     if (entry.machine_supplement_factor_anterior !== entry.machine_supplement_factor_nuevo) {
         parts.push('Suplemento máquina');
@@ -150,24 +171,10 @@ function getChangeDescription(entry: HistoryEntry): string {
                                 <TableCell>{{ entry.usuario?.name ?? '-' }}</TableCell>
                                 <TableCell>{{ getChangeDescription(entry) }}</TableCell>
                                 <TableCell class="text-right font-mono text-muted-foreground">
-                                    {{
-                                        formatValue(
-                                            entry.operator_efficiency_factor_anterior ??
-                                                entry.machine_supplement_factor_anterior ??
-                                                entry.fabric_base_factor_anterior ??
-                                                entry.sam_base_anterior,
-                                        )
-                                    }}
+                                    {{ getBeforeValue(entry) }}
                                 </TableCell>
                                 <TableCell class="text-right font-mono font-medium">
-                                    {{
-                                        formatValue(
-                                            entry.operator_efficiency_factor_nuevo ??
-                                                entry.machine_supplement_factor_nuevo ??
-                                                entry.fabric_base_factor_nuevo ??
-                                                entry.sam_base_nuevo,
-                                        )
-                                    }}
+                                    {{ getAfterValue(entry) }}
                                 </TableCell>
                                 <TableCell class="max-w-[160px] truncate text-muted-foreground" :title="entry.motivo ?? ''">
                                     {{ entry.motivo ?? '-' }}

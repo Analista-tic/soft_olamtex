@@ -164,6 +164,9 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
         Route::get('/data', [ProductOperationListController::class, 'index'])
             ->middleware('permission:ver listados operacionales|ver sabana productos')
             ->name('data');
+        Route::get('/summaries', [ProductOperationListController::class, 'summaries'])
+            ->middleware('permission:ver listados operacionales|ver sabana productos')
+            ->name('summaries');
         Route::get('/options', [ProductOperationListController::class, 'options'])
             ->middleware('permission:ver listados operacionales|ver sabana productos')
             ->name('options');
