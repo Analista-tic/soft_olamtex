@@ -449,27 +449,25 @@ onBeforeUnmount(() => {
                     <p v-else-if="opOptions.length === 0" class="mt-2 text-sm text-muted-foreground">No hay resultados</p>
                 </div>
                 <Button
-                    v-if="selectedOpId && selectedOp"
+                    type="button"
                     variant="outline"
-                    size="sm"
-                    :disabled="isPrinting"
-                    class="mb-[2px] shrink-0"
-                    title="Imprimir resumen completo de la ficha técnica"
+                    class="flex h-10 shrink-0 items-center gap-2 rounded-full border-primary/40 px-5 text-sm font-semibold text-primary hover:bg-primary/10 dark:border-primary/60 dark:text-primary"
+                    :disabled="isPrinting || !selectedOpId || !selectedOp"
+                    :title="'Imprimir resumen completo de la ficha técnica'"
                     @click="printSummary"
                 >
-                    <Printer class="mr-2 h-4 w-4" />
+                    <Printer class="h-4 w-4" />
                     {{ isPrinting ? 'Generando...' : 'Imprimir ficha' }}
                 </Button>
                 <Button
-                    v-if="selectedOpId && selectedOp"
+                    type="button"
                     variant="outline"
-                    size="sm"
-                    :disabled="isPrintingH"
-                    class="mb-[2px] shrink-0"
-                    title="Imprimir ficha en formato horizontal (2 páginas, 3 columnas) — prueba"
+                    class="flex h-10 shrink-0 items-center gap-2 rounded-full border-primary/40 px-5 text-sm font-semibold text-primary hover:bg-primary/10 dark:border-primary/60 dark:text-primary"
+                    :disabled="isPrintingH || !selectedOpId || !selectedOp"
+                    :title="'Imprimir ficha en formato horizontal (2 páginas, 3 columnas) — prueba'"
                     @click="printSummaryH"
                 >
-                    <Printer class="mr-2 h-4 w-4" />
+                    <Printer class="h-4 w-4" />
                     {{ isPrintingH ? 'Generando...' : 'Imprimir H (prueba)' }}
                 </Button>
             </div>
