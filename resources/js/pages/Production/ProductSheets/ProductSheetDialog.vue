@@ -73,6 +73,7 @@ const isItemHydrationLoading = ref(false);
 const isBlockingLoading = computed(() =>
   isCatalogBootstrapLoading.value || isItemHydrationLoading.value
 );
+const canRenderForm = computed(() => !isBlockingLoading.value);
 const errorMessage = ref('');
 const errorType = ref<'error' | 'warning' | 'info'>('error');
 
@@ -1345,7 +1346,8 @@ function handleClose() {
                   message="Cargando sábana de producto..."
                   description="Preparando catálogos y datos iniciales."
                 />
-                <fieldset :disabled="isBlockingLoading" class="w-full">
+                <div v-if="!canRenderForm" class="min-h-[320px]" />
+                <template v-if="canRenderForm">
                     <div class="grid gap-6 sm:grid-cols-[minmax(0,1fr)_340px]">
                         <div class="space-y-4">
 
@@ -1759,7 +1761,7 @@ function handleClose() {
                             </div>
                         </div>
                     </div>
-                </fieldset>
+                </template>
             </div>
 
             <DialogFooter class="shrink-0 flex flex-wrap items-center justify-end gap-2 border-t border-border px-6 py-4">
