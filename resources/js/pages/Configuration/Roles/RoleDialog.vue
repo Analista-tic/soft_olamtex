@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { PERMISSION_CATEGORIES, PERMISSION_MODULES, PERMISSIONS_BY_MODULE } from '@/lib/permissionModules';
+import { PERMISSION_CATEGORIES, PERMISSION_MODULES } from '@/lib/permissionModules';
 import { computed, ref, watch } from 'vue';
 
 const emit = defineEmits(['submit', 'close']);
@@ -15,28 +15,120 @@ const emit = defineEmits(['submit', 'close']);
 const props = defineProps({
     isOpen: Boolean,
     role: { type: Object as () => Record<string, any> | null, default: null },
-    permissions: { type: Array as () => Array<{ name: string; module: string }>, default: () => [] },
+    permissions: { type: Array as () => Array<{ name: string }>, default: () => [] },
 });
 
-const permissionsByModule = PERMISSIONS_BY_MODULE;
+const normalizeText = (text: string): string =>
+    text
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+
+const moduleLabelByPermission = new Map<string, string>();
+const moduleLabelByToken = new Map<string, string>();
+const moduleCategoryByLabel = new Map<string, string>();
+
+for (const module of PERMISSION_MODULES) {
+    moduleCategoryByLabel.set(module.label, module.category);
+    for (const permission of module.permissions) {
+        moduleLabelByPermission.set(normalizeText(permission), module.label);
+    }
+    for (const token of module.tokens) {
+        moduleLabelByToken.set(normalizeText(token), module.label);
+    }
+}
+
+const ACTION_PREFIXES = new Set([
+    'ver',
+    'crear',
+    'editar',
+    'eliminar',
+    'aprobar',
+    'rechazar',
+    'anular',
+    'emitir',
+    'convertir',
+    'atender',
+    'entregar',
+    'registrar',
+    'resolver',
+    'actualizar',
+    'cancelar',
+    'carga',
+    'exportar',
+    'activar',
+]);
+
+const SCOPE_PREFIXES = new Set(['propios', 'propias', 'area', 'todos', 'todas']);
+
+function inferModuleLabel(permissionName: string): string {
+    const normalizedPermission = normalizeText(permissionName);
+
+    const mappedByPermission = moduleLabelByPermission.get(normalizedPermission);
+    if (mappedByPermission) return mappedByPermission;
+
+    for (const [token, label] of moduleLabelByToken.entries()) {
+        if (normalizedPermission.includes(token)) {
+            return label;
+        }
+    }
+
+    const parts = normalizedPermission.split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return 'General';
+
+    let startIndex = ACTION_PREFIXES.has(parts[0]) ? 1 : 0;
+    while (startIndex < parts.length && SCOPE_PREFIXES.has(parts[startIndex])) {
+        startIndex += 1;
+    }
+
+    const moduleName = parts.slice(startIndex).join(' ').trim();
+    if (!moduleName) return 'General';
+
+    return moduleName.charAt(0).toUpperCase() + moduleName.slice(1);
+}
+
+const permissionsByModule = computed<Record<string, string[]>>(() => {
+    const grouped: Record<string, string[]> = {};
+
+    for (const permission of props.permissions ?? []) {
+        const permissionName = permission?.name?.trim();
+        if (!permissionName) continue;
+
+        const moduleLabel = inferModuleLabel(permissionName);
+        if (!grouped[moduleLabel]) {
+            grouped[moduleLabel] = [];
+        }
+        if (!grouped[moduleLabel].includes(permissionName)) {
+            grouped[moduleLabel].push(permissionName);
+        }
+    }
+
+    return grouped;
+});
 
 const modulesByCategory = computed(() => {
     const result: Record<string, Record<string, string[]>> = {};
 
-    for (const category of PERMISSION_CATEGORIES) {
-        const modulesInCategory = PERMISSION_MODULES.filter((m) => m.category === category);
-        if (modulesInCategory.length === 0) continue;
-
-        const filtered: Record<string, string[]> = {};
-        for (const mod of modulesInCategory) {
-            if (!filteredPermissionModules.value[mod.label]) continue;
-            filtered[mod.label] = filteredPermissionModules.value[mod.label];
+    for (const [moduleLabel, permissions] of Object.entries(filteredPermissionModules.value)) {
+        const category = moduleCategoryByLabel.get(moduleLabel) ?? 'General';
+        if (!result[category]) {
+            result[category] = {};
         }
-        if (Object.keys(filtered).length > 0) {
-            result[category] = filtered;
+        result[category][moduleLabel] = permissions;
+    }
+
+    const orderedResult: Record<string, Record<string, string[]>> = {};
+    for (const category of PERMISSION_CATEGORIES) {
+        if (result[category] && Object.keys(result[category]).length > 0) {
+            orderedResult[category] = result[category];
         }
     }
-    return result;
+    if (result.General && Object.keys(result.General).length > 0) {
+        orderedResult.General = result.General;
+    }
+
+    return orderedResult;
 });
 
 const form = ref<{
@@ -57,10 +149,8 @@ const localIsOpen = ref(props.isOpen);
 const globalSelectAll = ref(false);
 const moduleAllSelected = computed<Record<string, boolean>>(() => {
     const result: Record<string, boolean> = {};
-    for (const module in permissionsByModule) {
-        result[module] = permissionsByModule[module].every(
-            (p) => form.value.permissions.includes(p)
-        );
+    for (const [module, permissions] of Object.entries(permissionsByModule.value)) {
+        result[module] = permissions.every((p) => form.value.permissions.includes(p));
     }
     return result;
 });
@@ -102,7 +192,7 @@ watch(
     () => globalSelectAll.value,
     (isChecked) => {
         form.value.permissions = isChecked
-            ? Object.values(permissionsByModule).flat()
+            ? Array.from(new Set(Object.values(permissionsByModule.value).flat()))
             : [];
     },
 );
@@ -121,7 +211,7 @@ function closeDialog() {
 }
 
 function toggleModulePermissions(module: string, isChecked: boolean): void {
-    const permissions = permissionsByModule[module] || [];
+    const permissions = permissionsByModule.value[module] || [];
     if (isChecked) {
         form.value.permissions = Array.from(new Set([...form.value.permissions, ...permissions]));
     } else {
@@ -138,17 +228,14 @@ function handleCheckboxChange(event: Event, module: string): void {
 const searchPermissions = ref('');
 
 const filteredPermissionModules = computed(() => {
-    const query = searchPermissions.value
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '');
-    if (!query) return permissionsByModule;
+    const query = normalizeText(searchPermissions.value);
+    if (!query) return permissionsByModule.value;
 
     const result: Record<string, string[]> = {};
-    for (const [module, perms] of Object.entries(permissionsByModule)) {
-        const moduleNorm = module.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    for (const [module, perms] of Object.entries(permissionsByModule.value)) {
+        const moduleNorm = normalizeText(module);
         const matchedPerms = perms.filter((p) => {
-            const pNorm = p.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const pNorm = normalizeText(p);
             return pNorm.includes(query) || moduleNorm.includes(query);
         });
         if (matchedPerms.length > 0) {
