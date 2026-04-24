@@ -170,9 +170,9 @@ function submitForm() {
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <FormDialogContent class="flex max-h-[95vh] max-w-[85vh] flex-col px-2 py-2">
+        <FormDialogContent class="flex max-h-[95vh] max-w-2xl flex-col px-2 py-2">
             <TooltipProvider>
-                <DialogHeader class="border-b px-5 py-4 pr-12">
+                <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                     <DialogTitle>{{ dialogType === 'create' ? 'Crear Usuario' : dialogType === 'edit' ? 'Editar Usuario' : 'Ver Usuario' }}</DialogTitle>
                     <DialogDescription>
                         {{
@@ -297,6 +297,7 @@ function submitForm() {
                 <div v-if="!isView" class="w-full md:w-auto">
                     <Button
                         type="button"
+                        size="pill"
                         class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
                         @click="submitForm"
                     >

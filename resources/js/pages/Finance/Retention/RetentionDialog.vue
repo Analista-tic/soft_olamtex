@@ -56,8 +56,8 @@ const retentionTypeOptions = [
 
 <template>
     <Dialog :open="props.open" @update:open="emit('update:open', $event)">
-        <FormDialogContent class="flex max-h-[95vh] max-w-[85vh] flex-col px-2 py-2">
-            <DialogHeader class="border-b px-5 py-4 pr-12">
+        <FormDialogContent class="flex max-h-[95vh] max-w-lg flex-col px-2 py-2">
+            <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle>
                     {{ props.dialogType === 'create' ? 'Crear Retención' : 'Editar Retención' }}
                 </DialogTitle>
@@ -65,7 +65,7 @@ const retentionTypeOptions = [
                     Completa los campos para {{ props.dialogType === 'create' ? 'crear' : 'editar' }} una retención.
                 </DialogDescription>
             </DialogHeader>
-            <div class="min-h-0 overflow-y-auto px-5 py-4" style="scrollbar-width: thin">
+            <div class="flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
                 <div class="space-y-4">
                     <InputField label="Nombre" v-model="localForm.name" placeholder="Nombre de la retención" required />
                     <InputField
@@ -90,7 +90,7 @@ const retentionTypeOptions = [
                     />
                 </div>
             </div>
-            <DialogFooter class="border-t border-border px-5 py-4 justify-end gap-2">
+            <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                 <Button variant="outline" size="pill" @click="handleClose"> Cancelar </Button>
                 <Button variant="default" size="pill" :disabled="props.loading" @click="handleSubmit">
                     {{ props.dialogType === 'create' ? 'Guardar' : 'Actualizar' }}

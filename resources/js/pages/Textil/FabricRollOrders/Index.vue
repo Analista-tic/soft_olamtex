@@ -3,6 +3,7 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import Input from '@/components/ui/input/Input.vue';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { Programmer } from '@/domain/Production';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -141,7 +142,14 @@ onMounted(fetchProgrammers);
                         </TableHeader>
 
                         <TableBody>
-                            <TableRow v-for="programmer in filteredProgrammers" :key="programmer.id" class="border-b">
+                            <template v-if="isLoadingProgrammers">
+                                <TableRow v-for="i in 5" :key="`fabric-roll-order-skeleton-${i}`">
+                                    <TableCell v-for="col in 8" :key="`fabric-roll-order-skeleton-${i}-${col}`" class="px-4 py-3">
+                                        <Skeleton class="h-4 w-full" />
+                                    </TableCell>
+                                </TableRow>
+                            </template>
+                            <TableRow v-for="programmer in filteredProgrammers" v-else :key="programmer.id" class="border-b">
                                 <TableCell class="text-center text-sm">{{ getLotLabel(programmer) }}</TableCell>
 
                                 <TableCell class="text-center text-sm">
@@ -168,9 +176,7 @@ onMounted(fetchProgrammers);
                         </TableBody>
                     </Table>
 
-                    <div v-if="isLoadingProgrammers" class="p-4 text-center text-sm text-muted-foreground">Cargando programadores...</div>
-
-                    <div v-else-if="!isLoadingProgrammers && filteredProgrammers.length === 0" class="p-4 text-center text-sm text-muted-foreground">
+                    <div v-if="!isLoadingProgrammers && filteredProgrammers.length === 0" class="p-4 text-center text-sm text-muted-foreground">
                         No hay programadores disponibles.
                     </div>
                 </div>

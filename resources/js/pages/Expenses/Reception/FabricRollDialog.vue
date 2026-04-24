@@ -409,10 +409,9 @@ watch(dialogOpen, (value) => {
 <template>
     <Dialog :open="dialogOpen" @update:open="dialogOpen = $event">
         <DialogContent
-            class="flex h-[90vh] w-[95vw] max-w-4xl flex-col gap-0 overflow-hidden p-0"
+            class="flex max-h-[95vh] w-[95vw] max-w-4xl flex-col px-2 py-2"
         >
-            <div class="border-b px-6 pb-4 pt-5">
-                <DialogHeader>
+            <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                     <DialogTitle class="text-lg">
                         {{ editingRoll ? 'Editar rollo' : 'Registrar rollo de tela' }}
                     </DialogTitle>
@@ -423,10 +422,9 @@ watch(dialogOpen, (value) => {
                                 : 'Cada recepción guarda un nuevo rollo con identificador único (RL). Relacione el rollo al ítem de la factura.'
                         }}
                     </DialogDescription>
-                </DialogHeader>
-            </div>
+            </DialogHeader>
 
-            <div ref="dialogInnerRef" class="flex-1 overflow-y-auto px-6 py-4">
+            <div ref="dialogInnerRef" class="flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
                 <AlertStack
                     :success-message="successMessage"
                     :error-message="errorMessage"
@@ -437,10 +435,11 @@ watch(dialogOpen, (value) => {
 
                 <div class="space-y-5">
                     <div class="flex gap-2 border-b pb-2">
-                        <button
+                        <Button
                             type="button"
+                            size="pill"
                             :class="[
-                                'rounded-t px-4 py-2 text-sm font-medium transition',
+                                'px-4 py-2 text-sm font-medium transition',
                                 activeTab === 'form'
                                     ? 'bg-primary text-primary-foreground shadow-sm'
                                     : 'bg-muted/50 text-muted-foreground hover:bg-muted',
@@ -451,12 +450,13 @@ watch(dialogOpen, (value) => {
                             "
                         >
                             {{ editingRoll ? 'Editar rollo' : 'Registrar rollo' }}
-                        </button>
+                        </Button>
 
-                        <button
+                        <Button
                             type="button"
+                            size="pill"
                             :class="[
-                                'rounded-t px-4 py-2 text-sm font-medium transition',
+                                'px-4 py-2 text-sm font-medium transition',
                                 activeTab === 'list'
                                     ? 'bg-primary text-primary-foreground shadow-sm'
                                     : 'bg-muted/50 text-muted-foreground hover:bg-muted',
@@ -464,7 +464,7 @@ watch(dialogOpen, (value) => {
                             @click="activeTab = 'list'"
                         >
                             Rollos recibidos ({{ rolls.length }})
-                        </button>
+                        </Button>
                     </div>
 
                     <template v-if="activeTab === 'form'">
@@ -597,22 +597,26 @@ watch(dialogOpen, (value) => {
                                             <td class="px-4 py-3">{{ formatDate(roll.entry_date) }}</td>
                                             <td v-if="canDeleteEditRolls" class="px-4 py-3">
                                                 <div class="flex items-center justify-center gap-1">
-                                                    <button
+                                                    <Button
                                                         type="button"
-                                                        class="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-primary"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        class="text-muted-foreground hover:text-primary"
                                                         title="Editar rollo"
                                                         @click="startEditRoll(roll)"
                                                     >
                                                         <Pencil class="h-4 w-4" />
-                                                    </button>
-                                                    <button
+                                                    </Button>
+                                                    <Button
                                                         type="button"
-                                                        class="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        class="text-muted-foreground hover:text-destructive"
                                                         title="Eliminar rollo"
                                                         @click="deleteRoll(roll)"
                                                     >
                                                         <Trash2 class="h-4 w-4" />
-                                                    </button>
+                                                    </Button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -628,12 +632,13 @@ watch(dialogOpen, (value) => {
                 </div>
             </div>
 
-            <DialogFooter class="border-t bg-background px-6 py-4">
+            <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                 <div class="flex w-full flex-col gap-2 md:flex-row md:justify-end">
                     <template v-if="activeTab === 'form'">
                         <Button
                             type="button"
                             variant="outline"
+                            size="pill"
                             class="rounded-full px-5 py-2 text-sm font-semibold"
                             @click="dialogOpen = false"
                         >
@@ -643,6 +648,7 @@ watch(dialogOpen, (value) => {
                         <Button
                             type="submit"
                             form="fabric-roll-form"
+                            size="pill"
                             class="rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
                             :disabled="isLoading"
                         >
@@ -653,6 +659,7 @@ watch(dialogOpen, (value) => {
                             v-if="editingRoll"
                             type="button"
                             variant="outline"
+                            size="pill"
                             class="rounded-full px-5 py-2 text-sm font-semibold"
                             @click="resetForm"
                         >
@@ -664,6 +671,7 @@ watch(dialogOpen, (value) => {
                         <Button
                             type="button"
                             variant="outline"
+                            size="pill"
                             class="rounded-full px-5 py-2 text-sm font-semibold"
                             @click="dialogOpen = false"
                         >
@@ -672,6 +680,7 @@ watch(dialogOpen, (value) => {
 
                         <Button
                             type="button"
+                            size="pill"
                             class="rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
                             @click="
                                 resetForm();

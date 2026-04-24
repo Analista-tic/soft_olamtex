@@ -162,13 +162,13 @@ function submitForm() {
 
 <template>
     <Dialog :open="props.modelValue" @openChange="handleOpenChange">
-        <FormDialogContent class="flex max-h-[95vh] max-w-[130vh] flex-col px-2 py-2">
-            <DialogHeader class="flex-shrink-0">
+        <FormDialogContent class="flex max-h-[95vh] max-w-[95vw] flex-col px-2 py-2">
+            <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle>Registro de descarga</DialogTitle>
                 <DialogDescription> Completa los largos, consumos, retazos y tallas antes de procesar el rollo. </DialogDescription>
             </DialogHeader>
 
-            <div class="flex-1 overflow-y-auto scroll-smooth px-2 pt-5" style="scrollbar-width: thin">
+            <div class="flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
                 <div class="space-y-6">
                     <!-- RESUMEN DEL ROLLO -->
                     <section class="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
@@ -306,7 +306,7 @@ function submitForm() {
                 </div>
             </div>
 
-            <DialogFooter class="mt-6 flex flex-shrink-0 flex-col gap-2 border-t pt-4 md:flex-row md:justify-end">
+            <DialogFooter class="flex-shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                 <div class="w-full md:w-auto">
                     <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="handleOpenChange(false)">
                         Cancelar

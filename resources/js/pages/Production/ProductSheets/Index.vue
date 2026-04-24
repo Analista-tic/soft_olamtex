@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/pagination';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useGlobalAlert } from '@/composables/useGlobalAlert';
 import { uiPatterns } from '@/lib/ui-patterns';
@@ -503,11 +504,13 @@ onUnmounted(() => {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-if="isFetchingSheets">
-                            <TableCell colspan="11" class="py-10 text-center text-sm text-muted-foreground">
-                                Cargando sábanas de productos...
-                            </TableCell>
-                        </TableRow>
+                        <template v-if="isFetchingSheets">
+                            <TableRow v-for="i in 5" :key="`product-sheet-skeleton-${i}`">
+                                <TableCell v-for="col in 11" :key="`product-sheet-skeleton-${i}-${col}`" class="px-4 py-3">
+                                    <Skeleton class="h-4 w-full" />
+                                </TableCell>
+                            </TableRow>
+                        </template>
 
                         <template v-else>
                             <TableRow v-if="productSheets.length === 0">

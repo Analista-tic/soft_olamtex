@@ -21,6 +21,7 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
@@ -642,9 +643,13 @@ onMounted(async () => {
                         <TableRow v-if="!isLoading && filteredNotes.length === 0">
                             <TableCell colspan="7" class="py-8 text-muted-foreground">No hay notas para mostrar.</TableCell>
                         </TableRow>
-                        <TableRow v-if="isLoading">
-                            <TableCell colspan="7" class="py-8 text-muted-foreground">Cargando notas...</TableCell>
-                        </TableRow>
+                        <template v-if="isLoading">
+                            <TableRow v-for="i in 5" :key="`credit-note-skeleton-${i}`">
+                                <TableCell v-for="col in 7" :key="`credit-note-skeleton-${i}-${col}`" class="px-4 py-3">
+                                    <Skeleton class="h-4 w-full" />
+                                </TableCell>
+                            </TableRow>
+                        </template>
                     </TableBody>
                 </Table>
 

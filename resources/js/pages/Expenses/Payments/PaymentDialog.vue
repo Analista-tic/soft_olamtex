@@ -91,7 +91,7 @@ function formatCurrency(value: number): string {
                 </DialogDescription>
             </DialogHeader>
 
-            <div :class="uiPatterns.dialogMedium.body">
+            <div class="flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
                 <section class="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div class="rounded-lg border border-sidebar-border/70 bg-background p-3 dark:border-sidebar-border">
                         <p :class="uiPatterns.typography.metricLabel">Saldo pendiente</p>
@@ -143,7 +143,7 @@ function formatCurrency(value: number): string {
                 </div>
             </div>
 
-            <DialogFooter :class="uiPatterns.dialogMedium.footer">
+            <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                 <Button type="button" variant="outline" size="pill" @click="emit('close')">
                     Cancelar
                 </Button>

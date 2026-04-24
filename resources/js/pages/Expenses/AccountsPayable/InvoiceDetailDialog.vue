@@ -98,7 +98,10 @@ function invoiceItemLabel(item: InvoiceDetailItem): string {
                 >
             </DialogHeader>
 
-            <div :class="[uiPatterns.dialogMedium.body, 'relative', { 'min-h-[420px]': isBlockingLoading }]">
+            <div
+                :class="['relative flex-1 overflow-y-auto scroll-smooth px-5 py-4', { 'min-h-[420px]': isBlockingLoading }]"
+                style="scrollbar-width: thin"
+            >
                 <FormLoadingOverlay
                     :active="isBlockingLoading"
                     :delay-ms="0"
@@ -156,7 +159,7 @@ function invoiceItemLabel(item: InvoiceDetailItem): string {
                 </div>
             </div>
 
-            <DialogFooter :class="uiPatterns.dialogMedium.footer">
+            <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                 <Button type="button" variant="outline" size="pill" @click="emit('close')">Cerrar</Button>
             </DialogFooter>
         </DialogContent>

@@ -16,6 +16,7 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { FabricRollView } from '@/domain/Textil';
 import { formatMeters, formatWidthToMeters, toUnitNumber } from '@/domain/Textil';
@@ -341,9 +342,13 @@ function setDownloadDialogOpen(value: boolean) {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            <TableRow v-if="isLoadingRolls">
-                                <TableCell colspan="11" class="py-8 text-center text-sm text-muted-foreground">Cargando rollos...</TableCell>
-                            </TableRow>
+                            <template v-if="isLoadingRolls">
+                                <TableRow v-for="i in 5" :key="`fabric-roll-skeleton-${i}`">
+                                    <TableCell v-for="col in 11" :key="`fabric-roll-skeleton-${i}-${col}`" class="px-4 py-3">
+                                        <Skeleton class="h-4 w-full" />
+                                    </TableCell>
+                                </TableRow>
+                            </template>
                             <TableRow v-else-if="rolls.length === 0">
                                 <TableCell colspan="11" class="py-8 text-center text-sm text-muted-foreground">No hay rollos disponibles.</TableCell>
                             </TableRow>
@@ -456,5 +461,4 @@ function setDownloadDialogOpen(value: boolean) {
         />
     </AppLayout>
 </template>
-
 

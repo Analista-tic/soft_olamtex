@@ -70,15 +70,16 @@ watch(localOpen, (v) => {
                 </DialogDescription>
             </DialogHeader>
 
-            <div v-if="operation" class="space-y-4">
-                <!-- Nombre principal -->
-                <div class="rounded-md border border-primary/20 bg-primary/5 px-4 py-3 text-center">
-                    <p class="font-mono text-lg font-bold text-primary">{{ operation.normalized_name }}</p>
-                    <p v-if="operation.codigo" class="mt-1 text-xs text-muted-foreground">{{ operation.codigo }}</p>
-                </div>
+            <div class="flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
+                <div v-if="operation" class="space-y-4">
+                    <!-- Nombre principal -->
+                    <div class="rounded-md border border-primary/20 bg-primary/5 px-4 py-3 text-center">
+                        <p class="font-mono text-lg font-bold text-primary">{{ operation.normalized_name }}</p>
+                        <p v-if="operation.codigo" class="mt-1 text-xs text-muted-foreground">{{ operation.codigo }}</p>
+                    </div>
 
-                <!-- Grid de campos -->
-                <div class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                    <!-- Grid de campos -->
+                    <div class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
                     <div>
                         <p class="text-[11px] font-medium text-muted-foreground">Sección</p>
                         <p class="font-medium">{{ operation.section?.name ?? '-' }}</p>
@@ -157,10 +158,11 @@ watch(localOpen, (v) => {
                         <p class="text-[11px] font-medium text-muted-foreground">Fecha de creación</p>
                         <p class="text-xs">{{ operation.created_at ? new Date(operation.created_at).toLocaleDateString('es-CO') : '-' }}</p>
                     </div>
+                    </div>
                 </div>
             </div>
 
-            <DialogFooter class="mt-4 border-t pt-4">
+            <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                 <Button variant="outline" size="pill" @click="emit('edit')"> <Pencil class="mr-1 h-4 w-4" /> Editar </Button>
                 <Button variant="outline" size="pill" @click="localOpen = false">Cerrar</Button>
             </DialogFooter>

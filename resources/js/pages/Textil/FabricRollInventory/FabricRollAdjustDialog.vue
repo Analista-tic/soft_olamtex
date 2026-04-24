@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import FormDialogContent from '@/components/FormDialogContent.vue';
-import FormHeader from '@/components/FormHeader.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import type { FabricRollView } from '@/domain/Textil';
 import { reactive, watch } from 'vue';
@@ -59,13 +58,12 @@ function submitAdjust() {
 <template>
     <Dialog :open="props.modelValue" modal @openChange="handleOpenChange">
         <FormDialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
-            <FormHeader
-                title="Ajustar salida del rollo"
-                description="Modifica la salida registrada antes de continuar con la descarga."
-                class="mb-4 flex-shrink-0"
-            />
+            <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
+                <DialogTitle>Ajustar salida del rollo</DialogTitle>
+                <DialogDescription>Modifica la salida registrada antes de continuar con la descarga.</DialogDescription>
+            </DialogHeader>
 
-            <div class="flex-1 overflow-y-auto scroll-smooth px-2" style="scrollbar-width: thin">
+            <div class="flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
                 <div class="space-y-5">
                     <div v-if="props.roll" class="rounded-2xl border border-muted-foreground/40 bg-muted/30 p-4">
                         <div class="grid grid-cols-3 justify-items-center gap-4 text-center text-sm">
@@ -97,7 +95,7 @@ function submitAdjust() {
                 </div>
             </div>
 
-            <DialogFooter class="mt-6 flex flex-shrink-0 flex-col gap-2 border-t pt-4 md:flex-row md:justify-end">
+            <DialogFooter class="flex-shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                 <div class="w-full md:w-auto">
                     <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="closeDialog">
                         Cancelar

@@ -413,21 +413,21 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 
 <template>
     <Dialog :open="open" @update:open="(val) => (val ? emit('update:open', val) : closeDialog())">
-        <FormDialogContent class="flex max-h-[98vh] max-w-[150vh] flex-col px-2 py-2">
-            <DialogHeader class="flex-shrink-0">
+        <FormDialogContent class="flex max-h-[98vh] max-w-[95vw] flex-col px-2 py-2">
+            <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle>{{ dialogTitle }}</DialogTitle>
-                <DialogDescription class="pb-2">
+                <DialogDescription>
                     {{ dialogDescription }}
                 </DialogDescription>
             </DialogHeader>
-            <div class="relative flex-1 overflow-y-auto px-1 pr-2">
+            <div class="relative flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
                 <AlertStack
                     :error-message="localErrorMessage"
                     :error-type="localErrorType"
                     @close-error="handleCloseError"
                 />
                 <TooltipProvider>
-                    <div class="space-y-4 pt-4">
+                    <div class="space-y-4">
                         <div>
                             <div class="grid items-start gap-6 lg:grid-cols-[1.15fr,1fr]">
                                 <div class="space-y-4">
@@ -563,7 +563,7 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
                     </div>
                 </TooltipProvider>
             </div>
-            <DialogFooter class="mt-4 flex-shrink-0 border-t pt-4">
+            <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                 <div class="flex w-full justify-end gap-3">
                     <Button variant="outline" size="pill" @click="closeDialog">
                         {{ cancelButtonLabel }}

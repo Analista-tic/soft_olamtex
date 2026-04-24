@@ -17,6 +17,7 @@ import Button from '@/components/ui/button/Button.vue';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
     Pagination,
     PaginationEllipsis,
@@ -498,9 +499,9 @@ onBeforeUnmount(() => {
 
                         <TableBody>
                             <template v-if="isLoading">
-                                <TableRow>
-                                    <TableCell :colspan="6" class="py-6 text-center text-sm text-muted-foreground">
-                                        Cargando ítems...
+                                <TableRow v-for="i in 5" :key="`item-skeleton-${i}`">
+                                    <TableCell v-for="col in 6" :key="`item-skeleton-${i}-${col}`" class="px-4 py-3">
+                                        <Skeleton class="h-4 w-full" />
                                     </TableCell>
                                 </TableRow>
                             </template>

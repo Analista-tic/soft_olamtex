@@ -384,7 +384,8 @@ const todayFormatted = new Date().toLocaleDateString('es-CO', {
                     </DialogDescription>
                 </DialogHeader>
 
-                <div class="space-y-4 px-1 pt-2">
+                <div class="flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
+                    <div class="space-y-4">
                     <!-- Row 1: Name + Type -->
                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <InputField
@@ -442,9 +443,10 @@ const todayFormatted = new Date().toLocaleDateString('es-CO', {
                         label="Descripción"
                         placeholder="Notas adicionales sobre esta cuenta"
                     />
+                    </div>
                 </div>
 
-                <DialogFooter class="flex justify-end gap-2 pt-2">
+                <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                     <Button variant="outline" size="pill" @click="closeDialog">
                         Cancelar
                     </Button>

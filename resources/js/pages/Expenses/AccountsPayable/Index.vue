@@ -17,6 +17,7 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { PurchaseInvoice } from '@/domain/Expenses';
@@ -315,11 +316,13 @@ onBeforeUnmount(() => {
                         </TableHeader>
 
                         <TableBody>
-                            <TableRow v-if="isLoading">
-                                <TableCell colspan="10" class="py-6 text-center text-sm text-muted-foreground">
-                                    Cargando cuentas por pagar...
-                                </TableCell>
-                            </TableRow>
+                            <template v-if="isLoading">
+                                <TableRow v-for="i in 5" :key="`payable-skeleton-${i}`">
+                                    <TableCell v-for="col in 10" :key="`payable-skeleton-${i}-${col}`" class="px-4 py-3">
+                                        <Skeleton class="h-4 w-full" />
+                                    </TableCell>
+                                </TableRow>
+                            </template>
 
                             <TableRow v-else-if="rows.length === 0">
                                 <TableCell colspan="10" class="py-6 text-center text-sm text-muted-foreground">

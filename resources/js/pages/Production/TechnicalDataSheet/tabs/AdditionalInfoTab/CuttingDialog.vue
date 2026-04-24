@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
-import FormHeader from '@/components/FormHeader.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import SelectField from '@/components/SelectField.vue';
 import {
@@ -15,7 +14,7 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import Button from '@/components/ui/button/Button.vue';
-import { Dialog, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
@@ -673,9 +672,12 @@ watch(
     <Dialog :open="open" @update:open="handleDialogOpenChange">
         <FormDialogContent
             overlay-class="backdrop-blur-0"
-            class="flex max-h-[96vh] max-w-[1460px] flex-col overflow-hidden px-2 py-2 data-[state=closed]:animate-none data-[state=open]:animate-none"
+            class="flex max-h-[96vh] max-w-[1460px] flex-col px-2 py-2 data-[state=closed]:animate-none data-[state=open]:animate-none"
         >
-            <FormHeader class="pb-2" title="Corte" description="Configura unidades por talla, curvas, despiece y notas generales." />
+            <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
+                <DialogTitle>Corte</DialogTitle>
+                <DialogDescription>Configura unidades por talla, curvas, despiece y notas generales.</DialogDescription>
+            </DialogHeader>
 
             <AlertStack
                 :success-message="successMessage || ''"
@@ -685,7 +687,7 @@ watch(
                 @close-error="infoMessage = null"
             />
 
-            <div class="min-h-0 flex-1 overflow-y-auto px-2 pt-4">
+            <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
                 <div
                     class="grid grid-cols-[0.98fr_1.6fr] gap-6 items-start"
                     style="grid-template-columns: minmax(260px,38%) minmax(340px,62%);"
@@ -1050,7 +1052,7 @@ watch(
                 </div><!-- /grid -->
             </div>
 
-            <DialogFooter class="mt-6 shrink-0 justify-end gap-2 border-t bg-background px-1 pt-4">
+            <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                 <Button type="button" variant="outline" class="rounded-full px-6" @click="handleClose">Cerrar</Button>
                 <Button type="button" class="rounded-full px-6" :disabled="savingSection === 'cutting'" @click="handleSave">
                     {{ savingSection === 'cutting' ? 'Guardando...' : 'Guardar' }}

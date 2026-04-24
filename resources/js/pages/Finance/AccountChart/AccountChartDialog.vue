@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import SelectField from '@/components/SelectField.vue';
 import Button from '@/components/ui/button/Button.vue';
 import Input from '@/components/ui/input/Input.vue';
@@ -324,7 +325,7 @@ function handleCancel(): void {
 
 <template>
     <Dialog v-model:open="internalOpen">
-        <FormDialogContent class="flex max-h-[95vh] max-w-2xl flex-col overflow-hidden p-0">
+        <FormDialogContent class="flex max-h-[95vh] max-w-2xl flex-col px-2 py-2">
             <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle class="text-xl font-semibold tracking-tight text-foreground">
                     {{ dialogTitle }}
@@ -337,14 +338,18 @@ function handleCancel(): void {
                 </p>
             </DialogHeader>
 
-            <div class="min-h-0 flex-1 overflow-y-auto px-6 pb-5 pt-4">
+            <div class="relative min-h-0 flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin" :class="{ 'min-h-[220px]': isInitializing }">
+                <FormLoadingOverlay
+                    :active="isInitializing"
+                    :delay-ms="0"
+                    message="Cargando cuenta contable..."
+                    description="Preparando la información de la cuenta."
+                />
                 <div v-if="submitError" class="mb-5 rounded-2xl border border-destructive/10 bg-destructive/[0.02] px-4 py-3 text-sm text-destructive">
                     {{ submitError }}
                 </div>
 
-                <div v-if="isInitializing" class="flex min-h-[220px] items-center justify-center text-sm text-muted-foreground">
-                    Cargando formulario...
-                </div>
+                <div v-if="isInitializing" class="min-h-[220px]" />
 
                 <div v-else class="space-y-6">
                     <div class="space-y-1.5">
@@ -462,7 +467,7 @@ function handleCancel(): void {
                 </div>
             </div>
 
-            <DialogFooter class="shrink-0 justify-end gap-3 px-6 pb-5 pt-2">
+            <DialogFooter class="shrink-0 justify-end gap-3 border-t border-border px-5 py-4">
                 <Button
                     type="button"
                     variant="outline"

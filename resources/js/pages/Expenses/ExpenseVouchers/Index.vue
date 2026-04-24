@@ -28,6 +28,7 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import Textarea from '@/components/ui/textarea/Textarea.vue';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
@@ -326,11 +327,13 @@ onBeforeUnmount(() => window.clearTimeout(searchDebounce));
 
                     <TableBody>
                         <!-- Loading state -->
-                        <TableRow v-if="isLoading">
-                            <TableCell colspan="9" class="py-6 text-center text-sm text-muted-foreground">
-                                Cargando comprobantes de egreso...
-                            </TableCell>
-                        </TableRow>
+                        <template v-if="isLoading">
+                            <TableRow v-for="i in 5" :key="`voucher-skeleton-${i}`">
+                                <TableCell v-for="col in 9" :key="`voucher-skeleton-${i}-${col}`" class="px-4 py-3">
+                                    <Skeleton class="h-4 w-full" />
+                                </TableCell>
+                            </TableRow>
+                        </template>
 
                         <!-- Empty state -->
                         <TableRow v-else-if="rows.length === 0">

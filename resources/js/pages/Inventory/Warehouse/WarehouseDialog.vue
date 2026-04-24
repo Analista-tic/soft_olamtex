@@ -55,8 +55,8 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <FormDialogContent class="flex max-h-[95vh] max-w-[85vh] flex-col px-2 py-2">
-            <DialogHeader class="flex-shrink-0">
+        <FormDialogContent class="flex max-h-[95vh] max-w-md flex-col px-2 py-2">
+            <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle>
                     {{ dialogType === 'create' ? 'Crear Bodega' : 'Editar Bodega' }}
                 </DialogTitle>
@@ -68,7 +68,7 @@ function handleSubmit() {
                     }}
                 </DialogDescription>
             </DialogHeader>
-            <div class="flex-1 overflow-y-auto scroll-smooth px-1 pr-2" style="scrollbar-width: thin">
+            <div class="flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
                 <TooltipProvider>
                     <div class="space-y-4">
                         <div class="flex flex-col gap-1">
@@ -94,7 +94,7 @@ function handleSubmit() {
                     </div>
                 </TooltipProvider>
             </div>
-            <DialogFooter class="mt-4 flex flex-shrink-0 justify-end gap-2 border-t pt-4">
+            <DialogFooter class="flex-shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                 <Button variant="outline" size="pill" @click="handleClose"> Cancelar </Button>
                 <Button variant="default" size="pill" :disabled="loading" @click="handleSubmit">
                     {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}

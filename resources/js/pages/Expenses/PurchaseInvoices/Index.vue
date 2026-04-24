@@ -11,6 +11,7 @@ import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
@@ -690,9 +691,9 @@ async function handleDifferenceDecision() {
                     </TableHeader>
                     <TableBody>
                         <template v-if="isLoading">
-                            <TableRow>
-                                <TableCell colspan="8">
-                                    <div class="py-6 text-center text-sm text-muted-foreground">Cargando facturas...</div>
+                            <TableRow v-for="i in 5" :key="`purchase-invoice-skeleton-${i}`">
+                                <TableCell v-for="col in 8" :key="`purchase-invoice-skeleton-${i}-${col}`" class="px-4 py-3">
+                                    <Skeleton class="h-4 w-full" />
                                 </TableCell>
                             </TableRow>
                         </template>

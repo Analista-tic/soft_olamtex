@@ -17,6 +17,7 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
@@ -307,9 +308,13 @@ onMounted(() => {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            <TableRow v-if="isLoading">
-                                <TableCell colspan="12" class="py-8 text-muted-foreground"> Cargando movimientos... </TableCell>
-                            </TableRow>
+                            <template v-if="isLoading">
+                                <TableRow v-for="i in 5" :key="`movement-skeleton-${i}`">
+                                    <TableCell v-for="col in 12" :key="`movement-skeleton-${i}-${col}`" class="px-4 py-3">
+                                        <Skeleton class="h-4 w-full" />
+                                    </TableCell>
+                                </TableRow>
+                            </template>
                             <TableRow v-else-if="movements.length === 0">
                                 <TableCell colspan="12" class="py-8 text-muted-foreground"> No se encontraron movimientos. </TableCell>
                             </TableRow>

@@ -109,7 +109,7 @@ function getChangeDescription(entry: HistoryEntry): string {
 <template>
     <Dialog v-model:open="localOpen">
         <DialogContent class="flex max-h-[85vh] max-w-3xl flex-col">
-            <DialogHeader>
+            <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle>Historial de cambios</DialogTitle>
                 <DialogDescription>
                     Cambios registrados para esta operación

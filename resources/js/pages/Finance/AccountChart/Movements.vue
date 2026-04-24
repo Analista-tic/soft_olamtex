@@ -598,50 +598,52 @@ onBeforeUnmount(() => {
                     </DialogDescription>
                 </DialogHeader>
 
-                <div v-if="selectedMovement" class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div class="space-y-1">
-                        <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Fecha</p>
-                        <p class="text-sm font-medium text-foreground">{{ formatDate(selectedMovement.date) }}</p>
-                    </div>
-                    <div class="space-y-1">
-                        <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Asiento</p>
-                        <p class="text-sm font-medium text-foreground">#{{ selectedMovement.entry_number }}</p>
-                    </div>
-                    <div class="space-y-1">
-                        <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Documento</p>
-                        <p class="text-sm font-medium text-foreground">{{ selectedMovement.document_type_label }}</p>
-                    </div>
-                    <div class="space-y-1">
-                        <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Referencia</p>
-                        <p class="text-sm font-medium text-foreground">{{ selectedMovement.reference || '-' }}</p>
-                    </div>
-                    <div class="space-y-1">
-                        <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Tercero</p>
-                        <p class="text-sm font-medium text-foreground">{{ selectedMovement.third_party_name || 'Sin tercero' }}</p>
-                    </div>
-                    <div class="space-y-1">
-                        <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Saldo acumulado</p>
-                        <p class="text-sm font-semibold text-foreground">{{ formatCurrency(selectedMovement.running_balance) }}</p>
-                    </div>
-                    <div class="space-y-1">
-                        <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Debito</p>
-                        <p class="text-sm font-medium text-emerald-700 dark:text-emerald-400">
-                            {{ formatCurrency(selectedMovement.debit) }}
-                        </p>
-                    </div>
-                    <div class="space-y-1">
-                        <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Credito</p>
-                        <p class="text-sm font-medium text-rose-700 dark:text-rose-400">
-                            {{ formatCurrency(selectedMovement.credit) }}
-                        </p>
-                    </div>
-                    <div class="space-y-1 md:col-span-2">
-                        <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Descripcion</p>
-                        <p class="text-sm text-foreground">{{ selectedMovement.description || 'Sin descripcion registrada' }}</p>
+                <div class="flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
+                    <div v-if="selectedMovement" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div class="space-y-1">
+                            <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Fecha</p>
+                            <p class="text-sm font-medium text-foreground">{{ formatDate(selectedMovement.date) }}</p>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Asiento</p>
+                            <p class="text-sm font-medium text-foreground">#{{ selectedMovement.entry_number }}</p>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Documento</p>
+                            <p class="text-sm font-medium text-foreground">{{ selectedMovement.document_type_label }}</p>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Referencia</p>
+                            <p class="text-sm font-medium text-foreground">{{ selectedMovement.reference || '-' }}</p>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Tercero</p>
+                            <p class="text-sm font-medium text-foreground">{{ selectedMovement.third_party_name || 'Sin tercero' }}</p>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Saldo acumulado</p>
+                            <p class="text-sm font-semibold text-foreground">{{ formatCurrency(selectedMovement.running_balance) }}</p>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Debito</p>
+                            <p class="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                                {{ formatCurrency(selectedMovement.debit) }}
+                            </p>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Credito</p>
+                            <p class="text-sm font-medium text-rose-700 dark:text-rose-400">
+                                {{ formatCurrency(selectedMovement.credit) }}
+                            </p>
+                        </div>
+                        <div class="space-y-1 md:col-span-2">
+                            <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Descripcion</p>
+                            <p class="text-sm text-foreground">{{ selectedMovement.description || 'Sin descripcion registrada' }}</p>
+                        </div>
                     </div>
                 </div>
 
-                <DialogFooter class="gap-2">
+                <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                     <Button
                         v-if="selectedMovement?.can_view_source"
                         type="button"

@@ -135,46 +135,44 @@ function submitForm() {
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <FormDialogContent class="flex max-h-[95vh] max-w-[85vh] flex-col px-2 py-2">
+        <FormDialogContent class="flex max-h-[95vh] max-w-lg flex-col px-2 py-2">
             <TooltipProvider>
-                <DialogHeader class="flex-shrink-0">
+                <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                     <DialogTitle>{{ dialogType === 'create' ? 'Crear Subgrupo' : 'Editar Subgrupo' }}</DialogTitle>
                     <DialogDescription>
                         Completa los campos para {{ dialogType === 'create' ? 'crear un nuevo subgrupo' : 'editar el subgrupo' }}.
                     </DialogDescription>
                 </DialogHeader>
-                <div class="flex-1 overflow-y-auto scroll-smooth px-2" style="scrollbar-width: thin">
+                <div class="flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
                     <div class="space-y-4">
-                        <div class="space-y-2 pt-5">
-                            <div class="flex flex-1 flex-col gap-1">
-                                <div class="flex items-center gap-2">
-                                    <Label class="text-sm font-medium"> Grupo<span class="text-destructive">*</span> </Label>
-                                    <HelpTooltip
-                                        text="Selecciona el grupo principal que alojará este subgrupo."
-                                        aria-label="Ayuda sobre el grupo"
-                                    />
-                                </div>
-                                <SelectField
-                                    label=""
-                                    :options="localGroups.map((group: CategoryGroup) => ({ id: group.id, name: group.name }))"
-                                    v-model="form.category_group_id"
-                                    required
-                                    placeholder="Selecciona un grupo"
-                                    :button-class="'w-full'"
-                                    searchable
-                                >
-                                    <template #header>
-                                        <button
-                                            type="button"
-                                            class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                                            @click.stop="openGroupDialogFromDropdown"
-                                        >
-                                            <Plus class="mr-2 h-4 w-4" />
-                                            Nuevo grupo
-                                        </button>
-                                    </template>
-                                </SelectField>
+                        <div class="flex flex-1 flex-col gap-1">
+                            <div class="flex items-center gap-2">
+                                <Label class="text-sm font-medium"> Grupo<span class="text-destructive">*</span> </Label>
+                                <HelpTooltip
+                                    text="Selecciona el grupo principal que alojará este subgrupo."
+                                    aria-label="Ayuda sobre el grupo"
+                                />
                             </div>
+                            <SelectField
+                                label=""
+                                :options="localGroups.map((group: CategoryGroup) => ({ id: group.id, name: group.name }))"
+                                v-model="form.category_group_id"
+                                required
+                                placeholder="Selecciona un grupo"
+                                :button-class="'w-full'"
+                                searchable
+                            >
+                                <template #header>
+                                    <button
+                                        type="button"
+                                        class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                                        @click.stop="openGroupDialogFromDropdown"
+                                    >
+                                        <Plus class="mr-2 h-4 w-4" />
+                                        Nuevo grupo
+                                    </button>
+                                </template>
+                            </SelectField>
                         </div>
 
                         <ChipInputField
@@ -196,15 +194,11 @@ function submitForm() {
                         />
                     </div>
                 </div>
-                <DialogFooter class="mt-4 flex flex-shrink-0 justify-end gap-2 border-t pt-4">
+                <DialogFooter class="flex-shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                     <Button variant="outline" size="pill" @click="closeDialog"> Cancelar </Button>
-                    <button
-                        type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                        @click="submitForm"
-                    >
+                    <Button type="button" size="pill" @click="submitForm">
                         {{ dialogType === 'create' ? 'Crear' : 'Guardar' }}
-                    </button>
+                    </Button>
                 </DialogFooter>
             </TooltipProvider>
         </FormDialogContent>
