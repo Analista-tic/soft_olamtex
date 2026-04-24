@@ -130,7 +130,7 @@ const transferDialogPayload = computed<DialogTransferPayload | null>(() => {
 const currentPage = ref(1);
 const ITEMS_PER_PAGE = 10;
 const searchQuery = ref('');
-const isLoading = ref(false);
+const isLoading = ref(true);
 const sortBy = ref<'date'>('date');
 const sortDir = ref<'asc' | 'desc'>('desc');
 
@@ -187,7 +187,7 @@ const canCreateTransfer = computed(() => canCreateTransferPermission.value && !i
 const showNotEnoughMessage = computed(() => !isLoadingWarehouses.value && !hasEnoughWarehouses.value);
 
 // --- Breadcrumbs ---
-const breadcrumbs = [{ title: 'Transferencias de bodegas', href: '/transferencias-bodegas' }];
+const breadcrumbs = [{ title: 'Bodegas', href: '/bodegas' }, { title: 'Transferencia de bodegas', href: '/transferencias-bodegas' }];
 
 // --- Métodos de UI ---
 function findTransferResponse(source: Transfer | TransferResponse | null): TransferResponse | null {

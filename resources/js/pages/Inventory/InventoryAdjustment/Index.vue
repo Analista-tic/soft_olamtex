@@ -19,6 +19,7 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -51,6 +52,7 @@ const sortBy = ref<'date' | 'total'>('date');
 const sortDir = ref<'asc' | 'desc'>('desc');
 const currentPage = ref(1);
 const itemsPerPage = 10;
+const isLoading = ref(true);
 const isAdjustmentFormOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
 const adjustmentToEdit = ref<InventoryAdjustment | null>(null);
@@ -96,6 +98,7 @@ function toggleSort(column: 'date' | 'total') {
 }
 
 async function fetchAdjustments(page = 1, search = '') {
+    isLoading.value = true;
     const params: Record<string, any> = {
         page,
         per_page: itemsPerPage,
@@ -103,18 +106,22 @@ async function fetchAdjustments(page = 1, search = '') {
         sort_by: sortBy.value,
         sort_direction: sortDir.value,
     };
-    if (typeFilter.value !== 'all') {
-        params.type = typeFilter.value;
-    }
-    const { data } = await axios.get('/ajustes-inventario/data', {
-        params,
-    });
+    try {
+        if (typeFilter.value !== 'all') {
+            params.type = typeFilter.value;
+        }
+        const { data } = await axios.get('/ajustes-inventario/data', {
+            params,
+        });
 
-    adjustments.value = data.data ?? [];
-    totalItems.value = data.total ?? 0;
-    currentPage.value = data.current_page ?? page;
-    sortBy.value = data.sort_by ?? sortBy.value;
-    sortDir.value = data.sort_direction ?? sortDir.value;
+        adjustments.value = data.data ?? [];
+        totalItems.value = data.total ?? 0;
+        currentPage.value = data.current_page ?? page;
+        sortBy.value = data.sort_by ?? sortBy.value;
+        sortDir.value = data.sort_direction ?? sortDir.value;
+    } finally {
+        isLoading.value = false;
+    }
 }
 
 function handlePageChange(newPage: number) {
@@ -327,48 +334,64 @@ onMounted(() => {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="adjustment in adjustments" :key="adjustment.id">
-                            <TableCell>{{ adjustment.document_number ?? 'Sin número' }}</TableCell>
-                            <TableCell>{{ formatDate(adjustment.date) }}</TableCell>
-                            <TableCell class="capitalize">
-                                {{ getAdjustmentTypeLabel(adjustment) }}
-                            </TableCell>
-                            <TableCell>{{ adjustment.observation || '-' }}</TableCell>
-                            <TableCell>{{ formatCurrency(adjustment.total) }}</TableCell>
-                            <TableCell class="flex justify-center gap-1">
-                                <EditButton :onClick="() => openEditAdjustment(adjustment)" title="Editar ajuste" />
-                                <DeleteButton @click="confirmDelete(adjustment)" title="Eliminar ajuste" />
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger as-child>
-                                        <Button variant="ghost" size="icon" class="h-8 w-8 p-0">
-                                            <MoreVertical class="h-4 w-4" />
-                                            <span class="sr-only">Acciones</span>
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" class="w-48">
-                                        <DropdownMenuItem class="cursor-pointer gap-2" @click="openPrintDialog(adjustment)">
-                                            <Printer class="h-4 w-4" /> Imprimir
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                            class="cursor-pointer gap-2"
-                                            :class="isSendingMail ? 'cursor-not-allowed opacity-60' : ''"
-                                            :disabled="isSendingMail"
-                                            @click="sendByEmail(adjustment)"
-                                        >
-                                            <Mail class="h-4 w-4" /> Enviar al correo
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                            class="cursor-pointer gap-2"
-                                            :class="isConverting === adjustment.id ? 'cursor-not-allowed opacity-60' : ''"
-                                            :disabled="isConverting === adjustment.id"
-                                            @click="convertToInvoice(adjustment)"
-                                        >
-                                            <ReceiptText class="h-4 w-4" /> Convertir en factura
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </TableCell>
-                        </TableRow>
+                        <template v-if="isLoading">
+                            <TableRow v-for="i in 5" :key="`adjustment-skeleton-${i}`">
+                                <TableCell v-for="col in 6" :key="`adjustment-skeleton-${i}-${col}`" class="px-4 py-3">
+                                    <Skeleton class="h-4 w-full" />
+                                </TableCell>
+                            </TableRow>
+                        </template>
+                        <template v-else-if="!adjustments.length">
+                            <TableRow>
+                                <TableCell colspan="6" class="py-6 text-center text-sm text-muted-foreground">
+                                    No hay ajustes registrados.
+                                </TableCell>
+                            </TableRow>
+                        </template>
+                        <template v-else>
+                            <TableRow v-for="adjustment in adjustments" :key="adjustment.id">
+                                <TableCell>{{ adjustment.document_number ?? 'Sin número' }}</TableCell>
+                                <TableCell>{{ formatDate(adjustment.date) }}</TableCell>
+                                <TableCell class="capitalize">
+                                    {{ getAdjustmentTypeLabel(adjustment) }}
+                                </TableCell>
+                                <TableCell>{{ adjustment.observation || '-' }}</TableCell>
+                                <TableCell>{{ formatCurrency(adjustment.total) }}</TableCell>
+                                <TableCell class="flex justify-center gap-1">
+                                    <EditButton :onClick="() => openEditAdjustment(adjustment)" title="Editar ajuste" />
+                                    <DeleteButton @click="confirmDelete(adjustment)" title="Eliminar ajuste" />
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger as-child>
+                                            <Button variant="ghost" size="icon" class="h-8 w-8 p-0">
+                                                <MoreVertical class="h-4 w-4" />
+                                                <span class="sr-only">Acciones</span>
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" class="w-48">
+                                            <DropdownMenuItem class="cursor-pointer gap-2" @click="openPrintDialog(adjustment)">
+                                                <Printer class="h-4 w-4" /> Imprimir
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                class="cursor-pointer gap-2"
+                                                :class="isSendingMail ? 'cursor-not-allowed opacity-60' : ''"
+                                                :disabled="isSendingMail"
+                                                @click="sendByEmail(adjustment)"
+                                            >
+                                                <Mail class="h-4 w-4" /> Enviar al correo
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                class="cursor-pointer gap-2"
+                                                :class="isConverting === adjustment.id ? 'cursor-not-allowed opacity-60' : ''"
+                                                :disabled="isConverting === adjustment.id"
+                                                @click="convertToInvoice(adjustment)"
+                                            >
+                                                <ReceiptText class="h-4 w-4" /> Convertir en factura
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </TableCell>
+                            </TableRow>
+                        </template>
                     </TableBody>
                 </Table>
 
