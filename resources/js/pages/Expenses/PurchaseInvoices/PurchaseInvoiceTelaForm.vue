@@ -2,6 +2,7 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import DateField from '@/components/DateField.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -40,6 +41,10 @@ const isReadOnly = computed(() => false);
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc: number, item: any) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc: number, item: any) => acc + (Number(item.total_tax) || 0), 0));
 const total = computed(() => Number(subtotal.value) + Number(iva.value));
+
+function formatCurrency(value: number) {
+    return Number(value || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
+}
 
 const selectedContactData = computed(() => {
     if (!localForm.value.contact_id) return null;
@@ -188,13 +193,13 @@ async function handleSubmit(sendMail = false) {
 <template>
     <Head :title="mode === 'create' ? 'Nueva Factura de Compra - Tela' : 'Editar Factura de Compra - Tela'" />
     <AppLayout :breadcrumbs="mode === 'create' ? [{ title: 'Facturas de Compra (Tela)', href: '/gastos/facturas-compra-tela' }, { title: 'Nueva Factura', href: '' }] : [{ title: 'Facturas de Compra (Tela)', href: '/gastos/facturas-compra-tela' }, { title: localForm.id ? localForm.document_number || 'Editar' : 'Editar', href: '' }]">
-        <div class="flex flex-col gap-1">
-            <h1 class="text-lg font-bold">{{ mode === 'create' ? 'Nueva Factura de Compra - Tela' : 'Editar Factura de Compra - Tela' }}</h1>
-            <p class="text-sm text-muted-foreground">Registra una factura de compra de tela para trazabilidad y recepción.</p>
-        </div>
-        <AlertStack :successMessage="successMessage" :errorMessage="errorMessage" :errorType="errorType" @close-success="clearSuccess" @close-error="clearError" />
-
         <div class="flex flex-col gap-4 p-3">
+            <div class="flex flex-col gap-1">
+                <h1 class="text-lg font-bold">{{ mode === 'create' ? 'Nueva Factura de Compra - Tela' : 'Editar Factura de Compra - Tela' }}</h1>
+                <p class="text-sm text-muted-foreground">Registra una factura de compra de tela para trazabilidad y recepción.</p>
+            </div>
+            <AlertStack :successMessage="successMessage" :errorMessage="errorMessage" :errorType="errorType" @close-success="clearSuccess" @close-error="clearError" />
+
             <div class="space-y-6">
                 <div class="overflow-hidden rounded-xl border border-sidebar-border/70">
                     <!-- Cabecera del documento (copiada de PurchaseOrderForm.vue y adaptada para telas) -->
@@ -204,11 +209,16 @@ async function handleSubmit(sendMail = false) {
                         <div class="doc-col-left">
                             <div class="doc-date-row">
                                 <span class="doc-date-label">Fecha factura</span>
-                                <DateField v-model="invoiceDate" label="" />
+                                <span class="text-sm">{{ localForm.date }}</span>
                             </div>
                             <div class="doc-date-row">
                                 <div class="flex shrink-0 items-center gap-1">
                                     <span class="doc-date-label">Fecha de entrega</span>
+                                    <span class="text-destructive text-sm">*</span>
+                                    <HelpTooltip
+                                        text="Fecha estimada en la que el proveedor debe entregar los productos."
+                                        aria-label="Ayuda sobre fecha de entrega"
+                                    />
                                 </div>
                                 <DateField v-model="deliveryDate" label="" :clearable="true" />
                             </div>
@@ -263,11 +273,18 @@ async function handleSubmit(sendMail = false) {
                         <div class="flex flex-col gap-1">
                             <div class="flex items-center gap-2">
                                 <span class="text-sm font-medium">N° factura proveedor<span class="text-destructive">*</span></span>
+                                <HelpTooltip text="Número de la factura suministrado por el proveedor." aria-label="Ayuda sobre número de factura proveedor" />
                             </div>
                             <InputField v-model="localForm.supplier_invoice_number" label="" required />
                         </div>
 
-                        <PurchaseInvoiceWithholdingsTable :modelValue="localForm.withholdings || []" @update:modelValue="(val) => (localForm.withholdings = val)" :invoiceSubtotal="subtotal" />
+                    </div>
+                    <div class="border-t border-sidebar-border/70 px-4 py-3">
+                        <PurchaseInvoiceWithholdingsTable
+                            :modelValue="localForm.withholdings || []"
+                            @update:modelValue="(val) => (localForm.withholdings = val)"
+                            :invoiceSubtotal="subtotal"
+                        />
                     </div>
                 </div>
 
@@ -296,19 +313,19 @@ async function handleSubmit(sendMail = false) {
                         <TextareaField v-model="localForm.description" label="Observación" />
                     </div>
                     <div class="shrink-0 rounded-lg border border-sidebar-border/70" style="min-width: 420px; width: auto">
-                        <div class="flex justify-between border-b border-sidebar-border/70" style="padding: 12px 20px; font-size: 14px">
-                            <span class="text-muted-foreground">Subtotal</span>
-                            <span class="font-medium">{{ Number(subtotal || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }) }}</span>
-                        </div>
-                        <div class="flex justify-between border-b border-sidebar-border/70" style="padding: 12px 20px; font-size: 14px">
-                            <span class="text-muted-foreground">Impuestos</span>
-                            <span class="font-medium">{{ Number(iva || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }) }}</span>
-                        </div>
-                        <div class="flex justify-between border-t border-sidebar-border/70" style="padding: 14px 20px; font-size: 15px; font-weight: 500">
-                            <span>Total</span>
-                            <span class="font-bold">{{ Number(total || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }) }}</span>
-                        </div>
-                    </div>
+    <div class="flex justify-between" style="padding: 12px 20px; font-size: 14px; border-bottom: 1px solid hsl(var(--border))">
+        <span class="text-muted-foreground">Subtotal</span>
+        <span class="font-medium">{{ formatCurrency(subtotal) }}</span>
+    </div>
+    <div class="flex justify-between" style="padding: 12px 20px; font-size: 14px; border-bottom: 1px solid hsl(var(--border))">
+        <span class="text-muted-foreground">Impuestos</span>
+        <span class="font-medium">{{ formatCurrency(iva) }}</span>
+    </div>
+    <div class="flex justify-between" style="padding: 14px 20px; font-size: 15px; font-weight: 500; border-top: 1px solid hsl(var(--border))">
+        <span>Total</span>
+        <span class="font-bold">{{ formatCurrency(total) }}</span>
+    </div>
+</div>
                 </div>
 
             </div>

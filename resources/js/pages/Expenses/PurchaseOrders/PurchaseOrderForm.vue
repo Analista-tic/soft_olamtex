@@ -124,7 +124,7 @@ async function fetchNextDocumentNumber() {
         const lastNum = last ? parseInt(String(last).replace('ORD-', ''), 10) : 0;
         const next = Number.isNaN(lastNum) ? 1 : lastNum + 1;
         nextDocumentNumber.value = `ORD-${String(next).padStart(4, '0')}`;
-    } catch (e) {
+    } catch {
         nextDocumentNumber.value = 'ORD-0001';
     } finally {
         isLoadingDocumentNumber.value = false;
