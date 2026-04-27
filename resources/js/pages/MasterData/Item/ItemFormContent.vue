@@ -1363,8 +1363,9 @@ onBeforeUnmount(() => {
             @close-error="errorMessage = ''"
         />
 
-        <form class="flex flex-col" @submit.prevent="handleSubmit">
+            <form class="flex flex-col" @submit.prevent="handleSubmit">
             <FormHeader
+                v-if="!props.isFullPage"
                 class="shrink-0 border-b px-5 py-4 pr-12"
                 :title="dialogType === 'create' ? 'Crear ítem' : dialogType === 'edit' ? 'Editar ítem' : 'Detalle del ítem'"
                 :description="
