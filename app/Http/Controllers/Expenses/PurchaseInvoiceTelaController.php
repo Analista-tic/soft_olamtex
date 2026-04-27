@@ -28,6 +28,23 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
         return Inertia::render('Expenses/PurchaseInvoices/IndexFabric');
     }
 
+    public function create()
+    {
+        return Inertia::render('Expenses/PurchaseInvoices/PurchaseInvoiceTelaForm', [
+            'mode' => 'create',
+        ]);
+    }
+
+    public function edit(PurchaseDocument $purchaseInvoice)
+    {
+        $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
+        $invoice = $this->service->loadWithRelations($purchaseInvoice);
+        return Inertia::render('Expenses/PurchaseInvoices/PurchaseInvoiceTelaForm', [
+            'mode' => 'edit',
+            'form' => $invoice,
+        ]);
+    }
+
     public function show(PurchaseDocument $purchaseInvoice)
     {
         $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
@@ -82,7 +99,7 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
             $filters,
             $perPage,
             $request,
-            auth()->user()
+            Auth::user()
         );
 
         return response()->json([

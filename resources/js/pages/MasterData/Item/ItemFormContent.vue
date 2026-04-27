@@ -1340,14 +1340,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div class="flex min-h-0 flex-1 flex-col">
+    <div class="flex flex-col">
         <AlertStack
             :error-message="errorMessage"
             :error-type="errorType"
             @close-error="errorMessage = ''"
         />
 
-        <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="handleSubmit">
+        <form class="flex flex-col" @submit.prevent="handleSubmit">
             <FormHeader
                 class="shrink-0 border-b px-5 py-4 pr-12"
                 :title="dialogType === 'create' ? 'Crear ítem' : dialogType === 'edit' ? 'Editar ítem' : 'Detalle del ítem'"
@@ -1362,9 +1362,9 @@ onBeforeUnmount(() => {
 
             <div
                 ref="dialogInnerRef"
-                class="relative min-h-0 flex-1 overflow-y-auto scroll-smooth px-5 py-4"
-                :class="{ 'min-h-[420px]': isBlockingLoading }"
-                style="scrollbar-width: thin"
+                class="relative overflow-y-auto scroll-smooth px-5 py-4 pr-4"
+                style="max-height: 65vh; scrollbar-width: thin;"
+                :class="{ 'min-h-[160px] flex items-center justify-center': isBlockingLoading }"
             >
                 <FormLoadingOverlay
                     v-if="showInternalLoadingOverlay"
@@ -1374,7 +1374,7 @@ onBeforeUnmount(() => {
                     description="Preparando catalogos y datos iniciales necesarios."
                 />
 
-                <fieldset v-if="canRenderForm" :disabled="isViewMode" class="space-y-3">
+                <fieldset v-if="canRenderForm" :disabled="isViewMode" class="space-y-4">
                     <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
                         <div class="flex min-w-0 flex-col gap-3">
                             <div>
@@ -1504,7 +1504,7 @@ onBeforeUnmount(() => {
                                 </template>
                             </div>
 
-                            <div v-if="currentItemType !== 'service'" class="rounded-lg border border-border bg-card p-3">
+                            <div v-if="currentItemType !== 'service'" class="rounded-lg border border-sidebar-border/70 bg-muted/30 p-3">
                                 <div class="mb-2 flex items-center justify-between">
                                     <p class="flex items-center gap-1 text-sm font-semibold">
                                         <span>Detalle de Inventario</span>
@@ -1610,7 +1610,7 @@ onBeforeUnmount(() => {
 
                             <div
                                 :class="[
-                                    'group relative flex h-40 w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-muted/50 transition-all duration-200',
+                                    'group relative flex h-36 w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-muted/50 transition-all duration-200',
                                     isViewMode ? 'cursor-default opacity-100' : 'cursor-pointer hover:border-primary hover:shadow-md',
                                 ]"
                                 @click="!isViewMode && triggerFileInput()"
@@ -1702,17 +1702,16 @@ onBeforeUnmount(() => {
                         </div>
                     </div>
 
-                    <!-- Campos adicionales -->
-                    <div class="flex items-center justify-between">
-                        <p class="flex items-center gap-1 text-sm font-semibold text-card-foreground">
-                            <span>Campos adicionales</span>
-                            <HelpTooltip
-                                text="Agrega atributos adicionales (color, talla, etc.) que permiten diferenciar variantes del mismo subgrupo."
-                            />
-                        </p>
-                    </div>
+                    <div class="border-t border-sidebar-border/70 pt-3">
+                        <div class="mb-2 flex items-center justify-between">
+                            <p class="flex items-center gap-1 text-sm font-semibold text-card-foreground">
+                                <span>Campos adicionales</span>
+                                <HelpTooltip
+                                    text="Agrega atributos adicionales (color, talla, etc.) que permiten diferenciar variantes del mismo subgrupo."
+                                />
+                            </p>
+                        </div>
 
-                    <div class="space-y-2">
                         <ExtraFieldsForm
                             :extra-field-names="extraFieldNames"
                             v-model:extra-fields="extraFields"
@@ -1783,6 +1782,10 @@ onBeforeUnmount(() => {
             </div>
 
             <DialogFooter class="shrink-0 border-t border-border px-5 py-4 md:justify-end">
+                <Button type="button" variant="outline" size="pill" class="w-full justify-center md:w-auto" @click="handleClose">
+                    {{ dialogType === 'view' ? 'Cerrar' : 'Cancelar' }}
+                </Button>
+
                 <button
                     v-if="dialogType !== 'view' && showAdvancedLink"
                     type="button"
@@ -1792,10 +1795,6 @@ onBeforeUnmount(() => {
                     <ExternalLink class="h-4 w-4" />
                     Ir al formulario avanzado
                 </button>
-
-                <Button type="button" variant="outline" size="pill" class="w-full justify-center md:w-auto" @click="handleClose">
-                    {{ dialogType === 'view' ? 'Cerrar' : 'Cancelar' }}
-                </Button>
 
                 <Button
                     v-if="dialogType !== 'view'"

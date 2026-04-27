@@ -57,6 +57,9 @@ Route::prefix('gastos')->name('gastos.')->group(function () {
     // === FACTURAS DE COMPRA ===
     Route::prefix('facturas-compra')->name('purchase-invoices.')->middleware('permission:ver facturas compra')->group(function () {
         Route::get('/', [PurchaseInvoiceController::class, 'index'])->name('index');
+        // Página completa crear/editar
+        Route::get('/crear', [PurchaseInvoiceController::class, 'create'])->name('create')->middleware('permission:crear facturas compra');
+        Route::get('/{purchaseDocument}/editar', [PurchaseInvoiceController::class, 'edit'])->name('edit')->middleware('permission:editar facturas compra');
         Route::get('/data', [PurchaseInvoiceController::class, 'getData'])->name('getData');
         Route::get('/{purchaseDocument}/notas-credito-debito', [PurchaseInvoiceController::class, 'creditDebitNotes'])->name('credit-debit-notes');
         Route::get('/{purchaseDocument}/notes-summary', [PurchaseInvoiceController::class, 'notesSummary'])->name('notes-summary');
@@ -84,6 +87,9 @@ Route::prefix('gastos')->name('gastos.')->group(function () {
     // === FACTURAS DE COMPRA TELAS ===
     Route::prefix('facturas-compra-tela')->name('purchase-invoices-fabric.')->middleware('permission:ver facturas compra')->group(function () {
         Route::get('/', [PurchaseInvoiceTelaController::class, 'indexFabric'])->name('index');
+        // Página completa crear/editar para facturas tela
+        Route::get('/crear', [PurchaseInvoiceTelaController::class, 'create'])->name('create')->middleware('permission:crear facturas compra');
+        Route::get('/{purchaseInvoice}/editar', [PurchaseInvoiceTelaController::class, 'edit'])->name('edit')->middleware('permission:editar facturas compra');
         Route::get('/data', [PurchaseInvoiceTelaController::class, 'getData'])->name('getData');
         Route::post('/', [PurchaseInvoiceTelaController::class, 'store'])->name('store')->middleware('permission:crear facturas compra');
         Route::get('/{purchaseInvoice}', [PurchaseInvoiceTelaController::class, 'show'])->name('show');

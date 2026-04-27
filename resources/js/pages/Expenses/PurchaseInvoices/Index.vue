@@ -584,7 +584,7 @@ async function handleDifferenceDecision() {
                         <Package class="h-4 w-4" />
                         Ver Recepciones
                     </button>
-                    <Button variant="default" size="pill" :disabled="isPreparingDialog" @click="openDialogWithPreparation('create')" dusk="btn-nueva-factura">
+                    <Button variant="default" size="pill" :disabled="isPreparingDialog" @click="router.visit('/gastos/facturas-compra/crear')" dusk="btn-nueva-factura">
                         <PlusCircle class="h-4 w-4" />
                         Nueva Factura
                     </Button>
@@ -749,7 +749,7 @@ async function handleDifferenceDecision() {
                                                     showError('No se puede editar una factura aprobada, rechazada o con diferencia rechazada.');
                                                     return;
                                                 }
-                                                openDialogWithPreparation('edit', invoice);
+                                                router.visit(`/gastos/facturas-compra/${invoice.id}/editar`);
                                             }"
                                             :class="isInvoiceLocked(invoice) ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''"
                                         />

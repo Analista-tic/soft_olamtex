@@ -11,6 +11,7 @@ import Label from '@/components/ui/label/Label.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import PurchaseOrderItemsTable from './PurchaseOrderItemsTable.vue';
 import { Button } from '@/components/ui/button';
+import { Plus } from 'lucide-vue-next';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -26,6 +27,8 @@ const mode = computed(() => props.mode || 'create');
 
 const localForm = ref<any>(createDefaultForm());
 const contacts = ref<any[]>([]);
+const nextDocumentNumber = ref<string>('');
+const isLoadingDocumentNumber = ref(false);
 const isContactDialogOpen = ref(false);
 const contactDialogError = ref('');
 const contactDialogForm = ref<any>({ groups: [] });
@@ -33,6 +36,8 @@ const purchaseRequests = ref<any[]>([]);
 const isLoading = ref(false);
 const isSubmitting = ref(false);
 const itemsTableRef = ref<any>(null);
+
+const isReadOnly = computed(() => false);
 
 const selectedContactData = computed(() => {
     if (!localForm.value.contact_id) return null;
@@ -103,6 +108,26 @@ async function fetchPendingPurchaseRequests() {
         purchaseRequests.value = allRequests.filter((req) => req?.status === 'approved');
     } catch {
         purchaseRequests.value = [];
+    }
+}
+
+async function fetchNextDocumentNumber() {
+    isLoadingDocumentNumber.value = true;
+    try {
+        const { data } = await axios.get('/gastos/ordenes-compra/data', {
+            params: { per_page: 1, order_by: 'id', order_direction: 'desc' },
+        });
+
+        const last: string = Array.isArray(data.data) && data.data.length > 0
+            ? (data.data[0].document_number || '')
+            : '';
+        const lastNum = last ? parseInt(String(last).replace('ORD-', ''), 10) : 0;
+        const next = Number.isNaN(lastNum) ? 1 : lastNum + 1;
+        nextDocumentNumber.value = `ORD-${String(next).padStart(4, '0')}`;
+    } catch (e) {
+        nextDocumentNumber.value = 'ORD-0001';
+    } finally {
+        isLoadingDocumentNumber.value = false;
     }
 }
 
@@ -232,6 +257,10 @@ onMounted(async () => {
     isLoading.value = true;
     try {
         await Promise.all([fetchContacts(), fetchPendingPurchaseRequests()]);
+        if (mode.value === 'create') {
+            await fetchNextDocumentNumber();
+        }
+
         if (mode.value === 'edit' && props.form) {
             initializeFromForm();
         }
@@ -310,7 +339,8 @@ watch(() => props.form, (newVal) => {
                             <div style="width: 160px;">
                                 <InputField
                                     label=""
-                                    :modelValue="localForm.document_number || ''"
+                                    :modelValue="mode === 'create' ? nextDocumentNumber : (localForm.document_number || '')"
+                                    :placeholder="isLoadingDocumentNumber ? 'Generando...' : ''"
                                     readonly
                                     class="text-center"
                                 />
@@ -357,7 +387,18 @@ watch(() => props.form, (newVal) => {
                 <InventoryDetailTableLayout :show-create-line-button="false">
                     <template #actions>
                         <div class="flex items-center gap-2">
-                            <Button variant="outline" size="pill" @click="handleAddLine">Agregar ítem</Button>
+                            <Button
+                                v-if="!isReadOnly"
+                                type="button"
+                                variant="outline"
+                                size="pill"
+                                dusk="btn-agregar-item"
+                                class="border-primary/40 text-primary shadow-sm hover:bg-primary/10"
+                                @click="handleAddLine"
+                            >
+                                <Plus class="h-4 w-4" />
+                                Agregar ítem
+                            </Button>
                         </div>
                     </template>
                     <PurchaseOrderItemsTable ref="itemsTableRef" :items="localForm.items" :suggested-items="[]" @update:items="(items) => (localForm.items = items)" />
@@ -368,7 +409,7 @@ watch(() => props.form, (newVal) => {
                     <div class="flex-1">
                         <TextareaField v-model="localForm.description" label="Observación" />
                     </div>
-                    <div class="shrink-0 rounded-lg border border-sidebar-border/70" style="min-width: 340px; width: auto">
+                    <div class="shrink-0 rounded-lg border border-sidebar-border/70" style="min-width: 420px; width: auto">
                         <div class="flex justify-between" style="padding: 12px 20px; font-size: 14px">
                             <span class="text-muted-foreground">Subtotal</span>
                             <span class="font-medium">{{ formatCurrency(subtotal) }}</span>

@@ -322,8 +322,8 @@ function isReceptionBlockedForInvoice(invoice: PurchaseInvoice): boolean {
 }
 
 function viewInvoiceDetails(invoice: PurchaseInvoice) {
-    // Abrir el dialog de edición en modo solo lectura
-    openDialogWithPreparation('edit', invoice, true);
+    if (!invoice?.id) return;
+    router.visit(`/gastos/facturas-compra-tela/${invoice.id}/editar`);
 }
 
 async function handleDialogRefresh(message?: string) {
@@ -368,7 +368,7 @@ function handleDialogError(message?: string) {
                         <Package class="h-4 w-4" />
                         Ver Recepciones
                     </button>
-                    <Button variant="default" size="pill" :disabled="isPreparingDialog" @click="openDialogWithPreparation('create')">
+                    <Button variant="default" size="pill" :disabled="isPreparingDialog" @click="router.visit('/gastos/facturas-compra-tela/crear')">
                         <PlusCircle class="h-4 w-4" />
                         Nueva Factura
                     </Button>
@@ -542,7 +542,7 @@ function handleDialogError(message?: string) {
                                                     showError('No se puede editar una factura aprobada, rechazada o con diferencia rechazada.');
                                                     return;
                                                 }
-                                                openDialogWithPreparation('edit', invoice);
+                                                router.visit(`/gastos/facturas-compra-tela/${invoice.id}/editar`);
                                             }"
                                             :class="isInvoiceLocked(invoice) ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''"
                                         />
