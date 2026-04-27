@@ -100,6 +100,7 @@ function handleLoadingState(value: boolean) {
                         :is-open="true"
                         :dialog-type="dialogType"
                         :form="form"
+                        :is-full-page="true"
                         :show-advanced-link="false"
                         :show-advanced-sections="true"
                         :show-internal-loading-overlay="false"

@@ -67,11 +67,15 @@ const props = withDefaults(
         showInternalLoadingOverlay?: boolean;
         preloadedSubGroups?: any[];
         preloadedTaxes?: any[];
+        // Cuando este componente se usa como página completa (no dialog/modal),
+        // se debe evitar el scroll interno y dejar que la página haga el scroll.
+        isFullPage?: boolean;
     }>(),
     {
         showAdvancedLink: true,
         showAdvancedSections: false,
         showInternalLoadingOverlay: true,
+        isFullPage: false,
     },
 );
 
@@ -1374,9 +1378,12 @@ onBeforeUnmount(() => {
 
             <div
                 ref="dialogInnerRef"
-                class="relative overflow-y-auto scroll-smooth px-5 py-4 pr-4"
-                style="max-height: 65vh; scrollbar-width: thin;"
-                :class="{ 'min-h-[160px] flex items-center justify-center': isBlockingLoading }"
+                :class="[
+                    'relative px-5 py-4 pr-4',
+                    !props.isFullPage ? 'overflow-y-auto scroll-smooth' : 'overflow-visible',
+                    { 'min-h-[160px] flex items-center justify-center': isBlockingLoading },
+                ]"
+                :style="props.isFullPage ? {} : { maxHeight: '65vh', scrollbarWidth: 'thin' }"
             >
                 <FormLoadingOverlay
                     v-if="showInternalLoadingOverlay"
