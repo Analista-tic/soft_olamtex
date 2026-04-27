@@ -13,10 +13,12 @@ import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable
 
 import { Button } from '@/components/ui/button';
 import { Head, router } from '@inertiajs/vue3';
-import { Plus } from 'lucide-vue-next';
-import { computed, onMounted, ref } from 'vue';
+import { Plus, X } from 'lucide-vue-next';
+import { computed, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
 
+import type { PurchaseInvoiceWithholding } from '@/domain/Expenses';
+import type { Contact as DomainContact } from '@/domain/MasterData';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useAlertStack } from '@/composables/useAlert';
 
@@ -43,12 +45,6 @@ interface PurchaseInvoiceItem {
     order_width?: string;
     created_at?: string;
     updated_at?: string;
-    original_order_item?: Record<string, unknown>;
-}
-
-interface Withholding {
-    base_amount?: number | null;
-    percentage?: number;
 }
 
 interface PurchaseInvoiceForm {
@@ -62,12 +58,7 @@ interface PurchaseInvoiceForm {
     reason: string;
     evidence_path: string;
     items: PurchaseInvoiceItem[];
-    withholdings: Withholding[];
-}
-
-interface ContactDialogForm {
-    groups: unknown[];
-    [key: string]: unknown;
+    withholdings: PurchaseInvoiceWithholding[];
 }
 
 const props = withDefaults(
@@ -97,12 +88,17 @@ const mode = computed<FormMode>(() => props.mode ?? 'create');
 const localForm = ref<PurchaseInvoiceForm>(createDefaultForm());
 const contacts = ref<Contact[]>([]);
 
+const purchaseOrders = ref<any[]>([]);
+const selectedPurchaseOrderId = ref<number | null>(null);
+const selectedPurchaseOrderValue = ref<number | null>(null);
+const orderTotal = ref<number | null>(null);
+
 const nextDocumentNumber = ref<string>('');
 const isLoadingInvoiceId = ref(false);
 
 const isContactDialogOpen = ref(false);
 const contactDialogError = ref('');
-const contactDialogForm = ref<ContactDialogForm>({ groups: [] });
+const contactDialogForm = ref<Partial<DomainContact>>({ groups: [] });
 
 const isLoading = ref(false);
 const isSubmitting = ref(false);
@@ -134,6 +130,13 @@ const iva = computed(() => {
 });
 
 const total = computed(() => subtotal.value + iva.value);
+
+const pendingPurchaseOrderOptions = computed(() =>
+    purchaseOrders.value.map((o: any) => ({
+        id: o.id,
+        name: o.document_number ? `${o.document_number} — ${o.contact?.full_name || ''}` : `Orden #${o.id}`,
+    })),
+);
 
 const retencionesTotal = computed(() => {
     return localForm.value.withholdings.reduce((acc, withholding) => {
@@ -216,13 +219,13 @@ function createEmptyItem(): PurchaseInvoiceItem {
     };
 }
 
-function getWithholdingBase(withholding: Withholding): number {
+function getWithholdingBase(withholding: PurchaseInvoiceWithholding): number {
     const baseAmount = toNumber(withholding.base_amount);
 
     return baseAmount > 0 ? baseAmount : subtotal.value;
 }
 
-function getWithholdingAmount(withholding: Withholding): number {
+function getWithholdingAmount(withholding: PurchaseInvoiceWithholding): number {
     return (getWithholdingBase(withholding) * toNumber(withholding.percentage)) / 100;
 }
 
@@ -288,7 +291,7 @@ async function fetchContacts(): Promise<void> {
             : [];
 
         contacts.value = removeDuplicatedContacts([...providers, ...providerClients]);
-    } catch (error) {
+    } catch {
         contacts.value = [];
         showError('No fue posible cargar los proveedores.');
     }
@@ -317,11 +320,11 @@ function closeContactDialog(): void {
     contactDialogError.value = '';
 }
 
-function handleContactFormUpdate(updatedContact: ContactDialogForm): void {
+function handleContactFormUpdate(updatedContact: Partial<DomainContact>): void {
     contactDialogForm.value = updatedContact;
 }
 
-async function handleContactDialogSubmit(contactData: ContactDialogForm): Promise<void> {
+async function handleContactDialogSubmit(contactData: Partial<DomainContact>): Promise<void> {
     try {
         const response = await axios.post('/contactos', contactData);
 
@@ -407,9 +410,7 @@ function validateForm(): boolean {
     if (!localForm.value.contact_id) missingFields.push('Proveedor');
     if (!invoiceDate.value) missingFields.push('Fecha factura');
     if (!deliveryDate.value) missingFields.push('Fecha de entrega');
-    if (!localForm.value.supplier_invoice_number.trim()) {
-        missingFields.push('N° factura proveedor');
-    }
+    if (!String(localForm.value.supplier_invoice_number || '').trim()) missingFields.push('N° factura proveedor');
 
     if (missingFields.length > 0) {
         showError(`Completa los campos obligatorios: ${missingFields.join(', ')}.`);
@@ -421,19 +422,15 @@ function validateForm(): boolean {
         return false;
     }
 
-    const invalidItemIndex = localForm.value.items.findIndex((item) => {
-        return (
-            !item.item_id ||
-            toNumber(item.item_id) <= 0 ||
-            toNumber(item.price) <= 0 ||
-            toNumber(item.quantity) <= 0
-        );
-    });
+    const invalidItemIndex = localForm.value.items.findIndex((item: any) =>
+        !item.item_id ||
+        toNumber(item.item_id) <= 0 ||
+        toNumber(item.price) <= 0 ||
+        toNumber(item.quantity) <= 0
+    );
 
     if (invalidItemIndex !== -1) {
-        showError(
-            `El ítem ${invalidItemIndex + 1} debe tener producto, precio sin impuesto y cantidad válida.`,
-        );
+        showError(`El ítem ${invalidItemIndex + 1} debe tener producto, precio mayor a cero y cantidad mayor a cero.`);
         return false;
     }
 
@@ -458,9 +455,79 @@ function getAxiosValidationMessage(error: unknown, fallbackMessage: string): str
     return responseData?.message || fallbackMessage;
 }
 
+async function fetchPendingPurchaseOrders(): Promise<void> {
+    purchaseOrders.value = [];
+    try {
+        const { data } = await axios.get('/gastos/ordenes-compra/data', {
+            params: { status: 'approved', per_page: 1000, exclude_fabric: true },
+        });
+        const orders = Array.isArray(data.data) ? data.data : [];
+
+        const invoiceRes = await axios.get('/gastos/facturas-compra/data', {
+            params: { per_page: 1000 },
+        });
+        const invoices = Array.isArray(invoiceRes.data?.data) ? invoiceRes.data.data : [];
+        const invoicedOrderIds = new Set(
+            invoices.map((inv: any) => inv.parent_document_id).filter(Boolean),
+        );
+        purchaseOrders.value = orders.filter((order: any) => !invoicedOrderIds.has(order.id));
+    } catch {
+        purchaseOrders.value = [];
+    }
+}
+
+async function loadPurchaseOrderToInvoice(orderId: number) {
+    const order = purchaseOrders.value.find((o: any) => Number(o.id) === Number(orderId));
+    if (!order) return;
+    if (!contacts.value.length) await fetchContacts();
+    const foundContact = contacts.value.find((c: any) => Number(c.id) === Number(order.contact_id));
+    localForm.value.contact_id = foundContact ? Number(order.contact_id) : null;
+    localForm.value.supplier_invoice_number = '';
+    localForm.value.delivery_date = order.delivery_date || '';
+    localForm.value.description = order.description || '';
+    localForm.value.items = Array.isArray(order.items)
+        ? order.items.map((item: any) => ({
+              item_id: item.item_id,
+              price: item.price || '',
+              tax: item.tax || 0,
+              quantity: item.quantity || '',
+              description: item.description || '',
+              total: item.total || 0,
+              total_tax: item.total_tax || 0,
+              supplier_code: item.supplier_code || '',
+              supplier_color: item.supplier_color || '',
+              order_width: item.order_width || '',
+              id: item.id,
+              created_at: item.created_at || '',
+              updated_at: item.updated_at || '',
+          }))
+        : [];
+    if (!localForm.value.items.length) localForm.value.items = [createEmptyItem()];
+    selectedPurchaseOrderId.value = Number(orderId);
+    (localForm.value as any).purchase_order_id = Number(orderId);
+    orderTotal.value = (Array.isArray(order.items) ? order.items : []).reduce(
+        (acc: number, item: any) => acc + (Number(item.total) || 0) + (Number(item.total_tax) || 0),
+        0,
+    );
+    syncDateRefsFromForm();
+}
+
+watch(selectedPurchaseOrderId, async (orderId, oldVal) => {
+    if (orderId) {
+        await loadPurchaseOrderToInvoice(orderId);
+    } else if (oldVal !== null && oldVal !== undefined) {
+        (localForm.value as any).purchase_order_id = null;
+        orderTotal.value = null;
+    }
+});
+
+watch(selectedPurchaseOrderValue, (val) => {
+    selectedPurchaseOrderId.value = val ? Number(val) : null;
+});
+
 onMounted(async () => {
     resetForm();
-    await fetchContacts();
+    await Promise.all([fetchContacts(), fetchPendingPurchaseOrders()]);
     if (mode.value === 'create') {
         // fetch next invoice id preview
         isLoadingInvoiceId.value = true;
@@ -475,7 +542,7 @@ onMounted(async () => {
             const lastNum = last ? parseInt(String(last).replace('FAC-', ''), 10) : 0;
             const next = Number.isNaN(lastNum) ? 1 : lastNum + 1;
             nextDocumentNumber.value = `FAC-${String(next).padStart(4, '0')}`;
-        } catch (e) {
+        } catch {
             nextDocumentNumber.value = 'FAC-0001';
         } finally {
             isLoadingInvoiceId.value = false;
@@ -488,10 +555,40 @@ onMounted(async () => {
     <Head :title="mode === 'create' ? 'Nueva Factura de Compra' : 'Editar Factura de Compra'" />
     <AppLayout :breadcrumbs="mode === 'create' ? [{ title: 'Facturas de Compra', href: '/gastos/facturas-compra' }, { title: 'Nueva Factura', href: '' }] : [{ title: 'Facturas de Compra', href: '/gastos/facturas-compra' }, { title: localForm.id ? localForm.document_number || 'Editar' : 'Editar', href: '' }]">
         <div class="flex flex-col gap-4 p-3">
-            <div class="flex flex-col gap-1">
-                <h1 class="text-lg font-bold">{{ mode === 'create' ? 'Nueva Factura de Compra' : 'Editar Factura de Compra' }}</h1>
-                <p class="text-sm text-muted-foreground">Registra una factura de compra para trazabilidad y recepción.</p>
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-lg font-bold">{{ mode === 'create' ? 'Nueva Factura de Compra' : 'Editar Factura de Compra' }}</h1>
+                    <p class="text-sm text-muted-foreground">Registra una factura de compra para trazabilidad y recepción.</p>
+                </div>
+                <div v-if="mode === 'create'" class="w-full sm:w-[340px] shrink-0">
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium leading-none text-foreground">Cargar desde orden pendiente</label>
+                        <div class="flex items-center gap-2">
+                            <div class="flex-1 min-w-0">
+                                <SelectField
+                                    v-model="selectedPurchaseOrderValue"
+                                    :options="pendingPurchaseOrderOptions"
+                                    label=""
+                                    placeholder="Selecciona una orden existente"
+                                    :searchable="pendingPurchaseOrderOptions.length >= 6"
+                                    search-placeholder="Buscar orden de compra..."
+                                    tooltip-text="Selecciona una orden de compra aprobada para pre-llenar automáticamente los ítems de esta factura."
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                class="shrink-0 h-7 w-7 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
+                                :disabled="!selectedPurchaseOrderId"
+                                title="Limpiar selección"
+                                @click="selectedPurchaseOrderId = null; selectedPurchaseOrderValue = null; resetForm()"
+                            >
+                                <X class="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
+
             <AlertStack :successMessage="successMessage" :errorMessage="errorMessage" :errorType="errorType" @close-success="clearSuccess" @close-error="clearError" />
 
             <div class="space-y-6">
@@ -547,7 +644,7 @@ onMounted(async () => {
                                 :searchable="true"
                                 :action-label="'Nuevo contacto'"
                                 :action-disabled="false"
-                                @action="() => isContactDialogOpen = true"
+                                @action="openContactDialog"
                                 required
                             />
                         </div>
@@ -594,7 +691,7 @@ onMounted(async () => {
                             </Button>
                         </div>
                     </template>
-                    <PurchaseInvoiceItemsTable ref="invoiceItemsTableRef" :items="localForm.items || []" @update:items="(items) => (localForm.items = items)" />
+                    <PurchaseInvoiceItemsTable ref="invoiceItemsTableRef" :items="localForm.items || []" :telaMode="false" @update:items="(items) => (localForm.items = items)" />
                 </InventoryDetailTableLayout>
 
                 <div class="flex items-start justify-between gap-6">
@@ -610,9 +707,19 @@ onMounted(async () => {
         <span class="text-muted-foreground">Impuestos</span>
         <span class="font-medium">{{ formatCurrency(iva) }}</span>
     </div>
+    <template v-if="retencionesTotal > 0">
+        <div class="flex justify-between" style="padding: 12px 20px; font-size: 14px; border-bottom: 1px solid hsl(var(--border))">
+            <span class="text-muted-foreground">Bruto</span>
+            <span class="font-medium">{{ formatCurrency(total) }}</span>
+        </div>
+        <div class="flex justify-between" style="padding: 12px 20px; font-size: 14px; border-bottom: 1px solid hsl(var(--border))">
+            <span class="text-muted-foreground">Retenciones</span>
+            <span class="font-medium text-destructive">- {{ formatCurrency(retencionesTotal) }}</span>
+        </div>
+    </template>
     <div class="flex justify-between" style="padding: 14px 20px; font-size: 15px; font-weight: 500; border-top: 1px solid hsl(var(--border))">
-        <span>Total</span>
-        <span class="font-bold">{{ formatCurrency(total) }}</span>
+        <span>Total a pagar</span>
+        <span class="font-bold">{{ formatCurrency(totalPagar) }}</span>
     </div>
 </div>
                 </div>

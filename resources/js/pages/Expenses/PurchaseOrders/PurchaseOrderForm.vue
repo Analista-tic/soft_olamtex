@@ -11,7 +11,7 @@ import Label from '@/components/ui/label/Label.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import PurchaseOrderItemsTable from './PurchaseOrderItemsTable.vue';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-vue-next';
+import { Plus, X } from 'lucide-vue-next';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -33,6 +33,8 @@ const isContactDialogOpen = ref(false);
 const contactDialogError = ref('');
 const contactDialogForm = ref<any>({ groups: [] });
 const purchaseRequests = ref<any[]>([]);
+const selectedRequestId = ref<number | null>(null);
+const selectedRequestValue = ref<number | null>(null);
 const isLoading = ref(false);
 const isSubmitting = ref(false);
 const itemsTableRef = ref<any>(null);
@@ -48,6 +50,31 @@ const contactPhone = computed(() => selectedContactData.value?.phone || '');
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc: number, item: any) => acc + Math.max(Number(item.total) || 0, 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc: number, item: any) => acc + Math.max(Number(item.total_tax) || 0, 0), 0));
 const total = computed(() => Math.max(subtotal.value, 0) + Math.max(iva.value, 0));
+
+const pendingRequestOptions = computed(() => {
+    return purchaseRequests.value.map((request: any) => {
+        const rawId = request?.id ?? '';
+        const numericId = Number(rawId);
+        const optionId = Number.isNaN(numericId) ? rawId : numericId;
+
+        let requestNumber = request?.request_number || '';
+        if (requestNumber && !requestNumber.startsWith('SOL-')) {
+            requestNumber = `SOL-${requestNumber}`;
+        }
+        if (!requestNumber) {
+            requestNumber = String(request?.id ?? '');
+        }
+
+        const providerName = request?.provider_name || '';
+        const labelParts = [requestNumber];
+        if (providerName) labelParts.push(providerName);
+
+        return {
+            id: optionId,
+            name: labelParts.join(' · '),
+        };
+    });
+});
 
 function formatCurrency(value: number) {
     return Number(value || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
@@ -206,25 +233,36 @@ async function handleSubmit(sendMail = false) {
     }
 }
 
-function validateForm() {
-    const missing: string[] = [];
-    if (!localForm.value.contact_id) missing.push('Proveedor');
-    if (!localForm.value.date) missing.push('Fecha');
-    if (!localForm.value.delivery_date) missing.push('Fecha de entrega');
-    if (!localForm.value.supplier_order_number) missing.push('# Pedido proveedor');
-    if (missing.length) {
-        showError(`Campos obligatorios: ${missing.join(', ')}`);
+function validateForm(): boolean {
+    const missingFields: string[] = [];
+
+    if (!localForm.value.contact_id) missingFields.push('Proveedor');
+    if (!localForm.value.date) missingFields.push('Fecha de creación');
+    if (!localForm.value.delivery_date) missingFields.push('Fecha de entrega');
+    if (!String(localForm.value.supplier_order_number || '').trim()) missingFields.push('N° Orden proveedor');
+
+    if (missingFields.length > 0) {
+        showError(`Completa los campos obligatorios: ${missingFields.join(', ')}.`);
         return false;
     }
+
     if (!Array.isArray(localForm.value.items) || localForm.value.items.length === 0) {
         showError('La orden debe contener al menos un ítem.');
         return false;
     }
-    const invalid = localForm.value.items.find((it: any) => !it.item_id || Number(it.price) <= 0 || Number(it.quantity) <= 0);
-    if (invalid) {
-        showError('Cada ítem debe tener Item, Precio y Cantidad válidos.');
+
+    const invalidItemIndex = localForm.value.items.findIndex((item: any) =>
+        !item.item_id ||
+        Number(item.item_id) <= 0 ||
+        Number(item.price) <= 0 ||
+        Number(item.quantity) <= 0
+    );
+
+    if (invalidItemIndex !== -1) {
+        showError(`El ítem ${invalidItemIndex + 1} debe tener producto, precio mayor a cero y cantidad mayor a cero.`);
         return false;
     }
+
     return true;
 }
 
@@ -272,6 +310,42 @@ onMounted(async () => {
 watch(() => props.form, (newVal) => {
     if (mode.value === 'edit' && newVal) initializeFromForm();
 });
+
+async function loadRequestToOrder(requestId: number) {
+    const request = purchaseRequests.value.find((r: any) => Number(r.id) === Number(requestId));
+    if (!request) return;
+    if (!contacts.value.length) await fetchContacts();
+    const foundContact = contacts.value.find((c: any) => Number(c.id) === Number(request.contact_id));
+    localForm.value.contact_id = foundContact ? Number(request.contact_id) : null;
+    localForm.value.description = request.description || '';
+    localForm.value.items = Array.isArray(request.items) && request.items.length
+        ? request.items.map((item: any) => ({
+              item_id: item.item_id ?? null,
+              price: item.price || 0,
+              tax: item.tax || 0,
+              quantity: item.quantity || 1,
+              description: item.description || '',
+              total: item.total || 0,
+              total_tax: item.total_tax || 0,
+              supplier_code: '',
+              supplier_color: '',
+              order_width: 0,
+          }))
+        : [createEmptyItem()];
+    selectedRequestId.value = Number(requestId);
+}
+
+watch(selectedRequestValue, (val) => {
+    selectedRequestId.value = val ? Number(val) : null;
+});
+
+watch(selectedRequestId, async (id, oldVal) => {
+    if (id) {
+        await loadRequestToOrder(id);
+    } else if (oldVal) {
+        localForm.value = createDefaultForm();
+    }
+});
 </script>
 
 <template>
@@ -284,9 +358,38 @@ watch(() => props.form, (newVal) => {
         "
     >
         <div class="flex flex-col gap-4 p-3">
-            <div class="flex flex-col gap-1">
-                <h1 class="text-lg font-bold">{{ mode === 'create' ? 'Nueva Orden de Compra' : 'Editar Orden de Compra' }}</h1>
-                <p class="text-sm text-muted-foreground">Completa los campos y añade los ítems de la orden.</p>
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-lg font-bold">{{ mode === 'create' ? 'Nueva Orden de Compra' : 'Editar Orden de Compra' }}</h1>
+                    <p class="text-sm text-muted-foreground">Completa los campos y añade los ítems de la orden.</p>
+                </div>
+                <div v-if="mode === 'create'" class="w-full sm:w-[340px] shrink-0">
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium leading-none text-foreground">Cargar desde solicitud aprobada</label>
+                        <div class="flex items-center gap-2">
+                            <div class="flex-1 min-w-0">
+                                <SelectField
+                                    v-model="selectedRequestValue"
+                                    :options="pendingRequestOptions"
+                                    label=""
+                                    placeholder="Selecciona una solicitud"
+                                    :searchable="pendingRequestOptions.length >= 6"
+                                    search-placeholder="Buscar solicitud..."
+                                    tooltip-text="Selecciona una solicitud de compra aprobada para pre-llenar automáticamente los ítems."
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                class="shrink-0 h-7 w-7 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
+                                :disabled="!selectedRequestId"
+                                title="Limpiar selección"
+                                @click="selectedRequestId = null; selectedRequestValue = null; localForm = createDefaultForm()"
+                            >
+                                <X class="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <AlertStack :successMessage="successMessage" :errorMessage="errorMessage" :errorType="errorType" @close-success="clearSuccess" @close-error="clearError" />

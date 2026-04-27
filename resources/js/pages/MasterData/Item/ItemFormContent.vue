@@ -30,6 +30,7 @@ import { Switch } from '@/components/ui/switch';
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 import AdditionalFieldDialog from '@/pages/MasterData/AdditionalFields/AdditionalFieldDialog.vue';
 import ExtraFieldsForm from '@/pages/MasterData/Item/ExtraFieldsForm.vue';
+import GroupDialog from '@/pages/MasterData/Category/GroupDialog.vue';
 
 import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
 import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
@@ -210,6 +211,8 @@ const taxForm = ref<TaxDialogForm>({ name: '', percentage: 0, status: true });
 
 const additionalFieldDialogOpen = ref(false);
 const additionalFieldDialogLoading = ref(false);
+
+const isGroupDialogOpen = ref(false);
 
 const createAdditionalFieldForm = (): AdditionalField => ({
     id: undefined,
@@ -726,6 +729,15 @@ async function handleCreateGroupInline(name: string): Promise<Option> {
 function onGroupCreated(option: Option) {
     selectedGroupId.value = String(option.id);
     localForm.value.category_sub_group_id = undefined;
+}
+
+function handleGroupCreated(created: Partial<CategoryGroup>) {
+    const idStr = created?.id ? String(created.id) : '';
+    if (idStr) {
+        selectedGroupId.value = idStr;
+        localForm.value.category_sub_group_id = undefined;
+    }
+    isGroupDialogOpen.value = false;
 }
 
 async function handleCreateSubGroupInline(name: string): Promise<Option> {

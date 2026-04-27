@@ -15,8 +15,8 @@ import { Head, router } from '@inertiajs/vue3';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useAlertStack } from '@/composables/useAlert';
 import axios from 'axios';
-import { computed, onMounted, ref } from 'vue';
-import { Plus } from 'lucide-vue-next';
+import { computed, onMounted, ref, watch } from 'vue';
+import { Plus, X } from 'lucide-vue-next';
 
 const { company, logoUrl } = useCompanyInfo();
 const { successMessage, errorMessage, errorType, showError, clearError, clearSuccess } = useAlertStack();
@@ -32,6 +32,8 @@ const isContactDialogOpen = ref(false);
 const contactDialogError = ref('');
 const contactDialogForm = ref<any>({ groups: [] });
 const purchaseOrders = ref<any[]>([]);
+const selectedPurchaseOrderId = ref<number | null>(null);
+const selectedPurchaseOrderValue = ref<number | null>(null);
 const isSubmitting = ref(false);
 const invoiceItemsTableRef = ref<{ addItem: () => void } | null>(null);
 const invoiceDate = ref<Date | null>(null);
@@ -41,6 +43,15 @@ const isReadOnly = computed(() => false);
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc: number, item: any) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc: number, item: any) => acc + (Number(item.total_tax) || 0), 0));
 const total = computed(() => Number(subtotal.value) + Number(iva.value));
+
+const pendingPurchaseOrderOptions = computed(() =>
+    purchaseOrders.value.map((o: any) => ({
+        id: o.id,
+        name: o.document_number
+            ? `${o.document_number} — ${o.contact?.full_name || ''}`
+            : `Orden #${o.id}`,
+    }))
+);
 
 function formatCurrency(value: number) {
     return Number(value || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
@@ -96,9 +107,21 @@ async function fetchContacts() {
 }
 
 async function fetchPendingPurchaseOrders() {
+    purchaseOrders.value = [];
     try {
-        const response = await axios.get('/gastos/ordenes-compra/data', { params: { status: 'approved', per_page: 1000, fabric_only: true } });
-        purchaseOrders.value = Array.isArray(response.data?.data) ? response.data.data : [];
+        const { data } = await axios.get('/gastos/ordenes-compra/data', {
+            params: { status: 'approved', per_page: 1000, fabric_only: true },
+        });
+        let orders = Array.isArray(data.data) ? data.data : [];
+
+        const invoicesRes = await axios.get('/gastos/facturas-compra-tela/data', {
+            params: { per_page: 1000 },
+        });
+        const invoices = Array.isArray(invoicesRes.data?.data) ? invoicesRes.data.data : [];
+        const orderIdsWithInvoice = new Set(
+            invoices.map((inv: any) => inv.parent_document_id).filter(Boolean),
+        );
+        purchaseOrders.value = orders.filter((order: any) => !orderIdsWithInvoice.has(order.id));
     } catch {
         purchaseOrders.value = [];
     }
@@ -146,7 +169,7 @@ async function fetchNextDocumentNumber() {
         const lastNum = last ? parseInt(String(last).replace('FAC-T-', ''), 10) : 0;
         const next = Number.isNaN(lastNum) ? 1 : lastNum + 1;
         nextDocumentNumber.value = `FAC-T-${String(next).padStart(4, '0')}`;
-    } catch (e) {
+    } catch {
         nextDocumentNumber.value = 'FAC-T-0001';
     } finally {
         isLoadingDocumentNumber.value = false;
@@ -155,17 +178,92 @@ async function fetchNextDocumentNumber() {
 
 function handleInvoiceAddLine() { invoiceItemsTableRef.value?.addItem(); }
 
+async function loadPurchaseOrderToInvoice(orderId: number) {
+    const order = purchaseOrders.value.find((o: any) => Number(o.id) === Number(orderId));
+    if (!order) return;
+    if (!contacts.value.length) await fetchContacts();
+    const foundContact = contacts.value.find((c: any) => Number(c.id) === Number(order.contact_id));
+    localForm.value.contact_id = foundContact ? Number(order.contact_id) : null;
+    localForm.value.supplier_invoice_number = '';
+    localForm.value.delivery_date = order.delivery_date || '';
+    localForm.value.description = order.description || '';
+    localForm.value.items = Array.isArray(order.items) && order.items.length
+        ? order.items.map((item: any) => ({
+              item_id: item.item_id ?? null,
+              price: item.price || '',
+              tax: item.tax || 0,
+              quantity: item.quantity || '',
+              description: item.description || '',
+              total: item.total || 0,
+              total_tax: item.total_tax || 0,
+              supplier_code: item.supplier_code || '',
+              supplier_color: item.supplier_color || '',
+              order_width: item.order_width || '',
+          }))
+        : [createEmptyItem()];
+    selectedPurchaseOrderId.value = Number(orderId);
+    localForm.value.purchase_order_id = Number(orderId);
+    if (order.delivery_date) deliveryDate.value = new Date(order.delivery_date);
+}
+
+watch(selectedPurchaseOrderValue, (val) => {
+    selectedPurchaseOrderId.value = val ? Number(val) : null;
+});
+
+watch(selectedPurchaseOrderId, async (id, oldVal) => {
+    if (id) {
+        await loadPurchaseOrderToInvoice(id);
+    } else if (oldVal) {
+        resetForm();
+    }
+});
+
 function cancel() { router.visit('/gastos/facturas-compra-tela'); }
 
 function validateForm(): boolean {
+    const missingFields: string[] = [];
+
+    if (!localForm.value.contact_id) missingFields.push('Proveedor');
+    if (!invoiceDate.value) missingFields.push('Fecha factura');
+    if (!deliveryDate.value) missingFields.push('Fecha de entrega');
+    if (!String(localForm.value.supplier_invoice_number || '').trim()) missingFields.push('N° factura proveedor');
+
+    if (missingFields.length > 0) {
+        showError(`Completa los campos obligatorios: ${missingFields.join(', ')}.`);
+        return false;
+    }
+
     const items = Array.isArray(localForm.value.items) ? localForm.value.items : [];
-    if (!localForm.value.contact_id) { showError('Seleccione un proveedor'); return false; }
-    if (!invoiceDate.value) { showError('Seleccione la fecha de la factura'); return false; }
-    if (!deliveryDate.value) { showError('Seleccione la fecha de entrega'); return false; }
-    if (!String(localForm.value.supplier_invoice_number || '').trim()) { showError('Ingrese número de factura del proveedor'); return false; }
-    if (!items.length) { showError('La factura debe contener al menos un ítem.'); return false; }
-    const invalidItems = items.filter((it: any) => it.item_id == null || Number(it.item_id) <= 0 || it.price === '' || it.quantity === '' || Number(it.price) <= 0 || Number(it.quantity) <= 0 || !it.supplier_code || !it.supplier_color || !it.order_width);
-    if (invalidItems.length > 0) { showError('Cada ítem debe tener código proveedor, color proveedor y ancho de orden además de item, precio y cantidad.'); return false; }
+
+    if (items.length === 0) {
+        showError('La factura debe contener al menos un ítem.');
+        return false;
+    }
+
+    const invalidItemIndex = items.findIndex((item: any) =>
+        !item.item_id ||
+        Number(item.item_id) <= 0 ||
+        Number(item.price) <= 0 ||
+        Number(item.quantity) <= 0
+    );
+
+    if (invalidItemIndex !== -1) {
+        showError(`El ítem ${invalidItemIndex + 1} debe tener producto, precio mayor a cero y cantidad mayor a cero.`);
+        return false;
+    }
+
+    const missingFabricFieldIndex = items.findIndex((item: any) =>
+        !String(item.supplier_code || '').trim() ||
+        !String(item.supplier_color || '').trim() ||
+        !String(item.order_width || '').trim() ||
+        Number(item.order_width) <= 0
+    );
+
+    if (missingFabricFieldIndex !== -1) {
+        showError(`El ítem ${missingFabricFieldIndex + 1} debe tener código proveedor, color proveedor y ancho de pedido válidos.`);
+        return false;
+    }
+
     return true;
 }
 
@@ -194,10 +292,40 @@ async function handleSubmit(sendMail = false) {
     <Head :title="mode === 'create' ? 'Nueva Factura de Compra - Tela' : 'Editar Factura de Compra - Tela'" />
     <AppLayout :breadcrumbs="mode === 'create' ? [{ title: 'Facturas de Compra (Tela)', href: '/gastos/facturas-compra-tela' }, { title: 'Nueva Factura', href: '' }] : [{ title: 'Facturas de Compra (Tela)', href: '/gastos/facturas-compra-tela' }, { title: localForm.id ? localForm.document_number || 'Editar' : 'Editar', href: '' }]">
         <div class="flex flex-col gap-4 p-3">
-            <div class="flex flex-col gap-1">
-                <h1 class="text-lg font-bold">{{ mode === 'create' ? 'Nueva Factura de Compra - Tela' : 'Editar Factura de Compra - Tela' }}</h1>
-                <p class="text-sm text-muted-foreground">Registra una factura de compra de tela para trazabilidad y recepción.</p>
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-lg font-bold">{{ mode === 'create' ? 'Nueva Factura de Compra - Tela' : 'Editar Factura de Compra - Tela' }}</h1>
+                    <p class="text-sm text-muted-foreground">Registra una factura de compra de tela para trazabilidad y recepción.</p>
+                </div>
+                <div v-if="mode === 'create'" class="w-full sm:w-[340px] shrink-0">
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium leading-none text-foreground">Cargar desde orden pendiente</label>
+                        <div class="flex items-center gap-2">
+                            <div class="flex-1 min-w-0">
+                                <SelectField
+                                    v-model="selectedPurchaseOrderValue"
+                                    :options="pendingPurchaseOrderOptions"
+                                    label=""
+                                    placeholder="Selecciona una orden de tela"
+                                    :searchable="pendingPurchaseOrderOptions.length >= 6"
+                                    search-placeholder="Buscar orden..."
+                                    tooltip-text="Selecciona una orden de compra de tela aprobada para pre-llenar automáticamente los ítems de esta factura."
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                class="shrink-0 h-7 w-7 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
+                                :disabled="!selectedPurchaseOrderId"
+                                title="Limpiar selección"
+                                @click="selectedPurchaseOrderId = null; selectedPurchaseOrderValue = null; resetForm()"
+                            >
+                                <X class="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
+
             <AlertStack :successMessage="successMessage" :errorMessage="errorMessage" :errorType="errorType" @close-success="clearSuccess" @close-error="clearError" />
 
             <div class="space-y-6">
@@ -275,7 +403,7 @@ async function handleSubmit(sendMail = false) {
                                 <span class="text-sm font-medium">N° factura proveedor<span class="text-destructive">*</span></span>
                                 <HelpTooltip text="Número de la factura suministrado por el proveedor." aria-label="Ayuda sobre número de factura proveedor" />
                             </div>
-                            <InputField v-model="localForm.supplier_invoice_number" label="" required />
+                                <InputField v-model="localForm.supplier_invoice_number" label="" required />
                         </div>
 
                     </div>
@@ -305,7 +433,7 @@ async function handleSubmit(sendMail = false) {
                             </Button>
                         </div>
                     </template>
-                    <PurchaseInvoiceItemsTable ref="invoiceItemsTableRef" :items="localForm.items || []" @update:items="(items) => (localForm.items = items)" />
+                    <PurchaseInvoiceItemsTable ref="invoiceItemsTableRef" :items="localForm.items || []" :telaMode="true" @update:items="(items) => (localForm.items = items)" />
                 </InventoryDetailTableLayout>
 
                 <div class="flex items-start justify-between gap-6">
