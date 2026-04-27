@@ -1,19 +1,18 @@
 <script setup lang="ts">
 import ChipInputField from '@/components/ChipInputField.vue';
+import CreatableSelectField from '@/components/CreatableSelectField.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
-import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import type { CategoryGroup, CategorySubGroup } from '@/domain/MasterData';
+import type { Option } from '@/domain/shared/types';
 import { normalizeTitleCaseWords } from '@/lib/textNormalizer';
 import axios from 'axios';
-import { Plus } from 'lucide-vue-next';
 import { nextTick, ref, watch } from 'vue';
-import GroupDialog from './GroupDialog.vue';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -31,7 +30,6 @@ const internalIsOpen = ref(props.isOpen);
 const isInitializingDialog = ref(false);
 const form = ref<Partial<CategorySubGroup>>({ ...props.subGroupData });
 const localGroups = ref<CategoryGroup[]>([...props.groups]);
-const isGroupDialogOpen = ref(false);
 const subGroupName = ref('');
 const subGroupValues = ref<string[]>([]);
 
@@ -74,29 +72,15 @@ watch(
     { deep: true },
 );
 
-async function handleGroupCreated(newGroup: Partial<CategoryGroup>) {
-    try {
-        const response = await axios.post<CategoryGroup>('/categorias/grupos', newGroup);
-        const createdGroup = response.data;
-        localGroups.value.push(createdGroup);
-        form.value.category_group_id = createdGroup.id;
-    } catch (error) {
-        console.error('Error al crear el grupo:', error);
-    } finally {
-        isGroupDialogOpen.value = false;
-    }
+async function handleCreateGroupInline(name: string): Promise<Option> {
+    const response = await axios.post<CategoryGroup>('/categorias/grupos', { name });
+    const created = response.data;
+    localGroups.value.push(created);
+    return { id: String(created.id), name: created.name };
 }
 
-function openGroupDialog() {
-    isGroupDialogOpen.value = true;
-}
-
-function openGroupDialogFromDropdown() {
-    openGroupDialog();
-}
-
-function closeGroupDialog() {
-    isGroupDialogOpen.value = false;
+function onGroupCreatedInline(option: Option) {
+    form.value.category_group_id = Number(option.id);
 }
 
 function closeDialog() {
@@ -153,7 +137,7 @@ function submitForm() {
                                     aria-label="Ayuda sobre el grupo"
                                 />
                             </div>
-                            <SelectField
+                            <CreatableSelectField
                                 label=""
                                 :options="localGroups.map((group: CategoryGroup) => ({ id: group.id, name: group.name }))"
                                 v-model="form.category_group_id"
@@ -161,18 +145,12 @@ function submitForm() {
                                 placeholder="Selecciona un grupo"
                                 :button-class="'w-full'"
                                 searchable
-                            >
-                                <template #header>
-                                    <button
-                                        type="button"
-                                        class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                                        @click.stop="openGroupDialogFromDropdown"
-                                    >
-                                        <Plus class="mr-2 h-4 w-4" />
-                                        Nuevo grupo
-                                    </button>
-                                </template>
-                            </SelectField>
+                                :creatable="true"
+                                create-label="grupo"
+                                create-button-label="Nuevo grupo"
+                                :on-create="handleCreateGroupInline"
+                                @created="onGroupCreatedInline"
+                            />
                         </div>
 
                         <ChipInputField
@@ -203,5 +181,4 @@ function submitForm() {
             </TooltipProvider>
         </FormDialogContent>
     </Dialog>
-    <GroupDialog v-model:isOpen="isGroupDialogOpen" @created="handleGroupCreated" @close="closeGroupDialog" />
 </template>

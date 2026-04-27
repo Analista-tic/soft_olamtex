@@ -23,6 +23,25 @@ class PurchaseOrderController extends PurchaseDocumentController
         return $this->indexView('Expenses/PurchaseOrders/Index');
     }
 
+    public function create()
+    {
+        return Inertia::render('Expenses/PurchaseOrders/PurchaseOrderForm', [
+            'mode' => 'create',
+        ]);
+    }
+
+    public function edit(PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+
+        $order = $this->service->loadWithRelations($purchaseDocument);
+
+        return Inertia::render('Expenses/PurchaseOrders/PurchaseOrderForm', [
+            'mode' => 'edit',
+            'form' => $order,
+        ]);
+    }
+
     public function getData(Request $request)
     {
         return $this->getDataGeneric($request, PurchaseDocument::TYPE_ORDER, 10);

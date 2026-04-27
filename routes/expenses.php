@@ -36,6 +36,8 @@ Route::prefix('gastos')->name('gastos.')->group(function () {
     // === ORDENES DE COMPRA ===
     Route::prefix('ordenes-compra')->name('purchase-orders.')->middleware('permission:ver ordenes compra')->group(function () {
         Route::get('/', [PurchaseOrderController::class, 'index'])->name('index');
+        Route::get('/crear', [PurchaseOrderController::class, 'create'])->name('create')->middleware('permission:crear ordenes compra');
+        Route::get('/{purchaseDocument}/editar', [PurchaseOrderController::class, 'edit'])->name('edit')->middleware('permission:editar ordenes compra');
         Route::get('/data', [PurchaseOrderController::class, 'getData'])->name('getData');
         Route::post('/', [PurchaseOrderController::class, 'store'])->name('store')->middleware('permission:crear ordenes compra');
         Route::get('/{purchaseDocument}', [PurchaseOrderController::class, 'show'])->name('show');

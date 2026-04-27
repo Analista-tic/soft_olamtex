@@ -13,6 +13,7 @@ import { ExternalLink, Image, Plus, Trash } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import AlertStack from '@/components/common/AlertStack.vue';
+import CreatableSelectField from '@/components/CreatableSelectField.vue';
 import FormHeader from '@/components/FormHeader.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
@@ -28,8 +29,6 @@ import { Switch } from '@/components/ui/switch';
 
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 import AdditionalFieldDialog from '@/pages/MasterData/AdditionalFields/AdditionalFieldDialog.vue';
-import GroupDialog from '@/pages/MasterData/Category/GroupDialog.vue';
-import SubGroupDialog from '@/pages/MasterData/Category/SubGroupDialog.vue';
 import ExtraFieldsForm from '@/pages/MasterData/Item/ExtraFieldsForm.vue';
 
 import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
@@ -191,13 +190,7 @@ const dialogInnerRef = ref<HTMLElement | null>(null);
 
 const isImageZoomOpen = ref(false);
 
-const isGroupDialogOpen = ref(false);
-const isSubGroupDialogOpen = ref(false);
-
-const subGroupDialogForm = ref<Partial<CategorySubGroup>>({
-    name: '',
-    category_group_id: undefined,
-});
+// TODO: eliminar cuando se migre el módulo de Categorías
 
 type WarehouseStockEntry = {
     warehouse_id: number | null;
@@ -723,43 +716,37 @@ function toNumericValue(value: unknown): number {
     return 0;
 }
 
-function openGroupDialog() {
-    if (!canCreateCategories.value) return;
-    isGroupDialogOpen.value = true;
+async function handleCreateGroupInline(name: string): Promise<Option> {
+    const response = await axios.post<CategoryGroup>('/categorias/grupos', { name });
+    const created = response.data;
+    categoryGroups.value.push(created);
+    return { id: String(created.id), name: created.name };
 }
 
-function openSubGroupDialog() {
-    if (!canCreateCategories.value) return;
-    subGroupDialogForm.value = {
-        name: '',
-        category_group_id: selectedGroupId.value ? Number(selectedGroupId.value) : undefined,
-    };
-    isSubGroupDialogOpen.value = true;
+function onGroupCreated(option: Option) {
+    selectedGroupId.value = String(option.id);
+    localForm.value.category_sub_group_id = undefined;
 }
 
-async function handleGroupCreated(newGroup: Partial<CategoryGroup>) {
-    try {
-        const response = await axios.post<CategoryGroup>('/categorias/grupos', newGroup);
-        const createdGroup = response.data;
-        categoryGroups.value.push(createdGroup);
-        selectedGroupId.value = String(createdGroup.id ?? createdGroup.name ?? '');
-        localForm.value.category_sub_group_id = undefined;
-    } catch (error) {
-        console.error('Error al crear el grupo:', error);
-    } finally {
-        isGroupDialogOpen.value = false;
+async function handleCreateSubGroupInline(name: string): Promise<Option> {
+    const groupId = selectedGroupId.value;
+    if (!groupId) {
+        throw new Error('Debes seleccionar un grupo antes de crear un subgrupo');
     }
+
+    await axios.post('/categorias/subgrupos', {
+        name,
+        category_group_id: Number(groupId),
+    });
+
+    await fetchCategorySubGroups(true);
+    const created = categorySubGroups.value.find((sg) => sg.name === name && String(sg.category_group_id) === groupId);
+    if (!created) throw new Error('Subgrupo no encontrado tras creación');
+    return { id: String(created.id), name: created.name };
 }
 
-async function handleSubGroupSubmit(formData: Partial<CategorySubGroup>) {
-    try {
-        await axios.post('/categorias/subgrupos', formData);
-        await fetchCategorySubGroups(true);
-    } catch (error) {
-        console.error('Error al crear el subgrupo:', error);
-    } finally {
-        isSubGroupDialogOpen.value = false;
-    }
+function onSubGroupCreated(option: Option) {
+    localForm.value.category_sub_group_id = String(option.id);
 }
 
 function openTaxDialog() {
@@ -1456,7 +1443,7 @@ onBeforeUnmount(() => {
                                 </template>
 
                                 <template v-else>
-                                    <SelectField
+                                    <CreatableSelectField
                                         v-model="selectedGroupId"
                                         label="Grupo"
                                         :options="groupOptions"
@@ -1465,22 +1452,14 @@ onBeforeUnmount(() => {
                                         searchable
                                         search-placeholder="Buscar..."
                                         :show-placeholder-option="false"
-                                    >
-                                        <template v-if="canCreateCategories" #header>
-                                            <Button
-                                                type="button"
-                                                size="sm"
-                                                variant="outline"
-                                                class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
-                                                @click.stop="openGroupDialog"
-                                            >
-                                                <Plus class="h-4 w-4" />
-                                                Nuevo grupo
-                                            </Button>
-                                        </template>
-                                    </SelectField>
+                                        :creatable="canCreateCategories"
+                                        create-label="grupo"
+                                        create-button-label="Nuevo grupo"
+                                        :on-create="handleCreateGroupInline"
+                                        @created="onGroupCreated"
+                                    />
 
-                                    <SelectField
+                                    <CreatableSelectField
                                         v-model="localForm.category_sub_group_id"
                                         label="Subgrupo"
                                         :options="subGroupOptions"
@@ -1491,20 +1470,12 @@ onBeforeUnmount(() => {
                                         searchable
                                         search-placeholder="Buscar..."
                                         :show-placeholder-option="false"
-                                    >
-                                        <template v-if="canCreateCategories" #header>
-                                            <Button
-                                                type="button"
-                                                size="sm"
-                                                variant="outline"
-                                                class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
-                                                @click.stop="openSubGroupDialog"
-                                            >
-                                                <Plus class="h-4 w-4" />
-                                                Nuevo subgrupo
-                                            </Button>
-                                        </template>
-                                    </SelectField>
+                                        :creatable="canCreateCategories && !!selectedGroupId"
+                                        create-label="subgrupo"
+                                        create-button-label="Nuevo subgrupo"
+                                        :on-create="handleCreateSubGroupInline"
+                                        @created="onSubGroupCreated"
+                                    />
 
                                     <SelectField
                                         v-model="localForm.tax_id"
@@ -1839,16 +1810,8 @@ onBeforeUnmount(() => {
         </form>
     </div>
 
+    <!-- TODO: eliminar cuando se migre el módulo de Categorías -->
     <GroupDialog v-model:isOpen="isGroupDialogOpen" @created="handleGroupCreated" @close="isGroupDialogOpen = false" />
-
-    <SubGroupDialog
-        :isOpen="isSubGroupDialogOpen"
-        dialog-type="create"
-        :subGroupData="subGroupDialogForm"
-        :groups="categoryGroups"
-        @close="isSubGroupDialogOpen = false"
-        @submit="handleSubGroupSubmit"
-    />
 
     <TaxDialog
         v-model:open="isTaxDialogOpen"

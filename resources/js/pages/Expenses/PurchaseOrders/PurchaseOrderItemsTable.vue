@@ -6,13 +6,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import type { PurchaseOrderItem } from '@/domain/Expenses';
 import type { Tax } from '@/domain/Finance';
 import type { Item } from '@/domain/MasterData';
+
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 import ItemDialog from '@/pages/MasterData/Item/ItemDialog.vue';
 import axios from 'axios';
 import { ImagePlus, Lightbulb, PlusCircle, X as XIcon } from 'lucide-vue-next';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const props = defineProps<{
     items: PurchaseOrderItem[];
@@ -29,7 +30,18 @@ const isTaxDialogOpen = ref(false);
 const taxDialogLoading = ref(false);
 type TaxDialogForm = Pick<Tax, 'name' | 'percentage' | 'status'> & { id?: number };
 const taxForm = ref<TaxDialogForm>({ name: '', percentage: 0, status: true });
+
+const fileInputRefs = ref<Record<string, HTMLInputElement | null>>({});
+const persistedImageUrls = ref<Record<string, string | null>>({});
+const showLightbox = ref(false);
+const lightboxUrl = ref<string | null>(null);
+let lightboxKeydownListenerAttached = false;
+// Item dialog state (quick-create)
 const isItemDialogOpen = ref(false);
+const itemDialogTargetRowIndex = ref<number | null>(null);
+const itemCatalogSnapshotBeforeCreate = ref<number[]>([]);
+const createdItemCandidateId = ref<number | null>(null);
+const pendingItemDialogRefresh = ref<Promise<void> | null>(null);
 const itemDialogForm = ref<Partial<Item>>({
     reference: '',
     description: '',
@@ -37,17 +49,6 @@ const itemDialogForm = ref<Partial<Item>>({
     negative_movement: false,
     status: true,
 });
-const itemDialogTargetRowIndex = ref<number | null>(null);
-const itemCatalogSnapshotBeforeCreate = ref<number[]>([]);
-const createdItemCandidateId = ref<number | null>(null);
-const pendingItemDialogRefresh = ref<Promise<void> | null>(null);
-const shouldPrefillItemDialogFromRequest = ref(false);
-
-const fileInputRefs = ref<Record<string, HTMLInputElement | null>>({});
-const persistedImageUrls = ref<Record<string, string | null>>({});
-const showLightbox = ref(false);
-const lightboxUrl = ref<string | null>(null);
-let lightboxKeydownListenerAttached = false;
 
 const isReadOnly = computed(() => !!props.readonly);
 const hasPurchaseRequestContext = computed(() => props.purchaseRequestId != null);
@@ -109,9 +110,8 @@ async function fetchTaxes() {
     taxes.value = Array.isArray(res.data?.data) ? res.data.data.filter((tax: any) => tax.status) : [];
 }
 
-onMounted(() => {
-    fetchItems();
-    fetchTaxes();
+onMounted(async () => {
+    await Promise.all([fetchItems(), fetchTaxes()]);
 });
 
 function openTaxDialog() {
@@ -129,34 +129,6 @@ function createDefaultItemDialogForm(): Partial<Item> {
     };
 }
 
-function resolveSuggestedImagePath(rawImageUrl: unknown): string | undefined {
-    if (typeof rawImageUrl !== 'string') {
-        return undefined;
-    }
-
-    const trimmed = rawImageUrl.trim();
-    if (!trimmed) {
-        return undefined;
-    }
-
-    let normalizedPath = trimmed;
-
-    try {
-        if (/^https?:\/\//i.test(trimmed)) {
-            normalizedPath = new URL(trimmed).pathname || trimmed;
-        }
-    } catch {
-        normalizedPath = trimmed;
-    }
-
-    const storageMatch = normalizedPath.match(/\/storage\/(.+)$/i);
-    if (storageMatch?.[1]) {
-        return storageMatch[1];
-    }
-
-    return undefined;
-}
-
 function getSuggestedItemForRow(rowIdx: number) {
     if (!props.suggestedItems || props.suggestedItems.length === 0) return null;
     return props.suggestedItems[rowIdx] || null;
@@ -171,8 +143,6 @@ function buildItemDialogForm(rowIdx: number): Partial<Item> {
     }
 
     const description = typeof suggestedItem.description === 'string' ? suggestedItem.description.trim() : '';
-    const suggestedImagePath = resolveSuggestedImagePath(suggestedItem.image_url);
-
     if (description) {
         baseForm.description = description;
     }
@@ -195,76 +165,22 @@ function detectCreatedItemId(previousIds: number[], items: Item[]): number | nul
 }
 
 function openItemDialog(targetRowIdx: number | null = null, prefillFromRequest = false) {
+    // Prepare quick-create dialog for item
     itemDialogTargetRowIndex.value = targetRowIdx;
-    shouldPrefillItemDialogFromRequest.value = prefillFromRequest;
-    itemCatalogSnapshotBeforeCreate.value = catalogItems.value
-        .map((item) => Number(item.id))
-        .filter((itemId) => Number.isFinite(itemId));
+    itemCatalogSnapshotBeforeCreate.value = catalogItems.value.map((i) => Number(i.id)).filter((id) => Number.isFinite(id));
     createdItemCandidateId.value = null;
-    itemDialogForm.value =
-        targetRowIdx != null && shouldPrefillItemDialogFromRequest.value ? buildItemDialogForm(targetRowIdx) : createDefaultItemDialogForm();
 
-    if (document.activeElement instanceof HTMLElement) {
-        document.activeElement.blur();
-    }
-
-    nextTick(() => {
-        isItemDialogOpen.value = true;
-    });
-}
-
-function openItemDialogFromRequest(rowIdx: number) {
-    openItemDialog(rowIdx, true);
-}
-
-async function handleItemDialogRefresh() {
-    const previousIds = [...itemCatalogSnapshotBeforeCreate.value];
-    pendingItemDialogRefresh.value = fetchItems()
-        .then(() => {
-            createdItemCandidateId.value = detectCreatedItemId(previousIds, catalogItems.value);
-        })
-        .finally(() => {
-            pendingItemDialogRefresh.value = null;
-        });
-
-    await pendingItemDialogRefresh.value;
-}
-
-async function handleItemDialogSaved(mode: 'create' | 'edit') {
-    if (mode !== 'create') {
-        return;
-    }
-
-    if (pendingItemDialogRefresh.value) {
-        await pendingItemDialogRefresh.value;
+    // Prefill form when requested (from purchase request)
+    if (targetRowIdx != null && prefillFromRequest) {
+        itemDialogForm.value = buildItemDialogForm(targetRowIdx);
     } else {
-        await handleItemDialogRefresh();
+        itemDialogForm.value = createDefaultItemDialogForm();
     }
 
-    const rowIdx = itemDialogTargetRowIndex.value;
-    if (rowIdx == null || rowIdx < 0 || rowIdx >= localItems.value.length || createdItemCandidateId.value == null) {
-        return;
-    }
-
-    const targetItem = localItems.value[rowIdx];
-    targetItem.item_id = createdItemCandidateId.value;
-    setTaxFromItem(targetItem);
-    calcTotals(targetItem);
-    emit('update:items', localItems.value);
-
-    // Esperar a que el watcher de item_id ejecute setDescriptionFromItem (catálogo)
-    await nextTick();
-
-    // Pre-llenar descripción de la fila con la de la solicitud si aún está vacía
-    if (!targetItem.description?.trim() && shouldPrefillItemDialogFromRequest.value) {
-        const suggestedItem = getSuggestedItemForRow(rowIdx);
-        const solicitudDescription = typeof suggestedItem?.description === 'string' ? suggestedItem.description.trim() : '';
-        if (solicitudDescription) {
-            targetItem.description = solicitudDescription;
-            emit('update:items', localItems.value);
-        }
-    }
+    isItemDialogOpen.value = true;
 }
+
+
 
 async function handleTaxDialogSubmit(formData: TaxDialogForm) {
     taxDialogLoading.value = true;
@@ -624,10 +540,45 @@ function selectSuggestedItemInRow(rowIdx: number) {
 
 function openCreateItemDialogForRow(rowIdx: number) {
     if (hasPurchaseRequestContext.value) {
-        openItemDialogFromRequest(rowIdx);
+        openItemDialog(rowIdx, true);
     } else {
         openItemDialog(rowIdx, false);
     }
+}
+
+async function handleItemDialogRefresh() {
+    const previousIds = [...itemCatalogSnapshotBeforeCreate.value];
+    pendingItemDialogRefresh.value = (async () => {
+        await fetchItems();
+        const detected = detectCreatedItemId(previousIds, catalogItems.value);
+        createdItemCandidateId.value = detected ?? null;
+    })();
+    await pendingItemDialogRefresh.value;
+    pendingItemDialogRefresh.value = null;
+}
+
+async function handleItemDialogSaved(mode: 'create' | 'edit') {
+    if (mode !== 'create') return;
+
+    if (pendingItemDialogRefresh.value) {
+        await pendingItemDialogRefresh.value;
+    } else {
+        await handleItemDialogRefresh();
+    }
+
+    const rowIdx = itemDialogTargetRowIndex.value;
+    if (rowIdx == null || rowIdx < 0 || rowIdx >= localItems.value.length || createdItemCandidateId.value == null) {
+        // nothing to do
+        isItemDialogOpen.value = false;
+        return;
+    }
+
+    localItems.value[rowIdx].item_id = createdItemCandidateId.value;
+    setTaxFromItem(localItems.value[rowIdx]);
+    calcTotals(localItems.value[rowIdx]);
+    emit('update:items', localItems.value);
+    itemDialogTargetRowIndex.value = null;
+    isItemDialogOpen.value = false;
 }
 
 defineExpose({ addItem, validateFabricFields, openItemDialog });
@@ -721,7 +672,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                                             placeholder="Selecciona item"
                                             class="w-full"
                                             :disabled="isReadOnly"
-                                            :action-label="!getSuggestedItemForRow(idx) && !isReadOnly ? '+ Nuevo ítem' : undefined"
+                                            :action-label="!getSuggestedItemForRow(idx) && !isReadOnly ? 'Nuevo ítem' : undefined"
                                             :action-disabled="isReadOnly"
                                             @action="openItemDialog(idx, false)"
                                             v-if="!isReadOnly"
@@ -860,14 +811,6 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                 </TableBody>
             </Table>
         </div>
-        <ItemDialog
-            :isOpen="isItemDialogOpen"
-            dialog-type="create"
-            :form="itemDialogForm"
-            @refresh="handleItemDialogRefresh"
-            @saved="handleItemDialogSaved"
-            @close="isItemDialogOpen = false"
-        />
         <TaxDialog
             v-model:open="isTaxDialogOpen"
             dialog-type="create"
@@ -875,6 +818,15 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
             :loading="taxDialogLoading"
             @submit="handleTaxDialogSubmit"
             @cancel="isTaxDialogOpen = false"
+        />
+        <ItemDialog
+            :isOpen="isItemDialogOpen"
+            dialog-type="create"
+            :form="itemDialogForm"
+            :show-advanced-link="true"
+            @refresh="handleItemDialogRefresh"
+            @saved="handleItemDialogSaved"
+            @close="isItemDialogOpen = false"
         />
         <ImagePreviewDialog
             :open="showLightbox"

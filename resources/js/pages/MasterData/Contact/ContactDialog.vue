@@ -364,7 +364,7 @@ const updateBranches = (branches: Branch[]) => {
     <Dialog v-model:open="internalIsOpen">
         <FormDialogContent
             size="lg"
-            class="flex max-h-[95vh] max-w-[95vw] flex-col px-2 py-2"
+            class="flex max-h-[95vh] max-w-[75vw] flex-col px-2 py-2"
             :scrollable="false"
         >
             <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">

@@ -1,4 +1,8 @@
 <script setup lang="ts">
+// DEPRECADO: este componente sera eliminado cuando se complete
+// la migracion de todos los modulos a CreatableSelectField.
+// Pendiente: verificar uso en modulo de Categorias (pagina de listado)
+// antes de eliminar.
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputField from '@/components/InputField.vue';
 import { Button } from '@/components/ui/button';
