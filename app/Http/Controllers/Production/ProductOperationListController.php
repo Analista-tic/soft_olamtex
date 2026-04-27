@@ -105,7 +105,35 @@ class ProductOperationListController extends Controller
 
         return response()->json([
             'data' => ProductOperationListResource::collection($lists)->resolve()
+        ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', '0');
+    }
+
+    /**
+     * Resumen agregado de listados operacionales por sábana.
+     * GET /produccion/listados-operacionales/summaries
+     */
+    public function summaries(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'product_sheet_ids' => ['nullable', 'array'],
+            'product_sheet_ids.*' => ['integer', 'exists:product_sheets,id'],
         ]);
+
+        $sheetIds = collect($validated['product_sheet_ids'] ?? [])
+            ->map(static fn ($id): int => (int) $id)
+            ->filter(static fn (int $id): bool => $id > 0)
+            ->values()
+            ->all();
+
+        $summaries = $this->service->getSheetSummaries($sheetIds);
+
+        return response()->json([
+            'data' => $summaries,
+        ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', '0');
     }
 
     /**
@@ -198,7 +226,7 @@ class ProductOperationListController extends Controller
             'operations.*.grupo_preparacion' => ['nullable', 'string', 'max:100'],
             'operations.*.sequence' => ['required', 'integer', 'min:1'],
             'operations.*.optimal_time' => ['required', 'numeric', 'min:0'],
-            'operations.*.operator_efficiency_factor' => ['required', 'numeric', 'between:1,2'],
+            'operations.*.operator_efficiency_factor' => ['required', 'numeric', 'between:0.5,2'],
             'operations.*.machine_supplement_factor' => ['required', 'numeric', 'min:1'],
             'operations.*.fabric_base_id' => ['nullable', 'integer'],
             'operations.*.quantity' => ['nullable', 'integer', 'min:1'],

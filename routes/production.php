@@ -164,6 +164,9 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
         Route::get('/data', [ProductOperationListController::class, 'index'])
             ->middleware('permission:ver listados operacionales|ver sabana productos')
             ->name('data');
+        Route::get('/summaries', [ProductOperationListController::class, 'summaries'])
+            ->middleware('permission:ver listados operacionales|ver sabana productos')
+            ->name('summaries');
         Route::get('/options', [ProductOperationListController::class, 'options'])
             ->middleware('permission:ver listados operacionales|ver sabana productos')
             ->name('options');
@@ -256,8 +259,9 @@ Route::get('produccion/ordenes-produccion', [ProductionOrderController::class, '
     ->middleware('permission:ver sabana productos')
     ->name('production.orders.index');
 Route::get('produccion/ordenes-produccion/{order}/detalle', [ProductionOrderController::class, 'show'])
-    ->middleware('permission:ver sabana productos')
-    ->name('production.orders.show');
+    ->name('produccion.ordenes-produccion.show');
+Route::post('produccion/ordenes-produccion/{order}/regenerar-snapshot', [ProductionOrderController::class, 'regenerateSnapshot'])
+    ->name('produccion.ordenes-produccion.regenerar-snapshot');
 
 // Programador comercial
 Route::prefix('comercial')->name('comercial.')->group(function () {

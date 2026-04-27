@@ -6,9 +6,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { OpBasicInfo } from '@/domain/Production';
 import { fetchOpBasicInfo, fetchOpOptions, fetchOpRawMaterials, fetchOpRolls } from '@/domain/Production';
 import type { BreadcrumbItem, Option } from '@/domain/shared';
+import type { ProductOperationPayload } from '@/domain/product-sheet/types';
+import { useListadoOperacionalEdit } from '@/composables/useListadoOperacionalEdit';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
-import { Box, ChevronDown, ChevronUp, ClipboardList, DollarSign, FilePlus2, Package, Printer, Volleyball, Workflow } from 'lucide-vue-next';
+import { Box, ChevronDown, ChevronUp, ClipboardList, DollarSign, FilePlus2, Package, Pencil, Printer, Volleyball, Workflow } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AdditionalInfoTab from './tabs/AdditionalInfoTab/index.vue';
 import CostsTab from './tabs/CostsTab.vue';
@@ -17,6 +19,7 @@ import OperationalListTab from './tabs/OperationalListTab.vue';
 import ProcessesTab from './tabs/ProcessesTab.vue';
 import SuppliesTab from './tabs/SuppliesTab.vue';
 import ThreadsTab from './tabs/ThreadsTab.vue';
+import ProductOperationListDialog from '@/pages/Production/ProductOperationList/ProductOperationListDialog.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 
 const props = defineProps<{
@@ -137,6 +140,35 @@ const isSampleOp = computed(() =>
         .toUpperCase()
         .startsWith('MU'),
 );
+
+/* ── Edición de listado operacional (solo muestras) ── */
+const productSheetId = computed(() => selectedOp.value?.product_sheet_id ?? null);
+const refreshKey = ref(0);
+
+const {
+    editOpsOpen,
+    catalogLoading,
+    catalogSections,
+    catalogOperations,
+    catalogMachines,
+    catalogFabricBases,
+    catalogPreparationGroups,
+    opsInitialData,
+    openEditOpsDialog: _openEditOpsDialog,
+    handleSaveOps: _handleSaveOps,
+} = useListadoOperacionalEdit({
+    onSaved: () => { refreshKey.value += 1; },
+});
+
+async function openEditOpsDialog() {
+    await _openEditOpsDialog(productSheetId.value);
+}
+
+async function handleSaveOps(payload: ProductOperationPayload[]) {
+    if (!selectedOpId.value || !productSheetId.value) return;
+    await _handleSaveOps(payload, selectedOpId.value, productSheetId.value);
+    refreshKey.value += 1;
+}
 const displayedSecondReference = computed(() => {
     const op = selectedOp.value as
         | (OpBasicInfo & {
@@ -603,11 +635,25 @@ onBeforeUnmount(() => {
                             </TabsList>
                         </div>
                         <TabsContent value="lista_operacional" class="mt-0">
+                            <div v-if="isSampleOp" class="mb-3 flex justify-end">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    :disabled="catalogLoading"
+                                    @click="openEditOpsDialog"
+                                >
+                                    <Pencil class="mr-1.5 h-3.5 w-3.5" />
+                                    {{ catalogLoading ? 'Cargando...' : 'Editar operaciones' }}
+                                </Button>
+                            </div>
                             <OperationalListTab
                                 v-if="selectedOpId"
+                                :key="refreshKey"
                                 :op-id="selectedOpId"
                                 :op-label="opHeaderLabel"
+                                :product-sheet-id="selectedOp?.product_sheet_id ?? null"
                                 @has-data="hasOperationalList = $event"
+                                @create-listado="openEditOpsDialog"
                             />
                         </TabsContent>
 
@@ -660,6 +706,22 @@ onBeforeUnmount(() => {
             </template>
         </div>
     </AppLayout>
+
+    <!-- Dialog de edición de listado operacional (solo muestras) -->
+    <ProductOperationListDialog
+        v-if="isSampleOp"
+        :open="editOpsOpen"
+        mode="edit"
+        :initial-data="opsInitialData"
+        :product-sheets="[]"
+        :sections="catalogSections"
+        :operations="catalogOperations"
+        :machines="catalogMachines"
+        :fabric-bases="catalogFabricBases"
+        :preparation-groups="catalogPreparationGroups"
+        @save="handleSaveOps"
+        @close="editOpsOpen = false"
+    />
 </template>
 
 

@@ -51,7 +51,7 @@ class UpdateProductOperationListRequest extends FormRequest
             'operator_efficiency_factor' => [
                 'sometimes',
                 'numeric',
-                'min:1.0',
+                'min:0.5',
                 'max:2.0',
             ],
             'machine_supplement_factor' => [
@@ -79,7 +79,7 @@ class UpdateProductOperationListRequest extends FormRequest
         return [
             'operation_id.unique' => 'Esta operación ya está agregada en este lote. No se pueden duplicar operaciones.',
             'sequence.unique' => 'Ya existe una operación con esta secuencia en el lote.',
-            'operator_efficiency_factor.min' => 'El factor de eficiencia del operario debe ser al menos 1.0 (100%).',
+            'operator_efficiency_factor.min' => 'El factor de eficiencia del operario debe ser al menos 0.5 (equivale a 200% en F. op.).',
             'operator_efficiency_factor.max' => 'El factor de eficiencia del operario no puede superar 2.0 (200%).',
             'machine_supplement_factor.min' => 'El suplemento de máquina debe ser al menos 1.0 (sin suplemento).',
             'machine_supplement_factor.max' => 'El suplemento de máquina no puede superar 5.0 (500%).',

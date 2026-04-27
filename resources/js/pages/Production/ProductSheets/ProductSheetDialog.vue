@@ -36,6 +36,9 @@ import { Loader2 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import ImageUploadViewer from '@/components/ImageUploadViewer.vue';
 import TextareaField from '@/components/TextareaField.vue';
+import ParameterDialog from '@/pages/MasterData/Parameters/ParameterDialog.vue';
+import { createParameter, getParameters, mapParameterToDialogForm, updateParameter } from '@/domain/MasterData';
+import type { Parameter, ParameterDialogFormState } from '@/domain/MasterData';
 
 interface Props {
     mode: 'create' | 'edit' | 'view'; // Define si es creación, edición o visualización
@@ -627,6 +630,198 @@ async function onCreateCollection(name: string): Promise<Option> {
 const templateOptions = ref<Array<{ id: number | string; name: string }>>([]);
 const selectedTemplateId = ref<number | null>(null);
 const templatesLoaded = ref(false);
+const isSizesParameterDialogOpen = ref(false);
+const isSizesParameterLoading = ref(false);
+const sizesParameterId = ref<number | null>(null);
+const sizesParameterForm = ref<ParameterDialogFormState | null>(null);
+const sizesCatalogLoaded = ref(false);
+
+const DEFAULT_SIZE_OPTIONS = [
+    'XS',
+    'S',
+    'M',
+    'L',
+    'XL',
+    '2XL',
+    'U',
+    '2',
+    '3',
+    '4',
+    '5',
+    '6',
+    '8',
+    '10',
+    '12',
+    '14',
+    '16',
+    '28',
+    '30',
+    '32',
+    '34',
+    '36',
+    '38',
+];
+
+function normalizeSizeLabel(value: unknown): string {
+    return String(value ?? '').trim().toUpperCase();
+}
+
+function extractSizeNames(rawValue: unknown): string[] {
+    if (!rawValue) return [];
+
+    const source = typeof rawValue === 'string'
+        ? (() => {
+              try {
+                  const parsed = JSON.parse(rawValue);
+                  return Array.isArray(parsed) ? parsed : [];
+              } catch {
+                  return [rawValue];
+              }
+          })()
+        : Array.isArray(rawValue)
+          ? rawValue
+          : [];
+
+    const seen = new Set<string>();
+    const result: string[] = [];
+
+    for (const entry of source) {
+        const name = typeof entry === 'object' && entry !== null
+            ? normalizeSizeLabel((entry as Record<string, unknown>).name ?? (entry as Record<string, unknown>).label)
+            : normalizeSizeLabel(entry);
+
+        if (!name || seen.has(name)) continue;
+        seen.add(name);
+        result.push(name);
+    }
+
+    return result;
+}
+
+function buildSizeGroupsFromNames(sizeNames: string[]): Record<string, string[]> {
+    return {
+        tallas_1: sizeNames,
+    };
+}
+
+function applySizeCatalog(sizeNames: string[]) {
+    const effectiveSizes = sizeNames.length > 0 ? sizeNames : DEFAULT_SIZE_OPTIONS;
+    sizeGroups.value = buildSizeGroupsFromNames(effectiveSizes);
+
+    const parsed = parseBooleanRecord(form.value.sizes);
+    const normalized = Object.fromEntries(effectiveSizes.map((size) => [size, Boolean(parsed[size])]));
+    form.value.sizes = JSON.stringify(normalized);
+}
+
+async function findSizesParameter(): Promise<Parameter | null> {
+    const candidates: Parameter[] = [];
+
+    const byTallas = await getParameters({ search: 'tallas' });
+    candidates.push(...(byTallas.data?.data ?? []));
+
+    const bySizes = await getParameters({ search: 'sizes' });
+    candidates.push(...(bySizes.data?.data ?? []));
+
+    const unique = candidates.filter((item, index, arr) => arr.findIndex((it) => it.id === item.id) === index);
+
+    const exactByKey = unique.find((param) => String(param.key ?? '').trim().toLowerCase() === 'sizes');
+    if (exactByKey) return exactByKey;
+
+    const exactByLabel = unique.find((param) => String(param.label ?? '').trim().toLowerCase() === 'tallas');
+    if (exactByLabel) return exactByLabel;
+
+    return unique[0] ?? null;
+}
+
+async function refreshSizesFromParameter(force = false): Promise<void> {
+    if (sizesCatalogLoaded.value && !force) return;
+
+    try {
+        const parameter = await findSizesParameter();
+        if (!parameter) {
+            applySizeCatalog(DEFAULT_SIZE_OPTIONS);
+            sizesCatalogLoaded.value = true;
+            return;
+        }
+
+        const names = extractSizeNames(parameter.value);
+        applySizeCatalog(names);
+        sizesCatalogLoaded.value = true;
+    } catch {
+        applySizeCatalog(DEFAULT_SIZE_OPTIONS);
+    }
+}
+
+async function openSizesParameterDialog() {
+    if (isReadonly.value || isSizesParameterLoading.value) return;
+
+    isSizesParameterLoading.value = true;
+    try {
+        const parameter = await findSizesParameter();
+
+        if (parameter) {
+            sizesParameterId.value = parameter.id;
+            sizesParameterForm.value = mapParameterToDialogForm(parameter);
+        } else {
+            sizesParameterId.value = null;
+            sizesParameterForm.value = {
+                key: 'sizes',
+                label: 'Tallas',
+                description: 'Catálogo de tallas para sábana de producto.',
+                status: true,
+                value: DEFAULT_SIZE_OPTIONS.map((name) => ({ name })),
+            };
+        }
+
+        isSizesParameterDialogOpen.value = true;
+    } catch {
+        setError('No se pudo abrir la parametrización de tallas.');
+    } finally {
+        isSizesParameterLoading.value = false;
+    }
+}
+
+function closeSizesParameterDialog() {
+    isSizesParameterDialogOpen.value = false;
+}
+
+async function handleSizesParameterSubmit(payload: ParameterDialogFormState) {
+    if (isSizesParameterLoading.value) return;
+
+    isSizesParameterLoading.value = true;
+    try {
+        const dataToSave = {
+            key: String(payload.key ?? 'sizes').trim() || 'sizes',
+            label: String(payload.label ?? 'Tallas').trim() || 'Tallas',
+            description: String(payload.description ?? ''),
+            status: Boolean(payload.status),
+            value: payload.value ?? [],
+        };
+
+        if (sizesParameterId.value) {
+            await updateParameter(sizesParameterId.value, dataToSave);
+        } else {
+            const response = await createParameter(dataToSave);
+            const newId = Number(response.data?.data?.id ?? 0);
+            sizesParameterId.value = Number.isFinite(newId) && newId > 0 ? newId : null;
+        }
+
+        await refreshSizesFromParameter(true);
+        setError('Tallas actualizadas correctamente.', 'info');
+        closeSizesParameterDialog();
+    } catch (error: unknown) {
+        if (axios.isAxiosError(error)) {
+            const message = error.response?.data?.message;
+            const validationError = error.response?.data?.errors ? Object.values(error.response.data.errors).flat()[0] : null;
+            setError(String(validationError ?? message ?? 'No se pudo guardar la parametrización de tallas.'));
+            return;
+        }
+
+        setError('No se pudo guardar la parametrización de tallas.');
+    } finally {
+        isSizesParameterLoading.value = false;
+    }
+}
 
 async function fetchTemplateOptions(): Promise<void> {
     if (templatesLoaded.value) return;
@@ -699,11 +894,7 @@ async function applyTemplate(templateId: number) {
 const hasSampleOperationalList = ref(true);
 const checkingSampleOperationalList = ref(false);
 
-const sizeGroups = {
-    tallas_1: ['XS', 'S', 'M', 'L', 'XL', '2XL', 'U'],
-    tallas_2: ['2', '3', '4', '5', '6', '8', '10', '12', '14', '16'],
-    tallas_3: ['28', '30', '32', '34', '36', '38'],
-};
+const sizeGroups = ref<Record<string, string[]>>(buildSizeGroupsFromNames(DEFAULT_SIZE_OPTIONS));
 
 const parsedSizes = computed<Record<string, boolean>>(() => parseBooleanRecord(form.value.sizes));
 
@@ -1041,6 +1232,7 @@ watch(
         if (!newValue) {
             resetForm();
         } else {
+            errorMessage.value = '';
             void initializeDialog();
         }
     },
@@ -1329,6 +1521,7 @@ function resetForm() {
     checkingSampleOperationalList.value = false;
     selectedTemplateId.value = null;
     form.value = createInitialFormState();
+    applySizeCatalog(Object.values(sizeGroups.value).flat());
     showFieldErrors.value = false;
     errorMessage.value = '';
 }
@@ -1668,6 +1861,14 @@ function handleClose() {
                                     <div class="tooltip-managed-size-selector">
                                         <SizeSelector class="w-full" v-model="form.sizes" :sizeGroups="sizeGroups" :disabled="isReadonly" />
                                     </div>
+                                    <button
+                                        type="button"
+                                        class="w-fit text-xs text-muted-foreground underline-offset-2 transition hover:text-foreground hover:underline disabled:opacity-50"
+                                        :disabled="isReadonly || isSizesParameterLoading"
+                                        @click="openSizesParameterDialog"
+                                    >
+                                        {{ isSizesParameterLoading ? 'Abriendo parametrización...' : 'Parametrizar tallas' }}
+                                    </button>
                                 </div>
                             </div>
 
@@ -1793,13 +1994,14 @@ function handleClose() {
 
                                 <!-- Descripción -->
                                 <div class="flex flex-col gap-1">
-                                    <Label class="text-sm font-medium">Descripción</Label>
+                                    <Label class="text-sm font-medium">Nombre del producto<span class="text-red-500">*</span></Label>
                                     <InputField
                                         v-model="form.description"
                                         label=""
                                         type="text"
-                                        placeholder="Descripción corta del producto"
+                                        placeholder="Nombre del producto"
                                         :disabled="isReadonly"
+                                        :error="showFieldErrors ? fieldErrors.description : undefined"
                                     />
                                 </div>
 
@@ -1870,6 +2072,16 @@ function handleClose() {
         :loading="convertLoading"
         :initial-value="form.product_reference ?? ''"
         @confirm="submitConvertDialog"
+    />
+
+    <ParameterDialog
+        :open="isSizesParameterDialogOpen"
+        dialog-type="edit"
+        :form="sizesParameterForm"
+        :loading="isSizesParameterLoading"
+        @update:open="(value) => (isSizesParameterDialogOpen = value)"
+        @cancel="closeSizesParameterDialog"
+        @submit="handleSizesParameterSubmit"
     />
 </template>
 

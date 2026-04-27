@@ -41,8 +41,8 @@ class ProductOperationListResource extends JsonResource
             'variance' => $this->variance ? round($this->variance, 2) : null,
             
             // Factores
-            'operator_efficiency_factor' => round($this->operator_efficiency_factor, 2),
-            'machine_supplement_factor' => round($this->machine_supplement_factor, 2),
+            'operator_efficiency_factor' => round($this->operator_efficiency_factor, 4),
+            'machine_supplement_factor' => round($this->machine_supplement_factor, 4),
             
             // Campos calculados adicionales
             'units_per_hour_100' => $this->production_time > 0 

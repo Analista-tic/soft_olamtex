@@ -87,6 +87,7 @@ const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
 const statusFilter = ref('all');
+const typeFilter = ref('all');
 const sectionFilter = ref('all');
 const worldFilter = ref('all');
 const fetchDebounceMs = 350;
@@ -97,6 +98,11 @@ const statusOptions = [
     { id: 'all', name: 'Todos' },
     { id: 'incomplete', name: 'Incompleto' },
     { id: 'complete', name: 'Completo' },
+];
+const typeOptions = [
+    { id: 'all', name: 'Todos' },
+    { id: 'muestra', name: 'Muestra' },
+    { id: 'producto', name: 'Producto' },
 ];
 const actionButtonClass =
     'inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
@@ -322,11 +328,11 @@ function clearFetchDebounce() {
 function scheduleProductSheetsFetch(page = 1) {
     clearFetchDebounce();
     fetchDebounceTimer = setTimeout(() => {
-        fetchProductSheets(page, searchQuery.value, statusFilter.value, sectionFilter.value, worldFilter.value);
+        fetchProductSheets(page, searchQuery.value, statusFilter.value, typeFilter.value, sectionFilter.value, worldFilter.value);
     }, fetchDebounceMs);
 }
 
-async function fetchProductSheets(page = 1, search = '', status = 'all', section = 'all', world = 'all') {
+async function fetchProductSheets(page = 1, search = '', status = 'all', type = 'all', section = 'all', world = 'all') {
     if (activeFetchController) {
         activeFetchController.abort();
     }
@@ -346,6 +352,7 @@ async function fetchProductSheets(page = 1, search = '', status = 'all', section
                 per_page: itemsPerPage,
                 search: normalizedSearch === '' ? undefined : normalizedSearch,
                 status: status === 'all' ? null : status,
+                type: type === 'all' ? null : type,
                 section_id: Number.isFinite(sectionId) ? sectionId : null,
                 world_id: Number.isFinite(worldId) ? worldId : null,
             },
@@ -373,21 +380,21 @@ async function fetchProductSheets(page = 1, search = '', status = 'all', section
 }
 
 // Llamar a fetchProductSheets cuando searchQuery o statusFilter cambien
-watch([searchQuery, statusFilter, sectionFilter, worldFilter], () => {
+watch([searchQuery, statusFilter, typeFilter, sectionFilter, worldFilter], () => {
     scheduleProductSheetsFetch(1);
 });
 
 // Handler para recargar la lista después de guardar
 function reloadProductSheets() {
     clearFetchDebounce();
-    fetchProductSheets(currentPage.value, searchQuery.value, statusFilter.value, sectionFilter.value, worldFilter.value);
+    fetchProductSheets(currentPage.value, searchQuery.value, statusFilter.value, typeFilter.value, sectionFilter.value, worldFilter.value);
 }
 
 // Handler para cambio de página
 function handlePageChange(page: number) {
     currentPage.value = page;
     clearFetchDebounce();
-    fetchProductSheets(page, searchQuery.value, statusFilter.value, sectionFilter.value, worldFilter.value);
+    fetchProductSheets(page, searchQuery.value, statusFilter.value, typeFilter.value, sectionFilter.value, worldFilter.value);
 }
 
 async function loadProductSheetDialog(product: ProductSheet, mode: 'edit' | 'view') {
@@ -477,6 +484,9 @@ onUnmounted(() => {
                     <FilterField label="Estado" :active="statusFilter !== 'all'" class="min-w-[220px] max-w-[220px]">
                         <SelectField v-model="statusFilter" :options="statusOptions" placeholder="Todos" />
                     </FilterField>
+                    <FilterField label="Tipo" :active="typeFilter !== 'all'" class="min-w-[220px] max-w-[220px]">
+                        <SelectField v-model="typeFilter" :options="typeOptions" placeholder="Todos" />
+                    </FilterField>
                     <FilterField label="Seccion" :active="sectionFilter !== 'all'" class="min-w-[220px] max-w-[220px]">
                         <SelectField v-model="sectionFilter" :options="sectionOptions" placeholder="Filtrar por seccion" />
                     </FilterField>
@@ -491,8 +501,9 @@ onUnmounted(() => {
                     <TableHeader>
                         <TableRow>
                             <TableHead>Ref. Muestra</TableHead>
-                            <TableHead>Ref 1. Producto</TableHead>
-                            <TableHead>Ref 2. Producto</TableHead>
+                            <TableHead>Ref. Producto</TableHead>
+                            <TableHead>Ref. Prod 2</TableHead>
+                            <TableHead>Nombre</TableHead>
                             <TableHead>Sección</TableHead>
                             <TableHead>Grupo</TableHead>
                             <TableHead>Mundo</TableHead>
@@ -504,17 +515,15 @@ onUnmounted(() => {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <template v-if="isFetchingSheets">
-                            <TableRow v-for="i in 5" :key="`product-sheet-skeleton-${i}`">
-                                <TableCell v-for="col in 11" :key="`product-sheet-skeleton-${i}-${col}`" class="px-4 py-3">
-                                    <Skeleton class="h-4 w-full" />
-                                </TableCell>
-                            </TableRow>
-                        </template>
+                        <TableRow v-if="isFetchingSheets">
+                            <TableCell colspan="11" class="py-10 text-center text-sm text-muted-foreground">
+                                Cargando sábanas de productos...
+                            </TableCell>
+                        </TableRow>
 
                         <template v-else>
                             <TableRow v-if="productSheets.length === 0">
-                                <TableCell colspan="11" class="py-10 text-center text-sm text-muted-foreground">
+                                <TableCell colspan="12" class="py-10 text-center text-sm text-muted-foreground">
                                     No se encontraron sábanas de producto.
                                 </TableCell>
                             </TableRow>
@@ -532,6 +541,9 @@ onUnmounted(() => {
                                 </TableCell>
                                 <TableCell class="font-medium">
                                     {{ product.product_reference_2 ?? '-' }}
+                                </TableCell>
+                                <TableCell class="max-w-[220px] text-left">
+                                    <span class="block truncate" :title="product.description ?? ''">{{ product.description ?? '—' }}</span>
                                 </TableCell>
                                 <TableCell>{{ product.section?.name ?? '' }}</TableCell>
                                 <TableCell>{{ product.group?.name ?? '' }}</TableCell>

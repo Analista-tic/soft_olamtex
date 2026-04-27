@@ -3,7 +3,9 @@ import HelpTooltip from '@/components/HelpTooltip.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormDialogFooter from '@/components/FormDialogFooter.vue';
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ScrollArea from '@/components/ui/scroll-area/ScrollArea.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -121,6 +123,17 @@ function asNumber(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null;
 }
 
+function toOperatorPercent(value: unknown): number | null {
+    const factor = asNumber(value);
+    if (factor === null || factor <= 0) return null;
+    return Number((100 / factor).toFixed(2));
+}
+
+function getOperatorPercentDisplay(entry: OperationEntry): string {
+    const percent = toOperatorPercent(entry.operator_efficiency_factor);
+    return percent === null ? '-' : `${percent.toFixed(2)}%`;
+}
+
 function getSamValue(entry: OperationEntry): number {
     const persistedTotal = asNumber(entry.sam_total_operacion);
     if (persistedTotal !== null && persistedTotal > 0) return persistedTotal;
@@ -182,7 +195,13 @@ async function fetchOperations() {
     }
     isLoading.value = true;
     try {
-        const { data } = await axios.get('/produccion/listados-operacionales/data', { params: { product_sheet_id: props.productSheetId } });
+        const { data } = await axios.get('/produccion/listados-operacionales/data', {
+            params: { product_sheet_id: props.productSheetId, _ts: Date.now() },
+            headers: {
+                'Cache-Control': 'no-cache',
+                Pragma: 'no-cache',
+            },
+        });
         operations.value = Array.isArray(data?.data) ? data.data : [];
     } catch (e) {
         console.error('Error al cargar operaciones:', e);
@@ -317,7 +336,7 @@ watch(
 
 <template>
     <Dialog v-model:open="localOpen">
-        <DialogContent class="flex max-h-[90vh] max-w-[1300px] flex-col p-0">
+        <FormDialogContent class="flex max-h-[90vh] max-w-[1300px] flex-col p-0">
             <!-- Header -->
             <DialogHeader class="flex-shrink-0 space-y-0 border-b px-6 pb-4 pt-5">
                 <div class="flex items-center justify-between">
@@ -419,7 +438,7 @@ watch(
                                                     <span class="inline-flex items-center justify-end gap-1">F. tela <HelpTooltip text="Factor de la base de tela." /></span>
                                                 </TableHead>
                                                 <TableHead class="text-right">
-                                                    <span class="inline-flex items-center justify-end gap-1">F. op. <HelpTooltip text="Factor operario." /></span>
+                                                    <span class="inline-flex items-center justify-end gap-1">F. op. <HelpTooltip text="Factor operario (%)." /></span>
                                                 </TableHead>
                                                 <TableHead class="text-right">
                                                     <span class="inline-flex items-center justify-end gap-1">SAM op. <HelpTooltip text="Tiempo total (min): SAM base × F.máq. × F.tela × F.op. × cantidad." /></span>
@@ -455,7 +474,7 @@ watch(
                                                         <TableCell class="text-right font-mono">{{ fmtOperationTime(getSamBaseValue(entry)) }}</TableCell>
                                                         <TableCell class="text-right font-mono text-xs">{{ getMachineFactorDisplay(entry) }}</TableCell>
                                                         <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getFabricFactorDisplay(entry) }}</TableCell>
-                                                        <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ entry.operator_efficiency_factor != null ? Number(entry.operator_efficiency_factor).toFixed(2) : '-' }}</TableCell>
+                                                        <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getOperatorPercentDisplay(entry) }}</TableCell>
                                                         <TableCell class="text-right font-mono font-semibold">{{ fmt(getSamValue(entry)) }}</TableCell>
                                                         <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getOpsPerHour(entry) }}</TableCell>
                                                         <TableCell class="py-1">
@@ -465,14 +484,6 @@ watch(
                                                                 <Button variant="ghost" size="icon" class="h-7 w-7" title="Eliminar" @click="deleteOperation(entry)"><Trash2 class="h-3.5 w-3.5" /></Button>
                                                             </div>
                                                         </TableCell>
-                                                    </TableRow>
-                                                    <!-- Subtotal del sub-grupo -->
-                                                    <TableRow class="border-t border-dashed bg-muted/20">
-                                                        <TableCell colspan="8" class="py-1 text-right text-[10px] text-muted-foreground">
-                                                            Subtotal {{ subGroup.groupName }}
-                                                        </TableCell>
-                                                        <TableCell class="py-1 text-right font-mono text-[10px] font-semibold text-muted-foreground">{{ fmt(subGroup.totalSam) }}</TableCell>
-                                                        <TableCell colspan="2"></TableCell>
                                                     </TableRow>
                                                 </template>
                                             </template>
@@ -490,7 +501,7 @@ watch(
                                                     <TableCell class="text-right font-mono">{{ fmtOperationTime(getSamBaseValue(entry)) }}</TableCell>
                                                     <TableCell class="text-right font-mono text-xs">{{ getMachineFactorDisplay(entry) }}</TableCell>
                                                     <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getFabricFactorDisplay(entry) }}</TableCell>
-                                                    <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ entry.operator_efficiency_factor != null ? Number(entry.operator_efficiency_factor).toFixed(2) : '-' }}</TableCell>
+                                                    <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getOperatorPercentDisplay(entry) }}</TableCell>
                                                     <TableCell class="text-right font-mono font-semibold">{{ fmt(getSamValue(entry)) }}</TableCell>
                                                     <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getOpsPerHour(entry) }}</TableCell>
                                                     <TableCell class="py-1">
@@ -574,7 +585,7 @@ watch(
                                             </TableHead>
                                             <TableHead class="text-right">
                                                 <span class="inline-flex items-center justify-end gap-1"
-                                                    >F. op. <HelpTooltip text="Factor operario."
+                                                    >F. op. <HelpTooltip text="Factor operario (%)."
                                                 /></span>
                                             </TableHead>
                                             <TableHead class="text-right">
@@ -605,9 +616,7 @@ watch(
                                             <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
                                                 getFabricFactorDisplay(entry)
                                             }}</TableCell>
-                                            <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
-                                                entry.operator_efficiency_factor != null ? Number(entry.operator_efficiency_factor).toFixed(2) : '-'
-                                            }}</TableCell>
+                                            <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getOperatorPercentDisplay(entry) }}</TableCell>
                                             <TableCell class="text-right font-mono font-semibold">{{ fmt(getSamValue(entry)) }}</TableCell>
                                             <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
                                                 getOpsPerHour(entry)
@@ -644,11 +653,11 @@ watch(
             </div>
 
             <!-- Footer -->
-            <DialogFooter class="flex flex-shrink-0 items-center justify-between border-t px-6 py-4">
+            <FormDialogFooter class="flex flex-wrap items-center justify-between gap-2">
                 <Button variant="outline" size="sm" @click="editOperation"> <Pencil class="mr-1 h-4 w-4" /> Editar listado </Button>
-                <Button variant="outline" class="rounded-full px-5 py-2 text-sm font-semibold" @click="localOpen = false">Cerrar</Button>
-            </DialogFooter>
-        </DialogContent>
+                <Button variant="outline" @click="localOpen = false">Cerrar</Button>
+            </FormDialogFooter>
+        </FormDialogContent>
     </Dialog>
 
     <HistoryDialog :open="isHistoryOpen" :operation-id="historyOperationId" :operation-label="historyOperationLabel" @close="isHistoryOpen = false" />

@@ -3,7 +3,6 @@
 namespace App\Http\Middleware;
 
 use App\Models\Settings\CompanySetting;
-use App\Models\Settings\User;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -48,14 +47,17 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => fn () => $request->user()
                     ? (function () use ($request) {
-                        $user = $request->user()->fresh();
-
-                        if (! $user instanceof User) {
+                        $user = $request->user()->fresh(['roles.permissions']);
+                        if (!$user) {
                             return null;
                         }
 
                         return [
-                            ...$user->append('avatar_url')->toArray(),
+                            ...$user->append('avatar_url')->makeHidden([
+                                'area_id',
+                                'created_at',
+                                'updated_at',
+                            ])->toArray(),
                             'theme_appearance' => $user->theme_appearance,
                             'theme_color' => $user->theme_color,
                         ];

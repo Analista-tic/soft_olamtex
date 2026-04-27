@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { OpBasicInfo } from '@/domain/Production/types';
-import { fetchOpBasicInfo, fetchOpRawMaterials, fetchOpOperationalListDetail } from '@/domain/Production/service';
-import type { FabricBaseOption, MachineOption, OperationOption, OperationSection, ProductOperationPayload } from '@/domain/product-sheet/types';
+import { fetchOpBasicInfo, fetchOpRawMaterials } from '@/domain/Production/service';
+import type { ProductOperationPayload } from '@/domain/product-sheet/types';
+import { useListadoOperacionalEdit } from '@/composables/useListadoOperacionalEdit';
 import axios from 'axios';
 import { Box, ChevronDown, ChevronUp, ClipboardList, DollarSign, FilePlus2, Package, Pencil, Volleyball, Workflow } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
@@ -95,78 +96,34 @@ const drawingUrl = computed(() => {
 });
 const drawingLoadFailed = ref(false);
 
-/* ── Edición de operaciones (solo muestras) ── */
-const editOpsOpen = ref(false);
+/* ── Edición de operaciones (solo muestras) — usa composable ── */
 const refreshKey = ref(0);
-const catalogLoading = ref(false);
-const isSavingOps = ref(false);
-const catalogSections = ref<OperationSection[]>([]);
-const catalogOperations = ref<OperationOption[]>([]);
-const catalogMachines = ref<MachineOption[]>([]);
-const catalogFabricBases = ref<FabricBaseOption[]>([]);
-const opsInitialData = ref<{
-    productSheetId: null;
-    operations: {
-        section_id: number | null;
-        operation_id: number | null;
-        machine_id: number | null;
-        optimal_time: string;
-        quantity: number;
-        fabric_base_id: null;
-        operator_efficiency_factor: number;
-    }[];
-    operatorEfficiencyFactor: number;
-    notes: string;
-} | null>(null);
+
+const productSheetId = computed(() => opDetail.value?.product_sheet_id ?? null);
+
+const {
+    editOpsOpen,
+    catalogLoading,
+    catalogSections,
+    catalogOperations,
+    catalogMachines,
+    catalogFabricBases,
+    catalogPreparationGroups,
+    opsInitialData,
+    openEditOpsDialog: _openEditOpsDialog,
+    handleSaveOps: _handleSaveOps,
+} = useListadoOperacionalEdit({
+    onSaved: () => { refreshKey.value += 1; },
+});
 
 async function openEditOpsDialog() {
-    if (!props.row?.id) return;
-    catalogLoading.value = true;
-    try {
-        const [catalogRes, opsRes] = await Promise.all([
-            axios.get(route('control-de-lotes.catalog-options')),
-            fetchOpOperationalListDetail(props.row.id),
-        ]);
-        catalogSections.value = catalogRes.data.sections;
-        catalogOperations.value = catalogRes.data.operations;
-        catalogMachines.value = catalogRes.data.machines;
-        catalogFabricBases.value = catalogRes.data.fabric_bases;
-        opsInitialData.value = {
-            productSheetId: null,
-            operations: opsRes.data.map((op) => ({
-                section_id: op.operation_section_id ?? op.operation_section?.id ?? null,
-                operation_id: op.operation?.id ?? null,
-                machine_id: op.machine?.id ?? null,
-                optimal_time: Number(op.sam_base ?? 0).toFixed(2),
-                quantity: op.quantity ?? 1,
-                fabric_base_id: null,
-                operator_efficiency_factor: op.operator_efficiency_factor ?? 1,
-            })),
-            operatorEfficiencyFactor: 1,
-            notes: '',
-        };
-        editOpsOpen.value = true;
-    } catch (e) {
-        console.error('Error cargando opciones de catálogo:', e);
-    } finally {
-        catalogLoading.value = false;
-    }
+    await _openEditOpsDialog(productSheetId.value);
 }
 
 async function handleSaveOps(payload: ProductOperationPayload[]) {
-    if (!props.row?.id) return;
-    isSavingOps.value = true;
-    try {
-        await axios.put(route('control-de-lotes.sync-operations', { order: props.row.id }), {
-            operations: payload,
-        });
-        editOpsOpen.value = false;
-        refreshKey.value += 1;
-    } catch (e) {
-        console.error('Error guardando operaciones:', e);
-    } finally {
-        isSavingOps.value = false;
-    }
+    if (!props.row?.id || !productSheetId.value) return;
+    await _handleSaveOps(payload, props.row.id, productSheetId.value);
+    refreshKey.value += 1;
 }
 
 function onDrawingError() {
@@ -463,7 +420,7 @@ watch(
                                     {{ catalogLoading ? 'Cargando...' : 'Editar operaciones' }}
                                 </Button>
                             </div>
-                            <OperationalListTab :key="refreshKey" :op-id="row!.id" :op-label="opHeaderLabel" @has-data="hasOperationalList = $event" />
+                            <OperationalListTab :key="refreshKey" :op-id="row!.id" :op-label="opHeaderLabel" :product-sheet-id="productSheetId" @has-data="hasOperationalList = $event" @create-listado="openEditOpsDialog" />
                         </TabsContent>
 
                         <TabsContent value="procesos" class="mt-0">
@@ -519,6 +476,7 @@ watch(
         :operations="catalogOperations"
         :machines="catalogMachines"
         :fabric-bases="catalogFabricBases"
+        :preparation-groups="catalogPreparationGroups"
         @save="handleSaveOps"
         @close="editOpsOpen = false"
     />

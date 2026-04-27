@@ -75,6 +75,79 @@ class ProductOperationListService
     }
 
     /**
+     * Resumen agregado por sábana para listado operacional.
+     * Retorna una fila por product_sheet_id con totales y texto de búsqueda consolidado.
+     *
+     * @param array<int, int> $productSheetIds
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function getSheetSummaries(array $productSheetIds = []): Collection
+    {
+        $query = $this->model
+            ->newQuery()
+            ->with(['operation:id,action,garment_part,anexo', 'machine:id,name,code', 'operationSection:id,name,type'])
+            ->select([
+                'id',
+                'product_sheet_id',
+                'operation_id',
+                'machine_id',
+                'operation_section_id',
+                'sam_total_operacion',
+                'sam',
+                'is_active',
+            ])
+            ->whereNull('deleted_at');
+
+        if ($productSheetIds !== []) {
+            $query->whereIn('product_sheet_id', $productSheetIds);
+        }
+
+        return $query
+            ->get()
+            ->groupBy('product_sheet_id')
+            ->map(static function (Collection $rows, int|string $sheetId): array {
+                $totalSam = 0.0;
+                $totalSamConfeccion = 0.0;
+                $totalSamTerminacion = 0.0;
+                $isActive = true;
+                $searchParts = [];
+
+                foreach ($rows as $row) {
+                    $samValue = (float) ($row->sam_total_operacion ?? $row->sam ?? 0);
+                    $totalSam += $samValue;
+
+                    $sectionType = strtolower((string) ($row->operationSection?->type ?? ''));
+                    if ($sectionType === 'confeccion') {
+                        $totalSamConfeccion += $samValue;
+                    } elseif (in_array($sectionType, ['presentacion', 'terminacion'], true)) {
+                        $totalSamTerminacion += $samValue;
+                    }
+
+                    if ($row->is_active === false) {
+                        $isActive = false;
+                    }
+
+                    $searchParts[] = trim(implode(' ', array_filter([
+                        (string) ($row->operationSection?->name ?? ''),
+                        (string) ($row->operation?->name ?? ''),
+                        (string) ($row->machine?->name ?? ''),
+                        (string) ($row->machine?->code ?? ''),
+                    ])));
+                }
+
+                return [
+                    'product_sheet_id' => (int) $sheetId,
+                    'total_sam' => round($totalSam, 4),
+                    'total_sam_confeccion' => round($totalSamConfeccion, 4),
+                    'total_sam_terminacion' => round($totalSamTerminacion, 4),
+                    'is_active' => $isActive,
+                    'search_blob' => trim(implode(' ', array_unique(array_filter($searchParts)))),
+                ];
+            })
+            ->values();
+    }
+
+    /**
      * Lista operaciones filtradas por sección
      */
     public function listBySection(int $productSheetId, int $sectionId): Collection

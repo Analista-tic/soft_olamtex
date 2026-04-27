@@ -74,7 +74,7 @@ abstract class BaseProductSheetRequest extends FormRequest
             'selling_price' => 'required|numeric',
             'sizes' => 'required|json',
             'woven_product' => 'required|boolean',
-            'description' => 'nullable|string',
+            'description' => 'required|string',
             'processes' => 'required|json',
             'flat_sketch' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'status' => ['required', Rule::in(['incomplete', 'complete'])],
@@ -94,6 +94,7 @@ abstract class BaseProductSheetRequest extends FormRequest
             'product_reference.required' => 'La referencia de producto es obligatoria para fichas tipo producto.',
             'sample_reference.required' => 'La referencia de muestra es obligatoria cuando el tipo es muestra.',
             'fabric_base_id.required' => 'Base Tela es requerida cuando el producto no es tejido.',
+            'description.required' => 'El nombre del producto es obligatorio.',
         ];
     }
 
@@ -229,18 +230,7 @@ abstract class BaseProductSheetRequest extends FormRequest
      */
     protected function applyTypeValidation(\Illuminate\Contracts\Validation\Validator $validator): void
     {
-        $type = $this->input('type');
-        if (!$type) {
-            return;
-        }
-
-        // PRODUCTO: debe tener listado operacional asignado
-        if ($type === self::TYPE_PRODUCT && !$this->filled('operational_list_id')) {
-            $validator->errors()->add(
-                'operational_list_id',
-                'Las fichas tipo producto requieren un listado operacional asignado.'
-            );
-        }
+        // Sin validaciones adicionales por tipo en este request base.
     }
 
     protected function failedValidation(Validator $validator): void

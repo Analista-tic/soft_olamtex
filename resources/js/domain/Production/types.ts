@@ -176,6 +176,7 @@ export interface OpBasicInfo {
     priority?: string | null;
     baseYarn?: string | null;
     estimatedDeliveryTime?: number | null;
+    product_sheet_id?: number | null;
 }
 
 export interface OperationalListItem {

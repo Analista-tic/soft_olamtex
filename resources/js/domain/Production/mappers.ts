@@ -190,6 +190,7 @@ export function mapOpBasicInfoDtoToOpBasicInfo(dto: OpBasicInfoDto): OpBasicInfo
         ecommerce: false,
         priority: toNullableText(dto.priority),
         baseYarn,
+        product_sheet_id: dto.product_sheet_id ?? null,
     };
 }
 
@@ -236,6 +237,7 @@ export function mapDetailResponseToBasicInfo(response: ProductionOrderDetailResp
         priority: toNullableText(order?.priority ?? programmer?.priority ?? null),
         baseYarn: sheet?.yarn_base?.name ?? null,
         estimatedDeliveryTime: null,
+        product_sheet_id: order?.product_sheet_id ?? null,
     };
 }
 
