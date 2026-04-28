@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
@@ -16,7 +17,13 @@ import type { PurchaseOrder } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Eye, PlusCircle, Search, Printer, Mail } from 'lucide-vue-next';
+import { Eye, PlusCircle, Search, Printer, Mail, Trash2, MoreHorizontal } from 'lucide-vue-next';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { computed, onMounted, ref, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import PurchaseOrderDialog from './PurchaseOrderDialog.vue';
@@ -405,23 +412,44 @@ function handleDialogError(message?: string) {
                                     <TableStatusBadge :dusk="`estado-orden-${order.id}`" :label="getOrderStatusLabel(order.status)" :tone="getOrderStatusTone(order.status)" />
                                 </TableCell>
                                 <TableCell class="flex justify-center gap-1">
+                                    <!-- Acción 1: Editar -->
                                     <EditButton @click="router.visit('/gastos/ordenes-compra/' + order.id + '/editar')" />
+
+                                    <!-- Acción 2: Ver -->
                                     <Button variant="ghost" size="icon" :class="actionButtonClass" title="Ver orden" @click="viewOrder(order)">
                                         <Eye :class="actionIconClass" />
                                         <span class="sr-only">Ver orden</span>
                                     </Button>
-                                    <Button variant="ghost" size="icon" :class="actionButtonClass" title="Imprimir" @click="openPrintDialog(order)">
-                                        <Printer :class="actionIconClass" />
-                                        <span class="sr-only">Imprimir</span>
-                                    </Button>
-                                    <Button variant="ghost" size="icon" :class="actionButtonClass" title="Enviar por correo" @click="sendOrderByEmail(order)">
-                                        <Mail :class="actionIconClass" />
-                                        <span class="sr-only">Enviar por correo</span>
-                                    </Button>
-                                    <Button variant="ghost" size="icon" :class="actionButtonClass" title="Eliminar" @click="confirmDeleteOrder(order)">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7L5 7M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/></svg>
-                                        <span class="sr-only">Eliminar</span>
-                                    </Button>
+
+                                    <!-- Acción 3: Eliminar -->
+                                    <DeleteButton @click="confirmDeleteOrder(order)" title="Eliminar orden" />
+
+                                    <!-- Acción 4: Más acciones -->
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger as-child>
+                                            <Button variant="ghost" size="icon" :class="actionButtonClass" title="Más acciones">
+                                                <MoreHorizontal :class="actionIconClass" />
+                                                <span class="sr-only">Más acciones</span>
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem @click="openPrintDialog(order)">
+                                                <Printer class="mr-2 h-4 w-4" />
+                                                Imprimir
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem @click="sendOrderByEmail(order)">
+                                                <Mail class="mr-2 h-4 w-4" />
+                                                Enviar por correo
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                class="text-destructive focus:text-destructive"
+                                                @click="confirmDeleteOrder(order)"
+                                            >
+                                                <Trash2 class="mr-2 h-4 w-4" />
+                                                Eliminar
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </TableCell>
                             </TableRow>
                         </template>

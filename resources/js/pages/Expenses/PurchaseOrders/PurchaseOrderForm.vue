@@ -35,6 +35,7 @@ const contactDialogForm = ref<any>({ groups: [] });
 const purchaseRequests = ref<any[]>([]);
 const selectedRequestId = ref<number | null>(null);
 const selectedRequestValue = ref<number | null>(null);
+const selectedPurchaseRequest = ref<any | null>(null);
 const isLoading = ref(false);
 const isSubmitting = ref(false);
 const itemsTableRef = ref<any>(null);
@@ -113,6 +114,37 @@ function createEmptyItem() {
         order_width: 0,
     };
 }
+
+function normalizeRequestItems(rawItems: unknown): any[] {
+    if (Array.isArray(rawItems)) {
+        return rawItems;
+    }
+
+    if (typeof rawItems === 'string') {
+        try {
+            const parsed = JSON.parse(rawItems);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+
+    return [];
+}
+
+const effectivePurchaseRequestId = computed<number | null>(() => {
+    if (selectedRequestId.value) return Number(selectedRequestId.value);
+    const selectedId = Number(selectedPurchaseRequest.value?.id);
+    if (Number.isFinite(selectedId) && selectedId > 0) return selectedId;
+    return null;
+});
+
+const requestItemsForTable = computed(() => {
+    if (selectedPurchaseRequest.value) {
+        return normalizeRequestItems(selectedPurchaseRequest.value.items);
+    }
+    return normalizeRequestItems((localForm.value as any)?.purchase_request?.items);
+});
 
 async function fetchContacts() {
     try {
@@ -333,17 +365,20 @@ async function loadRequestToOrder(requestId: number) {
           }))
         : [createEmptyItem()];
     selectedRequestId.value = Number(requestId);
+    const fullRequest = purchaseRequests.value.find((r: any) => Number(r.id) === Number(requestId));
+    if (fullRequest) selectedPurchaseRequest.value = fullRequest;
 }
 
 watch(selectedRequestValue, (val) => {
     selectedRequestId.value = val ? Number(val) : null;
 });
 
-watch(selectedRequestId, async (id, oldVal) => {
-    if (id) {
-        await loadRequestToOrder(id);
-    } else if (oldVal) {
+watch(selectedRequestId, async (id) => {
+    if (!id) {
+        selectedPurchaseRequest.value = null;
         localForm.value = createDefaultForm();
+    } else {
+        await loadRequestToOrder(id);
     }
 });
 </script>
@@ -504,7 +539,13 @@ watch(selectedRequestId, async (id, oldVal) => {
                             </Button>
                         </div>
                     </template>
-                    <PurchaseOrderItemsTable ref="itemsTableRef" :items="localForm.items" :suggested-items="[]" @update:items="(items) => (localForm.items = items)" />
+                    <PurchaseOrderItemsTable
+                        ref="itemsTableRef"
+                        :items="localForm.items"
+                        :suggested-items="requestItemsForTable"
+                        :purchase-request-id="effectivePurchaseRequestId"
+                        @update:items="(items) => (localForm.items = items)"
+                    />
                 </InventoryDetailTableLayout>
 
                 <!-- Zona inferior: Observación + Totales -->

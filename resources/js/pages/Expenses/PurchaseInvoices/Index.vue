@@ -735,100 +735,70 @@ async function handleDifferenceDecision() {
                                     />
                                 </TableCell>
                                 <TableCell>
-                                    <div class="flex flex-wrap justify-center gap-1">
-                                        <button
-                                            class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-primary"
-                                            @click="viewInvoiceDetails(invoice)"
-                                            title="Ver detalles"
-                                        >
-                                            <Eye class="h-4 w-4" />
-                                        </button>
-                                        <EditButton
-                                            :onClick="() => {
-                                                if (isInvoiceLocked(invoice)) {
-                                                    showError('No se puede editar una factura aprobada, rechazada o con diferencia rechazada.');
-                                                    return;
-                                                }
-                                                router.visit(`/gastos/facturas-compra/${invoice.id}/editar`);
-                                            }"
-                                            :class="isInvoiceLocked(invoice) ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''"
-                                        />
-                                        <!-- Botón de aprobación de diferencia: visible solo cuando hay diferencia pendiente -->
-                                        <button
-                                            v-if="invoice.approval_status === 'pending_difference_approval'"
-                                            type="button"
-                                            class="flex items-center transition-colors duration-200 text-yellow-600 hover:text-yellow-800"
-                                            title="Revisar diferencia — Aprobar o Rechazar"
-                                            @click="openApprovalDialog(invoice)"
-                                        >
-                                            <ShieldCheck class="h-4 w-4" />
-                                        </button>
-                                        <!-- Mostrar siempre el botón; si está aprobado se muestra deshabilitado visualmente
-                                             y al hacer clic se muestra un mensaje en vez de intentar eliminar -->
-                                        <DeleteButton
-                                            :onClick="() => {
-                                                if (isInvoiceDeleteLocked(invoice)) {
-                                                    showError('No se puede eliminar una factura aprobada, rechazada, recibida o con diferencia rechazada.');
-                                                } else {
-                                                    confirmDeleteInvoice(invoice);
-                                                }
-                                            }"
-                                            :customClass="isInvoiceDeleteLocked(invoice) ? 'opacity-60 cursor-not-allowed' : ''"
-                                        />
+                                    <div class="flex items-center justify-center gap-1">
+
+                                        <!-- Ver -->
+                                        <Button variant="ghost" size="icon" :class="actionButtonClass" title="Ver detalles" @click="viewInvoiceDetails(invoice)">
+                                            <Eye :class="actionIconClass" />
+                                            <span class="sr-only">Ver detalles</span>
+                                        </Button>
+
+                                        <!-- Editar -->
+                                        <EditButton :onClick="() => router.visit('/gastos/facturas-compra/' + invoice.id + '/editar')" title="Editar factura" />
+
+                                        <!-- Eliminar -->
+                                        <DeleteButton @click="confirmDeleteInvoice(invoice)" title="Eliminar factura" />
+
+                                        <!-- Más acciones -->
                                         <DropdownMenu>
                                             <DropdownMenuTrigger as-child>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    :class="actionButtonClass"
-                                                    title="Acciones"
-                                                    @click.stop
-                                                    @pointerdown.stop
-                                                >
+                                                <Button variant="ghost" size="icon" :class="actionButtonClass" title="Más acciones">
                                                     <MoreVertical :class="actionIconClass" />
-                                                    <span class="sr-only">Acciones</span>
+                                                    <span class="sr-only">Más acciones</span>
                                                 </Button>
                                             </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end" class="w-48">
-                                                <DropdownMenuItem class="cursor-pointer gap-2" @select="handlePrintAction(invoice, $event)">
-                                                    <Printer class="h-4 w-4" /> Imprimir
+                                            <DropdownMenuContent align="end" class="w-56">
+                                                <DropdownMenuItem
+                                                    v-if="invoice.approval_status === 'pending_difference_approval'"
+                                                    class="cursor-pointer gap-2 text-amber-600"
+                                                    @select="openApprovalDialog(invoice, $event)"
+                                                >
+                                                    <ShieldCheck class="h-4 w-4 mr-2" />
+                                                    Aprobar diferencia
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem @select="handlePrintAction(invoice, $event)">
+                                                    <Printer class="mr-2 h-4 w-4" />
+                                                    Imprimir
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem
                                                     v-if="(invoice.status === 'pending_receipt' || invoice.status === 'approved' || invoice.status === 'rejected') && !isReceptionBlockedForInvoice(invoice)"
-                                                    class="cursor-pointer gap-2"
                                                     @select="handleReceptionAction(invoice, $event)"
                                                 >
-                                                    <Package class="h-4 w-4" /> Ir a recepción
+                                                    <Package class="mr-2 h-4 w-4" />
+                                                    Ir a recepción
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem
                                                     v-if="invoiceHasNotes(invoice)"
-                                                    class="cursor-pointer gap-2"
                                                     @select="openAssociatedNotesDialog(invoice, $event)"
                                                 >
-                                                    <Eye class="h-4 w-4" /> Ver notas crédito/débito
+                                                    <Eye class="mr-2 h-4 w-4" />
+                                                    Ver notas crédito/débito
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    class="cursor-pointer gap-2"
-                                                    @select="goToCreditDebitNote(invoice, 'purchase_credit_note', $event)"
-                                                >
-                                                    <MinusCircle class="h-4 w-4" /> Crear Nota Crédito
+                                                <DropdownMenuItem @select="goToCreditDebitNote(invoice, 'purchase_credit_note', $event)">
+                                                    <MinusCircle class="mr-2 h-4 w-4" />
+                                                    Crear Nota Crédito
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    class="cursor-pointer gap-2"
-                                                    @select="goToCreditDebitNote(invoice, 'purchase_debit_note', $event)"
-                                                >
-                                                    <PlusCircle class="h-4 w-4" /> Crear Nota Débito
+                                                <DropdownMenuItem @select="goToCreditDebitNote(invoice, 'purchase_debit_note', $event)">
+                                                    <PlusCircle class="mr-2 h-4 w-4" />
+                                                    Crear Nota Débito
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    class="cursor-pointer gap-2"
-                                                    :class="isSendingMail ? 'cursor-not-allowed opacity-60' : ''"
-                                                    :disabled="isSendingMail"
-                                                    @select="handleSendMailAction(invoice, $event)"
-                                                >
-                                                    <Mail class="h-4 w-4" /> Enviar al correo
+                                                <DropdownMenuItem :disabled="isSendingMail" @select="handleSendMailAction(invoice, $event)">
+                                                    <Mail class="mr-2 h-4 w-4" />
+                                                    Enviar al correo
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
+
                                     </div>
                                 </TableCell>
                             </TableRow>
