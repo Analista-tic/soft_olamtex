@@ -13,15 +13,17 @@ class FabricRollResource extends JsonResource
         $partialAvailability = $this->quantity && $this->partial_output !== null
             ? $this->quantity - $this->partial_output
             : null;
+        $fabricItem = $this->item ?? $this->purchaseDocumentItem?->item;
 
         return [
             'id' => $this->id,
-            'fabric_item_id' => $this->purchaseDocumentItem?->item_id,
+            'fabric_item_id' => $fabricItem?->id,
             'purchase_document_item_id' => $this->purchase_document_item_id,
             'roll' => $this->roll_number,
             'location' => $this->location,
-            'fabric' => $this->purchaseDocumentItem?->item?->name
+            'fabric' => $fabricItem?->name
                 ?? $this->purchaseDocumentItem?->item_name
+                ?? $this->description
                 ?? 'Tela',
             'color' => $this->purchaseDocumentItem?->supplier_color ?? 'N/A',
             'color_code' => $this->deriveColorCode($this->purchaseDocumentItem?->supplier_color),

@@ -7,6 +7,7 @@ use App\Http\Requests\Textil\StoreFabricRollRequest;
 use App\Http\Requests\Textil\UpdateFabricRollOutputRequest;
 use App\Http\Requests\Textil\UpdateFabricRollRequest;
 use App\Http\Resources\Inventory\FabricRollResource;
+use App\Models\MasterData\Item;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Production\ProductionOrder;
@@ -15,11 +16,14 @@ use App\Models\Production\TechnicalSheetRoll;
 use App\Models\Textil\FabricRoll;
 use App\Services\Expenses\PurchaseDocumentInvoiceService;
 use App\Services\Textil\FabricRollService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -381,6 +385,192 @@ class FabricRollController extends Controller
         ]);
     }
 
+    public function import(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx,xls'],
+        ]);
+
+        $file = $request->file('file');
+        if (!$file instanceof UploadedFile || !$file->isValid()) {
+            return $this->importResponse(0, 0, [
+                $this->importError(null, 'Debes enviar un archivo Excel valido.'),
+            ], 422);
+        }
+
+        $extension = strtolower($file->getClientOriginalExtension());
+        if (!in_array($extension, ['xlsx', 'xls'], true)) {
+            return $this->importResponse(0, 0, [
+                $this->importError(null, 'El archivo debe tener extension .xlsx o .xls.'),
+            ], 422);
+        }
+
+        try {
+            $spreadsheet = IOFactory::load($file->getPathname());
+        } catch (\Throwable) {
+            return $this->importResponse(0, 0, [
+                $this->importError(null, 'No se pudo abrir el archivo Excel.'),
+            ], 422);
+        }
+
+        $sheet = $spreadsheet->getActiveSheet();
+        $rawRows = $sheet->toArray('', true, true, false);
+        if (empty($rawRows)) {
+            return $this->importResponse(0, 0, [
+                $this->importError(null, 'El archivo Excel esta vacio o no tiene encabezados.'),
+            ], 422);
+        }
+
+        $headerRow = $rawRows[0] ?? [];
+        $headers = array_map(
+            fn ($header): string => $this->normalizeImportHeader((string) $header),
+            is_array($headerRow) ? $headerRow : []
+        );
+        $expectedHeaders = $this->expectedImportHeaders();
+
+        if ($headers !== $expectedHeaders) {
+            return $this->importResponse(0, 0, [
+                $this->importError(null, 'Headers invalidos. Se esperaba: ' . implode(', ', $expectedHeaders)),
+            ], 422);
+        }
+        $rows = [];
+        $errors = [];
+        $lineNumber = 1;
+
+        foreach (array_slice($rawRows, 1) as $line) {
+            $lineNumber++;
+
+            $line = is_array($line) ? array_values($line) : [];
+            $line = array_pad($line, count($headers), '');
+            $line = array_slice($line, 0, count($headers));
+
+            $hasValues = collect($line)->contains(
+                fn ($value): bool => trim((string) $value) !== ''
+            );
+
+            if (!$hasValues) {
+                continue;
+            }
+
+            $rows[] = [
+                'line_number' => $lineNumber,
+                'data' => array_combine($headers, $line),
+            ];
+        }
+
+        /* Legacy CSV path removed.
+            $lineNumber++;
+
+            if (count($line) !== count($headers)) {
+                $errors[] = "Fila {$lineNumber}: número de columnas inválido.";
+                continue;
+            }
+
+            $rows[] = [
+                'line_number' => $lineNumber,
+                'data' => array_combine($headers, $line),
+            ];
+        }
+
+        */
+
+        if (empty($rows)) {
+            $normalizedErrors = $this->normalizeImportErrors($errors);
+            array_unshift($normalizedErrors, $this->importError(null, 'El archivo Excel no contiene filas validas para importar.'));
+
+            return $this->importResponse(0, 0, $normalizedErrors, 422);
+        }
+        $refs = collect($rows)
+            ->pluck('data.REFERENCIA ÍTEM')
+            ->map(fn ($ref) => trim((string) $ref))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $itemMap = Item::query()
+            ->whereIn('reference', $refs->all())
+            ->pluck('id', 'reference')
+            ->toArray();
+
+        $knownRollNumbers = DB::table('fabric_rolls')
+            ->pluck('roll_number')
+            ->flip()
+            ->toArray();
+
+        $toInsert = [];
+        $skipped = 0;
+        $now = now();
+
+        foreach ($rows as $row) {
+            $line = $row['line_number'];
+            $data = $row['data'];
+            $rollNumber = trim((string) ($data['N° ROLLO'] ?? ''));
+
+            if ($rollNumber === '') {
+                $errors[] = "Fila {$line}: N° ROLLO es obligatorio.";
+                $skipped++;
+                continue;
+            }
+
+            if (isset($knownRollNumbers[$rollNumber])) {
+                $skipped++;
+                continue;
+            }
+
+            $entryDate = $this->normalizeImportDate($data['FECHA INGRESO'] ?? null);
+            if ($entryDate === null) {
+                $errors[] = "Fila {$line}: FECHA INGRESO inválida.";
+                $skipped++;
+                continue;
+            }
+
+            $ref = trim((string) ($data['REFERENCIA ÍTEM'] ?? ''));
+            $itemId = $ref !== '' ? ($itemMap[$ref] ?? null) : null;
+
+            if ($ref !== '' && $itemId === null) {
+                $errors[] = "Fila {$line}: REFERENCIA ÍTEM {$ref} no encontrada. Se importará sin item_id.";
+            }
+
+            $toInsert[] = [
+                'roll_number' => $rollNumber,
+                'purchase_document_item_id' => null,
+                'item_id' => $itemId,
+                'location' => trim((string) ($data['UBICACIÓN'] ?? '')),
+                'description' => trim((string) ($data['TELA'] ?? '')),
+                'internal_color_name' => trim((string) ($data['COLOR'] ?? '')),
+                'internal_color_code' => trim((string) ($data['CÓDIGO COLOR'] ?? '')),
+                'roll_width' => $this->normalizeImportFloat($data['ANCHO (m)'] ?? null),
+                'quantity' => $this->normalizeImportFloat($data['CANTIDAD (m)'] ?? null),
+                'partial_output' => $this->normalizeImportFloat($data['SALIDA PARCIAL'] ?? null),
+                'actual_output' => $this->normalizeImportFloat($data['DISPONIBILIDAD REAL'] ?? null),
+                'movement_type' => 'entrada',
+                'approval_status' => FabricRoll::APPROVAL_APPROVED,
+                'entry_date' => $entryDate,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+
+            $knownRollNumbers[$rollNumber] = true;
+        }
+
+        $errors = $this->normalizeImportErrors($errors);
+
+        if (empty($toInsert)) {
+            return $this->importResponse(0, $skipped, $errors, 422);
+        }
+        $inserted = DB::transaction(function () use ($toInsert) {
+            $count = 0;
+
+            foreach (array_chunk($toInsert, 100) as $chunk) {
+                $count += DB::table('fabric_rolls')->insertOrIgnore($chunk);
+            }
+
+            return $count;
+        });
+
+        return $this->importResponse($inserted, $skipped, $errors);
+    }
+
     public function store(StoreFabricRollRequest $request)
     {
         $data = $request->validated();
@@ -579,4 +769,122 @@ class FabricRollController extends Controller
             'diferencia rechazada',
         ], true);
     }
+
+    /**
+     * @return array<int, string>
+     */
+    protected function expectedImportHeaders(): array
+    {
+        return [
+            'N° ROLLO',
+            'UBICACIÓN',
+            'BASE TELA',
+            'TELA',
+            'COLOR',
+            'CÓDIGO COLOR',
+            'ANCHO (m)',
+            'CANTIDAD (m)',
+            'SALIDA PARCIAL',
+            'DISPONIBILIDAD REAL',
+            'PROVEEDOR',
+            'N° PEDIDO',
+            'FECHA INGRESO',
+            'REFERENCIA ÍTEM',
+        ];
+    }
+
+    protected function normalizeImportHeader(string $header): string
+    {
+        return trim((string) preg_replace('/^\xEF\xBB\xBF/', '', $header));
+    }
+
+    /**
+     * @return array{row: int|null, message: string}
+     */
+    protected function importError(?int $row, string $message): array
+    {
+        return [
+            'row' => $row,
+            'message' => $message,
+        ];
+    }
+
+    /**
+     * @param array<int, string|array{row?: int|null, message?: string}> $errors
+     * @return array<int, array{row: int|null, message: string}>
+     */
+    protected function normalizeImportErrors(array $errors): array
+    {
+        $normalized = [];
+
+        foreach ($errors as $error) {
+            if (is_array($error) && array_key_exists('message', $error)) {
+                $normalized[] = $this->importError(
+                    isset($error['row']) && is_numeric($error['row']) ? (int) $error['row'] : null,
+                    trim((string) $error['message'])
+                );
+                continue;
+            }
+
+            if (is_string($error)) {
+                $normalized[] = $this->parseImportErrorString($error);
+            }
+        }
+
+        return array_values(array_filter($normalized, fn (array $error): bool => $error['message'] !== ''));
+    }
+
+    /**
+     * @return array{row: int|null, message: string}
+     */
+    protected function parseImportErrorString(string $error): array
+    {
+        $trimmed = trim($error);
+
+        if (preg_match('/^(?:Fila|Row)\s+(\d+)\s*:\s*(.+)$/iu', $trimmed, $matches) === 1) {
+            return $this->importError((int) $matches[1], trim($matches[2]));
+        }
+
+        return $this->importError(null, $trimmed);
+    }
+
+    /**
+     * @param array<int, array{row: int|null, message: string}> $errors
+     */
+    protected function importResponse(int $inserted, int $skipped, array $errors, int $status = 200): JsonResponse
+    {
+        return response()->json([
+            'inserted' => $inserted,
+            'skipped' => $skipped,
+            'errors' => array_values($errors),
+        ], $status);
+    }
+
+    protected function normalizeImportFloat(mixed $value): float
+    {
+        if ($value === null || trim((string) $value) === '') {
+            return 0.0;
+        }
+
+        return round((float) str_replace(',', '.', trim((string) $value)), 2);
+    }
+
+    protected function normalizeImportDate(mixed $value): ?string
+    {
+        if ($value === null || trim((string) $value) === '') {
+            return null;
+        }
+
+        $value = trim((string) $value);
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            return $value;
+        }
+
+        $date = date_create($value);
+
+        return $date ? date_format($date, 'Y-m-d') : null;
+    }
 }
+
+

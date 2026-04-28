@@ -170,12 +170,13 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     // ── TEXTIL PACK ────────────────────────────────────────────────
     {
         label: 'TEXTIL PACK — Rollos de Tela',
-        tokens: ['telas rollos'],
+        tokens: ['telas rollos', 'fabric_rolls.import'],
         permissions: [
             'ver telas rollos',
             'crear telas rollos',
             'editar telas rollos',
             'eliminar telas rollos',
+            'fabric_rolls.import',
         ],
         category: 'TEXTIL PACK',
     },

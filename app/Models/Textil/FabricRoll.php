@@ -2,9 +2,10 @@
 
 namespace App\Models\Textil;
 
+use App\Models\Expenses\PurchaseDocumentItem;
+use App\Models\MasterData\Item;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Expenses\PurchaseDocumentItem;
 
 class FabricRoll extends Model
 {
@@ -18,6 +19,7 @@ class FabricRoll extends Model
         'legacy_id',
         'roll_number',
         'purchase_document_item_id',
+        'item_id',
         'location',
         'quantity',
         'roll_width',
@@ -32,18 +34,25 @@ class FabricRoll extends Model
     ];
 
     protected $casts = [
-        'legacy_id'      => 'integer',
-        'quantity'       => 'decimal:2',
-        'roll_width'     => 'decimal:2',
-        'partial_output' => 'decimal:2',
-        'actual_output'  => 'decimal:2',
-        'entry_date'     => 'date',
+        'legacy_id'                 => 'integer',
+        'purchase_document_item_id' => 'integer',
+        'item_id'                   => 'integer',
+        'quantity'                  => 'decimal:2',
+        'roll_width'                => 'decimal:2',
+        'partial_output'            => 'decimal:2',
+        'actual_output'             => 'decimal:2',
+        'entry_date'                => 'date',
     ];
 
     // Relación con el item de factura de compra
     public function purchaseDocumentItem()
     {
         return $this->belongsTo(PurchaseDocumentItem::class, 'purchase_document_item_id');
+    }
+
+    public function item()
+    {
+        return $this->belongsTo(Item::class, 'item_id');
     }
 
     // Obtener la cantidad disponible

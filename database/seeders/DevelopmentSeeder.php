@@ -22,6 +22,7 @@ class DevelopmentSeeder extends Seeder
             CompanySettingSeeder::class,
             SettingsFieldParametersSeeder::class,
             RolesAndPermissionsSeeder::class,
+            FabricRollImportPermissionSeeder::class,
 
             // === MAESTROS DE DATOS ===
             CategorySeeder::class,

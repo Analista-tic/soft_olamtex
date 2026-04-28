@@ -5,6 +5,7 @@ import DeleteButton from '@/components/common/DeleteButton.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
@@ -21,16 +22,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import type { FabricRollView } from '@/domain/Textil';
 import { formatMeters, formatWidthToMeters, toUnitNumber } from '@/domain/Textil';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useAuthStore } from '@/stores/auth';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { ArrowDown, ArrowDownToLine, ArrowUp, Download, Eye, Search, SlidersHorizontal } from 'lucide-vue-next';
-import { ref, watch, onMounted } from 'vue';
+import { ArrowDown, ArrowDownToLine, ArrowUp, Download, Eye, Search, SlidersHorizontal, Upload } from 'lucide-vue-next';
+import { computed, onMounted, ref, watch } from 'vue';
 import FabricRollAdjustDialog from './FabricRollAdjustDialog.vue';
 import FabricRollDownloadDialog from './FabricRollDownloadDialog.vue';
+import FabricRollImportDialog from './FabricRollImportDialog.vue';
 import FabricRollInventoryDialog from './FabricRollInventoryDialog.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 
 const breadcrumbs = [{ title: 'Inventario Telas por Rollo', href: '/kardex-telas/inventario-rollos' }];
+const authStore = useAuthStore();
 
 // ── Filtros ────────────────────────────────────────────────────────────────
 const searchQuery = ref('');
@@ -72,6 +76,9 @@ const errorMessage = ref('');
 const isLoadingRolls = ref(false);
 const isAdjustDialogOpen = ref(false);
 const rollToAdjust = ref<FabricRollView | null>(null);
+const isImportDialogOpen = ref(false);
+
+const canImportRolls = computed(() => authStore.can('fabric_rolls.import'));
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -118,7 +125,10 @@ function handlePageChange(page: number) {
 
 watch([searchQuery, baseFilter, providerFilter, showDownloadedOnly], scheduleRefetch);
 
-onMounted(() => fetchFabricRolls(1));
+onMounted(() => {
+    authStore.fetchUser().catch(() => undefined);
+    fetchFabricRolls(1);
+});
 
 // ── Acciones ───────────────────────────────────────────────────────────────
 function selectRoll(roll: FabricRollView) {
@@ -145,6 +155,41 @@ function deleteRoll() {
 
 function exportFabricRollsExcel() {
     window.open('/kardex-telas/exportar-rollos', '_blank');
+}
+
+function exportImportTemplateCsv() {
+    const headers = [
+        'roll_number',
+        'location',
+        'base_tela',
+        'tela',
+        'internal_color_name',
+        'internal_color_code',
+        'roll_width',
+        'quantity',
+        'partial_output',
+        'actual_output',
+        'proveedor',
+        'purchase_order_ref',
+        'entry_date',
+        'item_referencia',
+    ];
+
+    const csvContent = `${headers.join(',')}\n`;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = 'plantilla_importacion_rollos.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+function openImportDialog() {
+    isImportDialogOpen.value = true;
 }
 
 function openDownloadDialog(roll: FabricRollView) {
@@ -204,6 +249,15 @@ function setDownloadDialogOpen(value: boolean) {
     isDownloadDialogOpen.value = value;
     if (!value) rollToDownload.value = null;
 }
+
+async function handleImportCompleted(payload: { inserted: number; skipped: number; errors: string[] }) {
+    successMessage.value = `Importación completada. Insertados: ${payload.inserted}. Omitidos: ${payload.skipped}.`;
+    errorMessage.value = payload.errors.length > 0
+        ? payload.errors.slice(0, 3).join(' | ')
+        : '';
+
+    await fetchFabricRolls(1);
+}
 </script>
 
 <template>
@@ -224,15 +278,28 @@ function setDownloadDialogOpen(value: boolean) {
                     <p :class="uiPatterns.typography.pageSubtitle">Mantén el control preciso de cada rollo.</p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
-                    <Button
-                        variant="secondary"
-                        class="flex h-10 w-full items-center justify-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm md:w-auto"
-                        type="button"
-                        @click="exportFabricRollsExcel"
-                    >
-                        <Download class="h-4 w-4" />
-                        Exportar inventario
-                    </Button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger :as-child="true">
+                            <Button
+                                variant="outline"
+                                class="flex h-10 w-full items-center justify-center rounded-full px-5 py-2 text-sm font-semibold md:w-auto"
+                                type="button"
+                            >
+                                Otras acciones
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" class="w-56">
+                            <DropdownMenuItem v-if="canImportRolls" class="cursor-pointer gap-2" @click="openImportDialog">
+                                <Upload class="h-4 w-4" /> Importar rollos
+                            </DropdownMenuItem>
+                            <DropdownMenuItem class="cursor-pointer gap-2" @click="exportFabricRollsExcel">
+                                <Download class="h-4 w-4" /> Exportar inventario
+                            </DropdownMenuItem>
+                            <DropdownMenuItem class="cursor-pointer gap-2" @click="exportImportTemplateCsv">
+                                <Download class="h-4 w-4" /> Exportar plantilla
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                     <Button
                         variant="secondary"
                         class="flex h-10 w-full items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm md:w-auto"
@@ -450,6 +517,12 @@ function setDownloadDialogOpen(value: boolean) {
             @submit-download="handleDownloadRequest"
         />
 
+        <FabricRollImportDialog
+            :modelValue="isImportDialogOpen"
+            @update:modelValue="(value) => (isImportDialogOpen = value)"
+            @imported="handleImportCompleted"
+        />
+
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"
             title="Confirmar eliminación"
@@ -461,4 +534,3 @@ function setDownloadDialogOpen(value: boolean) {
         />
     </AppLayout>
 </template>
-
