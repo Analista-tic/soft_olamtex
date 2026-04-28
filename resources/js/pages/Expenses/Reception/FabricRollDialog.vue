@@ -2,7 +2,6 @@
 import AlertStack from '@/components/common/AlertStack.vue';
 import InputDate from '@/components/InputDate.vue';
 import InputField from '@/components/InputField.vue';
-import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
@@ -69,8 +68,6 @@ const dialogInnerRef = ref<HTMLElement | null>(null);
 const activeTab = ref<'form' | 'list'>('form');
 const editingRoll = ref<RollRecord | null>(null);
 const rolls = ref<RollRecord[]>([]);
-const warehouses = ref<{ id: number; name: string }[]>([]);
-const warehousesLoading = ref(false);
 const isDeleteConfirmOpen = ref(false);
 const rollToDelete = ref<RollRecord | null>(null);
 
@@ -254,19 +251,7 @@ async function loadRolls(): Promise<void> {
     }
 }
 
-async function loadWarehouses(): Promise<void> {
-    if (warehouses.value.length > 0) return;
-
-    warehousesLoading.value = true;
-    try {
-        const response = await axios.get('/bodegas/list');
-        warehouses.value = Array.isArray(response.data) ? response.data : [];
-    } catch {
-        warehouses.value = [];
-    } finally {
-        warehousesLoading.value = false;
-    }
-}
+// La ubicación es un campo de texto libre: no se listan bodegas aquí.
 
 async function handleSubmit(): Promise<void> {
     if (!props.item?.id) {
@@ -383,7 +368,7 @@ watch(
 
         if (value) {
             resetForm();
-            await Promise.all([loadRolls(), loadWarehouses()]);
+            await loadRolls();
         }
     },
     { immediate: true }
@@ -542,14 +527,11 @@ watch(dialogOpen, (value) => {
                                 <InputDate v-model="form.entry_date" label="Fecha de entrada" required />
                             </div>
 
-                            <SelectField
+                            <InputField
+                                v-model="form.location"
                                 label="Ubicación"
-                                :required="true"
-                                :options="warehouses.map(w => ({ id: w.name, name: w.name }))"
-                                :model-value="form.location"
-                                :disabled="warehousesLoading"
-                                :placeholder="warehousesLoading ? 'Cargando bodegas...' : 'Selecciona una bodega'"
-                                @update:model-value="form.location = String($event ?? '')"
+                                placeholder="Ej: Estante A1, Rack 3, Pasillo 2"
+                                required
                             />
 
                             <TextareaField

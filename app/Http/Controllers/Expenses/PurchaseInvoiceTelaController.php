@@ -167,4 +167,18 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
 
         return response()->json(['data' => $invoice]);
     }
+
+    /**
+     * Render printable view (Inertia) for fabric purchase invoice.
+     */
+    public function print(PurchaseDocument $purchaseInvoice)
+    {
+        $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
+
+        $invoice = $this->service->loadWithRelations($purchaseInvoice);
+
+        return Inertia::render('Expenses/PurchaseInvoices/PurchaseInvoiceFabricPrint', [
+            'invoice' => $invoice,
+        ]);
+    }
 }

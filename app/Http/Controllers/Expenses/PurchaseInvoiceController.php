@@ -205,6 +205,20 @@ class PurchaseInvoiceController extends PurchaseDocumentController
         return response()->json(['data' => $invoice]);
     }
 
+    /**
+     * Render printable view (Inertia) for the purchase invoice.
+     */
+    public function print(PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+
+        $invoice = $this->service->loadWithRelations($purchaseDocument);
+
+        return Inertia::render('Expenses/PurchaseInvoices/PurchaseInvoicePrint', [
+            'invoice' => $invoice,
+        ]);
+    }
+
     public function rejectDifference(Request $request, PurchaseDocument $purchaseDocument)
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);

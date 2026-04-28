@@ -112,7 +112,7 @@ async function fetchPendingPurchaseOrders() {
         const { data } = await axios.get('/gastos/ordenes-compra/data', {
             params: { status: 'approved', per_page: 1000, fabric_only: true },
         });
-        let orders = Array.isArray(data.data) ? data.data : [];
+        const orders = Array.isArray(data.data) ? data.data : [];
 
         const invoicesRes = await axios.get('/gastos/facturas-compra-tela/data', {
             params: { per_page: 1000 },

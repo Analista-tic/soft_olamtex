@@ -103,6 +103,20 @@ class PurchaseOrderController extends PurchaseDocumentController
         }
     }
 
+    /**
+     * Render printable view (Inertia) for the purchase order.
+     */
+    public function print(PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+
+        $order = $this->service->loadWithRelations($purchaseDocument);
+
+        return Inertia::render('Expenses/PurchaseOrders/PurchaseOrderPrint', [
+            'order' => $order,
+        ]);
+    }
+
     public function convertToInvoice(PurchaseDocument $purchaseDocument)
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);

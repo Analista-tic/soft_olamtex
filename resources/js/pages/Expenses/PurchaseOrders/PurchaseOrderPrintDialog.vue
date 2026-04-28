@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import type { PurchaseOrder } from '@/domain/Expenses';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
+import printElement from '@/utils/print';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -26,9 +27,10 @@ watch(dialogOpen, (val) => {
 });
 
 const { company, logoUrl } = useCompanyInfo();
+const printDocumentRef = ref<HTMLElement | null>(null);
 
 // Subtotal: suma de (Precio SIN Impuesto * cantidad) de cada ítem
-const subtotal = computed(() => (props.order?.items || []).reduce((acc, item) => acc + (Number(item.price) * Number(item.quantity) || 0), 0));
+    const subtotal = computed(() => (props.order?.items || []).reduce((acc, item) => acc + (Number(item.price) * Number(item.quantity) || 0), 0));
 // IVA total: suma de ((Precio SIN Impuesto * cantidad) * (tax/100)) de cada ítem
 const iva = computed(() =>
     (props.order?.items || []).reduce((acc, item) => acc + (Number(item.price) * Number(item.quantity) * (Number(item.tax) || 0)) / 100, 0),
@@ -36,227 +38,207 @@ const iva = computed(() =>
 // Total: suma de (Precio SIN Impuesto * cantidad + IVA) de cada ítem, o simplemente subtotal + iva
 const total = computed(() => subtotal.value + iva.value);
 
-function print() {
-    window.print();
+function formatDate(value?: string | null): string {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (isNaN(date.getTime())) return String(value);
+    return date.toLocaleDateString('es-CO', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+    });
+}
+
+
+
+
+
+
+async function print() {
+    await nextTick();
+    await new Promise((res) => requestAnimationFrame(res));
+
+    const el = printDocumentRef.value || document.getElementById('print-document');
+    if (!el) {
+        console.error('No printable element found');
+        return;
+    }
+    if (!el.innerHTML || el.innerHTML.trim().length === 0) {
+        console.error('Printable element is empty');
+        return;
+    }
+
+    try {
+        await printElement(el, { title: `Orden-${props.order?.document_number || props.order?.id}` });
+    } catch (e) {
+        console.error('printElement failed', e);
+    }
 }
 </script>
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent
-            class="max-h-screen min-h-[297mm] min-w-[210mm] overflow-y-auto sm:max-w-5xl print:!h-[297mm] print:!w-[210mm] print:!max-w-none print:!rounded-none print:!border-0 print:!p-0 print:!shadow-none"
-        >
-            <DialogHeader class="print:hidden">
-                <DialogTitle>Orden de Compra</DialogTitle>
-            </DialogHeader>
-            <div class="flex flex-col justify-between p-4 print:h-[297mm] print:w-[210mm] print:bg-white print:p-12" style="min-height: 277mm">
-                <div>
-                    <div class="mb-4 grid grid-cols-3 items-start gap-4">
-                        <div>
-                            <div class="font-bold">N° Orden de Compra</div>
-                            <div>{{ props.order?.id }}</div>
-                        </div>
-                        <div class="flex h-full items-center justify-center rounded p-4">
-                            <img :src="logoUrl" alt="Logotipo de la empresa" class="max-h-24 w-auto max-w-[160px] object-contain" />
-                        </div>
-                        <div>
-                            <div class="text-sm font-semibold">Datos empresa</div>
-                            <p class="text-xs">
-                                Razón Social:
-                                <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
-                            </p>
-                            <p class="text-xs">
-                                NIT:
-                                <span class="font-normal">{{ company?.nit || 'Sin NIT' }}</span>
-                            </p>
-                            <p class="text-xs">
-                                Correo:
-                                <span class="font-normal">{{ company?.email || 'Sin correo' }}</span>
-                            </p>
-                        </div>
-                    </div>
-                    <div class="mb-4 grid grid-cols-3 gap-4">
-                        <div>
-                            <div class="font-bold">Proveedor</div>
-                            <div>{{ props.order?.contact?.full_name }}</div>
-                        </div>
-                        <div>
-                            <div class="font-bold">Identificación</div>
-                            <div>{{ props.order?.contact?.id_number }}</div>
-                        </div>
-                        <div>
-                            <div class="font-bold">Teléfono</div>
-                            <div>{{ props.order?.contact?.phone }}</div>
-                        </div>
-                    </div>
-                    <div class="mb-4 grid grid-cols-3 gap-4">
-                        <div>
-                            <div class="font-bold">Fecha de creación</div>
-                            <div>{{ props.order?.date }}</div>
-                        </div>
-                        <div>
-                            <div class="font-bold">Fecha de entrega</div>
-                            <div>{{ props.order?.delivery_date }}</div>
-                        </div>
-                        <div>
-                            <div class="font-bold">Número de orden de compra del proveedor</div>
-                            <div>{{ props.order?.supplier_order_number }}</div>
-                        </div>
-                    </div>
-                    <div class="mb-4">
-                        <div class="mb-2 font-bold">Ítems</div>
-                        <table class="w-full border-collapse text-sm print:border-none">
-                            <thead>
-                                <tr class="bg-gray-100 print:bg-transparent">
-                                    <th class="border px-2 py-1 print:border print:border-gray-300">#</th>
-                                    <th class="border px-2 py-1 print:border print:border-gray-300">Item</th>
-                                    <th class="border px-2 py-1 print:border print:border-gray-300">Descripción</th>
-                                    <th class="border px-2 py-1 print:border print:border-gray-300">Cantidad</th>
-                                    <th class="border px-2 py-1 print:border print:border-gray-300">Precio SIN Impuesto unitario</th>
-                                    <th class="border px-2 py-1 print:border print:border-gray-300">IVA</th>
-                                    <th class="border px-2 py-1 print:border print:border-gray-300">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="(item, idx) in props.order?.items || []" :key="idx">
-                                    <td class="border px-2 py-1 print:border print:border-gray-300">{{ idx + 1 }}</td>
-                                    <td class="border px-2 py-1 print:border print:border-gray-300">
-                                        {{ item.item?.name || '' }}
-                                    </td>
-                                    <td class="border px-2 py-1 print:border print:border-gray-300">{{ item.description }}</td>
-                                    <td class="border px-2 py-1 text-center print:border print:border-gray-300">{{ item.quantity }}</td>
-                                    <td class="border py-1 pe-10 ps-0 text-right print:border print:border-gray-300">
-                                        {{
-                                            Number(item.price).toLocaleString('es-CO', {
-                                                style: 'currency',
-                                                currency: 'COP',
-                                                minimumFractionDigits: 0,
-                                            })
-                                        }}
-                                    </td>
-                                    <td class="border px-2 py-1 text-center print:border print:border-gray-300">{{ Math.round(item.tax ?? 0) }} %</td>
-                                    <td class="border py-1 pe-10 ps-0 text-right print:border print:border-gray-300">
-                                        {{
-                                            Number(item.total).toLocaleString('es-CO', {
-                                                style: 'currency',
-                                                currency: 'COP',
-                                                minimumFractionDigits: 0,
-                                            })
-                                        }}
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="mb-4 mt-2 flex flex-col items-end space-y-0 text-sm">
-                    <div class="flex gap-1">
-                        <div class="flex flex-col items-end">
-                            <span class="font-semibold">Subtotal:</span>
-                            <span class="font-semibold">IVA total:</span>
-                            <span class="font-semibold">Total orden de compra:</span>
-                        </div>
-                        <div class="flex min-w-[120px] flex-col items-end pe-10 text-right">
-                            <span>{{
-                                Number(subtotal || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 })
-                            }}</span>
-                            <span>{{
-                                Number(iva || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 })
-                            }}</span>
-                            <span class="font-bold">{{
-                                Number(total || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 })
-                            }}</span>
-                        </div>
-                    </div>
-                </div>
-                <div>
-                    <div class="font-bold">Observaciones</div>
-                    <div>{{ props.order?.description }}</div>
-                </div>
-                <div class="flex-1"></div>
-                <div class="mt-12 flex items-end justify-between print:mt-24">
-                    <div class="flex flex-col items-center">
-                        <span class="block w-48 border-t border-gray-400"></span>
-                        <span class="mt-1 text-xs">Firma Autorizada</span>
-                    </div>
-                    <div class="flex flex-col items-center">
-                        <span class="block w-48 border-t border-gray-400"></span>
-                        <span class="mt-1 text-xs">Firma Proveedor</span>
-                    </div>
+        <DialogContent :hideClose="true" class="flex max-h-[90vh] w-[680px] max-w-[680px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[680px]">
+
+            <!-- Header del dialog (oculto al imprimir) -->
+            <div class="flex items-center justify-between border-b px-6 py-4 print:hidden">
+                <h2 class="text-base font-semibold">Orden de Compra</h2>
+                <div class="flex gap-2">
+                    <Button variant="outline" size="sm" @click="dialogOpen = false">Cerrar</Button>
+                    <Button variant="default" size="sm" @click="print">
+                        Imprimir
+                    </Button>
                 </div>
             </div>
-            <DialogFooter class="mt-4 flex justify-end gap-4 print:hidden">
-                <Button variant="outline" type="button" @click="dialogOpen = false">Cerrar</Button>
-                <Button variant="default" type="button" @click="print">Imprimir</Button>
-            </DialogFooter>
+
+            <!-- Documento imprimible -->
+                <div id="print-document" ref="printDocumentRef" class="overflow-y-auto bg-white p-8 text-sm text-gray-900">
+
+                <!-- Cabecera: N° documento | Logo | Datos empresa -->
+                <div class="mb-6 grid grid-cols-3 items-start gap-4">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Orden de Compra</p>
+                        <p class="mt-1 text-2xl font-bold text-gray-900">{{ props.order?.document_number || props.order?.id }}</p>
+                    </div>
+                    <div class="flex justify-center">
+                        <img :src="logoUrl" alt="Logo" class="max-h-16 max-w-[140px] object-contain" />
+                    </div>
+                    <div class="text-right text-xs text-gray-600">
+                        <p class="font-semibold text-gray-800">{{ company?.name }}</p>
+                        <p>NIT: {{ company?.nit }}</p>
+                        <p>{{ company?.email }}</p>
+                    </div>
+                </div>
+
+                <hr class="mb-4 border-gray-200" />
+
+                <!-- Proveedor -->
+                <div class="mb-4 grid grid-cols-3 gap-4">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Proveedor</p>
+                        <p class="mt-1 font-medium">{{ props.order?.supplier?.full_name || props.order?.contact?.full_name || '-' }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Identificación</p>
+                        <p class="mt-1">{{ props.order?.supplier?.id_number || props.order?.contact?.id_number || '-' }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Teléfono</p>
+                        <p class="mt-1">{{ props.order?.supplier?.phone || props.order?.contact?.phone || '-' }}</p>
+                    </div>
+                </div>
+
+                <!-- Fechas -->
+                <div class="mb-4 grid grid-cols-3 gap-4">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Fecha de creación</p>
+                        <p class="mt-1">{{ formatDate(props.order?.date) }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Fecha de entrega</p>
+                        <p class="mt-1">{{ formatDate(props.order?.delivery_date) }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">N° Orden proveedor</p>
+                        <p class="mt-1">{{ props.order?.supplier_order_number || '-' }}</p>
+                    </div>
+                </div>
+
+                <hr class="mb-4 border-gray-200" />
+
+                <!-- Tabla de ítems -->
+                <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Ítems</p>
+                <table class="mb-4 w-full border-collapse text-xs">
+                    <thead>
+                        <tr class="bg-gray-50">
+                            <th class="border border-gray-200 px-2 py-2 text-left">#</th>
+                            <th class="border border-gray-200 px-2 py-2 text-left">Ítem</th>
+                            <th class="border border-gray-200 px-2 py-2 text-left">Descripción</th>
+                            <th class="border border-gray-200 px-2 py-2 text-right">Cantidad</th>
+                            <th class="border border-gray-200 px-2 py-2 text-right">Precio s/imp.</th>
+                            <th class="border border-gray-200 px-2 py-2 text-right">IVA</th>
+                            <th class="border border-gray-200 px-2 py-2 text-right">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="(item, idx) in props.order?.items || []" :key="idx" class="even:bg-gray-50">
+                            <td class="border border-gray-200 px-2 py-1.5">{{ idx + 1 }}</td>
+                            <td class="border border-gray-200 px-2 py-1.5">{{ item.item?.name || '-' }}</td>
+                            <td class="border border-gray-200 px-2 py-1.5 text-gray-500">{{ item.description || '-' }}</td>
+                            <td class="border border-gray-200 px-2 py-1.5 text-right">{{ item.quantity }}</td>
+                            <td class="border border-gray-200 px-2 py-1.5 text-right">{{ Number(item.price).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }) }}</td>
+                            <td class="border border-gray-200 px-2 py-1.5 text-right">{{ Math.round(item.tax ?? 0) }}%</td>
+                            <td class="border border-gray-200 px-2 py-1.5 text-right font-medium">{{ Number(item.total).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- Totales -->
+                <div class="mb-4 flex justify-end">
+                    <div class="w-56 space-y-1 rounded-md border border-gray-200 bg-gray-50 p-3 text-xs">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Subtotal</span>
+                            <span>{{ Number(subtotal).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }) }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">IVA</span>
+                            <span>{{ Number(iva).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }) }}</span>
+                        </div>
+                        <div class="flex justify-between border-t border-gray-200 pt-1 font-bold">
+                            <span>Total</span>
+                            <span>{{ Number(total).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }) }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Observaciones -->
+                <div v-if="props.order?.description" class="mb-6">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Observaciones</p>
+                    <p class="mt-1 text-gray-700">{{ props.order?.description }}</p>
+                </div>
+
+                <!-- Firmas -->
+                <div class="mt-10 flex justify-between">
+                    <div class="text-center">
+                        <div class="mb-1 w-40 border-t border-gray-400"></div>
+                        <p class="text-xs text-gray-500">Firma Autorizada</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="mb-1 w-40 border-t border-gray-400"></div>
+                        <p class="text-xs text-gray-500">Firma Proveedor</p>
+                    </div>
+                </div>
+
+            </div>
         </DialogContent>
     </Dialog>
 </template>
 
-<style scoped>
+<style>
+/* Sin scoped — necesita afectar el DOM global al imprimir */
 @media print {
-    :root,
-    html,
-    body {
-        width: 210mm !important;
-        height: 297mm !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        background: #fff !important;
+    /* Ocultar todo el body */
+    body * {
+        visibility: hidden !important;
     }
-    .print\:hidden {
-        display: none !important;
+
+    /* Mostrar solo el documento (o su clon) y sus hijos */
+    #print-document,
+    #print-document-clone,
+    #print-document *,
+    #print-document-clone * {
+        visibility: visible !important;
     }
-    .print\:max-w-none {
-        max-width: none !important;
-    }
-    .print\:w-\[210mm\] {
-        width: 210mm !important;
-    }
-    .print\:h-\[297mm\] {
-        height: 297mm !important;
-    }
-    .print\:rounded-none {
-        border-radius: 0 !important;
-    }
-    .print\:border-0 {
-        border: 0 !important;
-    }
-    .print\:shadow-none {
-        box-shadow: none !important;
-    }
-    .print\:p-0 {
-        padding: 0 !important;
-    }
-    .print\:p-12 {
-        padding: 12mm !important;
-    }
-    .print\:bg-white {
-        background: #fff !important;
-    }
-    .print\:overflow-visible {
-        overflow: visible !important;
-    }
-    .print\:mt-24 {
-        margin-top: 48mm !important;
-    }
-    .border,
-    .print\:border {
-        border: 1px solid #d1d5db !important;
-    }
-    .print\:border-none,
-    .print\:border-0 {
-        border: none !important;
-    }
-    .print\:bg-transparent {
-        background: transparent !important;
-    }
-    .DialogContent,
-    .DialogHeader,
-    .DialogTitle,
-    .DialogFooter {
-        box-shadow: none !important;
-        border: none !important;
+
+    /* Posicionar el documento en la esquina superior izquierda */
+    #print-document,
+    #print-document-clone {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        padding: 15mm !important;
+        background: white !important;
     }
 }
 </style>

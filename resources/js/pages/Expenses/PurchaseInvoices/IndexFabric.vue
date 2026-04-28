@@ -48,7 +48,7 @@ const invoiceToPrint = ref<PurchaseInvoice | null>(null);
 const isSendingMail = ref(false);
 const isApprovalDialogOpen = ref(false);
 const invoiceForApproval = ref<PurchaseInvoice | null>(null);
-const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError, clearAlerts } = useAlertStack();
+const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError } = useAlertStack();
 function toggleSort(column: string) {
     if (sortBy.value === column) {
         sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
@@ -138,16 +138,7 @@ async function fetchProviders() {
     }
 }
 
-function openDialogWithPreparation(type: 'create' | 'edit', invoice: PurchaseInvoice | null = null, readOnly = false) {
-    if (isPreparingDialog.value) return;
-    isPreparingDialog.value = true;
-    dialogType.value = type;
-    isDialogReadOnly.value = readOnly;
-    form.value = invoice ? (JSON.parse(JSON.stringify(invoice)) as Partial<PurchaseInvoice>) : {};
-    clearAlerts();
-    isDialogOpen.value = true;
-    isPreparingDialog.value = false;
-}
+/* openDialogWithPreparation removed — navigation uses dedicated pages for create/edit */
 
 function closeDialog() {
     isDialogReadOnly.value = false;
@@ -188,26 +179,10 @@ async function deleteInvoice(): Promise<void> {
     }
 }
 
-function isInvoiceLocked(invoice: PurchaseInvoice): boolean {
-    return (
-        invoice.status === 'approved' ||
-        invoice.status === 'rejected' ||
-        invoice.approval_status === 'approved' ||
-        invoice.approval_status === 'difference_rejected'
-    );
-}
+/* Removed unused helpers isInvoiceLocked and isInvoiceDeleteLocked to avoid dead code. */
 
-function isInvoiceDeleteLocked(invoice: PurchaseInvoice): boolean {
-    return (
-        invoice.status === 'approved' ||
-        invoice.status === 'rejected' ||
-        invoice.status === 'received' ||
-        invoice.approval_status === 'approved' ||
-        invoice.approval_status === 'difference_rejected'
-    );
-}
-
-function openApprovalDialog(invoice: PurchaseInvoice) {
+function openApprovalDialog(invoice: PurchaseInvoice, event?: Event) {
+    stopMenuEvent(event);
     invoiceForApproval.value = invoice;
     isApprovalDialogOpen.value = true;
 }
@@ -283,15 +258,23 @@ onMounted(() => {
     fetchProviders();
 });
 
-function openPrintDialog(invoice: PurchaseInvoice) {
-    invoiceToPrint.value = invoice;
+async function openPrintDialog(invoice: PurchaseInvoice) {
+    // Cargar el objeto completo con items si no los tiene
+    if (!invoice.items || invoice.items.length === 0) {
+        try {
+            const { data } = await axios.get(`/gastos/facturas-compra-tela/${invoice.id}`);
+            invoiceToPrint.value = data.data || data;
+        } catch {
+            invoiceToPrint.value = invoice;
+        }
+    } else {
+        invoiceToPrint.value = invoice;
+    }
     isPrintDialogOpen.value = true;
-    setTimeout(() => {
-        window.print();
-    }, 400);
 }
 
-async function sendInvoiceByEmail(invoice: PurchaseInvoice) {
+async function sendInvoiceByEmail(invoice: PurchaseInvoice, event?: Event) {
+    stopMenuEvent(event);
     if (isSendingMail.value) return;
     isSendingMail.value = true;
     try {
@@ -322,7 +305,8 @@ function goToCreditDebitNote(invoice: PurchaseInvoice, documentType: 'purchase_c
     router.visit(`/notas-credito-debito?${query.toString()}`);
 }
 
-function goToReception(invoice: PurchaseInvoice) {
+function goToReception(invoice: PurchaseInvoice, event?: Event) {
+    stopMenuEvent(event);
     if (isReceptionBlockedForInvoice(invoice)) {
         showError('La factura tiene diferencia rechazada y no puede volver a recepción.');
         return;

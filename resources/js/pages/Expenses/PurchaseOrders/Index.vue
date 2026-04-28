@@ -17,7 +17,7 @@ import type { PurchaseOrder } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Eye, PlusCircle, Search, Printer, Mail, Trash2, MoreHorizontal } from 'lucide-vue-next';
+import { Eye, PlusCircle, Search, Printer, Mail, Trash2, MoreVertical } from 'lucide-vue-next';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -171,12 +171,19 @@ function viewOrder(order: PurchaseOrder) {
     }
 }
 
-    function openPrintDialog(order: PurchaseOrder) {
-        orderToPrint.value = order;
+    async function openPrintDialog(order: PurchaseOrder) {
+        // Cargar el objeto completo con items si no los tiene
+        if (!order.items || order.items.length === 0) {
+            try {
+                const { data } = await axios.get(`/gastos/ordenes-compra/${order.id}`);
+                orderToPrint.value = data.data || data;
+            } catch {
+                orderToPrint.value = order;
+            }
+        } else {
+            orderToPrint.value = order;
+        }
         isPrintDialogOpen.value = true;
-        setTimeout(() => {
-            window.print();
-        }, 400);
     }
 
     async function sendOrderByEmail(order: PurchaseOrder) {
@@ -426,9 +433,9 @@ function handleDialogError(message?: string) {
 
                                     <!-- Acción 4: Más acciones -->
                                     <DropdownMenu>
-                                        <DropdownMenuTrigger as-child>
+                                            <DropdownMenuTrigger as-child>
                                             <Button variant="ghost" size="icon" :class="actionButtonClass" title="Más acciones">
-                                                <MoreHorizontal :class="actionIconClass" />
+                                                <MoreVertical :class="actionIconClass" />
                                                 <span class="sr-only">Más acciones</span>
                                             </Button>
                                         </DropdownMenuTrigger>
