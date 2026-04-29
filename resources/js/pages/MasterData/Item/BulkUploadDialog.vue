@@ -64,7 +64,8 @@ async function handleBulkUpload() {
             close();
         }, 1500);
     } catch (e: any) {
-        uploadError.value = e?.response?.data?.message || 'Error al cargar los ítems.';
+        // Mostrar mensaje genérico para evitar exponer detalles de error
+        uploadError.value = 'Error al importar. Por favor verifica el archivo e intenta de nuevo.';
     } finally {
         isUploading.value = false;
     }
@@ -156,8 +157,14 @@ function preventDrag(event: DragEvent) {
                             </div>
 
                             <div class="space-y-2">
-                                <p v-if="uploadError" class="text-sm text-red-600">{{ uploadError }}</p>
-                                <p v-if="uploadSuccess" class="text-sm text-emerald-600">{{ uploadSuccess }}</p>
+                                <div v-if="uploadError" class="rounded-xl border border-red-200 bg-red-50 p-4">
+                                    <p class="text-sm font-semibold text-red-700">Error al importar</p>
+                                    <p class="mt-1 text-sm text-red-600">{{ uploadError }}</p>
+                                </div>
+
+                                <div v-if="uploadSuccess" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                                    <p class="text-sm font-semibold text-emerald-700">{{ uploadSuccess }}</p>
+                                </div>
                             </div>
                         </div>
                     </section>

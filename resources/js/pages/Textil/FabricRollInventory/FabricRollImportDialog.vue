@@ -5,6 +5,7 @@ import axios from 'axios';
 import { ClipboardList, CloudUpload, Download, LoaderCircle } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import * as XLSX from 'xlsx';
+// No global toast detected — use local inline alerts
 
 type ImportErrorItem = {
     row: number | null;
@@ -26,22 +27,8 @@ const emit = defineEmits<{
     (e: 'imported', payload: { inserted: number; skipped: number; errors: string[] }): void;
 }>();
 
-const expectedHeaders = [
-    'N° ROLLO',
-    'UBICACIÓN',
-    'BASE TELA',
-    'TELA',
-    'COLOR',
-    'CÓDIGO COLOR',
-    'ANCHO (m)',
-    'CANTIDAD (m)',
-    'SALIDA PARCIAL',
-    'DISPONIBILIDAD REAL',
-    'PROVEEDOR',
-    'N° PEDIDO',
-    'FECHA INGRESO',
-    'REFERENCIA ÍTEM',
-];
+// Headers esperados definidos en el backend (FabricRollController::expectedImportHeaders())
+// La validación en frontend acepta ambos formatos legacy/nuevo comprobando el número de columnas (14).
 
 const recommendations = [
     'Descarga la plantilla y conserva exactamente el orden y nombre de los headers.',
@@ -52,8 +39,8 @@ const recommendations = [
 const isOpen = ref(props.modelValue);
 const file = ref<File | null>(null);
 const isImporting = ref(false);
-const errorMessage = ref('');
 const successMessage = ref('');
+const errorMessage = ref('');
 const result = ref<ImportResult | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
@@ -98,10 +85,7 @@ function openFileDialog() {
 }
 
 function downloadTemplate() {
-    const worksheet = XLSX.utils.aoa_to_sheet([expectedHeaders]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'rollos');
-    XLSX.writeFile(workbook, 'plantilla_importacion_rollos.xlsx');
+    window.open('/fabric-rolls/descargar-plantilla', '_blank');
 }
 
 function preventDrag(event: DragEvent) {
@@ -130,8 +114,7 @@ async function handleFileSelection(event: Event) {
 }
 
 async function setSelectedFile(selectedFile: File) {
-    errorMessage.value = '';
-    successMessage.value = '';
+    clearAlerts();
     result.value = null;
 
     const validationError = await validateFile(selectedFile);
@@ -174,22 +157,15 @@ async function validateFile(selectedFile: File): Promise<string | null> {
         return 'El archivo Excel esta vacio.';
     }
 
-    const headers = (rows[0] ?? []).map((header) => normalizeHeader(String(header ?? '')));
-    const normalizedExpectedHeaders = expectedHeaders.map((header) => normalizeHeader(header));
+    const headers = (rows[0] ?? []);
+    const columnCount = Array.isArray(headers) ? headers.length : 0;
 
-    const isValid =
-        headers.length === normalizedExpectedHeaders.length &&
-        headers.every((header, index) => header === normalizedExpectedHeaders[index]);
-
-    if (!isValid) {
-        return `Los headers deben coincidir exactamente con: ${expectedHeaders.join(', ')}`;
+    if (columnCount !== 14) {
+        return `El archivo debe tener exactamente 14 columnas. Se encontraron ${columnCount} columnas.`;
     }
 
+    // Aceptamos variaciones en nombres de headers (legacy vs nueva plantilla)
     return null;
-}
-
-function normalizeHeader(value: string) {
-    return value.replace(/^\uFEFF/, '').trim().replace(/^"|"$/g, '');
 }
 
 function toRowNumber(value: unknown): number | null {
@@ -249,19 +225,18 @@ function formatErrorForEmit(item: ImportErrorItem) {
 
 async function submitImport() {
     if (!file.value) {
-        errorMessage.value = 'Selecciona un archivo Excel antes de importar.';
+        showError('Selecciona un archivo Excel antes de importar.');
         return;
     }
 
     const validationError = await validateFile(file.value);
     if (validationError) {
-        errorMessage.value = validationError;
+        showError(validationError);
         return;
     }
 
     isImporting.value = true;
-    errorMessage.value = '';
-    successMessage.value = '';
+    clearAlerts();
     result.value = null;
 
     const formData = new FormData();
@@ -280,13 +255,14 @@ async function submitImport() {
             errors: normalizedErrors,
         };
 
-        successMessage.value = 'Importacion procesada correctamente.';
-
+        successMessage.value = 'Importación procesada correctamente.';
         emit('imported', {
             inserted: result.value.inserted,
             skipped: result.value.skipped,
             errors: normalizedErrors.map(formatErrorForEmit),
         });
+        // Cerrar modal automáticamente para feedback (1.5s)
+        setTimeout(() => close(), 1500);
     } catch (error: any) {
         const responseData = error?.response?.data;
         const normalizedErrors = normalizeImportErrors(responseData?.errors);
@@ -309,13 +285,8 @@ async function submitImport() {
             });
         }
 
-        if (Array.isArray(responseData?.errors) && responseData.errors.length > 0) {
-            errorMessage.value = responseData?.message || 'La importacion termino con errores.';
-        } else if (responseData?.errors?.file?.[0]) {
-            errorMessage.value = responseData.errors.file[0];
-        } else {
-            errorMessage.value = responseData?.message || 'No se pudo importar el archivo.';
-        }
+        // Mostrar mensaje de error genérico para evitar fugas de stack/SQL
+        errorMessage.value = 'Error al importar. Por favor verifica el archivo e intenta de nuevo.';
     } finally {
         isImporting.value = false;
     }
@@ -427,8 +398,14 @@ async function submitImport() {
                             </div>
 
                             <div class="space-y-2">
-                                <p v-if="errorMessage" class="text-sm text-red-600">{{ errorMessage }}</p>
-                                <p v-if="successMessage" class="text-sm text-emerald-600">{{ successMessage }}</p>
+                                <div v-if="errorMessage" class="rounded-xl border border-red-200 bg-red-50 p-4">
+                                    <p class="text-sm font-semibold text-red-700">Error al importar</p>
+                                    <p class="mt-1 text-sm text-red-600">{{ errorMessage }}</p>
+                                </div>
+
+                                <div v-if="successMessage" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                                    <p class="text-sm font-semibold text-emerald-700">{{ successMessage }}</p>
+                                </div>
                             </div>
                         </div>
                     </section>

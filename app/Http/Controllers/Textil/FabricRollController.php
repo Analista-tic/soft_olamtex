@@ -389,8 +389,12 @@ class FabricRollController extends Controller
     public function downloadTemplate(): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         $path = storage_path('app/public/plantilla_importacion_rollos.xlsx');
-        abort_if(! file_exists($path), 404, 'Plantilla no encontrada.');
-        return response()->download($path, 'plantilla_importacion_rollos.xlsx');
+
+        abort_if(! file_exists($path), 404, 'Plantilla no encontrada en storage/app/public/');
+
+        return response()->download($path, 'plantilla_importacion_rollos.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
     }
 
     public function import(Request $request): JsonResponse
@@ -429,18 +433,15 @@ class FabricRollController extends Controller
             ], 422);
         }
 
+        // Aceptar ambos formatos legacy y nueva plantilla: validar solo el número de columnas (14)
         $headerRow = $rawRows[0] ?? [];
-        $headers = array_map(
-            fn ($header): string => $this->normalizeImportHeader((string) $header),
-            is_array($headerRow) ? $headerRow : []
-        );
-        $expectedHeaders = $this->expectedImportHeaders();
-
-        if ($headers !== $expectedHeaders) {
+        $columnCount = is_array($headerRow) ? count($headerRow) : 0;
+        if ($columnCount !== 14) {
             return $this->importResponse(0, 0, [
-                $this->importError(null, 'Headers invalidos. Se esperaba: ' . implode(', ', $expectedHeaders)),
+                $this->importError(null, "El archivo debe tener exactamente 14 columnas. Se encontraron {$columnCount} columnas."),
             ], 422);
         }
+
         $rows = [];
         $errors = [];
         $lineNumber = 1;
@@ -449,8 +450,8 @@ class FabricRollController extends Controller
             $lineNumber++;
 
             $line = is_array($line) ? array_values($line) : [];
-            $line = array_pad($line, count($headers), '');
-            $line = array_slice($line, 0, count($headers));
+            $line = array_pad($line, 14, '');
+            $line = array_slice($line, 0, 14);
 
             $hasValues = collect($line)->contains(
                 fn ($value): bool => trim((string) $value) !== ''
@@ -460,9 +461,27 @@ class FabricRollController extends Controller
                 continue;
             }
 
+            // Mapeo por posición (1-based descrito en la especificación)
+            $mapped = [
+                'roll_number' => trim((string) ($line[0] ?? '')),
+                'location' => trim((string) ($line[1] ?? '')),
+                'base_tela' => trim((string) ($line[2] ?? '')),
+                'description' => trim((string) ($line[3] ?? '')),
+                'internal_color_name' => trim((string) ($line[4] ?? '')),
+                'internal_color_code' => trim((string) ($line[5] ?? '')),
+                'roll_width' => $this->normalizeImportFloat($line[6] ?? null),
+                'quantity' => $this->normalizeImportFloat($line[7] ?? null),
+                'partial_output' => $this->normalizeImportFloat($line[8] ?? null),
+                'actual_output' => $this->normalizeImportFloat($line[9] ?? null),
+                'proveedor' => trim((string) ($line[10] ?? '')),
+                'purchase_order_ref' => trim((string) ($line[11] ?? '')),
+                'entry_date' => $line[12] ?? null,
+                'item_referencia' => trim((string) ($line[13] ?? '')),
+            ];
+
             $rows[] = [
                 'line_number' => $lineNumber,
-                'data' => array_combine($headers, $line),
+                'data' => $mapped,
             ];
         }
 
@@ -489,7 +508,7 @@ class FabricRollController extends Controller
             return $this->importResponse(0, 0, $normalizedErrors, 422);
         }
         $refs = collect($rows)
-            ->pluck('data.REFERENCIA ÍTEM')
+            ->pluck('data.item_referencia')
             ->map(fn ($ref) => trim((string) $ref))
             ->filter()
             ->unique()
@@ -512,7 +531,7 @@ class FabricRollController extends Controller
         foreach ($rows as $row) {
             $line = $row['line_number'];
             $data = $row['data'];
-            $rollNumber = trim((string) ($data['N° ROLLO'] ?? ''));
+            $rollNumber = trim((string) ($data['roll_number'] ?? ''));
 
             if ($rollNumber === '') {
                 $errors[] = "Fila {$line}: N° ROLLO es obligatorio.";
@@ -525,14 +544,14 @@ class FabricRollController extends Controller
                 continue;
             }
 
-            $entryDate = $this->normalizeImportDate($data['FECHA INGRESO'] ?? null);
+            $entryDate = $this->normalizeImportDate($data['entry_date'] ?? null);
             if ($entryDate === null) {
                 $errors[] = "Fila {$line}: FECHA INGRESO inválida.";
                 $skipped++;
                 continue;
             }
 
-            $ref = trim((string) ($data['REFERENCIA ÍTEM'] ?? ''));
+            $ref = trim((string) ($data['item_referencia'] ?? ''));
             $itemId = $ref !== '' ? ($itemMap[$ref] ?? null) : null;
 
             if ($ref !== '' && $itemId === null) {
@@ -543,15 +562,14 @@ class FabricRollController extends Controller
                 'roll_number' => $rollNumber,
                 'purchase_document_item_id' => null,
                 'item_id' => $itemId,
-                'item_referencia' => trim((string) ($data['REFERENCIA ÍTEM'] ?? '')),
-                'location' => trim((string) ($data['UBICACIÓN'] ?? '')),
-                'description' => trim((string) ($data['TELA'] ?? '')),
-                'internal_color_name' => trim((string) ($data['COLOR'] ?? '')),
-                'internal_color_code' => trim((string) ($data['CÓDIGO COLOR'] ?? '')),
-                'roll_width' => $this->normalizeImportFloat($data['ANCHO (m)'] ?? null),
-                'quantity' => $this->normalizeImportFloat($data['CANTIDAD (m)'] ?? null),
-                'partial_output' => $this->normalizeImportFloat($data['SALIDA PARCIAL'] ?? null),
-                'actual_output' => $this->normalizeImportFloat($data['DISPONIBILIDAD REAL'] ?? null),
+                'location' => trim((string) ($data['location'] ?? '')),
+                'description' => trim((string) ($data['description'] ?? '')),
+                'internal_color_name' => trim((string) ($data['internal_color_name'] ?? '')),
+                'internal_color_code' => trim((string) ($data['internal_color_code'] ?? '')),
+                'roll_width' => $this->normalizeImportFloat($data['roll_width'] ?? null),
+                'quantity' => $this->normalizeImportFloat($data['quantity'] ?? null),
+                'partial_output' => $this->normalizeImportFloat($data['partial_output'] ?? null),
+                'actual_output' => $this->normalizeImportFloat($data['actual_output'] ?? null),
                 'movement_type' => 'entrada',
                 'approval_status' => FabricRoll::APPROVAL_APPROVED,
                 'entry_date' => $entryDate,
@@ -862,10 +880,24 @@ class FabricRollController extends Controller
      */
     protected function importResponse(int $inserted, int $skipped, array $errors, int $status = 200): JsonResponse
     {
+        // Construir mensaje legible para el frontend
+        if ($status !== 200) {
+            if ($inserted === 0 && $skipped > 0) {
+                $message = "No se insertaron rollos; {$skipped} filas fueron omitidas. Revisa errores.";
+            } elseif ($inserted > 0 && $skipped > 0) {
+                $message = "Importación procesada con errores. Insertados: {$inserted}, omitidos: {$skipped}.";
+            } else {
+                $message = 'Error en la importación.';
+            }
+        } else {
+            $message = 'Importación completada correctamente.';
+        }
+
         return response()->json([
             'inserted' => $inserted,
             'skipped' => $skipped,
             'errors' => array_values($errors),
+            'message' => $message,
         ], $status);
     }
 
