@@ -1,31 +1,22 @@
 <script setup lang="ts">
-import DatePickerField from '@/components/DatePickerField.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
+import DatePickerField from '@/components/DatePickerField.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
+import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { AuditLog as SharedAuditLog, BreadcrumbItem, PaginatedData, SharedData } from '@/domain/shared';
-import Input from '@/components/ui/input/Input.vue';
+import type { BreadcrumbItem, PaginatedData, AuditLog as SharedAuditLog, SharedData } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { uiPatterns } from '@/lib/ui-patterns';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Eye, Search } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { uiPatterns } from '@/lib/ui-patterns';
 
 interface AuditLog extends SharedAuditLog {
     user_area?: string | null;
@@ -238,6 +229,17 @@ function toggleSort(column: string) {
     fetchLogs(1);
 }
 
+watch(
+    () => props.logs,
+    (newVal) => {
+        if (newVal) {
+            totalItems.value = newVal.total ?? 0;
+            lastPage.value = newVal.last_page ?? 1;
+        }
+    },
+    { immediate: true },
+);
+
 watch(selectModule, (value) => {
     const normalized = value ?? '';
     const previous = filters.module;
@@ -292,14 +294,6 @@ watch(selectedAreaId, (value) => {
 watch(logs, () => {
     diffCache.clear();
 });
-
-function handlePageChange(page: number) {
-    if (!page || page === currentPage.value) {
-        return;
-    }
-    currentPage.value = page;
-    fetchLogs(page);
-}
 
 const dateFormatter = new Intl.DateTimeFormat('es-CO', {
     day: 'numeric',
@@ -661,12 +655,7 @@ onBeforeUnmount(() => {
                     </div>
                 </FilterField>
                 <FilterField label="Área" :active="isAreaFilterActive" class="min-w-[180px]">
-                    <SelectField
-                        v-model="selectedAreaId"
-                        :options="areaSelectOptions"
-                        placeholder="Área"
-                        :button-class="areaFilterButtonClasses"
-                    />
+                    <SelectField v-model="selectedAreaId" :options="areaSelectOptions" placeholder="Área" :button-class="areaFilterButtonClasses" />
                 </FilterField>
                 <FilterField label="Módulo" :active="Boolean(selectModule?.trim())" class="min-w-[180px]">
                     <SelectField
@@ -703,7 +692,7 @@ onBeforeUnmount(() => {
                 <Table class="text-sm">
                     <TableHeader>
                         <TableRow>
-                            <TableHead class="cursor-pointer select-none px-4 py-2 text-left whitespace-nowrap" @click="toggleSort('created_at')">
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap px-4 py-2 text-left" @click="toggleSort('created_at')">
                                 <span class="inline-flex items-center gap-1">
                                     Fecha
                                     <span class="text-muted-foreground">
@@ -797,44 +786,20 @@ onBeforeUnmount(() => {
                 </Table>
 
                 <!-- Pie de tabla / paginación, mismo estilo de card -->
-                <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
-                    <p class="text-xs text-muted-foreground">
-                        Página {{ currentPage }} de {{ lastPage }} · Mostrando {{ logs.length }} de {{ totalItems }} registros
-                    </p>
-
-                    <Pagination
-                        class="flex justify-center pt-4 pb-2"
-                        :items-per-page="itemsPerPage"
-                        :total="totalItems"
-                        :sibling-count="1"
-                        show-edges
-                        :page="currentPage"
-                        @update:page="handlePageChange"
-                    >
-                        <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                            <PaginationFirst />
-                            <PaginationPrev />
-
-                            <template v-for="(item, index) in items" :key="index">
-                                <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                    <Button class="h-8 w-8 rounded-md p-0 text-xs font-medium" :variant="item.value === currentPage ? 'default' : 'ghost'">
-                                        {{ item.value }}
-                                    </Button>
-                                </PaginationListItem>
-                                <PaginationEllipsis v-else :index="index" />
-                            </template>
-
-                            <PaginationNext />
-                            <PaginationLast />
-                        </PaginationList>
-                    </Pagination>
+                <div class="flex items-center justify-between border-t border-border/70 bg-card/50 px-4 py-3">
+                    <ServerPagination
+                        v-model:current-page="currentPage"
+                        v-model:page-size="itemsPerPage"
+                        :total-items="totalItems"
+                        @fetch-data="() => fetchLogs(currentPage)"
+                    />
                 </div>
             </div>
         </div>
 
         <!-- Diálogo de detalle de cambios (igual que ya tenías) -->
         <Dialog v-model:open="detailDialogOpen">
-            <DialogContent class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
+            <DialogContent class="flex max-h-[95vh] max-w-[95vw] flex-col px-2 py-2">
                 <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                     <DialogTitle>Detalle de cambios</DialogTitle>
                     <DialogDescription v-if="detailLog">

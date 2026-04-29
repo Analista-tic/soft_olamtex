@@ -30,6 +30,7 @@ import PurchaseInvoiceCreditDebitNotesDialog, {
 import PurchaseInvoiceDialog from './PurchaseInvoiceDialog.vue';
 import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
 import InvoiceDifferenceApprovalDialog from './InvoiceDifferenceApprovalDialog.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 
 const breadcrumbs = [{ title: 'Facturas de Compra', href: '/facturas-compra' }];
 
@@ -47,7 +48,7 @@ const invoiceToDelete = ref<PurchaseInvoice | null>(null);
 const isDeleteDialogOpen = ref(false);
 const searchQuery = ref('');
 const currentPage = ref(1);
-const itemsPerPage = 10;
+const itemsPerPage = ref(10);
 const totalItems = ref(0);
 const isPrintDialogOpen = ref(false);
 const invoiceToPrint = ref<PurchaseInvoice | null>(null);
@@ -240,7 +241,7 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
     try {
         const params: Record<string, any> = {
             page,
-            per_page: itemsPerPage,
+            per_page: itemsPerPage.value,
             search,
             date_from: toIsoDateString(dateFilter.value) || undefined,
             date_to: toIsoDateString(dateFilter.value) || undefined,
@@ -261,7 +262,8 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         }
         const response = await axios.get('/gastos/facturas-compra/data', { params });
         invoices.value = Array.isArray(response.data.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
-        totalItems.value = typeof response.data.total === 'number' ? response.data.total : 0;
+        totalItems.value = Number(response.data.total ?? response.data.data.length ?? 0);
+        currentPage.value = Number(response.data.current_page ?? page);
     } catch (e) {
         console.log('Error al cargar facturas:', e);
         invoices.value = [];
@@ -271,30 +273,16 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
     }
 }
 
-// Watcher Ãºnico para filtros y bÃºsqueda
-watch(
-    [statusFilter, providerFilter, subgroupFilter, dateFilter, searchQuery],
-    ([newStatus, newProvider, newSubgroup, newDate, newSearch], [oldStatus, oldProvider, oldSubgroup, oldDate, oldSearch]) => {
-        if (
-            newStatus !== oldStatus ||
-            newProvider !== oldProvider ||
-            newSubgroup !== oldSubgroup ||
-            newDate !== oldDate ||
-            newSearch !== oldSearch
-        ) {
-            // Solo cambia la página, el watcher de currentPage hará el fetch
-            if (currentPage.value !== 1) {
-                currentPage.value = 1;
-            } else {
-                fetchInvoices(1, newSearch);
-            }
-        }
-    },
-);
+// 1. Cuando cambie cualquier filtro o la búsqueda, volvemos a la página 1
+watch([statusFilter, providerFilter, subgroupFilter, dateFilter, searchQuery], () => {
+    currentPage.value = 1; 
+    fetchInvoices(1, searchQuery.value);
+});
 
-// Watcher para paginación
-watch(currentPage, (newPage, oldPage) => {
-    if (newPage !== oldPage) {
+// 2. Cuando el usuario simplemente cambie de página (sin tocar filtros)
+watch(currentPage, (newPage) => {
+    // Solo disparamos si la página es distinta a 1 (para evitar repetir la llamada del watcher de arriba)
+    if (newPage !== 1) {
         fetchInvoices(newPage, searchQuery.value);
     }
 });
@@ -765,6 +753,14 @@ async function handleDifferenceDecision() {
                         </template>
                     </TableBody>
                 </Table>
+                <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                  <ServerPagination 
+                    v-model:current-page="currentPage"
+                    v-model:page-size="itemsPerPage"
+                    :total-items="totalItems"
+                    @fetch-data="() => fetchInvoices(currentPage, searchQuery)" 
+                  />
+                </div>
             </div>
         </div>
         <PurchaseInvoiceDialog

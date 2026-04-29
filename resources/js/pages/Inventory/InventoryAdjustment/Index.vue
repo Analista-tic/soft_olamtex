@@ -9,17 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
-import { Skeleton } from '@/components/ui/skeleton';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -51,8 +41,7 @@ const typeFilter = ref('all');
 const sortBy = ref<'date' | 'total'>('date');
 const sortDir = ref<'asc' | 'desc'>('desc');
 const currentPage = ref(1);
-const itemsPerPage = 10;
-const isLoading = ref(true);
+const itemsPerPage = ref(10);
 const isAdjustmentFormOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
 const adjustmentToEdit = ref<InventoryAdjustment | null>(null);
@@ -122,11 +111,6 @@ async function fetchAdjustments(page = 1, search = '') {
     } finally {
         isLoading.value = false;
     }
-}
-
-function handlePageChange(newPage: number) {
-    currentPage.value = newPage;
-    fetchAdjustments(newPage, searchQuery.value);
 }
 
 function handleSearch() {
@@ -395,36 +379,14 @@ onMounted(() => {
                     </TableBody>
                 </Table>
 
-                <Pagination
-                    class="flex justify-center pt-4 pb-2"
-                    :items-per-page="itemsPerPage"
-                    :total="totalItems"
-                    :sibling-count="1"
-                    show-edges
+                <div class="px-4 pb-2">
+                  <ServerPagination 
                     v-model:current-page="currentPage"
-                    @page-changed="handlePageChange"
-                >
-                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                        <PaginationFirst />
-                        <PaginationPrev />
-
-                        <template v-for="(item, index) in items" :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`">
-                            <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                <Button
-                                    class="h-8 w-8 rounded-md p-0 text-xs font-medium"
-                                    :variant="item.value === currentPage ? 'default' : 'ghost'"
-                                    @click="handlePageChange(item.value as number)"
-                                >
-                                    {{ item.value }}
-                                </Button>
-                            </PaginationListItem>
-                            <PaginationEllipsis v-else />
-                        </template>
-
-                        <PaginationNext />
-                        <PaginationLast />
-                    </PaginationList>
-                </Pagination>
+                    v-model:page-size="itemsPerPage"
+                    :total-items="totalItems"
+                    @fetch-data="() => fetchAdjustments(currentPage, searchQuery)"
+                  />
+                </div>
             </div>
         </div>
 

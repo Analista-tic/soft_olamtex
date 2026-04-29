@@ -4,12 +4,13 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import ConfirmWithInputDialog from '@/components/common/ConfirmWithInputDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
-import { Button } from '@/components/ui/button';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import InputDate from '@/components/InputDate.vue';
 import SelectField from '@/components/SelectField.vue';
+import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -26,11 +27,13 @@ import PurchaseRequestDialog from './PurchaseRequestDialog.vue';
 
 const breadcrumbs = [{ title: 'Solicitud de compra', href: '/solicitudes-compra' }];
 
-
 const sortBy = ref<string>('date');
 const sortDir = ref<'asc' | 'desc'>('desc');
 const requests = ref<PurchaseRequest[]>([]);
 const searchQuery = ref('');
+const currentPage = ref(1);
+const itemsPerPage = ref(10);
+const totalItems = ref(0);
 const statusFilter = ref('all');
 // Filtro de proveedor eliminado
 const dateFilter = ref('');
@@ -291,11 +294,11 @@ const canApprove = (request: PurchaseRequest): boolean => request.status === 'pe
 const canReject = (request: PurchaseRequest): boolean => request.status === 'pending';
 const canCancel = (request: PurchaseRequest): boolean => request.status === 'draft' || request.status === 'pending';
 
-async function fetchRequests() {
+async function fetchRequests(page = 1) {
     isLoading.value = true;
-
-
     const params: Record<string, unknown> = {
+        page,
+        per_page: itemsPerPage.value,
         sort_by: sortBy.value,
         sort_dir: sortDir.value,
     };
@@ -309,7 +312,8 @@ async function fetchRequests() {
 
     try {
         const response = await axios.get('/gastos/solicitudes-compra/data', { params });
-        const rows = Array.isArray(response.data?.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
+        const rows = Array.isArray(payload?.data) ? payload.data : [];
+        const payload = response.data;
 
         requests.value = rows.map((request: any) => {
             if (request.items && typeof request.items === 'string') {
@@ -321,7 +325,6 @@ async function fetchRequests() {
             } else if (!Array.isArray(request.items)) {
                 request.items = [];
             }
-
             return request;
         });
 
@@ -330,18 +333,18 @@ async function fetchRequests() {
         requests.value = [];
         showError('No se pudieron cargar las solicitudes. Intenta nuevamente.');
         console.error('Error al cargar solicitudes de compra', error);
+        totalItems.value = 0;
     } finally {
         isLoading.value = false;
     }
 }
 
-
 watch([statusFilter, dateFilter], () => {
-    fetchRequests();
+    fetchRequests(1);
 });
 
 watch(searchQuery, () => {
-    fetchRequests();
+    fetchRequests(1);
 });
 
 onMounted(() => {
@@ -390,9 +393,9 @@ onMounted(() => {
                     />
                 </FilterField>
                 <!-- Filtro de proveedor eliminado -->
-<FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
-    <InputDate v-model="dateFilter" placeholder="Fecha" :clearable="true" :show-today="true" />
-</FilterField>
+                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
+                    <InputDate v-model="dateFilter" placeholder="Fecha" :clearable="true" :show-today="true" />
+                </FilterField>
             </FilterBar>
 
             <div class="relative overflow-auto rounded-xl border border-sidebar-border/70">
@@ -400,10 +403,7 @@ onMounted(() => {
                     <TableHeader>
                         <TableRow>
                             <TableHead>N° Solicitud</TableHead>
-                            <TableHead
-                                class="cursor-pointer select-none whitespace-nowrap"
-                                @click="toggleSort('date')"
-                            >
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('date')">
                                 <span class="inline-flex items-center gap-1">
                                     Fecha
                                     <span class="text-muted-foreground">
@@ -417,10 +417,7 @@ onMounted(() => {
                                 </span>
                             </TableHead>
                             <TableHead>Proveedor</TableHead>
-                            <TableHead
-                                class="cursor-pointer select-none whitespace-nowrap"
-                                @click="toggleSort('total')"
-                            >
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('total')">
                                 <span class="inline-flex items-center gap-1">
                                     Total estimado
                                     <span class="text-muted-foreground">
@@ -465,7 +462,11 @@ onMounted(() => {
                                 <TableCell>{{ formatCurrency(computeRequestTotal(request)) }}</TableCell>
                                 <TableCell class="max-w-[200px] truncate">{{ request.description || '-' }}</TableCell>
                                 <TableCell>
-                                    <TableStatusBadge :dusk="`estado-solicitud-${request.id}`" :label="getStatusLabel(request.status)" :tone="getStatusTone(request.status)" />
+                                    <TableStatusBadge
+                                        :dusk="`estado-solicitud-${request.id}`"
+                                        :label="getStatusLabel(request.status)"
+                                        :tone="getStatusTone(request.status)"
+                                    />
                                 </TableCell>
                                 <TableCell class="flex items-center justify-center gap-2">
                                     <button
@@ -485,7 +486,10 @@ onMounted(() => {
                                         v-if="canSendToApproval(request) || canApprove(request) || canReject(request) || canCancel(request)"
                                     >
                                         <DropdownMenuTrigger as-child>
-                                            <button class="flex items-center text-gray-500 transition-colors duration-200 hover:text-gray-700" title="Más acciones">
+                                            <button
+                                                class="flex items-center text-gray-500 transition-colors duration-200 hover:text-gray-700"
+                                                title="Más acciones"
+                                            >
                                                 <MoreVertical class="h-4 w-4" />
                                             </button>
                                         </DropdownMenuTrigger>
@@ -525,6 +529,14 @@ onMounted(() => {
                         </template>
                     </TableBody>
                 </Table>
+                <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                    <ServerPagination
+                        v-model:current-page="currentPage"
+                        v-model:page-size="itemsPerPage"
+                        :total-items="totalItems"
+                        @fetch-data="() => fetchRequests(currentPage)"
+                    />
+                </div>
             </div>
 
             <PurchaseRequestDialog
