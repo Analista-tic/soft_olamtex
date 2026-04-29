@@ -25,7 +25,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { useAuthStore } from '@/stores/auth';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { ArrowDown, ArrowDownToLine, ArrowUp, Download, Eye, Search, SlidersHorizontal, Upload } from 'lucide-vue-next';
+import { ArrowDown, ArrowDownToLine, ArrowUp, Download, Eye, Search, SlidersHorizontal, Upload, FileSpreadsheet } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import FabricRollAdjustDialog from './FabricRollAdjustDialog.vue';
 import FabricRollDownloadDialog from './FabricRollDownloadDialog.vue';
@@ -157,35 +157,8 @@ function exportFabricRollsExcel() {
     window.open('/kardex-telas/exportar-rollos', '_blank');
 }
 
-function exportImportTemplateCsv() {
-    const headers = [
-        'roll_number',
-        'location',
-        'base_tela',
-        'tela',
-        'internal_color_name',
-        'internal_color_code',
-        'roll_width',
-        'quantity',
-        'partial_output',
-        'actual_output',
-        'proveedor',
-        'purchase_order_ref',
-        'entry_date',
-        'item_referencia',
-    ];
-
-    const csvContent = `${headers.join(',')}\n`;
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-
-    link.href = url;
-    link.download = 'plantilla_importacion_rollos.csv';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+function exportTemplate() {
+    window.open('/fabric-rolls/descargar-plantilla', '_blank');
 }
 
 function openImportDialog() {
@@ -282,21 +255,32 @@ async function handleImportCompleted(payload: { inserted: number; skipped: numbe
                         <DropdownMenuTrigger :as-child="true">
                             <Button
                                 variant="outline"
-                                class="flex h-10 w-full items-center justify-center rounded-full px-5 py-2 text-sm font-semibold md:w-auto"
+                                size="default"
+                                class="flex h-10 items-center justify-center rounded-full px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10"
                                 type="button"
                             >
-                                Otras acciones
+                                <span>Otras acciones</span>
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" class="w-56">
+
+                        <DropdownMenuContent
+                            align="end"
+                            side="bottom"
+                            :side-offset="1"
+                            :avoid-collisions="false"
+                            :collision-padding="0"
+                            class="w-56"
+                        >
                             <DropdownMenuItem v-if="canImportRolls" class="cursor-pointer gap-2" @click="openImportDialog">
                                 <Upload class="h-4 w-4" /> Importar rollos
                             </DropdownMenuItem>
+
                             <DropdownMenuItem class="cursor-pointer gap-2" @click="exportFabricRollsExcel">
                                 <Download class="h-4 w-4" /> Exportar inventario
                             </DropdownMenuItem>
-                            <DropdownMenuItem class="cursor-pointer gap-2" @click="exportImportTemplateCsv">
-                                <Download class="h-4 w-4" /> Exportar plantilla
+
+                            <DropdownMenuItem class="cursor-pointer gap-2" @click="exportTemplate">
+                                <FileSpreadsheet class="h-4 w-4" /> Exportar plantilla
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>

@@ -91,27 +91,6 @@ const isStatusDialogOpen = ref(false);
 const itemToToggleStatus = ref<Item | null>(null);
 
 const isBulkDialogOpen = ref(false);
-const isTemplateDownloading = ref(false);
-
-const itemTemplateHeaders = [
-    'TIPO DE ITEM',
-    'NOMBRE',
-    'GRUPO',
-    'SUBGRUPO',
-    'IMPUESTO (%)',
-    'BODEGA',
-    'CANTIDAD',
-    'CANTIDAD MIN',
-    'CANTIDAD MAX',
-    'UNIDAD DE MEDIDA',
-    'CODIGO DE BARRAS',
-    'REFERENCIA',
-    'DESCRIPCION',
-    'MOVIMIENTO NEGATIVO',
-    'CAMPOS ADICIONALES',
-    'VALORES ADICIONALES',
-    'ESTADO',
-];
 
 const successMessage = ref('');
 const errorMessage = ref('');
@@ -260,31 +239,8 @@ function exportItemsCsv() {
     window.open('/item/exportar-excel', '_blank');
 }
 
-async function downloadTemplate() {
-    if (isTemplateDownloading.value) return;
-
-    isTemplateDownloading.value = true;
-    successMessage.value = '';
-    errorMessage.value = '';
-
-    try {
-        const csvContent = `${itemTemplateHeaders.join(',')}\n`;
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const objectUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = objectUrl;
-        link.download = 'plantilla_importacion_items.csv';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(objectUrl);
-
-        setSuccess('Plantilla descargada correctamente.');
-    } catch (err) {
-        setError(getErrorMessage(err, 'No se pudo descargar la plantilla CSV.'));
-    } finally {
-        isTemplateDownloading.value = false;
-    }
+function downloadTemplate() {
+    window.open('/item/descargar-plantilla', '_blank');
 }
 
 function openDialog(type: DialogType, item: Item | null = null) {
@@ -433,11 +389,9 @@ onBeforeUnmount(() => {
                         >
                             <DropdownMenuItem
                                 class="cursor-pointer gap-2"
-                                :class="isTemplateDownloading ? 'cursor-not-allowed opacity-60' : ''"
-                                :disabled="isTemplateDownloading"
                                 @click="downloadTemplate"
                             >
-                                <FileSpreadsheet class="h-4 w-4" /> Descargar plantilla CSV
+                                <FileSpreadsheet class="h-4 w-4" /> Descargar plantilla
                             </DropdownMenuItem>
 
                             <DropdownMenuItem class="cursor-pointer gap-2" @click="openBulkDialog">

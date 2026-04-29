@@ -35,8 +35,13 @@ class AuditObserver
     {
         $request = app()->bound('request') ? app('request') : null;
 
+        $user = null;
+        if (app()->bound('auth')) {
+            $user = app('auth')->user();
+        }
+
         return [
-            'user' => auth()->user(),
+            'user' => $user,
             'ip_address' => $request?->ip(),
             'user_agent' => $request?->userAgent(),
         ];

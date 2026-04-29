@@ -2,6 +2,8 @@
 
 use Illuminate\Support\Facades\Route;
 
+use App\Http\Controllers\Textil\FabricRollController;
+
 // === ROLLOS DE TELA ===
 Route::prefix('rollos-tela')->name('fabric-rolls.')->middleware('permission:ver telas rollos')->group(function () {
     Route::get('/', [App\Http\Controllers\Textil\FabricRollController::class, 'index'])->name('index');
@@ -14,6 +16,11 @@ Route::prefix('rollos-tela')->name('fabric-rolls.')->middleware('permission:ver 
     Route::delete('/{fabricRoll}', [App\Http\Controllers\Textil\FabricRollController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar telas rollos');
     Route::patch('/{fabricRoll}/update-output', [App\Http\Controllers\Textil\FabricRollController::class, 'updateOutput'])->name('update-output')->middleware('permission:editar telas rollos');
 });
+
+// Ruta para descargar la plantilla de importación de rollos (archivo en storage/app/public)
+Route::get('/fabric-rolls/descargar-plantilla', [FabricRollController::class, 'downloadTemplate'])
+    ->name('fabric-rolls.download-template')
+    ->middleware('permission:ver telas rollos');
 
 Route::post('/api/fabric-rolls/import', [App\Http\Controllers\Textil\FabricRollController::class, 'import'])
     ->middleware('permission:fabric_rolls.import')

@@ -27,6 +27,7 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class FabricRollController extends Controller
 {
@@ -299,7 +300,7 @@ class FabricRollController extends Controller
             $filters,
             (int) $request->input('per_page', 10),
             $request,
-            auth()->user()
+            $request->user()
         );
 
         return response()->json([
@@ -383,6 +384,13 @@ class FabricRollController extends Controller
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'Content-Disposition' => 'attachment; filename="rollos_tela.xlsx"',
         ]);
+    }
+
+    public function downloadTemplate(): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    {
+        $path = storage_path('app/public/plantilla_importacion_rollos.xlsx');
+        abort_if(! file_exists($path), 404, 'Plantilla no encontrada.');
+        return response()->download($path, 'plantilla_importacion_rollos.xlsx');
     }
 
     public function import(Request $request): JsonResponse
@@ -535,6 +543,7 @@ class FabricRollController extends Controller
                 'roll_number' => $rollNumber,
                 'purchase_document_item_id' => null,
                 'item_id' => $itemId,
+                'item_referencia' => trim((string) ($data['REFERENCIA ÍTEM'] ?? '')),
                 'location' => trim((string) ($data['UBICACIÓN'] ?? '')),
                 'description' => trim((string) ($data['TELA'] ?? '')),
                 'internal_color_name' => trim((string) ($data['COLOR'] ?? '')),
