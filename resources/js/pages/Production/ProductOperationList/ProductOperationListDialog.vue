@@ -822,8 +822,7 @@ function resetForm() {
                             </span>
                         </div>
                         <div
-                            class="max-h-[360px] overflow-y-auto overscroll-contain scroll-smooth rounded-lg border border-border/60 bg-muted/10"
-                            style="scrollbar-width: thin"
+                            class="rounded-lg border border-border/60 bg-muted/10"
                         >
                             <table class="w-full table-fixed text-sm">
                                 <thead class="sticky top-0 z-10 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/85">
