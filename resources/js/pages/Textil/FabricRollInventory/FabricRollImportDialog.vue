@@ -2,9 +2,8 @@
 import Button from '@/components/ui/button/Button.vue';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import axios from 'axios';
-import { ClipboardList, CloudUpload, Download, LoaderCircle } from 'lucide-vue-next';
+import { ClipboardList, CloudUpload, LoaderCircle } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
-import * as XLSX from 'xlsx';
 
 type ImportErrorItem = {
     row: number | null;
@@ -98,10 +97,15 @@ function openFileDialog() {
 }
 
 function downloadTemplate() {
-    const worksheet = XLSX.utils.aoa_to_sheet([expectedHeaders]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'rollos');
-    XLSX.writeFile(workbook, 'plantilla_importacion_rollos.xlsx');
+    // Generar CSV como alternativa sin xlsx
+    const csv = expectedHeaders.join(',') + '\n';
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'plantilla_importacion_rollos.csv';
+    link.click();
+    window.URL.revokeObjectURL(url);
 }
 
 function preventDrag(event: DragEvent) {
@@ -155,42 +159,17 @@ async function validateFile(selectedFile: File): Promise<string | null> {
         return 'El archivo debe tener extension .xlsx o .xls.';
     }
 
-    const buffer = await selectedFile.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array' });
-    const firstSheetName = workbook.SheetNames[0];
-    const worksheet = firstSheetName ? workbook.Sheets[firstSheetName] : null;
-
-    if (!worksheet) {
-        return 'El archivo Excel esta vacio.';
-    }
-
-    const rows = XLSX.utils.sheet_to_json<(string | number | null)[]>(worksheet, {
-        header: 1,
-        blankrows: false,
-        defval: '',
-    });
-
-    if (rows.length === 0) {
-        return 'El archivo Excel esta vacio.';
-    }
-
-    const headers = (rows[0] ?? []).map((header) => normalizeHeader(String(header ?? '')));
-    const normalizedExpectedHeaders = expectedHeaders.map((header) => normalizeHeader(header));
-
-    const isValid =
-        headers.length === normalizedExpectedHeaders.length &&
-        headers.every((header, index) => header === normalizedExpectedHeaders[index]);
-
-    if (!isValid) {
-        return `Los headers deben coincidir exactamente con: ${expectedHeaders.join(', ')}`;
+    // La validación completa de estructura y headers se realiza en el backend
+    // Aquí solo validamos el tamaño máximo (10MB)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (selectedFile.size > maxSize) {
+        return 'El archivo no debe exceder 10MB.';
     }
 
     return null;
 }
 
-function normalizeHeader(value: string) {
-    return value.replace(/^\uFEFF/, '').trim().replace(/^"|"$/g, '');
-}
+
 
 function toRowNumber(value: unknown): number | null {
     const parsed = Number(value);
@@ -356,7 +335,7 @@ async function submitImport() {
                                 </p>
                                 <div class="mt-3">
                                     <Button variant="outline" class="w-full justify-center gap-2" @click="downloadTemplate">
-                                        <Download class="h-4 w-4" /> Descargar plantilla
+                                        Descargar plantilla (CSV)
                                     </Button>
                                 </div>
                             </div>
