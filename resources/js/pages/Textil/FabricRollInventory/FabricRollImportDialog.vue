@@ -23,11 +23,19 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     (e: 'update:modelValue', value: boolean): void;
-    (e: 'imported', payload: { inserted: number; skipped: number; errors: string[] }): void;
+    (e: 'imported', payload: { message: string; inserted: number; skipped: number; errors: string[] }): void;
+    (e: 'error', payload: { message: string; inserted?: number; skipped?: number; errors?: string[] }): void;
 }>();
 
 // Headers esperados definidos en el backend (FabricRollController::expectedImportHeaders())
 // La validación en frontend acepta ambos formatos legacy/nuevo comprobando el número de columnas (14).
+
+const expectedHeaders = [
+    'N° ROLLO', 'UBICACIÓN', 'BASE TELA', 'TELA', 'COLOR',
+    'CÓDIGO COLOR', 'ANCHO (m)', 'CANTIDAD (m)', 'SALIDA PARCIAL',
+    'DISPONIBILIDAD REAL', 'PROVEEDOR', 'N° PEDIDO',
+    'FECHA INGRESO', 'REFERENCIA ÍTEM',
+];
 
 const recommendations = [
     'Descarga la plantilla y conserva exactamente el orden y nombre de los headers.',
@@ -39,7 +47,6 @@ const isOpen = ref(props.modelValue);
 const file = ref<File | null>(null);
 const isImporting = ref(false);
 const successMessage = ref('');
-const errorMessage = ref('');
 const result = ref<ImportResult | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
@@ -66,8 +73,6 @@ const hasFile = computed(() => Boolean(file.value));
 function resetState() {
     file.value = null;
     isImporting.value = false;
-    errorMessage.value = '';
-    successMessage.value = '';
     result.value = null;
 
     if (fileInputRef.value) {
@@ -84,54 +89,26 @@ function openFileDialog() {
 }
 
 function downloadTemplate() {
-    const worksheet = XLSX.utils.aoa_to_sheet([expectedHeaders]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'rollos');
-    XLSX.writeFile(workbook, 'plantilla_importacion_rollos.xlsx');
+    window.open('/fabric-rolls/descargar-plantilla', '_blank');
+}
+
+function handleFileSelection(event: Event) {
+    const target = event.target as HTMLInputElement;
+    file.value = target.files && target.files.length > 0 ? target.files[0] : null;
+    result.value = null;
+}
+
+function handleDrop(event: DragEvent) {
+    event.preventDefault();
+    const files = event.dataTransfer?.files ?? null;
+    if (files && files.length > 0) {
+        file.value = files[0];
+        result.value = null;
+    }
 }
 
 function preventDrag(event: DragEvent) {
     event.preventDefault();
-}
-
-async function handleDrop(event: DragEvent) {
-    event.preventDefault();
-
-    const droppedFile = event.dataTransfer?.files?.[0] ?? null;
-    if (!droppedFile) return;
-
-    await setSelectedFile(droppedFile);
-}
-
-async function handleFileSelection(event: Event) {
-    const target = event.target as HTMLInputElement;
-    const selectedFile = target.files?.[0] ?? null;
-
-    if (!selectedFile) {
-        file.value = null;
-        return;
-    }
-
-    await setSelectedFile(selectedFile);
-}
-
-async function setSelectedFile(selectedFile: File) {
-    clearAlerts();
-    result.value = null;
-
-    const validationError = await validateFile(selectedFile);
-    if (validationError) {
-        file.value = null;
-        errorMessage.value = validationError;
-
-        if (fileInputRef.value) {
-            fileInputRef.value.value = '';
-        }
-
-        return;
-    }
-
-    file.value = selectedFile;
 }
 
 async function validateFile(selectedFile: File): Promise<string | null> {
@@ -234,18 +211,17 @@ function formatErrorForEmit(item: ImportErrorItem) {
 
 async function submitImport() {
     if (!file.value) {
-        showError('Selecciona un archivo Excel antes de importar.');
+        emit('error', { message: 'Selecciona un archivo Excel antes de importar.' });
         return;
     }
 
     const validationError = await validateFile(file.value);
     if (validationError) {
-        showError(validationError);
+        emit('error', { message: validationError });
         return;
     }
 
     isImporting.value = true;
-    clearAlerts();
     result.value = null;
 
     const formData = new FormData();
@@ -266,12 +242,13 @@ async function submitImport() {
 
         successMessage.value = 'Importación procesada correctamente.';
         emit('imported', {
+            message: `Importación completada. Insertados: ${result.value.inserted}. Omitidos: ${result.value.skipped}.`,
             inserted: result.value.inserted,
             skipped: result.value.skipped,
             errors: normalizedErrors.map(formatErrorForEmit),
         });
         // Cerrar modal automáticamente para feedback (1.5s)
-        setTimeout(() => close(), 1500);
+        close();
     } catch (error: any) {
         const responseData = error?.response?.data;
         const normalizedErrors = normalizeImportErrors(responseData?.errors);
@@ -286,16 +263,14 @@ async function submitImport() {
             };
         }
 
-        if (inserted > 0 || skipped > 0) {
-            emit('imported', {
-                inserted,
-                skipped,
-                errors: normalizedErrors.map(formatErrorForEmit),
-            });
-        }
+        emit('error', {
+            message: 'Error al importar. Por favor verifica el archivo e intenta de nuevo.',
+            inserted,
+            skipped,
+            errors: normalizedErrors.map(formatErrorForEmit),
+        });
 
         // Mostrar mensaje de error genérico para evitar fugas de stack/SQL
-        errorMessage.value = 'Error al importar. Por favor verifica el archivo e intenta de nuevo.';
     } finally {
         isImporting.value = false;
     }
@@ -336,7 +311,7 @@ async function submitImport() {
                                 </p>
                                 <div class="mt-3">
                                     <Button variant="outline" class="w-full justify-center gap-2" @click="downloadTemplate">
-                                        Descargar plantilla (CSV)
+                                        Descargar plantilla
                                     </Button>
                                 </div>
                             </div>
@@ -406,16 +381,6 @@ async function submitImport() {
                                 </div>
                             </div>
 
-                            <div class="space-y-2">
-                                <div v-if="errorMessage" class="rounded-xl border border-red-200 bg-red-50 p-4">
-                                    <p class="text-sm font-semibold text-red-700">Error al importar</p>
-                                    <p class="mt-1 text-sm text-red-600">{{ errorMessage }}</p>
-                                </div>
-
-                                <div v-if="successMessage" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                                    <p class="text-sm font-semibold text-emerald-700">{{ successMessage }}</p>
-                                </div>
-                            </div>
                         </div>
                     </section>
                 </div>

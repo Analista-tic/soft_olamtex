@@ -337,7 +337,7 @@ class ItemController extends Controller
         ];
 
         // Reference unique rule: ignore current item on update
-        $uniqueRule = Rule::unique('items', 'reference');
+        $uniqueRule = Rule::unique('items', 'reference')->whereNull('deleted_at');
         if ($isUpdate && $item) {
             $uniqueRule = $uniqueRule->ignore($item->id);
         }

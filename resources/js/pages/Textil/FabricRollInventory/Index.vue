@@ -223,13 +223,17 @@ function setDownloadDialogOpen(value: boolean) {
     if (!value) rollToDownload.value = null;
 }
 
-async function handleImportCompleted(payload: { inserted: number; skipped: number; errors: string[] }) {
+async function handleImportCompleted(payload: { message: string; inserted: number; skipped: number; errors: string[] }) {
     successMessage.value = `Importación completada. Insertados: ${payload.inserted}. Omitidos: ${payload.skipped}.`;
     errorMessage.value = payload.errors.length > 0
         ? payload.errors.slice(0, 3).join(' | ')
         : '';
 
     await fetchFabricRolls(1);
+}
+
+function handleImportError(payload: { message: string }) {
+    errorMessage.value = payload.message;
 }
 </script>
 
@@ -505,6 +509,7 @@ async function handleImportCompleted(payload: { inserted: number; skipped: numbe
             :modelValue="isImportDialogOpen"
             @update:modelValue="(value) => (isImportDialogOpen = value)"
             @imported="handleImportCompleted"
+            @error="handleImportError"
         />
 
         <ConfirmDialog

@@ -286,6 +286,15 @@ function closeBulkDialog() {
     isBulkDialogOpen.value = false;
 }
 
+async function handleBulkUploaded(payload: { message: string }) {
+    await fetchItems(1);
+    setSuccess(payload.message);
+}
+
+function handleBulkUploadError(payload: { message: string }) {
+    setError(payload.message);
+}
+
 async function handlePageChange(newPage: number) {
     if (newPage === currentPage.value) return;
     await fetchItems(newPage);
@@ -648,6 +657,11 @@ onBeforeUnmount(() => {
             </DialogContent>
         </Dialog>
 
-        <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchItems" />
+        <BulkUploadDialog
+            :open="isBulkDialogOpen"
+            @close="closeBulkDialog"
+            @uploaded="handleBulkUploaded"
+            @error="handleBulkUploadError"
+        />
     </AppLayout>
 </template>
