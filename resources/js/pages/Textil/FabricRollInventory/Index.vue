@@ -275,16 +275,16 @@ function handleImportError(payload: { message: string }) {
                             :collision-padding="0"
                             class="w-56"
                         >
+                            <DropdownMenuItem class="cursor-pointer gap-2" @click="exportTemplate">
+                                <FileSpreadsheet class="h-4 w-4" /> Exportar plantilla
+                            </DropdownMenuItem>
+
                             <DropdownMenuItem v-if="canImportRolls" class="cursor-pointer gap-2" @click="openImportDialog">
                                 <Upload class="h-4 w-4" /> Importar rollos
                             </DropdownMenuItem>
 
                             <DropdownMenuItem class="cursor-pointer gap-2" @click="exportFabricRollsExcel">
                                 <Download class="h-4 w-4" /> Exportar inventario
-                            </DropdownMenuItem>
-
-                            <DropdownMenuItem class="cursor-pointer gap-2" @click="exportTemplate">
-                                <FileSpreadsheet class="h-4 w-4" /> Exportar plantilla
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
