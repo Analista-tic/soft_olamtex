@@ -528,7 +528,11 @@ async function fetchBlockersForInvoice(inv: PurchaseInvoice): Promise<string[]> 
         if (!itemId) continue;
         try {
             const res = await axios.get(`/kardex-telas/rollos/item/${itemId}`);
-            const rollos = Array.isArray(res.data) ? res.data : [];
+            const rollos = Array.isArray(res.data)
+                ? res.data
+                : Array.isArray(res.data?.data)
+                  ? res.data.data
+                  : [];
             const ordered = Number(item.quantity) || 0;
             if (rollos.length === 0) {
                 blockers.push(`Registre al menos un rollo para "${itemName}"`);

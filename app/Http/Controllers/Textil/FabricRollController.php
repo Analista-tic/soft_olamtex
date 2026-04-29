@@ -7,6 +7,7 @@ use App\Http\Requests\Textil\StoreFabricRollRequest;
 use App\Http\Requests\Textil\UpdateFabricRollOutputRequest;
 use App\Http\Requests\Textil\UpdateFabricRollRequest;
 use App\Http\Resources\Inventory\FabricRollResource;
+use App\Http\Resources\Textil\FabricRollReceptionResource;
 use App\Models\MasterData\Item;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
@@ -156,7 +157,7 @@ class FabricRollController extends Controller
             $actual  = (float) ($row['actual_output'] ?? 0);
             $reservedOrConsumed = max($partial, $actual);
             $committed = (float) ($committedByRollId[(string) $row['id']] ?? 0.0);
-            $color   = $row['supplier_color'] ?? null;
+            $color   = $row['internal_color_name'] ?? $row['supplier_color'] ?? null;
 
             return [
                 'id'                        => $row['id'],
@@ -168,11 +169,17 @@ class FabricRollController extends Controller
                 'color'                     => $color ?? 'N/A',
                 'color_code'                => '#' . substr(md5($color ?? ''), 0, 6),
                 'width'                     => $this->fmtMeters((float) ($row['roll_width'] ?? 0)),
+                'width_value'               => (float) ($row['roll_width'] ?? 0),
                 'roll_qty'                  => $this->fmtMeters($qty),
+                'roll_qty_value'            => $qty,
                 'partial_output'            => $this->fmtMeters($partial),
-                'exit_quantity'             => $this->fmtMeters($actual),
+                'partial_output_value'      => $partial,
                 'partial_availability'      => $this->fmtMeters(max(0.0, $qty - $reservedOrConsumed - $committed)),
+                'partial_availability_value' => max(0.0, $qty - $reservedOrConsumed - $committed),
+                'exit_quantity'             => $this->fmtMeters($actual),
+                'exit_quantity_value'       => $actual,
                 'real_availability'         => $this->fmtMeters(max(0.0, $qty - $actual)),
+                'real_availability_value'   => max(0.0, $qty - $actual),
                 'order_number'              => $row['order_number'],
                 'provider'                  => $row['provider'],
                 'price_per_meter'           => isset($row['price_per_meter']) ? (float) $row['price_per_meter'] : null,
@@ -181,8 +188,6 @@ class FabricRollController extends Controller
                     : null,
                 'creator'                   => $row['creator_name'] ?? null,
                 'status'                    => $actual >= $qty ? 'depleted' : 'available',
-                'quantity_value'            => $qty,
-                'exit_quantity_value'       => $actual,
             ];
         });
 
@@ -610,13 +615,13 @@ class FabricRollController extends Controller
 
         return response()->json([
             'message' => 'Rollo creado correctamente',
-            'data' => $fabricRoll
+            'data' => (new FabricRollReceptionResource($fabricRoll))->resolve()
         ], 201);
     }
 
     public function show(FabricRoll $fabricRoll)
     {
-        return response()->json($fabricRoll);
+        return response()->json((new FabricRollReceptionResource($fabricRoll))->resolve());
     }
 
     public function update(UpdateFabricRollRequest $request, FabricRoll $fabricRoll)
@@ -629,7 +634,7 @@ class FabricRollController extends Controller
 
         try {
             $fabricRoll = $this->service->update($fabricRoll, $data);
-            return response()->json($fabricRoll);
+            return response()->json((new FabricRollReceptionResource($fabricRoll))->resolve());
         } catch (ValidationException $e) {
             throw $e;
         }
@@ -659,7 +664,7 @@ class FabricRollController extends Controller
 
         return response()->json([
             'message' => 'Salidas actualizadas correctamente',
-            'data' => $fabricRoll
+            'data' => (new FabricRollReceptionResource($fabricRoll))->resolve()
         ]);
     }
 
@@ -724,7 +729,7 @@ class FabricRollController extends Controller
 
             return response()->json([
                 'message' => 'Rollo creado correctamente desde recepción',
-                'data' => $fabricRoll
+                'data' => (new FabricRollReceptionResource($fabricRoll))->resolve()
             ], 201);
         } catch (\Exception $e) {
             return response()->json([
@@ -737,7 +742,7 @@ class FabricRollController extends Controller
     public function getByInvoiceItem($itemId)
     {
         $rolls = $this->service->getByInvoiceItem($itemId);
-        return response()->json($rolls);
+        return response()->json(FabricRollReceptionResource::collection($rolls)->resolve());
     }
 
     protected function validateActualOutput(float $quantity, float $actualOutput): ?JsonResponse
@@ -927,5 +932,3 @@ class FabricRollController extends Controller
         return $date ? date_format($date, 'Y-m-d') : null;
     }
 }
-
-

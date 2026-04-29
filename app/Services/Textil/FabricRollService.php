@@ -283,7 +283,7 @@ class FabricRollService
             'roll_number'  => 'fr.roll_number',
             'location'     => 'fr.location',
             'fabric'       => DB::raw("COALESCE(i.name, pdi.item_name, 'Tela')"),
-            'color'        => 'pdi.supplier_color',
+            'color'        => DB::raw("COALESCE(fr.internal_color_name, pdi.supplier_color)"),
             'width'        => 'fr.roll_width',
             'quantity'     => 'fr.quantity',
             'partial_output' => 'fr.partial_output',
@@ -304,6 +304,7 @@ class FabricRollService
                 'fr.roll_width',
                 'fr.partial_output',
                 'fr.actual_output',
+                'fr.internal_color_name',
                 DB::raw("COALESCE(fi.name, i.name, pdi.item_name, fr.description, 'Tela') as fabric"),
                 'pdi.id as purchase_document_item_id',
                 DB::raw('COALESCE(fr.item_id, pdi.item_id) as fabric_item_id'),
@@ -331,6 +332,7 @@ class FabricRollService
                     ->orWhere('fi.name', 'like', "%{$search}%")
                     ->orWhere('i.name', 'like', "%{$search}%")
                     ->orWhere('pdi.item_name', 'like', "%{$search}%")
+                    ->orWhere('fr.internal_color_name', 'like', "%{$search}%")
                     ->orWhere('pdi.supplier_color', 'like', "%{$search}%")
                     ->orWhere('c.full_name', 'like', "%{$search}%")
                     ->orWhere('pd.provider_name', 'like', "%{$search}%")

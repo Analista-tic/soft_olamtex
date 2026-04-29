@@ -47,25 +47,5 @@ export function mapFabricRollDto(dto: FabricRollDto): FabricRoll {
 }
 
 export function mapFabricRollViewDto(dto: FabricRollViewDto): FabricRollView {
-    return {
-        id: dto.id,
-        roll: dto.roll,
-        location: dto.location,
-        fabric: dto.fabric,
-        color: dto.color,
-        color_code: dto.color_code,
-        width: dto.width,
-        roll_qty: dto.roll_qty,
-        partial_output: dto.partial_output,
-        partial_availability: dto.partial_availability,
-        exit_quantity: dto.exit_quantity,
-        quantity_value: dto.quantity_value,
-        exit_quantity_value: dto.exit_quantity_value,
-        real_availability: dto.real_availability,
-        order_number: dto.order_number,
-        provider: dto.provider,
-        created_at: dto.created_at,
-        creator: dto.creator,
-        status: dto.status,
-    };
+    return { ...dto };
 }

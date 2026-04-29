@@ -1,3 +1,4 @@
+import type { FabricRollViewDto } from './dto';
 import type { PurchaseInvoiceItem } from '@/domain/Expenses';
 
 export interface FabricOrderItem {
@@ -23,42 +24,23 @@ export interface FabricOrder {
 export interface FabricRoll {
     id: number;
     roll_number: string;
-    purchase_document_item_id: number;
+    purchase_document_item_id: number | null;
     purchase_document_item?: PurchaseInvoiceItem;
     quantity: number;
-    roll_width?: number;
-    location?: string;
-    description?: string;
-    tolerance_status?: string;
+    roll_width?: number | null;
+    location?: string | null;
+    description?: string | null;
+    tolerance_status?: string | null;
     partial_output: number;
     actual_output: number;
     entry_date: string;
     available_quantity: number; // Computed attribute
     is_depleted: boolean; // Computed attribute
-    created_at?: string;
-    updated_at?: string;
+    created_at?: string | null;
+    updated_at?: string | null;
 }
-export interface FabricRollView {
-    id: number;
-    roll: string;
-    location: string | null;
-    fabric: string;
-    color: string;
-    color_code: string;
-    width: string;
-    roll_qty: string;
-    partial_output: string;
-    partial_availability: string;
-    exit_quantity: string;
-    quantity_value?: number | string;
-    exit_quantity_value?: number | string;
-    real_availability: string;
-    order_number: string;
-    provider: string;
-    created_at: string | null;
-    creator: string | null;
-    status: 'available' | 'depleted';
-}
+
+export interface FabricRollView extends FabricRollViewDto {}
 
 export interface FabricRollReceptionForm {
     location: string;

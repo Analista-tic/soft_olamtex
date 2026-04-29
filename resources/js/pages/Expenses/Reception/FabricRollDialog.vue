@@ -36,14 +36,31 @@ type FabricRollForm = {
 
 type RollRecord = {
     id: number;
-    roll_number?: string | null;
-    roll?: string | null;
+    roll_number: string;
     quantity: number | string;
     roll_width: number | string;
     location?: string | null;
     description?: string | null;
     entry_date: string;
 };
+
+function normalizeRollRecord(payload: unknown): RollRecord | null {
+    if (!payload || typeof payload !== 'object') return null;
+
+    const record = payload as Record<string, unknown>;
+    const id = Number(record.id);
+    if (!Number.isFinite(id) || id <= 0) return null;
+
+    return {
+        id,
+        roll_number: String(record.roll_number ?? '').trim(),
+        quantity: (record.quantity as number | string | undefined) ?? '',
+        roll_width: (record.roll_width as number | string | undefined) ?? '',
+        location: typeof record.location === 'string' ? record.location : null,
+        description: typeof record.description === 'string' ? record.description : null,
+        entry_date: typeof record.entry_date === 'string' ? record.entry_date : '',
+    };
+}
 
 const props = defineProps<{
     isOpen: boolean;
@@ -237,11 +254,15 @@ async function loadRolls(): Promise<void> {
         const response = await axios.get(`${props.apiUrl}/item/${itemId}`);
 
         const payload = response.data;
-        rolls.value = Array.isArray(payload)
+        const rows = Array.isArray(payload)
             ? payload
             : Array.isArray(payload?.data)
               ? payload.data
               : [];
+
+        rolls.value = rows
+            .map((row: unknown) => normalizeRollRecord(row))
+            .filter((row): row is RollRecord => row !== null);
     } catch (error) {
         console.error(error);
         setAlert('No se pudieron cargar los rollos registrados.', 'error');
@@ -310,7 +331,7 @@ function startEditRoll(roll: RollRecord): void {
     clearAlert();
 
     form.value = {
-        roll_number: roll.roll_number || roll.roll || generateRollNumber(),
+        roll_number: roll.roll_number || generateRollNumber(),
         purchase_document_item_id: (props.item as any)?.id ?? null,
         quantity: roll.quantity ?? '',
         roll_width: roll.roll_width ?? '',
@@ -572,7 +593,7 @@ watch(dialogOpen, (value) => {
                                     </thead>
                                     <tbody>
                                         <tr v-for="roll in rolls" :key="roll.id" class="border-t">
-                                            <td class="px-4 py-3 font-medium">{{ roll.roll_number || roll.roll }}</td>
+                                            <td class="px-4 py-3 font-medium">{{ roll.roll_number }}</td>
                                             <td class="px-4 py-3 text-right">{{ roll.quantity }} mts</td>
                                             <td class="px-4 py-3 text-right">{{ roll.roll_width }} cm</td>
                                             <td class="px-4 py-3">{{ roll.location || '—' }}</td>
@@ -686,7 +707,7 @@ watch(dialogOpen, (value) => {
                             </DialogHeader>
                             <DialogDescription class="mt-1 text-sm text-muted-foreground">
                                 ¿Seguro que deseas eliminar el rollo
-                                <span class="font-medium text-foreground">{{ rollToDelete?.roll_number || rollToDelete?.roll }}</span>?
+                                <span class="font-medium text-foreground">{{ rollToDelete?.roll_number }}</span>?
                                 Esta acción no se puede deshacer.
                             </DialogDescription>
                         </div>

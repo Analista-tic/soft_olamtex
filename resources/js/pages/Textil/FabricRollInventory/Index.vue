@@ -19,8 +19,8 @@ import {
 } from '@/components/ui/pagination';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { FabricRollView } from '@/domain/Textil';
-import { formatMeters, formatWidthToMeters, toUnitNumber } from '@/domain/Textil';
+import type { FabricRollView, FabricRollViewDto } from '@/domain/Textil';
+import { formatMeters, formatWidthToMeters, mapFabricRollViewDto, toUnitNumber } from '@/domain/Textil';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useAuthStore } from '@/stores/auth';
 import { Head } from '@inertiajs/vue3';
@@ -99,7 +99,8 @@ async function fetchFabricRolls(page = 1) {
 
         const response = await axios.get(`/kardex-telas/inventario-rollos/data?${params.toString()}`);
         const payload = response.data;
-        rolls.value = Array.isArray(payload?.data) ? payload.data : [];
+        const rows = Array.isArray(payload?.data) ? payload.data : [];
+        rolls.value = rows.map((row: FabricRollViewDto) => mapFabricRollViewDto(row));
         currentPage.value = payload?.meta?.current_page ?? 1;
         lastPage.value = payload?.meta?.last_page ?? 1;
         totalRolls.value = payload?.meta?.total ?? rolls.value.length;
@@ -198,8 +199,8 @@ async function handleAdjustRequest(payload: { roll: FabricRollView | null; data:
         errorMessage.value = 'No se encontró el rollo seleccionado.';
         return;
     }
-    const exitQuantityValue = toUnitNumber(roll.exit_quantity) ?? 0;
-    const partialOutputValue = toUnitNumber(roll.partial_output) ?? 0;
+    const exitQuantityValue = toUnitNumber(roll.exit_quantity_value ?? roll.exit_quantity) ?? 0;
+    const partialOutputValue = toUnitNumber(roll.partial_output_value ?? roll.partial_output) ?? 0;
     const actualOutput = payload.data.actualOutput ? Number(payload.data.actualOutput) : exitQuantityValue;
     const partialOutput = payload.data.partialOutput ? Number(payload.data.partialOutput) : partialOutputValue;
     try {
