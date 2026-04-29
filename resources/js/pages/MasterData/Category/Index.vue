@@ -18,6 +18,7 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { CategoryGroup, CategorySubGroup } from '@/domain/MasterData';
@@ -262,9 +263,9 @@ onMounted(() => {
                     </TableHeader>
                     <TableBody>
                         <template v-if="isLoading">
-                            <TableRow>
-                                <TableCell colspan="4">
-                                    <div class="py-6 text-center text-sm text-muted-foreground">Cargando subgrupos...</div>
+                            <TableRow v-for="i in 5" :key="`category-skeleton-${i}`">
+                                <TableCell v-for="col in 4" :key="`category-skeleton-${i}-${col}`" class="px-4 py-3">
+                                    <Skeleton class="h-4 w-full" />
                                 </TableCell>
                             </TableRow>
                         </template>

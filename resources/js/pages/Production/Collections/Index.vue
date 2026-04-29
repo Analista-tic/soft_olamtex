@@ -21,6 +21,7 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useGlobalAlert } from '@/composables/useGlobalAlert';
 import type { BreadcrumbItem } from '@/domain/shared';
@@ -237,9 +238,13 @@ fetchCollections();
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-if="isLoading">
-                            <TableCell colspan="4" class="py-8 text-center text-muted-foreground">Cargando...</TableCell>
-                        </TableRow>
+                        <template v-if="isLoading">
+                            <TableRow v-for="i in 5" :key="`collection-skeleton-${i}`">
+                                <TableCell v-for="col in 4" :key="`collection-skeleton-${i}-${col}`" class="px-4 py-3">
+                                    <Skeleton class="h-4 w-full" />
+                                </TableCell>
+                            </TableRow>
+                        </template>
                         <TableRow v-else-if="collections.length === 0">
                             <TableCell colspan="4" class="py-8 text-center text-muted-foreground">No hay colecciones registradas.</TableCell>
                         </TableRow>

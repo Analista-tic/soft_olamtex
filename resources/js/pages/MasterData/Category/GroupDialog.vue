@@ -1,4 +1,8 @@
 <script setup lang="ts">
+// DEPRECADO: este componente sera eliminado cuando se complete
+// la migracion de todos los modulos a CreatableSelectField.
+// Pendiente: verificar uso en modulo de Categorias (pagina de listado)
+// antes de eliminar.
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputField from '@/components/InputField.vue';
 import { Button } from '@/components/ui/button';
@@ -47,25 +51,21 @@ function submitForm() {
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <FormDialogContent class="flex max-w-[95vh] flex-col px-2 pb-2 pt-5">
-            <DialogHeader class="flex-shrink-0">
+        <FormDialogContent class="flex max-w-md flex-col px-2 py-2">
+            <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle>Crear Grupo</DialogTitle>
                 <DialogDescription> Completa los campos para crear un nuevo grupo. </DialogDescription>
             </DialogHeader>
-            <div class="flex-1 overflow-y-auto scroll-smooth px-2 py-1" style="scrollbar-width: thin">
-                <div class="space-y-4 pt-5">
+            <div class="flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
+                <div class="space-y-4">
                     <InputField v-model="form.name" label="Nombre" placeholder="Nombre del grupo" required autocomplete="off" />
                 </div>
             </div>
-            <DialogFooter class="mt-4 flex flex-shrink-0 justify-end gap-2 border-t pt-4">
+            <DialogFooter class="flex-shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                 <Button variant="outline" size="pill" @click="closeDialog"> Cancelar </Button>
-                <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                    @click="submitForm"
-                >
+                <Button type="button" size="pill" @click="submitForm">
                     Crear
-                </button>
+                </Button>
             </DialogFooter>
         </FormDialogContent>
     </Dialog>

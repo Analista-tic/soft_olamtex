@@ -710,13 +710,8 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <FormDialogContent
-            class="flex h-[95vh] max-h-[95vh] w-full max-w-[95vw] flex-col overflow-hidden p-0"
-            content-class="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
-            :scrollable="false"
-        >
+        <FormDialogContent class="flex max-h-[95vh] max-w-[95vw] flex-col px-2 py-2">
             <TooltipProvider>
-            <div class="relative flex min-h-0 flex-1 flex-col">
                 <AlertStack
                     :success-message="successMessage"
                     :error-message="errorMessage"
@@ -806,11 +801,17 @@ watch(dialogOpen, (isOpen) => {
                 </div>
 
                 <FormDialogBody class="relative px-4 pr-2" :class="{ 'min-h-[420px]': isBlockingLoading }" style="scrollbar-width: thin">
+                    <FormLoadingOverlay
+                        :active="isBlockingLoading"
+                        :delay-ms="0"
+                        message="Cargando factura de compra..."
+                        description="Preparando proveedores, ordenes pendientes y datos iniciales."
+                    />
                     <div
                         :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingInvoiceId }"
                         class="space-y-6 pb-4"
                     >
-                        <fieldset v-if="canRenderForm" class="space-y-6">
+                        <template v-if="canRenderForm">
                             <div class="space-y-4 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
                                 <!-- Orden relacionada (solo lectura) -->
                                 <div
@@ -1057,7 +1058,7 @@ watch(dialogOpen, (isOpen) => {
                                     />
                                 </div>
                             </div>
-                        </fieldset>
+                        </template>
                     </div>
                 </FormDialogBody>
                 <FormDialogFooter class="justify-end gap-4 bg-background">
@@ -1069,13 +1070,6 @@ watch(dialogOpen, (isOpen) => {
                         {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
                     </Button>
                 </FormDialogFooter>
-                <FormLoadingOverlay
-                    :active="isBlockingLoading"
-                    :delay-ms="0"
-                    message="Cargando factura de compra..."
-                    description="Preparando proveedores, ordenes pendientes y datos iniciales."
-                />
-            </div>
             </TooltipProvider>
         </FormDialogContent>
     </Dialog>

@@ -651,7 +651,7 @@ watch(
             </Button>
         </DialogTrigger>
 
-        <FormDialogContent class="flex h-[98vh] w-[96vw] max-w-[1500px] flex-col overflow-hidden p-0">
+        <FormDialogContent class="flex w-[96vw] max-w-[1500px] flex-col overflow-hidden p-0">
             <DialogHeader class="flex-shrink-0 border-b px-6 pb-3 pt-4">
                 <DialogTitle>Crear Nuevo Programador</DialogTitle>
                 <DialogDescription> Completa los campos para crear un programador. Haz clic en guardar cuando termines. </DialogDescription>

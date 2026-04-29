@@ -2,12 +2,13 @@
 import AlertStack from '@/components/common/AlertStack.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -459,7 +460,7 @@ async function handleSubmit() {
 
 <template>
     <Dialog :open="isOpen" @update:open="emit('close')">
-        <DialogContent class="flex max-h-[90vh] max-w-[200vh] flex-col p-0">
+        <FormDialogContent class="flex max-h-[95vh] max-w-[95vw] flex-col px-2 py-2">
             <DialogHeader class="flex-shrink-0 px-4 pb-5 pt-4">
                 <DialogTitle>{{ props.dialogType === 'edit' ? 'Editar ajuste de inventario' : 'Nuevo ajuste de inventario' }}</DialogTitle>
                 <DialogDescription> Registra un movimiento de entrada o salida de inventario. </DialogDescription>
@@ -473,9 +474,9 @@ async function handleSubmit() {
                 @close-error="errorMessage = ''"
             />
 
-            <div class="flex-1 overflow-y-auto scroll-smooth px-4" style="scrollbar-width: thin">
-                <form class="space-y-4" novalidate @submit.prevent="handleSubmit">
-                    <div>
+            <form class="flex min-h-0 flex-1 flex-col" novalidate @submit.prevent="handleSubmit">
+                <div class="flex-1 overflow-y-auto scroll-smooth px-4" style="scrollbar-width: thin">
+                    <div class="space-y-4">
                         <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                             <div>
                                 <Label># Documento</Label>
@@ -659,26 +660,26 @@ async function handleSubmit() {
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <DialogFooter class="mt-4 flex flex-shrink-0 flex-col gap-2 border-t px-4 pb-4 pt-4 md:flex-row md:justify-end">
-                        <div class="w-full md:w-auto">
-                            <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="emit('close')">
-                                Cancelar
-                            </Button>
-                        </div>
-                        <div class="w-full md:w-auto">
-                            <Button
-                                type="submit"
-                                variant="default"
-                                class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
-                                :disabled="isSubmitting"
-                            >
-                                {{ isSubmitting ? 'Guardando...' : props.dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
-                            </Button>
-                        </div>
-                    </DialogFooter>
-                </form>
-            </div>
-        </DialogContent>
+                <DialogFooter class="mt-4 flex flex-shrink-0 flex-col gap-2 border-t px-4 pb-4 pt-4 md:flex-row md:justify-end">
+                    <div class="w-full md:w-auto">
+                        <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="emit('close')">
+                            Cancelar
+                        </Button>
+                    </div>
+                    <div class="w-full md:w-auto">
+                        <Button
+                            type="submit"
+                            variant="default"
+                            class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+                            :disabled="isSubmitting"
+                        >
+                            {{ isSubmitting ? 'Guardando...' : props.dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
+                        </Button>
+                    </div>
+                </DialogFooter>
+            </form>
+        </FormDialogContent>
     </Dialog>
 </template>

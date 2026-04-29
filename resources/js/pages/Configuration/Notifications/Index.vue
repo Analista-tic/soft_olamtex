@@ -17,6 +17,7 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAlertStack } from '@/composables/useAlert';
@@ -449,14 +450,13 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
                         </TableRow>
 
                         <!-- Loading -->
-                        <TableRow v-if="isLoading">
-                            <TableCell colspan="7" class="py-12">
-                                <div class="flex items-center justify-center text-muted-foreground">
-                                    <div class="mr-3 h-6 w-6 animate-spin rounded-full border-b-2 border-primary"></div>
-                                    <span class="text-sm">Cargando notificaciones...</span>
-                                </div>
-                            </TableCell>
-                        </TableRow>
+                        <template v-if="isLoading">
+                            <TableRow v-for="i in 5" :key="`notification-skeleton-${i}`">
+                                <TableCell v-for="col in 7" :key="`notification-skeleton-${i}-${col}`" class="px-4 py-3">
+                                    <Skeleton class="h-4 w-full" />
+                                </TableCell>
+                            </TableRow>
+                        </template>
 
                         <!-- Notificaciones -->
                         <TableRow

@@ -7,6 +7,7 @@ use App\Models\Expenses\PurchaseDocument;
 use App\Services\Expenses\PurchaseDocumentInvoiceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
 
 class PurchaseInvoiceController extends PurchaseDocumentController
 {
@@ -56,6 +57,23 @@ class PurchaseInvoiceController extends PurchaseDocumentController
         return $this->indexView('Expenses/PurchaseInvoices/Index');
     }
 
+    public function create()
+    {
+        return Inertia::render('Expenses/PurchaseInvoices/PurchaseInvoiceForm', [
+            'mode' => 'create',
+        ]);
+    }
+
+    public function edit(PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        $invoice = $this->service->loadWithRelations($purchaseDocument);
+        return Inertia::render('Expenses/PurchaseInvoices/PurchaseInvoiceForm', [
+            'mode' => 'edit',
+            'form' => $invoice,
+        ]);
+    }
+
     public function getData(Request $request)
     {
 
@@ -66,7 +84,7 @@ class PurchaseInvoiceController extends PurchaseDocumentController
             $filters,
             $request->input('per_page', 20),
             $request,
-            auth()->user()
+            Auth::user()
         );
 
         return response()->json([
@@ -185,6 +203,20 @@ class PurchaseInvoiceController extends PurchaseDocumentController
         );
 
         return response()->json(['data' => $invoice]);
+    }
+
+    /**
+     * Render printable view (Inertia) for the purchase invoice.
+     */
+    public function print(PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+
+        $invoice = $this->service->loadWithRelations($purchaseDocument);
+
+        return Inertia::render('Expenses/PurchaseInvoices/PurchaseInvoicePrint', [
+            'invoice' => $invoice,
+        ]);
     }
 
     public function rejectDifference(Request $request, PurchaseDocument $purchaseDocument)

@@ -20,6 +20,7 @@ const props = defineProps<
         contentClass?: HTMLAttributes['class'];
         overlayClass?: HTMLAttributes['class'];
         scrollable?: boolean;
+        hideClose?: boolean;
     }
 >();
 const emits = defineEmits<DialogContentEmits>();
@@ -31,6 +32,7 @@ const delegatedProps = computed(() => {
         contentClass: _contentClass,
         overlayClass: _overlayClass,
         scrollable: _scrollable,
+        hideClose: _hideClose,
         ...delegated
     } = props;
 
@@ -41,6 +43,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
 const attrs = useAttrs();
 const mergedForwarded = computed(() => ({ ...forwarded, ...attrs }));
 const isScrollable = computed(() => props.scrollable ?? true);
+const isHideClose = computed(() => props.hideClose ?? false);
 
 function isDatepickerPopoverTarget(target: EventTarget | null) {
     if (!(target instanceof Element)) return false;
@@ -93,7 +96,7 @@ function handleInteractOutside(event: unknown) {
                 <slot />
             </div>
 
-            <DialogClose
+            <DialogClose v-if="!isHideClose"
                 :class="
                     cn(
                         'absolute right-5 top-2 z-10 rounded border-0 bg-transparent px-2 py-1 text-lg font-medium text-muted-foreground transition hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',

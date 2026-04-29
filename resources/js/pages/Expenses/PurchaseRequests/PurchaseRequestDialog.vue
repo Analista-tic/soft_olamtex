@@ -524,12 +524,11 @@ watch(dialogOpen, (isOpen) => {
 <template>
     <Dialog v-model:open="dialogOpen">
         <FormDialogContent
-            class="flex h-[95vh] max-h-[95vh] w-full max-w-[95vw] flex-col overflow-hidden p-0"
-            content-class="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+            class="flex max-h-[95vh] max-w-[95vw] flex-col px-2 py-2"
             :scrollable="false"
         >
             <div class="flex min-h-0 flex-1 flex-col">
-                <DialogHeader class="shrink-0 px-4 pb-3 pt-4">
+                <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                     <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Solicitud de Compra</DialogTitle>
                     <DialogDescription>Completa los campos de la solicitud de compra.</DialogDescription>
                 </DialogHeader>
@@ -654,16 +653,18 @@ watch(dialogOpen, (isOpen) => {
                                         <h3 class="text-sm font-semibold">Items</h3>
                                         <p class="text-xs text-muted-foreground">Agrega los items necesarios para esta solicitud</p>
                                     </div>
-                                    <button
+                                    <Button
                                         v-if="!isReadOnly"
                                         type="button"
+                                        variant="outline"
+                                        size="pill"
                                         dusk="btn-agregar-item"
-                                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-4 py-2 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        class="border-primary/40 text-primary shadow-sm hover:bg-primary/10"
                                         @click="itemsTableRef?.addItem()"
                                     >
                                         <Plus class="h-4 w-4" />
                                         Agregar Item
-                                    </button>
+                                    </Button>
                                 </div>
                                 <PurchaseRequestItemsTable
                                     ref="itemsTableRef"

@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import DatePickerField from '@/components/DatePickerField.vue';
-import FormDialogBody from '@/components/FormDialogBody.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
-import FormDialogFooter from '@/components/FormDialogFooter.vue';
-import FormDialogHeader from '@/components/FormDialogHeader.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
@@ -12,7 +9,7 @@ import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Label from '@/components/ui/label/Label.vue';
 import { useAlertStack } from '@/composables/useAlert';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
@@ -714,12 +711,47 @@ watch(selectedPurchaseRequestId, async (requestId) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <FormDialogContent
-            class="flex h-[95vh] max-h-[95vh] w-full max-w-[95vw] flex-col overflow-hidden p-0"
-            content-class="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
-            :scrollable="false"
-        >
-            <div class="relative flex min-h-0 flex-1 flex-col">
+        <FormDialogContent class="flex max-h-[95vh] max-w-[95vw] flex-col px-2 py-2">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
+                <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                    <div class="flex min-w-0 flex-col gap-1">
+                        <DialogTitle>
+                            {{ isReadOnly ? 'Ver' : dialogType === 'edit' ? 'Editar' : 'Nueva' }}
+                            Orden de Compra
+                        </DialogTitle>
+                        <DialogDescription> Completa los campos y añade los ítems de la orden. </DialogDescription>
+                    </div>
+                    <div v-if="!isReadOnly" class="w-full shrink-0 sm:w-[340px]">
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium leading-none text-foreground">Cargar desde solicitud aprobada</label>
+                            <div class="flex items-center gap-2">
+                                <div class="flex-1 min-w-0">
+                                    <SelectField
+                                        v-model="selectedPurchaseRequestValue"
+                                        :options="pendingPurchaseRequestOptions"
+                                        label=""
+                                        placeholder="Selecciona una solicitud aprobada para autocompletar"
+                                        :disabled="isReadOnly || !pendingPurchaseRequestOptions.length || dialogType === 'edit'"
+                                        :searchable="pendingPurchaseRequestOptions.length >= 6"
+                                        search-placeholder="Buscar solicitud..."
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    class="flex-shrink-0 h-7 w-7 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
+                                    :disabled="!selectedPurchaseRequestId || isReadOnly || dialogType === 'edit'"
+                                    title="Limpiar selección"
+                                    @click="selectedPurchaseRequestId = null; resetForm()"
+                                >
+                                    <X class="h-3.5 w-3.5" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </DialogHeader>
+
+            <div class="relative min-h-0 flex-1 overflow-y-auto px-5 py-4" :class="{ 'min-h-[420px]': isBlockingLoading }" style="scrollbar-width: thin">
                 <AlertStack
                     :success-message="successMessage"
                     :error-message="errorMessage"
@@ -729,51 +761,20 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                     @close-success="clearSuccess"
                     @close-error="clearError"
                 />
-                <FormDialogHeader class="px-4 pb-3 pr-12 pt-4">
-                    <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                        <div class="flex min-w-0 flex-col gap-1">
-                            <DialogTitle>
-                                {{ isReadOnly ? 'Ver' : dialogType === 'edit' ? 'Editar' : 'Nueva' }}
-                                Orden de Compra
-                            </DialogTitle>
-                            <DialogDescription> Completa los campos y añade los ítems de la orden. </DialogDescription>
-                        </div>
-                        <div v-if="!isReadOnly" class="w-full shrink-0 sm:w-[340px]">
-                            <div class="space-y-1">
-                                <label class="text-sm font-medium leading-none text-foreground">Cargar desde solicitud aprobada</label>
-                                <div class="flex items-center gap-2">
-                                    <div class="flex-1 min-w-0">
-                                        <SelectField
-                                            v-model="selectedPurchaseRequestValue"
-                                            :options="pendingPurchaseRequestOptions"
-                                            label=""
-                                            placeholder="Selecciona una solicitud aprobada para autocompletar"
-                                            :disabled="isReadOnly || !pendingPurchaseRequestOptions.length || dialogType === 'edit'"
-                                            :searchable="pendingPurchaseRequestOptions.length >= 6"
-                                            search-placeholder="Buscar solicitud..."
-                                        />
-                                    </div>
-                                    <button
-                                        type="button"
-                                        class="flex-shrink-0 h-7 w-7 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
-                                        :disabled="!selectedPurchaseRequestId || isReadOnly || dialogType === 'edit'"
-                                        title="Limpiar selección"
-                                        @click="selectedPurchaseRequestId = null; resetForm()"
-                                    >
-                                        <X class="h-3.5 w-3.5" />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </FormDialogHeader>
-                <FormDialogBody class="relative px-4 pr-2" :class="{ 'min-h-[420px]': isBlockingLoading }" style="scrollbar-width: thin">
+                <FormLoadingOverlay
+                    :active="isBlockingLoading"
+                    :delay-ms="0"
+                    message="Cargando orden de compra..."
+                    description="Preparando proveedores, solicitudes aprobadas y datos iniciales."
+                />
+
+                <template v-if="canRenderForm">
                     <form
                         @submit.prevent="handleSubmit()"
                         :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingOrderId }"
                         class="space-y-6 pb-4"
                     >
-                        <fieldset v-if="canRenderForm" class="space-y-6">
+                        <div class="space-y-6">
                             <!-- Información de solicitud seleccionada -->
                             <div v-if="selectedPurchaseRequest" class="rounded-lg border border-border bg-muted/30 p-4">
                                 <div class="mb-3 flex items-center justify-between">
@@ -995,38 +996,33 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                     />
                                 </div>
                             </div>
-                        </fieldset>
+                        </div>
                     </form>
-                </FormDialogBody>
-                <FormDialogFooter class="justify-end gap-4 bg-background">
-                    <Button variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
-                    <button
-                        v-if="!isReadOnly"
-                        type="button"
-                        dusk="btn-guardar-orden"
-                        :disabled="isLoading || isSendingMail || isBlockingLoading"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
-                        @click.prevent="handleSubmit(false)"
-                    >
-                        {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
-                    </button>
-                    <button
-                        v-if="!isReadOnly"
-                        type="button"
-                        :disabled="isLoading || isSendingMail || isBlockingLoading"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
-                        @click.prevent="handleSubmit(true)"
-                    >
-                        {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
-                    </button>
-                </FormDialogFooter>
-                <FormLoadingOverlay
-                    :active="isBlockingLoading"
-                    :delay-ms="0"
-                    message="Cargando orden de compra..."
-                    description="Preparando proveedores, solicitudes aprobadas y datos iniciales."
-                />
+                </template>
             </div>
+
+            <DialogFooter class="flex-shrink-0 border-t border-border px-5 py-4 justify-end gap-4">
+                <Button variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
+                <button
+                    v-if="!isReadOnly"
+                    type="button"
+                    dusk="btn-guardar-orden"
+                    :disabled="isLoading || isSendingMail || isBlockingLoading"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
+                    @click.prevent="handleSubmit(false)"
+                >
+                    {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
+                </button>
+                <button
+                    v-if="!isReadOnly"
+                    type="button"
+                    :disabled="isLoading || isSendingMail || isBlockingLoading"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
+                    @click.prevent="handleSubmit(true)"
+                >
+                    {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
+                </button>
+            </DialogFooter>
         </FormDialogContent>
     </Dialog>
     <ContactDialog

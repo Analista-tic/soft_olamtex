@@ -89,6 +89,116 @@ class LegacyItemsMigrationService
     protected ?int $fallbackSubGroupId = null;
     protected ?int $defaultTaxId = null;
 
+    // Aliases para subgrupos (valores RAW del CSV -> nombre canónico en BD)
+    protected array $subgroupAliases = [
+        // Materia Prima
+        'ENTRETELA'              => 'TELA',
+        'KOALITA'                => 'TELA',
+        'MASSALA'                => 'TELA',
+        // Insumos → Accesorios
+        'ABROCHADURA'            => 'ACCESORIOS',
+        'ARANDELA'               => 'ACCESORIOS',
+        'CAMPANA'                => 'ACCESORIOS',
+        'GANCHO'                 => 'ACCESORIOS',
+        'MEDIA'                  => 'ACCESORIOS',
+        'PERLA'                  => 'ACCESORIOS',
+        'TANCA'                  => 'ACCESORIOS',
+        'TERMINAL'               => 'ACCESORIOS',
+        // Insumos → Cierre
+        'CIERRES'                => 'CIERRE',
+        // Insumos → Cremallera
+        'CERMALLERA'             => 'CREMALLERA',
+        'CREMALLER'              => 'CREMALLERA',
+        // Insumos → Cordón
+        'CORDON'                 => 'CORDÓN',
+        'CORODON'                => 'CORDÓN',
+        // Insumos → Elástico
+        'ELASTICO'               => 'ELÁSTICO',
+        // Insumos → Cinta
+        'FRAMILON'               => 'CINTA',
+        'RESINA'                 => 'CINTA',
+        'TERMOENCOGIBLE'         => 'CINTA',
+        'VELCRO'                 => 'CINTA',
+        // Insumos → Código
+        'CODIGOS'                => 'CÓDIGO',
+        'CODIGO'                 => 'CÓDIGO',
+        // Insumos → Hilo
+        'CONO'                   => 'HILO',
+        // Insumos → Marquilla
+        'MARQ'                   => 'MARQUILLA',
+        'MARQ.'                  => 'MARQUILLA',
+        // Insumos → Placa
+        'PLAQUETA'               => 'PLACA',
+        // Insumos → Remache
+        'TACHE'                  => 'REMACHE',
+        // Insumos → Varios
+        'CAMIONETA'              => 'VARIOS',
+        'ROLLO'                  => 'VARIOS',
+        // Suministros → Consumibles
+        'ACEITE'                 => 'CONSUMIBLES',
+        'BANDA'                  => 'CONSUMIBLES',
+        'CREMA'                  => 'CONSUMIBLES',
+        'DEDALE'                 => 'CONSUMIBLES',
+        'ENTINTADOR'             => 'CONSUMIBLES',
+        'FILTRO'                 => 'CONSUMIBLES',
+        'PAPEL'                  => 'CONSUMIBLES',
+        'PIEDRA'                 => 'CONSUMIBLES',
+        'PUNTERA'                => 'CONSUMIBLES',
+        'TINTA'                  => 'CONSUMIBLES',
+        'TIZAS'                  => 'CONSUMIBLES',
+        // Suministros → Empaque
+        'ZUNCHO'                 => 'EMPAQUE',
+        // Aditamentos → Accesorios maquina
+        'AFILADORES'             => 'ACCESORIOS MAQUINA',
+        'AGUJA'                  => 'ACCESORIOS MAQUINA',
+        'CARRETEL'               => 'ACCESORIOS MAQUINA',
+        'CARRETELES'             => 'ACCESORIOS MAQUINA',
+        'CEPILLO'                => 'ACCESORIOS MAQUINA',
+        'DIENTE'                 => 'ACCESORIOS MAQUINA',
+        'LONG'                   => 'ACCESORIOS MAQUINA',
+        'SINKER'                 => 'ACCESORIOS MAQUINA',
+        'ZAPATO'                 => 'ACCESORIOS MAQUINA',
+        // Aditamentos → Cuchilla
+        'CONTRACUCHILLA'         => 'CUCHILLA',
+        // Aditamentos → Paño
+        'PANO'                   => 'PAÑO',
+        // Herramientas
+        'REVISADOR(CHEQUEADOR)'  => 'CHEQUEADOR',
+        // Repuestos → General
+        'AISLADOR'               => 'GENERAL',
+        'ARANDELAS'              => 'GENERAL',
+        'ESCOBILLAS'             => 'GENERAL',
+        'FUSIBLE'                => 'GENERAL',
+        'LOOPER'                 => 'GENERAL',
+        'TORNILLO'               => 'GENERAL',
+        // Papelería y Aseo
+        'ALCOHOL'                => 'DESINFECTANTE',
+        'AMBIENTADOR'            => 'VARIOS ASEO',
+        'BOLSILLO'               => 'VARIOS PAPELERÍA',
+        'BOLIGRAFO'              => 'BOLÍGRAFO',
+        'CANDELA'                => 'VARIOS ASEO',
+        'CLIP'                   => 'VARIOS PAPELERÍA',
+        'CORRECTOR'              => 'VARIOS PAPELERÍA',
+        'CUADERNOS'              => 'VARIOS PAPELERÍA',
+        'ESCOBA'                 => 'LIMPIEZA PISOS',
+        'GANCHO'                 => 'VARIOS PAPELERÍA',
+        'GUIA'                   => 'VARIOS PAPELERÍA',
+        'LAPIZ'                  => 'VARIOS PAPELERÍA',
+        'LEGAJADOR'              => 'VARIOS PAPELERÍA',
+        'MANGO'                  => 'LIMPIEZA PISOS',
+        'MOUSE'                  => 'TECNOLOGÍA',
+        'PAD'                    => 'TECNOLOGÍA',
+        'PEGANOTAS'              => 'VARIOS PAPELERÍA',
+        'PEGASTICK'              => 'VARIOS PAPELERÍA',
+        'PILAS'                  => 'TECNOLOGÍA',
+        'RECOGEDOR'              => 'LIMPIEZA PISOS',
+        'REPUESTO'               => 'TECNOLOGÍA',
+        'RESALTADOR'             => 'VARIOS PAPELERÍA',
+        'SACAGANCHOS'            => 'VARIOS PAPELERÍA',
+        'TOALLAS'                => 'TOALLA',
+        'TRAPERO'                => 'LIMPIEZA PISOS',
+    ];
+
     /**
      * Punto de entrada: importar todos los CSVs legacy.
      *
@@ -158,6 +268,8 @@ class LegacyItemsMigrationService
         if ($bom !== "\xEF\xBB\xBF") {
             rewind($handle);
         }
+        // Forzar conversión a UTF-8 en el stream (evita problemas con fgetcsv en Windows)
+        @stream_filter_append($handle, 'convert.iconv.UTF-8/UTF-8');
 
         $rawHeaders = fgetcsv($handle, 0, ',', '"', '\\');
         if ($rawHeaders === false || empty($rawHeaders)) {
@@ -367,28 +479,58 @@ class LegacyItemsMigrationService
         $nameUpper  = mb_strtoupper(trim($name), 'UTF-8');
         $groupUpper = mb_strtoupper(trim($groupName), 'UTF-8');
 
+        // DEBUG: logear valores recibidos para depuración de matching
+        Log::debug('legacy_subgroup_lookup', [
+            'name'      => $name,
+            'nameUpper' => $nameUpper,
+            'group'     => $groupName,
+            'groupUpper'=> $groupUpper,
+        ]);
+
         if ($nameUpper === '' || $nameUpper === '-') {
             return $this->getFallbackSubGroupId();
         }
 
+        // Normalizar y aplicar aliases antes de buscar en cache/BD
+        $normalizedName  = $this->normalize($name);
+        $normalizedGroup = $this->normalize($groupName);
+
+        // Aplicar alias si existe (clave en MAYÚSCULAS sin normalizar)
+        $aliasKey = mb_strtoupper(trim($name), 'UTF-8');
+        if (isset($this->subgroupAliases[$aliasKey])) {
+            $name = $this->subgroupAliases[$aliasKey];
+            $nameUpper = mb_strtoupper(trim($name), 'UTF-8');
+            $normalizedName = $this->normalize($name);
+        }
+
         // Intentar primero con grupo (clave combinada)
         if ($groupUpper !== '') {
+            $normalizedName  = $this->normalize($name);
+            $normalizedGroup = $this->normalize($groupName);
+            $normKey = $normalizedName . '|' . $normalizedGroup;
+            if (isset($this->subGroupCache[$normKey])) {
+                return $this->subGroupCache[$normKey];
+            }
+
             $cacheKey = $nameUpper . '|' . $groupUpper;
             if (isset($this->subGroupCache[$cacheKey])) {
                 return $this->subGroupCache[$cacheKey];
             }
 
-            // Buscar en BD con JOIN directo (no depende de relación Eloquent)
+            // Fallback a consulta en BD si no está en cache (todavía respetando COLLATE correcto)
             $subGroup = CategorySubGroup::query()
                 ->join('category_groups', 'category_groups.id', '=', 'category_sub_groups.category_group_id')
-                ->whereRaw('UPPER(category_sub_groups.name) COLLATE utf8mb4_unicode_ci = UPPER(?) COLLATE utf8mb4_unicode_ci', [$nameUpper])
-                ->whereRaw('UPPER(category_groups.name) COLLATE utf8mb4_unicode_ci = UPPER(?) COLLATE utf8mb4_unicode_ci', [$groupUpper])
+                ->whereRaw('UPPER(category_sub_groups.name) COLLATE utf8mb4_0900_ai_ci = UPPER(?) COLLATE utf8mb4_0900_ai_ci', [$nameUpper])
+                ->whereRaw('UPPER(category_groups.name) COLLATE utf8mb4_0900_ai_ci = UPPER(?) COLLATE utf8mb4_0900_ai_ci', [$groupUpper])
                 ->select('category_sub_groups.id')
                 ->first();
 
             if ($subGroup) {
                 $this->subGroupCache[$cacheKey] = $subGroup->id;
                 $this->subGroupCache[$nameUpper] = $subGroup->id;
+                // also store normalized versions for future
+                $this->subGroupCache[$normKey] = $subGroup->id;
+                $this->subGroupCache[$normalizedName] = $subGroup->id;
                 return $subGroup->id;
             }
         }
@@ -399,7 +541,7 @@ class LegacyItemsMigrationService
         }
 
         $subGroup = CategorySubGroup::whereRaw(
-            'UPPER(name) COLLATE utf8mb4_unicode_ci = UPPER(?) COLLATE utf8mb4_unicode_ci',
+            'UPPER(name) COLLATE utf8mb4_0900_ai_ci = UPPER(?) COLLATE utf8mb4_0900_ai_ci',
             [$nameUpper]
         )->first();
 
@@ -608,6 +750,11 @@ class LegacyItemsMigrationService
             if ($nameKey !== '') {
                 $this->subGroupCache[$nameKey]  = $sg->id;
                 $this->subGroupCache[$combined] = $sg->id;
+                // also store normalized (ASCII-transliterated) keys
+                $normName = $this->normalize($sg->name);
+                $normGroup = $this->normalize($groupKey);
+                $this->subGroupCache[$normName] = $sg->id;
+                $this->subGroupCache[$normName.'|'.$normGroup] = $sg->id;
             }
         });
 
@@ -626,5 +773,13 @@ class LegacyItemsMigrationService
             'taxes'      => count($this->taxCache),
             'warehouses' => count($this->warehouseCache),
         ]);
+    }
+
+    /** Normaliza un valor: trim + mayúsculas + transliteración ASCII (sin acentos). */
+    protected function normalize(string $value): string
+    {
+        $upper = mb_strtoupper(trim($value), 'UTF-8');
+        $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $upper);
+        return ($ascii !== false && $ascii !== '') ? $ascii : $upper;
     }
 }

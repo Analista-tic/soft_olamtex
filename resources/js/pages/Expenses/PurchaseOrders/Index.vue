@@ -9,17 +9,23 @@ import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { PurchaseOrder } from '@/domain/Expenses';
-import type { Item } from '@/domain/MasterData';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { CheckCircle, Eye, Mail, MoreVertical, PlusCircle, Printer, ReceiptText, Search } from 'lucide-vue-next';
+import { Eye, PlusCircle, Search, Printer, Mail, Trash2, MoreVertical } from 'lucide-vue-next';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { computed, onMounted, ref, watch } from 'vue';
+import { router } from '@inertiajs/vue3';
 import PurchaseOrderDialog from './PurchaseOrderDialog.vue';
 import PurchaseOrderPrintDialog from './PurchaseOrderPrintDialog.vue';
 
@@ -32,19 +38,27 @@ const dialogType = ref<'create' | 'edit'>('create');
 const dialogReadonly = ref(false);
 const form = ref<Partial<PurchaseOrder>>({});
 const isPreparingDialog = ref(false);
+
+const searchQuery = ref('');
 const orderToDelete = ref<PurchaseOrder | null>(null);
 const isDeleteDialogOpen = ref(false);
-const searchQuery = ref('');
 const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
 const isPrintDialogOpen = ref(false);
 const orderToPrint = ref<PurchaseOrder | null>(null);
 const isSendingMail = ref(false);
-const isApproving = ref<number | null>(null);
+
+
 const successMessage = ref('');
 const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
+
+const warningMatcher = (msg: string) => /obligatori|complet[ao]s? los campos/i.test(msg);
+const setErrorMessage = (msg: string) => {
+    errorType.value = warningMatcher(msg) ? 'warning' : 'error';
+    errorMessage.value = msg;
+};
 
 
 // NUEVOS FILTROS
@@ -107,49 +121,12 @@ const computeOrderTotal = (order: PurchaseOrder) => {
     }, 0);
 };
 
-const getOrderItemsPreview = (order: PurchaseOrder) => {
-    const names = (order.items || [])
-        .map((item) => {
-            const linkedItem = (item.item as Item | null) ?? null;
-            const rawName = linkedItem?.name ?? item.item_name ?? item.description;
-            if (typeof rawName === 'string') {
-                return rawName.trim();
-            }
-            if (rawName != null) {
-                return String(rawName).trim();
-            }
-            return '';
-        })
-        .filter((name) => name.length > 0);
 
-    if (!names.length) {
-        return '-';
-    }
-    if (names.length <= 2) {
-        return names.join(', ');
-    }
-    return `${names.slice(0, 2).join(', ')} +${names.length - 2} más`;
-};
 
 async function fetchProviders() {
     // Consumir correctamente los contactos como proveedores
     const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
     providers.value = response.data.data;
-}
-
-function openDialog(type: 'create' | 'edit', order: PurchaseOrder | null = null) {
-    if (isPreparingDialog.value) return;
-    isPreparingDialog.value = true;
-
-    dialogType.value = type;
-    dialogReadonly.value = false;
-    form.value = order ? { ...order } : {};
-    successMessage.value = '';
-    errorMessage.value = '';
-    errorType.value = 'error';
-
-    isDialogOpen.value = true;
-    isPreparingDialog.value = false;
 }
 
 function closeDialog() {
@@ -171,36 +148,9 @@ function viewOrder(order: PurchaseOrder) {
     isPreparingDialog.value = false;
 }
 
-function confirmDeleteOrder(order: PurchaseOrder) {
-    orderToDelete.value = order;
-    isDeleteDialogOpen.value = true;
-}
 
-const warningMatcher = (msg: string) => /obligatori|complet[ao]s? los campos/i.test(msg);
-const setErrorMessage = (msg: string) => {
-    errorType.value = warningMatcher(msg) ? 'warning' : 'error';
-    errorMessage.value = msg;
-};
-
-async function deleteOrder() {
-    if (!orderToDelete.value) return;
-    try {
-        await axios.delete(`/gastos/ordenes-compra/${orderToDelete.value.id}`);
-        successMessage.value = 'Orden eliminada correctamente.';
-        fetchOrders(currentPage.value, searchQuery.value);
-    } catch (e: any) {
-        const documentError = e?.response?.data?.errors?.document;
-        const normalizedDocumentError = Array.isArray(documentError) ? documentError[0] : documentError;
-        const serverMessage = normalizedDocumentError || e?.response?.data?.message || 'Error al eliminar la orden.';
-        setErrorMessage(serverMessage);
-    } finally {
-        isDeleteDialogOpen.value = false;
-    }
-}
-
-async function fetchOrders(page = 1, search = '') {
-    isLoading.value = true;
-    try {
+    async function fetchOrders(page = 1, search = '') {
+        try {
         const params: any = {
             page,
             per_page: itemsPerPage,
@@ -221,6 +171,50 @@ async function fetchOrders(page = 1, search = '') {
     }
 }
 
+    async function openPrintDialog(order: PurchaseOrder) {
+        // Cargar el objeto completo con items si no los tiene
+        if (!order.items || order.items.length === 0) {
+            try {
+                const { data } = await axios.get(`/gastos/ordenes-compra/${order.id}`);
+                orderToPrint.value = data.data || data;
+            } catch {
+                orderToPrint.value = order;
+            }
+        } else {
+            orderToPrint.value = order;
+        }
+        isPrintDialogOpen.value = true;
+    }
+
+    async function sendOrderByEmail(order: PurchaseOrder) {
+        if (isSendingMail.value) return;
+        isSendingMail.value = true;
+        try {
+            await axios.post(`/gastos/ordenes-compra/${order.id}/enviar-correo`);
+            successMessage.value = 'Orden enviada por correo correctamente.';
+            } catch (err: any) {
+                setErrorMessage(err?.response?.data?.message || 'Error al enviar el correo.');
+        } finally {
+            isSendingMail.value = false;
+        }
+    }
+
+    async function deleteOrder() {
+        if (!orderToDelete.value) return;
+        try {
+            await axios.delete(`/gastos/ordenes-compra/${orderToDelete.value.id}`);
+            successMessage.value = 'Orden eliminada correctamente.';
+            fetchOrders(currentPage.value, searchQuery.value);
+        } catch (e: any) {
+            const documentError = e?.response?.data?.errors?.document;
+            const normalizedDocumentError = Array.isArray(documentError) ? documentError[0] : documentError;
+            const serverMessage = normalizedDocumentError || e?.response?.data?.message || 'Error al eliminar la orden.';
+            setErrorMessage(serverMessage);
+        } finally {
+            isDeleteDialogOpen.value = false;
+        }
+    }
+
 // Actualiza los filtros y la tabla correctamente
 watch([statusFilter, providerFilter, dateFilter], () => {
     currentPage.value = 1;
@@ -237,31 +231,6 @@ onMounted(() => {
     fetchProviders();
 });
 
-function openPrintDialog(order: PurchaseOrder) {
-    orderToPrint.value = order;
-    isPrintDialogOpen.value = true;
-    setTimeout(() => {
-        window.print();
-    }, 400); // Espera breve para que el diálogo se renderice antes de imprimir
-}
-
-async function sendOrderByEmail(order: PurchaseOrder) {
-    if (isSendingMail.value) return;
-    isSendingMail.value = true;
-    try {
-        await axios.post(`/gastos/ordenes-compra/${order.id}/enviar-correo`);
-        successMessage.value = 'Orden enviada por correo correctamente.';
-    } catch (e) {
-        console.log('e', e);
-        setErrorMessage('Error al enviar el correo.');
-    } finally {
-        isSendingMail.value = false;
-    }
-}
-
-function canApproveOrder(order: PurchaseOrder): boolean {
-    return order.status === 'pending';
-}
 
 function getOrderStatusLabel(status?: string): string {
     if (status === 'approved') return 'Aprobada';
@@ -269,6 +238,11 @@ function getOrderStatusLabel(status?: string): string {
     if (status === 'invoiced') return 'Facturada';
     if (status === 'rejected') return 'Rechazada';
     return 'Pendiente';
+}
+
+function confirmDeleteOrder(order: PurchaseOrder) {
+    orderToDelete.value = order;
+    isDeleteDialogOpen.value = true;
 }
 
 function getOrderStatusTone(status?: string): 'green' | 'blue' | 'indigo' | 'red' | 'yellow' {
@@ -279,19 +253,7 @@ function getOrderStatusTone(status?: string): 'green' | 'blue' | 'indigo' | 'red
     return 'yellow';
 }
 
-async function approveOrder(order: PurchaseOrder) {
-    if (isApproving.value !== null) return;
-    isApproving.value = order.id ?? null;
-    try {
-        await axios.patch(`/gastos/ordenes-compra/${order.id}/approve`);
-        successMessage.value = 'Orden aprobada correctamente.';
-        fetchOrders(currentPage.value, searchQuery.value);
-    } catch (e: any) {
-        setErrorMessage(e?.response?.data?.message || 'Error al aprobar la orden.');
-    } finally {
-        isApproving.value = null;
-    }
-}
+
 
 function handleDialogRefresh(message?: string) {
     if (message) {
@@ -325,7 +287,7 @@ function handleDialogError(message?: string) {
                     <h1 class="text-lg font-bold">Órdenes de Compras y Servicios</h1>
                     <p class="text-sm text-muted-foreground">Lleva el control de las órdenes emitidas a proveedores y su estado de facturación.</p>
                 </div>
-                <Button variant="default" size="pill" dusk="btn-nueva-orden" :disabled="isPreparingDialog" @click="openDialog('create')">
+                <Button variant="default" size="pill" dusk="btn-nueva-orden" :disabled="isPreparingDialog" @click.prevent="router.visit('/gastos/ordenes-compra/crear')">
                     <PlusCircle class="h-4 w-4" />
                     Nueva Orden
                 </Button>
@@ -430,9 +392,9 @@ function handleDialogError(message?: string) {
                     </TableHeader>
                     <TableBody>
                         <template v-if="isLoading">
-                            <TableRow>
-                                <TableCell colspan="8">
-                                    <div class="py-6 text-center text-sm text-muted-foreground">Cargando órdenes...</div>
+                            <TableRow v-for="i in 5" :key="`purchase-order-skeleton-${i}`">
+                                <TableCell v-for="col in 8" :key="`purchase-order-skeleton-${i}-${col}`" class="px-4 py-3">
+                                    <Skeleton class="h-4 w-full" />
                                 </TableCell>
                             </TableRow>
                         </template>
@@ -457,10 +419,44 @@ function handleDialogError(message?: string) {
                                     <TableStatusBadge :dusk="`estado-orden-${order.id}`" :label="getOrderStatusLabel(order.status)" :tone="getOrderStatusTone(order.status)" />
                                 </TableCell>
                                 <TableCell class="flex justify-center gap-1">
+                                    <!-- Acción 1: Editar -->
+                                    <EditButton @click="router.visit('/gastos/ordenes-compra/' + order.id + '/editar')" />
+
+                                    <!-- Acción 2: Ver -->
                                     <Button variant="ghost" size="icon" :class="actionButtonClass" title="Ver orden" @click="viewOrder(order)">
                                         <Eye :class="actionIconClass" />
                                         <span class="sr-only">Ver orden</span>
                                     </Button>
+
+                                    <!-- Acción 3: Eliminar -->
+                                    <DeleteButton @click="confirmDeleteOrder(order)" title="Eliminar orden" />
+
+                                    <!-- Acción 4: Más acciones -->
+                                    <DropdownMenu>
+                                            <DropdownMenuTrigger as-child>
+                                            <Button variant="ghost" size="icon" :class="actionButtonClass" title="Más acciones">
+                                                <MoreVertical :class="actionIconClass" />
+                                                <span class="sr-only">Más acciones</span>
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem @click="openPrintDialog(order)">
+                                                <Printer class="mr-2 h-4 w-4" />
+                                                Imprimir
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem @click="sendOrderByEmail(order)">
+                                                <Mail class="mr-2 h-4 w-4" />
+                                                Enviar por correo
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                class="text-destructive focus:text-destructive"
+                                                @click="confirmDeleteOrder(order)"
+                                            >
+                                                <Trash2 class="mr-2 h-4 w-4" />
+                                                Eliminar
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </TableCell>
                             </TableRow>
                         </template>

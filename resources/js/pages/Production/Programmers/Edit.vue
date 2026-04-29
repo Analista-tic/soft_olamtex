@@ -496,7 +496,7 @@ watch(
 
 <template>
     <Dialog v-model:open="isDialogOpen" aria-labelledby="dialog-title" aria-describedby="dialog-description">
-        <FormDialogContent class="flex h-[95vh] w-[96vw] max-w-[1200px] flex-col overflow-hidden p-0">
+        <FormDialogContent class="flex w-[96vw] max-w-[1200px] flex-col overflow-hidden p-0">
             <TooltipProvider>
                 <DialogHeader class="flex-shrink-0 border-b px-6 pb-4 pt-6">
                     <DialogTitle>{{ dialogTitle }}</DialogTitle>

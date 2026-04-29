@@ -13,6 +13,7 @@ import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -526,9 +527,13 @@ onBeforeUnmount(() => {
                         </TableHeader>
 
                         <TableBody>
-                            <TableRow v-if="isLoading">
-                                <TableCell colspan="5" class="text-center text-sm text-muted-foreground">Cargando parámetros...</TableCell>
-                            </TableRow>
+                            <template v-if="isLoading">
+                                <TableRow v-for="i in 5" :key="`parameter-skeleton-${i}`">
+                                    <TableCell v-for="col in 5" :key="`parameter-skeleton-${i}-${col}`" class="px-4 py-3">
+                                        <Skeleton class="h-4 w-full" />
+                                    </TableCell>
+                                </TableRow>
+                            </template>
 
                             <TableRow v-else-if="parameters.length === 0">
                                 <TableCell colspan="5" class="px-4 py-2 text-center text-sm text-muted-foreground">

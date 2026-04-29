@@ -3,7 +3,7 @@ import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import type { Item } from '@/domain/MasterData';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
-import { Head } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import { computed, onMounted, ref, watch } from 'vue';
 import ItemFormContent from './ItemFormContent.vue';
 
@@ -18,6 +18,16 @@ const props = defineProps<{
 
 const form = ref<Partial<Item>>(props.initialForm ?? {});
 const isLoading = ref(false);
+const returnToUrl = computed(() => {
+    if (typeof window === 'undefined') return '';
+    const params = new URLSearchParams(window.location.search);
+    return params.get('return_to') || '';
+});
+const returnToItemParam = computed(() => {
+    if (typeof window === 'undefined') return '';
+    const params = new URLSearchParams(window.location.search);
+    return params.get('select_item') || '';
+});
 
 onMounted(() => {
     if (!props.initialForm) {
@@ -43,10 +53,22 @@ watch(
 const dialogType = computed(() => (form.value.id ? 'edit' : 'create'));
 
 function handleClose() {
+    if (returnToUrl.value) {
+        router.visit(returnToUrl.value);
+        return;
+    }
     window.location.href = route('listado');
 }
 
-function handleSaved() {
+function handleSaved(mode: 'create' | 'edit') {
+    if (returnToUrl.value) {
+        const url = new URL(returnToUrl.value, window.location.origin);
+        if (mode === 'create' && form.value.id) {
+            url.searchParams.set(returnToItemParam.value || 'created_item_id', String(form.value.id));
+        }
+        router.visit(url.toString());
+        return;
+    }
     window.location.href = route('listado');
 }
 
@@ -78,6 +100,7 @@ function handleLoadingState(value: boolean) {
                         :is-open="true"
                         :dialog-type="dialogType"
                         :form="form"
+                        :is-full-page="true"
                         :show-advanced-link="false"
                         :show-advanced-sections="true"
                         :show-internal-loading-overlay="false"

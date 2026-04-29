@@ -17,6 +17,7 @@ import Button from '@/components/ui/button/Button.vue';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
     Pagination,
     PaginationEllipsis,
@@ -91,6 +92,26 @@ const itemToToggleStatus = ref<Item | null>(null);
 
 const isBulkDialogOpen = ref(false);
 const isTemplateDownloading = ref(false);
+
+const itemTemplateHeaders = [
+    'TIPO DE ITEM',
+    'NOMBRE',
+    'GRUPO',
+    'SUBGRUPO',
+    'IMPUESTO (%)',
+    'BODEGA',
+    'CANTIDAD',
+    'CANTIDAD MIN',
+    'CANTIDAD MAX',
+    'UNIDAD DE MEDIDA',
+    'CODIGO DE BARRAS',
+    'REFERENCIA',
+    'DESCRIPCION',
+    'MOVIMIENTO NEGATIVO',
+    'CAMPOS ADICIONALES',
+    'VALORES ADICIONALES',
+    'ESTADO',
+];
 
 const successMessage = ref('');
 const errorMessage = ref('');
@@ -235,7 +256,7 @@ async function toggleStatus() {
     }
 }
 
-function exportItemsExcel() {
+function exportItemsCsv() {
     window.open('/item/exportar-excel', '_blank');
 }
 
@@ -247,24 +268,12 @@ async function downloadTemplate() {
     errorMessage.value = '';
 
     try {
-        const response = await fetch('/item/descargar-plantilla', {
-            method: 'GET',
-            headers: {
-                Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            },
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(errorText || 'No se pudo descargar la plantilla Excel.');
-        }
-
-        const blob = await response.blob();
+        const csvContent = `${itemTemplateHeaders.join(',')}\n`;
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const objectUrl = window.URL.createObjectURL(blob);
-
         const link = document.createElement('a');
         link.href = objectUrl;
-        link.download = 'plantilla_items.xlsx';
+        link.download = 'plantilla_importacion_items.csv';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -272,7 +281,7 @@ async function downloadTemplate() {
 
         setSuccess('Plantilla descargada correctamente.');
     } catch (err) {
-        setError(getErrorMessage(err, 'No se pudo descargar la plantilla Excel.'));
+        setError(getErrorMessage(err, 'No se pudo descargar la plantilla CSV.'));
     } finally {
         isTemplateDownloading.value = false;
     }
@@ -428,14 +437,14 @@ onBeforeUnmount(() => {
                                 :disabled="isTemplateDownloading"
                                 @click="downloadTemplate"
                             >
-                                <FileSpreadsheet class="h-4 w-4" /> Descargar plantilla Excel
+                                <FileSpreadsheet class="h-4 w-4" /> Descargar plantilla CSV
                             </DropdownMenuItem>
 
                             <DropdownMenuItem class="cursor-pointer gap-2" @click="openBulkDialog">
                                 <Upload class="h-4 w-4" /> Importar ítems
                             </DropdownMenuItem>
 
-                            <DropdownMenuItem class="cursor-pointer gap-2" @click="exportItemsExcel">
+                            <DropdownMenuItem class="cursor-pointer gap-2" @click="exportItemsCsv">
                                 <Download class="h-4 w-4" /> Exportar ítems
                             </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -498,9 +507,9 @@ onBeforeUnmount(() => {
 
                         <TableBody>
                             <template v-if="isLoading">
-                                <TableRow>
-                                    <TableCell :colspan="6" class="py-6 text-center text-sm text-muted-foreground">
-                                        Cargando ítems...
+                                <TableRow v-for="i in 5" :key="`item-skeleton-${i}`">
+                                    <TableCell v-for="col in 6" :key="`item-skeleton-${i}-${col}`" class="px-4 py-3">
+                                        <Skeleton class="h-4 w-full" />
                                     </TableCell>
                                 </TableRow>
                             </template>

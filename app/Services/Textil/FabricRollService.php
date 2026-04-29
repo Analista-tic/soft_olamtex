@@ -24,6 +24,7 @@ class FabricRollService
     public function paginate(array $filters = [], int $perPage = 10): LengthAwarePaginator
     {
         $query = FabricRoll::with([
+            'item',
             'purchaseDocumentItem.item',
             'purchaseDocumentItem.document.supplier',
             'purchaseDocumentItem.document.creator',
@@ -69,6 +70,7 @@ class FabricRollService
 
             $fabricRoll = FabricRoll::create($data);
             $fabricRoll->load([
+                'item',
                 'purchaseDocumentItem.item',
                 'purchaseDocumentItem.document.supplier',
                 'purchaseDocumentItem.document.creator',
@@ -81,6 +83,7 @@ class FabricRollService
     public function findOrFail($id): FabricRoll
     {
         return FabricRoll::with([
+            'item',
             'purchaseDocumentItem.item',
             'purchaseDocumentItem.document.supplier',
             'purchaseDocumentItem.document.creator',
@@ -96,6 +99,7 @@ class FabricRollService
 
             $fabricRoll->update($data);
             $fabricRoll->load([
+                'item',
                 'purchaseDocumentItem.item',
                 'purchaseDocumentItem.document.supplier',
                 'purchaseDocumentItem.document.creator',
@@ -146,6 +150,7 @@ class FabricRollService
 
         $fabricRoll->update($data);
         $fabricRoll->load([
+            'item',
             'purchaseDocumentItem.item',
             'purchaseDocumentItem.document.supplier',
             'purchaseDocumentItem.document.creator',
@@ -164,7 +169,7 @@ class FabricRollService
      */
     protected function recordConsumptionAndCreateMovement(FabricRoll $fabricRoll, float $metersConsumed, ?int $productionOrderId): void
     {
-        $item = $fabricRoll->purchaseDocumentItem?->item;
+        $item = $fabricRoll->item ?? $fabricRoll->purchaseDocumentItem?->item;
         if (!$item) {
             return;
         }
@@ -236,6 +241,7 @@ class FabricRollService
     public function getByInvoiceItem($itemId): Collection
     {
         return FabricRoll::with([
+            'item',
             'purchaseDocumentItem.item',
             'purchaseDocumentItem.document.supplier',
             'purchaseDocumentItem.document.creator',
@@ -248,6 +254,7 @@ class FabricRollService
     public function export(array $fabricItemIds = []): Collection
     {
         $query = FabricRoll::with([
+            'item',
             'purchaseDocumentItem.item',
             'purchaseDocumentItem.document.supplier',
             'purchaseDocumentItem.document.creator',
@@ -297,9 +304,9 @@ class FabricRollService
                 'fr.roll_width',
                 'fr.partial_output',
                 'fr.actual_output',
-                DB::raw("COALESCE(i.name, pdi.item_name, 'Tela') as fabric"),
+                DB::raw("COALESCE(fi.name, i.name, pdi.item_name, fr.description, 'Tela') as fabric"),
                 'pdi.id as purchase_document_item_id',
-                'pdi.item_id as fabric_item_id',
+                DB::raw('COALESCE(fr.item_id, pdi.item_id) as fabric_item_id'),
                 'pdi.supplier_color',
                 'pdi.supplier_code',
                 'pdi.price as price_per_meter',
@@ -308,9 +315,10 @@ class FabricRollService
                 'pd.created_at as doc_created_at',
                 'u.name as creator_name',
             ])
-            ->join('purchase_document_items as pdi', 'pdi.id', '=', 'fr.purchase_document_item_id')
+            ->leftJoin('purchase_document_items as pdi', 'pdi.id', '=', 'fr.purchase_document_item_id')
+            ->leftJoin('items as fi', 'fi.id', '=', 'fr.item_id')
             ->leftJoin('items as i', 'i.id', '=', 'pdi.item_id')
-            ->join('purchase_documents as pd', 'pd.id', '=', 'pdi.purchase_document_id')
+            ->leftJoin('purchase_documents as pd', 'pd.id', '=', 'pdi.purchase_document_id')
             ->leftJoin('contacts as c', 'c.id', '=', 'pd.contact_id')
             ->leftJoin('users as u', 'u.id', '=', 'pd.created_by_user_id')
             ->whereNull('fr.deleted_at');
@@ -320,6 +328,7 @@ class FabricRollService
             $query->where(function ($q) use ($search) {
                 $q->where('fr.roll_number', 'like', "%{$search}%")
                     ->orWhere('fr.location', 'like', "%{$search}%")
+                    ->orWhere('fi.name', 'like', "%{$search}%")
                     ->orWhere('i.name', 'like', "%{$search}%")
                     ->orWhere('pdi.item_name', 'like', "%{$search}%")
                     ->orWhere('pdi.supplier_color', 'like', "%{$search}%")
@@ -331,7 +340,11 @@ class FabricRollService
         }
 
         if (!empty($filters['base_fabric'])) {
-            $query->where('i.description', 'like', '%' . $filters['base_fabric'] . '%');
+            $baseFabric = $filters['base_fabric'];
+            $query->where(function ($q) use ($baseFabric) {
+                $q->where('fi.description', 'like', "%{$baseFabric}%")
+                    ->orWhere('i.description', 'like', "%{$baseFabric}%");
+            });
         }
 
         if (!empty($filters['provider'])) {
@@ -350,7 +363,7 @@ class FabricRollService
         }
 
         if (!empty($filters['fabric_item_ids'])) {
-            $query->whereIn('pdi.item_id', (array) $filters['fabric_item_ids']);
+            $query->whereIn(DB::raw('COALESCE(fr.item_id, pdi.item_id)'), (array) $filters['fabric_item_ids']);
         }
 
         return $query->orderBy($sortColumn, $sortDirection)->paginate($perPage);
@@ -359,6 +372,7 @@ class FabricRollService
     public function available(): Collection
     {
         return FabricRoll::with([
+            'item',
             'purchaseDocumentItem.item',
             'purchaseDocumentItem.document.supplier',
             'purchaseDocumentItem.document.creator',

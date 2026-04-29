@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import FormDialogContent from '@/components/FormDialogContent.vue';
-import FormHeader from '@/components/FormHeader.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { FabricRollView } from '@/domain/Textil';
 import { computed } from 'vue';
 
@@ -39,10 +38,13 @@ function closeDialog() {
 
 <template>
     <Dialog :open="props.modelValue" modal @openChange="handleOpenChange">
-        <FormDialogContent class="flex max-h-[95vh] max-w-[85vh] flex-col px-2 py-2">
-            <FormHeader title="Detalle del rollo" description="Verifica medidas clave, origen y disponibilidad real." class="mb-4 flex-shrink-0" />
+        <FormDialogContent class="flex max-h-[95vh] max-w-2xl flex-col px-2 py-2">
+            <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
+                <DialogTitle>Detalle del rollo</DialogTitle>
+                <DialogDescription>Verifica medidas clave, origen y disponibilidad real.</DialogDescription>
+            </DialogHeader>
 
-            <div class="flex-1 overflow-y-auto scroll-smooth px-2" style="scrollbar-width: thin">
+            <div class="flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
                 <div v-if="props.roll" class="space-y-5 text-sm text-muted-foreground">
                     <div class="space-y-6 rounded-2xl border border-muted-foreground/40 bg-card p-4 shadow-sm">
                         <div>
@@ -110,7 +112,7 @@ function closeDialog() {
                 </div>
             </div>
 
-            <DialogFooter class="mt-4 flex flex-shrink-0 flex-col gap-2 border-t pt-4 md:flex-row md:justify-end">
+            <DialogFooter class="flex-shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                 <div class="w-full md:w-auto">
                     <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="closeDialog">
                         Cerrar

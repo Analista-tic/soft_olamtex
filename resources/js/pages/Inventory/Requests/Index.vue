@@ -16,6 +16,7 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
@@ -304,9 +305,9 @@ onMounted(() => {
                         </TableHeader>
                         <TableBody>
                             <template v-if="isLoading">
-                                <TableRow>
-                                    <TableCell colspan="7">
-                                        <div class="py-6 text-center text-sm text-muted-foreground">Cargando solicitudes internas...</div>
+                                <TableRow v-for="i in 5" :key="`inventory-request-skeleton-${i}`">
+                                    <TableCell v-for="col in 7" :key="`inventory-request-skeleton-${i}-${col}`" class="px-4 py-3">
+                                        <Skeleton class="h-4 w-full" />
                                     </TableCell>
                                 </TableRow>
                             </template>

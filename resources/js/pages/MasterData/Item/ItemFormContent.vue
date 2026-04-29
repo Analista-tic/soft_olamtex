@@ -13,6 +13,7 @@ import { ExternalLink, Image, Plus, Trash } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import AlertStack from '@/components/common/AlertStack.vue';
+import CreatableSelectField from '@/components/CreatableSelectField.vue';
 import FormHeader from '@/components/FormHeader.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
@@ -28,9 +29,8 @@ import { Switch } from '@/components/ui/switch';
 
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 import AdditionalFieldDialog from '@/pages/MasterData/AdditionalFields/AdditionalFieldDialog.vue';
-import GroupDialog from '@/pages/MasterData/Category/GroupDialog.vue';
-import SubGroupDialog from '@/pages/MasterData/Category/SubGroupDialog.vue';
 import ExtraFieldsForm from '@/pages/MasterData/Item/ExtraFieldsForm.vue';
+import GroupDialog from '@/pages/MasterData/Category/GroupDialog.vue';
 
 import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
 import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
@@ -67,11 +67,15 @@ const props = withDefaults(
         showInternalLoadingOverlay?: boolean;
         preloadedSubGroups?: any[];
         preloadedTaxes?: any[];
+        // Cuando este componente se usa como página completa (no dialog/modal),
+        // se debe evitar el scroll interno y dejar que la página haga el scroll.
+        isFullPage?: boolean;
     }>(),
     {
         showAdvancedLink: true,
         showAdvancedSections: false,
         showInternalLoadingOverlay: true,
+        isFullPage: false,
     },
 );
 
@@ -191,13 +195,7 @@ const dialogInnerRef = ref<HTMLElement | null>(null);
 
 const isImageZoomOpen = ref(false);
 
-const isGroupDialogOpen = ref(false);
-const isSubGroupDialogOpen = ref(false);
-
-const subGroupDialogForm = ref<Partial<CategorySubGroup>>({
-    name: '',
-    category_group_id: undefined,
-});
+// TODO: eliminar cuando se migre el módulo de Categorías
 
 type WarehouseStockEntry = {
     warehouse_id: number | null;
@@ -217,6 +215,8 @@ const taxForm = ref<TaxDialogForm>({ name: '', percentage: 0, status: true });
 
 const additionalFieldDialogOpen = ref(false);
 const additionalFieldDialogLoading = ref(false);
+
+const isGroupDialogOpen = ref(false);
 
 const createAdditionalFieldForm = (): AdditionalField => ({
     id: undefined,
@@ -723,43 +723,46 @@ function toNumericValue(value: unknown): number {
     return 0;
 }
 
-function openGroupDialog() {
-    if (!canCreateCategories.value) return;
-    isGroupDialogOpen.value = true;
+async function handleCreateGroupInline(name: string): Promise<Option> {
+    const response = await axios.post<CategoryGroup>('/categorias/grupos', { name });
+    const created = response.data;
+    categoryGroups.value.push(created);
+    return { id: String(created.id), name: created.name };
 }
 
-function openSubGroupDialog() {
-    if (!canCreateCategories.value) return;
-    subGroupDialogForm.value = {
-        name: '',
-        category_group_id: selectedGroupId.value ? Number(selectedGroupId.value) : undefined,
-    };
-    isSubGroupDialogOpen.value = true;
+function onGroupCreated(option: Option) {
+    selectedGroupId.value = String(option.id);
+    localForm.value.category_sub_group_id = undefined;
 }
 
-async function handleGroupCreated(newGroup: Partial<CategoryGroup>) {
-    try {
-        const response = await axios.post<CategoryGroup>('/categorias/grupos', newGroup);
-        const createdGroup = response.data;
-        categoryGroups.value.push(createdGroup);
-        selectedGroupId.value = String(createdGroup.id ?? createdGroup.name ?? '');
+function handleGroupCreated(created: Partial<CategoryGroup>) {
+    const idStr = created?.id ? String(created.id) : '';
+    if (idStr) {
+        selectedGroupId.value = idStr;
         localForm.value.category_sub_group_id = undefined;
-    } catch (error) {
-        console.error('Error al crear el grupo:', error);
-    } finally {
-        isGroupDialogOpen.value = false;
     }
+    isGroupDialogOpen.value = false;
 }
 
-async function handleSubGroupSubmit(formData: Partial<CategorySubGroup>) {
-    try {
-        await axios.post('/categorias/subgrupos', formData);
-        await fetchCategorySubGroups(true);
-    } catch (error) {
-        console.error('Error al crear el subgrupo:', error);
-    } finally {
-        isSubGroupDialogOpen.value = false;
+async function handleCreateSubGroupInline(name: string): Promise<Option> {
+    const groupId = selectedGroupId.value;
+    if (!groupId) {
+        throw new Error('Debes seleccionar un grupo antes de crear un subgrupo');
     }
+
+    await axios.post('/categorias/subgrupos', {
+        name,
+        category_group_id: Number(groupId),
+    });
+
+    await fetchCategorySubGroups(true);
+    const created = categorySubGroups.value.find((sg) => sg.name === name && String(sg.category_group_id) === groupId);
+    if (!created) throw new Error('Subgrupo no encontrado tras creación');
+    return { id: String(created.id), name: created.name };
+}
+
+function onSubGroupCreated(option: Option) {
+    localForm.value.category_sub_group_id = String(option.id);
 }
 
 function openTaxDialog() {
@@ -1353,15 +1356,16 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div class="flex min-h-0 flex-1 flex-col">
+    <div class="flex flex-col">
         <AlertStack
             :error-message="errorMessage"
             :error-type="errorType"
             @close-error="errorMessage = ''"
         />
 
-        <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="handleSubmit">
+            <form class="flex flex-col" @submit.prevent="handleSubmit">
             <FormHeader
+                v-if="!props.isFullPage"
                 class="shrink-0 border-b px-5 py-4 pr-12"
                 :title="dialogType === 'create' ? 'Crear ítem' : dialogType === 'edit' ? 'Editar ítem' : 'Detalle del ítem'"
                 :description="
@@ -1375,9 +1379,12 @@ onBeforeUnmount(() => {
 
             <div
                 ref="dialogInnerRef"
-                class="relative min-h-0 flex-1 overflow-y-auto scroll-smooth px-5 py-4"
-                :class="{ 'min-h-[420px]': isBlockingLoading }"
-                style="scrollbar-width: thin"
+                :class="[
+                    'relative px-5 py-4 pr-4',
+                    !props.isFullPage ? 'overflow-y-auto scroll-smooth' : 'overflow-visible',
+                    { 'min-h-[160px] flex items-center justify-center': isBlockingLoading },
+                ]"
+                :style="props.isFullPage ? {} : { maxHeight: '65vh', scrollbarWidth: 'thin' }"
             >
                 <FormLoadingOverlay
                     v-if="showInternalLoadingOverlay"
@@ -1387,7 +1394,7 @@ onBeforeUnmount(() => {
                     description="Preparando catalogos y datos iniciales necesarios."
                 />
 
-                <fieldset v-if="canRenderForm" :disabled="isViewMode" class="space-y-3">
+                <fieldset v-if="canRenderForm" :disabled="isViewMode" class="space-y-4">
                     <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
                         <div class="flex min-w-0 flex-col gap-3">
                             <div>
@@ -1456,7 +1463,7 @@ onBeforeUnmount(() => {
                                 </template>
 
                                 <template v-else>
-                                    <SelectField
+                                    <CreatableSelectField
                                         v-model="selectedGroupId"
                                         label="Grupo"
                                         :options="groupOptions"
@@ -1465,22 +1472,14 @@ onBeforeUnmount(() => {
                                         searchable
                                         search-placeholder="Buscar..."
                                         :show-placeholder-option="false"
-                                    >
-                                        <template v-if="canCreateCategories" #header>
-                                            <Button
-                                                type="button"
-                                                size="sm"
-                                                variant="outline"
-                                                class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
-                                                @click.stop="openGroupDialog"
-                                            >
-                                                <Plus class="h-4 w-4" />
-                                                Nuevo grupo
-                                            </Button>
-                                        </template>
-                                    </SelectField>
+                                        :creatable="canCreateCategories"
+                                        create-label="grupo"
+                                        create-button-label="Nuevo grupo"
+                                        :on-create="handleCreateGroupInline"
+                                        @created="onGroupCreated"
+                                    />
 
-                                    <SelectField
+                                    <CreatableSelectField
                                         v-model="localForm.category_sub_group_id"
                                         label="Subgrupo"
                                         :options="subGroupOptions"
@@ -1491,20 +1490,12 @@ onBeforeUnmount(() => {
                                         searchable
                                         search-placeholder="Buscar..."
                                         :show-placeholder-option="false"
-                                    >
-                                        <template v-if="canCreateCategories" #header>
-                                            <Button
-                                                type="button"
-                                                size="sm"
-                                                variant="outline"
-                                                class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
-                                                @click.stop="openSubGroupDialog"
-                                            >
-                                                <Plus class="h-4 w-4" />
-                                                Nuevo subgrupo
-                                            </Button>
-                                        </template>
-                                    </SelectField>
+                                        :creatable="canCreateCategories && !!selectedGroupId"
+                                        create-label="subgrupo"
+                                        create-button-label="Nuevo subgrupo"
+                                        :on-create="handleCreateSubGroupInline"
+                                        @created="onSubGroupCreated"
+                                    />
 
                                     <SelectField
                                         v-model="localForm.tax_id"
@@ -1533,7 +1524,7 @@ onBeforeUnmount(() => {
                                 </template>
                             </div>
 
-                            <div v-if="currentItemType !== 'service'" class="rounded-lg border border-border bg-card p-3">
+                            <div v-if="currentItemType !== 'service'" class="rounded-lg border border-sidebar-border/70 bg-muted/30 p-3">
                                 <div class="mb-2 flex items-center justify-between">
                                     <p class="flex items-center gap-1 text-sm font-semibold">
                                         <span>Detalle de Inventario</span>
@@ -1639,7 +1630,7 @@ onBeforeUnmount(() => {
 
                             <div
                                 :class="[
-                                    'group relative flex h-40 w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-muted/50 transition-all duration-200',
+                                    'group relative flex h-36 w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-muted/50 transition-all duration-200',
                                     isViewMode ? 'cursor-default opacity-100' : 'cursor-pointer hover:border-primary hover:shadow-md',
                                 ]"
                                 @click="!isViewMode && triggerFileInput()"
@@ -1731,17 +1722,16 @@ onBeforeUnmount(() => {
                         </div>
                     </div>
 
-                    <!-- Campos adicionales -->
-                    <div class="flex items-center justify-between">
-                        <p class="flex items-center gap-1 text-sm font-semibold text-card-foreground">
-                            <span>Campos adicionales</span>
-                            <HelpTooltip
-                                text="Agrega atributos adicionales (color, talla, etc.) que permiten diferenciar variantes del mismo subgrupo."
-                            />
-                        </p>
-                    </div>
+                    <div class="border-t border-sidebar-border/70 pt-3">
+                        <div class="mb-2 flex items-center justify-between">
+                            <p class="flex items-center gap-1 text-sm font-semibold text-card-foreground">
+                                <span>Campos adicionales</span>
+                                <HelpTooltip
+                                    text="Agrega atributos adicionales (color, talla, etc.) que permiten diferenciar variantes del mismo subgrupo."
+                                />
+                            </p>
+                        </div>
 
-                    <div class="space-y-2">
                         <ExtraFieldsForm
                             :extra-field-names="extraFieldNames"
                             v-model:extra-fields="extraFields"
@@ -1812,6 +1802,10 @@ onBeforeUnmount(() => {
             </div>
 
             <DialogFooter class="shrink-0 border-t border-border px-5 py-4 md:justify-end">
+                <Button type="button" variant="outline" size="pill" class="w-full justify-center md:w-auto" @click="handleClose">
+                    {{ dialogType === 'view' ? 'Cerrar' : 'Cancelar' }}
+                </Button>
+
                 <button
                     v-if="dialogType !== 'view' && showAdvancedLink"
                     type="button"
@@ -1821,10 +1815,6 @@ onBeforeUnmount(() => {
                     <ExternalLink class="h-4 w-4" />
                     Ir al formulario avanzado
                 </button>
-
-                <Button type="button" variant="outline" size="pill" class="w-full justify-center md:w-auto" @click="handleClose">
-                    {{ dialogType === 'view' ? 'Cerrar' : 'Cancelar' }}
-                </Button>
 
                 <Button
                     v-if="dialogType !== 'view'"
@@ -1839,16 +1829,8 @@ onBeforeUnmount(() => {
         </form>
     </div>
 
+    <!-- TODO: eliminar cuando se migre el módulo de Categorías -->
     <GroupDialog v-model:isOpen="isGroupDialogOpen" @created="handleGroupCreated" @close="isGroupDialogOpen = false" />
-
-    <SubGroupDialog
-        :isOpen="isSubGroupDialogOpen"
-        dialog-type="create"
-        :subGroupData="subGroupDialogForm"
-        :groups="categoryGroups"
-        @close="isSubGroupDialogOpen = false"
-        @submit="handleSubGroupSubmit"
-    />
 
     <TaxDialog
         v-model:open="isTaxDialogOpen"

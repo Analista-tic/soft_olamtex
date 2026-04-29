@@ -7,6 +7,7 @@ import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
@@ -132,7 +133,7 @@ const dateFilter = ref('');
 const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 const sortBy = ref<string>('date');
 const sortDir = ref<'asc' | 'desc'>('desc');
-const isLoading = ref(false);
+const isLoading = ref(true);
 const contactsStore = useContactsStore();
 const subgroups = ref<{ id: number; name: string }[]>([]);
 
@@ -748,9 +749,9 @@ function onFabricRollSuccess() {
                         </TableHeader>
                         <TableBody>
                             <template v-if="isLoading">
-                                <TableRow>
-                                    <TableCell :colspan="7" class="py-6 text-center text-sm text-muted-foreground">
-                                        Cargando recepciones...
+                                <TableRow v-for="i in 5" :key="`reception-skeleton-${i}`">
+                                    <TableCell v-for="col in 7" :key="`reception-skeleton-${i}-${col}`" class="px-4 py-3">
+                                        <Skeleton class="h-4 w-full" />
                                     </TableCell>
                                 </TableRow>
                             </template>

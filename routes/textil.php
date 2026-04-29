@@ -15,6 +15,10 @@ Route::prefix('rollos-tela')->name('fabric-rolls.')->middleware('permission:ver 
     Route::patch('/{fabricRoll}/update-output', [App\Http\Controllers\Textil\FabricRollController::class, 'updateOutput'])->name('update-output')->middleware('permission:editar telas rollos');
 });
 
+Route::post('/api/fabric-rolls/import', [App\Http\Controllers\Textil\FabricRollController::class, 'import'])
+    ->middleware('permission:fabric_rolls.import')
+    ->name('fabric-rolls.import');
+
 // === KARDEX TELAS ===
 Route::prefix('kardex-telas')->name('kardex-telas.')->middleware('permission:ver telas rollos')->group(function () {
     Route::get('/', [App\Http\Controllers\Textil\FabricRollController::class, 'kardex'])->name('index');

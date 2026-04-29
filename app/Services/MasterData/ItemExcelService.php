@@ -129,8 +129,7 @@ class ItemExcelService
      */
     public function exportAll(): BinaryFileResponse
     {
-        $items = Item::with(['categorySubGroup.categoryGroup', 'tax', 'warehouses'])->get();
-
+        $items = Item::with(['categorySubGroup.categoryGroup', 'tax', 'warehouses', 'warehouseItems'])->get();
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('items');
@@ -144,13 +143,11 @@ class ItemExcelService
             $rowNum++;
         }
 
-        // Construir hojas de referencia y validaciones (igual que la plantilla)
         $catalogData = $this->loadCatalogData();
         $sheetData = $this->buildReferenceSheets($spreadsheet, $catalogData);
         $mainSheet = $spreadsheet->setActiveSheetIndex(0);
         $this->applyAllValidations($mainSheet, $headers, $sheetData, max(1000, $rowNum));
 
-        // Ajustar ancho de columnas
         foreach (range('A', $sheet->getHighestColumn()) as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
@@ -429,24 +426,53 @@ class ItemExcelService
     public function exportRowForItem($item): array
     {
         $extra = is_array($item->extra_fields) ? $item->extra_fields : (json_decode($item->extra_fields, true) ?: []);
+        $migrationTerms = ['LEGACY', 'MIGRATION', 'SOURCE', 'RAW_ROW', 'BATCH'];
+        $extra = array_filter($extra, function ($value, $key) use ($migrationTerms): bool {
+            $normalizedKey = mb_strtoupper((string) $key, 'UTF-8');
+
+            foreach ($migrationTerms as $term) {
+                if (str_contains($normalizedKey, $term)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }, ARRAY_FILTER_USE_BOTH);
 
         $tax = $item->tax;
         $statusLabel = $item->status ? 'Activo' : 'Inactivo';
         $typeLabel = $item->item_type === 'service' ? 'Servicio' : 'Producto';
 
         $extraKeys = array_map(fn($k) => mb_strtoupper((string) $k, 'UTF-8'), array_keys($extra));
-        $extraVals = array_map(fn($v) => (string) $v, array_values($extra));
+        $extraVals = array_map(function ($v): string {
+            if (is_scalar($v) || $v === null) {
+                return (string) $v;
+            }
+
+            return json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '';
+        }, array_values($extra));
         $fieldsCol = implode('; ', $extraKeys);
         $valuesCol = implode('; ', $extraVals);
 
         $groupName = optional(optional($item->categorySubGroup)->categoryGroup)->name ?? '';
         $subGroupName = optional($item->categorySubGroup)->name;
         $warehouse = $item->warehouses->first();
+        $warehouseItems = $item->warehouseItems ?? collect();
         $warehouseName = optional($warehouse)->name ?? '';
         $warehousePivot = $warehouse ? $warehouse->pivot : null;
-        $quantityValue = $warehousePivot && isset($warehousePivot->quantity) ? $warehousePivot->quantity : '';
+        $quantityValue = $warehouseItems->count() === 1
+            ? ($warehouseItems->first()?->quantity ?? 0)
+            : $warehouseItems->sum('quantity');
         $stockMinValue = $warehousePivot && isset($warehousePivot->stock_min) ? $warehousePivot->stock_min : '';
         $stockMaxValue = $warehousePivot && isset($warehousePivot->stock_max) ? $warehousePivot->stock_max : '';
+        $descriptionValue = trim((string) ($item->description ?? ''));
+
+        if (
+            mb_stripos($descriptionValue, 'Migrated from legacy system', 0, 'UTF-8') !== false
+            || mb_stripos($descriptionValue, 'legacy', 0, 'UTF-8') !== false
+        ) {
+            $descriptionValue = '';
+        }
 
         return [
             $typeLabel,
@@ -461,7 +487,7 @@ class ItemExcelService
             $item->unit_measure,
             $item->bar_code,
             $item->reference,
-            $item->description,
+            $descriptionValue,
             $item->negative_movement ? 'SI' : 'NO',
             $fieldsCol,
             $valuesCol,

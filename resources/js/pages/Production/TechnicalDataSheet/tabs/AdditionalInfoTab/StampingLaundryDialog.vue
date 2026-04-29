@@ -4,7 +4,7 @@ import FormHeader from '@/components/FormHeader.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import { Badge } from '@/components/ui/badge';
 import Button from '@/components/ui/button/Button.vue';
-import { Dialog, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Image as ImageIcon, Upload, X } from 'lucide-vue-next';
@@ -341,11 +341,14 @@ function handleDialogOpenChange(value: boolean): void {
     <Dialog :open="open" @update:open="handleDialogOpenChange">
         <FormDialogContent
             overlay-class="backdrop-blur-0"
-            class="flex max-h-[96vh] max-w-[1150px] flex-col overflow-hidden px-2 py-2 data-[state=closed]:animate-none data-[state=open]:animate-none"
+            class="flex max-h-[96vh] max-w-[1150px] flex-col px-2 py-2 data-[state=closed]:animate-none data-[state=open]:animate-none"
         >
-            <FormHeader :title="displayName" :description="headerDescription" />
+            <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
+                <DialogTitle>{{ displayName }}</DialogTitle>
+                <DialogDescription>{{ headerDescription }}</DialogDescription>
+            </DialogHeader>
 
-            <div class="min-h-0 flex-1 overflow-y-auto pr-1 pt-4">
+            <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
                 <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
                     <div class="space-y-4">
                         <div>
@@ -549,7 +552,7 @@ function handleDialogOpenChange(value: boolean): void {
                 </div>
             </div>
 
-            <DialogFooter class="mt-4 shrink-0 justify-end gap-2 border-t bg-background px-1 pt-4">
+            <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                 <Button type="button" variant="outline" class="rounded-full px-6" @click="handleClose">Cerrar</Button>
                 <Button type="button" class="rounded-full px-6" :disabled="savingSection === effectiveSaveSection" @click="handleSave">
                     {{ savingSection === effectiveSaveSection ? 'Guardando...' : 'Guardar' }}

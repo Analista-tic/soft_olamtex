@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import AlertBox from '@/components/AlertBox.vue';
 import DialogActionButtons from '@/components/common/DialogActionButtons.vue';
 import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
@@ -8,6 +8,7 @@ import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import ProcessSelector from '@/components/ProcessSelector.vue';
 import SegmentedToggle from '@/components/SegmentedToggle.vue';
+import CreatableSelectField from '@/components/CreatableSelectField.vue';
 import SelectField from '@/components/SelectField.vue';
 import SizeSelector from '@/components/SizeSelector.vue';
 import SwitchField from '@/components/SwitchField.vue';
@@ -17,6 +18,7 @@ import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useProductSheetValidation } from '@/composables/useProductSheetValidation';
 import type { OptionParams, ProductSheet } from '@/domain/Production';
+import type { Option } from '@/domain/shared/types';
 import {
     PRODUCT_SHEET_TYPE_PRODUCT,
     PRODUCT_SHEET_TYPE_SAMPLE,
@@ -76,6 +78,7 @@ const isItemHydrationLoading = ref(false);
 const isBlockingLoading = computed(() =>
   isCatalogBootstrapLoading.value || isItemHydrationLoading.value
 );
+const canRenderForm = computed(() => !isBlockingLoading.value);
 const errorMessage = ref('');
 const errorType = ref<'error' | 'warning' | 'info'>('error');
 
@@ -254,13 +257,23 @@ const brandOptions = ref<OptionParams[]>([]);
 const worldOptions = ref<OptionParams[]>([]);
 const yarnBaseOptions = ref<OptionParams[]>([]);
 const collectionOptions = ref<OptionParams[]>([]);
-const sectionSearchTerm = ref('');
-const groupSearchTerm = ref('');
-const brandSearchTerm = ref('');
-const worldSearchTerm = ref('');
-const fabricBaseSearchTerm = ref('');
-const yarnBaseSearchTerm = ref('');
 const collectionSearchTerm = ref('');
+const sectionSelectRef = ref<InstanceType<typeof CreatableSelectField> | null>(null);
+const groupSelectRef = ref<InstanceType<typeof CreatableSelectField> | null>(null);
+const brandSelectRef = ref<InstanceType<typeof CreatableSelectField> | null>(null);
+const worldSelectRef = ref<InstanceType<typeof CreatableSelectField> | null>(null);
+const fabricBaseSelectRef = ref<InstanceType<typeof CreatableSelectField> | null>(null);
+const yarnBaseSelectRef = ref<InstanceType<typeof CreatableSelectField> | null>(null);
+const collectionSelectRef = ref<InstanceType<typeof CreatableSelectField> | null>(null);
+const creatableSelectRefs = computed(() => ({
+    section: sectionSelectRef,
+    group: groupSelectRef,
+    brand: brandSelectRef,
+    world: worldSelectRef,
+    fabricBase: fabricBaseSelectRef,
+    yarnBase: yarnBaseSelectRef,
+    collection: collectionSelectRef,
+}));
 const loadingSectionSelect = ref(false);
 const loadingGroupSelect = ref(false);
 const loadingBrandSelect = ref(false);
@@ -270,13 +283,6 @@ const loadingYarnBaseSelect = ref(false);
 const loadingCollectionSelect = ref(false);
 const loadingTemplateSelect = ref(false);
 const creatingCollection = ref(false);
-const collectionActionLabel = computed(() => {
-    if (creatingCollection.value) {
-        return 'Creando colección…';
-    }
-
-    return normalizeCollectionName(collectionSearchTerm.value) ? 'Crear colección' : 'Agregar colección';
-});
 const FABRIC_BASE_NA_OPTION: OptionParams = {
     id: 0,
     name: 'N/A - No aplica',
@@ -308,7 +314,6 @@ const fabricBaseOptions = computed<OptionParams[]>(() => {
 
 const selectCreationConfig = {
     sections: {
-        getTerm: () => sectionSearchTerm.value,
         getOptions: () => sectionOptions.value,
         setOptions: (options: OptionParams[]) => {
             sectionOptions.value = options;
@@ -319,7 +324,6 @@ const selectCreationConfig = {
         successLabel: 'Sección',
     },
     groups: {
-        getTerm: () => groupSearchTerm.value,
         getOptions: () => groupOptions.value,
         setOptions: (options: OptionParams[]) => {
             groupOptions.value = options;
@@ -330,7 +334,6 @@ const selectCreationConfig = {
         successLabel: 'Grupo',
     },
     brands: {
-        getTerm: () => brandSearchTerm.value,
         getOptions: () => brandOptions.value,
         setOptions: (options: OptionParams[]) => {
             brandOptions.value = options;
@@ -341,7 +344,6 @@ const selectCreationConfig = {
         successLabel: 'Marca',
     },
     worlds: {
-        getTerm: () => worldSearchTerm.value,
         getOptions: () => worldOptions.value,
         setOptions: (options: OptionParams[]) => {
             worldOptions.value = options;
@@ -352,7 +354,6 @@ const selectCreationConfig = {
         successLabel: 'Mundo',
     },
     fabric_bases: {
-        getTerm: () => fabricBaseSearchTerm.value,
         getOptions: () => baseFabricOptions.value,
         setOptions: (options: OptionParams[]) => {
             baseFabricOptions.value = options;
@@ -363,7 +364,6 @@ const selectCreationConfig = {
         successLabel: 'Base tela',
     },
     yarn_bases: {
-        getTerm: () => yarnBaseSearchTerm.value,
         getOptions: () => yarnBaseOptions.value,
         setOptions: (options: OptionParams[]) => {
             yarnBaseOptions.value = options;
@@ -398,7 +398,7 @@ async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig
 
     const config = selectCreationConfig[catalogKey];
     const selectLoading = selectLoadingConfig[catalogKey];
-    const name = normalizeCollectionName(rawName ?? config.getTerm());
+    const name = normalizeCollectionName(rawName ?? '');
 
     if (!name) {
         setError(`Escribe un nombre para agregar ${config.successLabel.toLowerCase()}.`, 'warning');
@@ -452,8 +452,72 @@ async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig
     }
 }
 
+async function onCreateSection(name: string): Promise<Option> {
+    await createCatalogOption('sections', name);
+    const created = sectionOptions.value.find(
+        (o) => String(o.name).trim().toLowerCase() === name.trim().toLowerCase(),
+    );
+    if (!created) throw new Error('No se pudo crear la sección');
+    return { id: String(created.id), name: String(created.name) };
+}
+
+async function onCreateGroup(name: string): Promise<Option> {
+    await createCatalogOption('groups', name);
+    const created = groupOptions.value.find(
+        (o) => String(o.name).trim().toLowerCase() === name.trim().toLowerCase(),
+    );
+    if (!created) throw new Error('No se pudo crear el grupo');
+    return { id: String(created.id), name: String(created.name) };
+}
+
+async function onCreateBrand(name: string): Promise<Option> {
+    await createCatalogOption('brands', name);
+    const created = brandOptions.value.find(
+        (o) => String(o.name).trim().toLowerCase() === name.trim().toLowerCase(),
+    );
+    if (!created) throw new Error('No se pudo crear la marca');
+    return { id: String(created.id), name: String(created.name) };
+}
+
+async function onCreateWorld(name: string): Promise<Option> {
+    await createCatalogOption('worlds', name);
+    const created = worldOptions.value.find(
+        (o) => String(o.name).trim().toLowerCase() === name.trim().toLowerCase(),
+    );
+    if (!created) throw new Error('No se pudo crear el mundo');
+    return { id: String(created.id), name: String(created.name) };
+}
+
+async function onCreateFabricBase(name: string): Promise<Option> {
+    await createCatalogOption('fabric_bases', name);
+    const created = baseFabricOptions.value.find(
+        (o) => String(o.name).trim().toLowerCase() === name.trim().toLowerCase(),
+    );
+    if (!created) throw new Error('No se pudo crear la base tela');
+    return { id: String(created.id), name: String(created.name) };
+}
+
+async function onCreateYarnBase(name: string): Promise<Option> {
+    await createCatalogOption('yarn_bases', name);
+    const created = yarnBaseOptions.value.find(
+        (o) => String(o.name).trim().toLowerCase() === name.trim().toLowerCase(),
+    );
+    if (!created) throw new Error('No se pudo crear la base hilaza');
+    return { id: String(created.id), name: String(created.name) };
+}
+
 function normalizeCollectionName(value: string): string {
     return value.trim().replace(/\s+/g, ' ');
+}
+
+function handleInlineOpened(openedInstanceId: string | undefined) {
+    if (!openedInstanceId) return;
+
+    Object.entries(creatableSelectRefs.value).forEach(([key, selectRef]) => {
+        if (key !== openedInstanceId) {
+            selectRef.value?.closeInlineFromParent();
+        }
+    });
 }
 
 function syncCollectionOptionsFromProps(): void {
@@ -509,10 +573,7 @@ async function createCollectionFromSelect(rawName?: string): Promise<void> {
     creatingCollection.value = true;
     loadingCollectionSelect.value = true;
     try {
-        const response = await axios.post(
-            route('produccion.colecciones.store'),
-            { name, is_active: true }
-        );
+        const response = await axios.post(route('produccion.colecciones.store'), { name, is_active: true });
 
         const created = response.data?.data;
         const createdId = toIdOrNull(created?.id ?? null);
@@ -537,9 +598,7 @@ async function createCollectionFromSelect(rawName?: string): Promise<void> {
             }
 
             const message = err.response?.data?.message;
-            const validationError = err.response?.data?.errors
-                ? Object.values(err.response.data.errors).flat()[0]
-                : null;
+            const validationError = err.response?.data?.errors ? Object.values(err.response.data.errors).flat()[0] : null;
             setError(validationError ?? message ?? 'No se pudo crear la colección.');
             return;
         }
@@ -556,16 +615,16 @@ async function createCollectionFromSelect(rawName?: string): Promise<void> {
     }
 }
 
-function handleCollectionAction(rawSearchTerm?: string): void {
-    const normalizedSearchTerm = normalizeCollectionName(rawSearchTerm ?? collectionSearchTerm.value);
-    const hasSearchTerm = Boolean(normalizedSearchTerm);
-    if (hasSearchTerm) {
-        void createCollectionFromSelect(normalizedSearchTerm);
-        return;
-    }
 
-    setError('Escribe el nombre en el buscador para agregar colección.', 'warning');
+async function onCreateCollection(name: string): Promise<Option> {
+    await createCollectionFromSelect(name);
+    const created = collectionOptions.value.find(
+        (o) => String(o.name).trim().toLowerCase() === name.trim().toLowerCase(),
+    );
+    if (!created) throw new Error('No se pudo crear la colección');
+    return { id: String(created.id), name: String(created.name) };
 }
+
 
 // Template (crear desde plantilla)
 const templateOptions = ref<Array<{ id: number | string; name: string }>>([]);
@@ -1538,13 +1597,14 @@ function handleClose() {
                   message="Cargando sábana de producto..."
                   description="Preparando catálogos y datos iniciales."
                 />
-                <fieldset :disabled="isBlockingLoading" class="w-full">
+                <div v-if="!canRenderForm" class="min-h-[320px]" />
+                <template v-if="canRenderForm">
                     <div class="grid gap-6 sm:grid-cols-[minmax(0,1fr)_340px]">
                         <div class="space-y-4">
 
                             <!-- Primera seccion: Identificacion del producto (3 referencias) -->
                             <div class="mb-4 grid grid-cols-3 gap-4">
-                                <!-- Ref. Muestra — visible en tipo muestra (obligatorio)
+                                <!-- Ref. Muestra â€” visible en tipo muestra (obligatorio)
                                      y en tipo producto (opcional, muestra de origen) -->
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
@@ -1566,7 +1626,7 @@ function handleClose() {
                                     />
                                 </div>
 
-                                <!-- Ref. Prod 1 — visible cuando type = producto -->
+                                <!-- Ref. Prod 1 â€” visible cuando type = producto -->
                                 <div v-if="form.type === TYPE_PRODUCT" class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Ref 1. Producto<span class="text-red-500">*</span></Label>
@@ -1580,7 +1640,7 @@ function handleClose() {
                                     />
                                 </div>
 
-                                <!-- Ref. Prod 2 — visible cuando type = producto -->
+                                <!-- Ref. Prod 2 â€” visible cuando type = producto -->
                                 <div v-if="form.type === TYPE_PRODUCT" class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Ref 2. Producto</Label>
@@ -1628,7 +1688,8 @@ function handleClose() {
                                         <Label class="text-sm font-medium">Seccion<span class="text-red-500">*</span></Label>
                                         <HelpTooltip :text="tooltips.section" aria-label="Ayuda sobre Seccion" />
                                     </div>
-                                    <SelectField
+                                                                        <CreatableSelectField
+                                        ref="sectionSelectRef"
                                         v-model="form.section_id"
                                         label=""
                                         :options="sectionOptions"
@@ -1638,10 +1699,12 @@ function handleClose() {
                                         :disabled="isReadonly"
                                         :searchable="true"
                                         :search-threshold="0"
-                                        action-label="Agregar sección"
-                                        :action-disabled="isReadonly"
-                                        @search="(term) => (sectionSearchTerm = String(term ?? ''))"
-                                        @action="(term) => createCatalogOption('sections', String(term ?? ''))"
+                                        :creatable="!isReadonly"
+                                        create-label="sección"
+                                        create-button-label="Nueva sección"
+                                        :on-create="onCreateSection"
+                                        instance-id="section"
+                                        @inline-opened="handleInlineOpened"
                                         :invalid="showFieldErrors && !!fieldErrors.section_id"
                                         :error-message="showFieldErrors ? fieldErrors.section_id : undefined"
                                     />
@@ -1651,7 +1714,8 @@ function handleClose() {
                                         <Label class="text-sm font-medium">Grupo<span class="text-red-500">*</span></Label>
                                         <HelpTooltip :text="tooltips.group" aria-label="Ayuda sobre Grupo" />
                                     </div>
-                                    <SelectField
+                                                                        <CreatableSelectField
+                                        ref="groupSelectRef"
                                         v-model="form.group_id"
                                         label=""
                                         :options="groupOptions"
@@ -1661,10 +1725,12 @@ function handleClose() {
                                         :disabled="isReadonly"
                                         :searchable="true"
                                         :search-threshold="0"
-                                        action-label="Agregar grupo"
-                                        :action-disabled="isReadonly"
-                                        @search="(term) => (groupSearchTerm = String(term ?? ''))"
-                                        @action="(term) => createCatalogOption('groups', String(term ?? ''))"
+                                        :creatable="!isReadonly"
+                                        create-label="grupo"
+                                        create-button-label="Nuevo grupo"
+                                        :on-create="onCreateGroup"
+                                        instance-id="group"
+                                        @inline-opened="handleInlineOpened"
                                         :invalid="showFieldErrors && !!fieldErrors.group_id"
                                         :error-message="showFieldErrors ? fieldErrors.group_id : undefined"
                                     />
@@ -1673,7 +1739,8 @@ function handleClose() {
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Marca<span class="text-red-500">*</span></Label>
                                     </div>
-                                    <SelectField
+                                                                        <CreatableSelectField
+                                        ref="brandSelectRef"
                                         v-model="form.brand_id"
                                         label=""
                                         :options="brandOptions"
@@ -1683,10 +1750,12 @@ function handleClose() {
                                         :disabled="isReadonly"
                                         :searchable="true"
                                         :search-threshold="0"
-                                        action-label="Agregar marca"
-                                        :action-disabled="isReadonly"
-                                        @search="(term) => (brandSearchTerm = String(term ?? ''))"
-                                        @action="(term) => createCatalogOption('brands', String(term ?? ''))"
+                                        :creatable="!isReadonly"
+                                        create-label="marca"
+                                        create-button-label="Nueva marca"
+                                        :on-create="onCreateBrand"
+                                        instance-id="brand"
+                                        @inline-opened="handleInlineOpened"
                                         :invalid="showFieldErrors && !!fieldErrors.brand_id"
                                         :error-message="showFieldErrors ? fieldErrors.brand_id : undefined"
                                     />
@@ -1696,7 +1765,8 @@ function handleClose() {
                                         <Label class="text-sm font-medium">Mundo<span class="text-red-500">*</span></Label>
                                         <HelpTooltip :text="tooltips.world" aria-label="Ayuda sobre Mundo" />
                                     </div>
-                                    <SelectField
+                                                                        <CreatableSelectField
+                                        ref="worldSelectRef"
                                         class="w-full"
                                         v-model="form.world_id"
                                         label=""
@@ -1707,10 +1777,12 @@ function handleClose() {
                                         :disabled="isReadonly"
                                         :searchable="true"
                                         :search-threshold="0"
-                                        action-label="Agregar mundo"
-                                        :action-disabled="isReadonly"
-                                        @search="(term) => (worldSearchTerm = String(term ?? ''))"
-                                        @action="(term) => createCatalogOption('worlds', String(term ?? ''))"
+                                        :creatable="!isReadonly"
+                                        create-label="mundo"
+                                        create-button-label="Nuevo mundo"
+                                        :on-create="onCreateWorld"
+                                        instance-id="world"
+                                        @inline-opened="handleInlineOpened"
                                         :invalid="showFieldErrors && !!fieldErrors.world_id"
                                         :error-message="showFieldErrors ? fieldErrors.world_id : undefined"
                                     />
@@ -1733,7 +1805,8 @@ function handleClose() {
                                         <Label class="text-sm font-medium">Base Tela<span v-if="!form.woven_product" class="text-red-500">*</span></Label>
                                         <HelpTooltip :text="tooltips.base" aria-label="Ayuda sobre Base Tela" />
                                     </div>
-                                    <SelectField
+                                                                        <CreatableSelectField
+                                        ref="fabricBaseSelectRef"
                                         class="w-full"
                                         v-model="form.fabric_base_id"
                                         label=""
@@ -1744,10 +1817,12 @@ function handleClose() {
                                         :disabled="isReadonly"
                                         :searchable="true"
                                         :search-threshold="0"
-                                        action-label="Agregar base tela"
-                                        :action-disabled="isReadonly"
-                                        @search="(term) => (fabricBaseSearchTerm = String(term ?? ''))"
-                                        @action="(term) => createCatalogOption('fabric_bases', String(term ?? ''))"
+                                        :creatable="!isReadonly"
+                                        create-label="base tela"
+                                        create-button-label="Nueva base tela"
+                                        :on-create="onCreateFabricBase"
+                                        instance-id="fabricBase"
+                                        @inline-opened="handleInlineOpened"
                                         :invalid="showFieldErrors && !!fieldErrors.fabric_base_id"
                                         :error-message="showFieldErrors ? fieldErrors.fabric_base_id : undefined"
                                     />
@@ -1757,7 +1832,8 @@ function handleClose() {
                                         <Label class="text-sm font-medium">Base hilaza<span class="text-red-500">*</span></Label>
                                         <HelpTooltip :text="tooltips.yarnBase" aria-label="Ayuda sobre Base hilaza" />
                                     </div>
-                                    <SelectField
+                                                                        <CreatableSelectField
+                                        ref="yarnBaseSelectRef"
                                         class="w-full"
                                         v-model="form.yarn_base_id"
                                         label=""
@@ -1768,10 +1844,12 @@ function handleClose() {
                                         :disabled="isReadonly"
                                         :searchable="true"
                                         :search-threshold="0"
-                                        action-label="Agregar base hilaza"
-                                        :action-disabled="isReadonly"
-                                        @search="(term) => (yarnBaseSearchTerm = String(term ?? ''))"
-                                        @action="(term) => createCatalogOption('yarn_bases', String(term ?? ''))"
+                                        :creatable="!isReadonly"
+                                        create-label="base hilaza"
+                                        create-button-label="Nueva base hilaza"
+                                        :on-create="onCreateYarnBase"
+                                        instance-id="yarnBase"
+                                        @inline-opened="handleInlineOpened"
                                         :invalid="showFieldErrors && !!fieldErrors.yarn_base_id"
                                         :error-message="showFieldErrors ? fieldErrors.yarn_base_id : undefined"
                                     />
@@ -1942,26 +2020,29 @@ function handleClose() {
                                 <!-- Colección -->
                                 <div class="flex flex-col gap-1">
                                     <Label class="text-sm font-medium">Colección</Label>
-                                    <SelectField
+                                    <CreatableSelectField
+                                        ref="collectionSelectRef"
                                         v-model="form.collection_id"
                                         label=""
                                         :options="collectionOptions"
-                                        :loading="loadingCollectionSelect"
+                                        :loading="loadingCollectionSelect || creatingCollection"
                                         placeholder="Sin colección"
                                         :disabled="isReadonly"
                                         :searchable="true"
                                         :search-threshold="0"
                                         search-placeholder="Buscar o escribir colección"
-                                        :action-label="collectionActionLabel"
-                                        :action-disabled="isReadonly || creatingCollection"
-                                        @search="(term) => (collectionSearchTerm = String(term ?? ''))"
-                                        @action="handleCollectionAction"
+                                        :creatable="!isReadonly"
+                                        create-label="colección"
+                                        create-button-label="Nueva colección"
+                                        :on-create="onCreateCollection"
+                                        instance-id="collection"
+                                        @inline-opened="handleInlineOpened"
                                     />
                                 </div>
                             </div>
                         </div>
                     </div>
-                </fieldset>
+                </template>
             </div>
 
             <DialogFooter class="shrink-0 flex flex-wrap items-center justify-end gap-2 border-t border-border px-6 py-4">
@@ -2009,3 +2090,6 @@ function handleClose() {
     display: none;
 }
 </style>
+
+
+

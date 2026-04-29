@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             CompanySettingSeeder::class,
             SettingsFieldParametersSeeder::class,
             RolesAndPermissionsSeeder::class,
+            FabricRollImportPermissionSeeder::class,
             RolePermissionMatrixAdjustmentSeeder::class,
 
             // === MAESTROS DE DATOS ===
@@ -33,6 +34,7 @@ class DatabaseSeeder extends Seeder
             // === DATOS HISTÓRICOS (opcional) ===
             LegacyItemsSeeder::class,
             LegacyContactsSeeder::class,
+            LegacyFabricRollsSeeder::class,
         ]);
     }
 }

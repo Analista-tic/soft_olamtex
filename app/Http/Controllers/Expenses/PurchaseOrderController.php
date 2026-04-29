@@ -23,6 +23,25 @@ class PurchaseOrderController extends PurchaseDocumentController
         return $this->indexView('Expenses/PurchaseOrders/Index');
     }
 
+    public function create()
+    {
+        return Inertia::render('Expenses/PurchaseOrders/PurchaseOrderForm', [
+            'mode' => 'create',
+        ]);
+    }
+
+    public function edit(PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+
+        $order = $this->service->loadWithRelations($purchaseDocument);
+
+        return Inertia::render('Expenses/PurchaseOrders/PurchaseOrderForm', [
+            'mode' => 'edit',
+            'form' => $order,
+        ]);
+    }
+
     public function getData(Request $request)
     {
         return $this->getDataGeneric($request, PurchaseDocument::TYPE_ORDER, 10);
@@ -82,6 +101,20 @@ class PurchaseOrderController extends PurchaseDocumentController
             Log::error('Error enviando correo de orden de compra: ' . $e->getMessage());
             return response()->json(['message' => 'Error enviando el correo: ' . $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Render printable view (Inertia) for the purchase order.
+     */
+    public function print(PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+
+        $order = $this->service->loadWithRelations($purchaseDocument);
+
+        return Inertia::render('Expenses/PurchaseOrders/PurchaseOrderPrint', [
+            'order' => $order,
+        ]);
     }
 
     public function convertToInvoice(PurchaseDocument $purchaseDocument)

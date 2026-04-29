@@ -1,17 +1,14 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
-import FormDialogBody from '@/components/FormDialogBody.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
-import FormDialogFooter from '@/components/FormDialogFooter.vue';
-import FormDialogHeader from '@/components/FormDialogHeader.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import InputField from '@/components/InputField.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { useAlertStack } from '@/composables/useAlert';
-import { Dialog } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import axios from 'axios';
 import { Plus } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
@@ -421,14 +418,13 @@ watch(dialogOpen, (isOpen) => {
     <Dialog v-model:open="dialogOpen">
         <FormDialogContent
             size="lg"
-            class="flex h-[95vh] max-h-[95vh] w-full flex-col overflow-hidden p-0"
-            content-class="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+            class="flex max-h-[95vh] max-w-[95vw] flex-col px-2 py-2"
             :scrollable="false"
         >
-            <FormDialogHeader
-                :title="`${dialogType === 'edit' ? 'Editar' : dialogType === 'view' ? 'Ver' : 'Nueva'} Solicitud Interna`"
-                description="Registro de solicitudes internas de insumos o materiales."
-            />
+            <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
+                <DialogTitle>{{ `${dialogType === 'edit' ? 'Editar' : dialogType === 'view' ? 'Ver' : 'Nueva'} Solicitud Interna` }}</DialogTitle>
+                <DialogDescription>Registro de solicitudes internas de insumos o materiales.</DialogDescription>
+            </DialogHeader>
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
@@ -439,7 +435,11 @@ watch(dialogOpen, (isOpen) => {
                 @close-error="clearError"
             />
             <form class="flex min-h-0 flex-1 flex-col" novalidate @submit.prevent="handleSubmit">
-                <FormDialogBody class="relative" :class="{ 'min-h-[420px]': shouldBlockBody }">
+                <div
+                    class="relative flex-1 overflow-y-auto scroll-smooth px-5 py-4"
+                    :class="{ 'min-h-[420px]': shouldBlockBody }"
+                    style="scrollbar-width: thin"
+                >
                     <FormLoadingOverlay
                         :active="shouldBlockBody"
                         :delay-ms="0"
@@ -525,9 +525,9 @@ watch(dialogOpen, (isOpen) => {
                                 :readonly="isReadonly"
                             />
                         </div>
-                </FormDialogBody>
+                </div>
 
-                <FormDialogFooter>
+                <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                     <template v-if="isReadonly">
                         <Button type="button" size="pill" :class="primaryPillButtonClass" @click="dialogOpen = false"> Cerrar </Button>
                     </template>
@@ -539,7 +539,7 @@ watch(dialogOpen, (isOpen) => {
                             {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
                         </Button>
                     </template>
-                </FormDialogFooter>
+                </DialogFooter>
             </form>
         </FormDialogContent>
     </Dialog>
