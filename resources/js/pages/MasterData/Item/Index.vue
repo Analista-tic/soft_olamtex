@@ -434,9 +434,6 @@ onBeforeUnmount(() => {
                     <SelectField v-model="statusFilter" label="" :options="statusOptions" placeholder="Estado" :button-class="statusButtonClasses" />
                 </FilterField>
 
-                <FilterField label="Origen" :active="originFilter !== 'all'" class="min-w-[180px]">
-                    <SelectField v-model="originFilter" label="" :options="originOptions" placeholder="Origen" :button-class="originButtonClasses" />
-                </FilterField>
             </FilterBar>
 
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">

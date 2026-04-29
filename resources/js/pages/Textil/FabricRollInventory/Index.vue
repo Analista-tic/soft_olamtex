@@ -25,7 +25,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { useAuthStore } from '@/stores/auth';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { ArrowDown, ArrowDownToLine, ArrowUp, Download, Eye, Search, SlidersHorizontal, Upload, FileSpreadsheet } from 'lucide-vue-next';
+import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpDown, Download, Eye, Search, SlidersHorizontal, Upload, FileSpreadsheet } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import FabricRollAdjustDialog from './FabricRollAdjustDialog.vue';
 import FabricRollDownloadDialog from './FabricRollDownloadDialog.vue';
@@ -344,9 +344,12 @@ function handleImportError(payload: { message: string }) {
                         <TableHeader>
                             <TableRow>
                                 <TableHead class="cursor-pointer select-none hover:bg-muted/50" @click="setSort('roll_number')">
-                                    <span class="inline-flex items-center gap-0.5">
+                                    <span class="inline-flex items-center gap-1">
                                         Rollo
-                                        <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'roll_number'" class="h-3 w-3" />
+                                        <component
+                                            :is="sortColumn === 'roll_number' ? (sortDirection === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown"
+                                            :class="sortColumn === 'roll_number' ? 'h-3 w-3' : 'h-3 w-3 opacity-30'"
+                                        />
                                     </span>
                                 </TableHead>
                                 <TableHead class="cursor-pointer select-none hover:bg-muted/50" @click="setSort('location')">
@@ -387,9 +390,12 @@ function handleImportError(payload: { message: string }) {
                                 </TableHead>
                                 <TableHead>Disp. parcial</TableHead>
                                 <TableHead class="cursor-pointer select-none hover:bg-muted/50" @click="setSort('actual_output')">
-                                    <span class="inline-flex items-center gap-0.5">
+                                    <span class="inline-flex items-center gap-1">
                                         Cant. salida
-                                        <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'actual_output'" class="h-3 w-3" />
+                                        <component
+                                            :is="sortColumn === 'actual_output' ? (sortDirection === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown"
+                                            :class="sortColumn === 'actual_output' ? 'h-3 w-3' : 'h-3 w-3 opacity-30'"
+                                        />
                                     </span>
                                 </TableHead>
                                 <TableHead>Disp. real</TableHead>

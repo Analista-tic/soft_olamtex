@@ -288,7 +288,7 @@ async function submitImport() {
                 <p class="pb-5 text-sm text-muted-foreground">Sube un archivo Excel para registrar rollos de tela de forma masiva.</p>
             </DialogHeader>
 
-            <div class="no-scrollbar -mx-6 overflow-y-auto px-6 flex-1 min-h-0 py-4">
+            <div class="no-scrollbar -mx-4 max-h-[65vh] overflow-y-auto px-4 flex-1 min-h-0">
                 <div class="grid gap-6 lg:grid-cols-[1.3fr,1.7fr]">
                     <section class="rounded-2xl border border-muted bg-muted/40 p-4 text-sm text-muted-foreground">
                         <header class="flex items-center gap-2 text-base font-semibold text-foreground">
