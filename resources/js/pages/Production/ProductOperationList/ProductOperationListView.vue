@@ -11,35 +11,17 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import type { OperationSection } from '@/domain/product-sheet';
+import type {
+    OperationSection,
+    ProductOperationViewCostParameters,
+    ProductOperationViewEntry,
+    ProductOperationViewGroupedSection,
+    ProductOperationViewSubGroup,
+} from '@/domain/product-sheet';
 import axios from 'axios';
 import { ChevronDown, ChevronRight, History, Pencil, Trash2 } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import HistoryDialog from './HistoryDialog.vue';
-
-type OperationEntry = {
-    id: number;
-    sequence?: number;
-    quantity?: number;
-    fabric_base_id?: number | null;
-    operation_section_id?: number | null;
-    operation_section?: { name?: string; type?: string };
-    operationSection?: { name?: string; type?: string };
-    operation?: { name?: string };
-    machine?: { code?: string; name?: string; supplement_factor?: number | null };
-    optimal_time?: number | string;
-    sam?: number | string;
-    sam_base?: number | string;
-    sam_total_unitario?: number | string;
-    sam_total_operacion?: number | string;
-    operator_efficiency_factor?: number;
-    machine_supplement_factor?: number;
-    fabric_base_factor?: number;
-    grupo_preparacion?: string | null;
-    notes?: string | null;
-};
-
-type CostParameters = { operation_cost: number };
 
 const props = withDefaults(
     defineProps<{
@@ -47,7 +29,7 @@ const props = withDefaults(
         productSheetId: number | null;
         productSheetReference: string;
         sections: OperationSection[];
-        costParameters?: CostParameters;
+        costParameters?: ProductOperationViewCostParameters;
     }>(),
     {
         open: false,
@@ -76,7 +58,7 @@ watch(localOpen, (v) => {
     if (!v) emit('close');
 });
 
-const operations = ref<OperationEntry[]>([]);
+const operations = ref<ProductOperationViewEntry[]>([]);
 const isLoading = ref(false);
 const parameters = ref<Record<string, unknown>>({});
 const isHistoryOpen = ref(false);
@@ -92,20 +74,20 @@ function normalize(s: string) {
         .replace(/[\u0300-\u036f]/g, '');
 }
 
-function resolveSectionName(entry: OperationEntry): string {
+function resolveSectionName(entry: ProductOperationViewEntry): string {
     const r = entry.operation_section?.name ?? entry.operationSection?.name ?? '';
     if (r) return r;
     const id = entry.operation_section_id ?? null;
     return id ? (props.sections.find((s) => s.id === id)?.name ?? '') : '';
 }
-function resolveSectionType(entry: OperationEntry): string {
+function resolveSectionType(entry: ProductOperationViewEntry): string {
     const r = entry.operation_section?.type ?? entry.operationSection?.type ?? '';
     if (r) return r;
     const id = entry.operation_section_id ?? null;
     return id ? (props.sections.find((s) => s.id === id)?.type ?? '') : '';
 }
 
-function getNormalizedSectionType(entry: OperationEntry): 'confeccion' | 'presentacion' | 'otros' {
+function getNormalizedSectionType(entry: ProductOperationViewEntry): 'confeccion' | 'presentacion' | 'otros' {
     const byType = normalize(resolveSectionType(entry));
     if (byType === 'confeccion') return 'confeccion';
     if (byType === 'presentacion' || byType === 'terminacion') return 'presentacion';
@@ -129,27 +111,27 @@ function toOperatorPercent(value: unknown): number | null {
     return Number((100 / factor).toFixed(2));
 }
 
-function getOperatorPercentDisplay(entry: OperationEntry): string {
+function getOperatorPercentDisplay(entry: ProductOperationViewEntry): string {
     const percent = toOperatorPercent(entry.operator_efficiency_factor);
     return percent === null ? '-' : `${percent.toFixed(2)}%`;
 }
 
-function getSamValue(entry: OperationEntry): number {
+function getSamValue(entry: ProductOperationViewEntry): number {
     const persistedTotal = asNumber(entry.sam_total_operacion);
     if (persistedTotal !== null && persistedTotal > 0) return persistedTotal;
 
     const persistedUnit = asNumber(entry.sam_total_unitario);
     const quantity = asNumber(entry.quantity) ?? 1;
-    if (persistedUnit !== null && persistedUnit > 0) return Number((persistedUnit * quantity).toFixed(4));
+    if (persistedUnit !== null && persistedUnit > 0) return Number((persistedUnit * quantity).toFixed(2));
 
     const samBase = asNumber(entry.sam_base) ?? asNumber(entry.sam) ?? asNumber(entry.optimal_time) ?? 0;
     const machineSupplement = asNumber(entry.machine_supplement_factor) ?? 1;
     const fabricFactor = asNumber(entry.fabric_base_factor) ?? 1;
     const operatorFactor = asNumber(entry.operator_efficiency_factor) ?? 1;
 
-    return Number((samBase * machineSupplement * fabricFactor * operatorFactor * quantity).toFixed(4));
+    return Number((samBase * machineSupplement * fabricFactor * operatorFactor * quantity).toFixed(2));
 }
-function getSamBaseValue(entry: OperationEntry): number {
+function getSamBaseValue(entry: ProductOperationViewEntry): number {
     const v = entry.sam_base ?? entry.sam ?? entry.optimal_time ?? 0;
     return Number.isFinite(Number(v)) ? Number(v) : 0;
 }
@@ -160,12 +142,12 @@ function fmtOperationTime(v: number): string {
 function fmt(v: number): string {
     return v.toFixed(2);
 }
-function openHistory(entry: OperationEntry) {
+function openHistory(entry: ProductOperationViewEntry) {
     historyOperationId.value = entry.id;
     historyOperationLabel.value = entry.operation?.name ?? `Operación #${entry.sequence ?? entry.id}`;
     isHistoryOpen.value = true;
 }
-async function deleteOperation(entry: OperationEntry) {
+async function deleteOperation(entry: ProductOperationViewEntry) {
     if (!confirm('¿Eliminar esta operación del lote?')) return;
     try {
         await axios.delete(route('produccion.listados-operacionales.destroy', { listItem: entry.id }));
@@ -222,18 +204,7 @@ async function fetchParameters() {
 
 const operationCost = computed(() => Number(props.costParameters?.operation_cost ?? parameters.value['operation_cost'] ?? 406) || 406);
 
-type SubGroup = { groupName: string; items: OperationEntry[]; totalSam: number };
-type GroupedSection = {
-    sectionName: string;
-    sectionType: string;
-    isPreparacion: boolean;
-    costType: 'confeccion' | 'presentacion' | 'otros';
-    items: OperationEntry[];
-    totalSam: number;
-    subGroups: SubGroup[] | null;
-};
-
-const groupedOperations = computed<GroupedSection[]>(() => {
+const groupedOperations = computed<ProductOperationViewGroupedSection[]>(() => {
     const map = new Map<string, GroupedSection>();
     const order: string[] = [];
 
@@ -290,18 +261,18 @@ const costTotalConfeccion = computed(() => costConfeccion.value + costHilo.value
 const costTotalPresentacion = computed(() => costTerminacion.value);
 const costTotalProducto = computed(() => costTotalConfeccion.value + costTotalPresentacion.value);
 
-function getOpsPerHour(entry: OperationEntry): number {
+function getOpsPerHour(entry: ProductOperationViewEntry): number {
     const samOp = Number(getSamValue(entry).toFixed(2));
     if (samOp <= 0) return 0;
     return Math.floor(60 / samOp);
 }
 
-function getFabricFactorDisplay(entry: OperationEntry): string {
+function getFabricFactorDisplay(entry: ProductOperationViewEntry): string {
     const factor = asNumber(entry.fabric_base_factor);
     return fmt(factor ?? 1);
 }
 
-function getMachineFactorDisplay(entry: OperationEntry): string {
+function getMachineFactorDisplay(entry: ProductOperationViewEntry): string {
     const stored = asNumber(entry.machine_supplement_factor);
     if (stored !== null && stored > 0) return stored.toFixed(2);
     const fromMachine = entry.machine?.supplement_factor;

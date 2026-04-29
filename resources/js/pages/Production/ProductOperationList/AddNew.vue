@@ -97,7 +97,10 @@ function handleOperationSubmit(payload: Record<string, unknown>) {
     errorMessage.value = '';
     const { __error: _, ...data } = payload;
     axios
-        .post('/produccion/operaciones', data)
+        .post('/produccion/operaciones', {
+            ...data,
+            disable_auto_link: true,
+        })
         .then((response) => {
             if (response?.data?.data) emit('created', response.data.data);
             const wasReused = response?.data?.reused === true;
@@ -185,7 +188,7 @@ function clearErrorMessage() {
                 @close-success="clearSuccessMessage"
                 @close-error="clearErrorMessage"
             />
-            <div class="min-h-0 flex-1 overflow-y-auto px-5 py-3" style="scrollbar-width: thin">
+            <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-3" style="scrollbar-width: thin">
                 <div class="space-y-4">
                     <!-- Formulario para Sección -->
                     <template v-if="entity === 'section'">

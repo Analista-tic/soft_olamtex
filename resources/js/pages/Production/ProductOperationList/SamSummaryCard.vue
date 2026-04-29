@@ -16,7 +16,7 @@ const props = withDefaults(
 );
 
 function formatSam(value: number): string {
-    return Number.isFinite(value) ? value.toFixed(4) : '0.0000';
+    return Number.isFinite(value) ? value.toFixed(2) : '0.00';
 }
 </script>
 

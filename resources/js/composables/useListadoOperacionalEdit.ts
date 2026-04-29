@@ -28,24 +28,48 @@ export function useListadoOperacionalEdit(options?: { onSaved?: () => void; onEr
     const catalogMachines = ref<MachineOption[]>([]);
     const catalogFabricBases = ref<FabricBaseOption[]>([]);
     const catalogPreparationGroups = ref<string[]>([]);
+    const catalogActions = ref<string[]>([]);
+    const catalogGarmentParts = ref<string[]>([]);
     const opsInitialData = ref<ListadoDialogInitialData | null>(null);
+
+    async function fetchCatalogOptions() {
+        try {
+            return await axios.get('/produccion/listados-operacionales/options');
+        } catch {
+            return await axios.get('/control-de-lotes/opciones-operaciones');
+        }
+    }
 
     async function openEditOpsDialog(productSheetId: number | null) {
         if (!productSheetId) return;
         catalogLoading.value = true;
         try {
-            const [catalogRes, opsRes] = await Promise.all([
-                axios.get('/produccion/listados-operacionales/options'),
+            const [catalogResult, opsResult] = await Promise.allSettled([
+                fetchCatalogOptions(),
                 axios.get('/produccion/listados-operacionales/data', { params: { product_sheet_id: productSheetId } }),
             ]);
 
-            catalogSections.value = catalogRes.data.sections ?? [];
-            catalogOperations.value = catalogRes.data.operations ?? [];
-            catalogMachines.value = catalogRes.data.machines ?? [];
-            catalogFabricBases.value = catalogRes.data.fabric_bases ?? [];
-            catalogPreparationGroups.value = catalogRes.data.preparation_groups ?? [];
+            if (catalogResult.status !== 'fulfilled') {
+                throw catalogResult.reason;
+            }
 
-            const rows: any[] = Array.isArray(opsRes.data?.data) ? opsRes.data.data : [];
+            const catalogData = catalogResult.value.data ?? {};
+            catalogSections.value = Array.isArray(catalogData.sections) ? catalogData.sections : [];
+            catalogOperations.value = Array.isArray(catalogData.operations) ? catalogData.operations : [];
+            catalogMachines.value = Array.isArray(catalogData.machines) ? catalogData.machines : [];
+            catalogFabricBases.value = Array.isArray(catalogData.fabric_bases) ? catalogData.fabric_bases : [];
+            catalogPreparationGroups.value = Array.isArray(catalogData.preparation_groups) ? catalogData.preparation_groups : [];
+                        catalogActions.value = Array.isArray(catalogData.actions) ? catalogData.actions : [];
+                        catalogGarmentParts.value = Array.isArray(catalogData.garmentParts)
+                                ? catalogData.garmentParts
+                                : Array.isArray(catalogData.garment_parts)
+                                    ? catalogData.garment_parts
+                                    : [];
+
+            const rows: any[] =
+                opsResult.status === 'fulfilled' && Array.isArray(opsResult.value.data?.data)
+                    ? opsResult.value.data.data
+                    : [];
             const sorted = [...rows].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
 
             opsInitialData.value = {
@@ -134,6 +158,8 @@ export function useListadoOperacionalEdit(options?: { onSaved?: () => void; onEr
         catalogMachines,
         catalogFabricBases,
         catalogPreparationGroups,
+        catalogActions,
+        catalogGarmentParts,
         opsInitialData,
         openEditOpsDialog,
         handleSaveOps,

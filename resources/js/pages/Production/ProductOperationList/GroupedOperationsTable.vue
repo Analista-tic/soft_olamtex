@@ -3,33 +3,15 @@ import DraggableTableRow from '@/components/DraggableTableRow.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
+import type { ProductOperationGroupedRow, ProductOperationSectionInfo } from '@/domain/product-sheet/types';
 import { Check, GripVertical, Pencil, X } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
-interface OperationRow {
-    section_id: number | null;
-    operation_id: number | null;
-    machine_id: number | null;
-    optimal_time: string;
-    quantity: number;
-    fabric_base_id: number | string | null;
-    operator_efficiency_factor: number;
-    grupo_preparacion?: string | null;
-    row_notes: string;
-    sam_total_base?: number;
-}
-
-interface OperationSectionInfo {
-    id: number;
-    name: string;
-    type: 'PREPARACION' | 'ENSAMBLE' | 'TERMINACION';
-}
-
 const props = defineProps<{
-    operationList: OperationRow[];
-    sections: OperationSectionInfo[];
+    operationList: ProductOperationGroupedRow[];
+    sections: ProductOperationSectionInfo[];
     editingRowIndex: number | null;
-    editRow: OperationRow | null;
+    editRow: ProductOperationGroupedRow | null;
     readonly: boolean;
     onRemoveOperation: (index: number) => void;
     onEditStart: (index: number) => void;
@@ -38,11 +20,11 @@ const props = defineProps<{
     onUpdateEditRow: (field: string, value: any) => void;
     getSectionName: (sectionId: number | null) => string;
     getOperationName: (operationId: number | null) => string;
-    getMachineDisplayWithSupplement: (row: OperationRow) => string;
+    getMachineDisplayWithSupplement: (row: ProductOperationGroupedRow) => string;
     getFabricBaseName: (fabricBaseId: number | string | null) => string;
-    getFabricFactorForRow: (row: OperationRow) => number;
-    getSamOperacion: (row: OperationRow) => number;
-    getOpsPerHour: (row: OperationRow) => string;
+    getFabricFactorForRow: (row: ProductOperationGroupedRow) => number;
+    getSamOperacion: (row: ProductOperationGroupedRow) => number;
+    getOpsPerHour: (row: ProductOperationGroupedRow) => string;
     machinesList: any[];
     fabricBaseOptions: any[];
 }>();
@@ -62,7 +44,7 @@ const draggedIndex = ref<number | null>(null);
 
 const grouped = computed(() => {
     const sectionTypes = ['PREPARACION', 'ENSAMBLE', 'TERMINACION'];
-    const result: Record<string, Record<string, (OperationRow & { originalIndex: number })[]>> = {};
+    const result: Record<string, Record<string, (ProductOperationGroupedRow & { originalIndex: number })[]>> = {};
 
     sectionTypes.forEach((type) => {
         result[type] = {};
