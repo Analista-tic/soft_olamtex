@@ -221,7 +221,7 @@ class ProductOperationListController extends Controller
             'operations' => ['required', 'array', 'min:1'],
             'operations.*.product_sheet_id' => ['required', 'integer', 'exists:product_sheets,id'],
             'operations.*.operation_id' => ['required', 'integer', 'exists:operations,id'],
-            'operations.*.machine_id' => ['required', 'integer', 'exists:machines,id'],
+            'operations.*.machine_id' => ['nullable', 'integer', 'exists:machines,id'],
             'operations.*.operation_section_id' => ['required', 'integer', 'exists:operation_sections,id'],
             'operations.*.grupo_preparacion' => ['nullable', 'string', 'max:100'],
             'operations.*.sequence' => ['required', 'integer', 'min:1'],
@@ -251,6 +251,53 @@ class ProductOperationListController extends Controller
             'message' => count($items) . ' operaciones agregadas correctamente.',
             'data' => $items
         ], 201);
+    }
+
+    /**
+     * Sincroniza completamente el listado operacional de una sábana.
+     * Actualiza filas existentes por id, crea nuevas y elimina solo las removidas del payload.
+     */
+    public function sync(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'product_sheet_id' => ['required', 'integer', 'exists:product_sheets,id'],
+            'operations' => ['present', 'array'],
+            'operations.*.id' => ['nullable', 'integer', 'exists:product_sheet_operations,id'],
+            'operations.*.product_sheet_id' => ['nullable', 'integer', 'exists:product_sheets,id'],
+            'operations.*.operation_id' => ['required', 'integer', 'exists:operations,id'],
+            'operations.*.machine_id' => ['nullable', 'integer', 'exists:machines,id'],
+            'operations.*.operation_section_id' => ['required', 'integer', 'exists:operation_sections,id'],
+            'operations.*.grupo_preparacion' => ['nullable', 'string', 'max:100'],
+            'operations.*.sequence' => ['required', 'integer', 'min:1'],
+            'operations.*.optimal_time' => ['required', 'numeric', 'min:0'],
+            'operations.*.operator_efficiency_factor' => ['required', 'numeric', 'between:0.5,2'],
+            'operations.*.machine_supplement_factor' => ['required', 'numeric', 'min:1'],
+            'operations.*.fabric_base_id' => ['nullable', 'integer'],
+            'operations.*.quantity' => ['nullable', 'integer', 'min:1'],
+            'operations.*.actual_time' => ['nullable', 'numeric', 'min:0'],
+            'operations.*.notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        try {
+            foreach ($validated['operations'] as $opData) {
+                $this->service->validateGrupoPreparacionRequired($opData);
+            }
+
+            $items = $this->service->syncBySheet(
+                (int) $validated['product_sheet_id'],
+                $validated['operations'],
+            );
+        } catch (\InvalidArgumentException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'type' => 'warning',
+            ], 422);
+        }
+
+        return response()->json([
+            'message' => 'Listado operacional sincronizado correctamente.',
+            'data' => ProductOperationListResource::collection($items)->resolve(),
+        ]);
     }
 
     /**

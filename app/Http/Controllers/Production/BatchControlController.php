@@ -14,6 +14,7 @@ use App\Models\Production\TechnicalSheet;
 use App\Models\Production\TechnicalSheetOperation;
 use App\Models\Textil\FabricRoll;
 use App\Services\Inventory\InventoryMovementService;
+use App\Services\Production\OperationCatalogService;
 use App\Services\Production\MachineService;
 use App\Services\Production\OperationSectionService;
 use App\Services\Production\OperationService;
@@ -104,6 +105,7 @@ class BatchControlController extends Controller
         private InventoryMovementService $movementService,
         private OperationSectionService $sectionService,
         private OperationService $operationService,
+        private OperationCatalogService $operationCatalogService,
         private MachineService $machineService,
     ) {
     }
@@ -1039,6 +1041,9 @@ class BatchControlController extends Controller
                 'name'   => $f['name'] ?? $f['nombre'] ?? $f['codigo'] ?? (string) $f['id'],
                 'factor' => $f['factor'] ?? $f['factor_base'] ?? $f['factor_base_tela'] ?? 1.0,
             ])->values()->all(),
+            'actions' => $this->operationCatalogService->actionOptions()->values()->all(),
+            'garmentParts' => $this->operationCatalogService->garmentPartOptions()->values()->all(),
+            'preparation_groups' => $this->settingService->getCatalogOptions('preparation_groups')->pluck('name')->values()->all(),
         ]);
     }
 

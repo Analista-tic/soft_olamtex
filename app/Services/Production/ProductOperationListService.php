@@ -3,6 +3,7 @@
 namespace App\Services\Production;
 
 use App\Models\Production\Operation;
+use App\Models\Production\Machine;
 use App\Models\Production\ProductOperationList;
 use App\Models\Production\ProductSheetOperationHistory;
 use App\Services\Settings\SettingService;
@@ -40,6 +41,93 @@ class ProductOperationListService
         if ($query->exists()) {
             throw new \InvalidArgumentException('La operación ya existe en este listado. No se puede repetir dentro de la misma sábana.');
         }
+    }
+
+    private function assertSequenceNotDuplicatedInSheet(int $productSheetId, int $sequence, ?int $ignoreId = null): void
+    {
+        $query = $this->model
+            ->newQuery()
+            ->where('product_sheet_id', $productSheetId)
+            ->where('sequence', $sequence);
+
+        if ($ignoreId !== null) {
+            $query->where('id', '!=', $ignoreId);
+        }
+
+        if ($query->exists()) {
+            throw new \InvalidArgumentException('La secuencia ya existe en este listado. No se puede repetir dentro de la misma sábana.');
+        }
+    }
+
+    private function resolveDefaultEfficiencyFactor(?Operation $operation): float
+    {
+        $factorOperario = (float) ($operation?->factor_operario ?? 100);
+        return $factorOperario > 0 ? (100 / $factorOperario) : 1.0;
+    }
+
+    private function resolveMachineSupplementById(?int $machineId): float
+    {
+        if (!$machineId) {
+            return 1.0;
+        }
+
+        $machine = Machine::find($machineId);
+        $supplement = (float) ($machine?->supplement_factor ?? 1.0);
+
+        return $supplement > 0 ? $supplement : 1.0;
+    }
+
+    private function applyBaseAndOverrideRules(array &$data, ?ProductOperationList $currentItem = null): void
+    {
+        $operationId = (int) ($data['operation_id'] ?? $currentItem?->operation_id ?? 0);
+        if ($operationId <= 0) {
+            throw new \InvalidArgumentException('Debe seleccionar una operación válida para el listado.');
+        }
+
+        $operation = Operation::find($operationId);
+        if (!$operation) {
+            throw new \InvalidArgumentException('La operación seleccionada no existe.');
+        }
+
+        $baseMachineId = (int) ($operation->machine_id_reference ?? 0);
+        $baseSam = (float) ($operation->sam_base ?? 0);
+        $baseEfficiency = $this->resolveDefaultEfficiencyFactor($operation);
+
+        $resolvedMachineId = array_key_exists('machine_id', $data)
+            ? ($data['machine_id'] !== null && $data['machine_id'] !== '' ? (int) $data['machine_id'] : null)
+            : ($currentItem?->machine_id ?? ($baseMachineId > 0 ? $baseMachineId : null));
+
+        if ($resolvedMachineId === null && $baseMachineId > 0) {
+            $resolvedMachineId = $baseMachineId;
+        }
+
+        $samBase = array_key_exists('sam_base', $data)
+            ? (float) $data['sam_base']
+            : (array_key_exists('optimal_time', $data)
+                ? (float) $data['optimal_time']
+                : (float) ($currentItem?->sam_base ?? $baseSam));
+
+        $operatorEfficiencyFactor = array_key_exists('operator_efficiency_factor', $data)
+            ? (float) $data['operator_efficiency_factor']
+            : (float) ($currentItem?->operator_efficiency_factor ?? $baseEfficiency);
+
+        $machineSupplementFactor = array_key_exists('machine_supplement_factor', $data)
+            ? (float) $data['machine_supplement_factor']
+            : (float) ($currentItem?->machine_supplement_factor ?? $this->resolveMachineSupplementById($resolvedMachineId));
+
+        $data['machine_id'] = $resolvedMachineId;
+        $data['sam_base'] = $samBase;
+        $data['optimal_time'] = (float) ($data['optimal_time'] ?? $samBase);
+        $data['sam'] = $data['optimal_time'];
+        $data['operator_efficiency_factor'] = $operatorEfficiencyFactor;
+        $data['machine_supplement_factor'] = $machineSupplementFactor;
+        $data['fabric_base_factor'] = $this->resolveFabricBaseFactor($data['fabric_base_id'] ?? $currentItem?->fabric_base_id ?? null);
+
+        $data['has_override'] =
+            ($resolvedMachineId !== null && $baseMachineId > 0 && (int) $resolvedMachineId !== $baseMachineId)
+            || abs($samBase - $baseSam) > 0.0001
+            || abs($operatorEfficiencyFactor - $baseEfficiency) > 0.0001
+            || abs($machineSupplementFactor - $this->resolveMachineSupplementById($resolvedMachineId)) > 0.0001;
     }
 
     /**
@@ -201,12 +289,14 @@ class ProductOperationListService
                 (int) $data['operation_id']
             );
 
+            $sequence = (int) ($data['sequence'] ?? 10);
+            $this->assertSequenceNotDuplicatedInSheet((int) $data['product_sheet_id'], $sequence);
+
+            $this->applyBaseAndOverrideRules($data);
+
+            $data['sequence'] = $sequence;
+
             $samBase = (float) ($data['sam_base'] ?? $data['optimal_time'] ?? 0);
-            $data['sam_base'] = $samBase;
-            $data['sam'] = $data['optimal_time'] ?? $samBase;
-            $data['fabric_base_factor'] = $this->resolveFabricBaseFactor($data['fabric_base_id'] ?? null);
-            $data['operator_efficiency_factor'] = (float) ($data['operator_efficiency_factor'] ?? 1.25);
-            $data['machine_supplement_factor'] = (float) ($data['machine_supplement_factor'] ?? 1.0);
             $quantity = (int) ($data['quantity'] ?? 1);
             $data['quantity'] = $quantity;
 
@@ -245,25 +335,33 @@ class ProductOperationListService
             $created = collect();
 
             $seenInPayload = [];
+            $seenSequences = [];
 
             foreach ($operations as $data) {
                 $sheetId = (int) ($data['product_sheet_id'] ?? 0);
                 $operationId = (int) ($data['operation_id'] ?? 0);
                 $key = $sheetId . '|' . $operationId;
+                $sequence = (int) ($data['sequence'] ?? 10);
+                $sequenceKey = $sheetId . '|' . $sequence;
 
                 if (isset($seenInPayload[$key])) {
                     throw new \InvalidArgumentException('Hay operaciones duplicadas en la carga masiva para la misma sábana.');
                 }
                 $seenInPayload[$key] = true;
 
+                if (isset($seenSequences[$sequenceKey])) {
+                    throw new \InvalidArgumentException('Hay secuencias duplicadas en la carga masiva para la misma sábana.');
+                }
+                $seenSequences[$sequenceKey] = true;
+
                 $this->assertOperationNotDuplicatedInSheet($sheetId, $operationId);
+                $this->assertSequenceNotDuplicatedInSheet($sheetId, $sequence);
+
+                $this->applyBaseAndOverrideRules($data);
+
+                $data['sequence'] = $sequence;
 
                 $samBase = (float) ($data['sam_base'] ?? $data['optimal_time'] ?? 0);
-                $data['sam_base'] = $samBase;
-                $data['sam'] = $data['optimal_time'] ?? $samBase;
-                $data['fabric_base_factor'] = $this->resolveFabricBaseFactor($data['fabric_base_id'] ?? null);
-                $data['operator_efficiency_factor'] = (float) ($data['operator_efficiency_factor'] ?? 1.25);
-                $data['machine_supplement_factor'] = (float) ($data['machine_supplement_factor'] ?? 1.0);
                 $quantity = (int) ($data['quantity'] ?? 1);
                 $data['quantity'] = $quantity;
 
@@ -296,6 +394,92 @@ class ProductOperationListService
     }
 
     /**
+     * Sincroniza el listado de una sábana sin reemplazo masivo destructivo.
+     * - actualiza filas con id
+     * - crea filas nuevas sin id
+     * - elimina solo las filas omitidas del payload
+     */
+    public function syncBySheet(int $productSheetId, array $operations): Collection
+    {
+        return DB::transaction(function () use ($productSheetId, $operations) {
+            $existingItems = $this->model
+                ->newQuery()
+                ->where('product_sheet_id', $productSheetId)
+                ->get()
+                ->keyBy('id');
+
+            $processedIds = [];
+            $seenOperationIds = [];
+
+            foreach ($operations as $index => $data) {
+                $data['product_sheet_id'] = $productSheetId;
+                $data['sequence'] = (int) ($data['sequence'] ?? (($index + 1) * 10));
+
+                $operationId = (int) ($data['operation_id'] ?? 0);
+                if ($operationId <= 0) {
+                    throw new \InvalidArgumentException('Cada fila del listado debe incluir una operación válida.');
+                }
+
+                if (isset($seenOperationIds[$operationId])) {
+                    throw new \InvalidArgumentException('Hay operaciones duplicadas en el listado. No se puede repetir la misma operación en la sábana.');
+                }
+                $seenOperationIds[$operationId] = true;
+
+                $sequence = (int) ($data['sequence'] ?? (($index + 1) * 10));
+                if ($sequence <= 0) {
+                    throw new \InvalidArgumentException('Cada fila del listado debe incluir una secuencia válida.');
+                }
+
+                $itemId = isset($data['id']) && $data['id'] !== null && $data['id'] !== ''
+                    ? (int) $data['id']
+                    : null;
+
+                if ($itemId !== null) {
+                    /** @var ProductOperationList|null $existingItem */
+                    $existingItem = $existingItems->get($itemId);
+
+                    if (!$existingItem) {
+                        throw new \InvalidArgumentException('Se intentó actualizar una operación que no pertenece al listado actual o ya no está disponible.');
+                    }
+
+                    $updateData = $data;
+                    unset($updateData['id']);
+
+                    $this->update($existingItem, $updateData, 'Sincronización de listado operacional');
+                    $processedIds[] = $itemId;
+                    continue;
+                }
+
+                $createData = $data;
+                unset($createData['id']);
+
+                $createdItem = $this->create($createData);
+                $processedIds[] = (int) $createdItem->id;
+                $existingItems->put($createdItem->id, $createdItem);
+            }
+
+            $idsToDelete = $existingItems
+                ->keys()
+                ->map(static fn ($id): int => (int) $id)
+                ->filter(static fn (int $id): bool => !in_array($id, $processedIds, true))
+                ->values();
+
+            if ($idsToDelete->isNotEmpty()) {
+                $this->model
+                    ->newQuery()
+                    ->where('product_sheet_id', $productSheetId)
+                    ->whereIn('id', $idsToDelete->all())
+                    ->get()
+                    ->each(function (ProductOperationList $item): void {
+                        $this->delete($item);
+                    });
+            }
+
+            return $this->listBySheet($productSheetId);
+        });
+    }
+
+    /**
      * Actualiza una operación existente.
      * Recalcula sam_total_unitario, sam_total_operacion y production_time.
      * Registra en ProductSheetOperationHistory si cambian factores o SAM.
@@ -307,15 +491,12 @@ class ProductOperationListService
 
             $targetSheetId = (int) ($data['product_sheet_id'] ?? $item->product_sheet_id);
             $targetOperationId = (int) ($data['operation_id'] ?? $item->operation_id);
+            $targetSequence = (int) ($data['sequence'] ?? $item->sequence);
             $this->assertOperationNotDuplicatedInSheet($targetSheetId, $targetOperationId, (int) $item->id);
+            $this->assertSequenceNotDuplicatedInSheet($targetSheetId, $targetSequence, (int) $item->id);
 
-            if (isset($data['optimal_time'])) {
-                $data['sam'] = $data['optimal_time'];
-                $data['sam_base'] = $data['optimal_time'];
-            }
-            if (array_key_exists('fabric_base_id', $data)) {
-                $data['fabric_base_factor'] = $this->resolveFabricBaseFactor($data['fabric_base_id']);
-            }
+            $this->applyBaseAndOverrideRules($data, $item);
+            $data['sequence'] = $targetSequence;
 
             $item->update($data);
 
@@ -384,47 +565,22 @@ class ProductOperationListService
     }
 
     /**
-     * Actualiza la Operation (catálogo) como base reutilizable con datos del listado:
-     * sam_base, section_id, referencias a ficha y máquina donde se definió.
+     * Producción: no propagar datos del listado operacional al catálogo maestro.
+     *
+     * Esta sincronización se desactiva para evitar que cambios operativos por ficha
+     * sobrescriban valores base de la operación y contaminen su referencia/origen.
      */
     private function syncOperationBase(ProductOperationList $item): void
     {
-        $operationId = $item->operation_id ?? null;
-        if (!$operationId) {
-            return;
-        }
-
-        $operation = Operation::find($operationId);
-        if (!$operation) {
-            return;
-        }
-
-        $updates = [];
-
-        if ($item->sam_base !== null && $item->sam_base !== '') {
-            $updates['sam_base'] = (float) $item->sam_base;
-        }
-        if ($item->operation_section_id !== null) {
-            $updates['section_id'] = $item->operation_section_id;
-        }
-        if ($item->product_sheet_id !== null) {
-            $updates['product_sheet_id_reference'] = $item->product_sheet_id;
-        }
-        if ($item->machine_id !== null) {
-            $updates['machine_id_reference'] = $item->machine_id;
-        }
-
-        if ($updates !== []) {
-            $operation->update($updates);
-        }
+        return;
     }
 
     /**
-     * Elimina una operación del listado (soft delete)
+     * Elimina una operación del listado (hard delete para respetar constraints únicos).
      */
     public function delete(ProductOperationList $item): void
     {
-        $item->delete();
+        $item->forceDelete();
     }
 
     /**
@@ -432,10 +588,16 @@ class ProductOperationListService
      */
     public function deleteBulk(array $operationIds, int $productSheetId): int
     {
-        return $this->model
+        $rows = $this->model
+            ->newQuery()
             ->whereIn('id', $operationIds)
             ->where('product_sheet_id', $productSheetId)
-            ->delete();
+            ->get();
+
+        $count = $rows->count();
+        $rows->each(fn (ProductOperationList $item) => $item->forceDelete());
+
+        return $count;
     }
 
     /**

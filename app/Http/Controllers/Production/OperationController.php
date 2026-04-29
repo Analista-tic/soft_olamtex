@@ -187,6 +187,7 @@ class OperationController extends Controller
             'product_sheet_id_reference' => ['required', 'integer', 'exists:product_sheets,id'],
             'machine_id_reference'       => ['required', 'integer', 'exists:machines,id'],
             'is_active'    => ['sometimes', 'boolean'],
+            'disable_auto_link' => ['sometimes', 'boolean'],
         ]);
 
         // Nota: el tipo de prenda (garment_type) vive en product_sheets, no en la operación.
@@ -215,8 +216,9 @@ class OperationController extends Controller
         // ── Auto-link: vincular operación al listado operacional de la sábana ──
         $linkedToList = false;
         $productSheetId = $validated['product_sheet_id_reference'] ?? null;
+        $disableAutoLink = (bool) ($validated['disable_auto_link'] ?? false);
 
-        if ($productSheetId && $operation->id) {
+        if (!$disableAutoLink && $productSheetId && $operation->id) {
             $linkedToList = $this->autoLinkToProductOperationList(
                 $operation,
                 (int) $productSheetId,

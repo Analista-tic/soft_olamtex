@@ -43,7 +43,6 @@ class OperationService
             $this->normalizeText($data['garment_part'] ?? null),
             (string) ($this->normalizeInt($data['quantity'] ?? null) ?? ''),
             (string) ($this->normalizeInt($data['machine_id_reference'] ?? null) ?? ''),
-            (string) ($this->normalizeInt($data['product_sheet_id_reference'] ?? null) ?? ''),
             (string) ($this->normalizeFloat($data['measure'] ?? null) ?? ''),
             (string) ($this->normalizeFloat($data['sam_base'] ?? null) ?? ''),
             (string) ($this->normalizeFloat($data['factor_operario'] ?? null) ?? ''),
@@ -231,6 +230,14 @@ class OperationService
 
         $this->normalizeReferenceFields($data);
 
+        if (
+            array_key_exists('product_sheet_id_reference', $data)
+            && !empty($operation->product_sheet_id_reference)
+            && (int) ($data['product_sheet_id_reference'] ?? 0) !== (int) $operation->product_sheet_id_reference
+        ) {
+            $data['product_sheet_id_reference'] = (int) $operation->product_sheet_id_reference;
+        }
+
         $newAction = $data['action'] ?? $operation->action;
         $newPart = $data['garment_part'] ?? $operation->garment_part;
         $newAnexo = array_key_exists('anexo', $data) ? $data['anexo'] : $operation->anexo;
@@ -400,9 +407,12 @@ class OperationService
         if ($existing) {
             $updates = [];
 
-            if (array_key_exists('product_sheet_id_reference', $data)
-                && (int) ($existing->product_sheet_id_reference ?? 0) !== (int) ($data['product_sheet_id_reference'] ?? 0)) {
-                $updates['product_sheet_id_reference'] = $data['product_sheet_id_reference'];
+            if (
+                array_key_exists('product_sheet_id_reference', $data)
+                && empty($existing->product_sheet_id_reference)
+                && !empty($data['product_sheet_id_reference'])
+            ) {
+                $updates['product_sheet_id_reference'] = (int) $data['product_sheet_id_reference'];
             }
 
             if (array_key_exists('machine_id_reference', $data)
