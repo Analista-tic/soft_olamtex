@@ -109,6 +109,8 @@ const {
     catalogMachines,
     catalogFabricBases,
     catalogPreparationGroups,
+    catalogActions,
+    catalogGarmentParts,
     opsInitialData,
     openEditOpsDialog: _openEditOpsDialog,
     handleSaveOps: _handleSaveOps,
@@ -475,6 +477,8 @@ watch(
         :sections="catalogSections"
         :operations="catalogOperations"
         :machines="catalogMachines"
+        :actions="catalogActions"
+        :garment-parts="catalogGarmentParts"
         :fabric-bases="catalogFabricBases"
         :preparation-groups="catalogPreparationGroups"
         @save="handleSaveOps"

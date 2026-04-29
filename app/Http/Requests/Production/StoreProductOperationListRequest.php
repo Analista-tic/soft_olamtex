@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Production;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreProductOperationListRequest extends FormRequest
 {
@@ -27,13 +28,19 @@ class StoreProductOperationListRequest extends FormRequest
                 'required',
                 'integer',
                 'exists:operations,id',
+                Rule::unique('product_sheet_operations', 'operation_id')
+                    ->where('product_sheet_id', $this->input('product_sheet_id'))
+                    ->whereNull('deleted_at'),
             ],
-            'machine_id' => ['required', 'integer', 'exists:machines,id'],
+            'machine_id' => ['nullable', 'integer', 'exists:machines,id'],
             'operation_section_id' => ['required', 'integer', 'exists:operation_sections,id'],
             'sequence' => [
                 'required',
                 'integer',
                 'min:1',
+                Rule::unique('product_sheet_operations', 'sequence')
+                    ->where('product_sheet_id', $this->input('product_sheet_id'))
+                    ->whereNull('deleted_at'),
             ],
             'optimal_time' => ['required', 'numeric', 'min:0.01', 'max:999.99'],
             'operator_efficiency_factor' => [
@@ -71,6 +78,8 @@ class StoreProductOperationListRequest extends FormRequest
             'optimal_time.min' => 'El tiempo óptimo debe ser mayor a 0.',
             'optimal_time.max' => 'El tiempo óptimo no puede superar 999.99 minutos.',
             'grupo_preparacion.max' => 'El grupo de preparación no puede superar 100 caracteres.',
+            'operation_id.unique' => 'Esta operación ya está agregada en este lote. No se pueden duplicar operaciones.',
+            'sequence.unique' => 'Ya existe una operación con esta secuencia en el lote.',
         ];
     }
 

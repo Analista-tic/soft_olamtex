@@ -68,6 +68,19 @@ export interface ProductSheetOption {
     isTemporary?: boolean;
 }
 
+export interface ProductSheetDialogOption {
+    id: number | string;
+    reference: string;
+    type: string;
+    garment_type?: 'superior' | 'inferior' | null;
+    sample_reference?: string | null;
+    product_reference?: string | null;
+    product_reference_2?: string | null;
+    version?: number | null;
+    fabric_base_id?: number | string | null;
+    isTemporary?: boolean;
+}
+
 // Product Operation List Types
 export interface OperationSection {
     id: number | string;
@@ -146,6 +159,7 @@ export interface ProductOperationListPageProps extends SharedData {
 }
 
 export interface ProductOperationPayload {
+    id?: number | null;
     product_sheet_id: number | null;
     section_id: number | null;
     operation_id: number | null;
@@ -158,4 +172,144 @@ export interface ProductOperationPayload {
     notes?: string;
     quantity?: number;
     fabric_base_id?: number | null;
+}
+
+export interface ProductOperationDialogRow {
+    row_key: string;
+    id?: number | null;
+    section_id: number | null;
+    operation_id: number | null;
+    machine_id: number | null;
+    optimal_time: string;
+    quantity: number;
+    factor_operario: number;
+    grupo_preparacion?: string | null;
+    row_notes: string;
+    sam_total_base?: number;
+}
+
+export interface ProductOperationDialogRowInput {
+    id?: number | null;
+    section_id: number | null;
+    operation_id: number | null;
+    machine_id: number | null;
+    optimal_time: string;
+    quantity?: number;
+    fabric_base_id?: number | string | null;
+    factor_operario?: number;
+    grupo_preparacion?: string | null;
+    row_notes?: string;
+}
+
+export interface ProductOperationDialogInitialData {
+    productSheetId: number | string | null;
+    operations: ProductOperationDialogRowInput[];
+    operatorEfficiencyFactor: number;
+    notes: string;
+}
+
+export interface ProductOperationEntityCreatedData {
+    id: number;
+    name?: string;
+    action?: string;
+    garment_part?: string;
+    section_id?: number | null;
+    section?: { id: number } | null;
+    sam_base?: number | null;
+    factor_operario?: number | null;
+    machine_id_reference?: number | null;
+    product_sheet_id_reference?: number | null;
+    type?: string;
+    code?: string;
+}
+
+export interface ProductOperationListSummary {
+    product_sheet_id: number;
+    reference: string;
+    total_sam: number;
+    total_sam_confeccion: number;
+    total_sam_terminacion: number;
+    total_cost_product: number;
+    is_active: boolean;
+    search_text: string;
+}
+
+export interface ProductOperationViewEntry {
+    id: number;
+    sequence?: number;
+    quantity?: number;
+    fabric_base_id?: number | null;
+    operation_section_id?: number | null;
+    operation_section?: { name?: string; type?: string };
+    operationSection?: { name?: string; type?: string };
+    operation?: { name?: string };
+    machine?: { code?: string; name?: string; supplement_factor?: number | null };
+    optimal_time?: number | string;
+    sam?: number | string;
+    sam_base?: number | string;
+    sam_total_unitario?: number | string;
+    sam_total_operacion?: number | string;
+    operator_efficiency_factor?: number;
+    machine_supplement_factor?: number;
+    fabric_base_factor?: number;
+    grupo_preparacion?: string | null;
+    notes?: string | null;
+}
+
+export interface ProductOperationViewCostParameters {
+    operation_cost: number;
+}
+
+export interface ProductOperationViewSubGroup {
+    groupName: string;
+    items: ProductOperationViewEntry[];
+    totalSam: number;
+}
+
+export interface ProductOperationViewGroupedSection {
+    sectionName: string;
+    sectionType: string;
+    isPreparacion: boolean;
+    costType: 'confeccion' | 'presentacion' | 'otros';
+    items: ProductOperationViewEntry[];
+    totalSam: number;
+    subGroups: ProductOperationViewSubGroup[] | null;
+}
+
+export interface ProductOperationHistoryEntry {
+    id: number;
+    operator_efficiency_factor_anterior?: number;
+    operator_efficiency_factor_nuevo?: number;
+    machine_supplement_factor_anterior?: number;
+    machine_supplement_factor_nuevo?: number;
+    fabric_base_factor_anterior?: number;
+    fabric_base_factor_nuevo?: number;
+    sam_base_anterior?: number;
+    sam_base_nuevo?: number;
+    sam_total_unitario_anterior?: number;
+    sam_total_unitario_nuevo?: number;
+    sam_total_operacion_anterior?: number;
+    sam_total_operacion_nuevo?: number;
+    motivo?: string;
+    created_at?: string;
+    usuario?: { id: number; name: string };
+}
+
+export interface ProductOperationGroupedRow {
+    section_id: number | null;
+    operation_id: number | null;
+    machine_id: number | null;
+    optimal_time: string;
+    quantity: number;
+    fabric_base_id: number | string | null;
+    operator_efficiency_factor: number;
+    grupo_preparacion?: string | null;
+    row_notes: string;
+    sam_total_base?: number;
+}
+
+export interface ProductOperationSectionInfo {
+    id: number;
+    name: string;
+    type: 'PREPARACION' | 'ENSAMBLE' | 'TERMINACION';
 }

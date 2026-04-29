@@ -359,6 +359,7 @@ class RolesAndPermissionsSeeder extends Seeder
             // TICS
             ['name' => 'Kenier Steven Morales Cardenas',    'email' => 'k.morales@olamtex.co',       'password' => Hash::make('tics123'),       'area_id' => $this->resolveAreaId($areas, ['Tics']),                   'role' => $admin],
             ['name' => 'Manuela Arroyo Gomez',              'email' => 'm.arroyo@olamtex.co',        'password' => Hash::make('tics123'),       'area_id' => $this->resolveAreaId($areas, ['Tics']),                   'role' => $admin],
+            ['name' => 'Luisa Fernanda Ramirez Osorio',     'email' => 'l.ramirez@olamtex.co',         'password' => Hash::make('tics123'),       'area_id' => $this->resolveAreaId($areas, ['Tics']),                   'role' => $admin],
 
             // DESARROLLO ORGANIZACIONAL
             ['name' => 'Cristian Felipe Giraldo Herrera',   'email' => 'c.giraldo@olamtex.co',       'password' => Hash::make('desarrollo123'), 'area_id' => $this->resolveAreaId($areas, ['Desarrollo Organizacional']), 'role' => $admin],

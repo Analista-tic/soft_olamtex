@@ -176,6 +176,9 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
         Route::post('/bulk', [ProductOperationListController::class, 'storeBulk'])
             ->middleware('permission:crear listados operacionales|crear sabana productos')
             ->name('bulk');
+        Route::post('/sync', [ProductOperationListController::class, 'sync'])
+            ->middleware('permission:crear listados operacionales|editar listados operacionales|crear sabana productos|editar sabana productos')
+            ->name('sync');
         Route::put('/{listItem}', [ProductOperationListController::class, 'update'])
             ->middleware('permission:editar listados operacionales|editar sabana productos')
             ->name('update');

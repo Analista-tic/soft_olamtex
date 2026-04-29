@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { uiPatterns } from '@/lib/ui-patterns';
 import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { ChevronLeft, ChevronRight, Database, Eye, Pencil, Plus, Search, Settings2, Trash2 } from 'lucide-vue-next';
@@ -21,7 +22,6 @@ import { computed, onMounted, ref, watch } from 'vue';
 import OperationCatalogManagerDialog, { type ManagedMachine, type ManagedSection } from './OperationCatalogManagerDialog.vue';
 import OperationDetailDialog from './OperationDetailDialog.vue';
 import OperationFormDialog from './OperationFormDialog.vue';
-import { uiPatterns } from '@/lib/ui-patterns';
 
 type Section = { id: number; name: string; type?: string };
 type ProductSheetOption = { id: number; name: string };
@@ -76,23 +76,27 @@ const breadcrumbs = [
     { title: 'Base de datos de operaciones', href: '/produccion/base-operaciones' },
 ];
 
-const localSections = ref<ManagedSection[]>((page.props.sections || []).map((section) => ({
-    id: Number(section.id),
-    name: section.name,
-    type: (section.type ?? 'confeccion') as 'confeccion' | 'presentacion',
-    is_active: true,
-    usage_count: 0,
-})));
+const localSections = ref<ManagedSection[]>(
+    (page.props.sections || []).map((section) => ({
+        id: Number(section.id),
+        name: section.name,
+        type: (section.type ?? 'confeccion') as 'confeccion' | 'presentacion',
+        is_active: true,
+        usage_count: 0,
+    })),
+);
 const localActions = ref<string[]>([...(page.props.actions || [])]);
 const localGarmentParts = ref<string[]>([...(page.props.garmentParts || [])]);
-const localMachines = ref<ManagedMachine[]>((page.props.machines || []).map((machine) => ({
-    id: Number(machine.id),
-    code: machine.code ?? '',
-    name: machine.name,
-    supplement_factor: Number(machine.supplement_factor ?? 1),
-    is_active: true,
-    usage_count: 0,
-})));
+const localMachines = ref<ManagedMachine[]>(
+    (page.props.machines || []).map((machine) => ({
+        id: Number(machine.id),
+        code: machine.code ?? '',
+        name: machine.name,
+        supplement_factor: Number(machine.supplement_factor ?? 1),
+        is_active: true,
+        usage_count: 0,
+    })),
+);
 
 const sections = computed(() => localSections.value.filter((section) => section.is_active));
 const productSheets = computed(() => page.props.productSheets || []);
@@ -313,7 +317,7 @@ onMounted(() => fetchPage(1));
                                     <TableHead>Parte</TableHead>
                                     <TableHead class="w-16 text-right">Medida</TableHead>
                                     <TableHead class="w-16 text-right">Cant.</TableHead>
-                                    <TableHead class="text-right">SAM base</TableHead>
+                                    <TableHead class="text-right">SAM base (min)</TableHead>
                                     <TableHead class="text-right">Factor op. %</TableHead>
                                     <TableHead>Descripción</TableHead>
                                     <TableHead class="w-20 text-center">Estado</TableHead>
@@ -367,11 +371,11 @@ onMounted(() => fetchPage(1));
                                     </TableCell>
                                     <TableCell class="text-right font-mono text-xs">{{ op.measure != null ? op.measure : '-' }}</TableCell>
                                     <TableCell class="text-right font-mono text-xs">{{ op.quantity ?? '-' }}</TableCell>
-                                    <TableCell class="text-right font-mono text-xs font-semibold">{{
-                                        op.sam_base != null ? op.sam_base.toFixed(4) : '-'
+                                    <TableCell class="text-center font-mono text-xs font-semibold">{{
+                                        op.sam_base != null ? op.sam_base.toFixed(2) : '-'
                                     }}</TableCell>
                                     <TableCell class="text-right font-mono text-xs">{{
-                                        op.factor_operario != null ? Number(op.factor_operario).toFixed(2) : '-'
+                                        op.factor_operario != null ? Number(op.factor_operario).toFixed(0) : '-'
                                     }}</TableCell>
                                     <TableCell
                                         class="max-w-[200px] truncate text-xs uppercase text-muted-foreground"
@@ -471,11 +475,7 @@ onMounted(() => fetchPage(1));
             @saved="handleDialogSaved"
         />
 
-        <OperationCatalogManagerDialog
-            :open="isCatalogDialogOpen"
-            @close="isCatalogDialogOpen = false"
-            @catalogs-updated="handleCatalogsUpdated"
-        />
+        <OperationCatalogManagerDialog :open="isCatalogDialogOpen" @close="isCatalogDialogOpen = false" @catalogs-updated="handleCatalogsUpdated" />
 
         <OperationDetailDialog :open="isDetailOpen" :operation="viewingOperation" @close="isDetailOpen = false" @edit="handleEditFromDetail" />
 
@@ -490,5 +490,3 @@ onMounted(() => fetchPage(1));
         />
     </AppLayout>
 </template>
-
-

@@ -24,6 +24,7 @@ class ProductOperationList extends Model
         'sequence_order', // Alias para sequence (mapeado vía mutator)
         'fabric_base_id',
         'quantity',
+        'has_override',
         'sam_base',
         'sam',
         'fabric_base_factor',
@@ -45,6 +46,7 @@ class ProductOperationList extends Model
         'machine_id' => 'integer',
         'operation_section_id' => 'integer',
         'sequence' => 'integer',
+        'has_override' => 'boolean',
         'is_active' => 'boolean',
         'optimal_time' => 'float',
         'sam' => 'float',

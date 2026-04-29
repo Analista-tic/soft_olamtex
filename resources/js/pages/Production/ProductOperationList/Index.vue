@@ -11,7 +11,14 @@ import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
-import type { CostParameters, ProductOperationListPageProps, ProductOperationPayload } from '@/domain/product-sheet/types';
+import type {
+    CostParameters,
+    ProductOperationDialogInitialData,
+    ProductOperationDialogRowInput,
+    ProductOperationListPageProps,
+    ProductOperationListSummary,
+    ProductOperationPayload,
+} from '@/domain/product-sheet/types';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -72,45 +79,16 @@ function getInitialProductSheetFilter(): number | 'all' {
 
 const selectedProductSheetId = ref<number | 'all'>(getInitialProductSheetFilter());
 
-type OperationSummary = {
-    product_sheet_id: number;
-    reference: string;
-    total_sam: number;
-    total_sam_confeccion: number;
-    total_sam_terminacion: number;
-    total_cost_product: number;
-    is_active: boolean;
-    search_text: string;
-};
-
-type OperationRowInput = {
-    section_id: number | null;
-    operation_id: number | null;
-    machine_id: number | null;
-    optimal_time: string;
-    quantity?: number;
-    fabric_base_id?: number | string | null;
-    factor_operario?: number;
-    row_notes?: string;
-};
-
-type DialogInitialData = {
-    productSheetId: number | null;
-    operations: OperationRowInput[];
-    operatorEfficiencyFactor: number;
-    notes: string;
-};
-
-const operationSummaries = ref<OperationSummary[]>([]);
+const operationSummaries = ref<ProductOperationListSummary[]>([]);
 const isLoading = ref(false);
 const isSavingAndRefreshing = ref(false);
 const isDeleteDialogOpen = ref(false);
-const summaryToDelete = ref<OperationSummary | null>(null);
+const summaryToDelete = ref<ProductOperationListSummary | null>(null);
 const isViewOpen = ref(false);
-const summaryToView = ref<OperationSummary | null>(null);
+const summaryToView = ref<ProductOperationListSummary | null>(null);
 const { errorMessage, successMessage, showError, showSuccess, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const dialogMode = ref<'create' | 'edit'>('create');
-const dialogInitialData = ref<DialogInitialData | null>(null);
+const dialogInitialData = ref<ProductOperationDialogInitialData | null>(null);
 const actionButtonClass =
     'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 const actionIconClass = 'h-4 w-4';
@@ -259,9 +237,9 @@ async function fetchOperationSummaries() {
                     total_cost_product: totalCostProduct,
                     is_active: Boolean(row.is_active),
                     search_text: normalizeText(`${reference} ${searchBlob}`.trim()),
-                } as OperationSummary;
+                } as ProductOperationListSummary;
             })
-            .filter((summary: OperationSummary | null): summary is OperationSummary => summary !== null);
+            .filter((summary: ProductOperationListSummary | null): summary is ProductOperationListSummary => summary !== null);
     } catch (error) {
         console.error('Error al cargar resúmenes de operaciones:', error);
         operationSummaries.value = [];
@@ -282,35 +260,20 @@ function reloadFromDatabase(showSuccessAlert = true) {
 async function handleDialogSave(payloads: ProductOperationPayload[]) {
     isSavingAndRefreshing.value = true;
     try {
-        if (payloads.length === 0) {
-            if (dialogMode.value === 'edit') {
-                const targetSheetId = dialogInitialData.value?.productSheetId ?? null;
-                const targetSheetNumber = Number(targetSheetId);
-
-                if (Number.isFinite(targetSheetNumber) && targetSheetNumber > 0) {
-                    try {
-                        await deleteOperationsBySheetId(targetSheetNumber);
-                        selectedProductSheetId.value = targetSheetNumber;
-                        await fetchOperationSummaries();
-                        showSuccess('Listado operacional actualizado correctamente.');
-                        setTimeout(() => clearSuccess(), 5000);
-                    } catch (error) {
-                        console.error('Error al vaciar listado operacional:', error);
-                        showError('Error al guardar cambios del listado operacional.');
-                        setTimeout(() => clearError(), 8000);
-                    }
-                }
-            }
-            return;
-        }
-
         const validPayloads = payloads.filter((payload) => payload.product_sheet_id && payload.section_id && payload.operation_id && payload.machine_id);
 
-        if (validPayloads.length === 0) {
+        if (payloads.length > 0 && validPayloads.length === 0) {
             return;
         }
 
-        const targetSheetId = validPayloads.find((payload) => payload.product_sheet_id)?.product_sheet_id ?? null;
+        const targetSheetCandidate = payloads.find((payload) => payload.product_sheet_id)?.product_sheet_id ?? dialogInitialData.value?.productSheetId ?? null;
+        const targetSheetId = Number(targetSheetCandidate);
+        const hasValidTargetSheet = Number.isFinite(targetSheetId) && targetSheetId > 0;
+
+        if (!hasValidTargetSheet) {
+            return;
+        }
+
         const targetSheetComparableId = normalizeComparableId(targetSheetId);
 
         if (
@@ -322,21 +285,9 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
             return;
         }
 
-        if (dialogMode.value === 'edit' && targetSheetId) {
-            try {
-                await deleteOperationsBySheetId(targetSheetId);
-            } catch (error) {
-                console.error('Error al limpiar operaciones existentes:', error);
-                showError('Error al preparar la edición. Por favor intenta nuevamente.');
-                setTimeout(() => {
-                    clearError();
-                }, 8000);
-                return;
-            }
-        }
-
         try {
             const operationsPayload = validPayloads.map((payload) => ({
+                id: payload.id ?? null,
                 product_sheet_id: payload.product_sheet_id,
                 operation_id: payload.operation_id,
                 machine_id: payload.machine_id,
@@ -351,9 +302,16 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
                 fabric_base_id: payload.fabric_base_id ?? null,
             }));
 
-            await axios.post('/produccion/listados-operacionales/bulk', {
-                operations: operationsPayload,
-            });
+            if (dialogMode.value === 'edit') {
+                await axios.post('/produccion/listados-operacionales/sync', {
+                    product_sheet_id: targetSheetId,
+                    operations: operationsPayload,
+                });
+            } else {
+                await axios.post('/produccion/listados-operacionales/bulk', {
+                    operations: operationsPayload,
+                });
+            }
 
             showSuccess(
                 dialogMode.value === 'edit'
@@ -361,7 +319,7 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
                     : `${operationsPayload.length} operación(es) guardada(s) correctamente.`,
             );
 
-            if (targetSheetId) {
+            if (hasValidTargetSheet) {
                 selectedProductSheetId.value = targetSheetId;
             }
 
@@ -375,7 +333,7 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
 
             await fetchOperationSummaries();
 
-            if (targetSheetId) {
+            if (hasValidTargetSheet) {
                 selectedProductSheetId.value = targetSheetId;
             }
 
@@ -412,12 +370,12 @@ async function deleteOperationsBySheetId(productSheetId: number) {
     }
 }
 
-function confirmDeleteSummary(summary: OperationSummary) {
+function confirmDeleteSummary(summary: ProductOperationListSummary) {
     summaryToDelete.value = summary;
     isDeleteDialogOpen.value = true;
 }
 
-function openSummaryView(summary: OperationSummary) {
+function openSummaryView(summary: ProductOperationListSummary) {
     summaryToView.value = summary;
     isViewOpen.value = true;
 }
@@ -447,7 +405,7 @@ function openCreateDialog() {
     isDialogOpen.value = true;
 }
 
-async function openEditDialog(summary: OperationSummary) {
+async function openEditDialog(summary: ProductOperationListSummary) {
     clearAlerts();
     try {
         const { data } = await axios.get('/produccion/listados-operacionales/data', {
@@ -464,6 +422,7 @@ async function openEditDialog(summary: OperationSummary) {
                 const factorOperario = operatorEfficiencyFactor > 0 ? Number((100 / operatorEfficiencyFactor).toFixed(2)) : 100;
 
                 return {
+                    id: toNumberOrNull(row.id),
                     section_id: toNumberOrNull(row.operation_section_id ?? row.section_id ?? row.operation_section?.id ?? row.operationSection?.id),
                     operation_id: toNumberOrNull(row.operation_id ?? row.operation?.id),
                     machine_id: toNumberOrNull(row.machine_id ?? row.machine?.id),

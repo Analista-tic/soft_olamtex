@@ -10,68 +10,21 @@ import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import type { FabricBaseOption, MachineOption, OperationOption, OperationSection, ProductOperationPayload } from '@/domain/product-sheet/types';
+import type {
+    FabricBaseOption,
+    MachineOption,
+    OperationOption,
+    OperationSection,
+    ProductOperationDialogInitialData,
+    ProductOperationDialogRow,
+    ProductOperationDialogRowInput,
+    ProductOperationEntityCreatedData,
+    ProductOperationPayload,
+    ProductSheetDialogOption,
+} from '@/domain/product-sheet/types';
 import { Check, GripVertical, Pencil, Plus, PlusCircle, X } from 'lucide-vue-next';
 import { computed, PropType, ref, watch } from 'vue';
 import AddNew from './AddNew.vue';
-
-interface OperationRow {
-    section_id: number | null;
-    operation_id: number | null;
-    machine_id: number | null;
-    optimal_time: string;
-    quantity: number;
-    factor_operario: number;
-    grupo_preparacion?: string | null;
-    row_notes: string;
-    sam_total_base?: number;
-}
-
-interface OperationRowInput {
-    section_id: number | null;
-    operation_id: number | null;
-    machine_id: number | null;
-    optimal_time: string;
-    quantity?: number;
-    factor_operario?: number;
-    grupo_preparacion?: string | null;
-    row_notes?: string;
-}
-
-interface DialogInitialData {
-    productSheetId: number | string | null;
-    operations: OperationRowInput[];
-    operatorEfficiencyFactor: number;
-    notes: string;
-}
-
-interface ProductSheetDialogOption {
-    id: number | string;
-    reference: string;
-    type: string;
-    garment_type?: 'superior' | 'inferior' | null;
-    sample_reference?: string | null;
-    product_reference?: string | null;
-    product_reference_2?: string | null;
-    version?: number | null;
-    fabric_base_id?: number | string | null;
-    isTemporary?: boolean;
-}
-
-interface EntityCreatedData {
-    id: number;
-    name?: string;
-    action?: string;
-    garment_part?: string;
-    section_id?: number | null;
-    section?: { id: number } | null;
-    sam_base?: number | null;
-    factor_operario?: number | null;
-    machine_id_reference?: number | null;
-    product_sheet_id_reference?: number | null;
-    type?: string;
-    code?: string;
-}
 
 const props = defineProps({
     open: Boolean,
@@ -80,7 +33,7 @@ const props = defineProps({
         default: 'create',
     },
     initialData: {
-        type: Object as PropType<DialogInitialData | null>,
+        type: Object as PropType<ProductOperationDialogInitialData | null>,
         default: null,
     },
     productSheets: {
@@ -164,12 +117,30 @@ function clearValidationError() {
 
 const sectionsList = ref<OperationSection[]>([]);
 const operationsList = ref<OperationOption[]>([]);
+const locallyCreatedOperations = ref<OperationOption[]>([]);
 const machinesList = ref<MachineOption[]>([]);
 const fabricBasesList = ref<FabricBaseOption[]>([]);
 const preparationGroupsList = ref<string[]>([]);
 const preparationGroupSearchTerm = ref('');
+let rowKeySequence = 0;
 
 const NONE_FABRIC_BASE_LABEL = 'NS / NINGUNA';
+
+function buildRowKey(prefix = 'row'): string {
+    rowKeySequence += 1;
+    return `${prefix}-${rowKeySequence}`;
+}
+
+function upsertOperationOption(target: OperationOption[], operation: OperationOption): OperationOption[] {
+    const existingIndex = target.findIndex((item) => idsMatch(item.id, operation.id));
+    if (existingIndex >= 0) {
+        const next = [...target];
+        next[existingIndex] = { ...next[existingIndex], ...operation };
+        return next;
+    }
+
+    return [...target, operation];
+}
 
 /** Fabric base heredada de la sábana seleccionada. */
 const selectedSheetFabricBaseId = computed(() => {
@@ -200,7 +171,9 @@ function isSectionPreparacion(sectionId: number | string | null): boolean {
     return (section?.type ?? '').toLowerCase() === 'preparacion';
 }
 
-const createEmptyRow = (): OperationRow => ({
+const createEmptyRow = (): ProductOperationDialogRow => ({
+    row_key: buildRowKey('new'),
+    id: null,
     section_id: null,
     operation_id: null,
     machine_id: null,
@@ -211,11 +184,15 @@ const createEmptyRow = (): OperationRow => ({
     row_notes: '',
     sam_total_base: 0,
 });
-const currentRow = ref<OperationRow>(createEmptyRow());
+const currentRow = ref<ProductOperationDialogRow>(createEmptyRow());
 
 function syncListsFromProps() {
     sectionsList.value = Array.isArray(props.sections) ? [...props.sections] : [];
-    operationsList.value = Array.isArray(props.operations) ? [...props.operations] : [];
+    const operationCatalog = Array.isArray(props.operations) ? [...props.operations] : [];
+    operationsList.value = locallyCreatedOperations.value.reduce<OperationOption[]>(
+        (acc, operation) => upsertOperationOption(acc, operation),
+        operationCatalog,
+    );
     machinesList.value = Array.isArray(props.machines) ? [...props.machines] : [];
     fabricBasesList.value = Array.isArray(props.fabricBases) ? [...props.fabricBases] : [];
     preparationGroupsList.value = Array.isArray(props.preparationGroups)
@@ -307,7 +284,7 @@ watch(
         // SAM base
         const samTotal = Number(op.sam_base ?? 0);
         currentRow.value.sam_total_base = Number.isFinite(samTotal) ? samTotal : 0;
-        currentRow.value.optimal_time = currentRow.value.sam_total_base.toFixed(4);
+        currentRow.value.optimal_time = currentRow.value.sam_total_base.toFixed(2);
         // Reset grupo_preparacion if section is not PREPARACION
         if (!isSectionPreparacion(currentRow.value.section_id)) {
             currentRow.value.grupo_preparacion = null;
@@ -353,10 +330,20 @@ watch(
     { deep: true },
 );
 
-const operationList = ref<OperationRow[]>([]);
+const operationList = ref<ProductOperationDialogRow[]>([]);
 const editingRowIndex = ref<number | null>(null);
-const editRow = ref<OperationRow | null>(null);
+const editRow = ref<ProductOperationDialogRow | null>(null);
 const addNewDialogOpen = ref(false);
+
+const availableOperationOptions = computed(() => {
+    const selectedOperationIds = new Set(
+        operationList.value
+            .map((row) => row.operation_id)
+            .filter((id): id is number => typeof id === 'number' && Number.isFinite(id)),
+    );
+
+    return operationsList.value.filter((operation) => !selectedOperationIds.has(Number(operation.id)));
+});
 
 const addNewEntity = ref<'section' | 'operation' | 'machine'>('section');
 
@@ -367,24 +354,25 @@ function openAddNewDialog(entity: 'section' | 'operation' | 'machine') {
 
 const openCreateDialog = () => openAddNewDialog('operation');
 
-function handleEntityCreated(data: EntityCreatedData) {
+function handleEntityCreated(data: ProductOperationEntityCreatedData) {
     if (addNewEntity.value === 'section') {
         sectionsList.value.push({ id: data.id, name: data.name ?? '', type: data.type ?? '' });
         currentRow.value.section_id = data.id;
     } else if (addNewEntity.value === 'operation') {
-        if (!operationsList.value.some((o) => o.id === data.id)) {
-            operationsList.value.push({
-                id: data.id,
-                name: data.name ?? `${data.action ?? ''} ${data.garment_part ?? ''}`.trim(),
-                action: data.action,
-                garment_part: data.garment_part,
-                section_id: data.section_id ?? data.section?.id ?? null,
-                sam_base: data.sam_base ?? null,
-                factor_operario: data.factor_operario ?? 100,
-                machine_id_reference: data.machine_id_reference ?? null,
-                product_sheet_id_reference: data.product_sheet_id_reference ?? null,
-            });
-        }
+        const createdOperation: OperationOption = {
+            id: data.id,
+            name: data.name ?? `${data.action ?? ''} ${data.garment_part ?? ''}`.trim(),
+            action: data.action,
+            garment_part: data.garment_part,
+            section_id: data.section_id ?? data.section?.id ?? null,
+            sam_base: data.sam_base ?? null,
+            factor_operario: data.factor_operario ?? 100,
+            machine_id_reference: data.machine_id_reference ?? null,
+            product_sheet_id_reference: data.product_sheet_id_reference ?? null,
+        };
+        locallyCreatedOperations.value = upsertOperationOption(locallyCreatedOperations.value, createdOperation);
+        operationsList.value = upsertOperationOption(operationsList.value, createdOperation);
+
         currentRow.value.operation_id = data.id;
         if (data.section_id != null || data.section?.id != null) {
             currentRow.value.section_id = data.section_id ?? data.section?.id ?? null;
@@ -394,11 +382,11 @@ function handleEntityCreated(data: EntityCreatedData) {
         }
         const samTotal = Number(data.sam_base ?? 0);
         currentRow.value.sam_total_base = Number.isFinite(samTotal) ? samTotal : 0;
-        currentRow.value.optimal_time = currentRow.value.sam_total_base.toFixed(4);
+        currentRow.value.optimal_time = currentRow.value.sam_total_base.toFixed(2);
         currentRow.value.factor_operario = Number(data.factor_operario ?? 100);
         addOperation();
     } else if (addNewEntity.value === 'machine') {
-        const machineData = data as EntityCreatedData & { supplement_factor?: number };
+        const machineData = data as ProductOperationEntityCreatedData & { supplement_factor?: number };
         machinesList.value.push({
             id: data.id,
             code: data.code ?? '',
@@ -432,18 +420,18 @@ function saveEditRow(i: number) {
     cancelEditRow();
 }
 
-function getSupplementForRow(row: OperationRow): number {
+function getSupplementForRow(row: ProductOperationDialogRow): number {
     const m = machinesList.value.find((m) => idsMatch(m.id, row.machine_id));
     const f = m?.supplement_factor ?? 1;
     return typeof f === 'number' && f >= 1 ? f : 1;
 }
 
-function getSupplementPercentage(row: OperationRow): number {
+function getSupplementPercentage(row: ProductOperationDialogRow): number {
     return (getSupplementForRow(row) - 1) * 100;
 }
 
 /** SAM ajustado = SAM_base / (factor_operario / 100) */
-function getSamAjustado(row: OperationRow): number {
+function getSamAjustado(row: ProductOperationDialogRow): number {
     const samBase = Number(row.sam_total_base ?? row.optimal_time ?? 0);
     const factorOp = Number(row.factor_operario ?? 100);
     if (!Number.isFinite(samBase) || factorOp <= 0) return 0;
@@ -451,20 +439,20 @@ function getSamAjustado(row: OperationRow): number {
 }
 
 /** SAM con suplemento = SAM_ajustado × suplemento_máquina */
-function getSamConSuplemento(row: OperationRow): number {
+function getSamConSuplemento(row: ProductOperationDialogRow): number {
     return getSamAjustado(row) * getSupplementForRow(row);
 }
 
 /** SAM total unitario = SAM con suplemento × factor base tela */
-function getSamUnitario(row: OperationRow): number {
-    return Number((getSamConSuplemento(row) * selectedSheetFabricFactor.value).toFixed(4));
+function getSamUnitario(row: ProductOperationDialogRow): number {
+    return Number((getSamConSuplemento(row) * selectedSheetFabricFactor.value).toFixed(2));
 }
 
-function getSamOperacion(row: OperationRow): number {
+function getSamOperacion(row: ProductOperationDialogRow): number {
     return Number((getSamUnitario(row) * (row.quantity ?? 1)).toFixed(2));
 }
 
-function getOpsPerHour(row: OperationRow): number {
+function getOpsPerHour(row: ProductOperationDialogRow): number {
     const samOp = getSamOperacion(row);
     if (samOp <= 0) return 0;
     return Math.floor(60 / samOp);
@@ -475,7 +463,12 @@ function getSectionName(id: number | null): string {
 }
 
 function getOperationName(id: number | null): string {
-    return operationsList.value.find((o) => idsMatch(o.id, id))?.name ?? '-';
+    if (id == null) return '-';
+
+    const found = operationsList.value.find((o) => idsMatch(o.id, id))?.name;
+    if (found && String(found).trim() !== '') return found;
+
+    return `Operación #${id}`;
 }
 
 function getOperationOptionLabel(operation: OperationOption): string {
@@ -498,7 +491,7 @@ function getMachineName(id: string | number | null): string {
     return code || name || '-';
 }
 
-function getMachineDisplayWithSupplement(row: OperationRow): string {
+function getMachineDisplayWithSupplement(row: ProductOperationDialogRow): string {
     const name = getMachineName(row.machine_id);
     const sup = getSupplementForRow(row);
     return sup !== 1 ? `${name} (×${sup.toFixed(2)})` : name;
@@ -567,6 +560,8 @@ function initializeForm() {
     if (props.mode === 'edit' && props.initialData) {
         productSheetId.value = props.initialData.productSheetId ?? props.productSheets[0]?.id ?? null;
         operationList.value = props.initialData.operations.map((row) => ({
+            row_key: row.id != null ? `persisted-${row.id}` : buildRowKey('edit'),
+            id: row.id ?? null,
             section_id: row.section_id,
             operation_id: row.operation_id,
             machine_id: row.machine_id,
@@ -616,6 +611,7 @@ function saveOperations() {
     const payload: ProductOperationPayload[] = operationList.value.map((row, i) => {
         const factorOp = Number(row.factor_operario ?? 100);
         return {
+            id: row.id ?? null,
             product_sheet_id: sheetIdNumeric,
             section_id: row.section_id,
             operation_id: row.operation_id,
@@ -663,7 +659,10 @@ function resetForm() {
             </DialogHeader>
 
             <TooltipProvider>
-                <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden scroll-smooth pr-1" style="scrollbar-width: thin">
+                <div
+                    class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain scroll-smooth pr-1"
+                    style="scrollbar-width: thin"
+                >
                     <!-- Datos generales -->
                     <div class="flex flex-wrap items-end gap-x-6 gap-y-3 px-1 pb-4" style="border-bottom: 1px solid hsl(var(--border) / 0.4)">
                         <div class="min-w-[220px] flex-1">
@@ -738,7 +737,7 @@ function resetForm() {
                         <div class="col-span-3">
                             <SelectField
                                 v-model="currentRow.operation_id"
-                                :options="operationsList.map((o) => ({ id: o.id, name: getOperationOptionLabel(o) }))"
+                                :options="availableOperationOptions.map((o) => ({ id: o.id, name: getOperationOptionLabel(o) }))"
                                 placeholder="Buscar operación"
                                 class="h-9 w-full"
                             >
@@ -813,13 +812,21 @@ function resetForm() {
 
                     <!-- Lista de operaciones añadidas -->
                     <div v-if="operationList.length > 0" class="mt-5 overflow-hidden">
-                        <p v-if="!readonly" class="mb-2 flex items-center gap-2 px-1 text-[11px] text-muted-foreground/80">
-                            <GripVertical class="h-3 w-3 shrink-0" />
-                            Arrastra para reordenar · Edita notas y grupo de preparación
-                        </p>
-                        <div class="max-h-[360px] overflow-y-auto scroll-smooth rounded-md bg-muted/20" style="scrollbar-width: thin">
+                        <div v-if="!readonly" class="mb-2 flex items-center justify-between gap-2 rounded-md border border-border/50 bg-muted/20 px-3 py-2">
+                            <p class="flex items-center gap-2 text-[11px] text-muted-foreground/85">
+                                <GripVertical class="h-3 w-3 shrink-0" />
+                                Arrastra para reordenar · Edita notas y grupo de preparación
+                            </p>
+                            <span class="rounded-full bg-background px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                                {{ operationList.length }} filas
+                            </span>
+                        </div>
+                        <div
+                            class="max-h-[360px] overflow-y-auto overscroll-contain scroll-smooth rounded-lg border border-border/60 bg-muted/10"
+                            style="scrollbar-width: thin"
+                        >
                             <table class="w-full table-fixed text-sm">
-                                <thead class="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+                                <thead class="sticky top-0 z-10 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/85">
                                     <tr class="text-[11px] text-muted-foreground/90" style="border-bottom: 1px solid hsl(var(--border) / 0.5)">
                                         <th class="w-7 py-2.5"></th>
                                         <th class="w-7 px-3 py-2.5 text-left font-medium">#</th>
@@ -850,7 +857,7 @@ function resetForm() {
                                 <tbody>
                                     <DraggableTableRow
                                         v-for="(row, index) in operationList"
-                                        :key="`row-${index}`"
+                                        :key="row.row_key"
                                         :index="index"
                                         :is-draggable="!readonly && editingRowIndex === null"
                                         @drag-start="handleDragStart"

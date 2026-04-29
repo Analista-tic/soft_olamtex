@@ -60,6 +60,11 @@
 - UI libraries in use: **shadcn/vue** (primary component library), Radix Vue, Lucide (icons), and Tailwind CSS for styling; state via Pinia.
 - Formatting & linting: `npm run format` for `resources/`, `npm run lint` uses ESLint + Prettier + Tailwind plugin.
 
+### Tipado TypeScript (obligatorio)
+- Todo `type`/`interface` reutilizable o de dominio debe declararse en `resources/js/domain/<modulo>/types.ts` y exportarse desde su `index.ts`.
+- Evitar declarar interfaces de dominio inline dentro de páginas/components (`resources/js/pages/**`) salvo tipos estrictamente locales y efímeros de UI.
+- Mantener nomenclatura consistente por contexto (`<Entidad>Option`, `<Entidad>Payload`, `<Entidad>Dialog*`) para facilitar mapeo y depuración.
+
 ### shadcn/vue Components
 - **Base components:** Import shadcn/vue components from `@/components/ui/*` (e.g., `Button`, `Dialog`, `Input`, `Select`, `DataTable`).
 - **Component usage:** All components are pre-configured with Tailwind and Radix Vue. Customize via `cn()` utility for class merging and Tailwind variants.

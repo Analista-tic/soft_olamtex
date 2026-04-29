@@ -35,7 +35,7 @@ class UpdateProductOperationListRequest extends FormRequest
                     ->ignore($listItem->id)
                     ->whereNull('deleted_at'),
             ],
-            'machine_id' => ['sometimes', 'integer', 'exists:machines,id'],
+            'machine_id' => ['sometimes', 'nullable', 'integer', 'exists:machines,id'],
             'operation_section_id' => ['sometimes', 'integer', 'exists:operation_sections,id'],
             'sequence' => [
                 'sometimes',

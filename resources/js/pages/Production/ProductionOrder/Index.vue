@@ -488,7 +488,7 @@ onUnmounted(() => {
                                             <template v-else-if="hasLoadError">
                                                 <TableRow>
                                                     <TableCell colspan="8" class="py-8 text-center text-sm text-muted-foreground">
-                                                        No fue posible cargar las Ã³rdenes de producciÃ³n.
+                                                        No fue posible cargar las Ordenes de producción.
                                                     </TableCell>
                                                 </TableRow>
                                             </template>

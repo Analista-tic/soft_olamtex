@@ -3,27 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import type { ProductOperationHistoryEntry } from '@/domain/product-sheet/types';
 import axios from 'axios';
 import { ref, watch } from 'vue';
-
-type HistoryEntry = {
-    id: number;
-    operator_efficiency_factor_anterior?: number;
-    operator_efficiency_factor_nuevo?: number;
-    machine_supplement_factor_anterior?: number;
-    machine_supplement_factor_nuevo?: number;
-    fabric_base_factor_anterior?: number;
-    fabric_base_factor_nuevo?: number;
-    sam_base_anterior?: number;
-    sam_base_nuevo?: number;
-    sam_total_unitario_anterior?: number;
-    sam_total_unitario_nuevo?: number;
-    sam_total_operacion_anterior?: number;
-    sam_total_operacion_nuevo?: number;
-    motivo?: string;
-    created_at?: string;
-    usuario?: { id: number; name: string };
-};
 
 const props = withDefaults(
     defineProps<{
@@ -41,7 +23,7 @@ const emit = defineEmits<{
 }>();
 
 const localOpen = ref(props.open);
-const history = ref<HistoryEntry[]>([]);
+const history = ref<ProductOperationHistoryEntry[]>([]);
 const isLoading = ref(false);
 
 watch(
@@ -73,7 +55,7 @@ async function fetchHistory() {
 
 function formatValue(v: number | undefined): string {
     if (v === undefined || v === null) return '-';
-    return Number(v).toFixed(4);
+    return Number(v).toFixed(2);
 }
 
 function formatOperatorPercent(v: number | undefined): string {
@@ -81,7 +63,7 @@ function formatOperatorPercent(v: number | undefined): string {
     return `${(100 / Number(v)).toFixed(2)}%`;
 }
 
-function getBeforeValue(entry: HistoryEntry): string {
+function getBeforeValue(entry: ProductOperationHistoryEntry): string {
     if (entry.operator_efficiency_factor_anterior !== undefined && entry.operator_efficiency_factor_anterior !== null) {
         return formatOperatorPercent(entry.operator_efficiency_factor_anterior);
     }
@@ -89,7 +71,7 @@ function getBeforeValue(entry: HistoryEntry): string {
     return formatValue(entry.machine_supplement_factor_anterior ?? entry.fabric_base_factor_anterior ?? entry.sam_base_anterior);
 }
 
-function getAfterValue(entry: HistoryEntry): string {
+function getAfterValue(entry: ProductOperationHistoryEntry): string {
     if (entry.operator_efficiency_factor_nuevo !== undefined && entry.operator_efficiency_factor_nuevo !== null) {
         return formatOperatorPercent(entry.operator_efficiency_factor_nuevo);
     }
@@ -109,7 +91,7 @@ function formatDate(d: string | undefined): string {
     });
 }
 
-function getChangeDescription(entry: HistoryEntry): string {
+function getChangeDescription(entry: ProductOperationHistoryEntry): string {
     const parts: string[] = [];
     if (entry.operator_efficiency_factor_anterior !== entry.operator_efficiency_factor_nuevo) {
         parts.push('Factor operario (%)');

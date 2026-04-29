@@ -2,10 +2,9 @@
 import Button from '@/components/ui/button/Button.vue';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import axios from 'axios';
-import { ClipboardList, CloudUpload, Download, LoaderCircle } from 'lucide-vue-next';
+import { ClipboardList, CloudUpload, LoaderCircle } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import * as XLSX from 'xlsx';
-// No global toast detected — use local inline alerts
 
 type ImportErrorItem = {
     row: number | null;
@@ -85,7 +84,10 @@ function openFileDialog() {
 }
 
 function downloadTemplate() {
-    window.open('/fabric-rolls/descargar-plantilla', '_blank');
+    const worksheet = XLSX.utils.aoa_to_sheet([expectedHeaders]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'rollos');
+    XLSX.writeFile(workbook, 'plantilla_importacion_rollos.xlsx');
 }
 
 function preventDrag(event: DragEvent) {
@@ -157,15 +159,22 @@ async function validateFile(selectedFile: File): Promise<string | null> {
         return 'El archivo Excel esta vacio.';
     }
 
-    const headers = (rows[0] ?? []);
-    const columnCount = Array.isArray(headers) ? headers.length : 0;
+    const headers = (rows[0] ?? []).map((header) => normalizeHeader(String(header ?? '')));
+    const normalizedExpectedHeaders = expectedHeaders.map((header) => normalizeHeader(header));
 
-    if (columnCount !== 14) {
-        return `El archivo debe tener exactamente 14 columnas. Se encontraron ${columnCount} columnas.`;
+    const isValid =
+        headers.length === normalizedExpectedHeaders.length &&
+        headers.every((header, index) => header === normalizedExpectedHeaders[index]);
+
+    if (!isValid) {
+        return `Los headers deben coincidir exactamente con: ${expectedHeaders.join(', ')}`;
     }
 
-    // Aceptamos variaciones en nombres de headers (legacy vs nueva plantilla)
     return null;
+}
+
+function normalizeHeader(value: string) {
+    return value.replace(/^\uFEFF/, '').trim().replace(/^"|"$/g, '');
 }
 
 function toRowNumber(value: unknown): number | null {
@@ -327,7 +336,7 @@ async function submitImport() {
                                 </p>
                                 <div class="mt-3">
                                     <Button variant="outline" class="w-full justify-center gap-2" @click="downloadTemplate">
-                                        <Download class="h-4 w-4" /> Descargar plantilla
+                                        Descargar plantilla (CSV)
                                     </Button>
                                 </div>
                             </div>
