@@ -513,6 +513,12 @@ function addOperation() {
     }
     if (samBase <= 0) {
         const msg = 'La operación seleccionada no tiene SAM base. Regístralo primero en la base de datos de operaciones.';
+             if (isSectionPreparacion(currentRow.value.section_id) && !currentRow.value.grupo_preparacion) {
+                 const msg = 'Para operaciones de PREPARACION, debes seleccionar o crear un grupo de preparación.';
+                 setValidationError(msg);
+                 emit('validation-error', msg);
+                 return;
+             }
         setValidationError(msg);
         emit('validation-error', msg);
         return;
@@ -587,6 +593,15 @@ function saveOperations() {
     const hasDuplicates = keys.some((k, i) => keys.indexOf(k) !== i);
     if (hasDuplicates) {
         const msg = 'Hay operaciones duplicadas en el listado (misma operación). Elimina duplicados antes de guardar.';
+             const missingPreparationGroup = operationList.value.find(
+                 (row) => isSectionPreparacion(row.section_id) && !row.grupo_preparacion
+             );
+             if (missingPreparationGroup) {
+                 const msg = 'Todas las operaciones de PREPARACION deben tener un grupo asignado. Edita las filas sin grupo.';
+                 setValidationError(msg);
+                 emit('validation-error', msg);
+                 return;
+             }
         setValidationError(msg);
         emit('validation-error', msg);
         return;
