@@ -47,10 +47,10 @@ const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
 const isLoading = ref(false);
-const DEFAULT_FILTER_VALUE = 'all';
-const statusFilter = ref(DEFAULT_FILTER_VALUE);
+const DEFAULT_FILTER_VALUE: null = null;
+const statusFilter = ref<string | null>(DEFAULT_FILTER_VALUE);
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_FILTER_VALUE);
+const isStatusFilterActive = computed(() => statusFilter.value != null);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 
 function openDialog(type: 'create' | 'edit', tax: any | null = null) {
@@ -100,7 +100,7 @@ async function handleDialogSubmit(taxData: any) {
 async function fetchTaxes(page = 1, search = '') {
     isLoading.value = true;
     const params: Record<string, any> = { page, per_page: itemsPerPage, search };
-    if (statusFilter.value !== DEFAULT_FILTER_VALUE) {
+    if (statusFilter.value != null) {
         params.status = statusFilter.value;
     }
     try {
@@ -163,11 +163,12 @@ onMounted(() => fetchTaxes());
                         v-model="statusFilter"
                         label=""
                         :options="[
-                            { id: 'all', name: 'Todos los estados' },
                             { id: 'active', name: 'Activo' },
                             { id: 'inactive', name: 'Inactivo' },
                         ]"
                         :button-class="statusButtonClasses"
+                        placeholder="Estado"
+                        :clearable="true"
                     />
                 </FilterField>
             </FilterBar>

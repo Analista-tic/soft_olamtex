@@ -106,13 +106,13 @@ const invoiceReferences = ref<Array<{ id: number; document_number?: string | nul
  * Filters
  */
 const searchQuery = ref('');
-const typeFilter = ref<'all' | CreditDebitNoteType>('all');
-const providerFilter = ref<string>('all');
-const createdDate = ref('');
+const typeFilter = ref<CreditDebitNoteType | null>(null);
+const providerFilter = ref<string | null>(null);
+const createdDate = ref<string | null>('');
 
 const isSearchActive = computed(() => trimText(searchQuery.value).length > 0);
-const isTypeFilterActive = computed(() => typeFilter.value !== 'all');
-const isProviderFilterActive = computed(() => providerFilter.value !== 'all');
+const isTypeFilterActive = computed(() => typeFilter.value != null);
+const isProviderFilterActive = computed(() => providerFilter.value != null);
 const isCreatedDateActive = computed(() => Boolean(createdDate.value));
 
 const typeButtonClasses = useFilterButtonClasses(isTypeFilterActive);
@@ -167,12 +167,10 @@ const searchPlaceholder = computed(() =>
 );
 
 const providerOptions = computed(() => [
-    { id: 'all', name: counterpartAllLabel.value },
     ...contactsStore.items.map((p) => ({ id: String(p.id), name: p.full_name })),
 ]);
 
 const typeOptions = computed(() => [
-    { id: 'all', name: 'Todos los tipos' },
     { id: toContextDocumentType('credit'), name: 'Nota credito' },
     { id: toContextDocumentType('debit'), name: 'Nota debito' },
 ]);
@@ -287,7 +285,7 @@ const filteredNotes = computed(() => {
 
     rows = rows.filter((note) => String(note.document_type || '').startsWith(contextPrefix));
 
-    if (typeFilter.value !== 'all') {
+    if (typeFilter.value != null) {
         rows = rows.filter((note) => note.document_type === typeFilter.value);
     }
 
@@ -329,10 +327,10 @@ async function fetchNotes(pageNumber = 1): Promise<void> {
             per_page: itemsPerPage,
             context: context.value,
             search: trimText(searchQuery.value) || undefined,
-            provider_id: providerFilter.value !== 'all' ? providerFilter.value : undefined,
+            provider_id: providerFilter.value != null ? providerFilter.value : undefined,
             date_from: createdDate.value || undefined,
             date_to: createdDate.value || undefined,
-            document_type: typeFilter.value === 'all' ? undefined : typeFilter.value,
+            document_type: typeFilter.value ?? undefined,
         } as Parameters<typeof listCreditDebitNotes>[0]);
 
         notes.value = Array.isArray(response.data) ? response.data : [];
@@ -598,15 +596,15 @@ onMounted(async () => {
                 </FilterField>
 
                 <FilterField label="Tipo" :active="isTypeFilterActive" class="w-[220px] min-w-[200px]">
-                    <SelectField v-model="typeFilter" label="" :options="typeOptions" :button-class="typeButtonClasses" />
+                    <SelectField v-model="typeFilter" label="" :options="typeOptions" :button-class="typeButtonClasses" placeholder="Tipo" :clearable="true" />
                 </FilterField>
 
                 <FilterField :label="counterpartLabel" :active="isProviderFilterActive" class="w-[260px] min-w-[220px]">
-                    <SelectField v-model="providerFilter" label="" :options="providerOptions" :button-class="providerButtonClasses" />
+                    <SelectField v-model="providerFilter" label="" :options="providerOptions" :button-class="providerButtonClasses" :placeholder="counterpartAllLabel" :clearable="true" />
                 </FilterField>
 
                 <FilterField label="Fecha de creación" :active="isCreatedDateActive" class="w-[180px] min-w-[170px]">
-                    <InputDate v-model="createdDate" placeholder="Fecha de creación" />
+                    <InputDate v-model="createdDate" placeholder="Fecha de creación" :clearable="true" />
                 </FilterField>
             </FilterBar>
 

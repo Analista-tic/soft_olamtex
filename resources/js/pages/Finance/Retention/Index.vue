@@ -61,19 +61,19 @@ const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
 const isLoading = ref(false);
-const DEFAULT_FILTER_VALUE = 'all' as const;
-const typeFilter = ref<string>(DEFAULT_FILTER_VALUE);
-const statusFilter = ref<RetentionStatus | typeof DEFAULT_FILTER_VALUE>(DEFAULT_FILTER_VALUE);
+const DEFAULT_FILTER_VALUE: null = null;
+const typeFilter = ref<string | null>(DEFAULT_FILTER_VALUE);
+const statusFilter = ref<RetentionStatus | null>(DEFAULT_FILTER_VALUE);
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isTypeFilterActive = computed(() => typeFilter.value !== DEFAULT_FILTER_VALUE);
-const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_FILTER_VALUE);
+const isTypeFilterActive = computed(() => typeFilter.value != null);
+const isStatusFilterActive = computed(() => statusFilter.value != null);
 const typeButtonClasses = useFilterButtonClasses(isTypeFilterActive);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 
 const typeOptions = computed(() => {
     const types = Array.from(new Set(retentions.value.map((item) => item.type).filter(Boolean)));
-    return [{ id: 'all', name: 'Todos los tipos' }, ...types.map((type) => ({ id: type, name: type }))];
+    return [...types.map((type) => ({ id: type, name: type }))];
 });
 
 function openDialog(type: 'create' | 'edit', retention: Retention | null = null) {
@@ -208,18 +208,19 @@ onMounted(() => fetchRetentions());
                     </div>
                 </FilterField>
                 <FilterField label="Tipo" :active="isTypeFilterActive" class="min-w-[190px]">
-                    <SelectField v-model="typeFilter" label="" :options="typeOptions" :button-class="typeButtonClasses" />
+                    <SelectField v-model="typeFilter" label="" :options="typeOptions" :button-class="typeButtonClasses" placeholder="Tipo" :clearable="true" />
                 </FilterField>
                 <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[170px]">
                     <SelectField
                         v-model="statusFilter"
                         label=""
                         :options="[
-                            { id: 'all', name: 'Todos los estados' },
                             { id: 'active', name: 'Activo' },
                             { id: 'inactive', name: 'Inactivo' },
                         ]"
                         :button-class="statusButtonClasses"
+                        placeholder="Estado"
+                        :clearable="true"
                     />
                 </FilterField>
             </FilterBar>
