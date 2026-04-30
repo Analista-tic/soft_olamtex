@@ -16,16 +16,6 @@ import {
 import Button from '@/components/ui/button/Button.vue';
 import { Calendar } from '@/components/ui/calendar';
 import Input from '@/components/ui/input/Input.vue';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -46,6 +36,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import CreateProgrammerDialog from './Create.vue';
 import EditProgrammerDialog from './Edit.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 
 const authStore = useAuthStore();
 
@@ -311,12 +302,6 @@ function viewProgrammer(programmer: Programmer) {
     editProgrammerDialogRef.value?.openDialog(programmer, 'view');
 }
 
-function handlePageChange(page: number) {
-    if (page < 1 || page > Math.ceil(totalItems.value / itemsPerPage.value)) return;
-    currentPage.value = page;
-    clearFetchDebounce();
-    fetchProgrammers(page);
-}
 
 onMounted(async () => {
     await loadPermissions();
@@ -697,35 +682,12 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                         </TableBody>
                     </Table>
                 </TooltipProvider>
-                <Pagination
-                    class="mt-5 flex justify-center"
-                    v-slot="{ page }"
-                    :items-per-page="itemsPerPage"
-                    :total="totalItems"
-                    :sibling-count="1"
-                    show-edges
-                    :default-page="currentPage"
-                    @page-changed="handlePageChange"
-                >
-                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                        <PaginationFirst @click="handlePageChange(1)" />
-                        <PaginationPrev @click="handlePageChange(currentPage - 1)" :disabled="currentPage === 1" />
-                        <template v-for="(item, index) in items" :key="index">
-                            <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                <Button
-                                    class="h-6 w-6 p-0"
-                                    :variant="item.value === page ? 'default' : 'outline'"
-                                    @click="handlePageChange(item.value)"
-                                >
-                                    {{ item.value }}
-                                </Button>
-                            </PaginationListItem>
-                            <PaginationEllipsis v-else />
-                        </template>
-                        <PaginationNext @click="handlePageChange(currentPage + 1)" :disabled="currentPage === Math.ceil(totalItems / itemsPerPage)" />
-                        <PaginationLast @click="handlePageChange(Math.ceil(totalItems / itemsPerPage))" />
-                    </PaginationList>
-                </Pagination>
+                <ServerPagination 
+                  v-model:current-page="currentPage"
+                  v-model:page-size="itemsPerPage"
+                  :total-items="totalItems"
+                  @fetch-data="reloadCurrentPage"
+                />
             </div>
         </div>
     </AppLayout>

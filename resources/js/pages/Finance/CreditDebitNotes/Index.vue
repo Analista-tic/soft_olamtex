@@ -3,6 +3,7 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
@@ -11,16 +12,7 @@ import SelectField from '@/components/SelectField.vue';
 import Button from '@/components/ui/button/Button.vue';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
+
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAlertStack } from '@/composables/useAlert';
@@ -43,11 +35,6 @@ import { computed, onMounted, ref, watch } from 'vue';
 import CreditDebitNoteDialog from './CreditDebitNoteDialog.vue';
 
 type NoteContext = 'purchase' | 'sale';
-
-type PaginationSlotItem = {
-    type: string;
-    value?: number;
-};
 
 const props = defineProps<{
     initialData?: {
@@ -94,7 +81,7 @@ const breadcrumbs = [{ title: 'Notas credito/debito', href: '/notas-credito-debi
 const notes = ref<CreditDebitNote[]>(Array.isArray(props.initialData?.data) ? props.initialData!.data : []);
 const totalItems = ref(asNumber(props.initialData?.total, 0));
 const currentPage = ref(asNumber(props.initialData?.current_page, 1));
-const itemsPerPage = 10;
+const itemsPerPage = ref(10);
 
 const isLoading = ref(false);
 const context = ref<NoteContext>('purchase');
@@ -326,7 +313,7 @@ async function fetchNotes(pageNumber = 1): Promise<void> {
     try {
         const response = await listCreditDebitNotes({
             page: pageNumber,
-            per_page: itemsPerPage,
+            per_page: itemsPerPage.value,
             context: context.value,
             search: trimText(searchQuery.value) || undefined,
             provider_id: providerFilter.value !== 'all' ? providerFilter.value : undefined,
@@ -336,8 +323,8 @@ async function fetchNotes(pageNumber = 1): Promise<void> {
         } as Parameters<typeof listCreditDebitNotes>[0]);
 
         notes.value = Array.isArray(response.data) ? response.data : [];
-        totalItems.value = asNumber(response.total, notes.value.length);
-        currentPage.value = asNumber(response.current_page, pageNumber);
+        totalItems.value = Number(response.total ?? notes.value.length);
+        currentPage.value = Number(response.current_page ?? pageNumber);
     } catch {
         notes.value = [];
         totalItems.value = 0;
@@ -460,26 +447,6 @@ function handleDialogError(message?: string) {
 }
 
 /**
- * Pagination helpers
- */
-function handlePageChange(pageNumber: number) {
-    currentPage.value = pageNumber;
-    fetchNotes(pageNumber);
-}
-
-function isPaginationPage(item: PaginationSlotItem): boolean {
-    return item.type === 'page' && typeof item.value === 'number';
-}
-
-function getPaginationValue(item: PaginationSlotItem): number {
-    return typeof item.value === 'number' ? item.value : currentPage.value;
-}
-
-function getPaginationItemKey(item: PaginationSlotItem, index: number): string {
-    return isPaginationPage(item) ? `page-${getPaginationValue(item)}` : `ellipsis-${index}`;
-}
-
-/**
  * Query params open dialog (mismo comportamiento, pero más legible)
  */
 function openDialogFromQueryParams() {
@@ -523,14 +490,27 @@ function openDialogFromQueryParams() {
  * Watches
  * - Evito múltiples fetch seguidos: un solo watcher por filtros.
  */
+// 1. Cuando cambie cualquier filtro (proveedor, fecha o tipo), volvemos a la página 1
 watch([providerFilter, createdDate, typeFilter], () => {
     if (isContextRefreshInProgress.value) return;
+    currentPage.value = 1; // <--- AGREGAR ESTO
     fetchNotes(1);
 });
 
+// 2. Cuando el usuario escriba en el buscador, volvemos a la página 1
 watch(searchQuery, () => {
     if (isContextRefreshInProgress.value) return;
+    currentPage.value = 1; // <--- AGREGAR ESTO
     fetchNotes(1);
+});
+
+// 3. Cuando el usuario simplemente cambie de página manualmente
+watch(currentPage, (newPage) => {
+    if (isContextRefreshInProgress.value) return;
+    // Solo recargamos si no es la página 1 (para evitar que se cruce con los filtros)
+    if (newPage !== 1) {
+        fetchNotes(newPage);
+    }
 });
 
 watch(
@@ -625,7 +605,7 @@ onMounted(async () => {
                     </TableHeader>
 
                     <TableBody>
-                        <TableRow v-for="note in filteredNotes" :key="note.id ?? `${note.parent_document_id}-${note.date}`">
+                        <TableRow v-for="note in notes" :key="note.id ?? `${note.parent_document_id}-${note.date}`">
                             <TableCell class="font-medium">{{ note.document_number || `N-${note.id ?? '-'}` }}</TableCell>
                             <TableCell>{{ formatType(note.document_type) }}</TableCell>
                             <TableCell>{{ formatDate(note.date) }}</TableCell>
@@ -652,42 +632,14 @@ onMounted(async () => {
                         </template>
                     </TableBody>
                 </Table>
-
-                <Pagination
-                    class="mt-5 flex justify-center"
-                    :items-per-page="itemsPerPage"
-                    :total="totalItems"
-                    :sibling-count="1"
-                    show-edges
-                    v-model:current-page="currentPage"
-                    @page-changed="handlePageChange"
-                >
-                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                        <PaginationFirst />
-                        <PaginationPrev />
-
-                        <template v-for="(item, index) in items" :key="getPaginationItemKey(item, index)">
-                            <PaginationListItem v-if="isPaginationPage(item)" :value="getPaginationValue(item)" as-child>
-                                <button
-                                    type="button"
-                                    class="h-6 w-6 rounded border text-xs"
-                                    :class="
-                                        getPaginationValue(item) === currentPage
-                                            ? 'border-primary bg-primary text-primary-foreground'
-                                            : 'border-border bg-background text-foreground'
-                                    "
-                                    @click="handlePageChange(getPaginationValue(item))"
-                                >
-                                    {{ getPaginationValue(item) }}
-                                </button>
-                            </PaginationListItem>
-                            <PaginationEllipsis v-else />
-                        </template>
-
-                        <PaginationNext />
-                        <PaginationLast />
-                    </PaginationList>
-                </Pagination>
+                <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                    <ServerPagination
+                        v-model:current-page="currentPage"
+                        v-model:page-size="itemsPerPage"
+                        :total-items="totalItems"
+                        @fetch-data="() => fetchNotes(currentPage)"
+                    />
+                </div>
             </div>
         </div>
 

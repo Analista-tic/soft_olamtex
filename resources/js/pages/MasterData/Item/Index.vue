@@ -13,21 +13,11 @@ import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import Button from '@/components/ui/button/Button.vue';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -44,7 +34,7 @@ type DialogType = 'create' | 'edit';
 type StatusFilter = 'all' | boolean;
 type OriginFilter = 'all' | 'system' | 'migration';
 
-const ITEMS_PER_PAGE = 10;
+const itemsPerPage = ref(10);
 const DEFAULT_STATUS_FILTER: StatusFilter = 'all';
 const DEFAULT_ORIGIN_FILTER: OriginFilter = 'all';
 
@@ -187,7 +177,7 @@ async function fetchItems(page = 1) {
 
     const params: Record<string, unknown> = {
         page,
-        per_page: ITEMS_PER_PAGE,
+        per_page: itemsPerPage.value,
         sort_by: sortBy.value,
         sort_dir: sortDir.value,
     };
@@ -328,11 +318,6 @@ function shouldHighlightImportedItem(item: Item): boolean {
 
 function closeBulkDialog() {
     isBulkDialogOpen.value = false;
-}
-
-async function handlePageChange(newPage: number) {
-    if (newPage === currentPage.value) return;
-    await fetchItems(newPage);
 }
 
 // Debounce simple para búsqueda sin saturar el endpoint
@@ -481,10 +466,7 @@ onBeforeUnmount(() => {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead
-                                    class="cursor-pointer select-none whitespace-nowrap"
-                                    @click="toggleSort('id')"
-                                >
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('id')">
                                     <span class="inline-flex items-center gap-1">
                                         N° ítem
                                         <span class="text-muted-foreground">
@@ -507,10 +489,15 @@ onBeforeUnmount(() => {
 
                         <TableBody>
                             <template v-if="isLoading">
+<<<<<<< Updated upstream
                                 <TableRow v-for="i in 5" :key="`item-skeleton-${i}`">
                                     <TableCell v-for="col in 6" :key="`item-skeleton-${i}-${col}`" class="px-4 py-3">
                                         <Skeleton class="h-4 w-full" />
                                     </TableCell>
+=======
+                                <TableRow>
+                                    <TableCell :colspan="6" class="py-6 text-center text-sm text-muted-foreground"> Cargando ítems... </TableCell>
+>>>>>>> Stashed changes
                                 </TableRow>
                             </template>
                             <template v-else-if="items.length === 0">
@@ -536,7 +523,10 @@ onBeforeUnmount(() => {
                                     <TableCell>{{ item.reference }}</TableCell>
                                     <TableCell>{{ item.description }}</TableCell>
                                     <TableCell>
-                                        <TableStatusBadge :label="item.status ? 'Habilitado' : 'Deshabilitado'" :tone="item.status ? 'green' : 'red'" />
+                                        <TableStatusBadge
+                                            :label="item.status ? 'Habilitado' : 'Deshabilitado'"
+                                            :tone="item.status ? 'green' : 'red'"
+                                        />
                                     </TableCell>
 
                                     <TableCell class="text-center">
@@ -578,7 +568,9 @@ onBeforeUnmount(() => {
                                                         size="icon"
                                                         :class="[
                                                             actionButtonClass,
-                                                            item.status ? 'text-red-600 hover:text-red-700' : 'text-emerald-600 hover:text-emerald-700',
+                                                            item.status
+                                                                ? 'text-red-600 hover:text-red-700'
+                                                                : 'text-emerald-600 hover:text-emerald-700',
                                                         ]"
                                                         aria-label="Habilitar o deshabilitar"
                                                         @click="openStatusDialog(item)"
@@ -596,37 +588,14 @@ onBeforeUnmount(() => {
                         </TableBody>
                     </Table>
                 </TooltipProvider>
-
-                <Pagination
-                    class="flex justify-center pt-4 pb-2"
-                    :items-per-page="ITEMS_PER_PAGE"
-                    :total="totalItems"
-                    :sibling-count="1"
-                    show-edges
-                    v-model:current-page="currentPage"
-                    @page-changed="handlePageChange"
-                >
-                    <PaginationList v-slot="{ items: paginationItems }" class="flex items-center gap-1">
-                        <PaginationFirst />
-                        <PaginationPrev />
-
-                        <template v-for="item in paginationItems" :key="item.type === 'page' ? `page-${item.value}` : item.type">
-                            <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                <Button
-                                    class="h-8 w-8 rounded-md p-0 text-xs font-medium"
-                                    :variant="item.value === currentPage ? 'default' : 'outline'"
-                                    @click="handlePageChange(item.value as number)"
-                                >
-                                    {{ item.value }}
-                                </Button>
-                            </PaginationListItem>
-                            <PaginationEllipsis v-else />
-                        </template>
-
-                        <PaginationNext />
-                        <PaginationLast />
-                    </PaginationList>
-                </Pagination>
+                <div class="px-4 pb-4">
+                    <ServerPagination
+                        v-model:current-page="currentPage"
+                        v-model:page-size="itemsPerPage"
+                        :total-items="totalItems"
+                        @fetch-data="fetchItems"
+                    />
+                </div>
             </div>
         </div>
 

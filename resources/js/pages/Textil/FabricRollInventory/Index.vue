@@ -7,17 +7,6 @@ import FilterField from '@/components/FilterField.vue';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { FabricRollView } from '@/domain/Textil';
 import { formatMeters, formatWidthToMeters, toUnitNumber } from '@/domain/Textil';
@@ -32,6 +21,7 @@ import FabricRollDownloadDialog from './FabricRollDownloadDialog.vue';
 import FabricRollImportDialog from './FabricRollImportDialog.vue';
 import FabricRollInventoryDialog from './FabricRollInventoryDialog.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 
 const breadcrumbs = [{ title: 'Inventario Telas por Rollo', href: '/kardex-telas/inventario-rollos' }];
 const authStore = useAuthStore();
@@ -115,12 +105,6 @@ function scheduleRefetch() {
     if (debounceTimer) clearTimeout(debounceTimer);
     currentPage.value = 1;
     debounceTimer = setTimeout(() => fetchFabricRolls(1), 350);
-}
-
-function handlePageChange(page: number) {
-    if (!page || page === currentPage.value) return;
-    currentPage.value = page;
-    fetchFabricRolls(page);
 }
 
 watch([searchQuery, baseFilter, providerFilter, showDownloadedOnly], scheduleRefetch);
@@ -465,38 +449,13 @@ async function handleImportCompleted(payload: { inserted: number; skipped: numbe
                 </div>
 
                 <!-- Paginación -->
-                <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
-                    <p class="text-xs text-muted-foreground">
-                        Página {{ currentPage }} de {{ lastPage }} · Mostrando {{ rolls.length }} de {{ totalRolls }} registros
-                    </p>
-
-                    <Pagination
-                        v-if="lastPage > 1"
-                        class="flex justify-center"
-                        :items-per-page="PER_PAGE"
-                        :total="totalRolls"
-                        :sibling-count="1"
-                        show-edges
-                        :page="currentPage"
-                        @update:page="handlePageChange"
-                    >
-                        <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                            <PaginationFirst />
-                            <PaginationPrev />
-
-                            <template v-for="(item, index) in items" :key="index">
-                                <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                    <Button class="h-6 w-6 p-0 text-xs" :variant="item.value === currentPage ? 'default' : 'outline'">
-                                        {{ item.value }}
-                                    </Button>
-                                </PaginationListItem>
-                                <PaginationEllipsis v-else :index="index" />
-                            </template>
-
-                            <PaginationNext />
-                            <PaginationLast />
-                        </PaginationList>
-                    </Pagination>
+                <div class="mt-4">
+                  <ServerPagination 
+                    v-model:current-page="currentPage"
+                    v-model:page-size="PER_PAGE"
+                    :total-items="totalRolls"
+                    @fetch-data="fetchFabricRolls"
+                  />
                 </div>
             </div>
         </div>

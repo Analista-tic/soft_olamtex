@@ -1,22 +1,13 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
-import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import Input from '@/components/ui/input/Input.vue';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -26,12 +17,12 @@ import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { ProductSheet, Programmer } from '@/domain/Production/types';
 import type { BreadcrumbItem, Option } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { uiPatterns } from '@/lib/ui-patterns';
 import ProductionOrderDialog from '@/pages/Production/ProductionOrder/ProductionOrderDialog.vue';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { ClipboardPen, Eye, PackageCheck, PackageSearch, Search } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { uiPatterns } from '@/lib/ui-patterns';
 
 type SectionScope = 'samples' | 'products';
 type StatusFilter = 'all' | 'complete' | 'incomplete';
@@ -345,12 +336,6 @@ watch(filteredRows, (list) => {
     }
 });
 
-function handlePageChange(page: number) {
-    const maxPage = Math.max(1, Math.ceil(totalItems.value / itemsPerPage.value));
-    if (page < 1 || page > maxPage) return;
-    currentPage.value = page;
-}
-
 function selectRow(row: Programmer) {
     selectedProgrammerId.value = row.id;
 }
@@ -558,36 +543,12 @@ onUnmounted(() => {
                                     </Table>
                                 </TooltipProvider>
 
-                                <Pagination
-                                    class="mt-4 flex justify-center pb-4"
-                                    :items-per-page="itemsPerPage"
-                                    :total="totalItems"
-                                    :sibling-count="1"
-                                    show-edges
+                                <ServerPagination
                                     v-model:current-page="currentPage"
-                                    @page-changed="handlePageChange"
-                                >
-                                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                                        <PaginationFirst />
-                                        <PaginationPrev />
-
-                                        <template v-for="(item, index) in items">
-                                            <PaginationListItem v-if="item.type === 'page'" :key="`page-${item.value}`" :value="item.value" as-child>
-                                                <Button
-                                                    class="h-7 w-7 p-0"
-                                                    :variant="item.value === currentPage ? 'default' : 'outline'"
-                                                    @click="handlePageChange(item.value)"
-                                                >
-                                                    {{ item.value }}
-                                                </Button>
-                                            </PaginationListItem>
-                                            <PaginationEllipsis v-else :key="`ellipsis-${index}`" :index="index" />
-                                        </template>
-
-                                        <PaginationNext />
-                                        <PaginationLast />
-                                    </PaginationList>
-                                </Pagination>
+                                    v-model:page-size="itemsPerPage"
+                                    :total-items="totalItems"
+                                    @fetch-data="fetchRows"
+                                />
                             </div>
                         </CardContent>
                     </Card>

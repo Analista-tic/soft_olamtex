@@ -2,6 +2,7 @@
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import EditButton from '@/components/common/EditButton.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import TableActionsMenu from '@/components/common/TableActionsMenu.vue';
 import ViewButton from '@/components/common/ViewButton.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
@@ -13,16 +14,6 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
     INCOME_TABLE_BADGE_CLASS,
@@ -31,18 +22,16 @@ import {
     getStatusLabel,
     getStatusVariant,
     normalizeErrorMessage,
-    resolveIncomePageChange,
-    watchIncomeDocumentFilters,
 } from '@/composables/Income/useIncomeDocument';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { Quote } from '@/domain/Income';
 import type { BreadcrumbItem, Option } from '@/domain/shared';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 import { useIncomeStore } from '@/stores/income/income';
 import { Head } from '@inertiajs/vue3';
 import { PlusCircle, Search, ShoppingCart, Trash2 } from 'lucide-vue-next';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import QuoteDialog from './QuoteDialog.vue';
 
 const incomeStore = useIncomeStore();
@@ -61,6 +50,8 @@ const isDeleteDialogOpen = ref(false);
 const isConvertDialogOpen = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
+const itemsPerPage = ref(incomeStore.quotesMeta.perPage || 10);
+const totalItems = computed(() => incomeStore.quotesMeta.total || 0);
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
 const search = ref(incomeStore.quoteFilters.search ?? '');
@@ -90,7 +81,6 @@ const statusOptions = [
 ];
 
 const currentPage = computed(() => quotesMeta.value.currentPage || 1);
-const totalPages = computed(() => quotesMeta.value.lastPage || 1);
 const hasQuotes = computed(() => quotes.value.length > 0);
 
 function formatDate(value?: string | null): string {
@@ -126,7 +116,7 @@ async function fetchQuotes(page = 1) {
     try {
         await incomeStore.fetchQuotes({
             page,
-            per_page: quotesMeta.value.perPage || 10,
+            per_page: itemsPerPage.value,
             search: search.value,
             status: status.value,
             contact_id: contactId.value === 'all' ? undefined : contactId.value,
@@ -142,15 +132,6 @@ async function fetchQuotes(page = 1) {
 async function loadCustomerOptions(searchTerm = '') {
     const rows = await fetchIncomeCustomerOptions(searchTerm, searchTerm.trim() ? 30 : 100);
     customerOptions.value = [{ id: 'all', name: 'Todos los clientes' }, ...rows];
-}
-
-function handlePageChange(page: number) {
-    const nextPage = resolveIncomePageChange(page, currentPage.value, totalPages.value);
-    if (nextPage === null) {
-        return;
-    }
-
-    void fetchQuotes(nextPage);
 }
 
 function openCreateDialog() {
@@ -237,9 +218,21 @@ async function handleDialogSaved() {
     await fetchQuotes(currentPage.value);
 }
 
-watchIncomeDocumentFilters([search, status, contactId, dateFilter], () => {
+// 1. Cuando el usuario cambie un filtro (buscador, estado, cliente o fecha), volvemos a la pág 1
+watch([search, status, contactId, dateFilter], () => {
     void fetchQuotes(1);
 });
+
+// 2. Cuando el usuario le de clic a los botones de "Siguiente" o "Atrás"
+watch(
+    () => incomeStore.quotesMeta.currentPage,
+    (newPage) => {
+        // Si la página es distinta a 1, cargamos los datos de esa página
+        if (newPage !== 1) {
+            void fetchQuotes(newPage);
+        }
+    },
+);
 
 onMounted(() => {
     void fetchQuotes(currentPage.value);
@@ -301,7 +294,6 @@ onMounted(() => {
                 <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
                     <DatePickerField v-model="dateFilter" label="" placeholder-text="dd/mm/aaaa" :clearable="true" />
                 </FilterField>
-
             </FilterBar>
 
             <div :class="uiPatterns.pageIndex.tableWrap">
@@ -328,7 +320,9 @@ onMounted(() => {
                         </template>
 
                         <TableRow v-else-if="!hasQuotes">
-                            <TableCell colspan="7" class="py-10 text-center text-sm text-muted-foreground">No se encontraron cotizaciones con los filtros actuales.</TableCell>
+                            <TableCell colspan="7" class="py-10 text-center text-sm text-muted-foreground"
+                                >No se encontraron cotizaciones con los filtros actuales.</TableCell
+                            >
                         </TableRow>
 
                         <TableRow v-for="quote in quotes" v-else :key="quote.id" class="text-center">
@@ -347,10 +341,7 @@ onMounted(() => {
                             <TableCell>
                                 <div class="flex items-center justify-center gap-1">
                                     <ViewButton :onClick="() => openViewDialog(quote)" />
-                                    <EditButton
-                                        :class="!canEdit(quote) ? 'pointer-events-none opacity-50' : ''"
-                                        @click="openEditDialog(quote)"
-                                    />
+                                    <EditButton :class="!canEdit(quote) ? 'pointer-events-none opacity-50' : ''" @click="openEditDialog(quote)" />
                                     <TableActionsMenu content-class="w-52">
                                         <DropdownMenuItem class="cursor-pointer gap-2" :disabled="!canConvert(quote)" @click="askConvertQuote(quote)">
                                             <ShoppingCart class="h-4 w-4" />
@@ -373,41 +364,15 @@ onMounted(() => {
                 </Table>
             </div>
 
-            <div v-if="quotesMeta.total > 0" class="flex items-center justify-between gap-4">
-                <p class="text-sm text-muted-foreground">
-                    {{ quotesMeta.total }} cotizaciones. Pagina {{ quotesMeta.currentPage }} de {{ quotesMeta.lastPage }}.
-                </p>
-
-                <Pagination
-                    :page="currentPage"
-                    :total="quotesMeta.total"
-                    :items-per-page="quotesMeta.perPage"
-                    :sibling-count="1"
-                    show-edges
-                    :class="uiPatterns.pageIndex.pagination"
-                >
-                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                        <PaginationFirst @click="handlePageChange(1)" />
-                        <PaginationPrev @click="handlePageChange(currentPage - 1)" />
-
-                        <template v-for="(item, index) in items" :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`">
-                            <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                <Button
-                                    type="button"
-                                    class="h-8 w-8 rounded-md p-0 text-xs font-medium"
-                                    :variant="item.value === currentPage ? 'default' : 'ghost'"
-                                    @click="handlePageChange(item.value)"
-                                >
-                                    {{ item.value }}
-                                </Button>
-                            </PaginationListItem>
-                            <PaginationEllipsis v-else />
-                        </template>
-
-                        <PaginationNext @click="handlePageChange(currentPage + 1)" />
-                        <PaginationLast @click="handlePageChange(totalPages)" />
-                    </PaginationList>
-                </Pagination>
+            <div
+                class="mt-4 flex flex-col gap-2 rounded-xl border border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between"
+            >
+                <ServerPagination
+                    v-model:current-page="currentPage"
+                    v-model:page-size="itemsPerPage"
+                    :total-items="totalItems"
+                    @fetch-data="() => fetchQuotes(currentPage)"
+                />
             </div>
         </div>
 

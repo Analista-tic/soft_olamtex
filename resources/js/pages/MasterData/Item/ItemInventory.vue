@@ -1,21 +1,10 @@
 <script setup lang="ts">
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
-import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { Warehouse } from '@/domain/Inventory';
@@ -62,7 +51,7 @@ const isStatusActive = computed(() => statusFilter.value !== 'all');
 const warehouseButtonClasses = useFilterButtonClasses(isWarehouseActive);
 const statusButtonClasses = useFilterButtonClasses(isStatusActive);
 const currentPage = ref(1);
-const itemsPerPage = 10;
+const itemsPerPage = ref(10);
 const totalItems = ref(0);
 const isLoading = ref(false);
 const sortBy = ref<string>('total');
@@ -163,11 +152,6 @@ async function fetchWarehouses() {
     }
 }
 
-function handlePageChange(newPage: number) {
-    currentPage.value = newPage;
-    void fetchItems(newPage);
-}
-
 watch([searchQuery, selectedWarehouseId, resolvedStatusFilter], () => {
     currentPage.value = 1;
     void fetchItems(1);
@@ -221,10 +205,7 @@ onMounted(() => {
                         <TableRow>
                             <TableHead class="text-start">Nombre ítem</TableHead>
                             <TableHead>Referencia</TableHead>
-                            <TableHead
-                                class="cursor-pointer select-none whitespace-nowrap"
-                                @click="toggleSort('quantity')"
-                            >
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('quantity')">
                                 <span class="inline-flex items-center gap-1">
                                     Cantidad
                                     <span class="text-muted-foreground">
@@ -238,10 +219,7 @@ onMounted(() => {
                                 </span>
                             </TableHead>
                             <TableHead>Estado</TableHead>
-                            <TableHead
-                                class="cursor-pointer select-none whitespace-nowrap"
-                                @click="toggleSort('average_cost')"
-                            >
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('average_cost')">
                                 <span class="inline-flex items-center gap-1">
                                     Costo promedio
                                     <span class="text-muted-foreground">
@@ -254,10 +232,7 @@ onMounted(() => {
                                     </span>
                                 </span>
                             </TableHead>
-                            <TableHead
-                                class="cursor-pointer select-none whitespace-nowrap"
-                                @click="toggleSort('total')"
-                            >
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('total')">
                                 <span class="inline-flex items-center gap-1">
                                     Total
                                     <span class="text-muted-foreground">
@@ -274,10 +249,10 @@ onMounted(() => {
                     </TableHeader>
                     <TableBody>
                         <template v-if="isLoading">
-                            <TableRow v-for="i in 5" :key="`item-inventory-skeleton-${i}`">
-                                <TableCell v-for="col in 6" :key="`item-inventory-skeleton-${i}-${col}`" class="px-4 py-3">
-                                    <Skeleton class="h-4 w-full" />
-                                </TableCell>
+                            <TableRow>
+                                <TableCell :colspan="6" class="py-6 text-center text-sm text-muted-foreground"
+                                    >Cargando inventario de ítems...</TableCell
+                                >
                             </TableRow>
                         </template>
                         <template v-else-if="items.length === 0">
@@ -299,34 +274,14 @@ onMounted(() => {
                         </template>
                     </TableBody>
                 </Table>
-                <Pagination
-                    class="flex justify-center pt-4 pb-2"
-                    :items-per-page="itemsPerPage"
-                    :total="totalItems"
-                    :sibling-count="1"
-                    show-edges
-                    v-model:current-page="currentPage"
-                    @page-changed="handlePageChange"
-                >
-                    <PaginationList v-slot="{ items: paginationItems }" class="flex items-center gap-1">
-                        <PaginationFirst />
-                        <PaginationPrev />
-                        <template v-for="item in paginationItems" :key="item.type === 'page' ? `page-${item.value}` : item.type">
-                            <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                <Button
-                                    class="h-8 w-8 rounded-md p-0 text-xs font-medium"
-                                    :variant="item.value === currentPage ? 'default' : 'outline'"
-                                    @click="handlePageChange(item.value)"
-                                >
-                                    {{ item.value }}
-                                </Button>
-                            </PaginationListItem>
-                            <PaginationEllipsis v-else />
-                        </template>
-                        <PaginationNext />
-                        <PaginationLast />
-                    </PaginationList>
-                </Pagination>
+                <div class="px-4 pb-4">
+                    <ServerPagination
+                        v-model:current-page="currentPage"
+                        v-model:page-size="itemsPerPage"
+                        :total-items="totalItems"
+                        @fetch-data="fetchItems"
+                    />
+                </div>
             </div>
         </div>
     </AppLayout>

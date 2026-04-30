@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useAlertStack } from '@/composables/useAlert';
+import type { AdditionalInfo } from '@/domain/Production';
+import { fetchOpAdditionalInfo } from '@/domain/Production';
 import type { BreadcrumbItem } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { uiPatterns } from '@/lib/ui-patterns';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { MessageSquareWarning, PackageCheck, PackageSearch } from 'lucide-vue-next';
-import { uiPatterns } from '@/lib/ui-patterns';
 import { computed, onMounted, ref, watch } from 'vue';
 import BatchControlTable from './BatchControlTable.vue';
 import {
@@ -25,10 +28,7 @@ import {
     StampingInfoDialog,
     TechnicalSheetDialog,
 } from './components/dialogs';
-import type { AdditionalInfo } from '@/domain/Production';
-import { fetchOpAdditionalInfo } from '@/domain/Production';
 import type { BatchControlRow, CutCurves, CutFabricConsumptionLine, CutSizeCurves, LogisticsSupplyItem, TimelineEvent } from './types';
-
 /* ── Types ──────────────────────────────────────────────── */
 
 type ScopeOption = {
@@ -36,6 +36,10 @@ type ScopeOption = {
     label: string;
     icon: typeof PackageSearch;
 };
+
+const currentPage = ref(1);
+const itemsPerPage = ref(10);
+const totalItems = ref(0);
 
 /* ── Props ──────────────────────────────────────────────── */
 
@@ -266,9 +270,7 @@ function setSort(column: string) {
     }
 }
 
-const emptyStateText = computed(() =>
-    activeType.value === 'muestra' ? 'No hay órdenes tipo muestra.' : 'No hay órdenes tipo producto.',
-);
+const emptyStateText = computed(() => (activeType.value === 'muestra' ? 'No hay órdenes tipo muestra.' : 'No hay órdenes tipo producto.'));
 
 /** Flujo real según ProductSheet; fallback a lista completa si no hay ficha. */
 function getFlowForRow(row: BatchControlRow): string[] {
@@ -558,12 +560,14 @@ async function openTimelineDialog(row: BatchControlRow) {
             axios.get(route('control-de-lotes.delivery-history', { order: row.id })),
             axios.get(route('control-de-lotes.novelties', { order: row.id })),
         ]);
-        const deliveries = (Array.isArray(deliveriesRes.data?.data) ? deliveriesRes.data.data : []).map(
-            (d: object) => ({ ...d, event_type: 'delivery' as const }),
-        );
-        const novelties = (Array.isArray(noveltiesRes.data?.data) ? noveltiesRes.data.data : []).map(
-            (n: object) => ({ ...n, event_type: 'novelty' as const }),
-        );
+        const deliveries = (Array.isArray(deliveriesRes.data?.data) ? deliveriesRes.data.data : []).map((d: object) => ({
+            ...d,
+            event_type: 'delivery' as const,
+        }));
+        const novelties = (Array.isArray(noveltiesRes.data?.data) ? noveltiesRes.data.data : []).map((n: object) => ({
+            ...n,
+            event_type: 'novelty' as const,
+        }));
         timelineEvents.value = [...deliveries, ...novelties];
     } catch {
         showError('No se pudo cargar la línea de tiempo.');
@@ -737,7 +741,7 @@ function recalcCutLine(line: CutFabricConsumptionLine): CutFabricConsumptionLine
     const cp = line.layers_fabric ?? 0;
     const cl = line.layers_liquidation ?? 0;
     const ce = line.layers_herringbone ?? 0;
-    const total = Number(((cp * lt) + (cl * ll) + (ce * le)).toFixed(4));
+    const total = Number((cp * lt + cl * ll + ce * le).toFixed(4));
     const restante = Number(((line.meters_per_roll ?? 0) - total).toFixed(4));
     return { ...line, total_consumption: total, restante };
 }
@@ -939,9 +943,7 @@ function closeLogisticsExitDialog() {
 async function saveLogisticsExit() {
     if (!logisticsExitRow.value) return;
 
-    const linesToProcess = logisticsSupplyLines.value.filter(
-        (l) => l.include && l.item_id && l.selected_warehouse_id && l.exit_qty > 0,
-    );
+    const linesToProcess = logisticsSupplyLines.value.filter((l) => l.include && l.item_id && l.selected_warehouse_id && l.exit_qty > 0);
     if (linesToProcess.length === 0) return;
 
     isSavingLogisticsExit.value = true;
@@ -953,10 +955,7 @@ async function saveLogisticsExit() {
             supply_name: l.display_label || l.name,
         }));
 
-        const { data } = await axios.post(
-            route('control-de-lotes.logistics-supply-exit', { order: logisticsExitRow.value.id }),
-            { lines: payload },
-        );
+        const { data } = await axios.post(route('control-de-lotes.logistics-supply-exit', { order: logisticsExitRow.value.id }), { lines: payload });
 
         if (data.errors && data.errors.length > 0) {
             showWarning(data.message ?? `${data.processed} salida(s) registrada(s) con advertencias.`);
@@ -1128,6 +1127,15 @@ onMounted(() => {
                                             @open-stamping-info="openStampingInfoDialog"
                                             @open-laundry-info="openLaundryInfoDialog"
                                         />
+
+                                        <div class="mt-4 border-t pt-4">
+                                            <ServerPagination
+                                                v-model:current-page="currentPage"
+                                                v-model:page-size="itemsPerPage"
+                                                :total-items="totalItems"
+                                                @fetch-data="fetchData"
+                                            />
+                                        </div>
                                     </div>
                                 </TabsContent>
                             </Tabs>
@@ -1194,7 +1202,6 @@ onMounted(() => {
             @confirm="confirmReportNovelty"
             @close="closeNoveltyDialog"
         />
-
 
         <TechnicalSheetDialog
             :open="technicalSheetDialogOpen"

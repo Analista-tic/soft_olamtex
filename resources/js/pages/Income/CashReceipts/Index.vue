@@ -13,16 +13,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
     fetchIncomeCustomerOptions,
@@ -39,6 +29,8 @@ import { Head } from '@inertiajs/vue3';
 import { Ban, PlusCircle, Search, Wallet } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 import CashReceiptDialog from './CashReceiptDialog.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
+import { watch } from 'vue'; 
 
 const incomeStore = useIncomeStore();
 
@@ -66,8 +58,9 @@ const dateFilter = ref<string | null>(incomeStore.cashReceiptFilters.date_from ?
 const cashReceipts = computed(() => incomeStore.cashReceipts);
 const cashReceiptsMeta = computed(() => incomeStore.cashReceiptsMeta);
 const isCashReceiptsLoading = computed(() => incomeStore.cashReceiptsLoading);
-const currentPage = computed(() => cashReceiptsMeta.value.currentPage || 1);
-const totalPages = computed(() => cashReceiptsMeta.value.lastPage || 1);
+const itemsPerPage = ref(incomeStore.cashReceiptsMeta.perPage || 10);
+const totalItems = computed(() => Number(incomeStore.cashReceiptsMeta?.total ?? 0));
+const currentPage = ref(1);
 const hasCashReceipts = computed(() => cashReceipts.value.length > 0);
 const isSearchActive = computed(() => search.value.trim().length > 0);
 const isCustomerFilterActive = computed(() => contactId.value !== 'all');
@@ -107,7 +100,7 @@ async function fetchCashReceipts(page = 1) {
     try {
         await incomeStore.fetchCashReceipts({
             page,
-            per_page: cashReceiptsMeta.value.perPage || 10,
+            per_page: itemsPerPage.value,
             search: search.value,
             contact_id: contactId.value === 'all' ? undefined : contactId.value,
             date_from: dateFilter.value || undefined,
@@ -117,11 +110,6 @@ async function fetchCashReceipts(page = 1) {
         errorType.value = 'error';
         errorMessage.value = normalizeErrorMessage(error, 'No se pudieron cargar los recibos de caja.');
     }
-}
-
-function handlePageChange(page: number) {
-    if (page < 1 || page > totalPages.value || page === currentPage.value) return;
-    void fetchCashReceipts(page);
 }
 
 function openCreateDialog(invoiceId?: number) {
@@ -177,8 +165,22 @@ function bootstrapFromQuery() {
     }
 }
 
-watchIncomeDocumentFilters([search, contactId, dateFilter], () => {
+// Sincronizar variable local cuando el store cambie
+watch(() => incomeStore.cashReceiptsMeta.currentPage, (newValue) => {
+    if (newValue) currentPage.value = newValue;
+});
+
+// 1. Cuando cambie un filtro, volvemos a la pág 1
+watch([search, contactId, dateFilter], () => {
+    currentPage.value = 1;
     void fetchCashReceipts(1);
+});
+
+// 2. Cuando el usuario cambie de página manualmente
+watch(currentPage, (newPage) => {
+    if (newPage !== 1) {
+        void fetchCashReceipts(newPage);
+    }
 });
 
 onMounted(() => {
@@ -293,36 +295,16 @@ onMounted(() => {
                     </TableBody>
                 </Table>
             </div>
-
-            <div v-if="cashReceiptsMeta.total > 0" class="flex items-center justify-between gap-4">
-                <p class="text-sm text-muted-foreground">
-                    {{ cashReceiptsMeta.total }} recibos. Pagina {{ cashReceiptsMeta.currentPage }} de {{ cashReceiptsMeta.lastPage }}.
-                </p>
-
-                <Pagination
-                    :page="currentPage"
-                    :total="cashReceiptsMeta.total"
-                    :items-per-page="cashReceiptsMeta.perPage"
-                    :sibling-count="1"
-                    show-edges
-                    :class="uiPatterns.pageIndex.pagination"
-                >
-                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                        <PaginationFirst @click="handlePageChange(1)" />
-                        <PaginationPrev @click="handlePageChange(currentPage - 1)" />
-                        <template v-for="(item, index) in items" :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`">
-                            <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                <Button type="button" class="h-8 w-8 rounded-md p-0 text-xs font-medium" :variant="item.value === currentPage ? 'default' : 'ghost'" @click="handlePageChange(item.value)">
-                                    {{ item.value }}
-                                </Button>
-                            </PaginationListItem>
-                            <PaginationEllipsis v-else />
-                        </template>
-                        <PaginationNext @click="handlePageChange(currentPage + 1)" />
-                        <PaginationLast @click="handlePageChange(totalPages)" />
-                    </PaginationList>
-                </Pagination>
+            <!-- Pie de tabla / paginación estandarizada -->
+            <div class="mt-4 flex flex-col gap-2 rounded-xl border border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                <ServerPagination 
+                    v-model:current-page="currentPage"
+                    v-model:page-size="itemsPerPage"
+                    :total-items="totalItems"
+                    @fetch-data="() => fetchCashReceipts(currentPage)" 
+                />
             </div>
+            
         </div>
 
         <CashReceiptDialog v-model:open="isDialogOpen" :mode="dialogMode" :receipt-id="selectedReceiptId" :from-invoice-id="fromInvoiceId" @saved="handleDialogSaved" />

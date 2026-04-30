@@ -28,6 +28,7 @@ import ProductOperationListDialog from './ProductOperationListDialog.vue';
 import ProductOperationListView from './ProductOperationListView.vue';
 import SamSummaryCard from './SamSummaryCard.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 
 const page = usePage<ProductOperationListPageProps>();
 
@@ -78,6 +79,9 @@ function getInitialProductSheetFilter(): number | 'all' {
 }
 
 const selectedProductSheetId = ref<number | 'all'>(getInitialProductSheetFilter());
+const currentPage = ref(1);
+const itemsPerPage = ref(10);
+const totalItems = ref(0); 
 
 const operationSummaries = ref<ProductOperationListSummary[]>([]);
 const isLoading = ref(false);
@@ -203,7 +207,10 @@ async function fetchOperationSummaries() {
         const { data } = await axios.get('/produccion/listados-operacionales/summaries', {
             params: {
                 product_sheet_ids: productSheets.value.map((sheet) => sheet.id),
+                page: currentPage.value,        
+                per_page: itemsPerPage.value,
                 _ts: Date.now(),
+
             },
             headers: {
                 'Cache-Control': 'no-cache',
@@ -211,8 +218,9 @@ async function fetchOperationSummaries() {
             },
         });
 
+
         const rows = Array.isArray(data?.data) ? data.data : [];
-        const bySheetId = new Map(productSheets.value.map((sheet) => [normalizeComparableId(sheet.id), sheet]));
+        totalItems.value = data?.total ?? 0;
 
         operationSummaries.value = rows
             .map((row: any) => {
@@ -247,6 +255,8 @@ async function fetchOperationSummaries() {
         isLoading.value = false;
     }
 }
+
+
 
 function reloadFromDatabase(showSuccessAlert = true) {
     router.reload({
@@ -648,6 +658,14 @@ watch(productSheets, () => {
                     </TooltipProvider>
                 </div>
             </Card>
+            <div class="mt-4">
+              <ServerPagination 
+                  v-model:current-page="currentPage"
+                  v-model:page-size="itemsPerPage"
+                  :total-items="totalItems"
+                  @fetch-data="fetchOperationSummaries"
+              />
+            </div>
 
             <ProductOperationListDialog
                 :open="isDialogOpen"

@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
-import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
-import FormDialogContent from '@/components/FormDialogContent.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
+import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import SelectField from '@/components/SelectField.vue';
 import {
     AlertDialog,
@@ -18,23 +19,10 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import Input from '@/components/ui/input/Input.vue';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useGlobalAlert } from '@/composables/useGlobalAlert';
-import { uiPatterns } from '@/lib/ui-patterns';
 import {
     convertSampleToProduct,
     deleteProductSheet as deleteProductSheetRequest,
@@ -48,6 +36,7 @@ import {
 } from '@/domain/Production';
 import type { BreadcrumbItem, SharedData } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { uiPatterns } from '@/lib/ui-patterns';
 import { useAuthStore } from '@/stores/auth';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -83,7 +72,7 @@ const isDeleting = ref(false);
 const isFetchingSheets = ref(false);
 const editProductSheetData = ref<ProductSheet | undefined>(undefined); // Cambiar null por undefined
 const currentPage = ref(1);
-const itemsPerPage = 10;
+const itemsPerPage = ref(10);
 const totalItems = ref(0);
 const searchQuery = ref('');
 const statusFilter = ref('all');
@@ -310,9 +299,7 @@ async function handleToggleEnabled(product: ProductSheet) {
         }
         success(msg);
     } catch (err) {
-        const message = axios.isAxiosError(err)
-            ? (err.response?.data?.message ?? 'Error al cambiar el estado.')
-            : 'Error al cambiar el estado.';
+        const message = axios.isAxiosError(err) ? (err.response?.data?.message ?? 'Error al cambiar el estado.') : 'Error al cambiar el estado.';
         error(message);
     }
 }
@@ -349,7 +336,7 @@ async function fetchProductSheets(page = 1, search = '', status = 'all', type = 
         const response = await listProductSheets(
             {
                 page,
-                per_page: itemsPerPage,
+                per_page: itemsPerPage.value,
                 search: normalizedSearch === '' ? undefined : normalizedSearch,
                 status: status === 'all' ? null : status,
                 type: type === 'all' ? null : type,
@@ -388,13 +375,6 @@ watch([searchQuery, statusFilter, typeFilter, sectionFilter, worldFilter], () =>
 function reloadProductSheets() {
     clearFetchDebounce();
     fetchProductSheets(currentPage.value, searchQuery.value, statusFilter.value, typeFilter.value, sectionFilter.value, worldFilter.value);
-}
-
-// Handler para cambio de página
-function handlePageChange(page: number) {
-    currentPage.value = page;
-    clearFetchDebounce();
-    fetchProductSheets(page, searchQuery.value, statusFilter.value, typeFilter.value, sectionFilter.value, worldFilter.value);
 }
 
 async function loadProductSheetDialog(product: ProductSheet, mode: 'edit' | 'view') {
@@ -527,11 +507,22 @@ onUnmounted(() => {
                                     No se encontraron sábanas de producto.
                                 </TableCell>
                             </TableRow>
-                            <TableRow v-for="product in productSheets" v-else :key="product.id" class="text-center" :class="{ 'opacity-50': product.is_enabled === false }">
+                            <TableRow
+                                v-for="product in productSheets"
+                                v-else
+                                :key="product.id"
+                                class="text-center"
+                                :class="{ 'opacity-50': product.is_enabled === false }"
+                            >
                                 <TableCell class="font-medium">
                                     <div class="flex flex-row items-center justify-center gap-1 whitespace-nowrap">
-                                        <span class="whitespace-nowrap">{{ product.sample_reference ?? (product.type === 'muestra' ? resolveProductSheetReference(product) : '-') }}</span>
-                                        <span v-if="product.version && product.version > 1" class="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-medium text-purple-800 whitespace-nowrap">
+                                        <span class="whitespace-nowrap">{{
+                                            product.sample_reference ?? (product.type === 'muestra' ? resolveProductSheetReference(product) : '-')
+                                        }}</span>
+                                        <span
+                                            v-if="product.version && product.version > 1"
+                                            class="inline-flex items-center whitespace-nowrap rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-medium text-purple-800"
+                                        >
                                             v{{ product.version }}
                                         </span>
                                     </div>
@@ -583,10 +574,22 @@ onUnmounted(() => {
                                 </TableCell>
                                 <TableCell class="text-center">
                                     <div class="flex items-center justify-center gap-1">
-                                        <button v-if="canView" type="button" :class="actionButtonClass" aria-label="Ver detalle" @click="viewProductSheet(product)">
+                                        <button
+                                            v-if="canView"
+                                            type="button"
+                                            :class="actionButtonClass"
+                                            aria-label="Ver detalle"
+                                            @click="viewProductSheet(product)"
+                                        >
                                             <Eye class="h-4 w-4" />
                                         </button>
-                                        <button v-if="canEdit" type="button" :class="actionButtonClass" aria-label="Editar" @click="openEditDialog(product)">
+                                        <button
+                                            v-if="canEdit"
+                                            type="button"
+                                            :class="actionButtonClass"
+                                            aria-label="Editar"
+                                            @click="openEditDialog(product)"
+                                        >
                                             <Pencil class="h-4 w-4" />
                                         </button>
                                         <DropdownMenu>
@@ -624,35 +627,18 @@ onUnmounted(() => {
                                         </DropdownMenu>
                                     </div>
                                 </TableCell>
-                        </TableRow>                        </template>                    </TableBody>
-                </Table>
-                <Pagination
-                    class="mt-5 flex justify-center"
-                    v-slot="{ page }"
-                    :items-per-page="itemsPerPage"
-                    :total="totalItems"
-                    :sibling-count="1"
-                    show-edges
-                    :default-page="currentPage"
-                    @page-changed="handlePageChange"
-                >
-                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                        <PaginationFirst />
-                        <PaginationPrev />
-
-                        <template v-for="(item, index) in items">
-                            <PaginationListItem v-if="item.type === 'page'" :key="index" :value="item.value" as-child>
-                                <Button class="h-6 w-6 p-0" :variant="item.value === page ? 'default' : 'outline'">
-                                    {{ item.value }}
-                                </Button>
-                            </PaginationListItem>
-                            <PaginationEllipsis v-else :key="item.type" :index="index" />
+                            </TableRow>
                         </template>
-
-                        <PaginationNext />
-                        <PaginationLast />
-                    </PaginationList>
-                </Pagination>
+                    </TableBody>
+                </Table>
+                <div class="mt-5">
+                    <ServerPagination
+                        v-model:current-page="currentPage"
+                        v-model:page-size="itemsPerPage"
+                        :total-items="totalItems"
+                        @fetch-data="reloadProductSheets"
+                    />
+                </div>
             </div>
         </div>
     </AppLayout>
@@ -684,12 +670,7 @@ onUnmounted(() => {
             </DialogHeader>
             <div class="flex-1 overflow-auto px-6 pb-4">
                 <div class="overflow-hidden rounded-lg border border-border bg-muted/20">
-                    <img
-                        v-if="previewSketchUrl"
-                        :src="previewSketchUrl"
-                        alt="Dibujo plano"
-                        class="h-auto max-h-[72vh] w-full object-contain"
-                    />
+                    <img v-if="previewSketchUrl" :src="previewSketchUrl" alt="Dibujo plano" class="h-auto max-h-[72vh] w-full object-contain" />
                 </div>
             </div>
             <DialogFooter class="border-t px-6 pb-4 pt-3">

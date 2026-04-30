@@ -22,6 +22,7 @@ import axios from 'axios';
 import { AlertTriangle, ArrowLeft, Check, Eye, Package2, Search, X } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import FabricRollDialog from './FabricRollDialog.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 
 interface PageProps extends InertiaPageProps {
     invoiceId?: string | number;
@@ -60,7 +61,7 @@ const breadcrumbs = computed(() => [
 const invoices = ref<PurchaseInvoice[]>([]);
 const searchQuery = ref('');
 const currentPage = ref(1);
-const itemsPerPage = 10;
+const itemsPerPage = ref(10);
 const totalItems = ref(0);
 const selectedInvoice = ref<PurchaseInvoice | null>(null);
 const isLoadingSpecificInvoice = ref(false);
@@ -321,7 +322,7 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
     isLoading.value = true;
     const params: Record<string, any> = {
         page,
-        per_page: itemsPerPage,
+        per_page: itemsPerPage.value,
         search,
         date_from: dateFilter.value || undefined,
         date_to: dateFilter.value || undefined,
@@ -341,8 +342,8 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         const response = await axios.get('/kardex-telas/recepcion/data', { params });
         const rawInvoices = Array.isArray(response.data.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
         invoices.value = rawInvoices.filter((invoice: PurchaseInvoice) => !isDifferenceRejectedInvoice(invoice));
-        totalItems.value = typeof response.data.total === 'number' ? response.data.total : 0;
-        currentPage.value = typeof response.data.current_page === 'number' ? response.data.current_page : page;
+        totalItems.value = Number(response.data.total ?? invoices.value.length ?? 0);
+        currentPage.value = Number(response.data.current_page ?? page);
         refreshBlockersForList();
     } catch (e: any) {
         console.log('Error al cargar facturas:', e);
@@ -427,31 +428,21 @@ function getCannotApproveDescription(invoice: PurchaseInvoice | null | undefined
 }
 
 // Watchers y eventos solo para modo lista
+// 1. Si cambia cualquier filtro o búsqueda, volvemos a la página 1
 watch(
     [statusFilter, providerFilter, subgroupFilter, dateFilter, searchQuery],
-    ([newStatus, newProvider, newSubgroup, newDate, newSearch], [oldStatus, oldProvider, oldSubgroup, oldDate, oldSearch]) => {
-        if (!showInvoicesList.value) return; // No ejecutar watchers en modo específico
-
-        if (
-            newStatus !== oldStatus ||
-            newProvider !== oldProvider ||
-            newSubgroup !== oldSubgroup ||
-            newDate !== oldDate ||
-            newSearch !== oldSearch
-        ) {
-            if (currentPage.value !== 1) {
-                currentPage.value = 1;
-            } else {
-                fetchInvoices(1, newSearch);
-            }
-        }
-    },
+    () => {
+        if (!showInvoicesList.value) return;
+        currentPage.value = 1;
+        fetchInvoices(1, searchQuery.value);
+    }
 );
 
-watch(currentPage, (newPage, oldPage) => {
-    if (!showInvoicesList.value) return; // No ejecutar watchers en modo específico
-
-    if (newPage !== oldPage) {
+// 2. Si solo cambia la página manualmente
+watch(currentPage, (newPage) => {
+    if (!showInvoicesList.value) return;
+    // Solo disparamos si no es la pág 1 para no chocar con el watcher anterior
+    if (newPage !== 1) {
         fetchInvoices(newPage, searchQuery.value);
     }
 });
@@ -829,6 +820,14 @@ function onFabricRollSuccess() {
                             </template>
                         </TableBody>
                     </Table>
+                    <div class="mt-4 flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between rounded-xl border">
+                      <ServerPagination 
+                        v-model:current-page="currentPage"
+                        v-model:page-size="itemsPerPage"
+                        :total-items="totalItems"
+                        @fetch-data="() => fetchInvoices(currentPage, searchQuery)" 
+                      />
+                    </div>
                 </div>
             </template>
 

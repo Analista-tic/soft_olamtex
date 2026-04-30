@@ -9,17 +9,8 @@ import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
-import { Skeleton } from '@/components/ui/skeleton';
+import ServerPagination from '@/components/common/ServerPagination.vue';
+
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -57,7 +48,7 @@ const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
 const currentPage = ref(1);
-const itemsPerPage = 10;
+const itemsPerPage = ref(10);
 const totalItems = ref(0);
 const searchQuery = ref('');
 const isLoading = ref(false);
@@ -145,14 +136,14 @@ async function fetchRetentions(page = 1, search = '') {
     try {
         const data = await fetchRetentionsPage({
             page,
-            per_page: itemsPerPage,
+            per_page: itemsPerPage.value,
             search,
             type: typeFilter.value !== DEFAULT_FILTER_VALUE ? typeFilter.value : undefined,
             status: statusParam,
         });
         retentions.value = data.data;
-        totalItems.value = typeof data.total === 'number' ? data.total : retentions.value.length;
-        currentPage.value = typeof data.current_page === 'number' ? data.current_page : 1;
+        totalItems.value = Number(data.total ?? retentions.value.length);
+        currentPage.value = Number(data.current_page ?? page);
     } catch {
         retentions.value = [];
         errorType.value = 'error';
@@ -272,34 +263,14 @@ onMounted(() => fetchRetentions());
                         </template>
                     </TableBody>
                 </Table>
-                <Pagination
-                    class="mt-5 flex justify-center"
-                    :items-per-page="itemsPerPage"
-                    :total="totalItems"
-                    :sibling-count="1"
-                    show-edges
+                <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                  <ServerPagination 
                     v-model:current-page="currentPage"
-                    @page-changed="handlePageChange"
-                >
-                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                        <PaginationFirst />
-                        <PaginationPrev />
-                        <template v-for="item in items">
-                            <PaginationListItem v-if="item.type === 'page'" :key="item.value" :value="item.value" as-child>
-                                <Button
-                                    class="h-6 w-6 p-0"
-                                    :variant="item.value === currentPage ? 'default' : 'outline'"
-                                    @click="handlePageChange(item.value)"
-                                >
-                                    {{ item.value }}
-                                </Button>
-                            </PaginationListItem>
-                            <PaginationEllipsis v-else :key="item.type" />
-                        </template>
-                        <PaginationNext />
-                        <PaginationLast />
-                    </PaginationList>
-                </Pagination>
+                    v-model:page-size="itemsPerPage"
+                    :total-items="totalItems"
+                    @fetch-data="() => fetchRetentions(currentPage, searchQuery)" 
+                  />
+                </div>
             </div>
         </div>
         <RetentionDialog
