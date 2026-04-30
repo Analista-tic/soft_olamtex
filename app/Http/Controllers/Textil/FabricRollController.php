@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Textil;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Textil\DischargeFabricRollRequest;
 use App\Http\Requests\Textil\StoreFabricRollRequest;
 use App\Http\Requests\Textil\UpdateFabricRollOutputRequest;
 use App\Http\Requests\Textil\UpdateFabricRollRequest;
@@ -665,6 +666,49 @@ class FabricRollController extends Controller
         return response()->json([
             'message' => 'Salidas actualizadas correctamente',
             'data' => (new FabricRollReceptionResource($fabricRoll))->resolve()
+        ]);
+    }
+
+    public function discharge(DischargeFabricRollRequest $request, FabricRoll $fabricRoll): JsonResponse
+    {
+        $data = $request->validated();
+        $type = (string) $data['type'];
+        $quantity = (float) $data['quantity'];
+        $productionOrderId = isset($data['production_order_id']) ? (int) $data['production_order_id'] : null;
+
+        if ($type === 'salida') {
+            $newActualOutput = (float) $fabricRoll->actual_output + $quantity;
+
+            if ($newActualOutput > (float) $fabricRoll->quantity) {
+                return response()->json([
+                    'message' => 'La cantidad de salida no puede superar la disponibilidad real del rollo.',
+                    'errors' => [
+                        'quantity' => ['La cantidad de salida no puede superar la disponibilidad real del rollo.'],
+                    ],
+                ], 422);
+            }
+
+            $fabricRoll = $this->service->updateOutput(
+                $fabricRoll,
+                ['actual_output' => $newActualOutput],
+                $productionOrderId
+            );
+        } else {
+            $fabricRoll->increment('quantity', $quantity);
+            $fabricRoll->refresh();
+        }
+
+        $rollQtyValue = (float) $fabricRoll->quantity;
+        $exitQuantityValue = (float) $fabricRoll->actual_output;
+        $realAvailabilityValue = $rollQtyValue - $exitQuantityValue;
+
+        return response()->json([
+            'message' => $type === 'salida'
+                ? 'Descargue de rollo registrado correctamente.'
+                : 'Entrada de rollo registrada correctamente.',
+            'real_availability_value' => $realAvailabilityValue,
+            'roll_qty_value' => $rollQtyValue,
+            'exit_quantity_value' => $exitQuantityValue,
         ]);
     }
 

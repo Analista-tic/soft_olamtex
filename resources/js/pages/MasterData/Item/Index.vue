@@ -60,12 +60,6 @@ const statusOptions = [
     { id: false as const, name: 'Deshabilitados' },
 ];
 
-const originOptions = [
-    { id: 'all' as const, name: 'Todos los orígenes' },
-    { id: 'migration' as const, name: 'Migrados' },
-    { id: 'system' as const, name: 'Sistema' },
-];
-
 const items = ref<Item[]>([]);
 const totalItems = ref(0);
 const currentPage = ref(1);
@@ -97,8 +91,6 @@ const errorMessage = ref('');
 
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
-const isOriginFilterActive = computed(() => originFilter.value !== DEFAULT_ORIGIN_FILTER);
-const originButtonClasses = useFilterButtonClasses(isOriginFilterActive);
 
 let activeFetchController: AbortController | null = null;
 
