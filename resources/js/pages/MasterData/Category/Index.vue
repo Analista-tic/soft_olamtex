@@ -82,11 +82,10 @@ const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isGroupFilterActive = computed(() => selectedGroup.value !== '' && selectedGroup.value != null);
 const groupFilterButtonClasses = useFilterButtonClasses(isGroupFilterActive);
 const groupOptions = computed<Option[]>(() => [
-    { id: '', name: 'Todos los grupos' },
     ...props.groups.map((group) => ({ id: group.id, name: group.name })),
 ]);
 
-const normalizedGroupId = computed<Option['id'] | null>(() => (selectedGroup.value === '' ? null : selectedGroup.value));
+const normalizedGroupId = computed<Option['id'] | null>(() => (selectedGroup.value === '' || selectedGroup.value == null ? null : selectedGroup.value));
 
 function openDialog(type: 'create' | 'edit', subGroup: CategorySubGroup | null = null): void {
     dialogType.value = type;
@@ -234,8 +233,9 @@ onMounted(() => {
                         v-model="selectedGroup"
                         :options="groupOptions"
                         label=""
-                        placeholder="Todos los grupos"
+                        placeholder="Grupo"
                         :button-class="groupFilterButtonClasses"
+                        :clearable="true"
                     />
                 </FilterField>
             </FilterBar>

@@ -69,9 +69,9 @@ const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
 const search = ref(incomeStore.noteFilters.search ?? '');
-const type = ref<'all' | 'credit' | 'debit'>((incomeStore.noteFilters.type as 'credit' | 'debit' | undefined) ?? 'all');
-const status = ref(incomeStore.noteFilters.status ?? 'all');
-const contactId = ref<number | 'all'>((incomeStore.noteFilters.contact_id as number | null | undefined) ?? 'all');
+const type = ref<'credit' | 'debit' | null>((incomeStore.noteFilters.type as 'credit' | 'debit' | undefined) ?? null);
+const status = ref<string | null>(incomeStore.noteFilters.status && incomeStore.noteFilters.status !== 'all' ? incomeStore.noteFilters.status : null);
+const contactId = ref<number | null>((incomeStore.noteFilters.contact_id as number | null | undefined) ?? null);
 const dateFilter = ref<string | null>(incomeStore.noteFilters.date_from ?? incomeStore.noteFilters.date_to ?? null);
 const customerOptions = ref<Option[]>([]);
 
@@ -79,22 +79,20 @@ const notes = computed(() => incomeStore.creditDebitNotes);
 const notesMeta = computed(() => incomeStore.notesMeta);
 const isNotesLoading = computed(() => incomeStore.creditDebitNotesLoading);
 const isSearchActive = computed(() => search.value.trim().length > 0);
-const isTypeFilterActive = computed(() => type.value !== 'all');
-const isStatusFilterActive = computed(() => status.value !== 'all');
-const isCustomerFilterActive = computed(() => contactId.value !== 'all');
+const isTypeFilterActive = computed(() => type.value != null);
+const isStatusFilterActive = computed(() => status.value != null);
+const isCustomerFilterActive = computed(() => contactId.value != null);
 const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 const typeButtonClasses = useFilterButtonClasses(isTypeFilterActive);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const customerButtonClasses = useFilterButtonClasses(isCustomerFilterActive);
 
 const typeOptions = [
-    { id: 'all', name: 'Todos los tipos' },
     { id: 'credit', name: 'Notas credito' },
     { id: 'debit', name: 'Notas debito' },
 ];
 
 const statusOptions = [
-    { id: 'all', name: 'Todos los estados' },
     { id: 'draft', name: 'Borrador' },
     { id: 'issued', name: 'Emitida' },
     { id: 'voided', name: 'Anulada' },
@@ -136,9 +134,9 @@ async function fetchNotes(page = 1) {
             page,
             per_page: notesMeta.value.perPage || 10,
             search: search.value,
-            type: type.value === 'all' ? undefined : type.value,
-            status: status.value,
-            contact_id: contactId.value === 'all' ? undefined : contactId.value,
+            type: type.value ?? undefined,
+            status: status.value ?? undefined,
+            contact_id: contactId.value ?? undefined,
             date_from: dateFilter.value || undefined,
             date_to: dateFilter.value || undefined,
         });
@@ -150,7 +148,7 @@ async function fetchNotes(page = 1) {
 
 async function loadCustomerOptions(searchTerm = '') {
     const options = await fetchIncomeCustomerOptions(searchTerm, searchTerm.trim() ? 30 : 100);
-    customerOptions.value = [{ id: 'all', name: 'Todos los clientes' }, ...options];
+    customerOptions.value = [...options];
 }
 
 function handlePageChange(page: number) {
@@ -309,11 +307,11 @@ onMounted(() => {
                 </FilterField>
 
                 <FilterField label="Tipo" :active="isTypeFilterActive" class="min-w-[180px]">
-                    <SelectField v-model="type" label="" :options="typeOptions" :button-class="typeButtonClasses" />
+                    <SelectField v-model="type" label="" :options="typeOptions" placeholder="Tipo" :button-class="typeButtonClasses" :clearable="true" />
                 </FilterField>
 
                 <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
-                    <SelectField v-model="status" label="" :options="statusOptions" :button-class="statusButtonClasses" />
+                    <SelectField v-model="status" label="" :options="statusOptions" placeholder="Estado" :button-class="statusButtonClasses" :clearable="true" />
                 </FilterField>
 
                 <FilterField label="Cliente" :active="isCustomerFilterActive" class="min-w-[220px]">
@@ -321,10 +319,11 @@ onMounted(() => {
                         v-model="contactId"
                         label=""
                         :options="customerOptions"
-                        placeholder="Todos los clientes"
+                        placeholder="Cliente"
                         searchable
                         search-placeholder="Buscar cliente..."
                         :button-class="customerButtonClasses"
+                        :clearable="true"
                         @search="loadCustomerOptions"
                     />
                 </FilterField>

@@ -73,7 +73,6 @@ const sortBy = ref(props.filters?.sort_by ?? 'id');
 const sortDir = ref<'asc' | 'desc'>(props.filters?.sort_direction ?? 'asc');
 
 const contactTypeOptions = [
-    { id: '', name: 'Todos los tipos' },
     { id: 'proveedor', name: 'Proveedor' },
     { id: 'cliente', name: 'Cliente' },
     { id: 'cliente_proveedor', name: 'Cliente y Proveedor' },
@@ -86,7 +85,7 @@ const contactTypeLabels: Record<ContactType, string> = {
 };
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isContactTypeFilterActive = computed(() => selectedContactType.value !== '');
+const isContactTypeFilterActive = computed(() => selectedContactType.value !== '' && selectedContactType.value != null);
 const contactTypeButtonClasses = useFilterButtonClasses(isContactTypeFilterActive);
 
 const successMessage = ref('');
@@ -425,8 +424,9 @@ onBeforeUnmount(() => {
                         v-model="selectedContactType"
                         label=""
                         :options="contactTypeOptions"
-                        placeholder="Todos los tipos"
+                        placeholder="Tipo de contacto"
                         :button-class="contactTypeButtonClasses"
+                        :clearable="true"
                     />
                 </FilterField>
             </FilterBar>

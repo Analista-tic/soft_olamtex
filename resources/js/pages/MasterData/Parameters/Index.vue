@@ -38,10 +38,9 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Parámetros', href: '/parametros' },
 ];
 
-const DEFAULT_STATUS_FILTER: ParameterStatusFilter = 'all';
+const DEFAULT_STATUS_FILTER: ParameterStatusFilter | null = null;
 
 const statusOptions: { id: ParameterStatusFilter; name: string }[] = [
-    { id: 'all', name: 'Todos los estados' },
     { id: 'active', name: 'Activo' },
     { id: 'inactive', name: 'Inactivo' },
 ];
@@ -52,7 +51,7 @@ const actionIconClass = 'h-4 w-4';
 
 const parameters = ref<ParameterItem[]>([]);
 const searchQuery = ref('');
-const statusFilter = ref<ParameterStatusFilter>(DEFAULT_STATUS_FILTER);
+const statusFilter = ref<ParameterStatusFilter | null>(DEFAULT_STATUS_FILTER);
 
 const dialogType = ref<DialogType>('create');
 const isDialogOpen = ref(false);
@@ -82,7 +81,7 @@ const parameterDeletionCheck = ref<ParameterDeletionCheck | null>(null);
 const isDeleteCheckLoading = ref(false);
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
+const isStatusFilterActive = computed(() => statusFilter.value != null);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 
 function toParameterItem(parameter: Parameter): ParameterItem {
@@ -127,7 +126,7 @@ function summarizeDeletionBlock(check: Partial<ParameterDeletionCheck> | null | 
     return `${baseMessage} Usos detectados: ${usageDetails.join(' ')}`;
 }
 
-function normalizeStatusFilter(value: ParameterStatusFilter): ParameterListQuery['status'] {
+function normalizeStatusFilter(value: ParameterStatusFilter | null): ParameterListQuery['status'] {
     if (value === 'active' || value === 'inactive') return value;
     return undefined;
 }
@@ -509,7 +508,7 @@ onBeforeUnmount(() => {
                 </FilterField>
 
                 <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[160px]">
-                    <SelectField v-model="statusFilter" label="" :options="statusOptions" :button-class="statusButtonClasses" />
+                    <SelectField v-model="statusFilter" label="" :options="statusOptions" placeholder="Estado" :button-class="statusButtonClasses" :clearable="true" />
                 </FilterField>
             </FilterBar>
 

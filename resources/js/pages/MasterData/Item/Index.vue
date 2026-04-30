@@ -41,11 +41,11 @@ import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 const breadcrumbs = [{ title: 'Catálogo de ítem', href: '/inventario/item' }];
 
 type DialogType = 'create' | 'edit';
-type StatusFilter = 'all' | boolean;
+type StatusFilter = boolean | null;
 type OriginFilter = 'all' | 'system' | 'migration';
 
 const ITEMS_PER_PAGE = 10;
-const DEFAULT_STATUS_FILTER: StatusFilter = 'all';
+const DEFAULT_STATUS_FILTER: StatusFilter = null;
 const DEFAULT_ORIGIN_FILTER: OriginFilter = 'all';
 
 const actionButtonClass =
@@ -55,7 +55,6 @@ const actionsMenuSideOffset = 1;
 const actionsMenuCollisionPadding = 0;
 
 const statusOptions = [
-    { id: 'all' as const, name: 'Todos' },
     { id: true as const, name: 'Habilitados' },
     { id: false as const, name: 'Deshabilitados' },
 ];
@@ -89,7 +88,7 @@ const isBulkDialogOpen = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
 
-const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
+const isStatusFilterActive = computed(() => statusFilter.value != null);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 
 let activeFetchController: AbortController | null = null;
@@ -168,7 +167,7 @@ async function fetchItems(page = 1) {
         params.search = normalizedSearch;
     }
 
-    if (statusFilter.value !== 'all') {
+    if (statusFilter.value != null) {
         params.status = statusFilter.value; // boolean
     }
 
@@ -422,8 +421,8 @@ onBeforeUnmount(() => {
                     </div>
                 </FilterField>
 
-                <FilterField label="Estado" :active="statusFilter !== 'all'" class="min-w-[180px]">
-                    <SelectField v-model="statusFilter" label="" :options="statusOptions" placeholder="Estado" :button-class="statusButtonClasses" />
+                <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
+                    <SelectField v-model="statusFilter" label="" :options="statusOptions" placeholder="Estado" :button-class="statusButtonClasses" :clearable="true" />
                 </FilterField>
 
             </FilterBar>

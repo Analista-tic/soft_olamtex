@@ -123,13 +123,13 @@ function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning
     }
 }
 
-const DEFAULT_STATUS_FILTER = 'all';
-const DEFAULT_PROVIDER_FILTER = 'all';
-const DEFAULT_SUBGROUP_FILTER = 'all';
-const statusFilter = ref(DEFAULT_STATUS_FILTER);
-const providerFilter = ref(DEFAULT_PROVIDER_FILTER);
-const subgroupFilter = ref(DEFAULT_SUBGROUP_FILTER);
-const dateFilter = ref('');
+const DEFAULT_STATUS_FILTER: string | null = null;
+const DEFAULT_PROVIDER_FILTER: string | null = null;
+const DEFAULT_SUBGROUP_FILTER: string | null = null;
+const statusFilter = ref<string | null>(null);
+const providerFilter = ref<number | string | null>(null);
+const subgroupFilter = ref<number | string | null>(null);
+const dateFilter = ref<string | null>(null);
 const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 const sortBy = ref<string>('date');
 const sortDir = ref<'asc' | 'desc'>('desc');
@@ -152,9 +152,9 @@ const showInvoiceDetail = computed(() => {
     return selectedInvoice.value !== null;
 });
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
-const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
-const isSubgroupFilterActive = computed(() => subgroupFilter.value !== DEFAULT_SUBGROUP_FILTER);
+const isStatusFilterActive = computed(() => statusFilter.value != null);
+const isProviderFilterActive = computed(() => providerFilter.value != null);
+const isSubgroupFilterActive = computed(() => subgroupFilter.value != null);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
 const subgroupButtonClasses = useFilterButtonClasses(isSubgroupFilterActive);
@@ -330,11 +330,11 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         scope: receptionScope.value,
         exclude_difference_rejected: true,
     };
-    if (statusFilter.value !== 'all') params.status = statusFilter.value;
-    if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
+    if (statusFilter.value != null) params.status = statusFilter.value;
+    if (providerFilter.value != null) {
         params.provider_id = isNaN(Number(providerFilter.value)) ? providerFilter.value : Number(providerFilter.value);
     }
-    if (subgroupFilter.value !== 'all' && subgroupFilter.value !== '' && subgroupFilter.value !== null) {
+    if (subgroupFilter.value != null) {
         params.subgroup_id = isNaN(Number(subgroupFilter.value)) ? subgroupFilter.value : Number(subgroupFilter.value);
     }
     try {
@@ -669,37 +669,36 @@ function onFabricRollSuccess() {
                     </FilterField>
                     <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
                         <SelectField
-                            v-model="statusFilter"
-                            label=""
-                            :options="[
-                                { id: 'all', name: 'Todos los estados' },
-                                { id: 'pending', name: 'Pendiente' },
-                                { id: 'approved', name: 'Aprobado' },
-                                { id: 'rejected', name: 'Rechazado' },
-                            ]"
-                            :button-class="statusButtonClasses"
-                        />
+                                v-model="statusFilter"
+                                label=""
+                                :options="[
+                                    { id: 'pending', name: 'Pendiente' },
+                                    { id: 'approved', name: 'Aprobado' },
+                                    { id: 'rejected', name: 'Rechazado' },
+                                ]"
+                                placeholder="Estado"
+                                :button-class="statusButtonClasses"
+                                :clearable="true"
+                            />
                     </FilterField>
                     <FilterField label="Proveedor" :active="isProviderFilterActive" class="min-w-[180px]">
                         <SelectField
                             v-model="providerFilter"
                             label=""
-                            :options="[
-                                { id: 'all', name: 'Todos los proveedores' },
-                                ...contactsStore.items.map((prov) => ({ id: String(prov.id), name: prov.full_name })),
-                            ]"
+                            :options="contactsStore.items.map((prov) => ({ id: String(prov.id), name: prov.full_name }))"
+                            placeholder="Proveedor"
                             :button-class="providerButtonClasses"
+                            :clearable="true"
                         />
                     </FilterField>
                     <FilterField label="Subgrupo" :active="isSubgroupFilterActive" class="min-w-[180px]">
                         <SelectField
                             v-model="subgroupFilter"
                             label=""
-                            :options="[
-                                { id: 'all', name: 'Todos los subgrupos' },
-                                ...subgroups.map((sub) => ({ id: String(sub.id), name: sub.name })),
-                            ]"
+                            :options="subgroups.map((sub) => ({ id: String(sub.id), name: sub.name }))"
+                            placeholder="Subgrupo"
                             :button-class="subgroupButtonClasses"
+                            :clearable="true"
                         />
                     </FilterField>
                     <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
@@ -800,7 +799,7 @@ function onFabricRollSuccess() {
                                                 <button
                                                     class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-green-600"
                                                     :disabled="getBlockersForInvoiceId(invoice.id).length > 0"
-                                                    :title="getBlockersForInvoiceId(invoice.id).length > 0 ? getBlockersForInvoiceId(invoice.id).join(' ') : 'Aprobar recepción'"
+                                                    :title="getBlockersForInvoiceId(invoice.id).length > 0 ? getBlockersForInvoiceId(invoice.id).join(' ') : 'Aprobar recepciï¿½n'"
                                                     @click="
                                                         getBlockersForInvoiceId(invoice.id).length > 0
                                                             ? setAlert(getBlockersForInvoiceId(invoice.id).join(' '), 'warning')

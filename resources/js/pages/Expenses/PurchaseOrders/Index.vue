@@ -62,8 +62,8 @@ const setErrorMessage = (msg: string) => {
 
 
 // NUEVOS FILTROS
-const statusFilter = ref('all');
-const providerFilter = ref('all');
+const statusFilter = ref<string | null>(null);
+const providerFilter = ref<number | string | null>(null);
 const dateFilter = ref<string | null>(null);
 const providers = ref<{ id: number; full_name: string }[]>([]);
 
@@ -81,12 +81,12 @@ function toggleSort(column: string) {
     fetchOrders();
 }
 
-const DEFAULT_STATUS_FILTER = 'all';
-const DEFAULT_PROVIDER_FILTER = 'all';
+const DEFAULT_STATUS_FILTER: string | null = null;
+const DEFAULT_PROVIDER_FILTER: string | null = null;
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
-const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
+const isStatusFilterActive = computed(() => statusFilter.value != null);
+const isProviderFilterActive = computed(() => providerFilter.value != null);
 const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
@@ -160,8 +160,8 @@ function viewOrder(order: PurchaseOrder) {
             sort_by: sortBy.value,
             sort_dir: sortDir.value,
         };
-        if (statusFilter.value !== 'all') params.status = statusFilter.value;
-        if (providerFilter.value !== 'all') params.provider_id = providerFilter.value;
+        if (statusFilter.value != null) params.status = statusFilter.value;
+        if (providerFilter.value != null) params.provider_id = providerFilter.value;
         const response = await axios.get('/gastos/ordenes-compra/data', { params });
         orders.value = response.data.data;
         totalItems.value = response.data.total;
@@ -306,25 +306,25 @@ function handleDialogError(message?: string) {
                         v-model="statusFilter"
                         label=""
                         :options="[
-                            { id: 'all', name: 'Todos los estados' },
                             { id: 'pending', name: 'Pendiente' },
                             { id: 'approved', name: 'Aprobada' },
                             { id: 'sent', name: 'Enviada' },
                             { id: 'invoiced', name: 'Facturada' },
                             { id: 'rejected', name: 'Rechazada' },
                         ]"
+                        placeholder="Estado"
                         :button-class="statusButtonClasses"
+                        :clearable="true"
                     />
                 </FilterField>
                 <FilterField label="Proveedor" :active="isProviderFilterActive" class="min-w-[180px]">
                     <SelectField
                         v-model="providerFilter"
                         label=""
-                        :options="[
-                            { id: 'all', name: 'Todos los proveedores' },
-                            ...providers.map((prov) => ({ id: String(prov.id), name: prov.full_name })),
-                        ]"
+                        :options="providers.map((prov) => ({ id: String(prov.id), name: prov.full_name }))"
+                        placeholder="Proveedor"
                         :button-class="providerButtonClasses"
+                        :clearable="true"
                     />
                 </FilterField>
 <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">

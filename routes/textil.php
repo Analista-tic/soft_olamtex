@@ -33,6 +33,7 @@ Route::prefix('kardex-telas')->name('kardex-telas.')->middleware('permission:ver
     Route::get('/', [App\Http\Controllers\Textil\FabricRollController::class, 'kardex'])->name('index');
     Route::get('/inventario-rollos', [App\Http\Controllers\Textil\FabricRollController::class, 'inventoryRolls'])->name('inventario-rollos');
     Route::get('/inventario-rollos/data', [App\Http\Controllers\Textil\FabricRollController::class, 'inventoryRollsData'])->name('inventario-rollos.data');
+    Route::get('/inventario-rollos/filter-options', [App\Http\Controllers\Textil\FabricRollController::class, 'inventoryFilterOptions'])->name('inventario-rollos.filter-options');
     Route::get('/descargue-orden', [App\Http\Controllers\Textil\FabricRollController::class, 'downloadOrders'])
         ->middleware('permission:ver descargue telas orden')
         ->name('descargue-orden');

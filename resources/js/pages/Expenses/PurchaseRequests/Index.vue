@@ -31,7 +31,7 @@ const sortBy = ref<string>('date');
 const sortDir = ref<'asc' | 'desc'>('desc');
 const requests = ref<PurchaseRequest[]>([]);
 const searchQuery = ref('');
-const statusFilter = ref('all');
+const statusFilter = ref<string | null>(null);
 // Filtro de proveedor eliminado
 const dateFilter = ref('');
 const isLoading = ref(false);
@@ -45,10 +45,10 @@ function toggleSort(column: string) {
     fetchRequests();
 }
 
-const DEFAULT_STATUS_FILTER = 'all';
+const DEFAULT_STATUS_FILTER: string | null = null;
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
+const isStatusFilterActive = computed(() => statusFilter.value != null);
 // Filtro de proveedor eliminado
 const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 
@@ -56,7 +56,6 @@ const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const { successMessage, errorMessage, errorType, clearSuccess, clearError, showError, showWarning } = useAlertStack();
 
 const statusOptions = [
-    { id: 'all', name: 'Todos los estados' },
     { id: 'draft', name: 'Borrador' },
     { id: 'pending', name: 'Pendiente' },
     { id: 'approved', name: 'Aprobada' },
@@ -300,7 +299,7 @@ async function fetchRequests() {
         sort_dir: sortDir.value,
     };
     if (searchQuery.value.trim()) params.search = searchQuery.value.trim();
-    if (statusFilter.value !== 'all') params.status = statusFilter.value;
+    if (statusFilter.value != null) params.status = statusFilter.value;
     // Filtro de proveedor eliminado
     if (dateFilter.value) {
         params.date_from = dateFilter.value;
@@ -385,8 +384,9 @@ onMounted(() => {
                         v-model="statusFilter"
                         label=""
                         :options="statusOptions"
-                        placeholder="Selecciona un estado"
+                        placeholder="Estado"
                         :button-class="statusButtonClasses"
+                        :clearable="true"
                     />
                 </FilterField>
                 <!-- Filtro de proveedor eliminado -->

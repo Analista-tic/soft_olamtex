@@ -361,20 +361,12 @@ class FabricRollService
             });
         }
 
-        if (!empty($filters['base_fabric'])) {
-            $baseFabric = $filters['base_fabric'];
-            $query->where(function ($q) use ($baseFabric) {
-                $q->where('fi.description', 'like', "%{$baseFabric}%")
-                    ->orWhere('i.description', 'like', "%{$baseFabric}%");
-            });
+        if (!empty($filters['color'])) {
+            $query->where('fr.internal_color_name', $filters['color']);
         }
 
-        if (!empty($filters['provider'])) {
-            $prov = $filters['provider'];
-            $query->where(function ($q) use ($prov) {
-                $q->where('c.full_name', 'like', "%{$prov}%")
-                    ->orWhere('pd.provider_name', 'like', "%{$prov}%");
-            });
+        if (!empty($filters['location'])) {
+            $query->where('fr.location', $filters['location']);
         }
 
         if (!empty($filters['with_output'])) {

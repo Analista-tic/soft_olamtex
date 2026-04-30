@@ -64,8 +64,8 @@ const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
 const search = ref(incomeStore.quoteFilters.search ?? '');
-const status = ref(incomeStore.quoteFilters.status ?? 'all');
-const contactId = ref<number | 'all'>((incomeStore.quoteFilters.contact_id as number | null | undefined) ?? 'all');
+const status = ref<string | null>(incomeStore.quoteFilters.status && incomeStore.quoteFilters.status !== 'all' ? incomeStore.quoteFilters.status : null);
+const contactId = ref<number | null>((incomeStore.quoteFilters.contact_id as number | null | undefined) ?? null);
 const dateFilter = ref<string | null>(incomeStore.quoteFilters.date_from ?? incomeStore.quoteFilters.date_to ?? null);
 const customerOptions = ref<Option[]>([]);
 
@@ -73,14 +73,13 @@ const quotes = computed(() => incomeStore.quotes);
 const quotesMeta = computed(() => incomeStore.quotesMeta);
 const isQuotesLoading = computed(() => incomeStore.quotesLoading);
 const isSearchActive = computed(() => search.value.trim().length > 0);
-const isStatusFilterActive = computed(() => status.value !== 'all');
-const isCustomerFilterActive = computed(() => contactId.value !== 'all');
+const isStatusFilterActive = computed(() => status.value != null);
+const isCustomerFilterActive = computed(() => contactId.value != null);
 const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const customerButtonClasses = useFilterButtonClasses(isCustomerFilterActive);
 
 const statusOptions = [
-    { id: 'all', name: 'Todos los estados' },
     { id: 'draft', name: 'Borrador' },
     { id: 'sent', name: 'Enviada' },
     { id: 'accepted', name: 'Aceptada' },
@@ -128,8 +127,8 @@ async function fetchQuotes(page = 1) {
             page,
             per_page: quotesMeta.value.perPage || 10,
             search: search.value,
-            status: status.value,
-            contact_id: contactId.value === 'all' ? undefined : contactId.value,
+            status: status.value ?? undefined,
+            contact_id: contactId.value ?? undefined,
             date_from: dateFilter.value || undefined,
             date_to: dateFilter.value || undefined,
         });
@@ -141,7 +140,7 @@ async function fetchQuotes(page = 1) {
 
 async function loadCustomerOptions(searchTerm = '') {
     const rows = await fetchIncomeCustomerOptions(searchTerm, searchTerm.trim() ? 30 : 100);
-    customerOptions.value = [{ id: 'all', name: 'Todos los clientes' }, ...rows];
+    customerOptions.value = [...rows];
 }
 
 function handlePageChange(page: number) {
@@ -283,17 +282,18 @@ onMounted(() => {
                 </FilterField>
 
                 <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
-                    <SelectField v-model="status" label="" :options="statusOptions" :button-class="statusButtonClasses" />
+                    <SelectField v-model="status" label="" :options="statusOptions" placeholder="Estado" :button-class="statusButtonClasses" :clearable="true" />
                 </FilterField>
 
                 <FilterField label="Cliente" :active="isCustomerFilterActive" class="min-w-[220px]">
                     <SelectField
                         v-model="contactId"
                         :options="customerOptions"
-                        placeholder="Todos los clientes"
+                        placeholder="Cliente"
                         searchable
                         search-placeholder="Buscar cliente..."
                         :button-class="customerButtonClasses"
+                        :clearable="true"
                         @search="loadCustomerOptions"
                     />
                 </FilterField>
