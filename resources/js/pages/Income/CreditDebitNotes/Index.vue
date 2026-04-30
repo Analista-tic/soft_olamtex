@@ -2,6 +2,7 @@
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import EditButton from '@/components/common/EditButton.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import TableActionsMenu from '@/components/common/TableActionsMenu.vue';
 import ViewButton from '@/components/common/ViewButton.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
@@ -13,16 +14,6 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
     INCOME_TABLE_BADGE_CLASS,
@@ -31,12 +22,10 @@ import {
     getStatusLabel,
     getStatusVariant,
     normalizeErrorMessage,
-    resolveIncomePageChange,
-    watchIncomeDocumentFilters,
 } from '@/composables/Income/useIncomeDocument';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { SaleCreditDebitNote } from '@/domain/Income';
 import type { BreadcrumbItem, Option } from '@/domain/shared';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 import { useIncomeStore } from '@/stores/income/income';
@@ -47,12 +36,10 @@ import SalesInvoiceDialog from '../SalesInvoices/SalesInvoiceDialog.vue';
 import CreditDebitNoteDialog from './CreditDebitNoteDialog.vue';
 
 const incomeStore = useIncomeStore();
-
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Ingresos', href: '/income/credit-debit-notes' },
     { title: 'Notas credito / debito', href: '/income/credit-debit-notes' },
 ];
-
 const isDialogOpen = ref(false);
 const dialogMode = ref<'create' | 'edit' | 'view'>('create');
 const selectedNoteId = ref<number | undefined>(undefined);
@@ -76,7 +63,6 @@ const dateFilter = ref<string | null>(incomeStore.noteFilters.date_from ?? incom
 const customerOptions = ref<Option[]>([]);
 
 const notes = computed(() => incomeStore.creditDebitNotes);
-const notesMeta = computed(() => incomeStore.notesMeta);
 const isNotesLoading = computed(() => incomeStore.creditDebitNotesLoading);
 const isSearchActive = computed(() => search.value.trim().length > 0);
 const isTypeFilterActive = computed(() => type.value !== 'all');
@@ -100,8 +86,9 @@ const statusOptions = [
     { id: 'voided', name: 'Anulada' },
 ];
 
-const currentPage = computed(() => notesMeta.value.currentPage || 1);
-const totalPages = computed(() => notesMeta.value.lastPage || 1);
+const itemsPerPage = ref(incomeStore.notesMeta.perPage || 10);
+const totalItems = computed(() => Number(incomeStore.notesMeta?.total ?? 0));
+const currentPage = ref(1);
 const hasNotes = computed(() => notes.value.length > 0);
 
 function formatDate(value?: string | null): string {
@@ -125,16 +112,14 @@ function getTypeLabel(note: SaleCreditDebitNote): string {
 }
 
 function getTypeClass(note: SaleCreditDebitNote): string {
-    return note.note_type === 'debit'
-        ? 'border-rose-200 bg-rose-50 text-rose-700'
-        : 'border-emerald-200 bg-emerald-50 text-emerald-700';
+    return note.note_type === 'debit' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700';
 }
 
 async function fetchNotes(page = 1) {
     try {
         await incomeStore.fetchNotes({
             page,
-            per_page: notesMeta.value.perPage || 10,
+            per_page: itemsPerPage.value,
             search: search.value,
             type: type.value === 'all' ? undefined : type.value,
             status: status.value,
@@ -151,12 +136,6 @@ async function fetchNotes(page = 1) {
 async function loadCustomerOptions(searchTerm = '') {
     const options = await fetchIncomeCustomerOptions(searchTerm, searchTerm.trim() ? 30 : 100);
     customerOptions.value = [{ id: 'all', name: 'Todos los clientes' }, ...options];
-}
-
-function handlePageChange(page: number) {
-    const nextPage = resolveIncomePageChange(page, currentPage.value, totalPages.value);
-    if (nextPage === null) return;
-    void fetchNotes(nextPage);
 }
 
 function openCreateDialog(noteType: 'credit' | 'debit') {
@@ -254,8 +233,25 @@ watch(isDialogOpen, (open) => {
     }
 });
 
-watchIncomeDocumentFilters([search, type, status, contactId, dateFilter], () => {
+// Sincronizar variable local cuando el store cambie
+watch(
+    () => incomeStore.notesMeta.currentPage,
+    (newValue) => {
+        if (newValue) currentPage.value = newValue;
+    },
+);
+
+// 1. Cuando cambie un filtro (incluye 'type' en este caso), volvemos a la pág 1
+watch([search, type, status, contactId, dateFilter], () => {
+    currentPage.value = 1;
     void fetchNotes(1);
+});
+
+// 2. Cuando el usuario cambie de página manualmente
+watch(currentPage, (newPage) => {
+    if (newPage !== 1) {
+        void fetchNotes(newPage);
+    }
 });
 
 onMounted(() => {
@@ -332,7 +328,6 @@ onMounted(() => {
                 <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
                     <DatePickerField v-model="dateFilter" label="" placeholder-text="dd/mm/aaaa" :clearable="true" />
                 </FilterField>
-
             </FilterBar>
 
             <div :class="uiPatterns.pageIndex.tableWrap">
@@ -360,7 +355,9 @@ onMounted(() => {
                         </template>
 
                         <TableRow v-else-if="!hasNotes">
-                            <TableCell colspan="8" class="py-10 text-center text-sm text-muted-foreground">No se encontraron notas con los filtros actuales.</TableCell>
+                            <TableCell colspan="8" class="py-10 text-center text-sm text-muted-foreground"
+                                >No se encontraron notas con los filtros actuales.</TableCell
+                            >
                         </TableRow>
 
                         <TableRow v-for="note in notes" v-else :key="note.id">
@@ -382,7 +379,13 @@ onMounted(() => {
                             <TableCell>{{ formatDate(note.date) }}</TableCell>
                             <TableCell>{{ formatCurrency(computeNoteTotal(note)) }}</TableCell>
                             <TableCell>
-                                <Badge variant="outline" :class="[INCOME_TABLE_BADGE_CLASS, getStatusVariant(note.status, note.note_type === 'debit' ? 'debit_note' : 'credit_note')]">
+                                <Badge
+                                    variant="outline"
+                                    :class="[
+                                        INCOME_TABLE_BADGE_CLASS,
+                                        getStatusVariant(note.status, note.note_type === 'debit' ? 'debit_note' : 'credit_note'),
+                                    ]"
+                                >
                                     {{ getStatusLabel(note.status, note.note_type === 'debit' ? 'debit_note' : 'credit_note') }}
                                 </Badge>
                             </TableCell>
@@ -415,35 +418,16 @@ onMounted(() => {
                     </TableBody>
                 </Table>
             </div>
-
-            <div v-if="notesMeta.total > 0" class="flex items-center justify-between gap-4">
-                <p class="text-sm text-muted-foreground">
-                    {{ notesMeta.total }} notas. Pagina {{ notesMeta.currentPage }} de {{ notesMeta.lastPage }}.
-                </p>
-
-                <Pagination
-                    :page="currentPage"
-                    :total="notesMeta.total"
-                    :items-per-page="notesMeta.perPage"
-                    :sibling-count="1"
-                    show-edges
-                    :class="uiPatterns.pageIndex.pagination"
-                >
-                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                        <PaginationFirst @click="handlePageChange(1)" />
-                        <PaginationPrev @click="handlePageChange(currentPage - 1)" />
-                        <template v-for="(item, index) in items" :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`">
-                            <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                <Button type="button" class="h-8 w-8 rounded-md p-0 text-xs font-medium" :variant="item.value === currentPage ? 'default' : 'ghost'" @click="handlePageChange(item.value)">
-                                    {{ item.value }}
-                                </Button>
-                            </PaginationListItem>
-                            <PaginationEllipsis v-else />
-                        </template>
-                        <PaginationNext @click="handlePageChange(currentPage + 1)" />
-                        <PaginationLast @click="handlePageChange(totalPages)" />
-                    </PaginationList>
-                </Pagination>
+            <!-- Pie de tabla / paginación estandarizada -->
+            <div
+                class="mt-4 flex flex-col gap-2 rounded-xl border border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between"
+            >
+                <ServerPagination
+                    v-model:current-page="currentPage"
+                    v-model:page-size="itemsPerPage"
+                    :total-items="totalItems"
+                    @fetch-data="() => fetchNotes(currentPage)"
+                />
             </div>
         </div>
 

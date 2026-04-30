@@ -2,6 +2,7 @@
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import EditButton from '@/components/common/EditButton.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import TableActionsMenu from '@/components/common/TableActionsMenu.vue';
 import ViewButton from '@/components/common/ViewButton.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
@@ -13,16 +14,6 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
     INCOME_TABLE_BADGE_CLASS,
@@ -31,18 +22,16 @@ import {
     getStatusLabel,
     getStatusVariant,
     normalizeErrorMessage,
-    resolveIncomePageChange,
-    watchIncomeDocumentFilters,
 } from '@/composables/Income/useIncomeDocument';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { SalesOrder } from '@/domain/Income';
 import type { BreadcrumbItem, Option } from '@/domain/shared';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 import { useIncomeStore } from '@/stores/income/income';
 import { Head, Link } from '@inertiajs/vue3';
 import { FileText, PlusCircle, ReceiptText, Search, Trash2 } from 'lucide-vue-next';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import SalesOrderDialog from './SalesOrderDialog.vue';
 
 const incomeStore = useIncomeStore();
@@ -61,6 +50,9 @@ const salesOrderToConvert = ref<SalesOrder | null>(null);
 const isDeleteDialogOpen = ref(false);
 const isConvertDialogOpen = ref(false);
 const successMessage = ref('');
+const itemsPerPage = ref(incomeStore.salesOrdersMeta.perPage || 10);
+const totalItems = computed(() => Number(incomeStore.salesOrdersMeta?.total ?? 0));
+const currentPage = ref(1);
 const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
@@ -72,7 +64,6 @@ const origin = ref<'all' | 'direct' | 'from_quote'>((incomeStore.salesOrderFilte
 const customerOptions = ref<Option[]>([]);
 
 const salesOrders = computed(() => incomeStore.salesOrders);
-const salesOrdersMeta = computed(() => incomeStore.salesOrdersMeta);
 const isSalesOrdersLoading = computed(() => incomeStore.salesOrdersLoading);
 const isSearchActive = computed(() => search.value.trim().length > 0);
 const isStatusFilterActive = computed(() => status.value !== 'all');
@@ -98,8 +89,6 @@ const originOptions = [
     { id: 'from_quote', name: 'Desde cotizacion' },
 ];
 
-const currentPage = computed(() => salesOrdersMeta.value.currentPage || 1);
-const totalPages = computed(() => salesOrdersMeta.value.lastPage || 1);
 const hasSalesOrders = computed(() => salesOrders.value.length > 0);
 
 function formatDate(value?: string | null): string {
@@ -135,7 +124,7 @@ async function fetchSalesOrders(page = 1) {
     try {
         await incomeStore.fetchSalesOrders({
             page,
-            per_page: salesOrdersMeta.value.perPage || 10,
+            per_page: itemsPerPage.value,
             search: search.value,
             status: status.value,
             contact_id: contactId.value === 'all' ? undefined : contactId.value,
@@ -152,15 +141,6 @@ async function fetchSalesOrders(page = 1) {
 async function loadCustomerOptions(searchTerm = '') {
     const rows = await fetchIncomeCustomerOptions(searchTerm, searchTerm.trim() ? 30 : 100);
     customerOptions.value = [{ id: 'all', name: 'Todos los clientes' }, ...rows];
-}
-
-function handlePageChange(page: number) {
-    const nextPage = resolveIncomePageChange(page, currentPage.value, totalPages.value);
-    if (nextPage === null) {
-        return;
-    }
-
-    void fetchSalesOrders(nextPage);
 }
 
 function openCreateDialog(quoteId?: number) {
@@ -260,8 +240,17 @@ function bootstrapFromQuery() {
     }
 }
 
-watchIncomeDocumentFilters([search, status, contactId, dateFilter, origin], () => {
+// 1. Para filtros (Buscador, Estado, Cliente, Fecha, Origen)
+watch([search, status, contactId, dateFilter, origin], () => {
+    currentPage.value = 1; // <--- Importante para no quedarse en páginas vacías
     void fetchSalesOrders(1);
+});
+
+// 2. Para cambio manual de página
+watch(currentPage, (newPage) => {
+    if (newPage !== 1) {
+        void fetchSalesOrders(newPage);
+    }
 });
 
 onMounted(() => {
@@ -330,7 +319,6 @@ onMounted(() => {
                 <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
                     <DatePickerField v-model="dateFilter" label="" placeholder-text="dd/mm/aaaa" :clearable="true" />
                 </FilterField>
-
             </FilterBar>
 
             <div :class="uiPatterns.pageIndex.tableWrap">
@@ -358,7 +346,9 @@ onMounted(() => {
                         </template>
 
                         <TableRow v-else-if="!hasSalesOrders">
-                            <TableCell colspan="8" class="py-10 text-center text-sm text-muted-foreground">No se encontraron pedidos con los filtros actuales.</TableCell>
+                            <TableCell colspan="8" class="py-10 text-center text-sm text-muted-foreground"
+                                >No se encontraron pedidos con los filtros actuales.</TableCell
+                            >
                         </TableRow>
 
                         <TableRow v-for="salesOrder in salesOrders" v-else :key="salesOrder.id" class="text-center">
@@ -367,8 +357,18 @@ onMounted(() => {
                             </TableCell>
                             <TableCell>{{ salesOrder.client?.full_name || salesOrder.contact?.full_name || '-' }}</TableCell>
                             <TableCell>
-                                <div v-if="salesOrder.parent_document_id && salesOrder.parent?.document_number" class="flex flex-col items-start gap-1">
-                                    <Badge variant="outline" :class="[INCOME_TABLE_BADGE_CLASS, 'border-blue-300 bg-blue-50/80 text-blue-700 dark:border-blue-400/40 dark:bg-blue-500/10 dark:text-blue-300']">Desde cotizacion</Badge>
+                                <div
+                                    v-if="salesOrder.parent_document_id && salesOrder.parent?.document_number"
+                                    class="flex flex-col items-start gap-1"
+                                >
+                                    <Badge
+                                        variant="outline"
+                                        :class="[
+                                            INCOME_TABLE_BADGE_CLASS,
+                                            'border-blue-300 bg-blue-50/80 text-blue-700 dark:border-blue-400/40 dark:bg-blue-500/10 dark:text-blue-300',
+                                        ]"
+                                        >Desde cotizacion</Badge
+                                    >
                                     <Link href="/income/quotes" class="inline-flex items-center gap-1 text-sm text-primary hover:underline">
                                         <FileText class="h-3.5 w-3.5" />
                                         {{ salesOrder.parent.document_number }}
@@ -392,7 +392,11 @@ onMounted(() => {
                                         @click="openEditDialog(salesOrder)"
                                     />
                                     <TableActionsMenu content-class="w-56">
-                                        <DropdownMenuItem class="cursor-pointer gap-2" :disabled="!canConvert(salesOrder)" @click="askConvertSalesOrder(salesOrder)">
+                                        <DropdownMenuItem
+                                            class="cursor-pointer gap-2"
+                                            :disabled="!canConvert(salesOrder)"
+                                            @click="askConvertSalesOrder(salesOrder)"
+                                        >
                                             <ReceiptText class="h-4 w-4" />
                                             Convertir a Factura
                                         </DropdownMenuItem>
@@ -412,42 +416,16 @@ onMounted(() => {
                     </TableBody>
                 </Table>
             </div>
-
-            <div v-if="salesOrdersMeta.total > 0" class="flex items-center justify-between gap-4">
-                <p class="text-sm text-muted-foreground">
-                    {{ salesOrdersMeta.total }} pedidos. Pagina {{ salesOrdersMeta.currentPage }} de {{ salesOrdersMeta.lastPage }}.
-                </p>
-
-                <Pagination
-                    :page="currentPage"
-                    :total="salesOrdersMeta.total"
-                    :items-per-page="salesOrdersMeta.perPage"
-                    :sibling-count="1"
-                    show-edges
-                    :class="uiPatterns.pageIndex.pagination"
-                >
-                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                        <PaginationFirst @click="handlePageChange(1)" />
-                        <PaginationPrev @click="handlePageChange(currentPage - 1)" />
-
-                        <template v-for="(item, index) in items" :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`">
-                            <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                <Button
-                                    type="button"
-                                    class="h-8 w-8 rounded-md p-0 text-xs font-medium"
-                                    :variant="item.value === currentPage ? 'default' : 'ghost'"
-                                    @click="handlePageChange(item.value)"
-                                >
-                                    {{ item.value }}
-                                </Button>
-                            </PaginationListItem>
-                            <PaginationEllipsis v-else />
-                        </template>
-
-                        <PaginationNext @click="handlePageChange(currentPage + 1)" />
-                        <PaginationLast @click="handlePageChange(totalPages)" />
-                    </PaginationList>
-                </Pagination>
+            <!-- Pie de tabla / paginación estandarizada -->
+            <div
+                class="mt-4 flex flex-col gap-2 rounded-xl border border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between"
+            >
+                <ServerPagination
+                    v-model:current-page="currentPage"
+                    v-model:page-size="itemsPerPage"
+                    :total-items="totalItems"
+                    @fetch-data="() => fetchSalesOrders(currentPage)"
+                />
             </div>
         </div>
 
