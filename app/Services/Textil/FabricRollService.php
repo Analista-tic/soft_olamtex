@@ -280,7 +280,7 @@ class FabricRollService
     public function inventoryWithFilters(array $filters = [], int $perPage = 100, string $sortBy = 'entry_date', string $sortDirection = 'desc'): LengthAwarePaginator
     {
         $allowedSorts = [
-            'roll_number'  => 'fr.roll_number',
+            'roll_number'  => DB::raw("CAST(REGEXP_REPLACE(fr.roll_number, '[^0-9]', '') AS UNSIGNED)"),
             'location'     => 'fr.location',
             'fabric'       => DB::raw("COALESCE(i.name, pdi.item_name, 'Tela')"),
             'color'        => DB::raw("COALESCE(fr.internal_color_name, pdi.supplier_color)"),

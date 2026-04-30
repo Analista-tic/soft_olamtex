@@ -140,8 +140,8 @@ class FabricRollController extends Controller
         ];
 
         $perPage       = min((int) $request->input('per_page', 100), 500);
-        $sortBy        = $request->input('sort_by', 'entry_date');
-        $sortDirection = $request->input('sort_direction', 'desc');
+        $sortBy        = $request->input('sort_by', 'roll_number');
+        $sortDirection = $request->input('sort_direction', 'asc');
         /** @var \Illuminate\Pagination\LengthAwarePaginator $paginator */
         $paginator = $this->service->inventoryWithFilters($filters, $perPage, $sortBy, $sortDirection);
 
