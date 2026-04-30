@@ -446,15 +446,10 @@ onBeforeUnmount(() => {
 
                         <TableBody>
                             <template v-if="isLoading">
-<<<<<<< Updated upstream
                                 <TableRow v-for="i in 5" :key="`item-skeleton-${i}`">
                                     <TableCell v-for="col in 6" :key="`item-skeleton-${i}-${col}`" class="px-4 py-3">
                                         <Skeleton class="h-4 w-full" />
                                     </TableCell>
-=======
-                                <TableRow>
-                                    <TableCell :colspan="6" class="py-6 text-center text-sm text-muted-foreground"> Cargando ítems... </TableCell>
->>>>>>> Stashed changes
                                 </TableRow>
                             </template>
                             <template v-else-if="items.length === 0">

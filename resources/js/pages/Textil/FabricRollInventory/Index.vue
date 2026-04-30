@@ -37,7 +37,7 @@ const rolls = ref<FabricRollView[]>([]);
 const currentPage = ref(1);
 const lastPage = ref(1);
 const totalRolls = ref(0);
-const PER_PAGE = 100;
+const perPage = ref(100);
 
 // Sorting
 type SortColumn =
@@ -119,7 +119,7 @@ async function fetchFabricRolls(page = 1) {
         if (providerFilter.value.trim()) params.set('provider', providerFilter.value.trim());
         if (showDownloadedOnly.value) params.set('with_output', '1');
         params.set('page', String(page));
-        params.set('per_page', String(PER_PAGE));
+        params.set('per_page', String(perPage.value));
         params.set('sort_by', sortColumn.value);
         params.set('sort_direction', sortDirection.value);
 
@@ -537,7 +537,7 @@ function handleImportError(payload: { message: string }) {
                 <div class="mt-4">
                   <ServerPagination 
                     v-model:current-page="currentPage"
-                    v-model:page-size="PER_PAGE"
+                                        v-model:page-size="perPage"
                     :total-items="totalRolls"
                     @fetch-data="fetchFabricRolls"
                   />
