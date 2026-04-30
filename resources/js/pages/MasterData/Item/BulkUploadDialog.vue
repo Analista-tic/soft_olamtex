@@ -10,7 +10,8 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
     (e: 'close'): void;
-    (e: 'uploaded'): void;
+    (e: 'uploaded', payload: { message: string }): void;
+    (e: 'error', payload: { message: string }): void;
 }>();
 
 const isOpen = ref(props.open);
@@ -21,7 +22,6 @@ watch(
 
 const bulkUploadFile = ref<File | null>(null);
 const isUploading = ref(false);
-const uploadError = ref('');
 const uploadSuccess = ref('');
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
@@ -37,34 +37,36 @@ const hasFile = computed(() => Boolean(bulkUploadFile.value));
 function close() {
     isOpen.value = false;
     emit('close');
-    uploadError.value = '';
-    uploadSuccess.value = '';
     bulkUploadFile.value = null;
+    if (fileInputRef.value) {
+        fileInputRef.value.value = '';
+    }
 }
 
 async function handleBulkUpload() {
     if (!bulkUploadFile.value) {
-        uploadError.value = 'Selecciona un archivo para subir.';
+        emit('error', { message: 'Selecciona un archivo para subir.' });
         return;
     }
     isUploading.value = true;
-    uploadError.value = '';
-    uploadSuccess.value = '';
     const formData = new FormData();
     formData.append('file', bulkUploadFile.value);
     try {
-        await axios.post('/item/carga-masiva', formData, {
+        const response = await axios.post('/item/carga-masiva', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
         uploadSuccess.value = 'Artículos cargados correctamente.';
-        emit('uploaded');
+        emit('uploaded', {
+            message: `${Number(response?.data?.inserted ?? 0)} artículos importados correctamente.`,
+        });
 
         // Cerrar el diálogo después de 1.5 segundos para que el usuario vea el mensaje
-        setTimeout(() => {
-            close();
-        }, 1500);
+        close();
     } catch (e: any) {
-        uploadError.value = e?.response?.data?.message || 'Error al cargar los ítems.';
+        // Mostrar mensaje genérico para evitar exponer detalles de error
+        emit('error', {
+            message: 'Error al importar. Por favor verifica el archivo e intenta de nuevo.',
+        });
     } finally {
         isUploading.value = false;
     }
@@ -107,7 +109,7 @@ function preventDrag(event: DragEvent) {
                 <p class="pb-5 text-sm text-muted-foreground">Sube un archivo Excel para registrar productos y servicios de forma masiva.</p>
             </DialogHeader>
 
-            <div class="no-scrollbar -mx-6 overflow-y-auto px-6 flex-1 min-h-0 py-4">
+            <div class="no-scrollbar -mx-4 max-h-[65vh] overflow-y-auto px-4 flex-1 min-h-0">
                 <div class="grid gap-6 lg:grid-cols-[1.3fr,1.7fr]">
                     <section class="rounded-2xl border border-muted bg-muted/40 p-4 text-sm text-muted-foreground">
                         <header class="flex items-center gap-2 text-base font-semibold text-foreground">
@@ -155,10 +157,6 @@ function preventDrag(event: DragEvent) {
                                 </div>
                             </div>
 
-                            <div class="space-y-2">
-                                <p v-if="uploadError" class="text-sm text-red-600">{{ uploadError }}</p>
-                                <p v-if="uploadSuccess" class="text-sm text-emerald-600">{{ uploadSuccess }}</p>
-                            </div>
                         </div>
                     </section>
                 </div>

@@ -519,7 +519,11 @@ async function fetchBlockersForInvoice(inv: PurchaseInvoice): Promise<string[]> 
         if (!itemId) continue;
         try {
             const res = await axios.get(`/kardex-telas/rollos/item/${itemId}`);
-            const rollos = Array.isArray(res.data) ? res.data : [];
+            const rollos = Array.isArray(res.data)
+                ? res.data
+                : Array.isArray(res.data?.data)
+                  ? res.data.data
+                  : [];
             const ordered = Number(item.quantity) || 0;
             if (rollos.length === 0) {
                 blockers.push(`Registre al menos un rollo para "${itemName}"`);
@@ -787,11 +791,7 @@ function onFabricRollSuccess() {
                                                 <button
                                                     class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-green-600"
                                                     :disabled="getBlockersForInvoiceId(invoice.id).length > 0"
-                                                    :title="
-                                                        getBlockersForInvoiceId(invoice.id).length > 0
-                                                            ? getBlockersForInvoiceId(invoice.id).join(' ')
-                                                            : 'Aprobar recepción'
-                                                    "
+                                                    :title="getBlockersForInvoiceId(invoice.id).length > 0 ? getBlockersForInvoiceId(invoice.id).join(' ') : 'Aprobar recepci�n'"
                                                     @click="
                                                         getBlockersForInvoiceId(invoice.id).length > 0
                                                             ? setAlert(getBlockersForInvoiceId(invoice.id).join(' '), 'warning')
@@ -963,19 +963,9 @@ function onFabricRollSuccess() {
                                         <TableCell v-if="isTelasList" class="py-2 text-center">
                                             <template v-if="isFabricItem(item)">
                                                 <button
-                                                    class="mx-auto flex h-full items-center justify-center text-muted-foreground transition-colors duration-200"
-                                                    :class="
-                                                        isInvoiceReceptionApproved(selectedInvoice)
-                                                            ? 'cursor-not-allowed opacity-50'
-                                                            : 'hover:text-primary'
-                                                    "
-                                                    :disabled="isInvoiceReceptionApproved(selectedInvoice)"
-                                                    :title="
-                                                        isInvoiceReceptionApproved(selectedInvoice)
-                                                            ? 'La factura ya está aprobada; no se puede registrar más rollos'
-                                                            : 'Registrar rollo'
-                                                    "
-                                                    @click="!isInvoiceReceptionApproved(selectedInvoice) && openFabricRollDialog(item)"
+                                                    class="mx-auto flex h-full items-center justify-center text-muted-foreground transition-colors duration-200 hover:text-primary"
+                                                    :title="isInvoiceReceptionApproved(selectedInvoice) ? 'Ver rollos de esta factura' : 'Registrar rollo'"
+                                                    @click="openFabricRollDialog(item)"
                                                 >
                                                     <Package2 class="h-4 w-4" />
                                                 </button>

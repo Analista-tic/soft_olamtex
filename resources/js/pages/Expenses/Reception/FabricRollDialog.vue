@@ -36,14 +36,59 @@ type FabricRollForm = {
 
 type RollRecord = {
     id: number;
-    roll_number?: string | null;
-    roll?: string | null;
+    roll_number: string;
     quantity: number | string;
     roll_width: number | string;
     location?: string | null;
     description?: string | null;
     entry_date: string;
 };
+
+type ApiMessageResponse = {
+    message?: string;
+};
+
+function normalizeRollRecord(payload: unknown): RollRecord | null {
+    if (!payload || typeof payload !== 'object') return null;
+
+    const record = payload as Record<string, unknown>;
+    const id = Number(record.id);
+    if (!Number.isFinite(id) || id <= 0) return null;
+
+    return {
+        id,
+        roll_number: String(record.roll_number ?? '').trim(),
+        quantity: (record.quantity as number | string | undefined) ?? '',
+        roll_width: (record.roll_width as number | string | undefined) ?? '',
+        location: typeof record.location === 'string' ? record.location : null,
+        description: typeof record.description === 'string' ? record.description : null,
+        entry_date: typeof record.entry_date === 'string' ? record.entry_date : '',
+    };
+}
+
+function extractRollRows(payload: unknown): unknown[] {
+    if (Array.isArray(payload)) {
+        return payload;
+    }
+
+    if (payload && typeof payload === 'object' && Array.isArray((payload as { data?: unknown }).data)) {
+        return (payload as { data: unknown[] }).data;
+    }
+
+    return [];
+}
+
+function isRollRecord(record: RollRecord | null): record is RollRecord {
+    return record !== null;
+}
+
+function getApiErrorMessage(error: unknown, fallback: string): string {
+    if (axios.isAxiosError<ApiMessageResponse>(error)) {
+        return error.response?.data?.message || fallback;
+    }
+
+    return fallback;
+}
 
 const props = defineProps<{
     isOpen: boolean;
@@ -72,6 +117,7 @@ const isDeleteConfirmOpen = ref(false);
 const rollToDelete = ref<RollRecord | null>(null);
 
 const canDeleteEditRolls = computed(() => props.canDeleteEditRolls !== false);
+const isReadOnly = computed(() => !canDeleteEditRolls.value);
 
 const requiredFieldLabels: Record<string, string> = {
     quantity: 'Longitud (mts)',
@@ -94,14 +140,20 @@ function todayIso(): string {
     return new Date().toISOString().split('T')[0];
 }
 
-function generateRollNumber(): string {
-    return `RL-${Math.floor(100000 + Math.random() * 900000)}`;
+async function fetchNextRollNumber(): Promise<string> {
+    try {
+        const response = await axios.get<{ roll_number: string }>(`${props.apiUrl}/next-roll-number`);
+        return response.data.roll_number;
+    } catch {
+        return `RL-${Math.floor(100000 + Math.random() * 900000)}`;
+    }
 }
 
 function buildDefaultForm(): FabricRollForm {
     return {
-        roll_number: generateRollNumber(),
-        purchase_document_item_id: (props.item as any)?.id ?? null,
+        roll_number: '',
+        // roll_number se obtiene de forma asíncrona en resetForm()
+        purchase_document_item_id: props.item?.id ?? null,
         quantity: '',
         roll_width: props.item?.order_width?.toString() ?? '',
         location: '',
@@ -112,10 +164,11 @@ function buildDefaultForm(): FabricRollForm {
 
 const form = ref<FabricRollForm>(buildDefaultForm());
 
-function resetForm(): void {
+async function resetForm(): Promise<void> {
     form.value = buildDefaultForm();
     editingRoll.value = null;
     clearAlert();
+    form.value.roll_number = await fetchNextRollNumber();
 }
 
 function setAlert(message: string, type: 'success' | AlertType = 'info'): void {
@@ -225,7 +278,7 @@ const widthTolerance = computed(() => {
 });
 
 async function loadRolls(): Promise<void> {
-    const itemId = (props.item as any)?.id;
+    const itemId = props.item?.id;
     if (!itemId || !props.apiUrl) {
         rolls.value = [];
         return;
@@ -234,14 +287,12 @@ async function loadRolls(): Promise<void> {
     rollsLoading.value = true;
 
     try {
-        const response = await axios.get(`${props.apiUrl}/item/${itemId}`);
+        const { data } = await axios.get<unknown>(`${props.apiUrl}/item/${itemId}`);
+        const rows = extractRollRows(data);
 
-        const payload = response.data;
-        rolls.value = Array.isArray(payload)
-            ? payload
-            : Array.isArray(payload?.data)
-              ? payload.data
-              : [];
+        rolls.value = rows
+            .map(normalizeRollRecord)
+            .filter(isRollRecord);
     } catch (error) {
         console.error(error);
         setAlert('No se pudieron cargar los rollos registrados.', 'error');
@@ -254,6 +305,11 @@ async function loadRolls(): Promise<void> {
 // La ubicación es un campo de texto libre: no se listan bodegas aquí.
 
 async function handleSubmit(): Promise<void> {
+    if (isReadOnly.value) {
+        setAlert('La factura está aprobada. Los rollos solo se pueden consultar.', 'info');
+        return;
+    }
+
     if (!props.item?.id) {
         setAlert('No hay un ítem seleccionado para registrar el rollo.', 'error');
         return;
@@ -270,7 +326,7 @@ async function handleSubmit(): Promise<void> {
 
     const payload = {
         roll_number: form.value.roll_number,
-        purchase_document_item_id: (props.item as any).id,
+        purchase_document_item_id: props.item.id,
         quantity: parseNumber(form.value.quantity),
         roll_width: parseNumber(form.value.roll_width),
         location: form.value.location,
@@ -292,13 +348,9 @@ async function handleSubmit(): Promise<void> {
 
         resetForm();
         activeTab.value = 'list';
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error(error);
-
-        const message =
-            error?.response?.data?.message ||
-            'No fue posible guardar la información del rollo.';
-        setAlert(message, 'error');
+        setAlert(getApiErrorMessage(error, 'No fue posible guardar la información del rollo.'), 'error');
     } finally {
         isLoading.value = false;
     }
@@ -310,8 +362,8 @@ function startEditRoll(roll: RollRecord): void {
     clearAlert();
 
     form.value = {
-        roll_number: roll.roll_number || roll.roll || generateRollNumber(),
-        purchase_document_item_id: (props.item as any)?.id ?? null,
+        roll_number: roll.roll_number,
+        purchase_document_item_id: props.item?.id ?? null,
         quantity: roll.quantity ?? '',
         roll_width: roll.roll_width ?? '',
         location: roll.location || '',
@@ -341,12 +393,9 @@ async function confirmDeleteRoll(): Promise<void> {
             resetForm();
             activeTab.value = 'form';
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error(error);
-        const message =
-            error?.response?.data?.message ||
-            'No fue posible eliminar el rollo.';
-        setAlert(message, 'error');
+        setAlert(getApiErrorMessage(error, 'No fue posible eliminar el rollo.'), 'error');
     } finally {
         rollToDelete.value = null;
     }
@@ -368,6 +417,7 @@ watch(
 
         if (value) {
             resetForm();
+            activeTab.value = isReadOnly.value ? 'list' : 'form';
             await loadRolls();
         }
     },
@@ -379,10 +429,18 @@ watch(
     async () => {
         if (dialogOpen.value) {
             resetForm();
+            activeTab.value = isReadOnly.value ? 'list' : 'form';
             await loadRolls();
         }
     }
 );
+
+watch(isReadOnly, (value) => {
+    if (value) {
+        editingRoll.value = null;
+        activeTab.value = 'list';
+    }
+});
 
 watch(dialogOpen, (value) => {
     if (!value) {
@@ -398,12 +456,12 @@ watch(dialogOpen, (value) => {
         >
             <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                     <DialogTitle class="text-lg">
-                        {{ editingRoll ? 'Editar rollo' : 'Registrar rollo de tela' }}
+                        {{ isReadOnly ? 'Rollos registrados' : editingRoll ? 'Editar rollo' : 'Registrar rollo de tela' }}
                     </DialogTitle>
                     <DialogDescription>
                         {{
-                            editingRoll
-                                ? 'Modifique los datos del rollo y guarde.'
+                            isReadOnly
+                                ? 'La factura ya está aprobada. Este modal permite consultar los rollos registrados.'
                                 : 'Cada recepción guarda un nuevo rollo con identificador único (RL). Relacione el rollo al ítem de la factura.'
                         }}
                     </DialogDescription>
@@ -421,6 +479,7 @@ watch(dialogOpen, (value) => {
                 <div class="space-y-5">
                     <div class="flex gap-2 border-b pb-2">
                         <Button
+                            v-if="!isReadOnly"
                             type="button"
                             size="pill"
                             :class="[
@@ -452,7 +511,7 @@ watch(dialogOpen, (value) => {
                         </Button>
                     </div>
 
-                    <template v-if="activeTab === 'form'">
+                    <template v-if="activeTab === 'form' && !isReadOnly">
                         <div v-if="itemInfo" class="rounded-lg border bg-muted/30 p-4">
                             <h3 class="mb-3 text-sm font-semibold">Resumen del ítem</h3>
                             <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
@@ -572,7 +631,7 @@ watch(dialogOpen, (value) => {
                                     </thead>
                                     <tbody>
                                         <tr v-for="roll in rolls" :key="roll.id" class="border-t">
-                                            <td class="px-4 py-3 font-medium">{{ roll.roll_number || roll.roll }}</td>
+                                            <td class="px-4 py-3 font-medium">{{ roll.roll_number }}</td>
                                             <td class="px-4 py-3 text-right">{{ roll.quantity }} mts</td>
                                             <td class="px-4 py-3 text-right">{{ roll.roll_width }} cm</td>
                                             <td class="px-4 py-3">{{ roll.location || '—' }}</td>
@@ -616,7 +675,7 @@ watch(dialogOpen, (value) => {
 
             <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                 <div class="flex w-full flex-col gap-2 md:flex-row md:justify-end">
-                    <template v-if="activeTab === 'form'">
+                    <template v-if="activeTab === 'form' && !isReadOnly">
                         <Button
                             type="button"
                             variant="outline"
@@ -661,6 +720,7 @@ watch(dialogOpen, (value) => {
                         </Button>
 
                         <Button
+                            v-if="!isReadOnly"
                             type="button"
                             size="pill"
                             class="rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
@@ -686,7 +746,7 @@ watch(dialogOpen, (value) => {
                             </DialogHeader>
                             <DialogDescription class="mt-1 text-sm text-muted-foreground">
                                 ¿Seguro que deseas eliminar el rollo
-                                <span class="font-medium text-foreground">{{ rollToDelete?.roll_number || rollToDelete?.roll }}</span>?
+                                <span class="font-medium text-foreground">{{ rollToDelete?.roll_number }}</span>?
                                 Esta acción no se puede deshacer.
                             </DialogDescription>
                         </div>

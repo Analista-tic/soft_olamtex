@@ -168,7 +168,7 @@ type SizeKey = string;
 const fallbackQuantity = 18;
 
 const baseQuantity = computed(() => {
-    const raw = Math.max(0, Math.round(toNumber(activeRoll.value?.quantity_value)));
+    const raw = Math.max(0, Math.round(toNumber(activeRoll.value?.roll_qty_value)));
     return raw || fallbackQuantity;
 });
 
@@ -395,7 +395,7 @@ onMounted(() => {
                             <TableCell>{{ roll.color ?? 'Color' }}</TableCell>
                             <TableCell>{{ roll.width ?? '0 m' }}</TableCell>
                             <TableCell>{{ roll.exit_quantity ?? '0 m' }}</TableCell>
-                            <TableCell>{{ formatMeters(Math.max(0, toNumber(roll.quantity_value) - toNumber(roll.exit_quantity))) }}</TableCell>
+                            <TableCell>{{ formatMeters(Math.max(0, toNumber(roll.roll_qty_value) - toNumber(roll.exit_quantity_value))) }}</TableCell>
                             <TableCell class="flex justify-center">
                                 <Button
                                     variant="outline"

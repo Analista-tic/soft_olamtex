@@ -975,7 +975,7 @@ async function checkDuplicateName(): Promise<string | null> {
                 reference,
                 category_sub_group_id: subGroupId,
                 extra_fields: JSON.stringify(extraFields.value ?? {}),
-                item_id: props.form.id ?? null,
+                item_id: localForm.value.id ?? props.form.id ?? null,
             },
         });
 
@@ -1085,14 +1085,16 @@ async function handleSubmit() {
 
     const cleanForm = mapFormStateToPayload(orderedExtraFields);
 
-    const formData = new FormData();
+    const normalizedBooleanPayload = Object.fromEntries(
+        ['negative_movement', 'status', 'tracks_inventory'].map((key) => {
+            const value = cleanForm[key];
+            const normalized = value === true || value === 1 || value === '1' || value === 'true' ? 1 : 0;
+            return [key, normalized];
+        }),
+    );
 
     // Boolean/integer fields — always sent as "1" or "0"
-    const boolIntFields = ['negative_movement', 'status', 'tracks_inventory'];
-    for (const key of boolIntFields) {
-        const v = cleanForm[key];
-        formData.append(key, String(v === true || v === 1 || v === '1' || v === 'true' ? 1 : 0));
-    }
+    const boolIntFields = Object.keys(normalizedBooleanPayload);
 
     // Scalar fields — only sent when not null/undefined; skips objects/arrays to avoid "[object Object]"
     const scalarFields = [
@@ -1116,44 +1118,75 @@ async function handleSubmit() {
         'weighted_average_price',
         'cost_price',
     ];
-    for (const key of scalarFields) {
-        const v = cleanForm[key];
-        if (v === undefined || v === null) continue;
-        if (key === 'description' || key === 'bar_code') {
-            if (typeof v === 'string' && v.trim() === '') continue;
-        }
-        formData.append(key, v);
-    }
-
-    if (imageFile.value) formData.append('image', imageFile.value);
-
-    formData.append(
-        'warehouses',
-        JSON.stringify(
-            warehouseStocks.value
-                .filter((w) => Number(w.warehouse_id))
-                .map((w) => ({
-                    warehouse_id: Number(w.warehouse_id),
-                    quantity: Number(w.quantity),
-                    stock_min: Number(w.stock_min),
-                    stock_max: Number(w.stock_max),
-                })),
-        ),
-    );
-
+    const warehousesPayload = warehouseStocks.value
+        .filter((w) => Number(w.warehouse_id))
+        .map((w) => ({
+            warehouse_id: Number(w.warehouse_id),
+            quantity: Number(w.quantity),
+            stock_min: Number(w.stock_min),
+            stock_max: Number(w.stock_max),
+        }));
     const url = props.dialogType === 'create' ? '/item' : `/item/${localForm.value.id}`;
-    const method = 'POST';
+    const isEdit = props.dialogType === 'edit';
+    const hasImageUpload = Boolean(imageFile.value);
 
-    if (props.dialogType === 'edit') formData.append('_method', 'PUT');
     if (props.dialogType === 'view') return;
 
     try {
-        await axios({
-            method,
-            url,
-            data: formData,
-            headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        if (isEdit && !hasImageUpload) {
+            await axios.put(url, {
+                ...cleanForm,
+                ...normalizedBooleanPayload,
+                warehouses: warehousesPayload,
+            });
+        } else {
+            const formData = new FormData();
+
+            for (const key of boolIntFields) {
+                formData.append(key, String(normalizedBooleanPayload[key]));
+            }
+
+            for (const key of scalarFields) {
+                const v = cleanForm[key];
+                if (v === undefined || v === null) continue;
+
+                // Skip empty description/bar_code
+                if (key === 'description' || key === 'bar_code') {
+                    if (typeof v === 'string' && v.trim() === '') continue;
+                }
+
+                // FormData.append only accepts string or Blob. Normalize values safely.
+                if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+                    formData.append(key, String(v));
+                } else if (v instanceof Blob) {
+                    formData.append(key, v);
+                } else if (key === 'extra_fields' || isPlainObject(v)) {
+                    // For objects (extra fields, etc.) send as JSON string
+                    try {
+                        formData.append(key, JSON.stringify(v));
+                    } catch (e) {
+                        // skip invalid objects
+                    }
+                } else {
+                    // Skip arrays or other unsupported types to avoid [object Object]
+                }
+            }
+
+            if (imageFile.value) {
+                // imageFile is typed as File | null — ensure we only append when present
+                const file = imageFile.value as File;
+                if (file instanceof Blob) {
+                    // include original filename when available
+                    formData.append('image', file, (file as File).name || 'image');
+                }
+            }
+
+            formData.append('warehouses', JSON.stringify(warehousesPayload));
+
+            if (isEdit) formData.append('_method', 'PUT');
+
+            await axios.post(url, formData);
+        }
 
         emit('refresh');
         emit('close');

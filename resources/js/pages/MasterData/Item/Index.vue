@@ -50,12 +50,6 @@ const statusOptions = [
     { id: false as const, name: 'Deshabilitados' },
 ];
 
-const originOptions = [
-    { id: 'all' as const, name: 'Todos los orígenes' },
-    { id: 'migration' as const, name: 'Migrados' },
-    { id: 'system' as const, name: 'Sistema' },
-];
-
 const items = ref<Item[]>([]);
 const totalItems = ref(0);
 const currentPage = ref(1);
@@ -81,35 +75,12 @@ const isStatusDialogOpen = ref(false);
 const itemToToggleStatus = ref<Item | null>(null);
 
 const isBulkDialogOpen = ref(false);
-const isTemplateDownloading = ref(false);
-
-const itemTemplateHeaders = [
-    'TIPO DE ITEM',
-    'NOMBRE',
-    'GRUPO',
-    'SUBGRUPO',
-    'IMPUESTO (%)',
-    'BODEGA',
-    'CANTIDAD',
-    'CANTIDAD MIN',
-    'CANTIDAD MAX',
-    'UNIDAD DE MEDIDA',
-    'CODIGO DE BARRAS',
-    'REFERENCIA',
-    'DESCRIPCION',
-    'MOVIMIENTO NEGATIVO',
-    'CAMPOS ADICIONALES',
-    'VALORES ADICIONALES',
-    'ESTADO',
-];
 
 const successMessage = ref('');
 const errorMessage = ref('');
 
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
-const isOriginFilterActive = computed(() => originFilter.value !== DEFAULT_ORIGIN_FILTER);
-const originButtonClasses = useFilterButtonClasses(isOriginFilterActive);
 
 let activeFetchController: AbortController | null = null;
 
@@ -250,31 +221,8 @@ function exportItemsCsv() {
     window.open('/item/exportar-excel', '_blank');
 }
 
-async function downloadTemplate() {
-    if (isTemplateDownloading.value) return;
-
-    isTemplateDownloading.value = true;
-    successMessage.value = '';
-    errorMessage.value = '';
-
-    try {
-        const csvContent = `${itemTemplateHeaders.join(',')}\n`;
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const objectUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = objectUrl;
-        link.download = 'plantilla_importacion_items.csv';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(objectUrl);
-
-        setSuccess('Plantilla descargada correctamente.');
-    } catch (err) {
-        setError(getErrorMessage(err, 'No se pudo descargar la plantilla CSV.'));
-    } finally {
-        isTemplateDownloading.value = false;
-    }
+function downloadTemplate() {
+    window.open('/item/descargar-plantilla', '_blank');
 }
 
 function openDialog(type: DialogType, item: Item | null = null) {
@@ -318,6 +266,20 @@ function shouldHighlightImportedItem(item: Item): boolean {
 
 function closeBulkDialog() {
     isBulkDialogOpen.value = false;
+}
+
+async function handleBulkUploaded(payload: { message: string }) {
+    await fetchItems(1);
+    setSuccess(payload.message);
+}
+
+function handleBulkUploadError(payload: { message: string }) {
+    setError(payload.message);
+}
+
+async function handlePageChange(newPage: number) {
+    if (newPage === currentPage.value) return;
+    await fetchItems(newPage);
 }
 
 // Debounce simple para búsqueda sin saturar el endpoint
@@ -418,11 +380,9 @@ onBeforeUnmount(() => {
                         >
                             <DropdownMenuItem
                                 class="cursor-pointer gap-2"
-                                :class="isTemplateDownloading ? 'cursor-not-allowed opacity-60' : ''"
-                                :disabled="isTemplateDownloading"
                                 @click="downloadTemplate"
                             >
-                                <FileSpreadsheet class="h-4 w-4" /> Descargar plantilla CSV
+                                <FileSpreadsheet class="h-4 w-4" /> Descargar plantilla
                             </DropdownMenuItem>
 
                             <DropdownMenuItem class="cursor-pointer gap-2" @click="openBulkDialog">
@@ -456,9 +416,6 @@ onBeforeUnmount(() => {
                     <SelectField v-model="statusFilter" label="" :options="statusOptions" placeholder="Estado" :button-class="statusButtonClasses" />
                 </FilterField>
 
-                <FilterField label="Origen" :active="originFilter !== 'all'" class="min-w-[180px]">
-                    <SelectField v-model="originFilter" label="" :options="originOptions" placeholder="Origen" :button-class="originButtonClasses" />
-                </FilterField>
             </FilterBar>
 
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
@@ -663,6 +620,11 @@ onBeforeUnmount(() => {
             </DialogContent>
         </Dialog>
 
-        <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchItems" />
+        <BulkUploadDialog
+            :open="isBulkDialogOpen"
+            @close="closeBulkDialog"
+            @uploaded="handleBulkUploaded"
+            @error="handleBulkUploadError"
+        />
     </AppLayout>
 </template>

@@ -14,6 +14,9 @@ class FabricRollResource extends JsonResource
             ? $this->quantity - $this->partial_output
             : null;
         $fabricItem = $this->item ?? $this->purchaseDocumentItem?->item;
+        $color = $this->internal_color_name
+            ?? $this->supplier_color
+            ?? $this->purchaseDocumentItem?->supplier_color;
 
         return [
             'id' => $this->id,
@@ -25,14 +28,20 @@ class FabricRollResource extends JsonResource
                 ?? $this->purchaseDocumentItem?->item_name
                 ?? $this->description
                 ?? 'Tela',
-            'color' => $this->purchaseDocumentItem?->supplier_color ?? 'N/A',
-            'color_code' => $this->deriveColorCode($this->purchaseDocumentItem?->supplier_color),
+            'color' => $color ?? 'N/A',
+            'color_code' => $this->deriveColorCode($color),
             'width' => $this->formatMeters($this->roll_width),
+            'width_value' => $this->roll_width,
             'roll_qty' => $this->formatMeters($this->quantity),
+            'roll_qty_value' => $this->quantity,
             'partial_output' => $this->formatMeters($this->partial_output),
-            'exit_quantity' => $this->formatMeters($this->actual_output),
+            'partial_output_value' => $this->partial_output,
             'partial_availability' => $this->formatMeters($partialAvailability),
+            'partial_availability_value' => $partialAvailability,
+            'exit_quantity' => $this->formatMeters($this->actual_output),
+            'exit_quantity_value' => $this->actual_output,
             'real_availability' => $this->formatMeters($this->available_quantity),
+            'real_availability_value' => $this->available_quantity,
             'order_number' => $document?->supplier_order_number
                 ?? $document?->document_number
                 ?? 'N/A',
@@ -45,8 +54,6 @@ class FabricRollResource extends JsonResource
                 : null,
             'creator' => $document?->creator?->name,
             'status' => $this->is_depleted ? 'depleted' : 'available',
-            'quantity_value' => $this->quantity,
-            'exit_quantity_value' => $this->actual_output,
         ];
     }
 

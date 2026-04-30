@@ -21,6 +21,26 @@ class FabricRollService
     /** Tolerancia de cantidad al aprobar recepción: ±30% respecto al pedido por ítem. */
     public const TOLERANCE_QUANTITY_PERCENT = 30;
 
+    /**
+     * Genera el siguiente número de rollo consecutivo en formato RLXXXXX.
+     * Usa un lock pesimista para evitar duplicados en concurrencia.
+     */
+    public function nextRollNumber(): string
+    {
+        return DB::transaction(function () {
+            // Bloquea la tabla mientras calculamos el máximo para evitar race conditions
+            $max = DB::table('fabric_rolls')
+                ->where('roll_number', 'like', 'RL%')
+                ->lockForUpdate()
+                ->selectRaw("MAX(CAST(REGEXP_REPLACE(roll_number, '[^0-9]', '') AS UNSIGNED)) as max_num")
+                ->value('max_num');
+
+            $next = ($max ?? 0) + 1;
+
+            return 'RL' . $next;
+        });
+    }
+
     public function paginate(array $filters = [], int $perPage = 10): LengthAwarePaginator
     {
         $query = FabricRoll::with([
@@ -280,10 +300,10 @@ class FabricRollService
     public function inventoryWithFilters(array $filters = [], int $perPage = 100, string $sortBy = 'entry_date', string $sortDirection = 'desc'): LengthAwarePaginator
     {
         $allowedSorts = [
-            'roll_number'  => 'fr.roll_number',
+            'roll_number'  => DB::raw("CAST(REGEXP_REPLACE(fr.roll_number, '[^0-9]', '') AS UNSIGNED)"),
             'location'     => 'fr.location',
             'fabric'       => DB::raw("COALESCE(i.name, pdi.item_name, 'Tela')"),
-            'color'        => 'pdi.supplier_color',
+            'color'        => DB::raw("COALESCE(fr.internal_color_name, pdi.supplier_color)"),
             'width'        => 'fr.roll_width',
             'quantity'     => 'fr.quantity',
             'partial_output' => 'fr.partial_output',
@@ -304,6 +324,7 @@ class FabricRollService
                 'fr.roll_width',
                 'fr.partial_output',
                 'fr.actual_output',
+                'fr.internal_color_name',
                 DB::raw("COALESCE(fi.name, i.name, pdi.item_name, fr.description, 'Tela') as fabric"),
                 'pdi.id as purchase_document_item_id',
                 DB::raw('COALESCE(fr.item_id, pdi.item_id) as fabric_item_id'),
@@ -331,6 +352,7 @@ class FabricRollService
                     ->orWhere('fi.name', 'like', "%{$search}%")
                     ->orWhere('i.name', 'like', "%{$search}%")
                     ->orWhere('pdi.item_name', 'like', "%{$search}%")
+                    ->orWhere('fr.internal_color_name', 'like', "%{$search}%")
                     ->orWhere('pdi.supplier_color', 'like', "%{$search}%")
                     ->orWhere('c.full_name', 'like', "%{$search}%")
                     ->orWhere('pd.provider_name', 'like', "%{$search}%")

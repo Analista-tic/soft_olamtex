@@ -129,7 +129,21 @@ class ItemController extends Controller
 
     public function downloadTemplate()
     {
-        return $this->excelService->downloadTemplate();
+        $fileName = 'plantilla_items.xlsx';
+        $path = storage_path('app/public/' . $fileName);
+
+        if (!file_exists($path)) {
+            return response()->json([
+                'message' => 'No se encontró la plantilla Excel de ítems en storage/app/public.',
+            ], 404);
+        }
+
+        return response()->download($path, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate',
+            'Pragma' => 'public',
+            'Expires' => '0',
+        ]);
     }
 
     public function bulkUpload(Request $request)
@@ -323,7 +337,7 @@ class ItemController extends Controller
         ];
 
         // Reference unique rule: ignore current item on update
-        $uniqueRule = Rule::unique('items', 'reference');
+        $uniqueRule = Rule::unique('items', 'reference')->whereNull('deleted_at');
         if ($isUpdate && $item) {
             $uniqueRule = $uniqueRule->ignore($item->id);
         }
