@@ -57,7 +57,6 @@ function buildProductSheetLabel(sheet: any): string {
 }
 
 const productSheetOptions = computed(() => [
-    { id: 'all', name: 'Todos' },
     ...productSheets.value.map((sheet) => ({
         id: sheet.id,
         name: buildProductSheetLabel(sheet),
@@ -67,17 +66,17 @@ const productSheetOptions = computed(() => [
 const isDialogOpen = ref(false);
 const searchQuery = ref('');
 
-function getInitialProductSheetFilter(): number | 'all' {
+function getInitialProductSheetFilter(): number | null {
     if (typeof window === 'undefined') {
-        return 'all';
+        return null;
     }
 
     const raw = new URLSearchParams(window.location.search).get('product_sheet_id');
     const parsed = Number(raw);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 'all';
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-const selectedProductSheetId = ref<number | 'all'>(getInitialProductSheetFilter());
+const selectedProductSheetId = ref<number | null>(getInitialProductSheetFilter());
 
 const operationSummaries = ref<ProductOperationListSummary[]>([]);
 const isLoading = ref(false);
@@ -475,7 +474,7 @@ const filteredSummaries = computed(() => {
 
     return operationSummaries.value.filter((summary) => {
         const matchesSearch = term === '' || summary.search_text.includes(term);
-        const matchesSheet = selectedProductSheetId.value === 'all' || summary.product_sheet_id === selectedProductSheetId.value;
+        const matchesSheet = selectedProductSheetId.value === null || summary.product_sheet_id === selectedProductSheetId.value;
 
         return matchesSearch && matchesSheet;
     });
@@ -550,8 +549,8 @@ watch(productSheets, () => {
                         </span>
                     </div>
                 </FilterField>
-                <FilterField label="Referencia" :active="selectedProductSheetId !== 'all'" class="min-w-[240px]">
-                    <SelectField v-model="selectedProductSheetId" placeholder="Selecciona referencia" :options="productSheetOptions" />
+                <FilterField label="Referencia" :active="selectedProductSheetId !== null" class="min-w-[240px]">
+                    <SelectField v-model="selectedProductSheetId" placeholder="Selecciona referencia" :options="productSheetOptions" :clearable="true" />
                 </FilterField>
             </FilterBar>
 
@@ -696,5 +695,4 @@ watch(productSheets, () => {
         </div>
     </AppLayout>
 </template>
-
 

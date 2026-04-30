@@ -86,28 +86,26 @@ const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
-const statusFilter = ref('all');
-const typeFilter = ref('all');
-const sectionFilter = ref('all');
-const worldFilter = ref('all');
+const statusFilter = ref<string | null>(null);
+const typeFilter = ref<string | null>(null);
+const sectionFilter = ref<string | number | null>(null);
+const worldFilter = ref<string | number | null>(null);
 const fetchDebounceMs = 350;
 let fetchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let activeFetchController: AbortController | null = null;
 
 const statusOptions = [
-    { id: 'all', name: 'Todos' },
     { id: 'incomplete', name: 'Incompleto' },
     { id: 'complete', name: 'Completo' },
 ];
 const typeOptions = [
-    { id: 'all', name: 'Todos' },
     { id: 'muestra', name: 'Muestra' },
     { id: 'producto', name: 'Producto' },
 ];
 const actionButtonClass =
     'inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
-const sectionOptions = computed(() => [{ id: 'all', name: 'Todos' }, ...props.sections]);
-const worldOptions = computed(() => [{ id: 'all', name: 'Todos' }, ...props.worlds]);
+const sectionOptions = computed(() => props.sections);
+const worldOptions = computed(() => props.worlds);
 
 const authStore = useAuthStore();
 
@@ -332,7 +330,7 @@ function scheduleProductSheetsFetch(page = 1) {
     }, fetchDebounceMs);
 }
 
-async function fetchProductSheets(page = 1, search = '', status = 'all', type = 'all', section = 'all', world = 'all') {
+async function fetchProductSheets(page = 1, search = '', status: string | null = null, type: string | null = null, section: string | number | null = null, world: string | number | null = null) {
     if (activeFetchController) {
         activeFetchController.abort();
     }
@@ -343,18 +341,18 @@ async function fetchProductSheets(page = 1, search = '', status = 'all', type = 
 
     try {
         const normalizedSearch = search.trim();
-        const sectionId = section === 'all' ? null : Number(section);
-        const worldId = world === 'all' ? null : Number(world);
+        const sectionId = section == null ? null : Number(section);
+        const worldId = world == null ? null : Number(world);
 
         const response = await listProductSheets(
             {
                 page,
                 per_page: itemsPerPage,
                 search: normalizedSearch === '' ? undefined : normalizedSearch,
-                status: status === 'all' ? null : status,
-                type: type === 'all' ? null : type,
-                section_id: Number.isFinite(sectionId) ? sectionId : null,
-                world_id: Number.isFinite(worldId) ? worldId : null,
+                status: status ?? undefined,
+                type: type ?? undefined,
+                section_id: Number.isFinite(sectionId) ? sectionId : undefined,
+                world_id: Number.isFinite(worldId) ? worldId : undefined,
             },
             controller.signal,
         );
@@ -481,17 +479,17 @@ onUnmounted(() => {
                     </div>
                 </FilterField>
                 <div class="flex flex-wrap items-center gap-2">
-                    <FilterField label="Estado" :active="statusFilter !== 'all'" class="min-w-[220px] max-w-[220px]">
-                        <SelectField v-model="statusFilter" :options="statusOptions" placeholder="Todos" />
+                    <FilterField label="Estado" :active="statusFilter !== null" class="min-w-[220px] max-w-[220px]">
+                        <SelectField v-model="statusFilter" :options="statusOptions" placeholder="Estado" :clearable="true" />
                     </FilterField>
-                    <FilterField label="Tipo" :active="typeFilter !== 'all'" class="min-w-[220px] max-w-[220px]">
-                        <SelectField v-model="typeFilter" :options="typeOptions" placeholder="Todos" />
+                    <FilterField label="Tipo" :active="typeFilter !== null" class="min-w-[220px] max-w-[220px]">
+                        <SelectField v-model="typeFilter" :options="typeOptions" placeholder="Tipo" :clearable="true" />
                     </FilterField>
-                    <FilterField label="Seccion" :active="sectionFilter !== 'all'" class="min-w-[220px] max-w-[220px]">
-                        <SelectField v-model="sectionFilter" :options="sectionOptions" placeholder="Filtrar por seccion" />
+                    <FilterField label="Seccion" :active="sectionFilter !== null" class="min-w-[220px] max-w-[220px]">
+                        <SelectField v-model="sectionFilter" :options="sectionOptions" placeholder="Filtrar por seccion" :clearable="true" />
                     </FilterField>
-                    <FilterField label="Mundo" :active="worldFilter !== 'all'" class="min-w-[220px] max-w-[220px]">
-                        <SelectField v-model="worldFilter" :options="worldOptions" placeholder="Filtrar por mundo" />
+                    <FilterField label="Mundo" :active="worldFilter !== null" class="min-w-[220px] max-w-[220px]">
+                        <SelectField v-model="worldFilter" :options="worldOptions" placeholder="Filtrar por mundo" :clearable="true" />
                     </FilterField>
                 </div>
             </FilterBar>

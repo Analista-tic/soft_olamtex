@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
@@ -14,7 +15,6 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import Button from '@/components/ui/button/Button.vue';
-import { Calendar } from '@/components/ui/calendar';
 import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
@@ -26,7 +26,6 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -37,11 +36,10 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { monthLabel } from '@/lib/months';
 import { useAuthStore } from '@/stores/auth';
 import { Head } from '@inertiajs/vue3';
-import { getLocalTimeZone, parseDate, type DateValue } from '@internationalized/date';
 import axios from 'axios';
 import { format, isValid, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Eye, Pencil, Search, Trash, X } from 'lucide-vue-next';
+import { Eye, Pencil, Search, Trash } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import CreateProgrammerDialog from './Create.vue';
 import EditProgrammerDialog from './Edit.vue';
@@ -136,68 +134,36 @@ const itemsPerPage = ref(10);
 const totalItems = ref(0);
 const isLoading = ref(true);
 const searchQuery = ref('');
+const sortBy = ref<'id' | 'estimated_delivery_date'>('id');
+const sortDir = ref<'asc' | 'desc'>('desc');
 const filters = ref({
-    season: 'all',
-    priority: 'all',
-    status: 'all',
-    type: 'all',
-    destination_id: 'all',
-    estimated_delivery_date: '',
+    season: null as string | number | null,
+    priority: null as string | number | null,
+    status: null as string | null,
+    type: null as string | null,
+    destination_id: null as string | number | null,
 });
 const fetchDebounceMs = 350;
 let fetchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let activeFetchController: AbortController | null = null;
-const DEFAULT_SELECT_VALUE = 'all';
 const actionButtonClass =
     'inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 const actionIconClass = 'h-4 w-4';
-const seasonIsActive = computed(() => Boolean(filters.value.season) && filters.value.season !== DEFAULT_SELECT_VALUE);
-const priorityIsActive = computed(() => Boolean(filters.value.priority) && filters.value.priority !== DEFAULT_SELECT_VALUE);
-const statusIsActive = computed(() => Boolean(filters.value.status) && filters.value.status !== DEFAULT_SELECT_VALUE);
-const typeIsActive = computed(() => Boolean(filters.value.type) && filters.value.type !== DEFAULT_SELECT_VALUE);
-const destinationIsActive = computed(() => Boolean(filters.value.destination_id) && filters.value.destination_id !== DEFAULT_SELECT_VALUE);
-const deliveryDateIsActive = computed(() => filters.value.estimated_delivery_date.trim() !== '');
-const seasonOptions = computed<Option[]>(() => [{ id: 'all', name: 'Todos' }, ...props.months]);
-const priorityOptions = computed<Option[]>(() => [{ id: 'all', name: 'Todos' }, ...props.priorities]);
-const destinationFilterOptions = computed<Option[]>(() => [{ id: 'all', name: 'Todos' }, ...props.destinations]);
+const seasonIsActive = computed(() => filters.value.season !== null);
+const priorityIsActive = computed(() => filters.value.priority !== null);
+const statusIsActive = computed(() => filters.value.status !== null);
+const typeIsActive = computed(() => filters.value.type !== null);
+const destinationIsActive = computed(() => filters.value.destination_id !== null);
+const seasonOptions = computed<Option[]>(() => props.months);
+const priorityOptions = computed<Option[]>(() => props.priorities);
+const destinationFilterOptions = computed<Option[]>(() => props.destinations);
 
 const seasonButtonClasses = useFilterButtonClasses(seasonIsActive);
 const priorityButtonClasses = useFilterButtonClasses(priorityIsActive);
 const statusButtonClasses = useFilterButtonClasses(statusIsActive);
 const typeButtonClasses = useFilterButtonClasses(typeIsActive);
 const destinationButtonClasses = useFilterButtonClasses(destinationIsActive);
-const deliveryDateButtonClasses = useFilterButtonClasses(deliveryDateIsActive, {
-    baseClasses:
-        'h-10 w-full rounded-md border px-3 text-sm font-normal flex items-center justify-between transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2',
-});
 const FALLBACK_REF = 'Sin referencia';
-const deliveryDateValue = computed<DateValue | undefined>({
-    get() {
-        const value = filters.value.estimated_delivery_date;
-        if (!value) return undefined;
-        try {
-            return parseDate(value);
-        } catch {
-            return undefined;
-        }
-    },
-    set(value) {
-        filters.value.estimated_delivery_date = value ? value.toString() : '';
-    },
-});
-const deliveryDateLabel = computed(() => {
-    const value = filters.value.estimated_delivery_date;
-    if (!value) return 'Seleccionar fecha';
-    try {
-        return format(parseDate(value).toDate(getLocalTimeZone()), 'dd/MM/yyyy', { locale: es });
-    } catch {
-        return 'Seleccionar fecha';
-    }
-});
-
-function clearDeliveryDateFilter() {
-    filters.value.estimated_delivery_date = '';
-}
 
 function confirmDeleteProgrammer(programmer: Programmer) {
     programmerToDelete.value = programmer;
@@ -239,12 +205,13 @@ async function fetchProgrammers(page = 1) {
                 page,
                 per_page: itemsPerPage.value,
                 search: normalizedSearch === '' ? undefined : normalizedSearch,
-                season: filters.value.season === DEFAULT_SELECT_VALUE ? undefined : filters.value.season,
-                priority: filters.value.priority === DEFAULT_SELECT_VALUE ? undefined : filters.value.priority,
-                status: filters.value.status === DEFAULT_SELECT_VALUE ? undefined : filters.value.status,
-                type: filters.value.type === DEFAULT_SELECT_VALUE ? undefined : filters.value.type,
-                destination_id: filters.value.destination_id === DEFAULT_SELECT_VALUE ? undefined : filters.value.destination_id,
-                estimated_delivery_date: filters.value.estimated_delivery_date.trim() === '' ? undefined : filters.value.estimated_delivery_date,
+                season: filters.value.season ?? undefined,
+                priority: filters.value.priority ?? undefined,
+                status: filters.value.status ?? undefined,
+                type: filters.value.type ?? undefined,
+                destination_id: filters.value.destination_id ?? undefined,
+                sort_by: sortBy.value,
+                sort_dir: sortDir.value,
             },
             signal: controller.signal,
         });
@@ -288,6 +255,19 @@ function reloadCurrentPage() {
     fetchProgrammers(currentPage.value);
 }
 
+function toggleSort(column: 'estimated_delivery_date') {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+
+    currentPage.value = 1;
+    clearFetchDebounce();
+    fetchProgrammers(1);
+}
+
 watch(
     [
         searchQuery,
@@ -296,7 +276,6 @@ watch(
         () => filters.value.status,
         () => filters.value.type,
         () => filters.value.destination_id,
-        () => filters.value.estimated_delivery_date,
     ],
     () => {
         scheduleProgrammerFetch(1);
@@ -468,110 +447,67 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                     />
                 </div>
             </div>
-            <div class="flex flex-nowrap items-start gap-2 overflow-x-auto pb-1 mb-2">
-                <FilterField label="Buscar referencia" :active="searchQuery.trim().length > 0" class="min-w-[160px] max-w-[200px] flex-1 p-0">
+            <FilterBar>
+                <FilterField label="Buscar referencia" :active="searchQuery.trim().length > 0" class="min-w-[220px] flex-1 p-0">
                     <div class="relative w-full">
-                        <Input id="search" v-model="searchQuery" type="text" placeholder="Buscar referencia" class="h-9 w-full pl-9 text-sm" />
+                        <Input id="search" v-model="searchQuery" type="text" placeholder="Buscar referencia" class="h-10 w-full pl-10 text-sm" />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                            <Search :size="16" class="text-muted-foreground" />
+                            <Search :size="20" class="text-muted-foreground" />
                         </span>
                     </div>
                 </FilterField>
-                <FilterField label="Tipo" :active="typeIsActive" class="min-w-[110px]">
+                <FilterField label="Tipo" :active="typeIsActive" class="min-w-[140px] p-0">
                     <SelectField
                         v-model="filters.type"
                         placeholder="Tipo"
                         :options="[
-                            { id: 'all', name: 'Todos' },
                             { id: 'muestra', name: 'Muestra' },
                             { id: 'producto', name: 'Producto' },
                         ]"
                         :button-class="typeButtonClasses"
+                        :clearable="true"
                     />
                 </FilterField>
-                <FilterField label="Temporada" :active="seasonIsActive" class="min-w-[120px]">
+                <FilterField label="Temporada" :active="seasonIsActive" class="min-w-[150px] p-0">
                     <SelectField
                         v-model="filters.season"
                         placeholder="Temporada"
                         :options="seasonOptions"
                         :button-class="seasonButtonClasses"
+                        :clearable="true"
                     />
                 </FilterField>
-                <FilterField label="Prioridad" :active="priorityIsActive" class="min-w-[110px]">
+                <FilterField label="Prioridad" :active="priorityIsActive" class="min-w-[140px] p-0">
                     <SelectField
                         v-model="filters.priority"
                         placeholder="Prioridad"
                         :options="priorityOptions"
                         :button-class="priorityButtonClasses"
+                        :clearable="true"
                     />
                 </FilterField>
-                <FilterField label="Estado" :active="statusIsActive" class="min-w-[110px]">
+                <FilterField label="Estado" :active="statusIsActive" class="min-w-[140px] p-0">
                     <SelectField
                         v-model="filters.status"
                         placeholder="Estado"
                         :options="[
-                            { id: 'all', name: 'Todos' },
                             { id: 'complete', name: 'Completo' },
                             { id: 'incomplete', name: 'Incompleto' },
                         ]"
                         :button-class="statusButtonClasses"
+                        :clearable="true"
                     />
                 </FilterField>
-                <FilterField label="Destino" :active="destinationIsActive" class="min-w-[120px]">
+                <FilterField label="Destino" :active="destinationIsActive" class="min-w-[150px] p-0">
                     <SelectField
                         v-model="filters.destination_id"
                         placeholder="Destino"
                         :options="destinationFilterOptions"
                         :button-class="destinationButtonClasses"
+                        :clearable="true"
                     />
                 </FilterField>
-                <FilterField label="Fecha entrega" :active="deliveryDateIsActive" class="min-w-[140px]">
-                    <div class="flex items-center gap-2">
-                        <Popover>
-                            <PopoverTrigger as-child>
-                                <Button type="button" variant="outline" :class="deliveryDateButtonClasses">
-                                    <span class="truncate text-left">{{ deliveryDateLabel }}</span>
-                                    <CalendarIcon class="ml-2 h-4 w-4 shrink-0" />
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent class="w-auto p-0" align="start">
-                                <Calendar
-                                    :model-value="deliveryDateValue"
-                                    @update:model-value="
-                                        (value) => {
-                                            deliveryDateValue = value;
-                                        }
-                                    "
-                                    initial-focus
-                                />
-                                <div class="border-t p-2">
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        class="w-full justify-center"
-                                        :disabled="!deliveryDateIsActive"
-                                        @click="clearDeliveryDateFilter"
-                                    >
-                                        Limpiar
-                                    </Button>
-                                </div>
-                            </PopoverContent>
-                        </Popover>
-                        <Button
-                            v-if="deliveryDateIsActive"
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            class="h-10 w-8 rounded-full"
-                            @click="clearDeliveryDateFilter"
-                        >
-                            <X class="h-4 w-4" />
-                            <span class="sr-only">Limpiar fecha</span>
-                        </Button>
-                    </div>
-                </FilterField>
-            </div>
+            </FilterBar>
 
             <div class="relative mt-4 min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <TooltipProvider>
@@ -586,7 +522,22 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                                 <TableHead>Precio Fact</TableHead>
                                 <TableHead>Precio Venta</TableHead>
                                 <TableHead>Total Unidades</TableHead>
-                                <TableHead>Fecha Entrega Est.</TableHead>
+                                <TableHead
+                                    class="cursor-pointer select-none whitespace-nowrap"
+                                    @click="toggleSort('estimated_delivery_date')"
+                                >
+                                    <span class="inline-flex items-center gap-1">
+                                        Fecha Entrega Est.
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'estimated_delivery_date'">
+                                                {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
                                 <TableHead>Estado</TableHead>
                                 <TableHead class="text-center">Acciones</TableHead>
                             </TableRow>
@@ -760,4 +711,3 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
         </AlertDialogContent>
     </AlertDialog>
 </template>
-

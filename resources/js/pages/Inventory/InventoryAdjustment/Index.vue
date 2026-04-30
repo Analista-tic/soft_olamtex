@@ -47,7 +47,7 @@ const breadcrumbs = [{ title: 'Ajuste de Inventario', href: '/inventario/ajuste-
 const adjustments = ref<InventoryAdjustment[]>([]);
 const totalItems = ref(0);
 const searchQuery = ref('');
-const typeFilter = ref('all');
+const typeFilter = ref<string | null>(null);
 const sortBy = ref<'date' | 'total'>('date');
 const sortDir = ref<'asc' | 'desc'>('desc');
 const currentPage = ref(1);
@@ -64,9 +64,9 @@ const isSendingMail = ref(false);
 const isConverting = ref<number | null>(null);
 const isPrintDialogOpen = ref(false);
 const adjustmentToPrint = ref<InventoryAdjustment | null>(null);
-const DEFAULT_TYPE_FILTER = 'all';
+const DEFAULT_TYPE_FILTER = null;
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isTypeFilterActive = computed(() => typeFilter.value !== DEFAULT_TYPE_FILTER);
+const isTypeFilterActive = computed(() => typeFilter.value != null);
 const typeButtonClasses = useFilterButtonClasses(isTypeFilterActive);
 
 const currencyFormatter = new Intl.NumberFormat('es-CO', {
@@ -107,7 +107,7 @@ async function fetchAdjustments(page = 1, search = '') {
         sort_direction: sortDir.value,
     };
     try {
-        if (typeFilter.value !== 'all') {
+        if (typeFilter.value != null) {
             params.type = typeFilter.value;
         }
         const { data } = await axios.get('/ajustes-inventario/data', {
@@ -282,10 +282,11 @@ onMounted(() => {
                         v-model="typeFilter"
                         label=""
                         :options="[
-                            { id: 'all', name: 'Todos los tipos' },
                             { id: 'entrada', name: 'Entrada' },
                             { id: 'salida', name: 'Salida' },
                         ]"
+                        placeholder="Tipo"
+                        :clearable="true"
                         :button-class="typeButtonClasses"
                     />
                 </FilterField>

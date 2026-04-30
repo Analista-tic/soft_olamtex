@@ -238,7 +238,7 @@ onMounted(async () => {
             <div class="relative flex items-center gap-4">
                 <FilterBar>
                     <FilterField label="Buscar bodega" :active="searchQuery.trim().length > 0" class="flex-1 p-0">
-                        <div class="relative w-full max-w-sm">
+                        <div class="relative w-full">
                             <Input
                                 id="search_warehouse"
                                 v-model="searchQuery"

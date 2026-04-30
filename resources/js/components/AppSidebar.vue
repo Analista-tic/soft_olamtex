@@ -150,7 +150,7 @@ const moduleSections: ModuleSection[] = [
             {
                 label: 'Kárdex',
                 items: [
-                    { title: 'Movimientos de inventario', href: '/inventario/item', permission: 'ver inventario telas' },
+                    { title: 'Movimientos de inventario', href: '/movimientos-inventario', permission: 'ver inventario telas' },
                     { title: 'Ajustes', href: '/inventario/ajuste-inventario', permission: 'ver inventario telas' },
                 ],
             },

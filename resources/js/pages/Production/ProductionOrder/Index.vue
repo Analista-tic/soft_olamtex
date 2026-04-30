@@ -34,14 +34,14 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 
 type SectionScope = 'samples' | 'products';
-type StatusFilter = 'all' | 'complete' | 'incomplete';
+type StatusFilter = 'complete' | 'incomplete';
 type TypeCode = 'MU' | 'MUT' | 'MF' | 'MFT' | 'N/A';
-type TypeFilter = 'all' | 'MU' | 'MUT' | 'MF' | 'MFT';
+type TypeFilter = 'MU' | 'MUT' | 'MF' | 'MFT';
 type ListFilters = {
     search: string;
-    status: StatusFilter;
-    type: TypeFilter;
-    destination_id: string;
+    status: StatusFilter | null;
+    type: TypeFilter | null;
+    destination_id: string | null;
 };
 type ScopeOption = {
     value: SectionScope;
@@ -50,7 +50,6 @@ type ScopeOption = {
 };
 type StatusUiKey = 'pending' | 'complete';
 
-const DEFAULT_STATUS_VALUE: StatusFilter = 'all';
 const FETCH_DEBOUNCE_MS = 350;
 const REQUEST_PER_PAGE = 1000;
 const LIST_ITEMS_PER_PAGE = 10;
@@ -119,7 +118,6 @@ const scopeOptions: ReadonlyArray<ScopeOption> = [
 ];
 
 const statusOptions: Option[] = [
-    { id: 'all', name: 'Todos' },
     { id: 'complete', name: 'Completo' },
     { id: 'incomplete', name: 'Incompleto' },
 ];
@@ -141,9 +139,9 @@ const itemsPerPage = ref(LIST_ITEMS_PER_PAGE);
 
 const filters = ref<ListFilters>({
     search: '',
-    status: DEFAULT_STATUS_VALUE,
-    type: 'all',
-    destination_id: 'all',
+    status: null,
+    type: null,
+    destination_id: null,
 });
 
 let fetchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -258,15 +256,15 @@ function scheduleFetch(resetPage = false) {
 // Computeds
 // -----------------------------------------------------------------------------
 const isSearchActive = computed(() => filters.value.search.trim().length > 0);
-const isStatusActive = computed(() => filters.value.status !== DEFAULT_STATUS_VALUE);
-const isTypeActive = computed(() => filters.value.type !== 'all');
-const isDestinationActive = computed(() => filters.value.destination_id !== 'all');
+const isStatusActive = computed(() => filters.value.status !== null);
+const isTypeActive = computed(() => filters.value.type !== null);
+const isDestinationActive = computed(() => filters.value.destination_id !== null);
 const searchQuery = computed<string | undefined>(() => {
     const value = filters.value.search.trim();
     return value === '' ? undefined : value;
 });
-const statusQuery = computed<StatusFilter | undefined>(() => (filters.value.status === DEFAULT_STATUS_VALUE ? undefined : filters.value.status));
-const destinationQuery = computed<string | undefined>(() => (filters.value.destination_id === 'all' ? undefined : filters.value.destination_id));
+const statusQuery = computed<StatusFilter | undefined>(() => filters.value.status ?? undefined);
+const destinationQuery = computed<string | undefined>(() => filters.value.destination_id ?? undefined);
 
 const statusButtonClasses = useFilterButtonClasses(isStatusActive);
 const typeButtonClasses = useFilterButtonClasses(isTypeActive);
@@ -275,21 +273,18 @@ const destinationButtonClasses = useFilterButtonClasses(isDestinationActive);
 const typeOptions = computed<Option[]>(() => {
     if (scope.value === 'samples') {
         return [
-            { id: 'all', name: 'Todos' },
             { id: 'MU', name: 'MU' },
             { id: 'MUT', name: 'MUT' },
         ];
     }
 
     return [
-        { id: 'all', name: 'Todos' },
         { id: 'MF', name: 'MF' },
         { id: 'MFT', name: 'MFT' },
     ];
 });
 
 const destinationOptions = computed<Option[]>(() => [
-    { id: 'all', name: 'Todos' },
     ...props.destinations.map((destination) => ({
         id: String(destination.id),
         name: destination.name,
@@ -299,7 +294,7 @@ const destinationOptions = computed<Option[]>(() => [
 const filteredRows = computed(() => {
     return allRows.value.filter((row) => {
         if (!matchesScope(row, scope.value)) return false;
-        if (filters.value.type !== 'all' && getTypeCode(row) !== filters.value.type) return false;
+        if (filters.value.type && getTypeCode(row) !== filters.value.type) return false;
 
         return true;
     });
@@ -324,7 +319,7 @@ const emptyStateText = computed(() =>
 watch([() => scope.value, () => filters.value.search, () => filters.value.status, () => filters.value.destination_id], ([nextScope], [prevScope]) => {
     const scopeChanged = nextScope !== prevScope;
     if (scopeChanged) {
-        filters.value.type = 'all';
+        filters.value.type = null;
     }
     scheduleFetch(scopeChanged);
 });
@@ -444,18 +439,20 @@ onUnmounted(() => {
                                 </FilterField>
 
                                 <FilterField label="Estado" :active="isStatusActive" class="min-w-[160px]">
-                                    <SelectField v-model="filters.status" :options="statusOptions" :button-class="statusButtonClasses" />
+                                    <SelectField v-model="filters.status" :options="statusOptions" placeholder="Estado" :button-class="statusButtonClasses" :clearable="true" />
                                 </FilterField>
 
                                 <FilterField label="Tipo" :active="isTypeActive" class="min-w-[160px]">
-                                    <SelectField v-model="filters.type" :options="typeOptions" :button-class="typeButtonClasses" />
+                                    <SelectField v-model="filters.type" :options="typeOptions" placeholder="Tipo" :button-class="typeButtonClasses" :clearable="true" />
                                 </FilterField>
 
                                 <FilterField label="Destino" :active="isDestinationActive" class="min-w-[180px]">
                                     <SelectField
                                         v-model="filters.destination_id"
                                         :options="destinationOptions"
+                                        placeholder="Destino"
                                         :button-class="destinationButtonClasses"
+                                        :clearable="true"
                                     />
                                 </FilterField>
                             </FilterBar>
