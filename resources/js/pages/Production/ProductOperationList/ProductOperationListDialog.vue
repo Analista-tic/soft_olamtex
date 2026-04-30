@@ -517,6 +517,12 @@ function addOperation() {
         emit('validation-error', msg);
         return;
     }
+    if (isSectionPreparacion(currentRow.value.section_id) && !currentRow.value.grupo_preparacion) {
+        const msg = 'Para operaciones de PREPARACION, debes seleccionar o crear un grupo de preparación.';
+        setValidationError(msg);
+        emit('validation-error', msg);
+        return;
+    }
 
     const opId = currentRow.value.operation_id;
     const isDuplicate = operationList.value.some((r) => r.operation_id === opId);
@@ -587,6 +593,16 @@ function saveOperations() {
     const hasDuplicates = keys.some((k, i) => keys.indexOf(k) !== i);
     if (hasDuplicates) {
         const msg = 'Hay operaciones duplicadas en el listado (misma operación). Elimina duplicados antes de guardar.';
+        setValidationError(msg);
+        emit('validation-error', msg);
+        return;
+    }
+
+    const missingPreparationGroup = operationList.value.find(
+        (row) => isSectionPreparacion(row.section_id) && !row.grupo_preparacion
+    );
+    if (missingPreparationGroup) {
+        const msg = 'Todas las operaciones de PREPARACION deben tener un grupo asignado. Edita las filas sin grupo.';
         setValidationError(msg);
         emit('validation-error', msg);
         return;
@@ -822,8 +838,7 @@ function resetForm() {
                             </span>
                         </div>
                         <div
-                            class="max-h-[360px] overflow-y-auto overscroll-contain scroll-smooth rounded-lg border border-border/60 bg-muted/10"
-                            style="scrollbar-width: thin"
+                            class="rounded-lg border border-border/60 bg-muted/10"
                         >
                             <table class="w-full table-fixed text-sm">
                                 <thead class="sticky top-0 z-10 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/85">
