@@ -7,6 +7,7 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use Tighten\Ziggy\Ziggy;
+use Closure; 
 
 class HandleInertiaRequests extends Middleware
 {
@@ -18,6 +19,22 @@ class HandleInertiaRequests extends Middleware
      * @var string
      */
     protected $rootView = 'app';
+
+    // 🟢 CAMBIO NUEVO AQUÍ: Este es el bloque entero que soluciona el error del JSON al duplicar pestaña
+    /**
+     * Interceptamos la respuesta para agregar la cabecera 'Vary'.
+     * Esto soluciona el problema de ver JSON al duplicar pestañas o usar el botón de "Atrás".
+     */
+    public function handle(Request $request, Closure $next)
+    {
+        $response = parent::handle($request, $next);
+
+        // Le decimos al navegador que diferencie el caché de Inertia del caché normal (HTML)
+        $response->headers->set('Vary', 'X-Inertia');
+
+        return $response;
+    }
+    // 🟢 FIN DEL CAMBIO NUEVO
 
     /**
      * Determines the current asset version.
