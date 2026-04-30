@@ -9,6 +9,7 @@ Route::prefix('rollos-tela')->name('fabric-rolls.')->middleware('permission:ver 
     Route::get('/', [App\Http\Controllers\Textil\FabricRollController::class, 'index'])->name('index');
     Route::get('/crear', [App\Http\Controllers\Textil\FabricRollController::class, 'create'])->name('create');
     Route::get('/data', [App\Http\Controllers\Textil\FabricRollController::class, 'getData'])->name('getData');
+    Route::get('/next-roll-number', [App\Http\Controllers\Textil\FabricRollController::class, 'nextRollNumber'])->name('next-roll-number');
     Route::post('/', [App\Http\Controllers\Textil\FabricRollController::class, 'store'])->name('store')->middleware('permission:crear telas rollos');
     Route::get('/{fabricRoll}', [App\Http\Controllers\Textil\FabricRollController::class, 'show'])->name('show');
     Route::get('/{fabricRoll}/editar', [App\Http\Controllers\Textil\FabricRollController::class, 'edit'])->name('edit');
@@ -54,6 +55,7 @@ Route::prefix('kardex-telas')->name('kardex-telas.')->middleware('permission:ver
     });
 
     Route::post('/rollos', [App\Http\Controllers\Textil\FabricRollController::class, 'storeFromReception'])->name('rollos.store')->middleware('permission:crear telas rollos');
+    Route::get('/rollos/next-roll-number', [App\Http\Controllers\Textil\FabricRollController::class, 'nextRollNumber'])->name('rollos.next-roll-number');
     Route::get('/rollos/item/{itemId}', [App\Http\Controllers\Textil\FabricRollController::class, 'getByInvoiceItem'])->name('rollos.by-item');
     Route::put('/rollos/{fabricRoll}', [App\Http\Controllers\Textil\FabricRollController::class, 'update'])->name('rollos.update')->middleware('permission:editar telas rollos');
     Route::delete('/rollos/{fabricRoll}', [App\Http\Controllers\Textil\FabricRollController::class, 'destroy'])->name('rollos.delete')->middleware('permission:eliminar telas rollos');

@@ -21,6 +21,26 @@ class FabricRollService
     /** Tolerancia de cantidad al aprobar recepción: ±30% respecto al pedido por ítem. */
     public const TOLERANCE_QUANTITY_PERCENT = 30;
 
+    /**
+     * Genera el siguiente número de rollo consecutivo en formato RLXXXXX.
+     * Usa un lock pesimista para evitar duplicados en concurrencia.
+     */
+    public function nextRollNumber(): string
+    {
+        return DB::transaction(function () {
+            // Bloquea la tabla mientras calculamos el máximo para evitar race conditions
+            $max = DB::table('fabric_rolls')
+                ->where('roll_number', 'like', 'RL%')
+                ->lockForUpdate()
+                ->selectRaw("MAX(CAST(REGEXP_REPLACE(roll_number, '[^0-9]', '') AS UNSIGNED)) as max_num")
+                ->value('max_num');
+
+            $next = ($max ?? 0) + 1;
+
+            return 'RL' . $next;
+        });
+    }
+
     public function paginate(array $filters = [], int $perPage = 10): LengthAwarePaginator
     {
         $query = FabricRoll::with([

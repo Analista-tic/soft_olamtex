@@ -604,6 +604,13 @@ class FabricRollController extends Controller
         return $this->importResponse($inserted, $skipped, $errors);
     }
 
+    public function nextRollNumber()
+    {
+        return response()->json([
+            'roll_number' => $this->service->nextRollNumber(),
+        ]);
+    }
+
     public function store(StoreFabricRollRequest $request)
     {
         $data = $request->validated();

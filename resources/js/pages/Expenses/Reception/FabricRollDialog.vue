@@ -44,6 +44,10 @@ type RollRecord = {
     entry_date: string;
 };
 
+type ApiMessageResponse = {
+    message?: string;
+};
+
 function normalizeRollRecord(payload: unknown): RollRecord | null {
     if (!payload || typeof payload !== 'object') return null;
 
@@ -60,6 +64,30 @@ function normalizeRollRecord(payload: unknown): RollRecord | null {
         description: typeof record.description === 'string' ? record.description : null,
         entry_date: typeof record.entry_date === 'string' ? record.entry_date : '',
     };
+}
+
+function extractRollRows(payload: unknown): unknown[] {
+    if (Array.isArray(payload)) {
+        return payload;
+    }
+
+    if (payload && typeof payload === 'object' && Array.isArray((payload as { data?: unknown }).data)) {
+        return (payload as { data: unknown[] }).data;
+    }
+
+    return [];
+}
+
+function isRollRecord(record: RollRecord | null): record is RollRecord {
+    return record !== null;
+}
+
+function getApiErrorMessage(error: unknown, fallback: string): string {
+    if (axios.isAxiosError<ApiMessageResponse>(error)) {
+        return error.response?.data?.message || fallback;
+    }
+
+    return fallback;
 }
 
 const props = defineProps<{
@@ -111,14 +139,20 @@ function todayIso(): string {
     return new Date().toISOString().split('T')[0];
 }
 
-function generateRollNumber(): string {
-    return `RL-${Math.floor(100000 + Math.random() * 900000)}`;
+async function fetchNextRollNumber(): Promise<string> {
+    try {
+        const response = await axios.get<{ roll_number: string }>(`${props.apiUrl}/next-roll-number`);
+        return response.data.roll_number;
+    } catch {
+        return `RL-${Math.floor(100000 + Math.random() * 900000)}`;
+    }
 }
 
 function buildDefaultForm(): FabricRollForm {
     return {
-        roll_number: generateRollNumber(),
-        purchase_document_item_id: (props.item as any)?.id ?? null,
+        roll_number: '',
+        // roll_number se obtiene de forma asíncrona en resetForm()
+        purchase_document_item_id: props.item?.id ?? null,
         quantity: '',
         roll_width: props.item?.order_width?.toString() ?? '',
         location: '',
@@ -129,10 +163,11 @@ function buildDefaultForm(): FabricRollForm {
 
 const form = ref<FabricRollForm>(buildDefaultForm());
 
-function resetForm(): void {
+async function resetForm(): Promise<void> {
     form.value = buildDefaultForm();
     editingRoll.value = null;
     clearAlert();
+    form.value.roll_number = await fetchNextRollNumber();
 }
 
 function setAlert(message: string, type: 'success' | AlertType = 'info'): void {
@@ -242,7 +277,7 @@ const widthTolerance = computed(() => {
 });
 
 async function loadRolls(): Promise<void> {
-    const itemId = (props.item as any)?.id;
+    const itemId = props.item?.id;
     if (!itemId || !props.apiUrl) {
         rolls.value = [];
         return;
@@ -251,18 +286,12 @@ async function loadRolls(): Promise<void> {
     rollsLoading.value = true;
 
     try {
-        const response = await axios.get(`${props.apiUrl}/item/${itemId}`);
-
-        const payload = response.data;
-        const rows = Array.isArray(payload)
-            ? payload
-            : Array.isArray(payload?.data)
-              ? payload.data
-              : [];
+        const { data } = await axios.get<unknown>(`${props.apiUrl}/item/${itemId}`);
+        const rows = extractRollRows(data);
 
         rolls.value = rows
-            .map((row: unknown) => normalizeRollRecord(row))
-            .filter((row): row is RollRecord => row !== null);
+            .map(normalizeRollRecord)
+            .filter(isRollRecord);
     } catch (error) {
         console.error(error);
         setAlert('No se pudieron cargar los rollos registrados.', 'error');
@@ -291,7 +320,7 @@ async function handleSubmit(): Promise<void> {
 
     const payload = {
         roll_number: form.value.roll_number,
-        purchase_document_item_id: (props.item as any).id,
+        purchase_document_item_id: props.item.id,
         quantity: parseNumber(form.value.quantity),
         roll_width: parseNumber(form.value.roll_width),
         location: form.value.location,
@@ -313,13 +342,9 @@ async function handleSubmit(): Promise<void> {
 
         resetForm();
         activeTab.value = 'list';
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error(error);
-
-        const message =
-            error?.response?.data?.message ||
-            'No fue posible guardar la información del rollo.';
-        setAlert(message, 'error');
+        setAlert(getApiErrorMessage(error, 'No fue posible guardar la información del rollo.'), 'error');
     } finally {
         isLoading.value = false;
     }
@@ -331,8 +356,8 @@ function startEditRoll(roll: RollRecord): void {
     clearAlert();
 
     form.value = {
-        roll_number: roll.roll_number || generateRollNumber(),
-        purchase_document_item_id: (props.item as any)?.id ?? null,
+        roll_number: roll.roll_number,
+        purchase_document_item_id: props.item?.id ?? null,
         quantity: roll.quantity ?? '',
         roll_width: roll.roll_width ?? '',
         location: roll.location || '',
@@ -362,12 +387,9 @@ async function confirmDeleteRoll(): Promise<void> {
             resetForm();
             activeTab.value = 'form';
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error(error);
-        const message =
-            error?.response?.data?.message ||
-            'No fue posible eliminar el rollo.';
-        setAlert(message, 'error');
+        setAlert(getApiErrorMessage(error, 'No fue posible eliminar el rollo.'), 'error');
     } finally {
         rollToDelete.value = null;
     }
@@ -388,7 +410,7 @@ watch(
         dialogOpen.value = value;
 
         if (value) {
-            resetForm();
+            await resetForm();
             await loadRolls();
         }
     },
@@ -399,7 +421,7 @@ watch(
     () => props.item,
     async () => {
         if (dialogOpen.value) {
-            resetForm();
+            await resetForm();
             await loadRolls();
         }
     }
