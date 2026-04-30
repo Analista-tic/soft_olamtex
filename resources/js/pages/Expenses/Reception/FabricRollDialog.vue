@@ -117,6 +117,7 @@ const isDeleteConfirmOpen = ref(false);
 const rollToDelete = ref<RollRecord | null>(null);
 
 const canDeleteEditRolls = computed(() => props.canDeleteEditRolls !== false);
+const isReadOnly = computed(() => !canDeleteEditRolls.value);
 
 const requiredFieldLabels: Record<string, string> = {
     quantity: 'Longitud (mts)',
@@ -304,6 +305,11 @@ async function loadRolls(): Promise<void> {
 // La ubicación es un campo de texto libre: no se listan bodegas aquí.
 
 async function handleSubmit(): Promise<void> {
+    if (isReadOnly.value) {
+        setAlert('La factura está aprobada. Los rollos solo se pueden consultar.', 'info');
+        return;
+    }
+
     if (!props.item?.id) {
         setAlert('No hay un ítem seleccionado para registrar el rollo.', 'error');
         return;
@@ -410,7 +416,8 @@ watch(
         dialogOpen.value = value;
 
         if (value) {
-            await resetForm();
+            resetForm();
+            activeTab.value = isReadOnly.value ? 'list' : 'form';
             await loadRolls();
         }
     },
@@ -421,11 +428,19 @@ watch(
     () => props.item,
     async () => {
         if (dialogOpen.value) {
-            await resetForm();
+            resetForm();
+            activeTab.value = isReadOnly.value ? 'list' : 'form';
             await loadRolls();
         }
     }
 );
+
+watch(isReadOnly, (value) => {
+    if (value) {
+        editingRoll.value = null;
+        activeTab.value = 'list';
+    }
+});
 
 watch(dialogOpen, (value) => {
     if (!value) {
@@ -441,12 +456,12 @@ watch(dialogOpen, (value) => {
         >
             <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                     <DialogTitle class="text-lg">
-                        {{ editingRoll ? 'Editar rollo' : 'Registrar rollo de tela' }}
+                        {{ isReadOnly ? 'Rollos registrados' : editingRoll ? 'Editar rollo' : 'Registrar rollo de tela' }}
                     </DialogTitle>
                     <DialogDescription>
                         {{
-                            editingRoll
-                                ? 'Modifique los datos del rollo y guarde.'
+                            isReadOnly
+                                ? 'La factura ya está aprobada. Este modal permite consultar los rollos registrados.'
                                 : 'Cada recepción guarda un nuevo rollo con identificador único (RL). Relacione el rollo al ítem de la factura.'
                         }}
                     </DialogDescription>
@@ -464,6 +479,7 @@ watch(dialogOpen, (value) => {
                 <div class="space-y-5">
                     <div class="flex gap-2 border-b pb-2">
                         <Button
+                            v-if="!isReadOnly"
                             type="button"
                             size="pill"
                             :class="[
@@ -495,7 +511,7 @@ watch(dialogOpen, (value) => {
                         </Button>
                     </div>
 
-                    <template v-if="activeTab === 'form'">
+                    <template v-if="activeTab === 'form' && !isReadOnly">
                         <div v-if="itemInfo" class="rounded-lg border bg-muted/30 p-4">
                             <h3 class="mb-3 text-sm font-semibold">Resumen del ítem</h3>
                             <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
@@ -659,7 +675,7 @@ watch(dialogOpen, (value) => {
 
             <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                 <div class="flex w-full flex-col gap-2 md:flex-row md:justify-end">
-                    <template v-if="activeTab === 'form'">
+                    <template v-if="activeTab === 'form' && !isReadOnly">
                         <Button
                             type="button"
                             variant="outline"
@@ -704,6 +720,7 @@ watch(dialogOpen, (value) => {
                         </Button>
 
                         <Button
+                            v-if="!isReadOnly"
                             type="button"
                             size="pill"
                             class="rounded-full px-5 py-2 text-sm font-semibold shadow-sm"

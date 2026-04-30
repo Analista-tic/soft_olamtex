@@ -61,8 +61,8 @@ type SortColumn =
     | 'real_availability'
     | 'provider'
     | 'entry_date';
-const sortColumn = ref<SortColumn>('entry_date');
-const sortDirection = ref<'asc' | 'desc'>('desc');
+const sortColumn = ref<SortColumn>('roll_number');
+const sortDirection = ref<'asc' | 'desc'>('asc');
 
 function setSort(column: SortColumn) {
     if (sortColumn.value === column) {
