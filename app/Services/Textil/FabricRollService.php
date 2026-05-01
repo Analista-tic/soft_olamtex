@@ -226,6 +226,10 @@ class FabricRollService
     public function storeFromReception(array $data): FabricRoll
     {
         $this->ensureInvoiceNotYetReceptionApproved((int) $data['purchase_document_item_id']);
+
+        $pdi = PurchaseDocumentItem::findOrFail($data['purchase_document_item_id']);
+        $data['item_id'] = $pdi->item_id;
+
         return $this->create($data);
     }
 
@@ -287,6 +291,7 @@ class FabricRollService
         }
 
         return $query
+            ->where('approval_status', FabricRoll::APPROVAL_APPROVED)
             ->orderBy('entry_date', 'desc')
             ->get();
     }
@@ -342,7 +347,8 @@ class FabricRollService
             ->leftJoin('purchase_documents as pd', 'pd.id', '=', 'pdi.purchase_document_id')
             ->leftJoin('contacts as c', 'c.id', '=', 'pd.contact_id')
             ->leftJoin('users as u', 'u.id', '=', 'pd.created_by_user_id')
-            ->whereNull('fr.deleted_at');
+            ->whereNull('fr.deleted_at')
+            ->where('fr.approval_status', FabricRoll::APPROVAL_APPROVED);
 
         if (!empty($filters['search'])) {
             $search = $filters['search'];
@@ -398,15 +404,24 @@ class FabricRollService
 
     public function approveReception($invoiceId)
     {
-        $invoice = PurchaseDocument::with(['items', 'items.item.categorySubGroup'])->where('document_type', PurchaseDocument::TYPE_INVOICE)
+        $invoice = PurchaseDocument::with(['items', 'items.item.categorySubGroup'])
+            ->where('document_type', PurchaseDocument::TYPE_INVOICE)
             ->findOrFail($invoiceId);
 
         $this->ensureInvoiceReceptionAllowed($invoice);
-
         $this->validateReceptionTolerances($invoice);
 
-        $invoice->update(['status' => 'approved']);
-        return $invoice;
+        return DB::transaction(function () use ($invoice) {
+            $invoice->update(['status' => 'approved']);
+
+            FabricRoll::whereHas('purchaseDocumentItem', function ($q) use ($invoice) {
+                $q->where('purchase_document_id', $invoice->id);
+            })
+                ->where('approval_status', FabricRoll::APPROVAL_PENDING)
+                ->update(['approval_status' => FabricRoll::APPROVAL_APPROVED]);
+
+            return $invoice;
+        });
     }
 
     /**
@@ -467,8 +482,17 @@ class FabricRollService
 
         $this->ensureInvoiceReceptionAllowed($invoice);
 
-        $invoice->update(['status' => 'rejected']);
-        return $invoice;
+        return DB::transaction(function () use ($invoice) {
+            $invoice->update(['status' => 'rejected']);
+
+            FabricRoll::whereHas('purchaseDocumentItem', function ($q) use ($invoice) {
+                $q->where('purchase_document_id', $invoice->id);
+            })
+                ->where('approval_status', FabricRoll::APPROVAL_PENDING)
+                ->update(['approval_status' => FabricRoll::APPROVAL_NOT_APPROVED]);
+
+            return $invoice;
+        });
     }
 
     protected function ensureInvoiceReceptionAllowed(PurchaseDocument $invoice): void
