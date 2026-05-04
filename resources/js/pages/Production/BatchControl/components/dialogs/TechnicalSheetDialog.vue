@@ -3,7 +3,7 @@ import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormHeader from '@/components/FormHeader.vue';
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog } from '@/components/ui/dialog';
+import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { OpBasicInfo } from '@/domain/Production/types';
 import { fetchOpBasicInfo, fetchOpRawMaterials } from '@/domain/Production/service';
@@ -280,9 +280,20 @@ watch(
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <FormDialogContent class="flex w-[calc(100vw-2rem)] h-[calc(100vh-2rem)] max-w-none max-h-none flex-col overflow-hidden rounded-xl px-3 py-3" :scrollable="false">
-            <FormHeader title="Ficha técnica" :description="`Orden ${row?.op_code ?? ''} — ${row?.referencia ?? ''}`" />
+        <FormDialogContent class="flex w-[calc(100vw-2rem)] h-[calc(100vh-2rem)] max-w-none max-h-none flex-col overflow-hidden rounded-xl p-0 self-stretch" :scrollable="false">
+            <!-- Header sticky -->
+            <div class="flex shrink-0 items-center justify-between border-b border-border/50 bg-muted/20 px-6 py-4">
+                <div class="min-w-0">
+                    <h2 class="text-sm font-semibold leading-tight text-foreground">Ficha técnica</h2>
+                    <p class="mt-0.5 truncate text-xs text-muted-foreground">
+                        Orden <span class="font-mono font-medium text-foreground">{{ row?.op_code ?? '' }}</span>
+                        <span class="mx-1">·</span>
+                        {{ row?.referencia ?? '' }}
+                    </p>
+                </div>
+            </div>
 
+            <div class="flex min-h-0 flex-1 flex-col overflow-hidden px-6 py-4 h-full">
             <div v-if="isLoadingDetail" class="flex items-center justify-center py-12 text-sm text-muted-foreground">Cargando ficha técnica...</div>
 
             <div v-else-if="!opDetail" class="flex items-center justify-center py-12 text-sm text-muted-foreground">
@@ -291,7 +302,7 @@ watch(
 
             <div v-else class="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <!-- ── Información básica + Dibujo plano ── -->
-                <div class="rounded-lg border border-border bg-background p-4">
+                <div class="rounded-lg border border-border/40 bg-muted/10 px-4 py-3">
                     <transition
                         enter-active-class="transition-all duration-200 ease-out"
                         enter-from-class="max-h-0 opacity-0"
@@ -393,7 +404,7 @@ watch(
 
                 <!-- ── Tabs ── -->
                 <Tabs v-model="activeTab" default-value="lista_operacional" class="mt-4 flex min-h-0 flex-1 flex-col">
-                    <div class="mb-3 shrink-0 overflow-x-auto">
+                    <div class="mb-3 shrink-0 overflow-x-auto scrollbar-none">
                         <TabsList class="inline-flex w-fit flex-nowrap items-center gap-1 rounded-full border border-border bg-muted/40 p-1">
                             <TabsTrigger
                                 v-for="tab in tabs"
@@ -409,7 +420,7 @@ watch(
                         </TabsList>
                     </div>
 
-                    <div class="min-h-0 flex-1 overflow-y-auto">
+                    <div class="min-h-0 flex-1 overflow-y-auto pb-2">
                         <TabsContent value="lista_operacional" class="mt-0">
                             <div v-if="isSampleOp" class="mb-3 flex justify-end">
                                 <Button
@@ -464,6 +475,18 @@ watch(
                     </div>
                 </Tabs>
             </div>
+            </div>
+
+            <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-3">
+                <Button
+                    type="button"
+                    size="pill"
+                    class="rounded-full border border-input bg-background px-5 text-sm font-medium text-foreground shadow-sm hover:bg-muted"
+                    @click="emit('close')"
+                >
+                    Cerrar
+                </Button>
+            </DialogFooter>
         </FormDialogContent>
     </Dialog>
 
