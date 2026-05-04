@@ -175,13 +175,17 @@ class FabricRollController extends Controller
             is_numeric($excludeOpId) ? (int) $excludeOpId : null
         );
 
-        $rows = $paginator->getCollection()->map(function (object $row) use ($committedByRollId): array {
+        $useCommittedAvailability = is_numeric($excludeOpId);
+
+        $rows = $paginator->getCollection()->map(function (object $row) use ($committedByRollId, $useCommittedAvailability): array {
             $row     = (array) $row;
             $qty     = (float) ($row['quantity'] ?? 0);
             $partial = (float) ($row['partial_output'] ?? 0);
             $actual  = (float) ($row['actual_output'] ?? 0);
-            $reservedOrConsumed = max($partial, $actual);
             $committed = (float) ($committedByRollId[(string) $row['id']] ?? 0.0);
+            $partialAvailability = $useCommittedAvailability
+                ? max(0.0, $qty - $actual - $committed)
+                : max(0.0, $qty - $actual - $partial);
             $color   = $row['internal_color_name'] ?? $row['supplier_color'] ?? null;
 
             return [
@@ -199,8 +203,8 @@ class FabricRollController extends Controller
                 'roll_qty_value'            => $qty,
                 'partial_output'            => $this->fmtMeters($partial),
                 'partial_output_value'      => $partial,
-                'partial_availability'      => $this->fmtMeters(max(0.0, $qty - $actual - $partial)),
-                'partial_availability_value' => max(0.0, $qty - $actual - $partial),
+                'partial_availability'      => $this->fmtMeters($partialAvailability),
+                'partial_availability_value' => $partialAvailability,
                 'exit_quantity'             => $this->fmtMeters($actual),
                 'exit_quantity_value'       => $actual,
                 'real_availability'         => $this->fmtMeters(max(0.0, $qty - $actual)),
