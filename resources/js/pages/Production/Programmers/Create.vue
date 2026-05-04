@@ -7,6 +7,7 @@ import CreateProductSheetDialog from '../ProductSheets/ProductSheetDialog.vue';
 import EcommerceSizesDialog from './EcommerceSizesDialog.vue';
 
 import AlertStack from '@/components/common/AlertStack.vue';
+import DatePickerField from '@/components/DatePickerField.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
@@ -182,20 +183,29 @@ function getProductSheetLabel(sheet: ProductSheet | null | undefined): string {
 }
 
 function getSampleReference(sheet: ProductSheet): string {
-    return String(sheet.sample_reference ?? '').trim().toLocaleUpperCase('es-CO');
+    return String(sheet.sample_reference ?? '')
+        .trim()
+        .toLocaleUpperCase('es-CO');
 }
 
 function getProductReference(sheet: ProductSheet): string {
-    return String(sheet.product_reference ?? '').trim().toLocaleUpperCase('es-CO');
+    return String(sheet.product_reference ?? '')
+        .trim()
+        .toLocaleUpperCase('es-CO');
 }
 
 function getProductReference2(sheet: ProductSheet): string {
-    return String(sheet.product_reference_2 ?? '').trim().toLocaleUpperCase('es-CO');
+    return String(sheet.product_reference_2 ?? '')
+        .trim()
+        .toLocaleUpperCase('es-CO');
 }
 
 function getBrandName(sheet: ProductSheet): string {
     const fromObject = typeof sheet.brand === 'object' && sheet.brand ? String((sheet.brand as { name?: string }).name ?? '') : '';
-    const fromString = typeof (sheet as ProductSheet & { brand?: string }).brand === 'string' ? String((sheet as ProductSheet & { brand?: string }).brand ?? '') : '';
+    const fromString =
+        typeof (sheet as ProductSheet & { brand?: string }).brand === 'string'
+            ? String((sheet as ProductSheet & { brand?: string }).brand ?? '')
+            : '';
     return (fromObject || fromString).trim().toLocaleUpperCase('es-CO');
 }
 
@@ -221,9 +231,17 @@ function buildProductSheetSelectLabel(sheet: ProductSheet): string {
 }
 
 function getProductSheetStructuredLabel(sheet: ProductSheet): string {
-    const sample = String(sheet.sample_reference ?? '').trim().toUpperCase() || '-';
-    const product = String(sheet.product_reference ?? '').trim().toUpperCase() || '-';
-    const prod2 = String((sheet as ProductSheet & { product_reference_2?: string }).product_reference_2 ?? '').trim().toUpperCase();
+    const sample =
+        String(sheet.sample_reference ?? '')
+            .trim()
+            .toUpperCase() || '-';
+    const product =
+        String(sheet.product_reference ?? '')
+            .trim()
+            .toUpperCase() || '-';
+    const prod2 = String((sheet as ProductSheet & { product_reference_2?: string }).product_reference_2 ?? '')
+        .trim()
+        .toUpperCase();
     const version = Number((sheet as ProductSheet & { version?: number }).version ?? 1);
     let label = `${sample} / ${product}`;
     if (prod2) label += ` / ${prod2}`;
@@ -332,10 +350,10 @@ function getPriorityDays(priority: string | null | undefined): number | null {
 
     const upper = (normalizeOptionToName(priority, priorityOptions.value) ?? String(priority)).toUpperCase().trim();
     const mapping: Record<string, number> = {
-        'A': 45,
-        'B': 30,
-        'C': 15,
-        'D': 10,
+        A: 45,
+        B: 30,
+        C: 15,
+        D: 10,
     };
     return mapping[upper] || null;
 }
@@ -343,19 +361,19 @@ function getPriorityDays(priority: string | null | undefined): number | null {
 function calculateEstimatedDeliveryDate(season: string | number | null | undefined, priority: string | null | undefined): string | null {
     const monthNum = monthToNumber(season);
     const days = getPriorityDays(priority);
-    
+
     if (monthNum === null || days === null) return null;
-    
+
     const now = new Date();
     let year = now.getFullYear();
-    
+
     if (monthNum < now.getMonth() + 1) {
         year += 1;
     }
-    
+
     const baseDate = new Date(year, monthNum - 1, 1);
     baseDate.setDate(baseDate.getDate() + days);
-    
+
     return baseDate.toISOString().split('T')[0];
 }
 
@@ -669,11 +687,7 @@ watch(
 
             <TooltipProvider>
                 <div ref="dialogInnerRef" class="relative min-h-0 flex-1 overflow-y-auto scroll-smooth px-6 py-3" style="scrollbar-width: thin">
-                    <FormLoadingOverlay
-                        :active="isFormInitializing"
-                        message="Preparando formulario..."
-                        :delay-ms="100"
-                    />
+                    <FormLoadingOverlay :active="isFormInitializing" message="Preparando formulario..." :delay-ms="100" />
 
                     <div v-if="canRenderForm" class="grid grid-cols-1 gap-3">
                         <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
@@ -842,11 +856,13 @@ watch(
                                                 label=""
                                                 :aria-label="`Temporada para lote ${index + 1}`"
                                                 :class="{ 'border-red-500': !lot.season }"
-                                                @update:modelValue="(value) => {
-                                                    lot.season = value !== null && value !== undefined ? String(value) : null;
-                                                    validateLotField(index);
-                                                    updateEstimatedDeliveryDate(index);
-                                                }"
+                                                @update:modelValue="
+                                                    (value) => {
+                                                        lot.season = value !== null && value !== undefined ? String(value) : null;
+                                                        validateLotField(index);
+                                                        updateEstimatedDeliveryDate(index);
+                                                    }
+                                                "
                                             />
                                         </td>
 
@@ -867,23 +883,22 @@ watch(
                                                 :options="priorityOptions"
                                                 label=""
                                                 :aria-label="`Prioridad para lote ${index + 1}`"
-                                                @update:modelValue="(value) => {
-                                                    lot.priority = value !== null && value !== undefined ? String(value) : null;
-                                                    validateLotField(index);
-                                                    updateEstimatedDeliveryDate(index);
-                                                }"
+                                                @update:modelValue="
+                                                    (value) => {
+                                                        lot.priority = value !== null && value !== undefined ? String(value) : null;
+                                                        validateLotField(index);
+                                                        updateEstimatedDeliveryDate(index);
+                                                    }
+                                                "
                                             />
                                         </td>
 
                                         <td class="border px-3 py-2" style="min-width: 160px">
-                                            <input
+                                            <DatePickerField
                                                 v-model="lot.estimated_delivery_date"
-                                                type="date"
-                                                class="h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm transition placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
-                                                :aria-label="`Fecha estimada de entrega para lote ${index + 1}`"
-                                                :readonly="!!lot.priority"
+                                                :clearable="true"
+                                                :show-today="true"
                                                 :disabled="!!lot.priority"
-                                                :title="lot.priority ? `Calculada automáticamente según prioridad ${lot.priority}` : 'Ingresa manualmente la fecha'"
                                             />
                                         </td>
 

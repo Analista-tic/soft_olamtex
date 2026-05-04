@@ -139,6 +139,7 @@ class ProgrammerController extends Controller
     {
         $validatedData = $request->validated();
         $requestId = $this->resolveRequestId($request);
+        $userId = $request->user()?->id;
 
         Log::info('production_order.store.received', [
             'request_id' => $requestId,
@@ -151,8 +152,8 @@ class ProgrammerController extends Controller
             ],
         ]);
 
-        $orders = DB::transaction(function () use ($validatedData) {
-                return collect($validatedData['lots'])->map(function (array $lot) {
+        $orders = DB::transaction(function () use ($validatedData, $userId) {
+                return collect($validatedData['lots'])->map(function (array $lot) use ($userId) {
                     $productSheet = ProductSheet::findOrFail($lot['product_sheet_id']);
                     $ecommerceUnits = $this->normalizeEcommerceUnits($lot['ecommerce_units'] ?? null);
                     $units = isset($lot['units']) ? (int) $lot['units'] : null;
@@ -170,7 +171,7 @@ class ProgrammerController extends Controller
                         'status' => $status,
                         'current_process' => config('product-sheet.batch_control_processes.0', 'I&D'),
                         'source' => 'manual',
-                        'created_by_user_id' => $request->user()?->id,
+                        'created_by_user_id' => $userId,
                     ]);
 
                     $order->op_code = $this->productionOrderService->nextOpCode(
