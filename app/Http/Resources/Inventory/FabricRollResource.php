@@ -32,7 +32,7 @@ class FabricRollResource extends JsonResource
                 ?? 'Tela',
             'color' => $color ?? 'N/A',
             'color_code' => $this->deriveColorCode($color),
-            'width' => $this->formatMeters($this->roll_width),
+            'width' => $this->formatWidth($this->roll_width),
             'width_value' => $this->roll_width,
             'roll_qty' => $this->formatMeters($this->quantity),
             'roll_qty_value' => $this->quantity,
@@ -69,6 +69,15 @@ class FabricRollResource extends JsonResource
         $normalized = rtrim(rtrim($formatted, '0'), '.');
 
         return "{$normalized} m";
+    }
+
+    protected function formatWidth(?float $value): string
+    {
+        if ($value === null) {
+            return '0 m';
+        }
+
+        return number_format($value, 2, ',', '.') . ' m';
     }
 
     protected function deriveColorCode(?string $color): string

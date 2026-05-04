@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import AlertStack from '@/components/common/AlertStack.vue';
 import SelectField from '@/components/SelectField.vue';
+import { useAlertStack } from '@/composables/useAlert';
 import Button from '@/components/ui/button/Button.vue';
 import Input from '@/components/ui/input/Input.vue';
 import type { AvailableFabricRoll, RawMaterialItemMeta, RollLine } from '@/domain/Production';
@@ -79,11 +81,11 @@ const itemOptions = ref<Option[]>([]);
 const isLoading = ref(false);
 const isSaving = ref(false);
 const isLoadingItems = ref(false);
-const error = ref<string | null>(null);
-const saveMessage = ref<string | null>(null);
+const { successMessage, errorMessage, errorType, showSuccess, showError, showWarning, clearSuccess, clearError } = useAlertStack();
 const snapshot = ref('');
 const deletedRollLineIds = ref<string[]>([]);
 const metaCache = new Map<number, RawMaterialItemMeta | null>();
+const overAllocationWarningMessage = 'Un rollo tiene mas metros programados que su disponibilidad.';
 
 function generateUid(): string {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
@@ -121,8 +123,7 @@ function formatCOP(value: number | null): string {
 function formatWidth(ancho: number | null, anchoUnit: 'm' | 'cm' | null): string {
     if (ancho === null) return '-';
     const inMeters = anchoUnit === 'cm' ? ancho / 100 : ancho;
-    const v = inMeters.toFixed(2).replace(/\.?0+$/, '') || '0';
-    return `${v} m`;
+    return `${inMeters.toFixed(2).replace('.', ',')} m`;
 }
 
 function formatSaveError(err: unknown): string {
@@ -492,10 +493,12 @@ function resetSnapshot(): void {
 
 async function loadAll(): Promise<void> {
     isLoading.value = true;
-    error.value = null;
-    saveMessage.value = null;
+    clearError();
+    clearSuccess();
     metaCache.clear();
     deletedRollLineIds.value = [];
+    trazos.value = [];
+    snapshot.value = '';
 
     try {
         const [, rawMaterials, rollState] = await Promise.all([
@@ -506,6 +509,7 @@ async function loadAll(): Promise<void> {
 
         if (!Array.isArray(rawMaterials) || rawMaterials.length === 0) {
             trazos.value = [createEmptyTrazo()];
+            resetSnapshot();
             return;
         }
 
@@ -649,7 +653,7 @@ async function loadAll(): Promise<void> {
                 if (line.telaItemId && line.telaItemId > 0) void loadLineMeta(line);
     } catch (e) {
         console.error('Error al cargar materia prima:', e);
-        error.value = 'No se pudo cargar la materia prima.';
+        showError('No se pudo cargar la materia prima.');
         trazos.value = [createEmptyTrazo()];
     } finally {
         isLoading.value = false;
@@ -660,8 +664,8 @@ async function loadAll(): Promise<void> {
 async function handleSave(): Promise<void> {
     if (!canSave.value) return;
     isSaving.value = true;
-    error.value = null;
-    saveMessage.value = null;
+    clearError();
+    clearSuccess();
 
     try {
         await saveOpRawMaterials(
@@ -740,7 +744,7 @@ async function handleSave(): Promise<void> {
         }
 
         deletedRollLineIds.value = [];
-        saveMessage.value = 'Guardado correctamente.';
+        showSuccess('Guardado correctamente.');
         resetSnapshot();
 
         // Cerrar dropdowns de búsqueda al guardar
@@ -763,11 +767,28 @@ async function handleSave(): Promise<void> {
             window.dispatchEvent(new CustomEvent('tds-raw-material-saved', { detail: { opId: props.opId } }));
         }
     } catch (err: unknown) {
-        error.value = formatSaveError(err);
+        showError(formatSaveError(err));
     } finally {
         isSaving.value = false;
     }
 }
+
+watch(
+    anyOverAllocation,
+    (value) => {
+        const message = warningMessage.value ?? overAllocationWarningMessage;
+
+        if (value) {
+            showWarning(message);
+            return;
+        }
+
+        if (errorType.value === 'warning' && errorMessage.value === message) {
+            clearError();
+        }
+    },
+    { immediate: true },
+);
 
 watch(
     () => props.opId,
@@ -949,7 +970,7 @@ watch(
                                                     <span v-else class="text-muted-foreground">-</span>
                                                 </td>
                                                 <td class="px-2 py-1 text-muted-foreground">
-                                                    {{ assignment.roll.widthCm !== null ? (assignment.roll.widthCm / 100).toFixed(2).replace(/\.?0+$/, '') + ' m' : '-' }}
+                                                    {{ assignment.roll.widthCm !== null ? (assignment.roll.widthCm / 100).toFixed(2).replace('.', ',') + ' m' : '-' }}
                                                 </td>
                                                 <td class="px-2 py-1 tabular-nums text-muted-foreground">{{ formatCOP(assignment.roll.pricePerMeter) }}/m</td>
                                                 <td class="px-2 py-1 tabular-nums" :class="hasOverAllocation(assignment) ? 'font-medium text-destructive' : 'text-muted-foreground'">
@@ -1051,12 +1072,14 @@ watch(
                 <Save class="mr-1 h-4 w-4" /> {{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
             </Button>
             <span v-if="isLoadingItems" class="text-xs text-muted-foreground">Cargando items...</span>
-            <span v-if="saveMessage" class="text-sm text-emerald-700">{{ saveMessage }}</span>
         </div>
 
-        <!-- Mensajes -->
-        <div v-if="warningMessage" class="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{{ warningMessage }}</div>
-        <div v-if="error" class="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{{ error }}</div>
-
+        <AlertStack
+            :success-message="successMessage"
+            :error-message="errorMessage"
+            :error-type="errorType"
+            @close-success="clearSuccess"
+            @close-error="clearError"
+        />
     </div>
 </template>
