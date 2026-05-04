@@ -13,9 +13,9 @@ import {
     saveOpRolls,
 } from '@/domain/Production';
 import type { Option } from '@/domain/shared';
-import { formatMeters, formatWidthToMeters } from '@/domain/Textil';
+import { formatMeters } from '@/domain/Textil';
 import axios from 'axios';
-import { ChevronDown, ChevronRight, Plus, Save, Trash } from 'lucide-vue-next';
+import { ChevronDown, ChevronRight, Plus, Save, Trash, X } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{
@@ -122,13 +122,6 @@ function formatWidth(ancho: number | null, anchoUnit: 'm' | 'cm' | null): string
     if (ancho === null) return '-';
     const v = Number.isInteger(ancho) ? String(ancho) : ancho.toFixed(2).replace(/\.00$/, '');
     return anchoUnit ? `${v} ${anchoUnit}` : v;
-}
-
-function formatDate(value: string | null): string {
-    if (!value) return '';
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return value;
-    return parsed.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function formatSaveError(err: unknown): string {
@@ -461,7 +454,6 @@ const usedRolls = computed(() =>
 const totalCost = computed(() => usedRolls.value.reduce((s, r) => s + r.meters * r.pricePerMeter, 0));
 const totalMetersProgrammed = computed(() => usedRolls.value.reduce((s, r) => s + r.meters, 0));
 const weightedCopPerMeter = computed(() => (totalMetersProgrammed.value > 0 ? totalCost.value / totalMetersProgrammed.value : 0));
-const totalProgrammedRolls = computed(() => usedRolls.value.length);
 const warningMessage = computed(() =>
     anyOverAllocation.value ? 'Un rollo tiene más metros programados que su disponibilidad.' : null,
 );
@@ -750,6 +742,14 @@ async function handleSave(): Promise<void> {
         saveMessage.value = 'Guardado correctamente.';
         resetSnapshot();
 
+        // Cerrar dropdowns de búsqueda al guardar
+        for (const trazo of trazos.value) {
+            for (const line of trazo.lines) {
+                line.rollsOpen = false;
+                line.rollSearch = '';
+            }
+        }
+
         if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('tds-raw-material-saved', { detail: { opId: props.opId } }));
         }
@@ -779,7 +779,7 @@ watch(
             <div v-if="totalCost > 0 || totalMetersProgrammed > 0" class="w-fit rounded-full border border-border bg-muted/30 px-3 py-1.5 text-sm font-medium text-foreground">
                 <div class="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-4">
                     <span><span class="font-semibold">Total:</span> {{ formatCOP(totalCost) }}</span>
-                    <span><span class="font-semibold">Metros programados:</span> {{ formatMeters(totalMetersProgrammed) }} m</span>
+                    <span><span class="font-semibold">Metros programados:</span> {{ formatMeters(totalMetersProgrammed) }}</span>
                     <span v-if="weightedCopPerMeter > 0"><span class="font-semibold">Costo promedio:</span> {{ formatCOP(weightedCopPerMeter) }}/m</span>
                 </div>
             </div>
@@ -825,7 +825,7 @@ watch(
 
                     <div class="ml-auto flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-4">
                         <span v-if="trazoProgrammedMeters(trazo) > 0" class="text-xs text-muted-foreground">
-                            <span class="font-semibold">Consumo:</span> <span class="font-medium text-foreground">{{ formatMeters(trazoProgrammedMeters(trazo)) }} m</span>
+                            <span class="font-semibold">Consumo:</span> <span class="font-medium text-foreground">{{ formatMeters(trazoProgrammedMeters(trazo)) }}</span>
                         </span>
                         <span v-if="trazoCost(trazo) > 0" class="text-xs text-muted-foreground">
                             <span class="font-semibold">Subtotal:</span> <span class="font-semibold tabular-nums text-foreground">{{ formatCOP(trazoCost(trazo)) }}</span>
@@ -863,14 +863,23 @@ watch(
                                     @update:model-value="(v) => onItemSelected(trazo.uid, line.uid, v)"
                                 />
 
-                                <Input
-                                    v-if="line.telaItemId && line.availableRolls.length > 0"
-                                    :model-value="line.rollSearch"
-                                    type="text"
-                                    placeholder="Buscar rollo..."
-                                    class="h-7 w-56 text-xs"
-                                    @update:model-value="(v) => (line.rollSearch = String(v ?? ''))"
-                                />
+                                <div v-if="line.telaItemId && line.availableRolls.length > 0" class="relative">
+                                    <Input
+                                        :model-value="line.rollSearch"
+                                        type="text"
+                                        placeholder="Buscar rollo..."
+                                        class="h-7 w-56 text-xs pr-7"
+                                        @update:model-value="(v) => (line.rollSearch = String(v ?? ''))"
+                                    />
+                                    <button
+                                        v-if="line.rollSearch.trim()"
+                                        type="button"
+                                        class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                        @click="line.rollSearch = ''; line.rollsOpen = false"
+                                    >
+                                        <X class="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
                             </div>
 
                             <template v-if="line.telaItemId">
@@ -930,10 +939,10 @@ watch(
                                                     </span>
                                                     <span v-else class="text-muted-foreground">-</span>
                                                 </td>
-                                                <td class="px-2 py-1 text-muted-foreground">{{ assignment.roll.widthCm !== null ? assignment.roll.widthCm + ' mm' : '-' }}</td>
+                                                <td class="px-2 py-1 text-muted-foreground">{{ assignment.roll.widthCm !== null ? assignment.roll.widthCm + ' cm' : '-' }}</td>
                                                 <td class="px-2 py-1 tabular-nums text-muted-foreground">{{ formatCOP(assignment.roll.pricePerMeter) }}/m</td>
                                                 <td class="px-2 py-1 tabular-nums" :class="hasOverAllocation(assignment) ? 'font-medium text-destructive' : 'text-muted-foreground'">
-                                                    {{ assignment.roll.availableMeters !== null ? formatMeters(getPartialAvailability(assignment.roll.rollId)) + '/' + formatMeters(assignment.roll.availableMeters) + ' m' : '-' }}
+                                                    {{ assignment.roll.availableMeters !== null ? formatMeters(getPartialAvailability(assignment.roll.rollId)) + '/' + formatMeters(assignment.roll.availableMeters) : '-' }}
                                                 </td>
                                                 <td class="px-2 py-1">
                                                     <Input
@@ -944,7 +953,7 @@ watch(
                                                         @update:model-value="(v) => (assignment.metersProgrammed = String(v ?? ''))"
                                                     />
                                                     <p v-if="hasOverAllocation(assignment)" class="mt-0.5 whitespace-nowrap text-[10px] leading-tight text-destructive">
-                                                        Supera disp. parcial<br>({{ formatMeters(partialAvailableForAssignment(assignment)) }} m disp.)
+                                                        Supera disp. parcial<br>({{ formatMeters(partialAvailableForAssignment(assignment)) }} disp.)
                                                     </p>
                                                 </td>
                                                 <td class="px-2 py-1 w-24 text-right tabular-nums text-foreground font-semibold">
@@ -991,7 +1000,7 @@ watch(
                                             <span v-if="roll.supplier" class="text-muted-foreground">{{ roll.supplier }}</span>
                                             <div class="ml-auto flex items-center gap-3">
                                                 <span :class="['tabular-nums font-medium', getPartialAvailability(roll.rollId) <= 0 ? 'text-destructive' : 'text-foreground']">
-                                                    {{ formatMeters(getPartialAvailability(roll.rollId)) }} m
+                                                    {{ formatMeters(getPartialAvailability(roll.rollId)) }}
                                                 </span>
                                                 <span class="tabular-nums text-muted-foreground">{{ formatCOP(roll.pricePerMeter) }}/m</span>
                                                 <span v-if="isRollAssigned(line, roll.rollId)" class="text-muted-foreground">Agregado</span>
