@@ -365,7 +365,7 @@ class BatchControlController extends Controller
 
     private function shouldCreateFinishedProductCatalogItem(string $fromProcess, string $toProcess): bool
     {
-        return $fromProcess === 'Inspección y aprobación'
+        return $fromProcess !== $toProcess
             && $toProcess === 'Bodega';
     }
 

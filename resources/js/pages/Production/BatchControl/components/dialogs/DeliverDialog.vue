@@ -91,9 +91,24 @@ const emit = defineEmits<{
             </div>
 
             <!-- Footer -->
-            <DialogFooter class="border-t border-border/50 bg-muted/20 px-6 py-4">
-                <Button variant="outline" size="sm" :disabled="isDelivering" @click="emit('close')">Cancelar</Button>
-                <Button size="sm" :disabled="!deliverToProcess || isDelivering" @click="emit('confirm')">
+            <DialogFooter class="border-t border-border/50 px-6 py-4">
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="pill"
+                    class="border-primary/40 text-primary shadow-sm hover:bg-primary/10"
+                    :disabled="isDelivering"
+                    @click="emit('close')"
+                >
+                    Cancelar
+                </Button>
+                <Button
+                    type="button"
+                    size="pill"
+                    class="shadow-sm"
+                    :disabled="!deliverToProcess || isDelivering"
+                    @click="emit('confirm')"
+                >
                     <Send class="mr-1.5 h-3.5 w-3.5" />
                     {{ isDelivering ? 'Entregando...' : 'Confirmar entrega' }}
                 </Button>

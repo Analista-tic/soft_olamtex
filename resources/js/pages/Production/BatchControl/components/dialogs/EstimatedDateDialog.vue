@@ -193,9 +193,25 @@ function applySuggestion() {
             </div>
 
             <!-- Footer -->
-            <DialogFooter class="border-t border-border/50 bg-muted/20 px-6 py-4">
-                <Button variant="outline" size="sm" @click="emit('close')">Cancelar</Button>
-                <Button size="sm" :disabled="!!isInvalid" @click="emit('save')">Guardar</Button>
+            <DialogFooter class="border-t border-border/50 px-6 py-4">
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="pill"
+                    class="border-primary/40 text-primary shadow-sm hover:bg-primary/10"
+                    @click="emit('close')"
+                >
+                    Cancelar
+                </Button>
+                <Button
+                    type="button"
+                    size="pill"
+                    class="shadow-sm"
+                    :disabled="!!isInvalid"
+                    @click="emit('save')"
+                >
+                    Guardar
+                </Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>

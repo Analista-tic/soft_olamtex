@@ -7,13 +7,21 @@ use App\Models\MasterData\CategoryGroup;
 use App\Models\MasterData\CategorySubGroup;
 use App\Models\MasterData\Item;
 use App\Models\Production\ProductionOrder;
+use App\Models\Production\ProductSheet;
+use App\Services\Settings\SettingService;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class FinishedProductCatalogItemService
 {
     private const CATEGORY_GROUP_NAME = 'PRODUCTO TERMINADO';
     private const DEFAULT_UNIT_MEASURE = 'unidad';
     private const PRODUCT_SHEET_TYPE = 'producto';
+
+    public function __construct(
+        private SettingService $settingService,
+    ) {
+    }
 
     public function ensureForProductionOrder(ProductionOrder $order): Item
     {
@@ -33,7 +41,7 @@ class FinishedProductCatalogItemService
             throw new \RuntimeException('La sábana asociada no tiene nombre de producto.');
         }
 
-        [$subGroupName, $extraFields] = $this->extractSubGroupAndExtraFields($productName);
+        [$subGroupName, $extraFields] = $this->extractSubGroupAndExtraFields($productName, $productSheet);
 
         $group = $this->resolveCategoryGroup();
         $subGroup = $this->resolveCategorySubGroup($group, $subGroupName);
@@ -76,7 +84,7 @@ class FinishedProductCatalogItemService
     /**
      * @return array{0: string, 1: array<string, string>}
      */
-    private function extractSubGroupAndExtraFields(string $productName): array
+    private function extractSubGroupAndExtraFields(string $productName, ProductSheet $productSheet): array
     {
         $parts = preg_split('/\s+/u', $productName) ?: [];
         $parts = array_values(array_filter(array_map(
@@ -91,11 +99,53 @@ class FinishedProductCatalogItemService
         $subGroupName = mb_strtoupper((string) array_shift($parts), 'UTF-8');
         $extraFields = [];
 
-        foreach ($parts as $index => $part) {
-            $extraFields['Campo ' . ($index + 1)] = $part;
+        $fabricBase = $this->resolveCatalogOptionName('fabric_bases', $productSheet->fabric_base_id ?? null);
+        if ($fabricBase !== '') {
+            $extraFields['Base'] = mb_strtoupper($fabricBase, 'UTF-8');
         }
 
+        $yarnBase = $this->resolveCatalogOptionName('yarn_bases', $productSheet->yarn_base_id ?? null);
+        if ($yarnBase !== '') {
+            $extraFields['Base Hilaza'] = mb_strtoupper($yarnBase, 'UTF-8');
+        }
+
+        $world = $this->resolveCatalogOptionName('worlds', $productSheet->world_id ?? null);
+        if ($world !== '') {
+            $extraFields['Mundo'] = mb_strtoupper($world, 'UTF-8');
+        }
+
+        Log::info('finished_product_catalog_item.extra_fields_resolved', [
+            'product_sheet_id' => $productSheet->id,
+            'product_name' => $productName,
+            'fabric_base_id' => $productSheet->fabric_base_id,
+            'fabric_base' => $fabricBase,
+            'yarn_base_id' => $productSheet->yarn_base_id,
+            'yarn_base' => $yarnBase,
+            'world_id' => $productSheet->world_id,
+            'world' => $world,
+            'extra_fields' => $extraFields,
+        ]);
+
         return [$subGroupName, $extraFields];
+    }
+
+    private function resolveCatalogOptionName(string $catalogKey, int|string|null $optionId): string
+    {
+        if ($optionId === null || $optionId === '') {
+            return '';
+        }
+
+        $option = $this->settingService->getCatalogOptionById($catalogKey, $optionId);
+        if (!is_array($option)) {
+            return '';
+        }
+
+        $value = $option['name'] ?? $option['nombre'] ?? $option['description'] ?? null;
+        if (!is_string($value) && !is_numeric($value)) {
+            return '';
+        }
+
+        return $this->normalizeText((string) $value);
     }
 
     private function resolveCategoryGroup(): CategoryGroup
