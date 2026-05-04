@@ -433,6 +433,14 @@ function hasOverAllocation(assignment: AssignedRoll): boolean {
     return meters > effective;
 }
 
+/** Metros disponibles para esta asignación considerando el resto de asignaciones del mismo rollo. */
+function partialAvailableForAssignment(assignment: AssignedRoll): number {
+    if (assignment.roll.availableMeters === null) return 0;
+    const total = rollTotalProgrammed.value.get(assignment.roll.rollId) ?? 0;
+    const thisMeters = toNumber(assignment.metersProgrammed);
+    return Math.max(0, assignment.roll.availableMeters - (total - thisMeters));
+}
+
 const anyOverAllocation = computed(() =>
     trazos.value.some((t) => t.lines.some((line) => line.assignedRolls.some((assignment) => hasOverAllocation(assignment)))),
 );
@@ -935,6 +943,9 @@ watch(
                                                         :disabled="isSaving"
                                                         @update:model-value="(v) => (assignment.metersProgrammed = String(v ?? ''))"
                                                     />
+                                                    <p v-if="hasOverAllocation(assignment)" class="mt-0.5 whitespace-nowrap text-[10px] leading-tight text-destructive">
+                                                        Supera disp. parcial<br>({{ formatMeters(partialAvailableForAssignment(assignment)) }} m disp.)
+                                                    </p>
                                                 </td>
                                                 <td class="px-2 py-1 w-24 text-right tabular-nums text-foreground font-semibold">
                                                     <span v-if="toNumber(assignment.metersProgrammed) > 0">

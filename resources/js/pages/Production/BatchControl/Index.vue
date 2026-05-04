@@ -5,12 +5,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useAlertStack } from '@/composables/useAlert';
+import type { AdditionalInfo } from '@/domain/Production';
+import { fetchOpAdditionalInfo } from '@/domain/Production';
 import type { BreadcrumbItem } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { uiPatterns } from '@/lib/ui-patterns';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { MessageSquareWarning, PackageCheck, PackageSearch } from 'lucide-vue-next';
-import { uiPatterns } from '@/lib/ui-patterns';
 import { computed, onMounted, ref, watch } from 'vue';
 import BatchControlTable from './BatchControlTable.vue';
 import {
@@ -25,8 +27,6 @@ import {
     StampingInfoDialog,
     TechnicalSheetDialog,
 } from './components/dialogs';
-import type { AdditionalInfo } from '@/domain/Production';
-import { fetchOpAdditionalInfo } from '@/domain/Production';
 import type { BatchControlRow, CutCurves, CutFabricConsumptionLine, CutSizeCurves, LogisticsSupplyItem, TimelineEvent } from './types';
 
 /* ── Types ──────────────────────────────────────────────── */
@@ -115,7 +115,7 @@ const isDelivering = ref(false);
 // Dialog: fecha estimada
 const dateDialogOpen = ref(false);
 const dateRow = ref<BatchControlRow | null>(null);
-const editingDate = ref<string>('');
+const editingDate = ref<string | null>(null);
 /** Proceso que se está editando (siempre = activeProcess al abrir el dialog) */
 const editingProcess = ref<string>('');
 /** Fecha sugerida del proceso anterior (para filas deshabilitadas) */
@@ -266,9 +266,7 @@ function setSort(column: string) {
     }
 }
 
-const emptyStateText = computed(() =>
-    activeType.value === 'muestra' ? 'No hay órdenes tipo muestra.' : 'No hay órdenes tipo producto.',
-);
+const emptyStateText = computed(() => (activeType.value === 'muestra' ? 'No hay órdenes tipo muestra.' : 'No hay órdenes tipo producto.'));
 
 /** Flujo real según ProductSheet; fallback a lista completa si no hay ficha. */
 function getFlowForRow(row: BatchControlRow): string[] {
@@ -479,9 +477,8 @@ async function confirmDeliver() {
 function openDateDialog(row: BatchControlRow) {
     dateRow.value = row;
     editingProcess.value = activeProcess.value;
-    // Convertir "Y-m-d H:i" → "Y-m-dTH:i" para input datetime-local; retrocompat con solo fecha
-    const stored = row.process_estimated_dates?.[activeProcess.value] ?? '';
-    editingDate.value = stored ? stored.replace(' ', 'T') : '';
+    const stored = row.process_estimated_dates?.[activeProcess.value] ?? null;
+    editingDate.value = stored ? stored.slice(0, 10) : null;
     suggestedDate.value = isRowDisabled(row) ? getSuggestedDateForProcess(row, activeProcess.value) : null;
     dateDialogOpen.value = true;
 }
@@ -489,8 +486,7 @@ function openDateDialog(row: BatchControlRow) {
 async function saveEstimatedDate() {
     if (!dateRow.value) return;
     const proc = editingProcess.value;
-    // Convertir formato input "Y-m-dTH:i" → "Y-m-d H:i" para el backend
-    const dateToSave = editingDate.value ? editingDate.value.replace('T', ' ') : null;
+    const dateToSave = editingDate.value ? `${editingDate.value} 00:00` : null;
     try {
         await axios.patch(route('control-de-lotes.update-estimated-date', { order: dateRow.value.id }), {
             process: proc,
@@ -558,12 +554,14 @@ async function openTimelineDialog(row: BatchControlRow) {
             axios.get(route('control-de-lotes.delivery-history', { order: row.id })),
             axios.get(route('control-de-lotes.novelties', { order: row.id })),
         ]);
-        const deliveries = (Array.isArray(deliveriesRes.data?.data) ? deliveriesRes.data.data : []).map(
-            (d: object) => ({ ...d, event_type: 'delivery' as const }),
-        );
-        const novelties = (Array.isArray(noveltiesRes.data?.data) ? noveltiesRes.data.data : []).map(
-            (n: object) => ({ ...n, event_type: 'novelty' as const }),
-        );
+        const deliveries = (Array.isArray(deliveriesRes.data?.data) ? deliveriesRes.data.data : []).map((d: object) => ({
+            ...d,
+            event_type: 'delivery' as const,
+        }));
+        const novelties = (Array.isArray(noveltiesRes.data?.data) ? noveltiesRes.data.data : []).map((n: object) => ({
+            ...n,
+            event_type: 'novelty' as const,
+        }));
         timelineEvents.value = [...deliveries, ...novelties];
     } catch {
         showError('No se pudo cargar la línea de tiempo.');
@@ -737,7 +735,7 @@ function recalcCutLine(line: CutFabricConsumptionLine): CutFabricConsumptionLine
     const cp = line.layers_fabric ?? 0;
     const cl = line.layers_liquidation ?? 0;
     const ce = line.layers_herringbone ?? 0;
-    const total = Number(((cp * lt) + (cl * ll) + (ce * le)).toFixed(4));
+    const total = Number((cp * lt + cl * ll + ce * le).toFixed(4));
     const restante = Number(((line.meters_per_roll ?? 0) - total).toFixed(4));
     return { ...line, total_consumption: total, restante };
 }
@@ -939,9 +937,7 @@ function closeLogisticsExitDialog() {
 async function saveLogisticsExit() {
     if (!logisticsExitRow.value) return;
 
-    const linesToProcess = logisticsSupplyLines.value.filter(
-        (l) => l.include && l.item_id && l.selected_warehouse_id && l.exit_qty > 0,
-    );
+    const linesToProcess = logisticsSupplyLines.value.filter((l) => l.include && l.item_id && l.selected_warehouse_id && l.exit_qty > 0);
     if (linesToProcess.length === 0) return;
 
     isSavingLogisticsExit.value = true;
@@ -953,10 +949,7 @@ async function saveLogisticsExit() {
             supply_name: l.display_label || l.name,
         }));
 
-        const { data } = await axios.post(
-            route('control-de-lotes.logistics-supply-exit', { order: logisticsExitRow.value.id }),
-            { lines: payload },
-        );
+        const { data } = await axios.post(route('control-de-lotes.logistics-supply-exit', { order: logisticsExitRow.value.id }), { lines: payload });
 
         if (data.errors && data.errors.length > 0) {
             showWarning(data.message ?? `${data.processed} salida(s) registrada(s) con advertencias.`);
@@ -1194,8 +1187,6 @@ onMounted(() => {
             @confirm="confirmReportNovelty"
             @close="closeNoveltyDialog"
         />
-
-
         <TechnicalSheetDialog
             :open="technicalSheetDialogOpen"
             :row="technicalSheetRow"

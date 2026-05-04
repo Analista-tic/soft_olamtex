@@ -14,6 +14,7 @@ use App\Models\Production\TechnicalSheet;
 use App\Models\Production\TechnicalSheetOperation;
 use App\Models\Textil\FabricRoll;
 use App\Services\Inventory\InventoryMovementService;
+use App\Services\Production\FinishedProductCatalogItemService;
 use App\Services\Production\OperationCatalogService;
 use App\Services\Production\MachineService;
 use App\Services\Production\OperationSectionService;
@@ -103,6 +104,7 @@ class BatchControlController extends Controller
     public function __construct(
         private SettingService $settingService,
         private InventoryMovementService $movementService,
+        private FinishedProductCatalogItemService $finishedProductCatalogItemService,
         private OperationSectionService $sectionService,
         private OperationService $operationService,
         private OperationCatalogService $operationCatalogService,
@@ -328,19 +330,29 @@ class BatchControlController extends Controller
             return response()->json(['message' => 'El proceso destino debe ser diferente al actual.'], 422);
         }
 
-        // Registrar la entrega
-        BatchControlDelivery::create([
-            'production_order_id' => $order->id,
-            'from_process' => $fromProcess,
-            'to_process' => $toProcess,
-            'observations' => $validated['observations'] ?? null,
-            'delivered_by' => $request->user()?->id,
-        ]);
+        try {
+            DB::transaction(function () use ($order, $fromProcess, $toProcess, $validated, $request) {
+                BatchControlDelivery::create([
+                    'production_order_id' => $order->id,
+                    'from_process' => $fromProcess,
+                    'to_process' => $toProcess,
+                    'observations' => $validated['observations'] ?? null,
+                    'delivered_by' => $request->user()?->id,
+                ]);
 
-        // Avanzar al nuevo proceso (las fechas estimadas por estado se mantienen)
-        $order->update([
-            'current_process' => $toProcess,
-        ]);
+                $order->update([
+                    'current_process' => $toProcess,
+                ]);
+
+                if ($this->shouldCreateFinishedProductCatalogItem($fromProcess, $toProcess)) {
+                    $this->finishedProductCatalogItemService->ensureForProductionOrder($order);
+                }
+            });
+        } catch (\Throwable $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
 
         return response()->json([
             'message' => "Orden entregada de {$fromProcess} a {$toProcess}.",
@@ -349,6 +361,12 @@ class BatchControlController extends Controller
                 'current_process' => $toProcess,
             ],
         ]);
+    }
+
+    private function shouldCreateFinishedProductCatalogItem(string $fromProcess, string $toProcess): bool
+    {
+        return $fromProcess === 'Inspección y aprobación'
+            && $toProcess === 'Bodega';
     }
 
     /**

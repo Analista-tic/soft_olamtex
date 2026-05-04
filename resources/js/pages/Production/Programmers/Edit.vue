@@ -3,6 +3,7 @@ import axios from 'axios';
 import { computed, ref } from 'vue';
 
 import AlertStack from '@/components/common/AlertStack.vue';
+import DatePickerField from '@/components/DatePickerField.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
@@ -94,9 +95,17 @@ function getProductSheetValue(sheet: ProductSheet): number {
 }
 
 function getProductSheetLabel(sheet: ProductSheet): string {
-    const sample = String(sheet.sample_reference ?? '').trim().toUpperCase() || '-';
-    const product = String(sheet.product_reference ?? '').trim().toUpperCase() || '-';
-    const prod2 = String((sheet as ProductSheet & { product_reference_2?: string }).product_reference_2 ?? '').trim().toUpperCase();
+    const sample =
+        String(sheet.sample_reference ?? '')
+            .trim()
+            .toUpperCase() || '-';
+    const product =
+        String(sheet.product_reference ?? '')
+            .trim()
+            .toUpperCase() || '-';
+    const prod2 = String((sheet as ProductSheet & { product_reference_2?: string }).product_reference_2 ?? '')
+        .trim()
+        .toUpperCase();
     const version = Number((sheet as ProductSheet & { version?: number }).version ?? 1);
     let label = `${sample} / ${product}`;
     if (prod2) label += ` / ${prod2}`;
@@ -515,11 +524,7 @@ watch(
                 />
 
                 <div ref="dialogInnerRef" class="relative min-h-0 flex-1 overflow-y-auto px-6 py-4" style="scrollbar-width: thin">
-                    <FormLoadingOverlay
-                        :active="isFormInitializing"
-                        message="Cargando programado..."
-                        :delay-ms="100"
-                    />
+                    <FormLoadingOverlay :active="isFormInitializing" message="Cargando programado..." :delay-ms="100" />
 
                     <div v-if="canRenderForm" class="space-y-4 pt-2">
                         <section>
@@ -627,18 +632,16 @@ watch(
 
                                 <!-- Fecha entrega estimada (disponible para todos) -->
                                 <div class="flex flex-col gap-1">
-                                    <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium">Fecha entrega estimada</Label>
+                                    <div class="flex justify-end">
                                         <HelpTooltip text="Fecha estimada de entrega del lote." aria-label="Ayuda sobre fecha entrega estimada" />
                                     </div>
 
-                                    <input
+                                    <DatePickerField
                                         v-model="programmer.estimated_delivery_date"
-                                        type="date"
-                                        class="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 py-1 text-sm transition placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
-                                        :readonly="Boolean(programmer.priority)"
+                                        label="Fecha entrega estimada"
+                                        :clearable="true"
+                                        :show-today="true"
                                         :disabled="isReadOnly || Boolean(programmer.priority)"
-                                        :title="programmer.priority ? `Calculada automaticamente segun prioridad ${programmer.priority}` : 'Ingresa manualmente la fecha'"
                                     />
                                 </div>
 
