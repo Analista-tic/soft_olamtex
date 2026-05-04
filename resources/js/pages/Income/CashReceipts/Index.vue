@@ -52,7 +52,7 @@ const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const customerOptions = ref<Option[]>([]);
 
 const search = ref(incomeStore.cashReceiptFilters.search ?? '');
-const contactId = ref<number | 'all'>((incomeStore.cashReceiptFilters.contact_id as number | null | undefined) ?? 'all');
+const contactId = ref<number | null>((incomeStore.cashReceiptFilters.contact_id as number | null | undefined) ?? null);
 const dateFilter = ref<string | null>(incomeStore.cashReceiptFilters.date_from ?? incomeStore.cashReceiptFilters.date_to ?? null);
 
 const cashReceipts = computed(() => incomeStore.cashReceipts);
@@ -63,7 +63,7 @@ const totalItems = computed(() => Number(incomeStore.cashReceiptsMeta?.total ?? 
 const currentPage = ref(1);
 const hasCashReceipts = computed(() => cashReceipts.value.length > 0);
 const isSearchActive = computed(() => search.value.trim().length > 0);
-const isCustomerFilterActive = computed(() => contactId.value !== 'all');
+const isCustomerFilterActive = computed(() => contactId.value != null);
 const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 const customerButtonClasses = useFilterButtonClasses(isCustomerFilterActive);
 
@@ -93,7 +93,7 @@ function formatReceiptNumber(receipt: CashReceipt): string {
 
 async function loadCustomerOptions(searchTerm = '') {
     const options = await fetchIncomeCustomerOptions(searchTerm, searchTerm.trim() ? 30 : 100);
-    customerOptions.value = [{ id: 'all', name: 'Todos los clientes' }, ...options];
+    customerOptions.value = [...options];
 }
 
 async function fetchCashReceipts(page = 1) {
@@ -102,7 +102,7 @@ async function fetchCashReceipts(page = 1) {
             page,
             per_page: itemsPerPage.value,
             search: search.value,
-            contact_id: contactId.value === 'all' ? undefined : contactId.value,
+            contact_id: contactId.value ?? undefined,
             date_from: dateFilter.value || undefined,
             date_to: dateFilter.value || undefined,
         });
@@ -230,10 +230,11 @@ onMounted(() => {
                         v-model="contactId"
                         label=""
                         :options="customerOptions"
-                        placeholder="Todos los clientes"
+                        placeholder="Cliente"
                         searchable
                         search-placeholder="Buscar cliente..."
                         :button-class="customerButtonClasses"
+                        :clearable="true"
                         @search="loadCustomerOptions"
                     />
                 </FilterField>

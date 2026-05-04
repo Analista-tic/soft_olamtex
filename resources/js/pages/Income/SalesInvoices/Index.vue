@@ -56,25 +56,24 @@ const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
 const search = ref(incomeStore.salesInvoiceFilters.search ?? '');
-const status = ref(incomeStore.salesInvoiceFilters.status ?? 'all');
-const contactId = ref<number | 'all'>((incomeStore.salesInvoiceFilters.contact_id as number | null | undefined) ?? 'all');
+const status = ref<string | null>(incomeStore.salesInvoiceFilters.status && incomeStore.salesInvoiceFilters.status !== 'all' ? incomeStore.salesInvoiceFilters.status : null);
+const contactId = ref<number | null>((incomeStore.salesInvoiceFilters.contact_id as number | null | undefined) ?? null);
 const dateFilter = ref<string | null>(incomeStore.salesInvoiceFilters.date_from ?? incomeStore.salesInvoiceFilters.date_to ?? null);
-const origin = ref<'all' | 'direct' | 'from_order'>((incomeStore.salesInvoiceFilters.origin as 'direct' | 'from_order' | undefined) ?? 'all');
+const origin = ref<'direct' | 'from_order' | null>((incomeStore.salesInvoiceFilters.origin as 'direct' | 'from_order' | undefined) ?? null);
 const customerOptions = ref<Option[]>([]);
 
 const salesInvoices = computed(() => incomeStore.salesInvoices);
 const isSalesInvoicesLoading = computed(() => incomeStore.salesInvoicesLoading);
 const isSearchActive = computed(() => search.value.trim().length > 0);
-const isStatusFilterActive = computed(() => status.value !== 'all');
-const isCustomerFilterActive = computed(() => contactId.value !== 'all');
-const isOriginFilterActive = computed(() => origin.value !== 'all');
+const isStatusFilterActive = computed(() => status.value != null);
+const isCustomerFilterActive = computed(() => contactId.value != null);
+const isOriginFilterActive = computed(() => origin.value != null);
 const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const customerButtonClasses = useFilterButtonClasses(isCustomerFilterActive);
 const originButtonClasses = useFilterButtonClasses(isOriginFilterActive);
 
 const statusOptions = [
-    { id: 'all', name: 'Todos los estados' },
     { id: 'draft', name: 'Borrador' },
     { id: 'issued', name: 'Emitida' },
     { id: 'partial', name: 'Parcial' },
@@ -83,7 +82,6 @@ const statusOptions = [
 ];
 
 const originOptions = [
-    { id: 'all', name: 'Todos los origenes' },
     { id: 'direct', name: 'Directa' },
     { id: 'from_order', name: 'Desde pedido' },
 ];
@@ -145,11 +143,11 @@ async function fetchSalesInvoices(page = 1) {
             page,
             per_page: itemsPerPage.value,
             search: search.value,
-            status: status.value,
-            contact_id: contactId.value === 'all' ? undefined : contactId.value,
+            status: status.value ?? undefined,
+            contact_id: contactId.value ?? undefined,
             date_from: dateFilter.value || undefined,
             date_to: dateFilter.value || undefined,
-            origin: origin.value === 'all' ? undefined : origin.value,
+            origin: origin.value ?? undefined,
         });
     } catch (error: unknown) {
         errorType.value = 'error';
@@ -159,7 +157,7 @@ async function fetchSalesInvoices(page = 1) {
 
 async function loadCustomerOptions(searchTerm = '') {
     const options = await fetchIncomeCustomerOptions(searchTerm, searchTerm.trim() ? 30 : 100);
-    customerOptions.value = [{ id: 'all', name: 'Todos los clientes' }, ...options];
+    customerOptions.value = [...options];
 }
 
 function openCreateDialog(orderId?: number) {
@@ -332,7 +330,7 @@ onMounted(() => {
                 </FilterField>
 
                 <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
-                    <SelectField v-model="status" label="" :options="statusOptions" :button-class="statusButtonClasses" />
+                    <SelectField v-model="status" label="" :options="statusOptions" placeholder="Estado" :button-class="statusButtonClasses" :clearable="true" />
                 </FilterField>
 
                 <FilterField label="Cliente" :active="isCustomerFilterActive" class="min-w-[220px]">
@@ -340,16 +338,17 @@ onMounted(() => {
                         v-model="contactId"
                         label=""
                         :options="customerOptions"
-                        placeholder="Todos los clientes"
+                        placeholder="Cliente"
                         searchable
                         search-placeholder="Buscar cliente..."
                         :button-class="customerButtonClasses"
+                        :clearable="true"
                         @search="loadCustomerOptions"
                     />
                 </FilterField>
 
                 <FilterField label="Origen" :active="isOriginFilterActive" class="min-w-[180px]">
-                    <SelectField v-model="origin" label="" :options="originOptions" :button-class="originButtonClasses" />
+                    <SelectField v-model="origin" label="" :options="originOptions" placeholder="Origen" :button-class="originButtonClasses" :clearable="true" />
                 </FilterField>
 
                 <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">

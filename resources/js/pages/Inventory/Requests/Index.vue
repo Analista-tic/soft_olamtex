@@ -37,7 +37,7 @@ const breadcrumbs = [{ title: 'Solicitudes internas', href: '/inventario/solicit
 const requests = ref<InventoryRequestRow[]>([]);
 const totalItems = ref(0);
 const searchQuery = ref('');
-const statusFilter = ref('all');
+const statusFilter = ref<string | null>(null);
 const isLoading = ref(false);
 const sortBy = ref<'date' | 'delivery_date'>('date');
 const sortDir = ref<'asc' | 'desc'>('desc');
@@ -56,9 +56,9 @@ const deliveryRequestId = ref<number | null>(null);
 const isRejectDialogOpen = ref(false);
 const rejectRequestId = ref<number | null>(null);
 
-const DEFAULT_STATUS_FILTER = 'all';
+const DEFAULT_STATUS_FILTER = null;
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
+const isStatusFilterActive = computed(() => statusFilter.value != null);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const actionButtonClass =
     'inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50';
@@ -78,7 +78,6 @@ const statusTones: Record<string, 'gray' | 'red' | 'green'> = {
 };
 
 const statusOptions = [
-    { id: 'all', name: 'Todos los estados' },
     { id: 'solicitado', name: 'Solicitado' },
     { id: 'entregado', name: 'Entregado' },
     { id: 'rechazado', name: 'Rechazado' },
@@ -94,14 +93,14 @@ function formatDate(value?: string | null) {
 async function fetchRequests(page = 1, search = '') {
     isLoading.value = true;
     try {
-        const params: Record<string, any> = {
-            page,
-            per_page: itemsPerPage,
-            search,
-            status: statusFilter.value,
-            sort_by: sortBy.value,
-            sort_dir: sortDir.value,
-        };
+            const params: Record<string, any> = {
+                page,
+                per_page: itemsPerPage,
+                search,
+                sort_by: sortBy.value,
+                sort_dir: sortDir.value,
+            };
+            if (statusFilter.value != null) params.status = statusFilter.value;
         const { data } = await axios.get('/inventario/solicitudes-internas/data', { params });
         requests.value = data.data ?? [];
         totalItems.value = data.total ?? 0;
@@ -242,7 +241,14 @@ onMounted(() => {
                     </div>
                 </FilterField>
                 <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
-                    <SelectField v-model="statusFilter" label="" :options="statusOptions" :button-class="statusButtonClasses" />
+                    <SelectField
+                        v-model="statusFilter"
+                        label=""
+                        :options="statusOptions"
+                        placeholder="Estado"
+                        :clearable="true"
+                        :button-class="statusButtonClasses"
+                    />
                 </FilterField>
             </FilterBar>
 

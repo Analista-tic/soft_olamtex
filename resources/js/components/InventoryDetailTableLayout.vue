@@ -53,7 +53,7 @@ const handleCreateLineClick = () => emit('create-line');
                 </Button>
             </slot>
         </div>
-        <div class="overflow-x-auto rounded-lg border border-border" style="overflow: visible; max-height: none">
+        <div class="overflow-x-auto rounded-lg border border-border">
             <slot />
         </div>
     </div>

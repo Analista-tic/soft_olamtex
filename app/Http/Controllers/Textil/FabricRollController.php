@@ -58,6 +58,30 @@ class FabricRollController extends Controller
         return Inertia::render('Textil/Index');
     }
 
+    public function inventoryFilterOptions(): JsonResponse
+    {
+        $colors = DB::table('fabric_rolls')
+            ->whereNull('deleted_at')
+            ->whereNotNull('internal_color_name')
+            ->where('internal_color_name', '!=', '')
+            ->distinct()
+            ->orderBy('internal_color_name')
+            ->pluck('internal_color_name');
+
+        $locations = DB::table('fabric_rolls')
+            ->whereNull('deleted_at')
+            ->whereNotNull('location')
+            ->where('location', '!=', '')
+            ->distinct()
+            ->orderBy('location')
+            ->pluck('location');
+
+        return response()->json([
+            'colors' => $colors,
+            'locations' => $locations,
+        ]);
+    }
+
     public function inventoryRolls()
     {
         return Inertia::render('Textil/FabricRollInventory/Index');
@@ -133,8 +157,8 @@ class FabricRollController extends Controller
 
         $filters = [
             'search'          => $request->input('search'),
-            'base_fabric'     => $request->input('base_fabric'),
-            'provider'        => $request->input('provider'),
+            'color'           => $request->input('color'),
+            'location'        => $request->input('location'),
             'with_output'     => $request->boolean('with_output'),
             'fabric_item_ids' => $fabricItemIds ?: null,
         ];
