@@ -10,8 +10,10 @@ class FabricRollResource extends JsonResource
     public function toArray($request): array
     {
         $document = $this->purchaseDocumentItem?->document;
-        $partialAvailability = $this->quantity && $this->partial_output !== null
-            ? $this->quantity - $this->partial_output
+        $partial = (float) ($this->partial_output ?? 0);
+        $actual  = (float) ($this->actual_output ?? 0);
+        $partialAvailability = $this->quantity
+            ? max(0.0, $this->quantity - $actual - $partial)
             : null;
         $fabricItem = $this->item ?? $this->purchaseDocumentItem?->item;
         $color = $this->internal_color_name

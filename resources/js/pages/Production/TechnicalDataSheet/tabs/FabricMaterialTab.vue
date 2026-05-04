@@ -120,8 +120,9 @@ function formatCOP(value: number | null): string {
 
 function formatWidth(ancho: number | null, anchoUnit: 'm' | 'cm' | null): string {
     if (ancho === null) return '-';
-    const v = Number.isInteger(ancho) ? String(ancho) : ancho.toFixed(2).replace(/\.00$/, '');
-    return anchoUnit ? `${v} ${anchoUnit}` : v;
+    const inMeters = anchoUnit === 'cm' ? ancho / 100 : ancho;
+    const v = inMeters.toFixed(2).replace(/\.?0+$/, '') || '0';
+    return `${v} m`;
 }
 
 function formatSaveError(err: unknown): string {
@@ -750,6 +751,14 @@ async function handleSave(): Promise<void> {
             }
         }
 
+        await Promise.all(
+            trazos.value.flatMap((trazo) =>
+                trazo.lines
+                    .filter((line) => line.telaItemId !== null)
+                    .map((line) => loadRollsForLine(line)),
+            ),
+        );
+
         if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('tds-raw-material-saved', { detail: { opId: props.opId } }));
         }
@@ -858,6 +867,7 @@ watch(
                                     :searchable="true"
                                     search-placeholder="Buscar por nombre..."
                                     class="w-56"
+                                    :clearable="true"
                                     :disabled="isSaving || isLoading"
                                     @search="loadItemOptions"
                                     @update:model-value="(v) => onItemSelected(trazo.uid, line.uid, v)"
@@ -903,7 +913,7 @@ watch(
                         </div>
 
                         <!-- Rollos (colapsable) -->
-                        <div v-if="line.telaItemId && (line.rollsOpen || line.rollSearch.trim())" class="space-y-2 border-t border-border/30 px-5 pb-3 pt-2">
+                        <div v-if="line.telaItemId && (line.assignedRolls.length > 0 || line.rollsOpen || line.rollSearch.trim())" class="space-y-2 border-t border-border/30 px-5 pb-3 pt-2">
 
                             <p v-if="line.loadingRolls" class="text-xs text-muted-foreground">Cargando rollos...</p>
 
@@ -933,16 +943,26 @@ watch(
                                                 <td class="px-2 py-1 font-medium text-foreground">{{ assignment.roll.label }}</td>
                                                 <td class="px-2 py-1 text-muted-foreground">{{ assignment.roll.location || '-' }}</td>
                                                 <td class="px-2 py-1">
-                                                    <span v-if="assignment.roll.color" class="inline-flex items-center gap-1 text-muted-foreground">
-                                                        <span class="h-2.5 w-2.5 rounded-full border border-border/50" :style="`background-color: ${assignment.roll.colorCode ?? assignment.roll.color}`" />
+                                                    <span v-if="assignment.roll.color" class="text-muted-foreground">
                                                         {{ assignment.roll.color }}
                                                     </span>
                                                     <span v-else class="text-muted-foreground">-</span>
                                                 </td>
-                                                <td class="px-2 py-1 text-muted-foreground">{{ assignment.roll.widthCm !== null ? assignment.roll.widthCm + ' cm' : '-' }}</td>
+                                                <td class="px-2 py-1 text-muted-foreground">
+                                                    {{ assignment.roll.widthCm !== null ? (assignment.roll.widthCm / 100).toFixed(2).replace(/\.?0+$/, '') + ' m' : '-' }}
+                                                </td>
                                                 <td class="px-2 py-1 tabular-nums text-muted-foreground">{{ formatCOP(assignment.roll.pricePerMeter) }}/m</td>
                                                 <td class="px-2 py-1 tabular-nums" :class="hasOverAllocation(assignment) ? 'font-medium text-destructive' : 'text-muted-foreground'">
-                                                    {{ assignment.roll.availableMeters !== null ? formatMeters(getPartialAvailability(assignment.roll.rollId)) + '/' + formatMeters(assignment.roll.availableMeters) : '-' }}
+                                                    <template v-if="assignment.roll.availableMeters !== null">
+                                                        <template v-if="toNumber(assignment.metersProgrammed) > 0">
+                                                            {{ formatMeters(Math.max(0, assignment.roll.availableMeters - toNumber(assignment.metersProgrammed))) }}
+                                                            <span class="text-muted-foreground">/{{ formatMeters(assignment.roll.availableMeters) }}</span>
+                                                        </template>
+                                                        <template v-else>
+                                                            {{ formatMeters(assignment.roll.availableMeters) }}
+                                                        </template>
+                                                    </template>
+                                                    <template v-else>-</template>
                                                 </td>
                                                 <td class="px-2 py-1">
                                                     <Input
@@ -993,8 +1013,7 @@ watch(
                                         >
                                             <span class="font-medium text-foreground">{{ roll.label }}</span>
                                             <span v-if="roll.location" class="text-muted-foreground">{{ roll.location }}</span>
-                                            <span v-if="roll.color" class="inline-flex items-center gap-1 text-muted-foreground">
-                                                <span class="h-2 w-2 rounded-full border border-border/50" :style="`background-color: ${roll.color}`" />
+                                            <span v-if="roll.color" class="text-muted-foreground">
                                                 {{ roll.color }}
                                             </span>
                                             <span v-if="roll.supplier" class="text-muted-foreground">{{ roll.supplier }}</span>
