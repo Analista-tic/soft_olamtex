@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 use Inertia\Inertia;
 
 class ProgrammerController extends Controller
@@ -151,8 +152,8 @@ class ProgrammerController extends Controller
             ],
         ]);
 
-        $orders = DB::transaction(function () use ($validatedData) {
-                return collect($validatedData['lots'])->map(function (array $lot) {
+        $orders = DB::transaction(function () use ($validatedData, $request) {
+            return collect($validatedData['lots'])->map(function (array $lot) use ($request) {
                     $productSheet = ProductSheet::findOrFail($lot['product_sheet_id']);
                     $ecommerceUnits = $this->normalizeEcommerceUnits($lot['ecommerce_units'] ?? null);
                     $units = isset($lot['units']) ? (int) $lot['units'] : null;
@@ -378,7 +379,27 @@ class ProgrammerController extends Controller
                 'productSheet:id,type,sample_reference,product_reference,section_id,group_id',
             ]);
 
-        ScopeHelper::apply($query, $request->user(), 'ver propios programacion produccion', 'ver area programacion produccion', 'ver todos programacion produccion');
+        $user = $request->user();
+        $scopePermissions = [
+            'ver propios programacion produccion',
+            'ver area programacion produccion',
+            'ver todos programacion produccion',
+        ];
+
+        $hasScopedVisibilityPermission = false;
+        foreach ($scopePermissions as $permission) {
+            try {
+                if ($user?->hasPermissionTo($permission)) {
+                    $hasScopedVisibilityPermission = true;
+                    break;
+                }
+            } catch (PermissionDoesNotExist) {
+            }
+        }
+
+        if ($hasScopedVisibilityPermission) {
+            ScopeHelper::apply($query, $user, 'ver propios programacion produccion', 'ver area programacion produccion', 'ver todos programacion produccion');
+        }
 
         if (!empty($filters['season']) && $filters['season'] !== 'all') {
             $query->where('season', $filters['season']);

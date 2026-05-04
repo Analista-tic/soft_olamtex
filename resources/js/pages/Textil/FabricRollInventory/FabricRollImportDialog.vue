@@ -4,7 +4,6 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import axios from 'axios';
 import { ClipboardList, CloudUpload, LoaderCircle } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
-import * as XLSX from 'xlsx';
 
 type ImportErrorItem = {
     row: number | null;
@@ -27,20 +26,11 @@ const emit = defineEmits<{
     (e: 'error', payload: { message: string; inserted?: number; skipped?: number; errors?: string[] }): void;
 }>();
 
-// Headers esperados definidos en el backend (FabricRollController::expectedImportHeaders())
-// La validación en frontend acepta ambos formatos legacy/nuevo comprobando el número de columnas (14).
-
-const expectedHeaders = [
-    'N° ROLLO', 'UBICACIÓN', 'BASE TELA', 'TELA', 'COLOR',
-    'CÓDIGO COLOR', 'ANCHO (m)', 'CANTIDAD (m)', 'SALIDA PARCIAL',
-    'DISPONIBILIDAD REAL', 'PROVEEDOR', 'N° PEDIDO',
-    'FECHA INGRESO', 'REFERENCIA ÍTEM',
-];
-
 const recommendations = [
     'Descarga la plantilla y conserva exactamente el orden y nombre de los headers.',
     'Usa valores numericos limpios para ancho, cantidad, salida parcial y salida actual.',
     'Registra la fecha en entry_date con un formato consistente, idealmente YYYY-MM-DD.',
+    'La estructura del archivo se valida en el servidor antes de importar.',
 ];
 
 const isOpen = ref(props.modelValue);
@@ -117,41 +107,11 @@ async function validateFile(selectedFile: File): Promise<string | null> {
         return 'El archivo debe tener extension .xlsx o .xls.';
     }
 
-    const buffer = await selectedFile.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array' });
-    const firstSheetName = workbook.SheetNames[0];
-    const worksheet = firstSheetName ? workbook.Sheets[firstSheetName] : null;
-
-    if (!worksheet) {
+    if (selectedFile.size <= 0) {
         return 'El archivo Excel esta vacio.';
-    }
-
-    const rows = XLSX.utils.sheet_to_json<(string | number | null)[]>(worksheet, {
-        header: 1,
-        blankrows: false,
-        defval: '',
-    });
-
-    if (rows.length === 0) {
-        return 'El archivo Excel esta vacio.';
-    }
-
-    const headers = (rows[0] ?? []).map((header) => normalizeHeader(String(header ?? '')));
-    const normalizedExpectedHeaders = expectedHeaders.map((header) => normalizeHeader(header));
-
-    const isValid =
-        headers.length === normalizedExpectedHeaders.length &&
-        headers.every((header, index) => header === normalizedExpectedHeaders[index]);
-
-    if (!isValid) {
-        return `Los headers deben coincidir exactamente con: ${expectedHeaders.join(', ')}`;
     }
 
     return null;
-}
-
-function normalizeHeader(value: string) {
-    return value.replace(/^\uFEFF/, '').trim().replace(/^"|"$/g, '');
 }
 
 function toRowNumber(value: unknown): number | null {

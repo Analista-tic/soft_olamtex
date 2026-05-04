@@ -255,6 +255,24 @@ function normalizeCount(value: string | number | null | undefined): number {
     return Math.max(0, Math.floor(parsed));
 }
 
+function buildSizesFromOp(): SizeUnit[] {
+    const source = Array.isArray(props.sizes) ? props.sizes : [];
+    const existingMap = new Map(localData.value.sizes.map((row) => [row.size, row]));
+    return source.map((size) => ({
+        uid: makeId(),
+        size,
+        units: Number(existingMap.get(size)?.units ?? props.unitsBySize?.[size] ?? 0),
+        curve: existingMap.get(size)?.curve ?? null,
+    }));
+}
+
+function initializeSizesFromOpOnOpen(): void {
+    if (localData.value.sizes.length > 0) return;
+    const source = Array.isArray(props.sizes) ? props.sizes : [];
+    if (source.length === 0) return;
+    emit('update:data', { ...localData.value, sizes: buildSizesFromOp() });
+}
+
 const inlineTotalQuantity = computed(() => normalizeCount(inlinePieceForm.value.leftUnits) + normalizeCount(inlinePieceForm.value.rightUnits));
 
 function getPieceHandCounts(piece: CuttingPiece): { left: number; right: number } {
@@ -305,24 +323,6 @@ const hasIncompleteSizes = computed(() => {
 function clearLocalMessages(): void {
     infoMessage.value = null;
     successMessage.value = null;
-}
-
-function buildSizesFromOp(): SizeUnit[] {
-    const source = Array.isArray(props.sizes) ? props.sizes : [];
-    const existingMap = new Map(localData.value.sizes.map((row) => [row.size, row]));
-    return source.map((size) => ({
-        uid: makeId(),
-        size,
-        units: Number(existingMap.get(size)?.units ?? props.unitsBySize?.[size] ?? 0),
-        curve: existingMap.get(size)?.curve ?? null,
-    }));
-}
-
-function initializeSizesFromOpOnOpen(): void {
-    if (localData.value.sizes.length > 0) return;
-    const source = Array.isArray(props.sizes) ? props.sizes : [];
-    if (source.length === 0) return;
-    emit('update:data', { ...localData.value, sizes: buildSizesFromOp() });
 }
 
 function ensureSizesHaveUid(): void {
@@ -446,6 +446,34 @@ function saveInlineSize(): void {
 
     emit('update:data', { ...localData.value, sizes: updatedSizes });
     cancelInlineSizeEditor();
+}
+
+function updateSizeUnits(row: SizeUnit, value: string | number | boolean | Array<string | number | boolean> | null | undefined): void {
+    const raw = Array.isArray(value) ? value[0] : value;
+    const parsed = Number(raw);
+    const units = Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+    const rowId = sizeStableId(row);
+
+    const updatedSizes = localData.value.sizes.map((item) => {
+        if (sizeStableId(item) !== rowId) return item;
+        return { ...item, units };
+    });
+
+    emit('update:data', { ...localData.value, sizes: updatedSizes });
+}
+
+function updateSizeCurve(row: SizeUnit, value: string | number | boolean | Array<string | number | boolean> | null | undefined): void {
+    const raw = Array.isArray(value) ? value[0] : value;
+    const rawText = String(raw ?? '').trim();
+    const curve = rawText === '' ? null : String(Math.max(0, Number(rawText || 0)));
+    const rowId = sizeStableId(row);
+
+    const updatedSizes = localData.value.sizes.map((item) => {
+        if (sizeStableId(item) !== rowId) return item;
+        return { ...item, curve };
+    });
+
+    emit('update:data', { ...localData.value, sizes: updatedSizes });
 }
 
 function loadPieceFieldOptions(): void {
@@ -709,164 +737,33 @@ watch(
                                 <TableHead>Talla</TableHead>
                                 <TableHead>Curva</TableHead>
                                 <TableHead>Unidades</TableHead>
-                                <TableHead>Accion</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody class="text-center">
-                            <TableRow v-if="inlineSizeMode === 'create'">
-                                <TableCell class="align-top">
-                                    <div class="space-y-1">
-                                        <SelectField
-                                            v-if="sizeOptions.length > 0"
-                                            v-model="inlineSizeForm.size"
-                                            :options="sizeOptionsForCreate"
-                                            placeholder="Selecciona talla"
-                                            :searchable="false"
-                                            :disabled="sizeOptionsForCreate.length === 0"
-                                            :invalid="isInlineSizeFieldInvalid('size')"
-                                            :aria-invalid="isInlineSizeFieldInvalid('size') ? 'true' : undefined"
-                                        />
-                                        <Input
-                                            v-else
-                                            :model-value="inlineSizeForm.size"
-                                            placeholder="Talla"
-                                            :invalid="isInlineSizeFieldInvalid('size')"
-                                            :aria-invalid="isInlineSizeFieldInvalid('size') ? 'true' : undefined"
-                                            @update:model-value="(value) => (inlineSizeForm.size = String(value))"
-                                        />
-                                        <p v-if="isInlineSizeFieldInvalid('size')" class="text-xs text-destructive">Campo obligatorio</p>
-                                        <p v-else-if="sizeOptions.length > 0 && sizeOptionsForCreate.length === 0" class="text-xs text-muted-foreground">
-                                            No hay más tallas disponibles.
-                                        </p>
-                                    </div>
-                                </TableCell>
-                                <TableCell class="align-top">
-                                    <div class="space-y-1">
-                                        <Input
-                                            :model-value="inlineSizeForm.curve"
-                                            type="number"
-                                            min="0"
-                                            step="1"
-                                            placeholder="Curva"
-                                            :invalid="isInlineSizeFieldInvalid('curve')"
-                                            :aria-invalid="isInlineSizeFieldInvalid('curve') ? 'true' : undefined"
-                                            @update:model-value="(value) => (inlineSizeForm.curve = String(value))"
-                                        />
-                                        <p v-if="isInlineSizeFieldInvalid('curve')" class="text-xs text-destructive">Debe ser >= 0</p>
-                                    </div>
-                                </TableCell>
-                                <TableCell class="align-top">
-                                    <div class="space-y-1">
-                                        <Input
-                                            :model-value="inlineSizeForm.units"
-                                            type="number"
-                                            min="1"
-                                            step="1"
-                                            placeholder="Unidades"
-                                            :invalid="isInlineSizeFieldInvalid('units')"
-                                            :aria-invalid="isInlineSizeFieldInvalid('units') ? 'true' : undefined"
-                                            @update:model-value="(value) => (inlineSizeForm.units = String(value))"
-                                        />
-                                        <p v-if="isInlineSizeFieldInvalid('units')" class="text-xs text-destructive">Debe ser mayor a 0</p>
-                                    </div>
-                                </TableCell>
-                                <TableCell class="w-[84px] text-center align-top">
-                                    <div class="flex items-center justify-center gap-2">
-                                        <button
-                                            type="button"
-                                            class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-emerald-600 focus-visible:text-emerald-600 active:text-emerald-600"
-                                            aria-label="Guardar talla"
-                                            @click="saveInlineSize"
-                                        >
-                                            <Check class="h-4 w-4" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-muted-foreground focus-visible:text-muted-foreground active:text-muted-foreground"
-                                            aria-label="Cancelar edicion de talla"
-                                            @click="cancelInlineSizeEditor"
-                                        >
-                                            <X class="h-4 w-4" />
-                                        </button>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
-
                             <TableRow v-for="row in localData.sizes" :key="row.uid ?? row.size">
-                                <template v-if="isEditingSize(row)">
-                                    <TableCell class="font-medium text-foreground">
-                                        {{ inlineSizeForm.size }}
-                                    </TableCell>
-                                    <TableCell class="align-top">
-                                        <div class="space-y-1">
-                                            <Input
-                                                :model-value="inlineSizeForm.curve"
-                                                type="number"
-                                                min="0"
-                                                step="1"
-                                                placeholder="Curva"
-                                                :invalid="isInlineSizeFieldInvalid('curve')"
-                                                :aria-invalid="isInlineSizeFieldInvalid('curve') ? 'true' : undefined"
-                                                @update:model-value="(value) => (inlineSizeForm.curve = String(value))"
-                                            />
-                                            <p v-if="isInlineSizeFieldInvalid('curve')" class="text-xs text-destructive">Debe ser >= 0</p>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell class="align-top">
-                                        <div class="space-y-1">
-                                            <Input
-                                                :model-value="inlineSizeForm.units"
-                                                type="number"
-                                                min="1"
-                                                step="1"
-                                                placeholder="Unidades"
-                                                :invalid="isInlineSizeFieldInvalid('units')"
-                                                :aria-invalid="isInlineSizeFieldInvalid('units') ? 'true' : undefined"
-                                                @update:model-value="(value) => (inlineSizeForm.units = String(value))"
-                                            />
-                                            <p v-if="isInlineSizeFieldInvalid('units')" class="text-xs text-destructive">
-                                                Debe ser mayor a 0
-                                            </p>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell class="w-[84px] text-center align-top">
-                                        <div class="flex items-center justify-center gap-2">
-                                            <button
-                                                type="button"
-                                                class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-emerald-600 focus-visible:text-emerald-600 active:text-emerald-600"
-                                                aria-label="Guardar talla"
-                                                @click="saveInlineSize"
-                                            >
-                                                <Check class="h-4 w-4" />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-muted-foreground focus-visible:text-muted-foreground active:text-muted-foreground"
-                                                aria-label="Cancelar edicion de talla"
-                                                @click="cancelInlineSizeEditor"
-                                            >
-                                                <X class="h-4 w-4" />
-                                            </button>
-                                        </div>
-                                    </TableCell>
-                                </template>
-                                <template v-else>
-                                    <TableCell class="font-medium text-foreground">{{ row.size }}</TableCell>
-                                    <TableCell>{{ row.curve || '-' }}</TableCell>
-                                    <TableCell>{{ row.units }}</TableCell>
-                                    <TableCell class="w-[84px] text-center align-top">
-                                        <div class="flex items-center justify-center">
-                                            <button
-                                                type="button"
-                                                class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-primary focus-visible:text-primary active:text-primary"
-                                                aria-label="Editar talla"
-                                                @click="openEditSizeInline(row)"
-                                            >
-                                                <Pencil class="h-4 w-4" />
-                                            </button>
-                                        </div>
-                                    </TableCell>
-                                </template>
+                                <TableCell class="font-medium text-foreground">{{ row.size }}</TableCell>
+                                <TableCell>
+                                    <Input
+                                        :model-value="row.curve ?? ''"
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        placeholder="Curva"
+                                        class="mx-auto h-8 w-24 text-center"
+                                        @update:model-value="(value) => updateSizeCurve(row, value)"
+                                    />
+                                </TableCell>
+                                <TableCell>
+                                    <Input
+                                        :model-value="String(row.units ?? 0)"
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        placeholder="Unidades"
+                                        class="mx-auto h-8 w-24 text-center"
+                                        @update:model-value="(value) => updateSizeUnits(row, value)"
+                                    />
+                                </TableCell>
                             </TableRow>
                         </TableBody>
                     </Table>
@@ -878,13 +775,6 @@ watch(
                     <span v-if="totalCurvesBySize > 0">Total curvas: <strong class="text-foreground">{{ totalCurvesBySize }}</strong></span>
                 </div>
 
-                <!-- Botón añadir talla -->
-                <div class="mt-3 flex items-center gap-2">
-                    <Button type="button" variant="outline" size="sm" class="rounded-full" :disabled="!canAddMoreSizes" @click="handleAddSizeClick">
-                        <Plus class="mr-1 h-3.5 w-3.5" />
-                        Agregar talla
-                    </Button>
-                </div>
                 </div><!-- /col-izquierda -->
 
                 <!-- ── DESPIECE + NOTAS (columna derecha 62%) ─────────── -->

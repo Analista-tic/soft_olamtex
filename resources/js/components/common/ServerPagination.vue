@@ -29,7 +29,7 @@ const props = withDefaults(
 const emit = defineEmits<{
     (e: 'update:currentPage', page: number): void;
     (e: 'update:pageSize', size: number): void;
-    (e: 'fetch-data'): void;
+    (e: 'fetch-data', page?: number): void;
 }>();
 
 // 3. Lógica para calcular el rango visible (Ej: 1 - 10)
@@ -47,7 +47,7 @@ function onPageSizeChange(event: Event) {
 
     emit('update:pageSize', newSize);
     emit('update:currentPage', 1);
-    emit('fetch-data');
+    emit('fetch-data', 1);
 }
 
 // 5. Lógica para cuando cambia de página
@@ -57,7 +57,7 @@ function handlePageChange(page: number) {
     if (page < 1 || page > lastPage) return;
 
     emit('update:currentPage', page);
-    emit('fetch-data');
+    emit('fetch-data', page);
 }
 </script>
 
@@ -88,15 +88,14 @@ function handlePageChange(page: number) {
             @update:page="handlePageChange"
         >
             <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                <PaginationFirst @click="handlePageChange(1)" />
-                <PaginationPrev @click="handlePageChange(currentPage - 1)" />
+                <PaginationFirst />
+                <PaginationPrev />
 
                 <template v-for="(item, index) in items">
                     <PaginationListItem v-if="item.type === 'page'" :key="index" :value="item.value" as-child>
                         <Button 
                             class="h-8 w-8 p-0" 
-                            :variant="item.value === page ? 'default' : 'outline'" 
-                            @click="handlePageChange(item.value as number)"
+                            :variant="item.value === page ? 'default' : 'outline'"
                         >
                             {{ item.value }}
                         </Button>
@@ -104,8 +103,8 @@ function handlePageChange(page: number) {
                     <PaginationEllipsis v-else :key="item.type" :index="index" />
                 </template>
 
-                <PaginationNext @click="handlePageChange(currentPage + 1)" />
-                <PaginationLast @click="handlePageChange(Math.ceil(totalItems / pageSize))" />
+                <PaginationNext />
+                <PaginationLast />
             </PaginationList>
         </Pagination>
     </div>

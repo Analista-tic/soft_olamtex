@@ -16,6 +16,7 @@ use App\Http\Controllers\Production\TechnicalDataSheetController;
 use App\Http\Controllers\Production\TechnicalDataSheetRollsController;
 use App\Http\Controllers\Production\TechnicalDataSheetSuppliesController;
 use App\Http\Controllers\Production\TechnicalDataSheetThreadsController;
+use App\Http\Controllers\Textil\FabricRollController;
 use Illuminate\Support\Facades\Route;
 
 // === PRODUCCIÓN ===
@@ -24,6 +25,9 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
         ->name('ficha-tecnica.index');
     Route::get('ficha-tecnica/opciones', [TechnicalDataSheetController::class, 'options'])
         ->name('ficha-tecnica.options');
+    Route::get('ficha-tecnica/rollos-disponibles', [FabricRollController::class, 'inventoryRollsData'])
+        ->middleware('permission:ver programador|ver control lotes|ver sabana productos|ver telas rollos')
+        ->name('ficha-tecnica.available-rolls');
     Route::get('ficha-tecnica/{opId}/basica', [TechnicalDataSheetController::class, 'basicInfo'])
         ->name('ficha-tecnica.basicInfo');
     Route::get('ficha-tecnica/{opId}/listado-operacional', [TechnicalDataSheetController::class, 'operationalList'])

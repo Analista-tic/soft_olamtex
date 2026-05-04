@@ -81,7 +81,6 @@ const props = defineProps({
 const emit = defineEmits<{
     (event: 'save', payload: ProductOperationPayload[]): void;
     (event: 'close'): void;
-    (event: 'validation-error', message: string): void;
 }>();
 
 function normalizeComparableId(value: number | string | null | undefined): string {
@@ -212,7 +211,6 @@ function addPreparationGroupFromSelect(rawName?: string) {
     if (!group) {
         const msg = 'Escribe el nombre del grupo para agregarlo.';
         setValidationError(msg);
-        emit('validation-error', msg);
         return;
     }
 
@@ -235,7 +233,6 @@ function addPreparationGroupFromEditRow(rawName?: string) {
     if (!group) {
         const msg = 'Escribe el nombre del grupo para agregarlo.';
         setValidationError(msg);
-        emit('validation-error', msg);
         return;
     }
 
@@ -502,25 +499,21 @@ function addOperation() {
 
     if (!currentRow.value.operation_id) {
         setValidationError('Selecciona una operación.');
-        emit('validation-error', 'Selecciona una operación.');
         return;
     }
     if (!currentRow.value.machine_id) {
         const msg = 'La operación no tiene máquina asignada. Asígnala en el catálogo de operaciones.';
         setValidationError(msg);
-        emit('validation-error', msg);
         return;
     }
     if (samBase <= 0) {
         const msg = 'La operación seleccionada no tiene SAM base. Regístralo primero en la base de datos de operaciones.';
         setValidationError(msg);
-        emit('validation-error', msg);
         return;
     }
     if (isSectionPreparacion(currentRow.value.section_id) && !currentRow.value.grupo_preparacion) {
         const msg = 'Para operaciones de PREPARACION, debes seleccionar o crear un grupo de preparación.';
         setValidationError(msg);
-        emit('validation-error', msg);
         return;
     }
 
@@ -529,7 +522,6 @@ function addOperation() {
     if (isDuplicate) {
         const msg = 'Esta operación ya fue añadida al listado. No se puede repetir en la misma sábana.';
         setValidationError(msg);
-        emit('validation-error', msg);
         return;
     }
 
@@ -594,7 +586,6 @@ function saveOperations() {
     if (hasDuplicates) {
         const msg = 'Hay operaciones duplicadas en el listado (misma operación). Elimina duplicados antes de guardar.';
         setValidationError(msg);
-        emit('validation-error', msg);
         return;
     }
 
@@ -604,7 +595,6 @@ function saveOperations() {
     if (missingPreparationGroup) {
         const msg = 'Todas las operaciones de PREPARACION deben tener un grupo asignado. Edita las filas sin grupo.';
         setValidationError(msg);
-        emit('validation-error', msg);
         return;
     }
 

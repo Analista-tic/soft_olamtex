@@ -19,7 +19,9 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import Input from '@/components/ui/input/Input.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useGlobalAlert } from '@/composables/useGlobalAlert';
@@ -70,9 +72,10 @@ const isViewMode = ref(false); // Estado para modo de solo lectura
 const isDeleteDialogOpen = ref(false); // Estado para el diálogo de confirmación de eliminación
 const isDeleting = ref(false);
 const isFetchingSheets = ref(false);
+const isRefreshingSheets = ref(false);
 const editProductSheetData = ref<ProductSheet | undefined>(undefined); // Cambiar null por undefined
 const currentPage = ref(1);
-const itemsPerPage = ref(10);
+const itemsPerPage = ref(25);
 const totalItems = ref(0);
 const searchQuery = ref('');
 const statusFilter = ref('all');
@@ -326,7 +329,9 @@ async function fetchProductSheets(page = 1, search = '', status = 'all', type = 
 
     const controller = new AbortController();
     activeFetchController = controller;
-    isFetchingSheets.value = true;
+    const hasRenderedRows = productSheets.value.length > 0;
+    isFetchingSheets.value = !hasRenderedRows;
+    isRefreshingSheets.value = hasRenderedRows;
 
     try {
         const normalizedSearch = search.trim();
@@ -363,6 +368,7 @@ async function fetchProductSheets(page = 1, search = '', status = 'all', type = 
             activeFetchController = null;
         }
         isFetchingSheets.value = false;
+        isRefreshingSheets.value = false;
     }
 }
 
@@ -372,7 +378,10 @@ watch([searchQuery, statusFilter, typeFilter, sectionFilter, worldFilter], () =>
 });
 
 // Handler para recargar la lista después de guardar
-function reloadProductSheets() {
+function reloadProductSheets(page?: number) {
+    if (typeof page === 'number' && Number.isFinite(page) && page > 0) {
+        currentPage.value = page;
+    }
     clearFetchDebounce();
     fetchProductSheets(currentPage.value, searchQuery.value, statusFilter.value, typeFilter.value, sectionFilter.value, worldFilter.value);
 }
@@ -476,7 +485,10 @@ onUnmounted(() => {
                 </div>
             </FilterBar>
 
-            <div class="relative mt-4 min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+            <div
+                class="relative mt-4 min-h-0 flex-1 rounded-xl border border-sidebar-border/70 transition-opacity duration-200 dark:border-sidebar-border md:min-h-min"
+                :class="{ 'opacity-80': isRefreshingSheets }"
+            >
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -495,7 +507,7 @@ onUnmounted(() => {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-if="isFetchingSheets">
+                        <TableRow v-if="isFetchingSheets && productSheets.length === 0">
                             <TableCell colspan="11" class="py-10 text-center text-sm text-muted-foreground">
                                 Cargando sábanas de productos...
                             </TableCell>
@@ -635,6 +647,7 @@ onUnmounted(() => {
                     <ServerPagination
                         v-model:current-page="currentPage"
                         v-model:page-size="itemsPerPage"
+                        :page-size-options="[25, 50, 100]"
                         :total-items="totalItems"
                         @fetch-data="reloadProductSheets"
                     />
