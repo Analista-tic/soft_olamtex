@@ -401,6 +401,12 @@ class ProductOperationListService
      */
     public function syncBySheet(int $productSheetId, array $operations): Collection
     {
+        if (empty($operations)) {
+            throw new \InvalidArgumentException(
+                'El listado operacional no puede quedar vacío. Envía al menos una operación para sincronizar.'
+            );
+        }
+
         return DB::transaction(function () use ($productSheetId, $operations) {
             $existingItems = $this->model
                 ->newQuery()

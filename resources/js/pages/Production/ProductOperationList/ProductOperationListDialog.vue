@@ -599,10 +599,7 @@ function saveOperations() {
     }
 
     if (operationList.value.length === 0) {
-        clearValidationError();
-        emit('save', []);
-        resetForm();
-        localOpen.value = false;
+        setValidationError('El listado operacional no puede estar vacío. Agrega al menos una operación antes de guardar.');
         return;
     }
 

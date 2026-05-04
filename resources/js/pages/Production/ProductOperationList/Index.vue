@@ -280,7 +280,9 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
     try {
         const validPayloads = payloads.filter((payload) => payload.product_sheet_id && payload.section_id && payload.operation_id && payload.machine_id);
 
-        if (payloads.length > 0 && validPayloads.length === 0) {
+        // Protección crítica: no permitir sync/bulk con payload vacío o sin operaciones válidas.
+        // Un sync con operations:[] eliminaría TODOS los registros del listado operacional.
+        if (validPayloads.length === 0) {
             return;
         }
 
