@@ -25,7 +25,12 @@ class InventoryRequestController extends Controller
     {
         $user = Auth::user();
         $filters = $request->only(['search', 'status', 'date_from', 'date_to', 'sort_by', 'sort_dir']);
-        $perPage = $request->input('per_page', 10);
+        $sortDir = strtolower((string) $request->input('sort_dir', 'desc'));
+        $filters['sort_dir'] = in_array($sortDir, ['asc', 'desc'], true) ? $sortDir : 'desc';
+        $perPage = (int) $request->input('per_page', 10);
+        if ($perPage <= 0) {
+            $perPage = 10;
+        }
 
         $requests = $this->service->paginate($filters, $perPage, $user);
         $canManageRequests = $user ? $this->hasInventoryRequestManagePermission($user) : false;
