@@ -43,6 +43,7 @@ use App\Models\Settings\Role;
 use App\Models\Settings\Setting;
 use App\Models\Textil\FabricRoll;
 use App\Observers\AuditObserver;
+use App\Observers\Textil\FabricRollObserver;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
@@ -92,6 +93,7 @@ class AppServiceProvider extends ServiceProvider
         Route::model('collection', Collection::class);
 
         $this->registerAuditObservers();
+        FabricRoll::observe(FabricRollObserver::class);
 
         Model::preventLazyLoading(! app()->isProduction());
         Model::handleLazyLoadingViolationUsing(function ($model, $relation) {

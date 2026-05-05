@@ -65,6 +65,14 @@ const productSheetOptions = computed(() => [
     })),
 ]);
 
+const bySheetId = computed(() => {
+    const map = new Map();
+    productSheets.value.forEach((sheet) => {
+        map.set(normalizeComparableId(sheet.id), sheet);
+    });
+    return map;
+});
+
 const isDialogOpen = ref(false);
 const searchQuery = ref('');
 
@@ -224,7 +232,7 @@ async function fetchOperationSummaries() {
 
         operationSummaries.value = rows
             .map((row: any) => {
-                const sheet = bySheetId.get(normalizeComparableId(row.product_sheet_id));
+                const sheet = bySheetId.value.get(normalizeComparableId(row.product_sheet_id));
                 if (!sheet) {
                     return null;
                 }
@@ -272,7 +280,9 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
     try {
         const validPayloads = payloads.filter((payload) => payload.product_sheet_id && payload.section_id && payload.operation_id && payload.machine_id);
 
-        if (payloads.length > 0 && validPayloads.length === 0) {
+        // Protección crítica: no permitir sync/bulk con payload vacío o sin operaciones válidas.
+        // Un sync con operations:[] eliminaría TODOS los registros del listado operacional.
+        if (validPayloads.length === 0) {
             return;
         }
 
@@ -687,7 +697,6 @@ watch(productSheets, () => {
                 :preparation-groups="preparationGroups"
                 @save="handleDialogSave"
                 @close="closeDialog"
-                @validation-error="showError"
             />
 
             <ProductOperationListView

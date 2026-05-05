@@ -104,5 +104,5 @@ export function formatMeters(value: UnitValue, fallback = '-'): string {
     const raw = String(value ?? '').toLowerCase();
     const normalized = /\bcm\b/.test(raw) ? parsed / 100 : parsed;
 
-    return `${formatNumberEsCO(normalized, { maximumFractionDigits: 1, fallback })} m`;
+    return `${formatNumberEsCO(normalized, { maximumFractionDigits: 2, fallback })} m`;
 }

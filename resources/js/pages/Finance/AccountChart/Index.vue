@@ -35,7 +35,6 @@ const TREE_INDENT_STEP = 12;
 const breadcrumbs = [{ title: 'Catalogo de cuentas', href: ROUTES.index }];
 
 const accountTypeOptions = [
-    { id: 'all', name: 'Todos los tipos' },
     { id: 'asset', name: 'Activo' },
     { id: 'liability', name: 'Pasivo' },
     { id: 'equity', name: 'Patrimonio' },
@@ -45,13 +44,11 @@ const accountTypeOptions = [
 ];
 
 const statusOptions = [
-    { id: 'all', name: 'Todos los estados' },
     { id: '1', name: 'Activas' },
     { id: '0', name: 'Inactivas' },
 ];
 
 const allowsEntriesOptions = [
-    { id: 'all', name: 'Todos' },
     { id: '1', name: 'Si permite' },
     { id: '0', name: 'No permite' },
 ];
@@ -111,14 +108,14 @@ async function fetchData(): Promise<void> {
 }
 
 const searchQuery = ref('');
-const accountTypeFilter = ref<string>('all');
-const statusFilter = ref<string>('all');
-const allowsEntriesFilter = ref<string>('all');
+const accountTypeFilter = ref<string | null>(null);
+const statusFilter = ref<string | null>(null);
+const allowsEntriesFilter = ref<string | null>(null);
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isAccountTypeActive = computed(() => accountTypeFilter.value !== 'all');
-const isStatusActive = computed(() => statusFilter.value !== 'all');
-const isAllowsEntriesActive = computed(() => allowsEntriesFilter.value !== 'all');
+const isAccountTypeActive = computed(() => accountTypeFilter.value != null);
+const isStatusActive = computed(() => statusFilter.value != null);
+const isAllowsEntriesActive = computed(() => allowsEntriesFilter.value != null);
 
 const accountTypeButtonClasses = useFilterButtonClasses(isAccountTypeActive);
 const statusButtonClasses = useFilterButtonClasses(isStatusActive);
@@ -154,9 +151,9 @@ const filteredRows = computed(() => {
         const matchesSearch = !search
             || row.code.toLowerCase().includes(search)
             || row.name.toLowerCase().includes(search);
-        const matchesAccountType = accountTypeFilter.value === 'all' || row.account_type === accountTypeFilter.value;
-        const matchesStatus = statusFilter.value === 'all' || String(Number(row.is_active)) === statusFilter.value;
-        const matchesAllowsEntries = allowsEntriesFilter.value === 'all' || String(Number(row.allows_entries)) === allowsEntriesFilter.value;
+        const matchesAccountType = accountTypeFilter.value == null || row.account_type === accountTypeFilter.value;
+        const matchesStatus = statusFilter.value == null || String(Number(row.is_active)) === statusFilter.value;
+        const matchesAllowsEntries = allowsEntriesFilter.value == null || String(Number(row.allows_entries)) === allowsEntriesFilter.value;
 
         if (matchesSearch && matchesAccountType && matchesStatus && matchesAllowsEntries) {
             matched.add(row.id);
@@ -357,7 +354,8 @@ onMounted(() => void fetchData());
                         <SelectField
                             v-model="accountTypeFilter"
                             :options="accountTypeOptions"
-                            placeholder="Todos los tipos"
+                            placeholder="Tipo"
+                            :clearable="true"
                             :button-class="accountTypeButtonClasses"
                         />
                     </FilterField>
@@ -366,7 +364,8 @@ onMounted(() => void fetchData());
                         <SelectField
                             v-model="statusFilter"
                             :options="statusOptions"
-                            placeholder="Todos los estados"
+                            placeholder="Estado"
+                            :clearable="true"
                             :button-class="statusButtonClasses"
                         />
                     </FilterField>
@@ -375,7 +374,8 @@ onMounted(() => void fetchData());
                         <SelectField
                             v-model="allowsEntriesFilter"
                             :options="allowsEntriesOptions"
-                            placeholder="Todos"
+                            placeholder="Permite"
+                            :clearable="true"
                             :button-class="allowsEntriesButtonClasses"
                         />
                     </FilterField>

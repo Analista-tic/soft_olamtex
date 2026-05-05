@@ -66,7 +66,6 @@ const stampingProcessGuide = ref<{ supplier: string | null; price: number | null
     processType: null,
 });
 
-const localStorageKey = computed(() => `op_additional_info_${props.opId}`);
 const stampingDisplayName = computed(() => 'Estampado');
 const stampingDisplayNameLower = computed(() => 'estampado');
 const stampingDialogDisplayName = computed(() => (activeStampingDialogSection.value === 'laundry' ? 'Lavanderia' : 'Estampado'));
@@ -322,28 +321,6 @@ function applyData(payload: AdditionalInfo): void {
     data.value = normalizePayload(payload);
 }
 
-function saveToLocalStorage(payload: AdditionalInfo): void {
-    if (typeof window === 'undefined') return;
-    try {
-        window.localStorage.setItem(localStorageKey.value, JSON.stringify(payload));
-    } catch (storageError) {
-        console.error('Error al guardar en localStorage:', storageError);
-    }
-}
-
-function loadFromLocalStorage(): AdditionalInfo | null {
-    if (typeof window === 'undefined') return null;
-    try {
-        const raw = window.localStorage.getItem(localStorageKey.value);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw) as AdditionalInfo;
-        return normalizePayload(parsed);
-    } catch (storageError) {
-        console.error('Error al leer localStorage:', storageError);
-        return null;
-    }
-}
-
 async function persist(section: SectionKey): Promise<void> {
     clearMessages();
     savingSection.value = section;
@@ -352,13 +329,11 @@ async function persist(section: SectionKey): Promise<void> {
     try {
         const saved = await saveOpAdditionalInfo(props.opId, payload);
         applyData(saved);
-        saveToLocalStorage(normalizePayload(saved));
         success.value = 'Informacion guardada correctamente.';
     } catch (err) {
         console.error('Error al guardar informacion adicional:', err);
-        saveToLocalStorage(payload);
         applyData(payload);
-        error.value = 'No se pudo guardar en el servidor. Los datos se conservaron localmente, pero se perderan al limpiar el navegador.';
+        error.value = 'No se pudo guardar en el servidor.';
     } finally {
         savingSection.value = null;
     }
@@ -378,14 +353,8 @@ async function loadAdditionalInfo(): Promise<void> {
         applyData(response);
     } catch (err) {
         console.error('Error al cargar informacion adicional:', err);
-        const local = loadFromLocalStorage();
-        if (local) {
-            applyData(local);
-            info.value = 'No se pudo cargar del servidor. Se cargo la informacion local.';
-        } else {
-            applyData(createDefaultAdditionalInfo());
-            error.value = 'No se pudo cargar la informacion adicional.';
-        }
+        applyData(createDefaultAdditionalInfo());
+        error.value = 'No se pudo cargar la informacion adicional.';
     } finally {
         isLoading.value = false;
     }

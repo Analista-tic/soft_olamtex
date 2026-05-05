@@ -9,39 +9,46 @@ export interface FabricOrderDto {
 export interface FabricRollDto {
     id: number;
     roll_number: string;
-    purchase_document_item_id: number;
+    purchase_document_item_id: number | null;
     purchase_document_item?: unknown;
     quantity: number;
-    roll_width?: number;
-    location?: string;
-    description?: string;
-    tolerance_status?: string;
+    roll_width?: number | null;
+    location?: string | null;
+    description?: string | null;
+    tolerance_status?: string | null;
     partial_output: number;
     actual_output: number;
     entry_date: string;
     available_quantity: number;
     is_depleted: boolean;
-    created_at?: string;
-    updated_at?: string;
+    created_at?: string | null;
+    updated_at?: string | null;
 }
 
 export interface FabricRollViewDto {
     id: number;
+    fabric_item_id: number | null;
+    purchase_document_item_id: number | null;
     roll: string;
     location: string | null;
     fabric: string;
     color: string;
     color_code: string;
     width: string;
+    width_value: number | null;
     roll_qty: string;
+    roll_qty_value: number | null;
     partial_output: string;
+    partial_output_value: number | null;
     partial_availability: string;
+    partial_availability_value: number | null;
     exit_quantity: string;
-    quantity_value?: number | string;
-    exit_quantity_value?: number | string;
+    exit_quantity_value: number | null;
     real_availability: string;
+    real_availability_value: number | null;
     order_number: string;
     provider: string;
+    price_per_meter: number | null;
     created_at: string | null;
     creator: string | null;
     status: 'available' | 'depleted';

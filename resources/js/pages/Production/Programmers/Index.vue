@@ -252,6 +252,7 @@ async function fetchProgrammers(page = 1) {
             return;
         }
         console.error('Error al obtener los programadores:', error);
+        setAlert('No se pudieron cargar los datos del programador.', 'error');
     } finally {
         if (activeFetchController === controller) {
             activeFetchController = null;

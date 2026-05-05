@@ -44,7 +44,6 @@ const itemsPerPage = ref(10);
 const breadcrumbs = [{ title: 'Comprobante de egreso', href: ROUTES.index }];
 
 const statusOptions = [
-    { id: 'all', name: 'Todos los estados' },
     { id: 'recorded', name: 'Registrado' },
 ];
 
@@ -88,8 +87,8 @@ async function fetchExpenseVouchers(page = 1): Promise<void> {
             page,
             per_page: itemsPerPage.value,
             search: searchQuery.value.trim() || undefined,
-            provider_id: providerFilter.value !== 'all' ? Number(providerFilter.value) : undefined,
-            status: statusFilter.value !== 'all' ? statusFilter.value : undefined,
+            provider_id: providerFilter.value != null ? Number(providerFilter.value) : undefined,
+            status: statusFilter.value ?? undefined,
             date_from: createdDateFilter.value || undefined,
             date_to: createdDateFilter.value || undefined,
         });
@@ -109,20 +108,19 @@ async function fetchExpenseVouchers(page = 1): Promise<void> {
 // ─── Filters ──────────────────────────────────────────────────────────────────
 
 const searchQuery = ref('');
-const providerFilter = ref<string | number>('all');
-const statusFilter = ref<string>('all');
+const providerFilter = ref<string | number | null>(null);
+const statusFilter = ref<string | null>(null);
 const createdDateFilter = ref<string | null>(null);
 
 const providers = ref<{ id: number; name: string }[]>([]);
 
 const providerOptions = computed(() => [
-    { id: 'all', name: 'Todos los proveedores' },
     ...providers.value.map((p) => ({ id: String(p.id), name: p.name })),
 ]);
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isProviderActive = computed(() => providerFilter.value !== 'all');
-const isStatusActive = computed(() => statusFilter.value !== 'all');
+const isProviderActive = computed(() => providerFilter.value != null);
+const isStatusActive = computed(() => statusFilter.value != null);
 const isCreatedDateActive = computed(() => Boolean(createdDateFilter.value));
 const hasActiveFilters = computed(() =>
     isSearchActive.value || isProviderActive.value || isStatusActive.value || isCreatedDateActive.value,
@@ -286,8 +284,9 @@ onBeforeUnmount(() => window.clearTimeout(searchDebounce));
                         <SelectField
                             v-model="providerFilter"
                             :options="providerOptions"
-                            placeholder="Todos los proveedores"
+                            placeholder="Proveedor"
                             :button-class="providerButtonClasses"
+                            :clearable="true"
                         />
                     </FilterField>
 
@@ -295,13 +294,14 @@ onBeforeUnmount(() => window.clearTimeout(searchDebounce));
                         <SelectField
                             v-model="statusFilter"
                             :options="statusOptions"
-                            placeholder="Todos los estados"
+                            placeholder="Estado"
                             :button-class="statusButtonClasses"
+                            :clearable="true"
                         />
                     </FilterField>
 
                     <FilterField label="Fecha creación" :active="isCreatedDateActive" class="min-w-[220px]">
-                        <InputDate v-model="createdDateFilter" placeholder="Seleccionar fecha" clearable />
+                        <InputDate v-model="createdDateFilter" placeholder="Seleccionar fecha" :clearable="true" />
                     </FilterField>
                 </FilterBar>
             </div>

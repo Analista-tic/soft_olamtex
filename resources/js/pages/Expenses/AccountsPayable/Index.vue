@@ -58,8 +58,8 @@ const contactsStore = useContactsStore();
 const isLoading = ref(false);
 
 const searchQuery = ref('');
-const providerFilter = ref<string | number>('all');
-const debtStatusFilter = ref<'all' | 'pending' | 'overdue' | 'settled'>('all');
+const providerFilter = ref<string | number | null>(null);
+const debtStatusFilter = ref<'pending' | 'overdue' | 'settled' | null>(null);
 const dueDateFilter = ref<string | null>(null);
 
 const currentPage = ref(1);
@@ -67,7 +67,6 @@ const totalItems = ref(0);
 const ITEMS_PER_PAGE = 10;
 
 const providerOptions = computed(() => [
-    { id: 'all', name: 'Todos los proveedores' },
     ...contactsStore.items.map((provider) => ({
         id: String(provider.id),
         name: provider.full_name,
@@ -75,15 +74,14 @@ const providerOptions = computed(() => [
 ]);
 
 const debtStatusOptions = [
-    { id: 'all', name: 'Todos' },
     { id: 'pending', name: 'Pendiente' },
     { id: 'overdue', name: 'Vencida' },
     { id: 'settled', name: 'Saldada' },
 ];
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isProviderActive = computed(() => providerFilter.value !== 'all');
-const isDebtStatusActive = computed(() => debtStatusFilter.value !== 'all');
+const isProviderActive = computed(() => providerFilter.value != null);
+const isDebtStatusActive = computed(() => debtStatusFilter.value != null);
 const isDueDateActive = computed(() => Boolean(dueDateFilter.value));
 const providerButtonClasses = useFilterButtonClasses(isProviderActive);
 const debtStatusButtonClasses = useFilterButtonClasses(isDebtStatusActive);
@@ -136,10 +134,10 @@ async function fetchAccountsPayable(page = 1) {
             search: searchQuery.value.trim() || undefined,
             due_date_from: dueDateFilter.value || undefined,
             due_date_to: dueDateFilter.value || undefined,
-            debt_status: debtStatusFilter.value !== 'all' ? debtStatusFilter.value : undefined,
+            debt_status: debtStatusFilter.value ?? undefined,
         };
 
-        if (providerFilter.value !== 'all') {
+        if (providerFilter.value != null) {
             params.provider_id = Number(providerFilter.value);
         }
 
@@ -276,19 +274,21 @@ onBeforeUnmount(() => {
 
                     <FilterField label="Proveedor" :active="isProviderActive" class="min-w-[220px]">
                         <SelectField
-                            v-model="providerFilter"
-                            :options="providerOptions"
-                            placeholder="Todos los proveedores"
-                            :button-class="providerButtonClasses"
-                        />
+                                v-model="providerFilter"
+                                :options="providerOptions"
+                                placeholder="Proveedor"
+                                :button-class="providerButtonClasses"
+                                :clearable="true"
+                            />
                     </FilterField>
 
                     <FilterField label="Estado deuda" :active="isDebtStatusActive" class="min-w-[190px]">
                         <SelectField
                             v-model="debtStatusFilter"
                             :options="debtStatusOptions"
-                            placeholder="Todos"
+                            placeholder="Estado"
                             :button-class="debtStatusButtonClasses"
+                            :clearable="true"
                         />
                     </FilterField>
 

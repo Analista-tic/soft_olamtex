@@ -461,9 +461,9 @@ defineExpose({ addItem });
 </script>
 
 <template>
-    <div style="overflow: visible; max-height: none" class="w-full">
-        <div class="overflow-x-auto rounded-lg border border-border" style="overflow: visible; max-height: none">
-            <Table :class="tableClasses" style="overflow: visible; max-height: none">
+    <div class="w-full">
+        <div class="overflow-x-auto rounded-lg border border-border">
+            <Table :class="tableClasses">
                 <TableHeader>
                     <TableRow class="border-b border-border/60">
                         <TableHead :class="[props.telaMode === true ? 'min-w-[220px]' : 'min-w-[150px]', 'text-left']"

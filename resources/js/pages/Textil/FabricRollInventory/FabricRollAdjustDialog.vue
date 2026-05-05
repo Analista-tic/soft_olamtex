@@ -32,8 +32,8 @@ const form = reactive<AdjustForm>({
 watch(
     () => props.roll,
     (roll) => {
-        form.actualOutput = roll?.exit_quantity?.toString() ?? '';
-        form.partialOutput = roll?.partial_output?.toString() ?? '';
+        form.actualOutput = roll?.exit_quantity_value != null ? String(roll.exit_quantity_value) : '';
+        form.partialOutput = roll?.partial_output_value != null ? String(roll.partial_output_value) : '';
     },
     { immediate: true },
 );

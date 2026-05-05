@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 use Inertia\Inertia;
 
 class ProgrammerController extends Controller
@@ -151,8 +152,8 @@ class ProgrammerController extends Controller
             ],
         ]);
 
-        $orders = DB::transaction(function () use ($validatedData) {
-                return collect($validatedData['lots'])->map(function (array $lot) {
+        $orders = DB::transaction(function () use ($validatedData, $request) {
+            return collect($validatedData['lots'])->map(function (array $lot) use ($request) {
                     $productSheet = ProductSheet::findOrFail($lot['product_sheet_id']);
                     $ecommerceUnits = $this->normalizeEcommerceUnits($lot['ecommerce_units'] ?? null);
                     $units = isset($lot['units']) ? (int) $lot['units'] : null;
@@ -336,9 +337,13 @@ class ProgrammerController extends Controller
      */
     public function getData(Request $request)
     {
-        $filters = $request->only(['season', 'priority', 'status', 'type', 'destination_id', 'search', 'estimated_delivery_date']);
+        $filters = $request->only(['season', 'priority', 'status', 'type', 'destination_id', 'search']);
         $perPage = $request->input('per_page', 10);
         $page = $request->input('page', 1);
+        $sortBy = in_array($request->input('sort_by'), ['id', 'estimated_delivery_date'], true)
+            ? (string) $request->input('sort_by')
+            : 'id';
+        $sortDir = strtolower((string) $request->input('sort_dir', 'desc')) === 'asc' ? 'asc' : 'desc';
         $requestId = $this->resolveRequestId($request);
 
         Log::info('production_order.list.received', [
@@ -351,8 +356,9 @@ class ProgrammerController extends Controller
                 'priority' => $filters['priority'] ?? null,
                 'status' => $filters['status'] ?? null,
                 'destination_id' => $filters['destination_id'] ?? null,
-                'estimated_delivery_date' => $filters['estimated_delivery_date'] ?? null,
                 'search' => isset($filters['search']) ? mb_substr((string) $filters['search'], 0, 80) : null,
+                'sort_by' => $sortBy,
+                'sort_dir' => $sortDir,
                 'page' => $page,
                 'per_page' => $perPage,
             ],
@@ -378,7 +384,27 @@ class ProgrammerController extends Controller
                 'productSheet:id,type,sample_reference,product_reference,section_id,group_id',
             ]);
 
-        ScopeHelper::apply($query, $request->user(), 'ver propios programacion produccion', 'ver area programacion produccion', 'ver todos programacion produccion');
+        $user = $request->user();
+        $scopePermissions = [
+            'ver propios programacion produccion',
+            'ver area programacion produccion',
+            'ver todos programacion produccion',
+        ];
+
+        $hasScopedVisibilityPermission = false;
+        foreach ($scopePermissions as $permission) {
+            try {
+                if ($user?->hasPermissionTo($permission)) {
+                    $hasScopedVisibilityPermission = true;
+                    break;
+                }
+            } catch (PermissionDoesNotExist) {
+            }
+        }
+
+        if ($hasScopedVisibilityPermission) {
+            ScopeHelper::apply($query, $user, 'ver propios programacion produccion', 'ver area programacion produccion', 'ver todos programacion produccion');
+        }
 
         if (!empty($filters['season']) && $filters['season'] !== 'all') {
             $query->where('season', $filters['season']);
@@ -402,10 +428,6 @@ class ProgrammerController extends Controller
             $query->where('destination_id', $filters['destination_id']);
         }
 
-        if (!empty($filters['estimated_delivery_date'])) {
-            $query->whereDate('estimated_delivery_date', $filters['estimated_delivery_date']);
-        }
-
         if (!empty($filters['search']) && trim((string) $filters['search']) !== '') {
             $search = trim((string) $filters['search']);
             $searchLike = '%' . $search . '%';
@@ -427,7 +449,14 @@ class ProgrammerController extends Controller
             });
         }
 
-        $query->latest();
+        if ($sortBy === 'estimated_delivery_date') {
+            $query
+                ->orderByRaw('CASE WHEN estimated_delivery_date IS NULL THEN 1 ELSE 0 END ASC')
+                ->orderBy('estimated_delivery_date', $sortDir)
+                ->orderBy('id', $sortDir);
+        } else {
+            $query->orderBy('id', $sortDir);
+        }
         $orders = $query->paginate($perPage, ['*'], 'page', $page);
 
         $catalogs = $this->loadCatalogs(['destinations', 'sections', 'groups']);

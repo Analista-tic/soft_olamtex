@@ -53,7 +53,7 @@ const ENDPOINTS = {
     OP_ROLLS_PARAMS: '/produccion/ficha-tecnica/:id/rollos/params',
     OP_ROLLS_LINES: '/produccion/ficha-tecnica/:id/rollos/lines',
     OP_ROLLS_LINE_DELETE: '/produccion/ficha-tecnica/:id/rollos/lines/:lineId',
-    INVENTORY_ROLLS: '/kardex-telas/inventario-rollos/data',
+    INVENTORY_ROLLS: '/produccion/ficha-tecnica/rollos-disponibles',
     OP_THREADS: '/produccion/ficha-tecnica/:id/hilos',
     OP_RAW_MATERIALS: '/produccion/ficha-tecnica/:id/materia-prima',
     OP_ADDITIONAL_INFO: '/produccion/ficha-tecnica/:id/info-adicional',
@@ -709,7 +709,7 @@ export async function fetchAvailableFabricRolls(
 
         return {
             id,
-            fabricItemId: roll.fabric_item_id ?? roll.item_id ?? null,
+            fabricItemId: roll.fabric_item_id != null ? Number(roll.fabric_item_id) : (roll.item_id != null ? Number(roll.item_id) : null),
             label,
             roll: rollCode,
             fabricName,

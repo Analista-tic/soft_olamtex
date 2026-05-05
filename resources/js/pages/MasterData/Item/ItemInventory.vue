@@ -34,19 +34,18 @@ const breadcrumbs = [{ title: 'Inventario de Ítems', href: '/inventario-item' }
 const warehousesStore = useWarehousesStore();
 
 const statusOptions: Option[] = [
-    { id: 'all', name: 'Todos' },
     { id: 'active', name: 'Habilitados' },
     { id: 'inactive', name: 'Deshabilitados' },
 ];
 
 const items = ref<InventoryViewItem[]>([]);
 const searchQuery = ref('');
-const warehouseFilter = ref<Option['id'] | '' | null>(null);
+const warehouseFilter = ref<Option['id'] | null>(null);
 const warehouses = ref<Option[]>([]);
-const statusFilter = ref<Option['id']>('all');
+const statusFilter = ref<Option['id'] | null>(null);
 const isSearchFilterActive = computed(() => searchQuery.value.trim().length > 0);
-const isWarehouseActive = computed(() => warehouseFilter.value !== null && warehouseFilter.value !== '');
-const isStatusActive = computed(() => statusFilter.value !== 'all');
+const isWarehouseActive = computed(() => warehouseFilter.value != null);
+const isStatusActive = computed(() => statusFilter.value != null);
 
 const warehouseButtonClasses = useFilterButtonClasses(isWarehouseActive);
 const statusButtonClasses = useFilterButtonClasses(isStatusActive);
@@ -138,15 +137,12 @@ async function fetchItems(page = 1) {
 async function fetchWarehouses() {
     try {
         await warehousesStore.fetchWarehouses();
-        warehouses.value = [
-            { id: '', name: 'Todos' },
-            ...warehousesStore.items
-                .filter((warehouse: Warehouse) => warehouse.id != null)
-                .map((warehouse: Warehouse) => ({
-                    id: warehouse.id!,
-                    name: warehouse.name,
-                })),
-        ];
+        warehouses.value = warehousesStore.items
+            .filter((warehouse: Warehouse) => warehouse.id != null)
+            .map((warehouse: Warehouse) => ({
+                id: warehouse.id!,
+                name: warehouse.name,
+            }));
     } catch (error) {
         console.error('Error al cargar bodegas', error);
     }
@@ -189,14 +185,21 @@ onMounted(() => {
                     <SelectField
                         v-model="warehouseFilter"
                         :options="warehouses"
-                        placeholder="Selecciona una bodega"
+                        placeholder="Bodega"
                         searchable
+                        :clearable="true"
                         :button-class="warehouseButtonClasses"
                     />
                 </FilterField>
 
                 <FilterField label="Estado" :active="isStatusActive" class="min-w-[180px]">
-                    <SelectField v-model="statusFilter" :options="statusOptions" placeholder="Estado" :button-class="statusButtonClasses" />
+                    <SelectField
+                        v-model="statusFilter"
+                        :options="statusOptions"
+                        placeholder="Estado"
+                        :clearable="true"
+                        :button-class="statusButtonClasses"
+                    />
                 </FilterField>
             </FilterBar>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">

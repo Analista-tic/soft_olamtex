@@ -185,7 +185,7 @@ class LegacyFabricRollsSeeder extends Seeder
         $actualizados = 0;
 
         foreach ($itemMap as $ref => $itemId) {
-            $totalMetros = round((float) ($totales->get($itemId)?->total_metros ?? 0), 2);
+            $totalMetros = round((float) ($totales->get($itemId)?->total_metrosr9 ?? 0), 2);
 
             DB::table('warehouse_items')->upsert(
                 [

@@ -108,6 +108,7 @@ const {
     catalogOperations,
     catalogMachines,
     catalogFabricBases,
+    catalogProductSheets,
     catalogPreparationGroups,
     catalogActions,
     catalogGarmentParts,
@@ -176,6 +177,39 @@ const opHeaderLabel = computed(() => {
     const opCode = String(opDetail.value?.opCode ?? '').trim() || '-';
     const ref = displayedSecondReference.value || '-';
     return `${opCode} - ${ref}`;
+});
+
+const dialogProductSheets = computed(() => {
+    const currentSheetId = Number(productSheetId.value ?? 0);
+    const fromCatalog = Array.isArray(catalogProductSheets.value) ? catalogProductSheets.value : [];
+    if (currentSheetId > 0) {
+        const exists = fromCatalog.some((sheet) => Number(sheet.id) === currentSheetId);
+        if (exists) {
+            return fromCatalog;
+        }
+    }
+
+    const fallbackFabricBaseId = opsInitialData.value?.operations?.[0]?.fabric_base_id ?? null;
+    const isSample = isSampleOp.value;
+    const fallbackReference = displayedSecondReference.value || '-';
+
+    if (currentSheetId <= 0) {
+        return fromCatalog;
+    }
+
+    return [
+        {
+            id: currentSheetId,
+            reference: fallbackReference,
+            type: isSample ? 'muestra' : 'producto',
+            sample_reference: isSample ? fallbackReference : null,
+            product_reference: isSample ? null : fallbackReference,
+            product_reference_2: null,
+            version: 1,
+            fabric_base_id: fallbackFabricBaseId,
+            garment_type: null,
+        },
+    ];
 });
 
 /* ── Campos de información básica ── */
@@ -473,7 +507,7 @@ watch(
         :open="editOpsOpen"
         mode="edit"
         :initial-data="opsInitialData"
-        :product-sheets="[]"
+        :product-sheets="dialogProductSheets"
         :sections="catalogSections"
         :operations="catalogOperations"
         :machines="catalogMachines"

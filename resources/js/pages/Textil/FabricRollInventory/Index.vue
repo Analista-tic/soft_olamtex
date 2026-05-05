@@ -8,41 +8,51 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { FabricRollView } from '@/domain/Textil';
-import { formatMeters, formatWidthToMeters, toUnitNumber } from '@/domain/Textil';
+import type { FabricRollView, FabricRollViewDto } from '@/domain/Textil';
+import { formatMeters, formatWidthToMeters, mapFabricRollViewDto, toUnitNumber } from '@/domain/Textil';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { uiPatterns } from '@/lib/ui-patterns';
 import { useAuthStore } from '@/stores/auth';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { ArrowDown, ArrowDownToLine, ArrowUp, Download, Eye, Search, SlidersHorizontal, Upload } from 'lucide-vue-next';
+import { ArrowDownToLine, Download, Eye, FileSpreadsheet, Search, SlidersHorizontal, Upload } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import FabricRollAdjustDialog from './FabricRollAdjustDialog.vue';
 import FabricRollDownloadDialog from './FabricRollDownloadDialog.vue';
 import FabricRollImportDialog from './FabricRollImportDialog.vue';
 import FabricRollInventoryDialog from './FabricRollInventoryDialog.vue';
-import { uiPatterns } from '@/lib/ui-patterns';
 import ServerPagination from '@/components/common/ServerPagination.vue';
 
 const breadcrumbs = [{ title: 'Inventario Telas por Rollo', href: '/kardex-telas/inventario-rollos' }];
 const authStore = useAuthStore();
 
-// ── Filtros ────────────────────────────────────────────────────────────────
+// Filtros
 const searchQuery = ref('');
 const baseFilter = ref('');
 const providerFilter = ref('');
 const showDownloadedOnly = ref(false);
 
-// ── Datos ──────────────────────────────────────────────────────────────────
+// Datos
 const rolls = ref<FabricRollView[]>([]);
 const currentPage = ref(1);
 const lastPage = ref(1);
 const totalRolls = ref(0);
-const PER_PAGE = 100;
+const perPage = ref(100);
 
-// ── Sorting ────────────────────────────────────────────────────────────────
-type SortColumn = 'roll_number' | 'location' | 'fabric' | 'color' | 'width' | 'quantity' | 'partial_output' | 'actual_output' | 'provider' | 'entry_date';
-const sortColumn = ref<SortColumn>('entry_date');
-const sortDirection = ref<'asc' | 'desc'>('desc');
+// Sorting
+type SortColumn =
+    | 'roll_number'
+    | 'location'
+    | 'width'
+    | 'quantity'
+    | 'partial_output'
+    | 'partial_availability'
+    | 'actual_output'
+    | 'real_availability'
+    | 'provider'
+    | 'entry_date';
+const sortColumn = ref<SortColumn>('roll_number');
+const sortDirection = ref<'asc' | 'desc'>('asc');
 
 function setSort(column: SortColumn) {
     if (sortColumn.value === column) {
@@ -51,10 +61,36 @@ function setSort(column: SortColumn) {
         sortColumn.value = column;
         sortDirection.value = 'asc';
     }
-    fetchFabricRolls(1);
+    if (column !== 'partial_availability' && column !== 'real_availability') {
+        fetchFabricRolls(1);
+    }
 }
 
-// ── Estado UI ──────────────────────────────────────────────────────────────
+const sortedRolls = computed(() => {
+    if (sortColumn.value !== 'partial_availability' && sortColumn.value !== 'real_availability') {
+        return rolls.value;
+    }
+
+    const sorted = [...rolls.value];
+
+    sorted.sort((a, b) => {
+        const aValue =
+            sortColumn.value === 'partial_availability'
+                ? (a.partial_availability_value ?? 0)
+                : (a.real_availability_value ?? 0);
+
+        const bValue =
+            sortColumn.value === 'partial_availability'
+                ? (b.partial_availability_value ?? 0)
+                : (b.real_availability_value ?? 0);
+
+        return sortDirection.value === 'asc' ? aValue - bValue : bValue - aValue;
+    });
+
+    return sorted;
+});
+
+// Estado UI
 const selectedRoll = ref<FabricRollView | null>(null);
 const isDialogOpen = ref(false);
 const rollToDelete = ref<FabricRollView | null>(null);
@@ -72,7 +108,7 @@ const canImportRolls = computed(() => authStore.can('fabric_rolls.import'));
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-// ── Fetch ──────────────────────────────────────────────────────────────────
+// Fetch
 async function fetchFabricRolls(page = 1) {
     isLoadingRolls.value = true;
     errorMessage.value = '';
@@ -83,13 +119,14 @@ async function fetchFabricRolls(page = 1) {
         if (providerFilter.value.trim()) params.set('provider', providerFilter.value.trim());
         if (showDownloadedOnly.value) params.set('with_output', '1');
         params.set('page', String(page));
-        params.set('per_page', String(PER_PAGE));
+        params.set('per_page', String(perPage.value));
         params.set('sort_by', sortColumn.value);
         params.set('sort_direction', sortDirection.value);
 
         const response = await axios.get(`/kardex-telas/inventario-rollos/data?${params.toString()}`);
         const payload = response.data;
-        rolls.value = Array.isArray(payload?.data) ? payload.data : [];
+        const rows = Array.isArray(payload?.data) ? payload.data : [];
+        rolls.value = rows.map((row: FabricRollViewDto) => mapFabricRollViewDto(row));
         currentPage.value = payload?.meta?.current_page ?? 1;
         lastPage.value = payload?.meta?.last_page ?? 1;
         totalRolls.value = payload?.meta?.total ?? rolls.value.length;
@@ -114,7 +151,7 @@ onMounted(() => {
     fetchFabricRolls(1);
 });
 
-// ── Acciones ───────────────────────────────────────────────────────────────
+// Acciones
 function selectRoll(roll: FabricRollView) {
     selectedRoll.value = roll;
     isDialogOpen.value = true;
@@ -141,35 +178,8 @@ function exportFabricRollsExcel() {
     window.open('/kardex-telas/exportar-rollos', '_blank');
 }
 
-function exportImportTemplateCsv() {
-    const headers = [
-        'roll_number',
-        'location',
-        'base_tela',
-        'tela',
-        'internal_color_name',
-        'internal_color_code',
-        'roll_width',
-        'quantity',
-        'partial_output',
-        'actual_output',
-        'proveedor',
-        'purchase_order_ref',
-        'entry_date',
-        'item_referencia',
-    ];
-
-    const csvContent = `${headers.join(',')}\n`;
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-
-    link.href = url;
-    link.download = 'plantilla_importacion_rollos.csv';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+function exportTemplate() {
+    window.open('/fabric-rolls/descargar-plantilla', '_blank');
 }
 
 function openImportDialog() {
@@ -195,12 +205,40 @@ function toggleDownloadedFilter() {
     showDownloadedOnly.value = !showDownloadedOnly.value;
 }
 
-function handleDownloadRequest(payload: { roll: FabricRollView | null; data: Record<string, string> }) {
-    const { adjustmentType, quantity } = payload.data;
-    const rollLabel = payload.roll ? ` (${payload.roll.roll})` : '';
-    successMessage.value = `Solicitud de ${adjustmentType || 'descarga'} ${quantity ? `de ${quantity}` : ''}${rollLabel} registrada.`;
+function handleDischargeSuccess(payload: {
+    roll: FabricRollView | null;
+    realAvailabilityValue: number;
+    rollQtyValue: number;
+    exitQuantityValue: number;
+}) {
+    if (!payload.roll) {
+        return;
+    }
+
+    const formatMetersInline = (v: number) => `${v % 1 === 0 ? v : v.toFixed(2).replace(/\.?0+$/, '')} m`;
+    const index = rolls.value.findIndex((roll) => roll.id === payload.roll?.id);
+
+    if (index !== -1) {
+        const currentRoll = rolls.value[index];
+        rolls.value[index] = {
+            ...currentRoll,
+            roll_qty_value: payload.rollQtyValue,
+            roll_qty: formatMetersInline(payload.rollQtyValue),
+            exit_quantity_value: payload.exitQuantityValue,
+            exit_quantity: formatMetersInline(payload.exitQuantityValue),
+            real_availability_value: payload.realAvailabilityValue,
+            real_availability: formatMetersInline(payload.realAvailabilityValue),
+            status: payload.realAvailabilityValue <= 0 ? 'depleted' : 'available',
+        };
+    }
+
+    successMessage.value = `Descargue actualizado para el rollo ${payload.roll.roll}.`;
     errorMessage.value = '';
     rollToDownload.value = null;
+}
+
+function handleDischargeError(payload: { message: string }) {
+    errorMessage.value = payload.message;
 }
 
 async function handleAdjustRequest(payload: { roll: FabricRollView | null; data: Record<string, string> }) {
@@ -209,8 +247,8 @@ async function handleAdjustRequest(payload: { roll: FabricRollView | null; data:
         errorMessage.value = 'No se encontró el rollo seleccionado.';
         return;
     }
-    const exitQuantityValue = toUnitNumber(roll.exit_quantity) ?? 0;
-    const partialOutputValue = toUnitNumber(roll.partial_output) ?? 0;
+    const exitQuantityValue = toUnitNumber(roll.exit_quantity_value ?? roll.exit_quantity) ?? 0;
+    const partialOutputValue = toUnitNumber(roll.partial_output_value ?? roll.partial_output) ?? 0;
     const actualOutput = payload.data.actualOutput ? Number(payload.data.actualOutput) : exitQuantityValue;
     const partialOutput = payload.data.partialOutput ? Number(payload.data.partialOutput) : partialOutputValue;
     try {
@@ -234,13 +272,15 @@ function setDownloadDialogOpen(value: boolean) {
     if (!value) rollToDownload.value = null;
 }
 
-async function handleImportCompleted(payload: { inserted: number; skipped: number; errors: string[] }) {
+async function handleImportCompleted(payload: { message: string; inserted: number; skipped: number; errors: string[] }) {
     successMessage.value = `Importación completada. Insertados: ${payload.inserted}. Omitidos: ${payload.skipped}.`;
-    errorMessage.value = payload.errors.length > 0
-        ? payload.errors.slice(0, 3).join(' | ')
-        : '';
+    errorMessage.value = payload.errors.length > 0 ? payload.errors.slice(0, 3).join(' | ') : '';
 
     await fetchFabricRolls(1);
+}
+
+function handleImportError(payload: { message: string }) {
+    errorMessage.value = payload.message;
 }
 </script>
 
@@ -266,21 +306,32 @@ async function handleImportCompleted(payload: { inserted: number; skipped: numbe
                         <DropdownMenuTrigger :as-child="true">
                             <Button
                                 variant="outline"
-                                class="flex h-10 w-full items-center justify-center rounded-full px-5 py-2 text-sm font-semibold md:w-auto"
+                                size="default"
+                                class="flex h-10 items-center justify-center rounded-full px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10"
                                 type="button"
                             >
-                                Otras acciones
+                                <span>Otras acciones</span>
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" class="w-56">
+
+                        <DropdownMenuContent
+                            align="end"
+                            side="bottom"
+                            :side-offset="1"
+                            :avoid-collisions="false"
+                            :collision-padding="0"
+                            class="w-56"
+                        >
+                            <DropdownMenuItem class="cursor-pointer gap-2" @click="exportTemplate">
+                                <FileSpreadsheet class="h-4 w-4" /> Exportar plantilla
+                            </DropdownMenuItem>
+
                             <DropdownMenuItem v-if="canImportRolls" class="cursor-pointer gap-2" @click="openImportDialog">
                                 <Upload class="h-4 w-4" /> Importar rollos
                             </DropdownMenuItem>
+
                             <DropdownMenuItem class="cursor-pointer gap-2" @click="exportFabricRollsExcel">
                                 <Download class="h-4 w-4" /> Exportar inventario
-                            </DropdownMenuItem>
-                            <DropdownMenuItem class="cursor-pointer gap-2" @click="exportImportTemplateCsv">
-                                <Download class="h-4 w-4" /> Exportar plantilla
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -339,56 +390,90 @@ async function handleImportCompleted(payload: { inserted: number; skipped: numbe
                     <Table class="min-w-full text-[0.9rem]">
                         <TableHeader>
                             <TableRow>
-                                <TableHead class="cursor-pointer select-none hover:bg-muted/50" @click="setSort('roll_number')">
-                                    <span class="inline-flex items-center gap-0.5">
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="setSort('roll_number')">
+                                    <span class="inline-flex items-center gap-1">
                                         Rollo
-                                        <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'roll_number'" class="h-3 w-3" />
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortColumn === 'roll_number'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
                                     </span>
                                 </TableHead>
-                                <TableHead class="cursor-pointer select-none hover:bg-muted/50" @click="setSort('location')">
-                                    <span class="inline-flex items-center gap-0.5">
+
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="setSort('location')">
+                                    <span class="inline-flex items-center gap-1">
                                         Ubicación
-                                        <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'location'" class="h-3 w-3" />
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortColumn === 'location'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
                                     </span>
                                 </TableHead>
-                                <TableHead class="cursor-pointer select-none hover:bg-muted/50" @click="setSort('fabric')">
-                                    <span class="inline-flex items-center gap-0.5">
-                                        Tela
-                                        <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'fabric'" class="h-3 w-3" />
-                                    </span>
-                                </TableHead>
-                                <TableHead class="cursor-pointer select-none hover:bg-muted/50" @click="setSort('color')">
-                                    <span class="inline-flex items-center gap-0.5">
-                                        Color
-                                        <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'color'" class="h-3 w-3" />
-                                    </span>
-                                </TableHead>
-                                <TableHead class="cursor-pointer select-none hover:bg-muted/50" @click="setSort('width')">
-                                    <span class="inline-flex items-center gap-0.5">
+
+                                <TableHead>Tela</TableHead>
+
+                                <TableHead>Color</TableHead>
+
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="setSort('width')">
+                                    <span class="inline-flex items-center gap-1">
                                         Ancho
-                                        <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'width'" class="h-3 w-3" />
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortColumn === 'width'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
                                     </span>
                                 </TableHead>
-                                <TableHead class="cursor-pointer select-none hover:bg-muted/50" @click="setSort('quantity')">
-                                    <span class="inline-flex items-center gap-0.5">
+
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="setSort('quantity')">
+                                    <span class="inline-flex items-center gap-1">
                                         Cant. rollo
-                                        <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'quantity'" class="h-3 w-3" />
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortColumn === 'quantity'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
                                     </span>
                                 </TableHead>
-                                <TableHead class="cursor-pointer select-none hover:bg-muted/50" @click="setSort('partial_output')">
-                                    <span class="inline-flex items-center gap-0.5">
+
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="setSort('partial_output')">
+                                    <span class="inline-flex items-center gap-1">
                                         Salida parcial
-                                        <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'partial_output'" class="h-3 w-3" />
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortColumn === 'partial_output'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
                                     </span>
                                 </TableHead>
-                                <TableHead>Disp. parcial</TableHead>
-                                <TableHead class="cursor-pointer select-none hover:bg-muted/50" @click="setSort('actual_output')">
-                                    <span class="inline-flex items-center gap-0.5">
+
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="setSort('partial_availability')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Disp. parcial
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortColumn === 'partial_availability'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="setSort('actual_output')">
+                                    <span class="inline-flex items-center gap-1">
                                         Cant. salida
-                                        <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'actual_output'" class="h-3 w-3" />
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortColumn === 'actual_output'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
                                     </span>
                                 </TableHead>
-                                <TableHead>Disp. real</TableHead>
+
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="setSort('real_availability')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Disp. real
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortColumn === 'real_availability'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+
                                 <TableHead>Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -400,10 +485,10 @@ async function handleImportCompleted(payload: { inserted: number; skipped: numbe
                                     </TableCell>
                                 </TableRow>
                             </template>
-                            <TableRow v-else-if="rolls.length === 0">
+                            <TableRow v-else-if="sortedRolls.length === 0">
                                 <TableCell colspan="11" class="py-8 text-center text-sm text-muted-foreground">No hay rollos disponibles.</TableCell>
                             </TableRow>
-                            <TableRow v-for="roll in rolls" v-else :key="roll.id" class="border-b">
+                            <TableRow v-for="roll in sortedRolls" v-else :key="roll.id" class="border-b">
                                 <TableCell class="text-center text-sm">{{ roll.roll }}</TableCell>
                                 <TableCell class="text-center text-sm">{{ roll.location }}</TableCell>
                                 <TableCell class="text-center text-sm">{{ roll.fabric }}</TableCell>
@@ -452,7 +537,7 @@ async function handleImportCompleted(payload: { inserted: number; skipped: numbe
                 <div class="mt-4">
                   <ServerPagination 
                     v-model:current-page="currentPage"
-                    v-model:page-size="PER_PAGE"
+                                        v-model:page-size="perPage"
                     :total-items="totalRolls"
                     @fetch-data="fetchFabricRolls"
                   />
@@ -473,13 +558,15 @@ async function handleImportCompleted(payload: { inserted: number; skipped: numbe
             :modelValue="isDownloadDialogOpen"
             :roll="rollToDownload"
             @update:modelValue="setDownloadDialogOpen"
-            @submit-download="handleDownloadRequest"
+            @discharge-success="handleDischargeSuccess"
+            @discharge-error="handleDischargeError"
         />
 
         <FabricRollImportDialog
             :modelValue="isImportDialogOpen"
             @update:modelValue="(value) => (isImportDialogOpen = value)"
             @imported="handleImportCompleted"
+            @error="handleImportError"
         />
 
         <ConfirmDialog

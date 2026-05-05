@@ -40,13 +40,10 @@ const breadcrumbs = [
 const movements = ref<InventoryMovement[]>([]);
 const totalItems = ref(0);
 const searchQuery = ref('');
-const typeFilter = ref('all');
-const ALL_ITEMS_FILTER = 'all-items';
-const ALL_WAREHOUSES_FILTER = 'all-warehouses';
-const itemFilter = ref<number | typeof ALL_ITEMS_FILTER>(ALL_ITEMS_FILTER);
-const warehouseFilter = ref<number | typeof ALL_WAREHOUSES_FILTER>(ALL_WAREHOUSES_FILTER);
-const dateFrom = ref('');
-const dateTo = ref('');
+const typeFilter = ref<string | null>(null);
+const itemFilter = ref<number | null>(null);
+const warehouseFilter = ref<number | null>(null);
+const dateFilter = ref<string | null>(null);
 const currentPage = ref(1);
 const itemsPerPage = 20;
 const isLoading = ref(false);
@@ -57,13 +54,12 @@ const warehousesStore = useWarehousesStore();
 // Items y warehouses para filtros
 const rawItemOptions = ref<Item[]>([]);
 
-const DEFAULT_TYPE_FILTER = 'all';
+const DEFAULT_TYPE_FILTER = null;
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isTypeFilterActive = computed(() => typeFilter.value !== DEFAULT_TYPE_FILTER);
-const isItemFilterActive = computed(() => itemFilter.value !== ALL_ITEMS_FILTER);
-const isWarehouseFilterActive = computed(() => warehouseFilter.value !== ALL_WAREHOUSES_FILTER);
-const isDateFromActive = computed(() => Boolean(dateFrom.value));
-const isDateToActive = computed(() => Boolean(dateTo.value));
+const isTypeFilterActive = computed(() => typeFilter.value != null);
+const isItemFilterActive = computed(() => itemFilter.value != null);
+const isWarehouseFilterActive = computed(() => warehouseFilter.value != null);
+const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 
 const typeButtonClasses = useFilterButtonClasses(isTypeFilterActive);
 const itemButtonClasses = useFilterButtonClasses(isItemFilterActive);
@@ -75,23 +71,18 @@ const actionIconClass = 'h-4 w-4';
 const { successMessage, errorMessage, errorType, showError, clearSuccess, clearError } = useAlertStack();
 
 const typeOptions = [
-    { id: 'all', name: 'Todos los tipos' },
     { id: 'entrada', name: 'Entrada' },
     { id: 'salida', name: 'Salida' },
     { id: 'ajuste', name: 'Ajuste' },
 ];
 
-const itemOptions = computed<Option[]>(() => [
-    { id: ALL_ITEMS_FILTER, name: 'Todos los items' },
-    ...rawItemOptions.value.map((item) => ({ id: item.id, name: item.name })),
-]);
+const itemOptions = computed<Option[]>(() => rawItemOptions.value.map((item) => ({ id: item.id, name: item.name })));
 
-const warehouseOptions = computed<Option[]>(() => [
-    { id: ALL_WAREHOUSES_FILTER, name: 'Todas las bodegas' },
-    ...warehousesStore.items
+const warehouseOptions = computed<Option[]>(() =>
+    warehousesStore.items
         .filter((warehouse): warehouse is Warehouse & { id: number } => typeof warehouse.id === 'number')
         .map((warehouse) => ({ id: warehouse.id, name: warehouse.name })),
-]);
+);
 
 const typeLabelMap: Record<string, string> = {
     entrada: 'Entrada',
@@ -149,7 +140,7 @@ async function fetchMovements(page = 1, search = '') {
         search,
     };
 
-    if (typeFilter.value !== 'all') {
+    if (typeFilter.value != null) {
         params.type = typeFilter.value;
     }
 
@@ -161,12 +152,9 @@ async function fetchMovements(page = 1, search = '') {
         params.warehouse_id = warehouseFilter.value;
     }
 
-    if (dateFrom.value) {
-        params.date_from = dateFrom.value;
-    }
-
-    if (dateTo.value) {
-        params.date_to = dateTo.value;
+    if (dateFilter.value) {
+        params.date_from = dateFilter.value;
+        params.date_to = dateFilter.value;
     }
 
     try {
@@ -218,7 +206,7 @@ function closeDetailDialog() {
 }
 
 // Watchers para filtros
-watch([typeFilter, itemFilter, warehouseFilter, dateFrom, dateTo], () => {
+watch([typeFilter, itemFilter, warehouseFilter, dateFilter], () => {
     currentPage.value = 1;
     fetchMovements(1, searchQuery.value);
 });
@@ -268,23 +256,41 @@ onMounted(() => {
                 </FilterField>
 
                 <FilterField label="Tipo" :active="isTypeFilterActive" class="min-w-[180px]">
-                    <SelectField v-model="typeFilter" label="" :options="typeOptions" :button-class="typeButtonClasses" />
+                    <SelectField
+                        v-model="typeFilter"
+                        label=""
+                        :options="typeOptions"
+                        placeholder="Tipo"
+                        :clearable="true"
+                        :button-class="typeButtonClasses"
+                    />
                 </FilterField>
 
                 <FilterField label="Item" :active="isItemFilterActive" class="min-w-[200px]">
-                    <SelectField v-model="itemFilter" label="" :options="itemOptions" :searchable="true" placeholder="Buscar ítem..." :button-class="itemButtonClasses" />
+                    <SelectField
+                        v-model="itemFilter"
+                        label=""
+                        :options="itemOptions"
+                        :searchable="true"
+                        placeholder="Ítem"
+                        :clearable="true"
+                        :button-class="itemButtonClasses"
+                    />
                 </FilterField>
 
                 <FilterField label="Bodega" :active="isWarehouseFilterActive" class="min-w-[180px]">
-                    <SelectField v-model="warehouseFilter" label="" :options="warehouseOptions" :button-class="warehouseButtonClasses" />
+                    <SelectField
+                        v-model="warehouseFilter"
+                        label=""
+                        :options="warehouseOptions"
+                        placeholder="Bodega"
+                        :clearable="true"
+                        :button-class="warehouseButtonClasses"
+                    />
                 </FilterField>
 
-                <FilterField label="Fecha desde" :active="isDateFromActive" class="min-w-[150px]">
-                    <InputDate v-model="dateFrom" label="" />
-                </FilterField>
-
-                <FilterField label="Fecha hasta" :active="isDateToActive" class="min-w-[150px]">
-                    <InputDate v-model="dateTo" label="" />
+                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[220px]">
+                    <InputDate v-model="dateFilter" :clearable="true" placeholder="Seleccionar fecha" />
                 </FilterField>
             </FilterBar>
 

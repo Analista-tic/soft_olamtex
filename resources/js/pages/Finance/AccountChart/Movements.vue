@@ -97,8 +97,8 @@ const totalItems = ref(0);
 const isLoading = ref(false);
 
 const accountOptions = ref<HierarchicalAccountOption[]>([]);
-const documentTypeOptions = ref<Array<{ id: string; name: string }>>([{ id: 'all', name: 'Todos los documentos' }]);
-const contactOptions = ref<Array<{ id: number | string; name: string }>>([{ id: 'all', name: 'Todos los terceros' }]);
+const documentTypeOptions = ref<Array<{ id: string; name: string }>>([]);
+const contactOptions = ref<Array<{ id: number | string; name: string }>>([]);
 
 const movements = ref<AccountingAccountMovementRow[]>([]);
 const summary = ref<AccountingAccountMovementSummary>({
@@ -112,11 +112,11 @@ const chart = ref<AccountingAccountMovementChart>({ ...EMPTY_CHART });
 
 const selectedMovement = ref<AccountingAccountMovementRow | null>(null);
 const isDetailDialogOpen = ref(false);
-const documentType = ref<string>('all');
-const contactId = ref<number | 'all'>('all');
+const documentType = ref<string | null>(null);
+const contactId = ref<number | null>(null);
 const entryReferenceQuery = ref('');
 const tableDate = ref<string | null>(null);
-const tableAccountId = ref<number | 'all'>('all');
+const tableAccountId = ref<number | null>(null);
 
 const selectedPeriod = computed({
     get: () => ({
@@ -131,23 +131,14 @@ const selectedPeriod = computed({
 
 const isAccountActive = computed(() => accountId.value !== props.account.id);
 const isPeriodActive = computed(() => Boolean(dateFrom.value || dateTo.value));
-const isDocumentTypeActive = computed(() => documentType.value !== 'all');
-const isContactActive = computed(() => contactId.value !== 'all');
+const isDocumentTypeActive = computed(() => documentType.value != null);
+const isContactActive = computed(() => contactId.value != null);
 const isEntryReferenceActive = computed(() => entryReferenceQuery.value.trim().length > 0);
 const isTableDateActive = computed(() => Boolean(tableDate.value));
-const isTableAccountActive = computed(() => tableAccountId.value !== 'all');
+const isTableAccountActive = computed(() => tableAccountId.value != null);
 const pageStart = computed(() => (totalItems.value === 0 ? 0 : (currentPage.value - 1) * ITEMS_PER_PAGE + 1));
 const pageEnd = computed(() => Math.min(currentPage.value * ITEMS_PER_PAGE, totalItems.value));
-const tableAccountOptions = computed<HierarchicalAccountOption[]>(() => [
-    {
-        id: 'all',
-        name: 'Todas las cuentas',
-        code: '',
-        level: 1,
-        allows_entries: false,
-    },
-    ...accountOptions.value,
-]);
+const tableAccountOptions = computed<HierarchicalAccountOption[]>(() => accountOptions.value);
 
 const accountButtonClasses = useFilterButtonClasses(isAccountActive, {
     baseClasses:
@@ -190,9 +181,9 @@ function buildQuery(page = 1): AccountingAccountMovementQuery {
         date_from: dateFrom.value || undefined,
         date_to: dateTo.value || undefined,
         table_date: tableDate.value || undefined,
-        table_account_id: tableAccountId.value === 'all' ? undefined : tableAccountId.value,
-        contact_id: contactId.value === 'all' ? undefined : contactId.value,
-        document_type: documentType.value === 'all' ? undefined : documentType.value,
+        table_account_id: tableAccountId.value != null ? tableAccountId.value : undefined,
+        contact_id: contactId.value != null ? contactId.value : undefined,
+        document_type: documentType.value != null ? documentType.value : undefined,
         entry_reference: entryReferenceQuery.value.trim() || undefined,
     };
 }
@@ -210,7 +201,7 @@ async function fetchData(page = 1): Promise<void> {
         currentPage.value = response.current_page;
         documentTypeOptions.value = response.document_type_options.length
             ? response.document_type_options
-            : [{ id: 'all', name: 'Todos los documentos' }];
+            : [];
     } catch (err) {
         movements.value = [];
         chart.value = { ...EMPTY_CHART };
@@ -254,12 +245,9 @@ async function fetchAccounts(): Promise<void> {
 async function fetchContacts(): Promise<void> {
     try {
         await contactsStore.fetchContacts();
-        contactOptions.value = [
-            { id: 'all', name: 'Todos los terceros' },
-            ...contactsStore.items.map((row) => ({ id: row.id, name: row.full_name })),
-        ];
+        contactOptions.value = contactsStore.items.map((row) => ({ id: row.id, name: row.full_name }));
     } catch (err) {
-        contactOptions.value = [{ id: 'all', name: 'Todos los terceros' }];
+        contactOptions.value = [];
         console.error('Error al cargar terceros', err);
     }
 }
@@ -278,11 +266,11 @@ function handleReset(): void {
     accountId.value = props.account.id;
     dateFrom.value = null;
     dateTo.value = null;
-    documentType.value = 'all';
-    contactId.value = 'all';
+    documentType.value = null;
+    contactId.value = null;
     entryReferenceQuery.value = '';
     tableDate.value = null;
-    tableAccountId.value = 'all';
+    tableAccountId.value = null;
     currentPage.value = 1;
     void fetchData(1);
 }
@@ -377,11 +365,11 @@ onBeforeUnmount(() => {
                         v-model="accountId"
                         :options="accountOptions"
                         placeholder="Selecciona una cuenta"
-                                searchable
-                                :button-class="accountButtonClasses"
-                                options-class="py-1.5"
-                                :get-option-class="getHierarchicalAccountOptionRowClass"
-                                :get-option-label-class="getHierarchicalAccountOptionLabelClass"
+                        searchable
+                        :button-class="accountButtonClasses"
+                        options-class="py-1.5"
+                        :get-option-class="getHierarchicalAccountOptionRowClass"
+                        :get-option-label-class="getHierarchicalAccountOptionLabelClass"
                     />
                 </FilterField>
 
@@ -426,7 +414,8 @@ onBeforeUnmount(() => {
                             <SelectField
                                 v-model="documentType"
                                 :options="documentTypeOptions"
-                                placeholder="Todos los documentos"
+                                placeholder="Documento"
+                                :clearable="true"
                                 :button-class="documentTypeButtonClasses"
                             />
                         </FilterField>
@@ -451,8 +440,9 @@ onBeforeUnmount(() => {
                             <SelectField
                                 v-model="contactId"
                                 :options="contactOptions"
-                                placeholder="Todos los terceros"
+                                placeholder="Tercero"
                                 searchable
+                                :clearable="true"
                                 :button-class="contactButtonClasses"
                             />
                         </FilterField>
@@ -461,8 +451,9 @@ onBeforeUnmount(() => {
                             <SelectField
                                 v-model="tableAccountId"
                                 :options="tableAccountOptions"
-                                placeholder="Todas las cuentas"
+                                placeholder="Cuenta"
                                 searchable
+                                :clearable="true"
                                 :button-class="tableAccountButtonClasses"
                                 options-class="py-1.5"
                                 :get-option-class="getHierarchicalAccountOptionRowClass"

@@ -72,17 +72,16 @@ function toggleSort(column: string) {
     fetchInvoices(currentPage.value, searchQuery.value);
 }
 
-const statusFilter = ref('all');
-const providerFilter = ref('all');
-const subgroupFilter = ref('all');
+const statusFilter = ref<string | null>(null);
+const providerFilter = ref<number | string | null>(null);
+const subgroupFilter = ref<number | string | null>(null);
 const dateFilter = ref<Date | null>(null);
 const providers = ref<{ id: number; full_name: string }[]>([]);
 const subgroups = ref<{ id: number; name: string }[]>([]);
-const DEFAULT_STATUS_FILTER = 'all';
-const DEFAULT_PROVIDER_FILTER = 'all';
-const DEFAULT_SUBGROUP_FILTER = 'all';
+const DEFAULT_STATUS_FILTER: string | null = null;
+const DEFAULT_PROVIDER_FILTER: string | null = null;
+const DEFAULT_SUBGROUP_FILTER: string | null = null;
 const statusOptions = [
-    { id: 'all', name: 'Todos los estados' },
     { id: 'status_pending', name: 'Pendiente' },
     { id: 'status_approved', name: 'Aprobado' },
     { id: 'status_rejected', name: 'Rechazado' },
@@ -92,9 +91,9 @@ const statusOptions = [
 ];
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
-const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
-const isSubgroupFilterActive = computed(() => subgroupFilter.value !== DEFAULT_SUBGROUP_FILTER);
+const isStatusFilterActive = computed(() => statusFilter.value != null);
+const isProviderFilterActive = computed(() => providerFilter.value != null);
+const isSubgroupFilterActive = computed(() => subgroupFilter.value != null);
 const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
@@ -248,16 +247,18 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
             sort_by: sortBy.value,
             sort_dir: sortDir.value,
         };
-        if (statusFilter.value === 'status_pending') params.status = 'pending';
-        if (statusFilter.value === 'status_approved') params.status = 'approved';
-        if (statusFilter.value === 'status_rejected') params.status = 'rejected';
-        if (statusFilter.value === 'approval_pending_difference') params.approval_status = 'pending_difference_approval';
-        if (statusFilter.value === 'approval_approved') params.approval_status = 'approved';
-        if (statusFilter.value === 'approval_difference_rejected') params.approval_status = 'difference_rejected';
-        if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
+        if (statusFilter.value != null) {
+            if (statusFilter.value === 'status_pending') params.status = 'pending';
+            else if (statusFilter.value === 'status_approved') params.status = 'approved';
+            else if (statusFilter.value === 'status_rejected') params.status = 'rejected';
+            else if (statusFilter.value === 'approval_pending_difference') params.approval_status = 'pending_difference_approval';
+            else if (statusFilter.value === 'approval_approved') params.approval_status = 'approved';
+            else if (statusFilter.value === 'approval_difference_rejected') params.approval_status = 'difference_rejected';
+        }
+        if (providerFilter.value != null) {
             params.provider_id = isNaN(Number(providerFilter.value)) ? providerFilter.value : Number(providerFilter.value);
         }
-        if (subgroupFilter.value !== 'all' && subgroupFilter.value !== '' && subgroupFilter.value !== null) {
+        if (subgroupFilter.value != null) {
             params.subgroup_id = isNaN(Number(subgroupFilter.value)) ? subgroupFilter.value : Number(subgroupFilter.value);
         }
         const response = await axios.get('/gastos/facturas-compra/data', { params });
@@ -552,30 +553,33 @@ async function handleDifferenceDecision() {
                         v-model="statusFilter"
                         label=""
                         :options="statusOptions"
+                        placeholder="Estado"
                         :button-class="statusButtonClasses"
+                        :clearable="true"
                     />
                 </FilterField>
                 <FilterField label="Proveedor" :active="isProviderFilterActive" class="min-w-[180px]">
                     <SelectField
                         v-model="providerFilter"
                         label=""
-                        :options="[
-                            { id: 'all', name: 'Todos los proveedores' },
-                            ...providers.map((prov) => ({ id: String(prov.id), name: prov.full_name })),
-                        ]"
+                        :options="providers.map((prov) => ({ id: String(prov.id), name: prov.full_name }))"
+                        placeholder="Proveedor"
                         :button-class="providerButtonClasses"
+                        :clearable="true"
                     />
                 </FilterField>
                 <FilterField label="Subgrupo" :active="isSubgroupFilterActive" class="min-w-[180px]">
                     <SelectField
                         v-model="subgroupFilter"
                         label=""
-                        :options="[{ id: 'all', name: 'Todos los subgrupos' }, ...subgroups.map((sub) => ({ id: String(sub.id), name: sub.name }))]"
+                        :options="subgroups.map((sub) => ({ id: String(sub.id), name: sub.name }))"
+                        placeholder="Subgrupo"
                         :button-class="subgroupButtonClasses"
+                        :clearable="true"
                     />
                 </FilterField>
                 <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
-                    <DateField v-model="dateFilter" placeholder="Fecha" />
+                    <DateField v-model="dateFilter" placeholder="Fecha" :clearable="true" />
                 </FilterField>
             </FilterBar>
             <div class="relative overflow-auto rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">

@@ -21,6 +21,26 @@ class FabricRollService
     /** Tolerancia de cantidad al aprobar recepción: ±30% respecto al pedido por ítem. */
     public const TOLERANCE_QUANTITY_PERCENT = 30;
 
+    /**
+     * Genera el siguiente número de rollo consecutivo en formato RLXXXXX.
+     * Usa un lock pesimista para evitar duplicados en concurrencia.
+     */
+    public function nextRollNumber(): string
+    {
+        return DB::transaction(function () {
+            // Bloquea la tabla mientras calculamos el máximo para evitar race conditions
+            $max = DB::table('fabric_rolls')
+                ->where('roll_number', 'like', 'RL%')
+                ->lockForUpdate()
+                ->selectRaw("MAX(CAST(REGEXP_REPLACE(roll_number, '[^0-9]', '') AS UNSIGNED)) as max_num")
+                ->value('max_num');
+
+            $next = ($max ?? 0) + 1;
+
+            return 'RL' . $next;
+        });
+    }
+
     public function paginate(array $filters = [], int $perPage = 10): LengthAwarePaginator
     {
         $query = FabricRoll::with([
@@ -206,6 +226,10 @@ class FabricRollService
     public function storeFromReception(array $data): FabricRoll
     {
         $this->ensureInvoiceNotYetReceptionApproved((int) $data['purchase_document_item_id']);
+
+        $pdi = PurchaseDocumentItem::findOrFail($data['purchase_document_item_id']);
+        $data['item_id'] = $pdi->item_id;
+
         return $this->create($data);
     }
 
@@ -267,6 +291,7 @@ class FabricRollService
         }
 
         return $query
+            ->where('approval_status', FabricRoll::APPROVAL_APPROVED)
             ->orderBy('entry_date', 'desc')
             ->get();
     }
@@ -280,10 +305,10 @@ class FabricRollService
     public function inventoryWithFilters(array $filters = [], int $perPage = 100, string $sortBy = 'entry_date', string $sortDirection = 'desc'): LengthAwarePaginator
     {
         $allowedSorts = [
-            'roll_number'  => 'fr.roll_number',
+            'roll_number'  => DB::raw("CAST(REGEXP_REPLACE(fr.roll_number, '[^0-9]', '') AS UNSIGNED)"),
             'location'     => 'fr.location',
             'fabric'       => DB::raw("COALESCE(i.name, pdi.item_name, 'Tela')"),
-            'color'        => 'pdi.supplier_color',
+            'color'        => DB::raw("COALESCE(fr.internal_color_name, pdi.supplier_color)"),
             'width'        => 'fr.roll_width',
             'quantity'     => 'fr.quantity',
             'partial_output' => 'fr.partial_output',
@@ -304,6 +329,7 @@ class FabricRollService
                 'fr.roll_width',
                 'fr.partial_output',
                 'fr.actual_output',
+                'fr.internal_color_name',
                 DB::raw("COALESCE(fi.name, i.name, pdi.item_name, fr.description, 'Tela') as fabric"),
                 'pdi.id as purchase_document_item_id',
                 DB::raw('COALESCE(fr.item_id, pdi.item_id) as fabric_item_id'),
@@ -321,7 +347,8 @@ class FabricRollService
             ->leftJoin('purchase_documents as pd', 'pd.id', '=', 'pdi.purchase_document_id')
             ->leftJoin('contacts as c', 'c.id', '=', 'pd.contact_id')
             ->leftJoin('users as u', 'u.id', '=', 'pd.created_by_user_id')
-            ->whereNull('fr.deleted_at');
+            ->whereNull('fr.deleted_at')
+            ->where('fr.approval_status', FabricRoll::APPROVAL_APPROVED);
 
         if (!empty($filters['search'])) {
             $search = $filters['search'];
@@ -331,6 +358,7 @@ class FabricRollService
                     ->orWhere('fi.name', 'like', "%{$search}%")
                     ->orWhere('i.name', 'like', "%{$search}%")
                     ->orWhere('pdi.item_name', 'like', "%{$search}%")
+                    ->orWhere('fr.internal_color_name', 'like', "%{$search}%")
                     ->orWhere('pdi.supplier_color', 'like', "%{$search}%")
                     ->orWhere('c.full_name', 'like', "%{$search}%")
                     ->orWhere('pd.provider_name', 'like', "%{$search}%")
@@ -339,20 +367,12 @@ class FabricRollService
             });
         }
 
-        if (!empty($filters['base_fabric'])) {
-            $baseFabric = $filters['base_fabric'];
-            $query->where(function ($q) use ($baseFabric) {
-                $q->where('fi.description', 'like', "%{$baseFabric}%")
-                    ->orWhere('i.description', 'like', "%{$baseFabric}%");
-            });
+        if (!empty($filters['color'])) {
+            $query->where('fr.internal_color_name', $filters['color']);
         }
 
-        if (!empty($filters['provider'])) {
-            $prov = $filters['provider'];
-            $query->where(function ($q) use ($prov) {
-                $q->where('c.full_name', 'like', "%{$prov}%")
-                    ->orWhere('pd.provider_name', 'like', "%{$prov}%");
-            });
+        if (!empty($filters['location'])) {
+            $query->where('fr.location', $filters['location']);
         }
 
         if (!empty($filters['with_output'])) {
@@ -384,15 +404,24 @@ class FabricRollService
 
     public function approveReception($invoiceId)
     {
-        $invoice = PurchaseDocument::with(['items', 'items.item.categorySubGroup'])->where('document_type', PurchaseDocument::TYPE_INVOICE)
+        $invoice = PurchaseDocument::with(['items', 'items.item.categorySubGroup'])
+            ->where('document_type', PurchaseDocument::TYPE_INVOICE)
             ->findOrFail($invoiceId);
 
         $this->ensureInvoiceReceptionAllowed($invoice);
-
         $this->validateReceptionTolerances($invoice);
 
-        $invoice->update(['status' => 'approved']);
-        return $invoice;
+        return DB::transaction(function () use ($invoice) {
+            $invoice->update(['status' => 'approved']);
+
+            FabricRoll::whereHas('purchaseDocumentItem', function ($q) use ($invoice) {
+                $q->where('purchase_document_id', $invoice->id);
+            })
+                ->where('approval_status', FabricRoll::APPROVAL_PENDING)
+                ->update(['approval_status' => FabricRoll::APPROVAL_APPROVED]);
+
+            return $invoice;
+        });
     }
 
     /**
@@ -453,8 +482,17 @@ class FabricRollService
 
         $this->ensureInvoiceReceptionAllowed($invoice);
 
-        $invoice->update(['status' => 'rejected']);
-        return $invoice;
+        return DB::transaction(function () use ($invoice) {
+            $invoice->update(['status' => 'rejected']);
+
+            FabricRoll::whereHas('purchaseDocumentItem', function ($q) use ($invoice) {
+                $q->where('purchase_document_id', $invoice->id);
+            })
+                ->where('approval_status', FabricRoll::APPROVAL_PENDING)
+                ->update(['approval_status' => FabricRoll::APPROVAL_NOT_APPROVED]);
+
+            return $invoice;
+        });
     }
 
     protected function ensureInvoiceReceptionAllowed(PurchaseDocument $invoice): void

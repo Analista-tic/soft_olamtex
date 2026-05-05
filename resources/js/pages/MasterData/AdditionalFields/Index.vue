@@ -71,29 +71,27 @@ const dragOverFieldId = ref<number | null>(null);
 const isReordering = ref(false);
 
 const searchQuery = ref('');
-const typeFilter = ref('all');
-const statusFilter = ref('all');
+const typeFilter = ref<string | null>(null);
+const statusFilter = ref<string | null>(null);
 const isLoading = ref(false);
 const currentPage = ref(1);
 const totalItems = ref(0);
 const itemsPerPage = ref(10);
 
-const DEFAULT_TYPE_FILTER = 'all';
-const DEFAULT_STATUS_FILTER = 'all';
+const DEFAULT_TYPE_FILTER = null;
+const DEFAULT_STATUS_FILTER = null;
 
 const typeOptions = computed(() => [
-    { id: 'all', name: 'Todos los tipos' },
     ...Object.entries(fieldTypeLabels).map(([key, label]) => ({ id: key, name: label })),
 ]);
 const statusOptions = [
-    { id: 'all', name: 'Todos los estados' },
     { id: 'active', name: 'Activo' },
     { id: 'inactive', name: 'Inactivo' },
 ];
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isTypeFilterActive = computed(() => typeFilter.value !== DEFAULT_TYPE_FILTER);
-const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
+const isTypeFilterActive = computed(() => typeFilter.value != null);
+const isStatusFilterActive = computed(() => statusFilter.value != null);
 
 const typeButtonClasses = useFilterButtonClasses(isTypeFilterActive);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
@@ -256,7 +254,7 @@ async function fetchAdditionalFields(page = 1, search = '') {
                 page,
                 per_page: itemsPerPage.value,
                 search,
-                field_type: typeFilter.value !== DEFAULT_TYPE_FILTER ? typeFilter.value : undefined,
+                field_type: typeFilter.value != null ? typeFilter.value : undefined,
                 status: statusFilter.value === 'active' ? true : statusFilter.value === 'inactive' ? false : undefined,
             },
         });
@@ -450,10 +448,10 @@ onBeforeUnmount(() => {
                     </div>
                 </FilterField>
                 <FilterField label="Tipo" :active="isTypeFilterActive" class="min-w-[180px]">
-                    <SelectField v-model="typeFilter" label="" :options="typeOptions" :button-class="typeButtonClasses" />
+                    <SelectField v-model="typeFilter" label="" :options="typeOptions" placeholder="Tipo" :button-class="typeButtonClasses" :clearable="true" />
                 </FilterField>
                 <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
-                    <SelectField v-model="statusFilter" label="" :options="statusOptions" :button-class="statusButtonClasses" />
+                    <SelectField v-model="statusFilter" label="" :options="statusOptions" placeholder="Estado" :button-class="statusButtonClasses" :clearable="true" />
                 </FilterField>
             </FilterBar>
             <p class="text-xs text-muted-foreground">Ordena campos adicionales (arrastrar y soltar).</p>

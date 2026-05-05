@@ -7,7 +7,6 @@
         "dev": "vite",
         "format": "prettier --write resources/",
         "format:check": "prettier --check resources/",
-        "fix:orthography": "node scripts/fix-orthography.cjs",
         "lint": "eslint . --fix"
     },
     "devDependencies": {

@@ -87,7 +87,7 @@ const CONSUMO_FIELDS: Array<{ key: ConsumoKey; label: string; placeholder: strin
 
 /** Estado */
 const createInitialForm = (roll?: FabricRollView | null): FormValues => ({
-    largoTrazo: roll?.quantity_value ? String(roll.quantity_value) : '',
+    largoTrazo: roll?.roll_qty_value != null ? String(roll.roll_qty_value) : '',
     largoLiquidacion: '',
     largoEspiga: '',
 
@@ -125,7 +125,7 @@ const consumoTotal = computed(() => {
 });
 
 const restante = computed(() => {
-    const quantity = toNumber(props.roll?.quantity_value);
+    const quantity = toNumber(props.roll?.roll_qty_value);
     return Math.max(0, quantity - consumoTotal.value);
 });
 
@@ -190,7 +190,7 @@ function submitForm() {
                                             {{ props.roll?.fabric ?? '-' }}
                                         </TableCell>
                                         <TableCell>
-                                            {{ toNumber(props.roll?.quantity_value).toFixed(2) }}
+                                            {{ toNumber(props.roll?.roll_qty_value).toFixed(2) }}
                                         </TableCell>
                                     </TableRow>
                                 </TableBody>
