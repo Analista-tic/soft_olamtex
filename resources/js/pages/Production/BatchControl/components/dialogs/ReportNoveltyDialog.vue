@@ -88,11 +88,21 @@ const emit = defineEmits<{
             </div>
 
             <!-- Footer -->
-            <DialogFooter class="border-t border-border/50 bg-muted/20 px-6 py-4">
-                <Button variant="outline" size="sm" :disabled="isReportingNovelty" @click="emit('close')">Cancelar</Button>
+            <DialogFooter class="border-t border-border/50 px-6 py-4">
                 <Button
-                    size="sm"
-                    class="gap-1.5 bg-orange-600 hover:bg-orange-700"
+                    type="button"
+                    variant="outline"
+                    size="pill"
+                    class="border-primary/40 text-primary shadow-sm hover:bg-primary/10"
+                    :disabled="isReportingNovelty"
+                    @click="emit('close')"
+                >
+                    Cancelar
+                </Button>
+                <Button
+                    type="button"
+                    size="pill"
+                    class="gap-1.5 bg-orange-600 shadow-sm hover:bg-orange-700"
                     :disabled="!noveltyToProcess || !noveltyDescription.trim() || isReportingNovelty"
                     @click="emit('confirm')"
                 >

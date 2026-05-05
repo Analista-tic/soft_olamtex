@@ -140,6 +140,7 @@ class ProgrammerController extends Controller
     {
         $validatedData = $request->validated();
         $requestId = $this->resolveRequestId($request);
+        $userId = $request->user()?->id;
 
         Log::info('production_order.store.received', [
             'request_id' => $requestId,
@@ -171,7 +172,7 @@ class ProgrammerController extends Controller
                         'status' => $status,
                         'current_process' => config('product-sheet.batch_control_processes.0', 'I&D'),
                         'source' => 'manual',
-                        'created_by_user_id' => $request->user()?->id,
+                        'created_by_user_id' => $userId,
                     ]);
 
                     $order->op_code = $this->productionOrderService->nextOpCode(

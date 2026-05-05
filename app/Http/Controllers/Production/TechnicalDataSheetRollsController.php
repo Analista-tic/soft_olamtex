@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Production;
 
 use App\Http\Controllers\Controller;
 use App\Models\Production\ProductionOrder;
+use App\Models\Textil\FabricRoll;
 use App\Services\Production\TechnicalDataSheetRollsStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class TechnicalDataSheetRollsController extends Controller
 {
@@ -119,6 +122,74 @@ class TechnicalDataSheetRollsController extends Controller
                 'updatedAt' => $now,
                 'createdAt' => $previous['createdAt'] ?? $now,
             ];
+        }
+
+        // ── Actualizar partial_output en FabricRoll (con lockForUpdate para concurrencia) ───
+        $existingByRollId = [];
+        foreach ($existing as $line) {
+            $rid = isset($line['rollId']) ? trim((string) $line['rollId']) : '';
+            if ($rid === '' || ! is_numeric($rid)) {
+                continue;
+            }
+            $m = is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : 0.0;
+            $existingByRollId[$rid] = ($existingByRollId[$rid] ?? 0.0) + $m;
+        }
+
+        $newByRollId = [];
+        foreach ($nextLines as $line) {
+            $rid = isset($line['rollId']) ? trim((string) $line['rollId']) : '';
+            if ($rid === '' || ! is_numeric($rid)) {
+                continue;
+            }
+            $m = is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : 0.0;
+            $newByRollId[$rid] = ($newByRollId[$rid] ?? 0.0) + $m;
+        }
+
+        $allRollIds     = array_unique(array_merge(array_keys($existingByRollId), array_keys($newByRollId)));
+        $numericRollIds = array_values(array_filter(
+            array_map(fn(string $r) => is_numeric($r) ? (int) $r : null, $allRollIds),
+            fn($v) => $v !== null,
+        ));
+
+        if (! empty($numericRollIds)) {
+            DB::transaction(function () use ($numericRollIds, $existingByRollId, $newByRollId) {
+                $rolls = FabricRoll::lockForUpdate()
+                    ->whereIn('id', $numericRollIds)
+                    ->get()
+                    ->keyBy('id');
+
+                foreach ($numericRollIds as $numId) {
+                    $rid  = (string) $numId;
+                    $roll = $rolls->get($numId);
+                    if (! $roll) {
+                        continue;
+                    }
+
+                    $oldMeters = $existingByRollId[$rid] ?? 0.0;
+                    $newMeters = $newByRollId[$rid] ?? 0.0;
+                    $delta     = $newMeters - $oldMeters;
+
+                    if (abs($delta) < 0.001) {
+                        continue;
+                    }
+
+                    $currentPartial = (float) $roll->partial_output;
+                    $newPartial     = round(max(0.0, $currentPartial + $delta), 2);
+
+                    if ($newPartial > (float) $roll->quantity + 0.001) {
+                        $available = round(max(0.0, (float) $roll->quantity - $currentPartial), 2);
+                        throw ValidationException::withMessages([
+                            'rolls' => [
+                                "Rollo {$roll->roll_number}: disponibilidad parcial insuficiente "
+                                . "({$available} m disponibles, se intentan asignar {$newMeters} m).",
+                            ],
+                        ]);
+                    }
+
+                    $roll->partial_output = $newPartial;
+                    $roll->save();
+                }
+            });
         }
 
         $payload['lines'] = array_values($nextLines);

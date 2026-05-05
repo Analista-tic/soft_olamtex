@@ -327,6 +327,8 @@ class FabricRollService
                 'fr.location',
                 'fr.quantity',
                 'fr.roll_width',
+                DB::raw('(fr.quantity - fr.partial_output) as partial_availability_value'),
+                DB::raw('CONCAT(FORMAT(fr.quantity - fr.partial_output, 2), " m") as partial_availability'),
                 'fr.partial_output',
                 'fr.actual_output',
                 'fr.internal_color_name',

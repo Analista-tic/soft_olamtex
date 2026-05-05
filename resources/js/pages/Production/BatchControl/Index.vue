@@ -119,7 +119,7 @@ const isDelivering = ref(false);
 // Dialog: fecha estimada
 const dateDialogOpen = ref(false);
 const dateRow = ref<BatchControlRow | null>(null);
-const editingDate = ref<string>('');
+const editingDate = ref<string | null>(null);
 /** Proceso que se está editando (siempre = activeProcess al abrir el dialog) */
 const editingProcess = ref<string>('');
 /** Fecha sugerida del proceso anterior (para filas deshabilitadas) */
@@ -481,9 +481,8 @@ async function confirmDeliver() {
 function openDateDialog(row: BatchControlRow) {
     dateRow.value = row;
     editingProcess.value = activeProcess.value;
-    // Convertir "Y-m-d H:i" → "Y-m-dTH:i" para input datetime-local; retrocompat con solo fecha
-    const stored = row.process_estimated_dates?.[activeProcess.value] ?? '';
-    editingDate.value = stored ? stored.replace(' ', 'T') : '';
+    const stored = row.process_estimated_dates?.[activeProcess.value] ?? null;
+    editingDate.value = stored ? stored.slice(0, 10) : null;
     suggestedDate.value = isRowDisabled(row) ? getSuggestedDateForProcess(row, activeProcess.value) : null;
     dateDialogOpen.value = true;
 }
@@ -491,8 +490,7 @@ function openDateDialog(row: BatchControlRow) {
 async function saveEstimatedDate() {
     if (!dateRow.value) return;
     const proc = editingProcess.value;
-    // Convertir formato input "Y-m-dTH:i" → "Y-m-d H:i" para el backend
-    const dateToSave = editingDate.value ? editingDate.value.replace('T', ' ') : null;
+    const dateToSave = editingDate.value ? `${editingDate.value} 00:00` : null;
     try {
         await axios.patch(route('control-de-lotes.update-estimated-date', { order: dateRow.value.id }), {
             process: proc,

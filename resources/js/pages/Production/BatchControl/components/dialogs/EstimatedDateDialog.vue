@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import DatePickerField from '@/components/DatePickerField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { AlertTriangle, Calendar, CheckCircle2, Clock, Lightbulb, XCircle } from 'lucide-vue-next';
 import { computed } from 'vue';
 import type { BatchControlRow } from '../../types';
@@ -9,8 +9,8 @@ import type { BatchControlRow } from '../../types';
 const props = defineProps<{
     open: boolean;
     row: BatchControlRow | null;
-    /** Valor del input datetime-local ("YYYY-MM-DDTHH:MM") */
-    editingDate: string;
+    /** Valor del datepicker ("YYYY-MM-DD") */
+    editingDate: string | null;
     /** Proceso que se está editando (siempre = activeProcess del tab) */
     editingProcess: string;
     /** Si la fila no está en el proceso activo (orden en otro proceso) */
@@ -22,20 +22,10 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     (e: 'update:open', v: boolean): void;
-    (e: 'update:editingDate', v: string): void;
+    (e: 'update:editingDate', v: string | null): void;
     (e: 'save'): void;
     (e: 'close'): void;
 }>();
-
-const minDatetime = computed(() => {
-    if (props.isDisabledRow || !props.row?.current_process_arrived_at) return undefined;
-    return props.row.current_process_arrived_at.replace(' ', 'T');
-});
-
-const maxDatetime = computed(() => {
-    if (!props.row?.fecha || props.row.fecha === '-') return undefined;
-    return props.row.fecha + 'T23:59';
-});
 
 const editDatePart = computed(() => props.editingDate?.split('T')[0] ?? '');
 
@@ -45,7 +35,8 @@ const isDateAfterFinal = computed(
 
 const isDateBeforeArrival = computed(() => {
     if (!props.editingDate || props.isDisabledRow || !props.row?.current_process_arrived_at) return false;
-    return props.editingDate.replace('T', ' ') < props.row.current_process_arrived_at;
+    const arrivalDate = props.row.current_process_arrived_at.slice(0, 10);
+    return props.editingDate < arrivalDate;
 });
 
 const isInvalid = computed(() => isDateAfterFinal.value || isDateBeforeArrival.value);
@@ -106,7 +97,7 @@ const estimatedStatusIcon = computed(() => {
 
 function applySuggestion() {
     if (!props.suggestedDate) return;
-    emit('update:editingDate', props.suggestedDate.replace(' ', 'T'));
+    emit('update:editingDate', props.suggestedDate.slice(0, 10));
 }
 </script>
 
@@ -129,8 +120,8 @@ function applySuggestion() {
                     </div>
                 </div>
                 <p v-if="isDisabledRow" class="mt-2 text-xs text-muted-foreground">
-                    La orden está en <span class="font-medium text-foreground">{{ row?.current_process }}</span>.
-                    Programa la fecha estimada para cuando llegue a este proceso.
+                    La orden está en <span class="font-medium text-foreground">{{ row?.current_process }}</span
+                    >. Programa la fecha estimada para cuando llegue a este proceso.
                 </p>
             </DialogHeader>
 
@@ -144,23 +135,20 @@ function applySuggestion() {
                     <Lightbulb class="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     <span>
                         Proceso anterior termina el
-                        <span class="font-semibold">{{ formatDate(suggestedDate) }}</span>.
+                        <span class="font-semibold">{{ formatDate(suggestedDate) }}</span
+                        >.
                         <button type="button" class="ml-1 underline hover:no-underline" @click="applySuggestion">Usar esta fecha</button>
                     </span>
                 </div>
 
                 <!-- Input datetime -->
-                <div class="space-y-1.5">
-                    <label class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Fecha y hora estimada</label>
-                    <Input
-                        :model-value="editingDate"
-                        type="datetime-local"
-                        :min="minDatetime"
-                        :max="maxDatetime"
-                        class="h-9"
-                        @update:model-value="emit('update:editingDate', String($event))"
-                    />
-                </div>
+                <DatePickerField
+                    :model-value="editingDate"
+                    label="Fecha estimada"
+                    :clearable="true"
+                    :show-today="true"
+                    @update:model-value="emit('update:editingDate', $event)"
+                />
 
                 <!-- Preview + referencias -->
                 <div v-if="editingDate" class="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -205,9 +193,25 @@ function applySuggestion() {
             </div>
 
             <!-- Footer -->
-            <DialogFooter class="border-t border-border/50 bg-muted/20 px-6 py-4">
-                <Button variant="outline" size="sm" @click="emit('close')">Cancelar</Button>
-                <Button size="sm" :disabled="!!isInvalid" @click="emit('save')">Guardar</Button>
+            <DialogFooter class="border-t border-border/50 px-6 py-4">
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="pill"
+                    class="border-primary/40 text-primary shadow-sm hover:bg-primary/10"
+                    @click="emit('close')"
+                >
+                    Cancelar
+                </Button>
+                <Button
+                    type="button"
+                    size="pill"
+                    class="shadow-sm"
+                    :disabled="!!isInvalid"
+                    @click="emit('save')"
+                >
+                    Guardar
+                </Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>

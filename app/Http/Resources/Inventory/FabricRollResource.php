@@ -10,8 +10,10 @@ class FabricRollResource extends JsonResource
     public function toArray($request): array
     {
         $document = $this->purchaseDocumentItem?->document;
-        $partialAvailability = $this->quantity && $this->partial_output !== null
-            ? $this->quantity - $this->partial_output
+        $partial = (float) ($this->partial_output ?? 0);
+        $actual  = (float) ($this->actual_output ?? 0);
+        $partialAvailability = $this->quantity
+            ? max(0.0, $this->quantity - $actual - $partial)
             : null;
         $fabricItem = $this->item ?? $this->purchaseDocumentItem?->item;
         $color = $this->internal_color_name
@@ -30,7 +32,7 @@ class FabricRollResource extends JsonResource
                 ?? 'Tela',
             'color' => $color ?? 'N/A',
             'color_code' => $this->deriveColorCode($color),
-            'width' => $this->formatMeters($this->roll_width),
+            'width' => $this->formatWidth($this->roll_width),
             'width_value' => $this->roll_width,
             'roll_qty' => $this->formatMeters($this->quantity),
             'roll_qty_value' => $this->quantity,
@@ -67,6 +69,15 @@ class FabricRollResource extends JsonResource
         $normalized = rtrim(rtrim($formatted, '0'), '.');
 
         return "{$normalized} m";
+    }
+
+    protected function formatWidth(?float $value): string
+    {
+        if ($value === null) {
+            return '0 m';
+        }
+
+        return number_format($value, 2, ',', '.') . ' m';
     }
 
     protected function deriveColorCode(?string $color): string

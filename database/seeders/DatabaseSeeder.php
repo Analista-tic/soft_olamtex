@@ -36,5 +36,12 @@ class DatabaseSeeder extends Seeder
             LegacyContactsSeeder::class,
             LegacyFabricRollsSeeder::class,
         ]);
+
+        if (app()->environment('local')) {
+            $this->call([
+                ProductionDemoSeeder::class,
+                OperationDemoSeeder::class,
+            ]);
+        }
     }
 }

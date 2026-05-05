@@ -2,7 +2,8 @@
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormHeader from '@/components/FormHeader.vue';
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
-import { Dialog } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { OpBasicInfo } from '@/domain/Production';
 import { fetchOpBasicInfo } from '@/domain/Production';
 import { computed, ref, watch } from 'vue';
@@ -166,84 +167,125 @@ watch(
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <FormDialogContent class="flex max-h-[90vh] max-w-2xl flex-col overflow-y-auto px-4 py-3 sm:max-w-[95vw]" :scrollable="true">
-            <FormHeader title="Información básica de la orden" :description="`Orden ${row?.op_code ?? ''} — ${row?.referencia ?? ''}`" />
+        <FormDialogContent
+            class="flex max-h-[90vh] max-w-2xl flex-col overflow-hidden p-0 sm:max-w-[95vw]"
+            :scrollable="false"
+        >
+            <!-- Header sticky -->
+            <DialogHeader class="shrink-0 border-b border-border/50 bg-muted/20 px-6 py-4">
+                <DialogTitle class="text-sm font-semibold leading-tight text-foreground">
+                    Información básica de la orden
+                </DialogTitle>
+                <DialogDescription class="mt-0.5 truncate text-xs text-muted-foreground">
+                    Orden
+                    <span class="font-mono font-medium text-foreground">{{ row?.op_code ?? '' }}</span>
+                    <span class="mx-1">·</span>
+                    {{ row?.referencia ?? '' }}
+                </DialogDescription>
+            </DialogHeader>
 
-            <div v-if="isLoadingDetail" class="flex items-center justify-center py-12 text-sm text-muted-foreground">Cargando información...</div>
+            <!-- Contenido scrolleable -->
+            <div class="-mx-0 min-h-0 flex-1 overflow-y-auto px-6 py-4">
 
-            <div v-else-if="!opDetail" class="flex items-center justify-center py-12 text-sm text-muted-foreground">
-                No se pudo cargar la información.
-            </div>
+                <div v-if="isLoadingDetail" class="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                    Cargando información...
+                </div>
 
-            <div v-else class="space-y-4">
-                <div class="rounded-lg border border-border bg-background p-4">
-                    <p class="mb-3 text-sm font-semibold text-foreground">{{ opHeaderLabel }}</p>
-                    <div class="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+                <div v-else-if="!opDetail" class="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                    No se pudo cargar la información.
+                </div>
+
+                <div v-else class="space-y-4">
+                    <!-- Campos de información básica -->
+                    <div class="rounded-lg border border-border bg-background p-4">
+                        <p class="mb-3 text-sm font-semibold text-foreground">{{ opHeaderLabel }}</p>
+                        <div class="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+                            <div
+                                v-for="field in basicInfoFields.filter((f) => !f.fullWidth)"
+                                :key="field.key"
+                                class="space-y-0.5 rounded-md bg-muted/30 px-3 py-2"
+                            >
+                                <p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                    {{ field.label }}
+                                </p>
+                                <p class="truncate text-sm font-medium text-foreground" :title="String(field.value)">
+                                    {{ field.value }}
+                                </p>
+                            </div>
+                        </div>
+
                         <div
-                            v-for="field in basicInfoFields.filter((f) => !f.fullWidth)"
+                            v-for="field in basicInfoFields.filter((f) => f.fullWidth)"
                             :key="field.key"
-                            class="space-y-0.5 rounded-md bg-muted/30 px-3 py-2"
+                            class="mt-3 space-y-1 rounded-md bg-muted/30 px-3 py-2"
                         >
                             <p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                                 {{ field.label }}
                             </p>
-                            <p class="truncate text-sm font-medium text-foreground" :title="String(field.value)">
-                                {{ field.value }}
+                            <p class="whitespace-pre-wrap text-sm font-medium text-foreground">{{ field.value }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Última entrega -->
+                    <div class="rounded-lg border border-border p-4">
+                        <p class="mb-2 text-sm font-semibold text-foreground">Última entrega / Observaciones</p>
+                        <template v-if="row?.last_delivery">
+                            <p class="mb-1 text-xs text-muted-foreground">
+                                {{ row.last_delivery.from_process }} → {{ row.last_delivery.to_process }}
+                                <span v-if="row.last_delivery.delivered_at" class="ml-1">
+                                    · {{ formatDate(row.last_delivery.delivered_at?.split('T')[0] ?? null) }}
+                                </span>
+                            </p>
+                            <p v-if="row.last_delivery.observations" class="whitespace-pre-wrap text-sm text-foreground">
+                                {{ row.last_delivery.observations }}
+                            </p>
+                            <p v-else class="text-sm text-muted-foreground">Sin observaciones</p>
+                        </template>
+                        <p v-else class="text-sm text-muted-foreground">Sin entregas registradas</p>
+                    </div>
+
+                    <!-- Dibujo plano -->
+                    <div v-if="drawingUrl || drawingLoadFailed" class="rounded-lg border border-border p-4">
+                        <p class="mb-2 text-sm font-semibold text-foreground">Dibujo plano</p>
+                        <button
+                            v-if="drawingUrl && !drawingLoadFailed"
+                            type="button"
+                            class="flex max-h-[200px] w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/20 transition hover:bg-muted/40"
+                            @click="openDrawing"
+                        >
+                            <img
+                                :src="drawingUrl"
+                                class="max-h-[180px] w-auto max-w-full object-contain"
+                                alt="Dibujo plano"
+                                @error="onDrawingError"
+                            />
+                        </button>
+                        <div
+                            v-else
+                            class="flex max-h-[160px] w-full items-center justify-center rounded-lg border border-dashed border-muted-foreground/25 bg-muted/10"
+                        >
+                            <p class="text-sm text-muted-foreground">
+                                {{ drawingUrl && drawingLoadFailed ? 'Error al cargar la imagen' : 'Sin dibujo' }}
                             </p>
                         </div>
                     </div>
 
-                    <div
-                        v-for="field in basicInfoFields.filter((f) => f.fullWidth)"
-                        :key="field.key"
-                        class="mt-3 space-y-1 rounded-md bg-muted/30 px-3 py-2"
-                    >
-                        <p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                            {{ field.label }}
-                        </p>
-                        <p class="whitespace-pre-wrap text-sm font-medium text-foreground">{{ field.value }}</p>
-                    </div>
+                    <ImagePreviewDialog v-model:open="isDrawingOpen" title="Dibujo plano" :src="drawingUrl" alt="Dibujo plano" />
                 </div>
-
-                <div class="rounded-lg border border-border p-4">
-                    <p class="mb-2 text-sm font-semibold text-foreground">Última entrega / Observaciones</p>
-                    <template v-if="row?.last_delivery">
-                        <p class="mb-1 text-xs text-muted-foreground">
-                            {{ row.last_delivery.from_process }} → {{ row.last_delivery.to_process }}
-                            <span v-if="row.last_delivery.delivered_at" class="ml-1">
-                                · {{ formatDate(row.last_delivery.delivered_at?.split('T')[0] ?? null) }}
-                            </span>
-                        </p>
-                        <p v-if="row.last_delivery.observations" class="whitespace-pre-wrap text-sm text-foreground">
-                            {{ row.last_delivery.observations }}
-                        </p>
-                        <p v-else class="text-sm text-muted-foreground">Sin observaciones</p>
-                    </template>
-                    <p v-else class="text-sm text-muted-foreground">Sin entregas registradas</p>
-                </div>
-
-                <div v-if="drawingUrl || drawingLoadFailed" class="rounded-lg border border-border p-4">
-                    <p class="mb-2 text-sm font-semibold text-foreground">Dibujo plano</p>
-                    <button
-                        v-if="drawingUrl && !drawingLoadFailed"
-                        type="button"
-                        class="flex max-h-[200px] w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/20 transition hover:bg-muted/40"
-                        @click="openDrawing"
-                    >
-                        <img :src="drawingUrl" class="max-h-[180px] w-auto max-w-full object-contain" alt="Dibujo plano" @error="onDrawingError" />
-                    </button>
-                    <div
-                        v-else
-                        class="flex max-h-[160px] w-full items-center justify-center rounded-lg border border-dashed border-muted-foreground/25 bg-muted/10"
-                    >
-                        <p class="text-sm text-muted-foreground">
-                            {{ drawingUrl && drawingLoadFailed ? 'Error al cargar la imagen' : 'Sin dibujo' }}
-                        </p>
-                    </div>
-                </div>
-
-                <ImagePreviewDialog v-model:open="isDrawingOpen" title="Dibujo plano" :src="drawingUrl" alt="Dibujo plano" />
             </div>
+
+            <!-- Footer sticky -->
+            <DialogFooter class="shrink-0 justify-end border-t border-border/50 px-6 py-3">
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="pill"
+                    class="border-primary/40 text-primary shadow-sm hover:bg-primary/10"
+                    @click="emit('close')"
+                >
+                    Cerrar
+                </Button>
+            </DialogFooter>
         </FormDialogContent>
     </Dialog>
 </template>

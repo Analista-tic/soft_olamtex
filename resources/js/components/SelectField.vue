@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, watch, computed, onBeforeUnmount, nextTick } from 'vue';
-import { Combobox, ComboboxInput, ComboboxButton, ComboboxOptions, ComboboxOption } from '@headlessui/vue';
-import { Label } from '@/components/ui/label';
 import HelpTooltip from '@/components/HelpTooltip.vue';
+import { Label } from '@/components/ui/label';
 import type { Option } from '@/domain/shared';
-import { ChevronDown, Check, Plus, X } from 'lucide-vue-next';
-import { computePosition, offset, flip, shift, autoUpdate } from '@floating-ui/dom';
+import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom';
+import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions } from '@headlessui/vue';
+import { Check, ChevronDown, Plus, X } from 'lucide-vue-next';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 
 type LocalModelValue = Option['id'] | Option['id'][] | null;
 
@@ -236,15 +236,6 @@ function displayValue(item: Option | Option[] | null): string {
 
 const displayValueForInput = (item: unknown): string => displayValue(item as Option | Option[] | null);
 
-function getOptionId(option: Option | null | undefined) {
-    const id = option?.id ?? option;
-    if (id === undefined || id === null) return undefined;
-    if (typeof id === 'number' || typeof id === 'string' || typeof id === 'symbol') {
-        return id;
-    }
-    return String(id);
-}
-
 function isOptionSelected(option: Option) {
     if (props.multiple) {
         const modelValue = localModelValue.value;
@@ -426,7 +417,13 @@ watch(
                             @input="handleInput"
                         />
                         <button
-                            v-if="clearable && localModelValue !== null && localModelValue !== undefined && localModelValue !== '' && !(Array.isArray(localModelValue) && localModelValue.length === 0)"
+                            v-if="
+                                clearable &&
+                                localModelValue !== null &&
+                                localModelValue !== undefined &&
+                                localModelValue !== '' &&
+                                !(Array.isArray(localModelValue) && localModelValue.length === 0)
+                            "
                             type="button"
                             class="pointer-events-auto absolute right-7 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground/70 transition hover:text-destructive"
                             :class="[disabled ? 'pointer-events-none opacity-60' : '']"
@@ -535,9 +532,7 @@ watch(
                                             </ComboboxOption>
                                         </template>
                                     </template>
-                                    <div v-if="loading" class="px-3 py-2 text-sm text-muted-foreground/70">
-                                        Buscando...
-                                    </div>
+                                    <div v-if="loading" class="px-3 py-2 text-sm text-muted-foreground/70">Buscando...</div>
                                     <div v-else-if="filteredOptions.length === 0 && !customOption" class="px-3 py-2 text-sm text-muted-foreground/70">
                                         <slot name="empty" :search-term="normalizedSearchTerm"> No se encontraron opciones. </slot>
                                     </div>
