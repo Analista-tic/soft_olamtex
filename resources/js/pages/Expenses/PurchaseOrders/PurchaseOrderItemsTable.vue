@@ -65,6 +65,7 @@ const taxOptions = computed(() => [
         })),
 ]);
 const shouldShowFabricColumns = computed(() => localItems.value.some(isTela));
+const allItemsAreTela = computed(() => localItems.value.length > 0 && localItems.value.every(isTela));
 const showActionsColumn = computed(() => localItems.value.length > 1);
 const totalColumns = computed(() => {
     let cols = 7;
@@ -597,7 +598,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                         <TableHead class="min-w-[150px] text-left">Item <span class="text-destructive">*</span></TableHead>
                         <TableHead class="min-w-[120px] text-left">Precio SIN Impuesto <span class="text-destructive">*</span></TableHead>
                         <TableHead class="min-w-[160px] text-left">Impuesto <span class="text-destructive">*</span></TableHead>
-                        <TableHead class="min-w-[110px] text-left">Cantidad <span class="text-destructive">*</span></TableHead>
+                        <TableHead class="min-w-[110px] text-left">{{ allItemsAreTela ? 'Longitud (mts)' : 'Cantidad' }} <span class="text-destructive">*</span></TableHead>
                         <TableHead class="min-w-[160px] text-left">Descripción</TableHead>
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">Código proveedor</TableHead>
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">Color proveedor</TableHead>
@@ -749,6 +750,8 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                                 v-model="item.quantity"
                                 type="number"
                                 label=""
+                                :placeholder="isTela(item) ? 'mts' : ''"
+                                :step="isTela(item) ? 'any' : 1"
                                 class="h-10 w-full"
                                 :disabled="isReadOnly"
                                 @input="calcTotals(item)"

@@ -180,6 +180,12 @@ async function handleRoleSubmit(role: RolePayload) {
         showSuccess(roleToEdit.value ? 'Rol actualizado correctamente.' : 'Rol creado correctamente.');
         isEditDialogOpen.value = false;
         await fetchRoles(currentPage.value);
+        // Refrescar datos del usuario actual para que los permisos se sincronicen inmediatamente
+        try {
+            await authStore.fetchUser();
+        } catch (e) {
+            console.warn('No se pudo refrescar usuario tras guardar rol:', e);
+        }
     } catch (error) {
         console.error('Error al guardar el rol:', error);
         const message = resolveApiMessage(error, 'Error al guardar el rol.');

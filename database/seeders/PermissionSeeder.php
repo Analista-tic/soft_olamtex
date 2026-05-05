@@ -59,6 +59,7 @@ class PermissionSeeder extends Seeder
             // ── GASTOS — Facturas de compra ───────────────────────────────
             'recibir factura compra',
             'anular factura compra',
+            'gestionar diferencias factura compra',
 
             // ── INVENTARIO — Solicitudes de insumos ──────────────────────
             'entregar solicitudes insumos',

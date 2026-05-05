@@ -70,8 +70,8 @@ Route::prefix('gastos')->name('gastos.')->group(function () {
         Route::put('/{purchaseDocument}', [PurchaseInvoiceController::class, 'update'])->name('update')->middleware('permission:editar facturas compra');
         Route::delete('/{purchaseDocument}', [PurchaseInvoiceController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar facturas compra');
         Route::post('/{purchaseDocument}/justificar', [PurchaseInvoiceController::class, 'justify'])->name('justify')->middleware('permission:editar facturas compra');
-        Route::post('/{purchaseDocument}/aprobar-diferencia', [PurchaseInvoiceController::class, 'approveDifference'])->name('approve-difference')->middleware('permission:gestionar diferencias factura compra|aprobar facturas compra');
-        Route::post('/{purchaseDocument}/rechazar-diferencia', [PurchaseInvoiceController::class, 'rejectDifference'])->name('reject-difference')->middleware('permission:gestionar diferencias factura compra|aprobar facturas compra');
+        Route::post('/{purchaseDocument}/aprobar-diferencia', [PurchaseInvoiceController::class, 'approveDifference'])->name('approve-difference')->middleware('permission:gestionar diferencias factura compra');
+        Route::post('/{purchaseDocument}/rechazar-diferencia', [PurchaseInvoiceController::class, 'rejectDifference'])->name('reject-difference')->middleware('permission:gestionar diferencias factura compra');
         Route::patch('/{purchaseDocument}/recibir', [PurchaseInvoiceController::class, 'receive'])->name('receive')->middleware('permission:recibir factura compra');
         Route::patch('/{purchaseDocument}/rechazar', [PurchaseInvoiceController::class, 'reject'])->name('reject')->middleware('permission:anular factura compra');
     });
@@ -99,7 +99,7 @@ Route::prefix('gastos')->name('gastos.')->group(function () {
         Route::put('/{purchaseInvoice}', [PurchaseInvoiceTelaController::class, 'update'])->name('update')->middleware('permission:editar facturas compra');
         Route::delete('/{purchaseInvoice}', [PurchaseInvoiceTelaController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar facturas compra');
         Route::post('/{purchaseInvoice}/justificar', [PurchaseInvoiceTelaController::class, 'justify'])->name('justify')->middleware('permission:editar facturas compra');
-        Route::post('/{purchaseInvoice}/aprobar-diferencia', [PurchaseInvoiceTelaController::class, 'approveDifference'])->name('approve-difference')->middleware('permission:gestionar diferencias factura compra|aprobar facturas compra');
-        Route::post('/{purchaseInvoice}/rechazar-diferencia', [PurchaseInvoiceTelaController::class, 'rejectDifference'])->name('reject-difference')->middleware('permission:gestionar diferencias factura compra|aprobar facturas compra');
+        Route::post('/{purchaseInvoice}/aprobar-diferencia', [PurchaseInvoiceTelaController::class, 'approveDifference'])->name('approve-difference')->middleware('permission:gestionar diferencias factura compra');
+        Route::post('/{purchaseInvoice}/rechazar-diferencia', [PurchaseInvoiceTelaController::class, 'rejectDifference'])->name('reject-difference')->middleware('permission:gestionar diferencias factura compra');
     });
 });

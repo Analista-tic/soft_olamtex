@@ -19,6 +19,7 @@ import type { PurchaseInvoice } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
 import { formatDateDDMMYYYY, toIsoDateString } from '@/lib/date';
+import { useAuthStore } from '@/stores/auth';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Eye, Mail, MinusCircle, MoreVertical, Package, PlusCircle, Printer, Search, ShieldCheck } from 'lucide-vue-next';
@@ -61,7 +62,9 @@ const associatedNotesError = ref('');
 const isSendingMail = ref(false);
 const isApprovalDialogOpen = ref(false);
 const invoiceForApproval = ref<PurchaseInvoice | null>(null);
+const authStore = useAuthStore();
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError, clearAlerts } = useAlertStack();
+const canApproveDifference = computed(() => authStore.can('gestionar diferencias factura compra'));
 function toggleSort(column: string) {
     if (sortBy.value === column) {
         sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
@@ -288,7 +291,12 @@ watch(currentPage, (newPage) => {
     }
 });
 
-onMounted(() => {
+onMounted(async () => {
+    try {
+        await authStore.fetchUser();
+    } catch (error) {
+        console.error('Error al cargar permisos de facturas de compra:', error);
+    }
     fetchInvoices();
     fetchProviders();
     fetchSubgroups();
@@ -711,7 +719,7 @@ async function handleDifferenceDecision() {
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end" class="w-56">
                                                 <DropdownMenuItem
-                                                    v-if="invoice.approval_status === 'pending_difference_approval'"
+                                                    v-if="canApproveDifference && invoice.approval_status === 'pending_difference_approval'"
                                                     class="cursor-pointer gap-2 text-amber-600"
                                                     @select="openApprovalDialog(invoice, $event)"
                                                 >

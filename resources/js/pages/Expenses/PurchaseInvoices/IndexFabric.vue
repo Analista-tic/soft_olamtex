@@ -17,6 +17,7 @@ import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { PurchaseInvoice } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useAuthStore } from '@/stores/auth';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { route } from 'ziggy-js';
@@ -46,6 +47,8 @@ const itemsPerPage = ref(10);
 const totalItems = ref(0);
 const isApprovalDialogOpen = ref(false);
 const invoiceForApproval = ref<PurchaseInvoice | null>(null);
+const authStore = useAuthStore();
+const canApproveDifference = computed(() => authStore.can('gestionar diferencias factura compra'));
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError } = useAlertStack();
 function toggleSort(column: string) {
     if (sortBy.value === column) {
@@ -67,8 +70,7 @@ const receptionReturnParam = 'return_to';
 const receptionScopeParam = 'scope';
 const receptionScopeValue = 'fabric';
 
-const DEFAULT_STATUS_FILTER: string | null = null;
-const DEFAULT_PROVIDER_FILTER: string | null = null;
+// const DEFAULT_STATUS_FILTER and DEFAULT_PROVIDER_FILTER removed (unused)
 
 const statusOptions = [
     { id: 'status_pending', name: 'Pendiente' },
@@ -78,6 +80,8 @@ const statusOptions = [
     { id: 'approval_approved', name: 'Diferencia aprobada' },
     { id: 'approval_difference_rejected', name: 'Diferencia rechazada' },
 ];
+
+const isSendingMail = ref(false);
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value != null);
@@ -240,7 +244,12 @@ watch(currentPage, (newPage) => {
     }
 });
 
-onMounted(() => {
+onMounted(async () => {
+    try {
+        await authStore.fetchUser();
+    } catch (error) {
+        console.error('Error al cargar permisos de facturas tela:', error);
+    }
     fetchInvoices();
     fetchProviders();
 });
@@ -554,7 +563,7 @@ function handleDialogError(message?: string) {
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end" class="w-56">
                                                 <DropdownMenuItem
-                                                    v-if="invoice.approval_status === 'pending_difference_approval'"
+                                                    v-if="canApproveDifference && invoice.approval_status === 'pending_difference_approval'"
                                                     class="cursor-pointer gap-2 text-amber-600"
                                                     @select="openApprovalDialog(invoice, $event)"
                                                 >
