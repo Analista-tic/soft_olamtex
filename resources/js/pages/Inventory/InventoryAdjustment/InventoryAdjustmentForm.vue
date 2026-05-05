@@ -297,6 +297,22 @@ function removeLine(id: number) {
     lines.value = lines.value.filter((l) => l.id !== id);
 }
 
+function handleItemChange(selectedItemId: any, line: Line) {
+    if (!selectedItemId) return;
+    const selectedItem = items.value.find(item => String(item.id) === String(selectedItemId));
+    if (selectedItem) {
+        const itemTaxId = selectedItem.tax_id; 
+        if (itemTaxId) {
+            line.taxId = Number(itemTaxId);
+            const selectedTax = taxes.value.find(t => String(t.id) === String(itemTaxId));
+            line.tax = selectedTax ? Number(selectedTax.percentage) : 0;
+        } else {
+            line.taxId = 0; 
+            line.tax = 0;
+        }
+    }
+}
+
 const lineTotal = (line: Line) => {
     const price = Number(line.price ?? 0);
     const qty = Number(line.quantity ?? 0);
@@ -390,12 +406,22 @@ async function handleSubmit() {
         return;
     }
 
-    const primaryMovementReason = lines.value[0]?.movementReason || defaultMovementReason;
+    // 1. Obtenemos el valor que seleccionó el usuario (ej: 'entrada')
+    const uiReason = lines.value[0]?.movementReason || defaultMovementReason;
+
+    // 2. Definimos la traducción para el Backend
+    // Si es 'entrada' -> mandamos 'entry_regularization'
+    // Si es 'salida'  -> mandamos 'exit_regularization'
+    const backendReason = uiReason === 'salida' ? 'exit_regularization' : 'entry_regularization';
+    
+    // 3. El 'type' siempre debe ser 'entrada' o 'salida' estrictamente
+    const type = uiReason === 'salida' ? 'salida' : 'entrada';
+
     const payload = {
         document_number: documentNumber.value === 'Automatico' ? null : documentNumber.value,
         date: date.value,
-        type: primaryMovementReason,
-        movement_reason: primaryMovementReason,
+        type: type,
+        movement_reason: backendReason,
         observation: observation.value || null,
         production_order: productionOrder.value || null,
         subtotal: subtotal.value,
@@ -404,7 +430,7 @@ async function handleSubmit() {
         lines: lines.value.map((line) => ({
             item_id: line.itemId,
             warehouse_id: line.warehouseId || selectedWarehouseId.value,
-            movement_reason: line.movementReason || primaryMovementReason,
+            movement_reason: (line.movementReason === 'salida' ? 'exit_regularization' : 'entry_regularization'),
             price: line.price ?? 0,
             tax: line.tax ?? 0,
             tax_id: line.taxId ?? null,
@@ -568,6 +594,7 @@ async function handleSubmit() {
                                                 :searchable="true"
                                                 placeholder="Buscar ítem..."
                                                 class="w-full"
+                                                @update:modelValue="(val) => handleItemChange(val, line)"
                                             />
                                         </TableCell>
 
