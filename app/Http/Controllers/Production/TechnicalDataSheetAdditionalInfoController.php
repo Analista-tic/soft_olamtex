@@ -24,10 +24,13 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
         ProductionOrder::query()->findOrFail($opId);
 
         $data = $this->store->read($opId);
+        $data['cutting'] = $this->emptyCuttingPayload();
 
         $sheet = TechnicalSheet::where('production_order_id', $opId)->first();
 
         if ($sheet) {
+            $data['cutting']['params']['cutCostCop'] = $sheet->cut_cost !== null ? (float) $sheet->cut_cost : null;
+
             // Piezas de corte: BD toma precedencia.
             if ($sheet->cuttingPieces()->exists()) {
                 $data['cutting']['pieces'] = $sheet->cuttingPieces()
@@ -69,7 +72,7 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
         $validated = $request->validate([
             'cutting'                        => ['required', 'array'],
             'cutting.params'                 => ['required', 'array'],
-            'cutting.params.cutCostCop'      => ['required', 'numeric', 'min:0'],
+            'cutting.params.cutCostCop'      => ['nullable', 'numeric', 'min:0'],
             'cutting.sizes'                  => ['nullable', 'array'],
             'cutting.sizes.*.size'           => ['required_with:cutting.sizes', 'string', 'max:50'],
             'cutting.sizes.*.units'          => ['required_with:cutting.sizes', 'numeric', 'min:0'],
@@ -98,7 +101,12 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
         ]);
 
         // 1. Persistir datos no-pieza en JSON (backward compat: params, espiga, notas, stamping, laundry)
-        $this->store->write($opId, $validated);
+        $this->store->write($opId, [
+            'stamping' => $validated['stamping'] ?? [],
+            'laundry' => $validated['laundry'] ?? [],
+        ]);
+
+        $this->syncCuttingMetaToDb($opId, $validated['cutting'] ?? []);
 
         // 2. Sincronizar piezas en BD (source of truth para el despiece de corte)
         $pieces = is_array($validated['cutting']['pieces'] ?? null) ? $validated['cutting']['pieces'] : [];
@@ -114,9 +122,12 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
 
         // 4. Responder con datos frescos: JSON + datos normalizados desde BD
         $responseData = $this->store->read($opId);
+        $responseData['cutting'] = $this->emptyCuttingPayload();
 
         $sheet = TechnicalSheet::where('production_order_id', $opId)->first();
         if ($sheet) {
+            $responseData['cutting']['params']['cutCostCop'] = $sheet->cut_cost !== null ? (float) $sheet->cut_cost : null;
+
             $responseData['cutting']['pieces'] = $sheet->cuttingPieces()
                 ->get()
                 ->map(fn (TechnicalSheetCuttingPiece $p) => $this->mapPiece($p))
@@ -176,6 +187,34 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
                 ]
             );
         }
+    }
+
+    private function syncCuttingMetaToDb(int $opId, array $cutting): void
+    {
+        $sheet = TechnicalSheet::firstOrCreate(
+            ['production_order_id' => $opId],
+            ['status' => TechnicalSheet::STATUS_DRAFT],
+        );
+
+        $cutCost = $cutting['params']['cutCostCop'] ?? null;
+        $sheet->cut_cost = is_numeric($cutCost) ? max(0, (float) $cutCost) : null;
+        $sheet->save();
+    }
+
+    private function emptyCuttingPayload(): array
+    {
+        return [
+            'params' => [
+                'cutCostCop' => null,
+            ],
+            'sizes' => [],
+            'espigaLength' => null,
+            'espigaCurve' => null,
+            'liqLength' => null,
+            'liqCurve' => null,
+            'pieces' => [],
+            'generalNotes' => null,
+        ];
     }
 
     // ─── Helpers privados ──────────────────────────────────────────────────────

@@ -13,21 +13,11 @@ import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import Button from '@/components/ui/button/Button.vue';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -41,11 +31,11 @@ import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 const breadcrumbs = [{ title: 'Catálogo de ítem', href: '/inventario/item' }];
 
 type DialogType = 'create' | 'edit';
-type StatusFilter = boolean | null;
+type StatusFilter = 'all' | boolean;
 type OriginFilter = 'all' | 'system' | 'migration';
 
-const ITEMS_PER_PAGE = 10;
-const DEFAULT_STATUS_FILTER: StatusFilter = null;
+const itemsPerPage = ref(10);
+const DEFAULT_STATUS_FILTER: StatusFilter = 'all';
 const DEFAULT_ORIGIN_FILTER: OriginFilter = 'all';
 
 const actionButtonClass =
@@ -55,6 +45,7 @@ const actionsMenuSideOffset = 1;
 const actionsMenuCollisionPadding = 0;
 
 const statusOptions = [
+    { id: 'all' as const, name: 'Todos' },
     { id: true as const, name: 'Habilitados' },
     { id: false as const, name: 'Deshabilitados' },
 ];
@@ -88,7 +79,7 @@ const isBulkDialogOpen = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
 
-const isStatusFilterActive = computed(() => statusFilter.value != null);
+const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 
 let activeFetchController: AbortController | null = null;
@@ -157,7 +148,7 @@ async function fetchItems(page = 1) {
 
     const params: Record<string, unknown> = {
         page,
-        per_page: ITEMS_PER_PAGE,
+        per_page: itemsPerPage.value,
         sort_by: sortBy.value,
         sort_dir: sortDir.value,
     };
@@ -167,7 +158,7 @@ async function fetchItems(page = 1) {
         params.search = normalizedSearch;
     }
 
-    if (statusFilter.value != null) {
+    if (statusFilter.value !== 'all') {
         params.status = statusFilter.value; // boolean
     }
 
@@ -421,8 +412,8 @@ onBeforeUnmount(() => {
                     </div>
                 </FilterField>
 
-                <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
-                    <SelectField v-model="statusFilter" label="" :options="statusOptions" placeholder="Estado" :button-class="statusButtonClasses" :clearable="true" />
+                <FilterField label="Estado" :active="statusFilter !== 'all'" class="min-w-[180px]">
+                    <SelectField v-model="statusFilter" label="" :options="statusOptions" placeholder="Estado" :button-class="statusButtonClasses" />
                 </FilterField>
 
             </FilterBar>
@@ -432,10 +423,7 @@ onBeforeUnmount(() => {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead
-                                    class="cursor-pointer select-none whitespace-nowrap"
-                                    @click="toggleSort('id')"
-                                >
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('id')">
                                     <span class="inline-flex items-center gap-1">
                                         N° ítem
                                         <span class="text-muted-foreground">
@@ -487,7 +475,10 @@ onBeforeUnmount(() => {
                                     <TableCell>{{ item.reference }}</TableCell>
                                     <TableCell>{{ item.description }}</TableCell>
                                     <TableCell>
-                                        <TableStatusBadge :label="item.status ? 'Habilitado' : 'Deshabilitado'" :tone="item.status ? 'green' : 'red'" />
+                                        <TableStatusBadge
+                                            :label="item.status ? 'Habilitado' : 'Deshabilitado'"
+                                            :tone="item.status ? 'green' : 'red'"
+                                        />
                                     </TableCell>
 
                                     <TableCell class="text-center">
@@ -529,7 +520,9 @@ onBeforeUnmount(() => {
                                                         size="icon"
                                                         :class="[
                                                             actionButtonClass,
-                                                            item.status ? 'text-red-600 hover:text-red-700' : 'text-emerald-600 hover:text-emerald-700',
+                                                            item.status
+                                                                ? 'text-red-600 hover:text-red-700'
+                                                                : 'text-emerald-600 hover:text-emerald-700',
                                                         ]"
                                                         aria-label="Habilitar o deshabilitar"
                                                         @click="openStatusDialog(item)"
@@ -547,37 +540,14 @@ onBeforeUnmount(() => {
                         </TableBody>
                     </Table>
                 </TooltipProvider>
-
-                <Pagination
-                    class="flex justify-center pt-4 pb-2"
-                    :items-per-page="ITEMS_PER_PAGE"
-                    :total="totalItems"
-                    :sibling-count="1"
-                    show-edges
-                    v-model:current-page="currentPage"
-                    @page-changed="handlePageChange"
-                >
-                    <PaginationList v-slot="{ items: paginationItems }" class="flex items-center gap-1">
-                        <PaginationFirst />
-                        <PaginationPrev />
-
-                        <template v-for="item in paginationItems" :key="item.type === 'page' ? `page-${item.value}` : item.type">
-                            <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                <Button
-                                    class="h-8 w-8 rounded-md p-0 text-xs font-medium"
-                                    :variant="item.value === currentPage ? 'default' : 'outline'"
-                                    @click="handlePageChange(item.value as number)"
-                                >
-                                    {{ item.value }}
-                                </Button>
-                            </PaginationListItem>
-                            <PaginationEllipsis v-else />
-                        </template>
-
-                        <PaginationNext />
-                        <PaginationLast />
-                    </PaginationList>
-                </Pagination>
+                <div class="px-4 pb-4">
+                    <ServerPagination
+                        v-model:current-page="currentPage"
+                        v-model:page-size="itemsPerPage"
+                        :total-items="totalItems"
+                        @fetch-data="fetchItems"
+                    />
+                </div>
             </div>
         </div>
 

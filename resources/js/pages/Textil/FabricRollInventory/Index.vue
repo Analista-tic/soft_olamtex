@@ -4,22 +4,9 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
-import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
-import type { Option } from '@/domain/shared/types';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { FabricRollView, FabricRollViewDto } from '@/domain/Textil';
 import { formatMeters, formatWidthToMeters, mapFabricRollViewDto, toUnitNumber } from '@/domain/Textil';
@@ -34,16 +21,15 @@ import FabricRollAdjustDialog from './FabricRollAdjustDialog.vue';
 import FabricRollDownloadDialog from './FabricRollDownloadDialog.vue';
 import FabricRollImportDialog from './FabricRollImportDialog.vue';
 import FabricRollInventoryDialog from './FabricRollInventoryDialog.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 
 const breadcrumbs = [{ title: 'Inventario Telas por Rollo', href: '/kardex-telas/inventario-rollos' }];
 const authStore = useAuthStore();
 
 // Filtros
 const searchQuery = ref('');
-const colorFilter = ref<string | null>(null);
-const locationFilter = ref<string | null>(null);
-const colorOptions = ref<Option[]>([]);
-const locationOptions = ref<Option[]>([]);
+const baseFilter = ref('');
+const providerFilter = ref('');
 const showDownloadedOnly = ref(false);
 
 // Datos
@@ -51,7 +37,7 @@ const rolls = ref<FabricRollView[]>([]);
 const currentPage = ref(1);
 const lastPage = ref(1);
 const totalRolls = ref(0);
-const PER_PAGE = 100;
+const perPage = ref(100);
 
 // Sorting
 type SortColumn =
@@ -129,11 +115,11 @@ async function fetchFabricRolls(page = 1) {
     try {
         const params = new URLSearchParams();
         if (searchQuery.value.trim()) params.set('search', searchQuery.value.trim());
-        if (colorFilter.value) params.set('color', String(colorFilter.value));
-        if (locationFilter.value) params.set('location', String(locationFilter.value));
+        if (baseFilter.value.trim()) params.set('base_fabric', baseFilter.value.trim());
+        if (providerFilter.value.trim()) params.set('provider', providerFilter.value.trim());
         if (showDownloadedOnly.value) params.set('with_output', '1');
         params.set('page', String(page));
-        params.set('per_page', String(PER_PAGE));
+        params.set('per_page', String(perPage.value));
         params.set('sort_by', sortColumn.value);
         params.set('sort_direction', sortDirection.value);
 
@@ -152,40 +138,17 @@ async function fetchFabricRolls(page = 1) {
     }
 }
 
-async function fetchFilterOptions() {
-    try {
-        const res = await axios.get('/kardex-telas/inventario-rollos/filter-options');
-        colorOptions.value = Array.isArray(res.data?.colors)
-            ? res.data.colors.map((c: string) => ({ id: c, name: c }))
-            : [];
-        locationOptions.value = Array.isArray(res.data?.locations)
-            ? res.data.locations.map((l: string) => ({ id: l, name: l }))
-            : [];
-    } catch (e) {
-        console.error('filter-options error', e);
-        colorOptions.value = [];
-        locationOptions.value = [];
-    }
-}
-
 function scheduleRefetch() {
     if (debounceTimer) clearTimeout(debounceTimer);
     currentPage.value = 1;
     debounceTimer = setTimeout(() => fetchFabricRolls(1), 350);
 }
 
-function handlePageChange(page: number) {
-    if (!page || page === currentPage.value) return;
-    currentPage.value = page;
-    fetchFabricRolls(page);
-}
-
-watch([searchQuery, colorFilter, locationFilter, showDownloadedOnly], scheduleRefetch);
+watch([searchQuery, baseFilter, providerFilter, showDownloadedOnly], scheduleRefetch);
 
 onMounted(() => {
     authStore.fetchUser().catch(() => undefined);
     fetchFabricRolls(1);
-    fetchFilterOptions();
 });
 
 // Acciones
@@ -396,25 +359,29 @@ function handleImportError(payload: { message: string }) {
                         </span>
                     </div>
                 </FilterField>
-                <FilterField label="Color" :active="!!colorFilter" class="min-w-[180px] p-0">
-                    <SelectField
-                        v-model="colorFilter"
-                        :options="colorOptions"
-                        placeholder="Todos los colores"
-                        :searchable="true"
-                        :clearable="true"
-                        class="w-full"
-                    />
+                <FilterField label="Base tela" :active="baseFilter.trim().length > 0" class="min-w-[180px] p-0">
+                    <div class="relative">
+                        <Input
+                            v-model="baseFilter"
+                            placeholder="Filtrar por base tela"
+                            class="h-10 w-full rounded-md border border-input bg-background pl-10 text-sm"
+                        />
+                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+                            <Search class="h-4 w-4 text-muted-foreground" />
+                        </span>
+                    </div>
                 </FilterField>
-                <FilterField label="Ubicación" :active="!!locationFilter" class="min-w-[180px] p-0">
-                    <SelectField
-                        v-model="locationFilter"
-                        :options="locationOptions"
-                        placeholder="Todas las ubicaciones"
-                        :searchable="true"
-                        :clearable="true"
-                        class="w-full"
-                    />
+                <FilterField label="Proveedor" :active="providerFilter.trim().length > 0" class="min-w-[180px] p-0">
+                    <div class="relative">
+                        <Input
+                            v-model="providerFilter"
+                            placeholder="Filtrar por proveedor"
+                            class="h-10 w-full rounded-md border border-input bg-background pl-10 text-sm"
+                        />
+                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+                            <Search class="h-4 w-4 text-muted-foreground" />
+                        </span>
+                    </div>
                 </FilterField>
             </FilterBar>
 
@@ -566,38 +533,14 @@ function handleImportError(payload: { message: string }) {
                     </Table>
                 </div>
 
-                <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
-                    <p class="text-xs text-muted-foreground">
-                        Página {{ currentPage }} de {{ lastPage }} · Mostrando {{ sortedRolls.length }} de {{ totalRolls }} registros
-                    </p>
-
-                    <Pagination
-                        v-if="lastPage > 1"
-                        class="flex justify-center"
-                        :items-per-page="PER_PAGE"
-                        :total="totalRolls"
-                        :sibling-count="1"
-                        show-edges
-                        :page="currentPage"
-                        @update:page="handlePageChange"
-                    >
-                        <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                            <PaginationFirst />
-                            <PaginationPrev />
-
-                            <template v-for="(item, index) in items" :key="index">
-                                <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                    <Button class="h-6 w-6 p-0 text-xs" :variant="item.value === currentPage ? 'default' : 'outline'">
-                                        {{ item.value }}
-                                    </Button>
-                                </PaginationListItem>
-                                <PaginationEllipsis v-else :index="index" />
-                            </template>
-
-                            <PaginationNext />
-                            <PaginationLast />
-                        </PaginationList>
-                    </Pagination>
+                <!-- Paginación -->
+                <div class="mt-4">
+                  <ServerPagination 
+                    v-model:current-page="currentPage"
+                                        v-model:page-size="perPage"
+                    :total-items="totalRolls"
+                    @fetch-data="fetchFabricRolls"
+                  />
                 </div>
             </div>
         </div>

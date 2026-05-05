@@ -214,6 +214,7 @@ class ProductSheetController extends Controller
      */
     public function getData(Request $request)
     {
+        $perPage = max(1, min((int) $request->input('per_page', 25), 100));
         $requestIdHeader = $request->header('X-Request-Id');
         $requestId = is_string($requestIdHeader) && trim($requestIdHeader) !== '' ? trim($requestIdHeader) : null;
 
@@ -229,13 +230,30 @@ class ProductSheetController extends Controller
                 'section_id' => $request->input('section_id'),
                 'world_id' => $request->input('world_id'),
                 'page' => $request->input('page', 1),
-                'per_page' => 10,
+                'per_page' => $perPage,
             ],
         ]);
 
-        $query = ProductSheet::query();
+        $query = ProductSheet::query()->select([
+            'id',
+            'sample_reference',
+            'product_reference',
+            'product_reference_2',
+            'description',
+            'status',
+            'type',
+            'version',
+            'is_enabled',
+            'section_id',
+            'group_id',
+            'brand_id',
+            'world_id',
+            'fabric_base_id',
+            'yarn_base_id',
+            'flat_sketch_path',
+        ]);
 
-        if ($request->has('search') && $request->search != '') {
+        if ($request->filled('search')) {
             $query->where(function ($sub) use ($request) {
                 $sub->where('sample_reference', 'like', '%' . $request->search . '%')
                     ->orWhere('product_reference', 'like', '%' . $request->search . '%')
@@ -243,7 +261,7 @@ class ProductSheetController extends Controller
             });
         }
 
-        if ($request->has('status') && $request->status != '') {
+        if ($request->filled('status') && in_array($request->status, ['incomplete', 'complete'], true)) {
             $query->where('status', $request->status);
         }
 
@@ -271,7 +289,7 @@ class ProductSheetController extends Controller
                     ->limit(1),
             ])
             ->orderBy('id', 'desc')
-            ->paginate(10);
+            ->paginate($perPage);
 
         $catalogs = $this->gatherCatalogs();
         $sections = $catalogs['sections']->keyBy('id');

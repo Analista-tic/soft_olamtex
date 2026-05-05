@@ -20,27 +20,15 @@ class InventoryAdjustmentService
     private const MOVEMENT_REASON_OPTIONS = [
         [
             'id' => 'entry_regularization',
-            'name' => 'Regularizacion positiva / sobrante',
+            'name' => 'Entrada',
             'direction' => 'entrada',
-            'description' => 'Se usa para diferencias positivas por conteo, sobrantes o regularizaciones a favor del inventario.',
-        ],
-        [
-            'id' => 'entry_reclassification',
-            'name' => 'Correccion / reclasificacion de entrada',
-            'direction' => 'entrada',
-            'description' => 'Se usa cuando el inventario entra por correccion o reclasificacion interna.',
+            'description' => 'Ajuste de entrada al inventario.',
         ],
         [
             'id' => 'exit_regularization',
-            'name' => 'Regularizacion negativa / faltante',
+            'name' => 'Salida',
             'direction' => 'salida',
-            'description' => 'Se usa para faltantes, merma, dano o regularizaciones negativas de inventario.',
-        ],
-        [
-            'id' => 'exit_reclassification',
-            'name' => 'Correccion / reclasificacion de salida',
-            'direction' => 'salida',
-            'description' => 'Se usa cuando el inventario sale por correccion o reclasificacion interna.',
+            'description' => 'Ajuste de salida del inventario.',
         ],
     ];
 

@@ -20,13 +20,20 @@ import { uiPatterns } from '@/lib/ui-patterns';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Banknote, CreditCard, Landmark, Pencil, Plus, Search, ToggleLeft, ToggleRight } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 
 // ━━━━━━ PROPS ━━━━━━
 const props = defineProps<{
     bankAccounts: BankAccount[];
     summary: BankAccountSummary;
 }>();
+
+// ━━━━━━ VARIABLES DE CONTROL REACTIVAS ━━━━━━
+const currentPage = ref(1);
+const itemsPerPage = ref(10);
+const totalItems = ref(props.bankAccounts.length);
+
 
 // ━━━━━━ CONSTANTS ━━━━━━
 const breadcrumbs = [{ title: 'Bancos y Cajas', href: '/finanzas/bancos' }];
@@ -37,6 +44,8 @@ const currencyFormatter = new Intl.NumberFormat('es-CO', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
 });
+
+
 
 function formatCurrency(value: number): string {
     return currencyFormatter.format(Number(value || 0));
@@ -70,9 +79,37 @@ const searchQuery = ref('');
 
 const filteredAccounts = computed(() => {
     const query = searchQuery.value.trim().toLowerCase();
-    if (!query) return props.bankAccounts;
-    return props.bankAccounts.filter((a) => a.name.toLowerCase().includes(query));
+    
+    // 1. Primero filtramos por búsqueda
+    const baseList = !query 
+        ? props.bankAccounts 
+        : props.bankAccounts.filter((a) => a.name.toLowerCase().includes(query));
+    
+    // 2. Actualizamos el total de ítems para el componente de paginación
+    
+
+    // 3. Devolvemos solo el "pedazo" de la página actual
+    const start = (currentPage.value - 1) * itemsPerPage.value;
+    const end = start + itemsPerPage.value;
+    
+    return baseList.slice(start, end);
 });
+
+watch(searchQuery, () => {
+    currentPage.value = 1;
+});
+
+// Actualiza el total de ítems cada vez que la lista filtrada cambie
+watch(filteredAccounts, () => {
+    // Como filtramos localmente, el total es el largo de la lista base antes del slice
+    // Para ser exactos, usemos una lógica más limpia:
+    const query = searchQuery.value.trim().toLowerCase();
+    const baseList = !query 
+        ? props.bankAccounts 
+        : props.bankAccounts.filter((a) => a.name.toLowerCase().includes(query));
+    
+    totalItems.value = baseList.length;
+}, { immediate: true });
 
 // ━━━━━━ DIALOG STATE ━━━━━━
 const isDialogOpen = ref(false);
@@ -366,6 +403,13 @@ const todayFormatted = new Date().toLocaleDateString('es-CO', {
                         </TableRow>
                     </TableBody>
                 </Table>
+                <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                  <ServerPagination 
+                    v-model:current-page="currentPage"
+                    v-model:page-size="itemsPerPage"
+                    :total-items="totalItems"
+                  />
+                </div>
             </div>
         </div>
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -28,7 +29,6 @@ import {
     TechnicalSheetDialog,
 } from './components/dialogs';
 import type { BatchControlRow, CutCurves, CutFabricConsumptionLine, CutSizeCurves, LogisticsSupplyItem, TimelineEvent } from './types';
-
 /* ── Types ──────────────────────────────────────────────── */
 
 type ScopeOption = {
@@ -36,6 +36,10 @@ type ScopeOption = {
     label: string;
     icon: typeof PackageSearch;
 };
+
+const currentPage = ref(1);
+const itemsPerPage = ref(10);
+const totalItems = ref(0);
 
 /* ── Props ──────────────────────────────────────────────── */
 
@@ -1121,6 +1125,15 @@ onMounted(() => {
                                             @open-stamping-info="openStampingInfoDialog"
                                             @open-laundry-info="openLaundryInfoDialog"
                                         />
+
+                                        <div class="mt-4 border-t pt-4">
+                                            <ServerPagination
+                                                v-model:current-page="currentPage"
+                                                v-model:page-size="itemsPerPage"
+                                                :total-items="totalItems"
+                                                @fetch-data="fetchData"
+                                            />
+                                        </div>
                                     </div>
                                 </TabsContent>
                             </Tabs>
@@ -1187,6 +1200,7 @@ onMounted(() => {
             @confirm="confirmReportNovelty"
             @close="closeNoveltyDialog"
         />
+
         <TechnicalSheetDialog
             :open="technicalSheetDialogOpen"
             :row="technicalSheetRow"

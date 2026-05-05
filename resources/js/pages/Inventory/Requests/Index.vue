@@ -1,22 +1,12 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
@@ -52,7 +42,7 @@ const isLoading = ref(false);
 const sortBy = ref<'date' | 'delivery_date'>('date');
 const sortDir = ref<'asc' | 'desc'>('desc');
 const currentPage = ref(1);
-const itemsPerPage = 10;
+const itemsPerPage = ref(10);
 const successMessage = ref('');
 const errorMessage = ref('');
 const canManageRequests = ref(false);
@@ -136,11 +126,6 @@ function toggleSort(column: 'date' | 'delivery_date') {
 
     currentPage.value = 1;
     fetchRequests(1, searchQuery.value);
-}
-
-function handlePageChange(newPage: number) {
-    currentPage.value = newPage;
-    fetchRequests(newPage, searchQuery.value);
 }
 
 function handleSearch() {
@@ -235,11 +220,7 @@ onMounted(() => {
                     <p class="text-sm text-muted-foreground">Solicitudes de insumos o materiales con entrega controlada por logistica.</p>
                 </div>
 
-                <Button
-                    size="pill"
-                    class="flex items-center gap-1 shadow-sm"
-                    @click="openCreateRequest"
-                >
+                <Button size="pill" class="flex items-center gap-1 shadow-sm" @click="openCreateRequest">
                     <PlusCircle class="h-4 w-4" /> Crear solicitud
                 </Button>
             </div>
@@ -319,7 +300,9 @@ onMounted(() => {
                             </template>
                             <template v-else-if="!requests.length">
                                 <TableRow>
-                                    <TableCell colspan="7" class="py-6 text-center text-sm text-muted-foreground">No hay solicitudes registradas.</TableCell>
+                                    <TableCell colspan="7" class="py-6 text-center text-sm text-muted-foreground"
+                                        >No hay solicitudes registradas.</TableCell
+                                    >
                                 </TableRow>
                             </template>
                             <template v-else>
@@ -397,36 +380,14 @@ onMounted(() => {
                     </Table>
                 </TooltipProvider>
 
-                <Pagination
-                    class="mt-5 flex justify-center"
-                    :items-per-page="itemsPerPage"
-                    :total="totalItems"
-                    :sibling-count="1"
-                    show-edges
-                    v-model:current-page="currentPage"
-                    @page-changed="handlePageChange"
-                >
-                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                        <PaginationFirst />
-                        <PaginationPrev />
-
-                        <template v-for="(item, index) in items" :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`">
-                            <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                <Button
-                                    class="h-6 w-6 p-0"
-                                    :variant="item.value === currentPage ? 'default' : 'outline'"
-                                    @click="handlePageChange(item.value as number)"
-                                >
-                                    {{ item.value }}
-                                </Button>
-                            </PaginationListItem>
-                            <PaginationEllipsis v-else />
-                        </template>
-
-                        <PaginationNext />
-                        <PaginationLast />
-                    </PaginationList>
-                </Pagination>
+                <div class="px-4 pb-4">
+                    <ServerPagination
+                        v-model:current-page="currentPage"
+                        v-model:page-size="itemsPerPage"
+                        :total-items="totalItems"
+                        @fetch-data="() => fetchRequests(currentPage, searchQuery)"
+                    />
+                </div>
             </div>
         </div>
 

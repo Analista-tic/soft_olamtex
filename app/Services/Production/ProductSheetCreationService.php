@@ -39,7 +39,7 @@ class ProductSheetCreationService
 
         $productSheet = ProductSheet::create($attributes);
 
-        if ($productSheet->type === self::TYPE_SAMPLE) {
+        if ($this->isSampleType($productSheet->type) && ! $productSheet->hasProductionOrders()) {
             $this->productionOrderService->createFromSample($productSheet);
         }
 
@@ -84,6 +84,11 @@ class ProductSheetCreationService
         }
 
         return $sanitized;
+    }
+
+    private function isSampleType(?string $type): bool
+    {
+        return Str::lower(trim((string) $type)) === self::TYPE_SAMPLE;
     }
 
     private function logPersistencePayload(string $action, array $attributes): void

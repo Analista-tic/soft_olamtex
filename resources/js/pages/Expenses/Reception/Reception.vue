@@ -22,6 +22,7 @@ import axios from 'axios';
 import { AlertTriangle, ArrowLeft, Check, Eye, Package2, Search, X } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import FabricRollDialog from './FabricRollDialog.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 
 interface PageProps extends InertiaPageProps {
     invoiceId?: string | number;
@@ -60,7 +61,7 @@ const breadcrumbs = computed(() => [
 const invoices = ref<PurchaseInvoice[]>([]);
 const searchQuery = ref('');
 const currentPage = ref(1);
-const itemsPerPage = 10;
+const itemsPerPage = ref(10);
 const totalItems = ref(0);
 const selectedInvoice = ref<PurchaseInvoice | null>(null);
 const isLoadingSpecificInvoice = ref(false);
@@ -123,13 +124,13 @@ function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning
     }
 }
 
-const DEFAULT_STATUS_FILTER: string | null = null;
-const DEFAULT_PROVIDER_FILTER: string | null = null;
-const DEFAULT_SUBGROUP_FILTER: string | null = null;
-const statusFilter = ref<string | null>(null);
-const providerFilter = ref<number | string | null>(null);
-const subgroupFilter = ref<number | string | null>(null);
-const dateFilter = ref<string | null>(null);
+const DEFAULT_STATUS_FILTER = 'all';
+const DEFAULT_PROVIDER_FILTER = 'all';
+const DEFAULT_SUBGROUP_FILTER = 'all';
+const statusFilter = ref(DEFAULT_STATUS_FILTER);
+const providerFilter = ref(DEFAULT_PROVIDER_FILTER);
+const subgroupFilter = ref(DEFAULT_SUBGROUP_FILTER);
+const dateFilter = ref('');
 const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 const sortBy = ref<string>('date');
 const sortDir = ref<'asc' | 'desc'>('desc');
@@ -152,9 +153,9 @@ const showInvoiceDetail = computed(() => {
     return selectedInvoice.value !== null;
 });
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isStatusFilterActive = computed(() => statusFilter.value != null);
-const isProviderFilterActive = computed(() => providerFilter.value != null);
-const isSubgroupFilterActive = computed(() => subgroupFilter.value != null);
+const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
+const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
+const isSubgroupFilterActive = computed(() => subgroupFilter.value !== DEFAULT_SUBGROUP_FILTER);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
 const subgroupButtonClasses = useFilterButtonClasses(isSubgroupFilterActive);
@@ -321,7 +322,7 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
     isLoading.value = true;
     const params: Record<string, any> = {
         page,
-        per_page: itemsPerPage,
+        per_page: itemsPerPage.value,
         search,
         date_from: dateFilter.value || undefined,
         date_to: dateFilter.value || undefined,
@@ -330,19 +331,19 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         scope: receptionScope.value,
         exclude_difference_rejected: true,
     };
-    if (statusFilter.value != null) params.status = statusFilter.value;
-    if (providerFilter.value != null) {
+    if (statusFilter.value !== 'all') params.status = statusFilter.value;
+    if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
         params.provider_id = isNaN(Number(providerFilter.value)) ? providerFilter.value : Number(providerFilter.value);
     }
-    if (subgroupFilter.value != null) {
+    if (subgroupFilter.value !== 'all' && subgroupFilter.value !== '' && subgroupFilter.value !== null) {
         params.subgroup_id = isNaN(Number(subgroupFilter.value)) ? subgroupFilter.value : Number(subgroupFilter.value);
     }
     try {
         const response = await axios.get('/kardex-telas/recepcion/data', { params });
         const rawInvoices = Array.isArray(response.data.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
         invoices.value = rawInvoices.filter((invoice: PurchaseInvoice) => !isDifferenceRejectedInvoice(invoice));
-        totalItems.value = typeof response.data.total === 'number' ? response.data.total : 0;
-        currentPage.value = typeof response.data.current_page === 'number' ? response.data.current_page : page;
+        totalItems.value = Number(response.data.total ?? invoices.value.length ?? 0);
+        currentPage.value = Number(response.data.current_page ?? page);
         refreshBlockersForList();
     } catch (e: any) {
         console.log('Error al cargar facturas:', e);
@@ -427,31 +428,21 @@ function getCannotApproveDescription(invoice: PurchaseInvoice | null | undefined
 }
 
 // Watchers y eventos solo para modo lista
+// 1. Si cambia cualquier filtro o búsqueda, volvemos a la página 1
 watch(
     [statusFilter, providerFilter, subgroupFilter, dateFilter, searchQuery],
-    ([newStatus, newProvider, newSubgroup, newDate, newSearch], [oldStatus, oldProvider, oldSubgroup, oldDate, oldSearch]) => {
-        if (!showInvoicesList.value) return; // No ejecutar watchers en modo específico
-
-        if (
-            newStatus !== oldStatus ||
-            newProvider !== oldProvider ||
-            newSubgroup !== oldSubgroup ||
-            newDate !== oldDate ||
-            newSearch !== oldSearch
-        ) {
-            if (currentPage.value !== 1) {
-                currentPage.value = 1;
-            } else {
-                fetchInvoices(1, newSearch);
-            }
-        }
-    },
+    () => {
+        if (!showInvoicesList.value) return;
+        currentPage.value = 1;
+        fetchInvoices(1, searchQuery.value);
+    }
 );
 
-watch(currentPage, (newPage, oldPage) => {
-    if (!showInvoicesList.value) return; // No ejecutar watchers en modo específico
-
-    if (newPage !== oldPage) {
+// 2. Si solo cambia la página manualmente
+watch(currentPage, (newPage) => {
+    if (!showInvoicesList.value) return;
+    // Solo disparamos si no es la pág 1 para no chocar con el watcher anterior
+    if (newPage !== 1) {
         fetchInvoices(newPage, searchQuery.value);
     }
 });
@@ -669,36 +660,37 @@ function onFabricRollSuccess() {
                     </FilterField>
                     <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
                         <SelectField
-                                v-model="statusFilter"
-                                label=""
-                                :options="[
-                                    { id: 'pending', name: 'Pendiente' },
-                                    { id: 'approved', name: 'Aprobado' },
-                                    { id: 'rejected', name: 'Rechazado' },
-                                ]"
-                                placeholder="Estado"
-                                :button-class="statusButtonClasses"
-                                :clearable="true"
-                            />
+                            v-model="statusFilter"
+                            label=""
+                            :options="[
+                                { id: 'all', name: 'Todos los estados' },
+                                { id: 'pending', name: 'Pendiente' },
+                                { id: 'approved', name: 'Aprobado' },
+                                { id: 'rejected', name: 'Rechazado' },
+                            ]"
+                            :button-class="statusButtonClasses"
+                        />
                     </FilterField>
                     <FilterField label="Proveedor" :active="isProviderFilterActive" class="min-w-[180px]">
                         <SelectField
                             v-model="providerFilter"
                             label=""
-                            :options="contactsStore.items.map((prov) => ({ id: String(prov.id), name: prov.full_name }))"
-                            placeholder="Proveedor"
+                            :options="[
+                                { id: 'all', name: 'Todos los proveedores' },
+                                ...contactsStore.items.map((prov) => ({ id: String(prov.id), name: prov.full_name })),
+                            ]"
                             :button-class="providerButtonClasses"
-                            :clearable="true"
                         />
                     </FilterField>
                     <FilterField label="Subgrupo" :active="isSubgroupFilterActive" class="min-w-[180px]">
                         <SelectField
                             v-model="subgroupFilter"
                             label=""
-                            :options="subgroups.map((sub) => ({ id: String(sub.id), name: sub.name }))"
-                            placeholder="Subgrupo"
+                            :options="[
+                                { id: 'all', name: 'Todos los subgrupos' },
+                                ...subgroups.map((sub) => ({ id: String(sub.id), name: sub.name })),
+                            ]"
                             :button-class="subgroupButtonClasses"
-                            :clearable="true"
                         />
                     </FilterField>
                     <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
@@ -799,7 +791,7 @@ function onFabricRollSuccess() {
                                                 <button
                                                     class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-green-600"
                                                     :disabled="getBlockersForInvoiceId(invoice.id).length > 0"
-                                                    :title="getBlockersForInvoiceId(invoice.id).length > 0 ? getBlockersForInvoiceId(invoice.id).join(' ') : 'Aprobar recepci�n'"
+                                                    :title="getBlockersForInvoiceId(invoice.id).length > 0 ? getBlockersForInvoiceId(invoice.id).join(' ') : 'Aprobar recepci�n'"
                                                     @click="
                                                         getBlockersForInvoiceId(invoice.id).length > 0
                                                             ? setAlert(getBlockersForInvoiceId(invoice.id).join(' '), 'warning')
@@ -828,6 +820,14 @@ function onFabricRollSuccess() {
                             </template>
                         </TableBody>
                     </Table>
+                    <div class="mt-4 flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between rounded-xl border">
+                      <ServerPagination 
+                        v-model:current-page="currentPage"
+                        v-model:page-size="itemsPerPage"
+                        :total-items="totalItems"
+                        @fetch-data="() => fetchInvoices(currentPage, searchQuery)" 
+                      />
+                    </div>
                 </div>
             </template>
 

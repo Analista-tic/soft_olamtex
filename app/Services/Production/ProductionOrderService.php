@@ -25,6 +25,7 @@ use RuntimeException;
  */
 class ProductionOrderService
 {
+    private const TYPE_SAMPLE = 'muestra';
     private const DEFAULT_DESTINATION = 'OLAMTEX';
     private const STATUS_COMPLETE = 'complete';
     private const STATUS_INCOMPLETE = 'incomplete';
@@ -54,6 +55,10 @@ class ProductionOrderService
      */
     public function createFromSample(ProductSheet $productSheet): ProductionOrder
     {
+        if (Str::lower(trim((string) $productSheet->type)) !== self::TYPE_SAMPLE) {
+            throw new RuntimeException('La creación automática solo está permitida para fichas tipo muestra.');
+        }
+
         Log::info('production_order.auto_create.start', [
             'product_sheet_id' => $productSheet->id,
             'type' => $productSheet->type,

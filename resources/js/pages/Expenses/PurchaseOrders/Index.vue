@@ -28,6 +28,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import PurchaseOrderDialog from './PurchaseOrderDialog.vue';
 import PurchaseOrderPrintDialog from './PurchaseOrderPrintDialog.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 
 const breadcrumbs = [{ title: 'Órdenes de Compra', href: '/ordenes-compra' }];
 
@@ -43,7 +44,7 @@ const searchQuery = ref('');
 const orderToDelete = ref<PurchaseOrder | null>(null);
 const isDeleteDialogOpen = ref(false);
 const currentPage = ref(1);
-const itemsPerPage = 10;
+const itemsPerPage = ref(10);
 const totalItems = ref(0);
 const isPrintDialogOpen = ref(false);
 const orderToPrint = ref<PurchaseOrder | null>(null);
@@ -153,7 +154,7 @@ function viewOrder(order: PurchaseOrder) {
         try {
         const params: any = {
             page,
-            per_page: itemsPerPage,
+            per_page: itemsPerPage.value,
             search,
             date_from: dateFilter.value || undefined,
             date_to: dateFilter.value || undefined,
@@ -164,8 +165,8 @@ function viewOrder(order: PurchaseOrder) {
         if (providerFilter.value != null) params.provider_id = providerFilter.value;
         const response = await axios.get('/gastos/ordenes-compra/data', { params });
         orders.value = response.data.data;
-        totalItems.value = response.data.total;
-        currentPage.value = response.data.current_page;
+        totalItems.value = Number(response.data.total ?? 0);
+        currentPage.value = Number(response.data.current_page ?? page);
     } finally {
         isLoading.value = false;
     }
@@ -462,6 +463,14 @@ function handleDialogError(message?: string) {
                         </template>
                     </TableBody>
                 </Table>
+                <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                  <ServerPagination 
+                    v-model:current-page="currentPage"
+                    v-model:page-size="itemsPerPage"
+                    :total-items="totalItems"
+                    @fetch-data="() => fetchOrders(currentPage, searchQuery)" 
+                  />
+                </div>
             </div>
         </div>
         <PurchaseOrderDialog

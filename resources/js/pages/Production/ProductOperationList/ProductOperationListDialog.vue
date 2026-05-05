@@ -81,7 +81,6 @@ const props = defineProps({
 const emit = defineEmits<{
     (event: 'save', payload: ProductOperationPayload[]): void;
     (event: 'close'): void;
-    (event: 'validation-error', message: string): void;
 }>();
 
 function normalizeComparableId(value: number | string | null | undefined): string {
@@ -212,7 +211,6 @@ function addPreparationGroupFromSelect(rawName?: string) {
     if (!group) {
         const msg = 'Escribe el nombre del grupo para agregarlo.';
         setValidationError(msg);
-        emit('validation-error', msg);
         return;
     }
 
@@ -235,7 +233,6 @@ function addPreparationGroupFromEditRow(rawName?: string) {
     if (!group) {
         const msg = 'Escribe el nombre del grupo para agregarlo.';
         setValidationError(msg);
-        emit('validation-error', msg);
         return;
     }
 
@@ -502,19 +499,21 @@ function addOperation() {
 
     if (!currentRow.value.operation_id) {
         setValidationError('Selecciona una operación.');
-        emit('validation-error', 'Selecciona una operación.');
         return;
     }
     if (!currentRow.value.machine_id) {
         const msg = 'La operación no tiene máquina asignada. Asígnala en el catálogo de operaciones.';
         setValidationError(msg);
-        emit('validation-error', msg);
         return;
     }
     if (samBase <= 0) {
         const msg = 'La operación seleccionada no tiene SAM base. Regístralo primero en la base de datos de operaciones.';
         setValidationError(msg);
-        emit('validation-error', msg);
+        return;
+    }
+    if (isSectionPreparacion(currentRow.value.section_id) && !currentRow.value.grupo_preparacion) {
+        const msg = 'Para operaciones de PREPARACION, debes seleccionar o crear un grupo de preparación.';
+        setValidationError(msg);
         return;
     }
 
@@ -523,7 +522,6 @@ function addOperation() {
     if (isDuplicate) {
         const msg = 'Esta operación ya fue añadida al listado. No se puede repetir en la misma sábana.';
         setValidationError(msg);
-        emit('validation-error', msg);
         return;
     }
 
@@ -588,15 +586,20 @@ function saveOperations() {
     if (hasDuplicates) {
         const msg = 'Hay operaciones duplicadas en el listado (misma operación). Elimina duplicados antes de guardar.';
         setValidationError(msg);
-        emit('validation-error', msg);
+        return;
+    }
+
+    const missingPreparationGroup = operationList.value.find(
+        (row) => isSectionPreparacion(row.section_id) && !row.grupo_preparacion
+    );
+    if (missingPreparationGroup) {
+        const msg = 'Todas las operaciones de PREPARACION deben tener un grupo asignado. Edita las filas sin grupo.';
+        setValidationError(msg);
         return;
     }
 
     if (operationList.value.length === 0) {
-        clearValidationError();
-        emit('save', []);
-        resetForm();
-        localOpen.value = false;
+        setValidationError('El listado operacional no puede estar vacío. Agrega al menos una operación antes de guardar.');
         return;
     }
 
@@ -822,8 +825,7 @@ function resetForm() {
                             </span>
                         </div>
                         <div
-                            class="max-h-[360px] overflow-y-auto overscroll-contain scroll-smooth rounded-lg border border-border/60 bg-muted/10"
-                            style="scrollbar-width: thin"
+                            class="rounded-lg border border-border/60 bg-muted/10"
                         >
                             <table class="w-full table-fixed text-sm">
                                 <thead class="sticky top-0 z-10 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/85">

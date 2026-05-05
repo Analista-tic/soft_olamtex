@@ -9,17 +9,7 @@ import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
-import { Skeleton } from '@/components/ui/skeleton';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
@@ -86,7 +76,7 @@ const statusFilter = ref<string | null>(null);
 const isLoading = ref(false);
 const currentPage = ref(1);
 const totalItems = ref(0);
-const itemsPerPage = 10;
+const itemsPerPage = ref(10);
 
 const DEFAULT_TYPE_FILTER = null;
 const DEFAULT_STATUS_FILTER = null;
@@ -262,7 +252,7 @@ async function fetchAdditionalFields(page = 1, search = '') {
         const response = await axios.get('/campos-adicionales/data', {
             params: {
                 page,
-                per_page: itemsPerPage,
+                per_page: itemsPerPage.value,
                 search,
                 field_type: typeFilter.value != null ? typeFilter.value : undefined,
                 status: statusFilter.value === 'active' ? true : statusFilter.value === 'inactive' ? false : undefined,
@@ -270,7 +260,7 @@ async function fetchAdditionalFields(page = 1, search = '') {
         });
         const rows = Array.isArray(response.data?.data) ? response.data.data : [];
         additionalFields.value = rows.map((field: AdditionalField & { label?: string }) => mapAdditionalFieldRecord(field));
-        totalItems.value = response.data.total ?? response.data.data.length;
+        totalItems.value = Number(response.data.total ?? rows.length);
         currentPage.value = response.data.current_page ?? page;
     } catch (error) {
         console.error('Error al obtener los campos adicionales:', error);
@@ -279,11 +269,6 @@ async function fetchAdditionalFields(page = 1, search = '') {
     } finally {
         isLoading.value = false;
     }
-}
-
-function handlePageChange(newPage: number) {
-    currentPage.value = newPage;
-    fetchAdditionalFields(newPage, searchQuery.value);
 }
 
 function confirmDeleteField(field: AdditionalField) {
@@ -531,34 +516,14 @@ onBeforeUnmount(() => {
                         </template>
                     </TableBody>
                 </Table>
-                <Pagination
-                    class="mt-5 flex justify-center"
-                    :items-per-page="itemsPerPage"
-                    :total="totalItems"
-                    :sibling-count="1"
-                    show-edges
+                <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                  <ServerPagination 
                     v-model:current-page="currentPage"
-                    @page-changed="handlePageChange"
-                >
-                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                        <PaginationFirst />
-                        <PaginationPrev />
-                        <template v-for="(item, index) in items">
-                            <PaginationListItem v-if="item.type === 'page'" :key="index" :value="item.value" as-child>
-                                <Button
-                                    class="h-6 w-6 p-0"
-                                    :variant="item.value === currentPage ? 'default' : 'outline'"
-                                    @click="handlePageChange(item.value)"
-                                >
-                                    {{ item.value }}
-                                </Button>
-                            </PaginationListItem>
-                            <PaginationEllipsis v-else :key="item.type" :index="index" />
-                        </template>
-                        <PaginationNext />
-                        <PaginationLast />
-                    </PaginationList>
-                </Pagination>
+                    v-model:page-size="itemsPerPage"
+                    :total-items="totalItems"
+                    @fetch-data="() => fetchAdditionalFields(currentPage, searchQuery)" 
+                  />
+                </div>
             </div>
         </div>
 

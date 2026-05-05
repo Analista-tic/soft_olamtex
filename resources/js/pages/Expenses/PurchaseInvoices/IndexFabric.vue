@@ -24,6 +24,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import InvoiceDifferenceApprovalDialog from './InvoiceDifferenceApprovalDialog.vue';
 import PurchaseInvoiceDialogTelas from './PurchaseInvoiceDialogTelas.vue';
 import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 
 const breadcrumbs = [{ title: 'Facturas de Compra Tela', href: '/gastos/facturas-compra-tela' }];
 
@@ -41,7 +42,7 @@ const invoiceToDelete = ref<PurchaseInvoice | null>(null);
 const isDeleteDialogOpen = ref(false);
 const searchQuery = ref('');
 const currentPage = ref(1);
-const itemsPerPage = 10;
+const itemsPerPage = ref(10);
 const totalItems = ref(0);
 const isPrintDialogOpen = ref(false);
 const invoiceToPrint = ref<PurchaseInvoice | null>(null);
@@ -197,7 +198,7 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
     try {
         const params: Record<string, any> = {
             page,
-            per_page: itemsPerPage,
+            per_page: itemsPerPage.value,
             search,
             date_from: dateFilter.value || undefined,
             date_to: dateFilter.value || undefined,
@@ -216,8 +217,9 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
             params.provider_id = isNaN(Number(providerFilter.value)) ? providerFilter.value : Number(providerFilter.value);
         }
         const response = await axios.get('/gastos/facturas-compra-tela/data', { params });
-        invoices.value = Array.isArray(response.data.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
-        totalItems.value = typeof response.data.total === 'number' ? response.data.total : 0;
+        invoices.value = Array.isArray(response.data.data) ? response.data.data : [];
+        totalItems.value = Number(response.data.total ?? invoices.value.length ?? 0);
+        currentPage.value = Number(response.data.current_page ?? page);
     } catch (e) {
         console.log('Error al cargar facturas:', e);
         invoices.value = [];
@@ -228,28 +230,15 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
 }
 
 // Watcher único para filtros y búsqueda
-watch(
-    [statusFilter, providerFilter, dateFilter, searchQuery],
-    ([newStatus, newProvider, newDate, newSearch], [oldStatus, oldProvider, oldDate, oldSearch]) => {
-        if (
-            newStatus !== oldStatus ||
-            newProvider !== oldProvider ||
-            newDate !== oldDate ||
-            newSearch !== oldSearch
-        ) {
-            // Solo cambia la página, el watcher de currentPage hará el fetch
-            if (currentPage.value !== 1) {
-                currentPage.value = 1;
-            } else {
-                fetchInvoices(1, newSearch);
-            }
-        }
-    },
-);
+// 1. Si cambia cualquier filtro, volvemos a la página 1 y recargamos
+watch([statusFilter, providerFilter, dateFilter, searchQuery], () => {
+    currentPage.value = 1;
+    fetchInvoices(1, searchQuery.value);
+});
 
-// Watcher para paginación
-watch(currentPage, (newPage, oldPage) => {
-    if (newPage !== oldPage) {
+// 2. Si el usuario cambia de página manualmente (sin tocar filtros)
+watch(currentPage, (newPage) => {
+    if (newPage !== 1) {
         fetchInvoices(newPage, searchQuery.value);
     }
 });
@@ -597,6 +586,14 @@ function handleDialogError(message?: string) {
                         </template>
                     </TableBody>
                 </Table>
+                <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                  <ServerPagination 
+                    v-model:current-page="currentPage"
+                    v-model:page-size="itemsPerPage"
+                    :total-items="totalItems"
+                    @fetch-data="() => fetchInvoices(currentPage, searchQuery)" 
+                  />
+                </div>
             </div>
         </div>
         <PurchaseInvoiceDialogTelas

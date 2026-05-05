@@ -4,16 +4,7 @@ import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { FabricRollView } from '@/domain/Textil';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -47,7 +38,7 @@ const currentPage = ref(1);
 const lastPage = ref(1);
 const totalRolls = ref(0);
 const isLoadingRolls = ref(false);
-const PER_PAGE = 100;
+const itemsPerPage = ref(100);
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 const activeRoll = computed(() => selectedRoll.value ?? null);
@@ -85,7 +76,7 @@ async function fetchAvailableRolls(page = 1) {
         const params = new URLSearchParams();
         if (searchQuery.value.trim()) params.set('search', searchQuery.value.trim());
         params.set('page', String(page));
-        params.set('per_page', String(PER_PAGE));
+        params.set('per_page', String(itemsPerPage.value));
         params.set('sort_by', 'entry_date');
         params.set('sort_direction', 'desc');
 
@@ -110,12 +101,6 @@ function scheduleRollFetch() {
     debounceTimer = setTimeout(() => {
         void fetchAvailableRolls(1);
     }, 350);
-}
-
-function handlePageChange(page: number) {
-    if (!page || page === currentPage.value) return;
-    currentPage.value = page;
-    void fetchAvailableRolls(page);
 }
 
 function openDownloadDialog(roll: FabricRollView) {
@@ -398,7 +383,12 @@ onMounted(() => {
                         <TableRow v-else-if="displayedRolls.length === 0">
                             <TableCell colspan="8" class="py-8 text-center text-sm text-muted-foreground">No hay rollos disponibles.</TableCell>
                         </TableRow>
-                        <TableRow v-for="roll in displayedRolls" v-else :key="roll.id" :class="roll.id === selectedRoll?.id ? 'bg-primary/5' : ''">
+                        <TableRow 
+                          v-else 
+                          v-for="roll in displayedRolls.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)" 
+                          :key="roll.id" 
+                          :class="roll.id === selectedRoll?.id ? 'bg-primary/5' : ''"
+                        >
                             <TableCell class="font-medium">{{ roll.roll ?? '-' }}</TableCell>
                             <TableCell>{{ roll.location ?? '-' }}</TableCell>
                             <TableCell>{{ roll.fabric ?? '-' }}</TableCell>
@@ -421,37 +411,12 @@ onMounted(() => {
                 </Table>
 
                 <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
-                    <p class="text-xs text-muted-foreground">
-                        Página {{ currentPage }} de {{ lastPage }} · Mostrando {{ availableRolls.length }} de {{ totalRolls }} rollos
-                    </p>
-
-                    <Pagination
-                        v-if="lastPage > 1"
-                        class="flex justify-center"
-                        :items-per-page="PER_PAGE"
-                        :total="totalRolls"
-                        :sibling-count="1"
-                        show-edges
-                        :page="currentPage"
-                        @update:page="handlePageChange"
-                    >
-                        <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                            <PaginationFirst />
-                            <PaginationPrev />
-
-                            <template v-for="(item, index) in items" :key="index">
-                                <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                    <Button class="h-6 w-6 p-0 text-xs" :variant="item.value === currentPage ? 'default' : 'outline'">
-                                        {{ item.value }}
-                                    </Button>
-                                </PaginationListItem>
-                                <PaginationEllipsis v-else :index="index" />
-                            </template>
-
-                            <PaginationNext />
-                            <PaginationLast />
-                        </PaginationList>
-                    </Pagination>
+                  <ServerPagination 
+                    v-model:current-page="currentPage"
+                    v-model:page-size="itemsPerPage"
+                    :total-items="totalRolls"
+                    @fetch-data="() => fetchAvailableRolls(currentPage)" 
+                  />
                 </div>
             </div>
 

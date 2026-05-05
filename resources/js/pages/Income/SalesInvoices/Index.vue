@@ -2,6 +2,7 @@
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import EditButton from '@/components/common/EditButton.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import TableActionsMenu from '@/components/common/TableActionsMenu.vue';
 import ViewButton from '@/components/common/ViewButton.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
@@ -13,16 +14,6 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
     INCOME_TABLE_BADGE_CLASS,
@@ -31,18 +22,16 @@ import {
     getStatusLabel,
     getStatusVariant,
     normalizeErrorMessage,
-    resolveIncomePageChange,
-    watchIncomeDocumentFilters,
 } from '@/composables/Income/useIncomeDocument';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { SalesInvoice } from '@/domain/Income';
 import type { BreadcrumbItem, Option } from '@/domain/shared';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 import { useIncomeStore } from '@/stores/income/income';
 import { Head, Link } from '@inertiajs/vue3';
 import { Ban, PlusCircle, Receipt, Search, Send, Trash2 } from 'lucide-vue-next';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import SalesInvoiceDialog from './SalesInvoiceDialog.vue';
 
 const incomeStore = useIncomeStore();
@@ -74,7 +63,6 @@ const origin = ref<'direct' | 'from_order' | null>((incomeStore.salesInvoiceFilt
 const customerOptions = ref<Option[]>([]);
 
 const salesInvoices = computed(() => incomeStore.salesInvoices);
-const salesInvoicesMeta = computed(() => incomeStore.salesInvoicesMeta);
 const isSalesInvoicesLoading = computed(() => incomeStore.salesInvoicesLoading);
 const isSearchActive = computed(() => search.value.trim().length > 0);
 const isStatusFilterActive = computed(() => status.value != null);
@@ -98,8 +86,9 @@ const originOptions = [
     { id: 'from_order', name: 'Desde pedido' },
 ];
 
-const currentPage = computed(() => salesInvoicesMeta.value.currentPage || 1);
-const totalPages = computed(() => salesInvoicesMeta.value.lastPage || 1);
+const itemsPerPage = ref(incomeStore.salesInvoicesMeta.perPage || 10);
+const totalItems = computed(() => Number(incomeStore.salesInvoicesMeta?.total ?? 0));
+const currentPage = ref(1);
 const hasSalesInvoices = computed(() => salesInvoices.value.length > 0);
 
 function formatDate(value?: string | null): string {
@@ -128,26 +117,31 @@ const canEmit = (invoice: SalesInvoice) => invoice.status === 'draft';
 const canVoid = (invoice: SalesInvoice) => invoice.status === 'issued' || invoice.status === 'partial';
 
 function getPaymentStatusLabel(statusValue?: string): string {
-    return {
-        unpaid: 'Sin pago',
-        partial: 'Pago parcial',
-        paid: 'Pagada',
-    }[statusValue ?? ''] ?? (statusValue || '-');
+    return (
+        {
+            unpaid: 'Sin pago',
+            partial: 'Pago parcial',
+            paid: 'Pagada',
+        }[statusValue ?? ''] ??
+        (statusValue || '-')
+    );
 }
 
 function getPaymentStatusClass(statusValue?: string): string {
-    return {
-        unpaid: 'border-slate-200 bg-slate-100 text-slate-700',
-        partial: 'border-amber-200 bg-amber-100 text-amber-700',
-        paid: 'border-emerald-200 bg-emerald-100 text-emerald-700',
-    }[statusValue ?? ''] ?? 'border-slate-200 bg-slate-100 text-slate-700';
+    return (
+        {
+            unpaid: 'border-slate-200 bg-slate-100 text-slate-700',
+            partial: 'border-amber-200 bg-amber-100 text-amber-700',
+            paid: 'border-emerald-200 bg-emerald-100 text-emerald-700',
+        }[statusValue ?? ''] ?? 'border-slate-200 bg-slate-100 text-slate-700'
+    );
 }
 
 async function fetchSalesInvoices(page = 1) {
     try {
         await incomeStore.fetchSalesInvoices({
             page,
-            per_page: salesInvoicesMeta.value.perPage || 10,
+            per_page: itemsPerPage.value,
             search: search.value,
             status: status.value ?? undefined,
             contact_id: contactId.value ?? undefined,
@@ -164,12 +158,6 @@ async function fetchSalesInvoices(page = 1) {
 async function loadCustomerOptions(searchTerm = '') {
     const options = await fetchIncomeCustomerOptions(searchTerm, searchTerm.trim() ? 30 : 100);
     customerOptions.value = [...options];
-}
-
-function handlePageChange(page: number) {
-    const nextPage = resolveIncomePageChange(page, currentPage.value, totalPages.value);
-    if (nextPage === null) return;
-    void fetchSalesInvoices(nextPage);
 }
 
 function openCreateDialog(orderId?: number) {
@@ -276,8 +264,25 @@ function bootstrapFromQuery() {
     if (!Number.isNaN(parsed) && parsed > 0) openCreateDialog(parsed);
 }
 
-watchIncomeDocumentFilters([search, status, contactId, dateFilter, origin], () => {
+// Sincronizar variable local cuando el store cambie
+watch(
+    () => incomeStore.salesInvoicesMeta.currentPage,
+    (newValue) => {
+        if (newValue) currentPage.value = newValue;
+    },
+);
+
+// 1. Cuando cambie un filtro, volvemos a la página 1
+watch([search, status, contactId, dateFilter, origin], () => {
+    currentPage.value = 1;
     void fetchSalesInvoices(1);
+});
+
+// 2. Cuando el usuario cambie de página manualmente
+watch(currentPage, (newPage) => {
+    if (newPage !== 1) {
+        void fetchSalesInvoices(newPage);
+    }
 });
 
 onMounted(() => {
@@ -303,7 +308,9 @@ onMounted(() => {
             <div class="flex items-center justify-between gap-4">
                 <div :class="uiPatterns.pageIndex.header">
                     <h1 :class="uiPatterns.pageIndex.title">Facturas de venta</h1>
-                    <p :class="uiPatterns.pageIndex.subtitle">Administra la emisión, el estado de cobro y la trazabilidad contable de las facturas.</p>
+                    <p :class="uiPatterns.pageIndex.subtitle">
+                        Administra la emisión, el estado de cobro y la trazabilidad contable de las facturas.
+                    </p>
                 </div>
 
                 <Button size="pill" @click="openCreateDialog()">
@@ -347,7 +354,6 @@ onMounted(() => {
                 <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
                     <DatePickerField v-model="dateFilter" label="" placeholder-text="dd/mm/aaaa" :clearable="true" />
                 </FilterField>
-
             </FilterBar>
 
             <div :class="uiPatterns.pageIndex.tableWrap">
@@ -376,7 +382,9 @@ onMounted(() => {
                         </template>
 
                         <TableRow v-else-if="!hasSalesInvoices">
-                            <TableCell colspan="9" class="py-10 text-center text-sm text-muted-foreground">No se encontraron facturas con los filtros actuales.</TableCell>
+                            <TableCell colspan="9" class="py-10 text-center text-sm text-muted-foreground"
+                                >No se encontraron facturas con los filtros actuales.</TableCell
+                            >
                         </TableRow>
 
                         <TableRow v-for="invoice in salesInvoices" v-else :key="invoice.id">
@@ -384,7 +392,14 @@ onMounted(() => {
                             <TableCell>{{ invoice.client?.full_name || invoice.contact?.full_name || '-' }}</TableCell>
                             <TableCell>
                                 <div v-if="invoice.parent_document_id && invoice.parent?.document_number" class="flex flex-col items-start gap-1">
-                                    <Badge variant="outline" :class="[INCOME_TABLE_BADGE_CLASS, 'border-blue-300 bg-blue-50/80 text-blue-700 dark:border-blue-400/40 dark:bg-blue-500/10 dark:text-blue-300']">Desde pedido</Badge>
+                                    <Badge
+                                        variant="outline"
+                                        :class="[
+                                            INCOME_TABLE_BADGE_CLASS,
+                                            'border-blue-300 bg-blue-50/80 text-blue-700 dark:border-blue-400/40 dark:bg-blue-500/10 dark:text-blue-300',
+                                        ]"
+                                        >Desde pedido</Badge
+                                    >
                                     <Link href="/income/sales-orders" class="inline-flex items-center gap-1 text-sm text-primary hover:underline">
                                         <Receipt class="h-3.5 w-3.5" />
                                         {{ invoice.parent.document_number }}
@@ -396,21 +411,33 @@ onMounted(() => {
                             <TableCell>{{ formatCurrency(computeInvoiceTotal(invoice)) }}</TableCell>
                             <TableCell>{{ formatCurrency(Number(invoice.amount_paid ?? 0)) }}</TableCell>
                             <TableCell>
-                                <Badge variant="outline" :class="[INCOME_TABLE_BADGE_CLASS, getStatusVariant(invoice.status, 'sales_invoice')]">{{ getStatusLabel(invoice.status, 'sales_invoice') }}</Badge>
+                                <Badge variant="outline" :class="[INCOME_TABLE_BADGE_CLASS, getStatusVariant(invoice.status, 'sales_invoice')]">{{
+                                    getStatusLabel(invoice.status, 'sales_invoice')
+                                }}</Badge>
                             </TableCell>
                             <TableCell>
-                                <Badge variant="outline" :class="[INCOME_TABLE_BADGE_CLASS, getPaymentStatusClass(invoice.payment_status)]">{{ getPaymentStatusLabel(invoice.payment_status) }}</Badge>
+                                <Badge variant="outline" :class="[INCOME_TABLE_BADGE_CLASS, getPaymentStatusClass(invoice.payment_status)]">{{
+                                    getPaymentStatusLabel(invoice.payment_status)
+                                }}</Badge>
                             </TableCell>
                             <TableCell class="text-center">
                                 <div class="flex items-center justify-center gap-1">
                                     <ViewButton :onClick="() => openViewDialog(invoice)" />
                                     <EditButton :class="!canEdit(invoice) ? 'pointer-events-none opacity-50' : ''" @click="openEditDialog(invoice)" />
                                     <TableActionsMenu content-class="w-56">
-                                        <DropdownMenuItem class="cursor-pointer gap-2" :disabled="!canEmit(invoice)" @click="askEmitSalesInvoice(invoice)">
+                                        <DropdownMenuItem
+                                            class="cursor-pointer gap-2"
+                                            :disabled="!canEmit(invoice)"
+                                            @click="askEmitSalesInvoice(invoice)"
+                                        >
                                             <Send class="h-4 w-4" />
                                             Emitir
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem class="cursor-pointer gap-2" :disabled="!canVoid(invoice)" @click="askVoidSalesInvoice(invoice)">
+                                        <DropdownMenuItem
+                                            class="cursor-pointer gap-2"
+                                            :disabled="!canVoid(invoice)"
+                                            @click="askVoidSalesInvoice(invoice)"
+                                        >
                                             <Ban class="h-4 w-4" />
                                             Anular
                                         </DropdownMenuItem>
@@ -430,39 +457,26 @@ onMounted(() => {
                     </TableBody>
                 </Table>
             </div>
-
-            <div v-if="salesInvoicesMeta.total > 0" class="flex items-center justify-between gap-4">
-                <p class="text-sm text-muted-foreground">
-                    {{ salesInvoicesMeta.total }} facturas. Pagina {{ salesInvoicesMeta.currentPage }} de {{ salesInvoicesMeta.lastPage }}.
-                </p>
-
-                <Pagination
-                    :page="currentPage"
-                    :total="salesInvoicesMeta.total"
-                    :items-per-page="salesInvoicesMeta.perPage"
-                    :sibling-count="1"
-                    show-edges
-                    :class="uiPatterns.pageIndex.pagination"
-                >
-                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                        <PaginationFirst @click="handlePageChange(1)" />
-                        <PaginationPrev @click="handlePageChange(currentPage - 1)" />
-                        <template v-for="(item, index) in items" :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`">
-                            <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                <Button type="button" class="h-8 w-8 rounded-md p-0 text-xs font-medium" :variant="item.value === currentPage ? 'default' : 'ghost'" @click="handlePageChange(item.value)">
-                                    {{ item.value }}
-                                </Button>
-                            </PaginationListItem>
-                            <PaginationEllipsis v-else />
-                        </template>
-                        <PaginationNext @click="handlePageChange(currentPage + 1)" />
-                        <PaginationLast @click="handlePageChange(totalPages)" />
-                    </PaginationList>
-                </Pagination>
+            <!-- paginación estandarizada -->
+            <div
+                class="mt-4 flex flex-col gap-2 rounded-xl border border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between"
+            >
+                <ServerPagination
+                    v-model:current-page="currentPage"
+                    v-model:page-size="itemsPerPage"
+                    :total-items="totalItems"
+                    @fetch-data="() => fetchSalesInvoices(currentPage)"
+                />
             </div>
         </div>
 
-        <SalesInvoiceDialog v-model:open="isDialogOpen" :mode="dialogMode" :sales-invoice-id="selectedSalesInvoiceId" :from-order-id="fromOrderId" @saved="handleDialogSaved" />
+        <SalesInvoiceDialog
+            v-model:open="isDialogOpen"
+            :mode="dialogMode"
+            :sales-invoice-id="selectedSalesInvoiceId"
+            :from-order-id="fromOrderId"
+            @saved="handleDialogSaved"
+        />
 
         <ConfirmDialog
             :open="isDeleteDialogOpen"

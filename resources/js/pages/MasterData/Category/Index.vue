@@ -8,17 +8,8 @@ import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
-import { Skeleton } from '@/components/ui/skeleton';
+import ServerPagination from '@/components/common/ServerPagination.vue';
+
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { CategoryGroup, CategorySubGroup } from '@/domain/MasterData';
@@ -58,7 +49,7 @@ const form = ref<Partial<CategorySubGroup>>({
     category_group_id: undefined,
 });
 const currentPage = ref<number>(1);
-const itemsPerPage = 10;
+const itemsPerPage = ref(10);
 const totalItems = ref<number>(0);
 const searchQuery = ref<string>(''); // Campo de búsqueda
 const isLoading = ref<boolean>(false);
@@ -149,7 +140,7 @@ async function fetchSubGroups(page: number = 1, search: string = '', groupId: Op
         const response = await axios.get('/categorias/subgrupos-data', {
             params: {
                 page,
-                per_page: itemsPerPage,
+                per_page: itemsPerPage.value,
                 search,
                 group_id: typeof groupId === 'string' && groupId !== '' ? Number(groupId) : groupId,
                 sort_by: sortBy.value,
@@ -158,7 +149,7 @@ async function fetchSubGroups(page: number = 1, search: string = '', groupId: Op
         });
 
         subGroups.value = response.data.data;
-        totalItems.value = response.data.total;
+        totalItems.value = Number(response.data.total ?? 0);
         currentPage.value = response.data.current_page;
     } catch (error) {
         console.error('Error al obtener los subgrupos:', error);
@@ -177,11 +168,6 @@ function toggleSort(column: string): void {
     }
 
     fetchSubGroups(1, searchQuery.value, normalizedGroupId.value);
-}
-
-function handlePageChange(newPage: number): void {
-    currentPage.value = newPage;
-    fetchSubGroups(newPage, searchQuery.value, normalizedGroupId.value);
 }
 
 // Observadores con tipado explícito
@@ -289,36 +275,14 @@ onMounted(() => {
                         </template>
                     </TableBody>
                 </Table>
-                <Pagination
-                    class="mt-5 flex justify-center"
-                    :items-per-page="itemsPerPage"
-                    :total="totalItems"
-                    :sibling-count="1"
-                    show-edges
+                <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                  <ServerPagination 
                     v-model:current-page="currentPage"
-                    @page-changed="handlePageChange"
-                >
-                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                        <PaginationFirst />
-                        <PaginationPrev />
-
-                        <template v-for="(item, index) in items">
-                            <PaginationListItem v-if="item.type === 'page'" :key="index" :value="item.value" as-child>
-                                <Button
-                                    class="h-6 w-6 p-0"
-                                    :variant="item.value === currentPage ? 'default' : 'outline'"
-                                    @click="handlePageChange(item.value)"
-                                >
-                                    {{ item.value }}
-                                </Button>
-                            </PaginationListItem>
-                            <PaginationEllipsis v-else :key="item.type" :index="index" />
-                        </template>
-
-                        <PaginationNext />
-                        <PaginationLast />
-                    </PaginationList>
-                </Pagination>
+                    v-model:page-size="itemsPerPage"
+                    :total-items="totalItems"
+                    @fetch-data="() => fetchSubGroups(currentPage, searchQuery, normalizedGroupId)" 
+                  />
+                </div>
             </div>
         </div>
     </AppLayout>

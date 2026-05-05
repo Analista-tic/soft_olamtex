@@ -18,16 +18,6 @@ import ViewButton from '@/components/common/ViewButton.vue';
 import Button from '@/components/ui/button/Button.vue';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import Textarea from '@/components/ui/textarea/Textarea.vue';
@@ -38,6 +28,7 @@ import { uiPatterns } from '@/lib/ui-patterns';
 import { Head, router } from '@inertiajs/vue3';
 import { Ban, Copy, Eye, Plus, Printer, Search } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -48,7 +39,7 @@ const ROUTES = {
     edit: (id: number) => `/finanzas/comprobantes-egreso/${id}/editar`,
 } as const;
 
-const ITEMS_PER_PAGE = 10;
+const itemsPerPage = ref(10);
 
 const breadcrumbs = [{ title: 'Comprobante de egreso', href: ROUTES.index }];
 
@@ -87,12 +78,14 @@ const voidReasonError = ref('');
 const isVoiding = ref(false);
 const voidTarget = ref<ExpenseVoucherListItem | null>(null);
 
+
+
 async function fetchExpenseVouchers(page = 1): Promise<void> {
     isLoading.value = true;
     try {
         const response = await fetchExpenseVouchersPage({
             page,
-            per_page: ITEMS_PER_PAGE,
+            per_page: itemsPerPage.value,
             search: searchQuery.value.trim() || undefined,
             provider_id: providerFilter.value != null ? Number(providerFilter.value) : undefined,
             status: statusFilter.value ?? undefined,
@@ -100,8 +93,8 @@ async function fetchExpenseVouchers(page = 1): Promise<void> {
             date_to: createdDateFilter.value || undefined,
         });
         rows.value = response.data;
-        totalItems.value = response.total;
-        currentPage.value = response.current_page;
+        totalItems.value = Number(response.total ?? 0);
+        currentPage.value = Number(response.current_page ?? page);
     } catch (error) {
         console.error('Error al cargar comprobantes de egreso', error);
         rows.value = [];
@@ -111,10 +104,6 @@ async function fetchExpenseVouchers(page = 1): Promise<void> {
     }
 }
 
-async function handlePageChange(page: number): Promise<void> {
-    if (page === currentPage.value) return;
-    await fetchExpenseVouchers(page);
-}
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
 
@@ -227,19 +216,28 @@ function submitVoid(): void {
 
 // ─── Watchers & lifecycle ─────────────────────────────────────────────────────
 
+// 1. Watcher para el buscador con debounce (evita saturar el servidor al escribir)
 let searchDebounce: number | undefined;
-
 watch(searchQuery, () => {
     window.clearTimeout(searchDebounce);
     searchDebounce = window.setTimeout(() => {
-        currentPage.value = 1;
+        currentPage.value = 1; // Reset a página 1
         void fetchExpenseVouchers(1);
-    }, 250);
+    }, 300);
 });
 
+// 2. Watcher para los filtros directos (Proveedor, Estado, Fecha)
 watch([providerFilter, statusFilter, createdDateFilter], () => {
-    currentPage.value = 1;
+    currentPage.value = 1; // Reset a página 1
     void fetchExpenseVouchers(1);
+});
+
+// 3. Watcher exclusivo para la navegación entre páginas (cuando el usuario da clic en 2, 3, etc.)
+watch(currentPage, (newPage) => {
+    // Solo disparamos si no es la página 1 para no repetir la llamada de los filtros de arriba
+    if (newPage !== 1) {
+        void fetchExpenseVouchers(newPage);
+    }
 });
 
 onMounted(() => void Promise.all([fetchProviders(), fetchExpenseVouchers(1)]));
@@ -393,41 +391,16 @@ onBeforeUnmount(() => window.clearTimeout(searchDebounce));
                         </TableRow>
                     </TableBody>
                 </Table>
-
                 <!-- Pagination -->
-                <Pagination
-                    :class="uiPatterns.pageIndex.pagination"
-                    :items-per-page="ITEMS_PER_PAGE"
-                    :total="totalItems"
-                    :sibling-count="1"
-                    show-edges
+                <div class="mt-4 flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between rounded-xl border">
+                  <ServerPagination 
                     v-model:current-page="currentPage"
-                    @page-changed="handlePageChange"
-                >
-                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                        <PaginationFirst />
-                        <PaginationPrev />
-
-                        <template
-                            v-for="(item, index) in items"
-                            :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`"
-                        >
-                            <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                <Button
-                                    class="h-8 w-8 rounded-md p-0 text-xs font-medium"
-                                    :variant="item.value === currentPage ? 'default' : 'ghost'"
-                                    @click="handlePageChange(item.value as number)"
-                                >
-                                    {{ item.value }}
-                                </Button>
-                            </PaginationListItem>
-                            <PaginationEllipsis v-else />
-                        </template>
-
-                        <PaginationNext />
-                        <PaginationLast />
-                    </PaginationList>
-                </Pagination>
+                    v-model:page-size="itemsPerPage"
+                    :total-items="totalItems"
+                    @fetch-data="() => fetchExpenseVouchers(currentPage)" 
+                  />
+                </div>
+                
             </div>
         </div>
     </AppLayout>

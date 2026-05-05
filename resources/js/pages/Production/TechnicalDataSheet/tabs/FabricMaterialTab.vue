@@ -17,8 +17,8 @@ import {
 import type { Option } from '@/domain/shared';
 import { formatMeters } from '@/domain/Textil';
 import axios from 'axios';
-import { ChevronDown, ChevronRight, Plus, Save, Trash, X } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { ChevronDown, ChevronRight, Plus, Save, Trash } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
 const props = defineProps<{
     opId: string | number;
@@ -85,7 +85,16 @@ const { successMessage, errorMessage, errorType, showSuccess, showError, showWar
 const snapshot = ref('');
 const deletedRollLineIds = ref<string[]>([]);
 const metaCache = new Map<number, RawMaterialItemMeta | null>();
-const overAllocationWarningMessage = 'Un rollo tiene mas metros programados que su disponibilidad.';
+const rollsCache = new Map<string, DisplayRoll[]>();
+const itemOptionsCache = new Map<string, Option[]>();
+const rollRequestTokenByLine = new Map<string, number>();
+let rollRequestCounter = 0;
+let itemOptionsRequestCounter = 0;
+let itemSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function getRollCacheKey(itemId: number, opId?: string | number): string {
+    return `${String(opId ?? 'catalog')}::${itemId}`;
+}
 
 function generateUid(): string {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
@@ -250,10 +259,20 @@ async function loadRollsForLine(line: FabricLine): Promise<void> {
         line.availableRolls = [];
         return;
     }
+
+    const cacheKey = getRollCacheKey(line.telaItemId, props.opId);
+    const cached = rollsCache.get(cacheKey);
+    if (cached) {
+        line.availableRolls = cached.map((roll) => ({ ...roll }));
+        return;
+    }
+
+    const requestToken = ++rollRequestCounter;
+    rollRequestTokenByLine.set(line.uid, requestToken);
     line.loadingRolls = true;
     try {
         const allRolls = await fetchAvailableFabricRolls([line.telaItemId], props.opId);
-        line.availableRolls = allRolls
+        const mappedRolls = allRolls
             .filter((r) => r.fabricItemId === line.telaItemId)
             .map((r) => ({
                 rollId: r.id,
@@ -268,6 +287,10 @@ async function loadRollsForLine(line: FabricLine): Promise<void> {
                 supplier: r.supplier,
             }))
             .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }));
+
+        if (rollRequestTokenByLine.get(line.uid) !== requestToken) return;
+        rollsCache.set(cacheKey, mappedRolls.map((roll) => ({ ...roll })));
+        line.availableRolls = mappedRolls;
 
         if (line.assignedRolls.length > 0) {
             line.assignedRolls = line.assignedRolls.map((assignment) => {
@@ -377,15 +400,37 @@ function getItemOptions(line: FabricLine): Option[] {
 }
 
 async function loadItemOptions(search = ''): Promise<void> {
+    const normalizedSearch = search.trim().toLowerCase();
+    const cached = itemOptionsCache.get(normalizedSearch);
+    if (cached) {
+        itemOptions.value = [...cached];
+        return;
+    }
+
+    const requestId = ++itemOptionsRequestCounter;
     isLoadingItems.value = true;
     try {
-        itemOptions.value = await fetchRawMaterialCatalogOptions(search);
+        const options = await fetchRawMaterialCatalogOptions(search);
+        if (requestId !== itemOptionsRequestCounter) return;
+        itemOptionsCache.set(normalizedSearch, options);
+        itemOptions.value = [...options];
     } catch {
         itemOptions.value = [];
     } finally {
         isLoadingItems.value = false;
     }
 }
+
+function onItemSearch(search: string): void {
+    if (itemSearchDebounceTimer) clearTimeout(itemSearchDebounceTimer);
+    itemSearchDebounceTimer = setTimeout(() => {
+        void loadItemOptions(search);
+    }, 250);
+}
+
+onBeforeUnmount(() => {
+    if (itemSearchDebounceTimer) clearTimeout(itemSearchDebounceTimer);
+});
 
 function lineCost(line: FabricLine): number {
     return line.assignedRolls.reduce(
@@ -496,6 +541,7 @@ async function loadAll(): Promise<void> {
     clearError();
     clearSuccess();
     metaCache.clear();
+    rollsCache.clear();
     deletedRollLineIds.value = [];
     trazos.value = [];
     snapshot.value = '';
@@ -535,9 +581,9 @@ async function loadAll(): Promise<void> {
             }
         }
 
-        const allItemIds = rawMaterials
+        const allItemIds = [...new Set(rawMaterials
             .map((rm) => toNullableNumber(rm.telaItemId))
-            .filter((id): id is number => id !== null);
+            .filter((id): id is number => id !== null))];
 
         let availableRolls: AvailableFabricRoll[] = [];
         let catalogRolls: AvailableFabricRoll[] = [];
@@ -548,6 +594,33 @@ async function loadAll(): Promise<void> {
             ]);
             availableRolls = available;
             catalogRolls = catalog;
+
+            const availableByItem = new Map<number, DisplayRoll[]>();
+            for (const roll of availableRolls) {
+                const itemId = roll.fabricItemId;
+                if (!itemId) continue;
+                const list = availableByItem.get(itemId) ?? [];
+                list.push({
+                    rollId: roll.id,
+                    label: roll.label,
+                    fabricName: roll.fabricName,
+                    location: roll.location,
+                    widthCm: roll.widthCm,
+                    availableMeters: roll.availableMeters,
+                    pricePerMeter: resolvePricePerMeter(null, roll.pricePerMeter),
+                    color: roll.color,
+                    colorCode: roll.colorCode,
+                    supplier: roll.supplier,
+                });
+                availableByItem.set(itemId, list);
+            }
+
+            for (const [itemId, list] of availableByItem.entries()) {
+                const sorted = [...list].sort((a, b) =>
+                    a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }),
+                );
+                rollsCache.set(getRollCacheKey(itemId, props.opId), sorted);
+            }
         }
 
         const availableRollMap = new Map<string, AvailableFabricRoll>();
@@ -887,10 +960,9 @@ watch(
                                     placeholder="Seleccionar tela..."
                                     :searchable="true"
                                     search-placeholder="Buscar por nombre..."
-                                    class="w-56"
-                                    :clearable="true"
+                                    class="w-[30rem]"
                                     :disabled="isSaving || isLoading"
-                                    @search="loadItemOptions"
+                                    @search="onItemSearch"
                                     @update:model-value="(v) => onItemSelected(trazo.uid, line.uid, v)"
                                 />
 

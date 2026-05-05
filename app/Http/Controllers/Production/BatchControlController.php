@@ -25,6 +25,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -186,7 +187,27 @@ class BatchControlController extends Controller
         ->orderBy('batch_priority')
         ->orderByDesc('id');
 
-        ScopeHelper::apply($query, $request->user(), 'ver propios control lotes', 'ver area control lotes', 'ver todos control lotes');
+        $user = $request->user();
+        $scopePermissions = [
+            'ver propios control lotes',
+            'ver area control lotes',
+            'ver todos control lotes',
+        ];
+
+        $hasScopedVisibilityPermission = false;
+        foreach ($scopePermissions as $permission) {
+            try {
+                if ($user?->hasPermissionTo($permission)) {
+                    $hasScopedVisibilityPermission = true;
+                    break;
+                }
+            } catch (PermissionDoesNotExist) {
+            }
+        }
+
+        if ($hasScopedVisibilityPermission) {
+            ScopeHelper::apply($query, $user, 'ver propios control lotes', 'ver area control lotes', 'ver todos control lotes');
+        }
 
         $orders = $query->get();
 

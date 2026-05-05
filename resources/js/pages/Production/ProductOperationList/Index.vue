@@ -28,6 +28,7 @@ import ProductOperationListDialog from './ProductOperationListDialog.vue';
 import ProductOperationListView from './ProductOperationListView.vue';
 import SamSummaryCard from './SamSummaryCard.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 
 const page = usePage<ProductOperationListPageProps>();
 
@@ -57,26 +58,38 @@ function buildProductSheetLabel(sheet: any): string {
 }
 
 const productSheetOptions = computed(() => [
+    { id: 'all', name: 'Todos' },
     ...productSheets.value.map((sheet) => ({
         id: sheet.id,
         name: buildProductSheetLabel(sheet),
     })),
 ]);
 
+const bySheetId = computed(() => {
+    const map = new Map();
+    productSheets.value.forEach((sheet) => {
+        map.set(normalizeComparableId(sheet.id), sheet);
+    });
+    return map;
+});
+
 const isDialogOpen = ref(false);
 const searchQuery = ref('');
 
-function getInitialProductSheetFilter(): number | null {
+function getInitialProductSheetFilter(): number | 'all' {
     if (typeof window === 'undefined') {
-        return null;
+        return 'all';
     }
 
     const raw = new URLSearchParams(window.location.search).get('product_sheet_id');
     const parsed = Number(raw);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 'all';
 }
 
-const selectedProductSheetId = ref<number | null>(getInitialProductSheetFilter());
+const selectedProductSheetId = ref<number | 'all'>(getInitialProductSheetFilter());
+const currentPage = ref(1);
+const itemsPerPage = ref(10);
+const totalItems = ref(0); 
 
 const operationSummaries = ref<ProductOperationListSummary[]>([]);
 const isLoading = ref(false);
@@ -202,7 +215,10 @@ async function fetchOperationSummaries() {
         const { data } = await axios.get('/produccion/listados-operacionales/summaries', {
             params: {
                 product_sheet_ids: productSheets.value.map((sheet) => sheet.id),
+                page: currentPage.value,        
+                per_page: itemsPerPage.value,
                 _ts: Date.now(),
+
             },
             headers: {
                 'Cache-Control': 'no-cache',
@@ -210,12 +226,13 @@ async function fetchOperationSummaries() {
             },
         });
 
+
         const rows = Array.isArray(data?.data) ? data.data : [];
-        const bySheetId = new Map(productSheets.value.map((sheet) => [normalizeComparableId(sheet.id), sheet]));
+        totalItems.value = data?.total ?? 0;
 
         operationSummaries.value = rows
             .map((row: any) => {
-                const sheet = bySheetId.get(normalizeComparableId(row.product_sheet_id));
+                const sheet = bySheetId.value.get(normalizeComparableId(row.product_sheet_id));
                 if (!sheet) {
                     return null;
                 }
@@ -247,6 +264,8 @@ async function fetchOperationSummaries() {
     }
 }
 
+
+
 function reloadFromDatabase(showSuccessAlert = true) {
     router.reload({
         only: ['sections', 'operations', 'machines', 'productSheets', 'actions', 'garmentParts', 'fabric_bases', 'preparation_groups', 'costParameters'],
@@ -261,7 +280,9 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
     try {
         const validPayloads = payloads.filter((payload) => payload.product_sheet_id && payload.section_id && payload.operation_id && payload.machine_id);
 
-        if (payloads.length > 0 && validPayloads.length === 0) {
+        // Protección crítica: no permitir sync/bulk con payload vacío o sin operaciones válidas.
+        // Un sync con operations:[] eliminaría TODOS los registros del listado operacional.
+        if (validPayloads.length === 0) {
             return;
         }
 
@@ -474,7 +495,7 @@ const filteredSummaries = computed(() => {
 
     return operationSummaries.value.filter((summary) => {
         const matchesSearch = term === '' || summary.search_text.includes(term);
-        const matchesSheet = selectedProductSheetId.value === null || summary.product_sheet_id === selectedProductSheetId.value;
+        const matchesSheet = selectedProductSheetId.value === 'all' || summary.product_sheet_id === selectedProductSheetId.value;
 
         return matchesSearch && matchesSheet;
     });
@@ -549,8 +570,8 @@ watch(productSheets, () => {
                         </span>
                     </div>
                 </FilterField>
-                <FilterField label="Referencia" :active="selectedProductSheetId !== null" class="min-w-[240px]">
-                    <SelectField v-model="selectedProductSheetId" placeholder="Selecciona referencia" :options="productSheetOptions" :clearable="true" />
+                <FilterField label="Referencia" :active="selectedProductSheetId !== 'all'" class="min-w-[240px]">
+                    <SelectField v-model="selectedProductSheetId" placeholder="Selecciona referencia" :options="productSheetOptions" />
                 </FilterField>
             </FilterBar>
 
@@ -647,6 +668,14 @@ watch(productSheets, () => {
                     </TooltipProvider>
                 </div>
             </Card>
+            <div class="mt-4">
+              <ServerPagination 
+                  v-model:current-page="currentPage"
+                  v-model:page-size="itemsPerPage"
+                  :total-items="totalItems"
+                  @fetch-data="fetchOperationSummaries"
+              />
+            </div>
 
             <ProductOperationListDialog
                 :open="isDialogOpen"
@@ -668,7 +697,6 @@ watch(productSheets, () => {
                 :preparation-groups="preparationGroups"
                 @save="handleDialogSave"
                 @close="closeDialog"
-                @validation-error="showError"
             />
 
             <ProductOperationListView
@@ -695,4 +723,5 @@ watch(productSheets, () => {
         </div>
     </AppLayout>
 </template>
+
 

@@ -190,7 +190,7 @@ class FabricRollController extends Controller
 
             return [
                 'id'                        => $row['id'],
-                'fabric_item_id'            => $row['fabric_item_id'],
+                'fabric_item_id'            => isset($row['fabric_item_id']) ? (int) $row['fabric_item_id'] : null,
                 'purchase_document_item_id' => $row['purchase_document_item_id'],
                 'roll'                      => $row['roll_number'],
                 'location'                  => $row['location'],

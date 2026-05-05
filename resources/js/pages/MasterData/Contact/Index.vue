@@ -3,22 +3,12 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
@@ -64,7 +54,7 @@ let dialogPrepareFinishTimer: ReturnType<typeof setTimeout> | null = null;
 let dialogPreparationLoadingId: SmartLoadingTaskId | null = null;
 const smartLoading = useSmartLoading();
 const currentPage = ref(1);
-const itemsPerPage = 10;
+const itemsPerPage = ref(10);
 const totalItems = ref(0);
 const searchQuery = ref('');
 const isLoading = ref(false);
@@ -317,16 +307,15 @@ async function fetchContacts(page: number = 1, search: string = '', contactType:
         const response = await axios.get('/contactos/data', {
             params: {
                 page,
-                per_page: itemsPerPage,
+                per_page: itemsPerPage.value,
                 search,
                 contact_type: contactType,
                 sort_by: sortBy.value,
                 sort_direction: sortDir.value,
             },
         });
-
         contacts.value = response.data.data;
-        totalItems.value = response.data.total;
+        totalItems.value = Number(response.data.total ?? 0);
         currentPage.value = response.data.current_page;
     } catch (error) {
         console.error('Error al obtener los contactos:', error);
@@ -343,11 +332,6 @@ function formatContactType(contactType?: string): string {
     }
 
     return contactTypeLabels[contactType as ContactType] ?? contactType;
-}
-
-function handlePageChange(newPage: number): void {
-    currentPage.value = newPage;
-    fetchContacts(newPage, searchQuery.value, selectedContactType.value || null);
 }
 
 function toggleSort(column: 'id' | 'id_number'): void {
@@ -436,10 +420,7 @@ onBeforeUnmount(() => {
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead
-                                class="cursor-pointer select-none whitespace-nowrap"
-                                @click="toggleSort('id')"
-                            >
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('id')">
                                 <span class="inline-flex items-center gap-1">
                                     N° Contacto
                                     <span class="text-muted-foreground">
@@ -454,10 +435,7 @@ onBeforeUnmount(() => {
                             </TableHead>
                             <TableHead>Tipo</TableHead>
                             <TableHead>Nombre</TableHead>
-                            <TableHead
-                                class="cursor-pointer select-none whitespace-nowrap"
-                                @click="toggleSort('id_number')"
-                            >
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('id_number')">
                                 <span class="inline-flex items-center gap-1">
                                     Numero de identificacion
                                     <span class="text-muted-foreground">
@@ -490,7 +468,7 @@ onBeforeUnmount(() => {
                             </TableRow>
                         </template>
                         <template v-else>
-                            <TableRow v-for="(contact, index) in contacts" :key="contact.id ?? `contact-${index}`">
+                            <TableRow v-for="(subGroup, index) in subGroups" :key="subGroup.id ?? `subgroup-${index}`">
                                 <TableCell class="font-medium">{{ contact.id }}</TableCell>
                                 <TableCell>{{ formatContactType(contact.contact_type) }}</TableCell>
                                 <TableCell class="font-medium">{{ contact.full_name }}</TableCell>
@@ -506,36 +484,14 @@ onBeforeUnmount(() => {
                 </Table>
 
                 <!-- Paginación -->
-                <Pagination
-                    class="mt-5 flex justify-center"
-                    :items-per-page="itemsPerPage"
-                    :total="totalItems"
-                    :sibling-count="1"
-                    show-edges
-                    v-model:current-page="currentPage"
-                    @page-changed="handlePageChange"
-                >
-                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                        <PaginationFirst />
-                        <PaginationPrev />
-
-                        <template v-for="(item, index) in items">
-                            <PaginationListItem v-if="item.type === 'page'" :key="index" :value="item.value" as-child>
-                                <Button
-                                    class="h-6 w-6 p-0"
-                                    :variant="item.value === currentPage ? 'default' : 'outline'"
-                                    @click="handlePageChange(item.value)"
-                                >
-                                    {{ item.value }}
-                                </Button>
-                            </PaginationListItem>
-                            <PaginationEllipsis v-else :key="item.type" :index="index" />
-                        </template>
-
-                        <PaginationNext />
-                        <PaginationLast />
-                    </PaginationList>
-                </Pagination>
+                <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                    <ServerPagination
+                        v-model:current-page="currentPage"
+                        v-model:page-size="itemsPerPage"
+                        :total-items="totalItems"
+                        @fetch-data="() => fetchContacts(currentPage, searchQuery, selectedContactType || null)"
+                    />
+                </div>
             </div>
         </div>
     </AppLayout>

@@ -1,4 +1,11 @@
-import type { FabricBaseOption, MachineOption, OperationOption, OperationSection, ProductOperationPayload } from '@/domain/product-sheet/types';
+import type {
+    FabricBaseOption,
+    MachineOption,
+    OperationOption,
+    OperationSection,
+    ProductOperationPayload,
+    ProductSheetDialogOption,
+} from '@/domain/product-sheet/types';
 import axios from 'axios';
 import { ref } from 'vue';
 
@@ -27,6 +34,7 @@ export function useListadoOperacionalEdit(options?: { onSaved?: () => void; onEr
     const catalogOperations = ref<OperationOption[]>([]);
     const catalogMachines = ref<MachineOption[]>([]);
     const catalogFabricBases = ref<FabricBaseOption[]>([]);
+    const catalogProductSheets = ref<ProductSheetDialogOption[]>([]);
     const catalogPreparationGroups = ref<string[]>([]);
     const catalogActions = ref<string[]>([]);
     const catalogGarmentParts = ref<string[]>([]);
@@ -58,6 +66,11 @@ export function useListadoOperacionalEdit(options?: { onSaved?: () => void; onEr
             catalogOperations.value = Array.isArray(catalogData.operations) ? catalogData.operations : [];
             catalogMachines.value = Array.isArray(catalogData.machines) ? catalogData.machines : [];
             catalogFabricBases.value = Array.isArray(catalogData.fabric_bases) ? catalogData.fabric_bases : [];
+                        catalogProductSheets.value = Array.isArray(catalogData.productSheets)
+                                ? catalogData.productSheets
+                                : Array.isArray(catalogData.product_sheets)
+                                    ? catalogData.product_sheets
+                                    : [];
             catalogPreparationGroups.value = Array.isArray(catalogData.preparation_groups) ? catalogData.preparation_groups : [];
                         catalogActions.value = Array.isArray(catalogData.actions) ? catalogData.actions : [];
                         catalogGarmentParts.value = Array.isArray(catalogData.garmentParts)
@@ -157,6 +170,7 @@ export function useListadoOperacionalEdit(options?: { onSaved?: () => void; onEr
         catalogOperations,
         catalogMachines,
         catalogFabricBases,
+        catalogProductSheets,
         catalogPreparationGroups,
         catalogActions,
         catalogGarmentParts,

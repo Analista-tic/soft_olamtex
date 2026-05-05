@@ -3,23 +3,13 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
@@ -43,14 +33,14 @@ const isSubmitting = ref(false);
 const { successMessage, errorMessage, errorType, showSuccess, showError, showWarning, clearSuccess, clearError } = useAlertStack();
 
 const currentPage = ref(1);
-const itemsPerPage = 10;
+const itemsPerPage = ref(10);
 const totalItems = ref(0);
 const searchQuery = ref('');
 const isLoading = ref(false);
-const DEFAULT_FILTER_VALUE: null = null;
-const statusFilter = ref<string | null>(DEFAULT_FILTER_VALUE);
+const DEFAULT_FILTER_VALUE = 'all';
+const statusFilter = ref(DEFAULT_FILTER_VALUE);
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isStatusFilterActive = computed(() => statusFilter.value != null);
+const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_FILTER_VALUE);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 
 function openDialog(type: 'create' | 'edit', tax: any | null = null) {
@@ -99,14 +89,14 @@ async function handleDialogSubmit(taxData: any) {
 
 async function fetchTaxes(page = 1, search = '') {
     isLoading.value = true;
-    const params: Record<string, any> = { page, per_page: itemsPerPage, search };
-    if (statusFilter.value != null) {
+    const params: Record<string, any> = { page, per_page: itemsPerPage.value, search };
+    if (statusFilter.value !== DEFAULT_FILTER_VALUE) {
         params.status = statusFilter.value;
     }
     try {
         const { data } = await axios.get('/impuestos/data', { params });
         taxes.value = data.data;
-        totalItems.value = data.total ?? data.data.length;
+        totalItems.value = Number(data.total ?? data.data.length);
         currentPage.value = data.current_page ?? 1;
     } catch {
         taxes.value = [];
@@ -114,11 +104,6 @@ async function fetchTaxes(page = 1, search = '') {
     } finally {
         isLoading.value = false;
     }
-}
-
-function handlePageChange(newPage: number) {
-    currentPage.value = newPage;
-    fetchTaxes(newPage, searchQuery.value);
 }
 
 watch([searchQuery, statusFilter], ([q]) => fetchTaxes(1, q));
@@ -163,12 +148,11 @@ onMounted(() => fetchTaxes());
                         v-model="statusFilter"
                         label=""
                         :options="[
+                            { id: 'all', name: 'Todos los estados' },
                             { id: 'active', name: 'Activo' },
                             { id: 'inactive', name: 'Inactivo' },
                         ]"
                         :button-class="statusButtonClasses"
-                        placeholder="Estado"
-                        :clearable="true"
                     />
                 </FilterField>
             </FilterBar>
@@ -214,34 +198,14 @@ onMounted(() => fetchTaxes());
                         </template>
                     </TableBody>
                 </Table>
-                <Pagination
-                    class="mt-5 flex justify-center"
-                    :items-per-page="itemsPerPage"
-                    :total="totalItems"
-                    :sibling-count="1"
-                    show-edges
-                    v-model:current-page="currentPage"
-                    @page-changed="handlePageChange"
-                >
-                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                        <PaginationFirst />
-                        <PaginationPrev />
-                        <template v-for="item in items">
-                            <PaginationListItem v-if="item.type === 'page'" :key="item.value" :value="item.value" as-child>
-                                <Button
-                                    class="h-6 w-6 p-0"
-                                    :variant="item.value === currentPage ? 'default' : 'outline'"
-                                    @click="handlePageChange(item.value)"
-                                >
-                                    {{ item.value }}
-                                </Button>
-                            </PaginationListItem>
-                            <PaginationEllipsis v-else :key="item.type" />
-                        </template>
-                        <PaginationNext />
-                        <PaginationLast />
-                    </PaginationList>
-                </Pagination>
+                <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                    <ServerPagination
+                        v-model:current-page="currentPage"
+                        v-model:page-size="itemsPerPage"
+                        :total-items="totalItems"
+                        @fetch-data="() => fetchTaxes(currentPage, searchQuery)"
+                    />
+                </div>
             </div>
         </div>
         <TaxDialog

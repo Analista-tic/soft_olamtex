@@ -1,12 +1,9 @@
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
-import { Eye, PlusCircle, Search } from 'lucide-vue-next';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
@@ -17,11 +14,21 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { Head } from '@inertiajs/vue3';
+import { Eye, PlusCircle, Search } from 'lucide-vue-next';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
 import type { Parameter, ParameterDeletionCheck, ParameterListQuery, ParameterStatusFilter } from '@/domain/MasterData';
-import { createParameter, deleteParameter, getParameterDeletionCheck, getParameters, mapParameterToDialogForm, updateParameter } from '@/domain/MasterData';
+import {
+    createParameter,
+    deleteParameter,
+    getParameterDeletionCheck,
+    getParameters,
+    mapParameterToDialogForm,
+    updateParameter,
+} from '@/domain/MasterData';
 import type { BreadcrumbItem } from '@/domain/shared';
 import type { ParameterDialogModel } from './ParameterDialog.vue';
 import ParameterDialog from './ParameterDialog.vue';
@@ -32,6 +39,11 @@ type ParameterItem = ParameterDialogModel & {
     id: number;
     status: boolean;
 };
+
+/*-Variables reactivas-*/
+const itemsPerPage = ref(10);
+const totalItems = ref(0);
+const currentPage = ref(1);
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Datos maestros', href: '/parametros' },
@@ -194,21 +206,25 @@ function scheduleDialogPreparationFinish(token: number) {
     }, DIALOG_PREPARE_FINISH_DELAY_MS);
 }
 
-async function fetchParameters() {
+async function fetchParameters(page = 1) {
     isLoading.value = true;
-
     try {
         const status = normalizeStatusFilter(statusFilter.value);
-
         const response = await getParameters({
+            page,
+            per_page: itemsPerPage.value,
             search: searchQuery.value.trim() || undefined,
             status,
         });
 
         const rows = Array.isArray(response.data?.data) ? response.data.data : [];
         parameters.value = rows.map(toParameterItem);
+
+        totalItems.value = Number(response.data?.total ?? rows.length);
+        currentPage.value = response.data?.current_page ?? page;
     } catch (error: any) {
         setError(error?.response?.data?.message ?? 'No se pudieron cargar los parámetros.');
+        totalItems.value = 0;
     } finally {
         isLoading.value = false;
     }
@@ -354,11 +370,7 @@ async function confirmDeleteParameter(parameter: ParameterItem) {
 
         parameterToDelete.value = null;
         parameterDeletionCheck.value = null;
-        setError(
-            summarizeDeletionBlock(data),
-            'warning',
-            data.title || 'No se puede eliminar el parámetro',
-        );
+        setError(summarizeDeletionBlock(data), 'warning', data.title || 'No se puede eliminar el parámetro');
     } catch (error: any) {
         const responseData = error?.response?.data as Partial<ParameterDeletionCheck> | undefined;
 
@@ -383,11 +395,7 @@ async function deleteParameterConfirmed() {
         const responseData = error?.response?.data as Partial<ParameterDeletionCheck> | undefined;
 
         if (error?.response?.status === 409) {
-            setError(
-                summarizeDeletionBlock(responseData),
-                'warning',
-                responseData?.title || 'No se puede eliminar el parámetro',
-            );
+            setError(summarizeDeletionBlock(responseData), 'warning', responseData?.title || 'No se puede eliminar el parámetro');
         } else {
             setError(responseData?.message ?? 'No se pudo eliminar el parámetro.');
         }
@@ -575,6 +583,14 @@ onBeforeUnmount(() => {
                             </TableRow>
                         </TableBody>
                     </Table>
+                    <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                        <ServerPagination
+                            v-model:current-page="currentPage"
+                            v-model:page-size="itemsPerPage"
+                            :total-items="totalItems"
+                            @fetch-data="() => fetchParameters(currentPage)"
+                        />
+                    </div>
                 </TooltipProvider>
             </div>
         </div>
