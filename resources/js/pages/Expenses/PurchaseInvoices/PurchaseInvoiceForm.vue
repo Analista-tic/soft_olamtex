@@ -1,26 +1,27 @@
 <script setup lang="ts">
-import AppLayout from '@/layouts/AppLayout.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import DateField from '@/components/DateField.vue';
+import DifferenceDialog from '@/components/DifferenceDialog.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
+import AppLayout from '@/layouts/AppLayout.vue';
 import ContactDialog from '@/pages/MasterData/Contact/ContactDialog.vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
 import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
 
 import { Button } from '@/components/ui/button';
 import { Head, router } from '@inertiajs/vue3';
+import axios from 'axios';
 import { Plus, X } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
-import axios from 'axios';
 
-import type { PurchaseInvoiceWithholding } from '@/domain/Expenses';
-import type { Contact as DomainContact } from '@/domain/MasterData';
-import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useAlertStack } from '@/composables/useAlert';
+import { useCompanyInfo } from '@/composables/useCompanyInfo';
+import type { PurchaseInvoiceWithholding, PurchaseOrderItem } from '@/domain/Expenses';
+import type { Contact as DomainContact } from '@/domain/MasterData';
 
 type FormMode = 'create' | 'edit';
 
@@ -45,6 +46,7 @@ interface PurchaseInvoiceItem {
     order_width?: string;
     created_at?: string;
     updated_at?: string;
+    original_order_item?: PurchaseOrderItem;
 }
 
 interface PurchaseInvoiceForm {
@@ -55,8 +57,12 @@ interface PurchaseInvoiceForm {
     delivery_date: string;
     supplier_invoice_number: string;
     description: string;
-    reason: string;
-    evidence_path: string;
+    reason: string | null;
+    evidence_path: string | null;
+    provider_name?: string | null;
+    parent_document_id?: number | null;
+    purchase_order_id?: number | null;
+    approval_status?: 'pending' | 'pending_difference_approval' | 'approved' | 'rejected' | 'difference_rejected' | null;
     items: PurchaseInvoiceItem[];
     withholdings: PurchaseInvoiceWithholding[];
 }
@@ -74,14 +80,7 @@ const props = withDefaults(
 
 const { company, logoUrl } = useCompanyInfo();
 
-const {
-    successMessage,
-    errorMessage,
-    errorType,
-    showError,
-    clearError,
-    clearSuccess,
-} = useAlertStack();
+const { successMessage, errorMessage, errorType, showError, clearError, clearSuccess } = useAlertStack();
 
 const mode = computed<FormMode>(() => props.mode ?? 'create');
 
@@ -99,6 +98,11 @@ const isLoadingInvoiceId = ref(false);
 const isContactDialogOpen = ref(false);
 const contactDialogError = ref('');
 const contactDialogForm = ref<Partial<DomainContact>>({ groups: [] });
+const differenceDialogOpen = ref(false);
+const pendingDifferenceSendMail = ref<boolean | null>(null);
+const differenceReason = ref('');
+const differenceEvidenceData = ref<string | null>(null);
+const savedInvoiceId = ref<number | null>(null);
 
 const isLoading = ref(false);
 const isSubmitting = ref(false);
@@ -145,15 +149,23 @@ const retencionesTotal = computed(() => {
 });
 
 const totalPagar = computed(() => total.value - retencionesTotal.value);
+const hasModifiedPriceOrQuantity = computed(() => {
+    const items = Array.isArray(localForm.value.items) ? localForm.value.items : [];
+
+    return items.some((item) => {
+        const suggestedPrice = getSuggestedPriceForItem(item);
+        const suggestedQuantity = getSuggestedQuantityForItem(item);
+        const priceChanged = suggestedPrice !== null && toNumber(item.price) !== suggestedPrice;
+        const quantityChanged = suggestedQuantity !== null && toNumber(item.quantity) !== suggestedQuantity;
+
+        return priceChanged || quantityChanged;
+    });
+});
 
 const selectedContactData = computed<Contact | null>(() => {
     if (!localForm.value.contact_id) return null;
 
-    return (
-        contacts.value.find(
-            (contact) => Number(contact.id) === Number(localForm.value.contact_id),
-        ) ?? null
-    );
+    return contacts.value.find((contact) => Number(contact.id) === Number(localForm.value.contact_id)) ?? null;
 });
 
 const contactIdNumber = computed(() => selectedContactData.value?.id_number ?? '');
@@ -170,6 +182,24 @@ function formatCurrency(value: number): string {
 
 function getCurrentDate(): string {
     return formatDateForBackend(new Date());
+}
+
+function getSuggestedPriceForItem(item: PurchaseInvoiceItem): number | null {
+    if (!item.original_order_item) {
+        return null;
+    }
+
+    const price = Number(item.original_order_item.price);
+    return Number.isFinite(price) ? price : null;
+}
+
+function getSuggestedQuantityForItem(item: PurchaseInvoiceItem): number | null {
+    if (!item.original_order_item) {
+        return null;
+    }
+
+    const quantity = Number(item.original_order_item.quantity);
+    return Number.isFinite(quantity) ? quantity : null;
 }
 
 function formatDateForBackend(date: Date): string {
@@ -249,17 +279,20 @@ function normalizeForm(form?: Partial<PurchaseInvoiceForm> | null): PurchaseInvo
         description: form.description || '',
         reason: form.reason || '',
         evidence_path: form.evidence_path || '',
-        items: Array.isArray(form.items) && form.items.length > 0
-            ? form.items
-            : [createEmptyItem()],
-        withholdings: Array.isArray(form.withholdings)
-            ? form.withholdings
-            : [],
+        items: Array.isArray(form.items) && form.items.length > 0 ? form.items : [createEmptyItem()],
+        withholdings: Array.isArray(form.withholdings) ? form.withholdings : [],
     };
 }
 
 function resetForm(): void {
     localForm.value = normalizeForm(props.form);
+    savedInvoiceId.value = localForm.value.id ?? null;
+    differenceReason.value = String(localForm.value.reason || '').trim();
+    differenceEvidenceData.value = localForm.value.evidence_path || null;
+    differenceDialogOpen.value = false;
+    pendingDifferenceSendMail.value = null;
+    selectedPurchaseOrderId.value = localForm.value.purchase_order_id ?? localForm.value.parent_document_id ?? null;
+    selectedPurchaseOrderValue.value = selectedPurchaseOrderId.value;
     syncDateRefsFromForm();
 }
 
@@ -282,13 +315,9 @@ async function fetchContacts(): Promise<void> {
 
         const [providerResponse, providerClientResponse] = await Promise.all(contactRequests);
 
-        const providers = Array.isArray(providerResponse.data?.data)
-            ? providerResponse.data.data
-            : [];
+        const providers = Array.isArray(providerResponse.data?.data) ? providerResponse.data.data : [];
 
-        const providerClients = Array.isArray(providerClientResponse.data?.data)
-            ? providerClientResponse.data.data
-            : [];
+        const providerClients = Array.isArray(providerClientResponse.data?.data) ? providerClientResponse.data.data : [];
 
         contacts.value = removeDuplicatedContacts([...providers, ...providerClients]);
     } catch {
@@ -337,10 +366,7 @@ async function handleContactDialogSubmit(contactData: Partial<DomainContact>): P
             localForm.value.contact_id = Number(createdContactId);
         }
     } catch (error: unknown) {
-        contactDialogError.value = getAxiosValidationMessage(
-            error,
-            'Ocurrió un error al guardar el contacto.',
-        );
+        contactDialogError.value = getAxiosValidationMessage(error, 'Ocurrió un error al guardar el contacto.');
     }
 }
 
@@ -352,21 +378,101 @@ function cancel(): void {
     router.visit('/gastos/facturas-compra');
 }
 
+function sanitizeWithholdings(withholdings: PurchaseInvoiceWithholding[]): PurchaseInvoiceWithholding[] {
+    return withholdings
+        .filter((withholding) => String(withholding?.name ?? '').trim() !== '')
+        .map((withholding) => {
+            const baseAmount = withholding.base_amount;
+            const normalizedBaseAmount = baseAmount != null && Number.isFinite(Number(baseAmount)) ? Number(baseAmount) : null;
+
+            return {
+                name: String(withholding.name ?? '').trim(),
+                percentage: toNumber(withholding.percentage),
+                base_amount: normalizedBaseAmount,
+            };
+        });
+}
+
 function buildPayload(): PurchaseInvoiceForm {
+    const selectedContact = contacts.value.find((contact) => Number(contact.id) === Number(localForm.value.contact_id));
+    const orderId = selectedPurchaseOrderId.value ?? localForm.value.purchase_order_id ?? localForm.value.parent_document_id ?? null;
+    const normalizedReason = differenceReason.value.trim() || String(localForm.value.reason || '').trim() || null;
+    const normalizedEvidence = differenceEvidenceData.value ?? localForm.value.evidence_path ?? null;
+
     return {
         ...localForm.value,
-        date: invoiceDate.value
-            ? formatDateForBackend(invoiceDate.value)
-            : localForm.value.date,
-        delivery_date: deliveryDate.value
-            ? formatDateForBackend(deliveryDate.value)
-            : localForm.value.delivery_date,
+        provider_name: selectedContact?.full_name ?? localForm.value.provider_name ?? null,
+        date: invoiceDate.value ? formatDateForBackend(invoiceDate.value) : localForm.value.date,
+        delivery_date: deliveryDate.value ? formatDateForBackend(deliveryDate.value) : localForm.value.delivery_date,
+        parent_document_id: orderId ? Number(orderId) : null,
+        purchase_order_id: orderId ? Number(orderId) : null,
+        reason: normalizedReason,
+        evidence_path: normalizedEvidence ? String(normalizedEvidence).trim() : null,
+        withholdings: sanitizeWithholdings(localForm.value.withholdings || []),
     };
 }
 
-async function handleSubmit(sendMail = false): Promise<void> {
-    if (isReadOnly.value || isSubmitting.value) return;
-    if (!validateForm()) return;
+async function handleDifferenceDialogSave(payload: {
+    reason: string;
+    evidenceData: string | null;
+    evidenceName: string;
+    evidenceUrl: string | null;
+}): Promise<void> {
+    differenceReason.value = payload.reason.trim();
+    differenceEvidenceData.value = payload.evidenceData ?? payload.evidenceUrl;
+    differenceDialogOpen.value = false;
+
+    const sendMail = pendingDifferenceSendMail.value ?? false;
+    pendingDifferenceSendMail.value = null;
+
+    const wasSaved = await handleSubmit(sendMail, {
+        skipDifferenceCheck: true,
+        suppressRedirect: true,
+    });
+
+    if (!wasSaved || !savedInvoiceId.value) {
+        return;
+    }
+
+    try {
+        await axios.post(`/gastos/facturas-compra/${savedInvoiceId.value}/justificar`, {
+            difference_reason: differenceReason.value,
+            difference_evidence_path: differenceEvidenceData.value,
+            difference_notes: null,
+        });
+
+        router.visit('/gastos/facturas-compra');
+    } catch (error: unknown) {
+        showError(getAxiosValidationMessage(error, 'La factura se guardó, pero no se pudo enviar la diferencia para aprobación.'));
+    }
+}
+
+function closeDifferenceDialog(): void {
+    differenceDialogOpen.value = false;
+    pendingDifferenceSendMail.value = null;
+}
+
+function handleDifferenceDialogOpenChange(isOpen: boolean): void {
+    differenceDialogOpen.value = isOpen;
+    if (!isOpen) {
+        pendingDifferenceSendMail.value = null;
+    }
+}
+
+type SubmitOptions = {
+    skipDifferenceCheck?: boolean;
+    suppressRedirect?: boolean;
+};
+
+async function handleSubmit(sendMail = false, options: SubmitOptions = {}): Promise<boolean> {
+    if (isReadOnly.value || isSubmitting.value) return false;
+    if (!validateForm()) return false;
+
+    if (!options.skipDifferenceCheck && hasModifiedPriceOrQuantity.value) {
+        pendingDifferenceSendMail.value = sendMail;
+        differenceDialogOpen.value = true;
+        return false;
+    }
 
     isLoading.value = true;
     isSubmitting.value = true;
@@ -375,10 +481,7 @@ async function handleSubmit(sendMail = false): Promise<void> {
     try {
         const payload = buildPayload();
 
-        const url =
-            mode.value === 'create'
-                ? '/gastos/facturas-compra'
-                : `/gastos/facturas-compra/${localForm.value.id}`;
+        const url = mode.value === 'create' ? '/gastos/facturas-compra' : `/gastos/facturas-compra/${localForm.value.id}`;
 
         const method = mode.value === 'create' ? 'post' : 'put';
 
@@ -388,15 +491,21 @@ async function handleSubmit(sendMail = false): Promise<void> {
             data: payload,
         });
 
-        const invoiceId = response.data?.data?.id ?? response.data?.id ?? localForm.value.id;
+        const invoiceId = response.data?.data?.id ?? response.data?.id ?? localForm.value.id ?? null;
+        savedInvoiceId.value = invoiceId;
 
         if (sendMail && invoiceId) {
             await axios.post(`/gastos/facturas-compra/${invoiceId}/enviar-correo`);
         }
 
-        router.visit('/gastos/facturas-compra');
+        if (!options.suppressRedirect) {
+            router.visit('/gastos/facturas-compra');
+        }
+
+        return true;
     } catch (error: unknown) {
         showError(getAxiosValidationMessage(error, 'Error al guardar la factura.'));
+        return false;
     } finally {
         isLoading.value = false;
         isSubmitting.value = false;
@@ -422,11 +531,8 @@ function validateForm(): boolean {
         return false;
     }
 
-    const invalidItemIndex = localForm.value.items.findIndex((item: any) =>
-        !item.item_id ||
-        toNumber(item.item_id) <= 0 ||
-        toNumber(item.price) <= 0 ||
-        toNumber(item.quantity) <= 0
+    const invalidItemIndex = localForm.value.items.findIndex(
+        (item: any) => !item.item_id || toNumber(item.item_id) <= 0 || toNumber(item.price) <= 0 || toNumber(item.quantity) <= 0,
     );
 
     if (invalidItemIndex !== -1) {
@@ -446,10 +552,7 @@ function getAxiosValidationMessage(error: unknown, fallbackMessage: string): str
     const validationErrors = responseData?.errors;
 
     if (validationErrors && typeof validationErrors === 'object') {
-        return Object.values(validationErrors)
-            .flat()
-            .map(String)
-            .join(' ');
+        return Object.values(validationErrors).flat().map(String).join(' ');
     }
 
     return responseData?.message || fallbackMessage;
@@ -467,13 +570,49 @@ async function fetchPendingPurchaseOrders(): Promise<void> {
             params: { per_page: 1000 },
         });
         const invoices = Array.isArray(invoiceRes.data?.data) ? invoiceRes.data.data : [];
-        const invoicedOrderIds = new Set(
-            invoices.map((inv: any) => inv.parent_document_id).filter(Boolean),
-        );
+        const invoicedOrderIds = new Set(invoices.map((inv: any) => inv.parent_document_id).filter(Boolean));
         purchaseOrders.value = orders.filter((order: any) => !invoicedOrderIds.has(order.id));
     } catch {
         purchaseOrders.value = [];
     }
+}
+
+async function fetchPurchaseOrderById(orderId: number): Promise<any | null> {
+    try {
+        const response = await axios.get(`/gastos/ordenes-compra/${orderId}`);
+        return response.data?.data ?? null;
+    } catch {
+        return null;
+    }
+}
+
+function attachOriginalOrderItemsFromOrder(order: any): void {
+    if (!order) {
+        return;
+    }
+
+    const orderItems = Array.isArray(order.items) ? order.items : [];
+    const itemPools = new Map<number, any[]>();
+
+    orderItems.forEach((orderItem: any) => {
+        const key = Number(orderItem.item_id);
+        if (!itemPools.has(key)) {
+            itemPools.set(key, []);
+        }
+        itemPools.get(key)?.push(orderItem);
+    });
+
+    localForm.value.items = (Array.isArray(localForm.value.items) ? localForm.value.items : []).map((item) => {
+        const pool = itemPools.get(Number(item.item_id));
+        const matchedOrderItem = pool?.shift() ?? null;
+
+        return {
+            ...item,
+            original_order_item: matchedOrderItem ? { ...matchedOrderItem } : item.original_order_item,
+        };
+    });
+
+    orderTotal.value = orderItems.reduce((acc: number, item: any) => acc + (Number(item.total) || 0) + (Number(item.total_tax) || 0), 0);
 }
 
 async function loadPurchaseOrderToInvoice(orderId: number) {
@@ -485,6 +624,10 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     localForm.value.supplier_invoice_number = '';
     localForm.value.delivery_date = order.delivery_date || '';
     localForm.value.description = order.description || '';
+    localForm.value.reason = null;
+    localForm.value.evidence_path = null;
+    differenceReason.value = '';
+    differenceEvidenceData.value = null;
     localForm.value.items = Array.isArray(order.items)
         ? order.items.map((item: any) => ({
               item_id: item.item_id,
@@ -500,11 +643,13 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
               id: item.id,
               created_at: item.created_at || '',
               updated_at: item.updated_at || '',
+              original_order_item: { ...item },
           }))
         : [];
     if (!localForm.value.items.length) localForm.value.items = [createEmptyItem()];
     selectedPurchaseOrderId.value = Number(orderId);
-    (localForm.value as any).purchase_order_id = Number(orderId);
+    localForm.value.purchase_order_id = Number(orderId);
+    localForm.value.parent_document_id = Number(orderId);
     orderTotal.value = (Array.isArray(order.items) ? order.items : []).reduce(
         (acc: number, item: any) => acc + (Number(item.total) || 0) + (Number(item.total_tax) || 0),
         0,
@@ -516,7 +661,8 @@ watch(selectedPurchaseOrderId, async (orderId, oldVal) => {
     if (orderId) {
         await loadPurchaseOrderToInvoice(orderId);
     } else if (oldVal !== null && oldVal !== undefined) {
-        (localForm.value as any).purchase_order_id = null;
+        localForm.value.purchase_order_id = null;
+        localForm.value.parent_document_id = null;
         orderTotal.value = null;
     }
 });
@@ -528,6 +674,13 @@ watch(selectedPurchaseOrderValue, (val) => {
 onMounted(async () => {
     resetForm();
     await Promise.all([fetchContacts(), fetchPendingPurchaseOrders()]);
+
+    const parentOrderId = localForm.value.parent_document_id ?? localForm.value.purchase_order_id ?? null;
+    if (parentOrderId) {
+        const order = await fetchPurchaseOrderById(Number(parentOrderId));
+        attachOriginalOrderItemsFromOrder(order);
+    }
+
     if (mode.value === 'create') {
         // fetch next invoice id preview
         isLoadingInvoiceId.value = true;
@@ -536,9 +689,7 @@ onMounted(async () => {
                 params: { per_page: 1, order_by: 'id', order_direction: 'desc' },
             });
 
-            const last: string = Array.isArray(data.data) && data.data.length > 0
-                ? (data.data[0].document_number || '')
-                : '';
+            const last: string = Array.isArray(data.data) && data.data.length > 0 ? data.data[0].document_number || '' : '';
             const lastNum = last ? parseInt(String(last).replace('FAC-', ''), 10) : 0;
             const next = Number.isNaN(lastNum) ? 1 : lastNum + 1;
             nextDocumentNumber.value = `FAC-${String(next).padStart(4, '0')}`;
@@ -553,18 +704,30 @@ onMounted(async () => {
 
 <template>
     <Head :title="mode === 'create' ? 'Nueva Factura de Compra' : 'Editar Factura de Compra'" />
-    <AppLayout :breadcrumbs="mode === 'create' ? [{ title: 'Facturas de Compra', href: '/gastos/facturas-compra' }, { title: 'Nueva Factura', href: '' }] : [{ title: 'Facturas de Compra', href: '/gastos/facturas-compra' }, { title: localForm.id ? localForm.document_number || 'Editar' : 'Editar', href: '' }]">
+    <AppLayout
+        :breadcrumbs="
+            mode === 'create'
+                ? [
+                      { title: 'Facturas de Compra', href: '/gastos/facturas-compra' },
+                      { title: 'Nueva Factura', href: '' },
+                  ]
+                : [
+                      { title: 'Facturas de Compra', href: '/gastos/facturas-compra' },
+                      { title: localForm.id ? localForm.document_number || 'Editar' : 'Editar', href: '' },
+                  ]
+        "
+    >
         <div class="flex flex-col gap-4 p-3">
             <div class="flex items-start justify-between gap-4">
                 <div class="flex flex-col gap-1">
                     <h1 class="text-lg font-bold">{{ mode === 'create' ? 'Nueva Factura de Compra' : 'Editar Factura de Compra' }}</h1>
                     <p class="text-sm text-muted-foreground">Registra una factura de compra para trazabilidad y recepción.</p>
                 </div>
-                <div v-if="mode === 'create'" class="w-full sm:w-[340px] shrink-0">
+                <div v-if="mode === 'create'" class="w-full shrink-0 sm:w-[340px]">
                     <div class="space-y-1">
                         <label class="text-sm font-medium leading-none text-foreground">Cargar desde orden pendiente</label>
                         <div class="flex items-center gap-2">
-                            <div class="flex-1 min-w-0">
+                            <div class="min-w-0 flex-1">
                                 <SelectField
                                     v-model="selectedPurchaseOrderValue"
                                     :options="pendingPurchaseOrderOptions"
@@ -577,10 +740,14 @@ onMounted(async () => {
                             </div>
                             <button
                                 type="button"
-                                class="shrink-0 h-7 w-7 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
+                                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-background text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
                                 :disabled="!selectedPurchaseOrderId"
                                 title="Limpiar selección"
-                                @click="selectedPurchaseOrderId = null; selectedPurchaseOrderValue = null; resetForm()"
+                                @click="
+                                    selectedPurchaseOrderId = null;
+                                    selectedPurchaseOrderValue = null;
+                                    resetForm();
+                                "
                             >
                                 <X class="h-3.5 w-3.5" />
                             </button>
@@ -589,7 +756,13 @@ onMounted(async () => {
                 </div>
             </div>
 
-            <AlertStack :successMessage="successMessage" :errorMessage="errorMessage" :errorType="errorType" @close-success="clearSuccess" @close-error="clearError" />
+            <AlertStack
+                :successMessage="successMessage"
+                :errorMessage="errorMessage"
+                :errorType="errorType"
+                @close-success="clearSuccess"
+                @close-error="clearError"
+            />
 
             <div class="space-y-6">
                 <div class="overflow-hidden rounded-xl border border-sidebar-border/70">
@@ -602,7 +775,7 @@ onMounted(async () => {
                             <div class="doc-date-row">
                                 <div class="flex shrink-0 items-center gap-1">
                                     <span class="doc-date-label">Fecha de entrega</span>
-                                    <span class="text-destructive text-sm">*</span>
+                                    <span class="text-sm text-destructive">*</span>
                                     <HelpTooltip
                                         text="Fecha estimada en la que el proveedor debe entregar los productos."
                                         aria-label="Ayuda sobre fecha de entrega"
@@ -623,10 +796,12 @@ onMounted(async () => {
 
                         <div class="doc-col-right">
                             <span class="doc-type-label">Factura de Compra</span>
-                            <div style="width: 160px;">
+                            <div style="width: 160px">
                                 <InputField
                                     label=""
-                                    :modelValue="mode === 'create' ? nextDocumentNumber : (localForm.document_number || localForm.supplier_invoice_number || '')"
+                                    :modelValue="
+                                        mode === 'create' ? nextDocumentNumber : localForm.document_number || localForm.supplier_invoice_number || ''
+                                    "
                                     :placeholder="isLoadingInvoiceId ? 'Generando...' : ''"
                                     readonly
                                     class="text-center"
@@ -640,7 +815,7 @@ onMounted(async () => {
                             <SelectField
                                 v-model="localForm.contact_id"
                                 label="Proveedor"
-                                :options="contacts.map(c => ({ id: c.id, name: c.full_name }))"
+                                :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
                                 :searchable="true"
                                 :action-label="'Nuevo contacto'"
                                 :action-disabled="false"
@@ -658,11 +833,13 @@ onMounted(async () => {
                         <div class="flex flex-col gap-1">
                             <div class="flex items-center gap-2">
                                 <span class="text-sm font-medium">N° factura proveedor<span class="text-destructive">*</span></span>
-                                <HelpTooltip text="Número de la factura suministrado por el proveedor." aria-label="Ayuda sobre número de factura proveedor" />
+                                <HelpTooltip
+                                    text="Número de la factura suministrado por el proveedor."
+                                    aria-label="Ayuda sobre número de factura proveedor"
+                                />
                             </div>
                             <InputField v-model="localForm.supplier_invoice_number" label="" required />
                         </div>
-
                     </div>
 
                     <div class="border-t border-sidebar-border/70 px-4 py-3">
@@ -691,7 +868,12 @@ onMounted(async () => {
                             </Button>
                         </div>
                     </template>
-                    <PurchaseInvoiceItemsTable ref="invoiceItemsTableRef" :items="localForm.items || []" :telaMode="false" @update:items="(items) => (localForm.items = items)" />
+                    <PurchaseInvoiceItemsTable
+                        ref="invoiceItemsTableRef"
+                        :items="localForm.items || []"
+                        :telaMode="false"
+                        @update:items="(items) => (localForm.items = items)"
+                    />
                 </InventoryDetailTableLayout>
 
                 <div class="flex items-start justify-between gap-6">
@@ -699,39 +881,75 @@ onMounted(async () => {
                         <TextareaField v-model="localForm.description" label="Observación" />
                     </div>
                     <div class="shrink-0 rounded-lg border border-sidebar-border/70" style="min-width: 420px; width: auto">
-    <div class="flex justify-between" style="padding: 12px 20px; font-size: 14px; border-bottom: 1px solid hsl(var(--border))">
-        <span class="text-muted-foreground">Subtotal</span>
-        <span class="font-medium">{{ formatCurrency(subtotal) }}</span>
-    </div>
-    <div class="flex justify-between" style="padding: 12px 20px; font-size: 14px; border-bottom: 1px solid hsl(var(--border))">
-        <span class="text-muted-foreground">Impuestos</span>
-        <span class="font-medium">{{ formatCurrency(iva) }}</span>
-    </div>
-    <template v-if="retencionesTotal > 0">
-        <div class="flex justify-between" style="padding: 12px 20px; font-size: 14px; border-bottom: 1px solid hsl(var(--border))">
-            <span class="text-muted-foreground">Bruto</span>
-            <span class="font-medium">{{ formatCurrency(total) }}</span>
-        </div>
-        <div class="flex justify-between" style="padding: 12px 20px; font-size: 14px; border-bottom: 1px solid hsl(var(--border))">
-            <span class="text-muted-foreground">Retenciones</span>
-            <span class="font-medium text-destructive">- {{ formatCurrency(retencionesTotal) }}</span>
-        </div>
-    </template>
-    <div class="flex justify-between" style="padding: 14px 20px; font-size: 15px; font-weight: 500; border-top: 1px solid hsl(var(--border))">
-        <span>Total a pagar</span>
-        <span class="font-bold">{{ formatCurrency(totalPagar) }}</span>
-    </div>
-</div>
+                        <div class="flex justify-between" style="padding: 12px 20px; font-size: 14px; border-bottom: 1px solid hsl(var(--border))">
+                            <span class="text-muted-foreground">Subtotal</span>
+                            <span class="font-medium">{{ formatCurrency(subtotal) }}</span>
+                        </div>
+                        <div class="flex justify-between" style="padding: 12px 20px; font-size: 14px; border-bottom: 1px solid hsl(var(--border))">
+                            <span class="text-muted-foreground">Impuestos</span>
+                            <span class="font-medium">{{ formatCurrency(iva) }}</span>
+                        </div>
+                        <template v-if="retencionesTotal > 0">
+                            <div
+                                class="flex justify-between"
+                                style="padding: 12px 20px; font-size: 14px; border-bottom: 1px solid hsl(var(--border))"
+                            >
+                                <span class="text-muted-foreground">Bruto</span>
+                                <span class="font-medium">{{ formatCurrency(total) }}</span>
+                            </div>
+                            <div
+                                class="flex justify-between"
+                                style="padding: 12px 20px; font-size: 14px; border-bottom: 1px solid hsl(var(--border))"
+                            >
+                                <span class="text-muted-foreground">Retenciones</span>
+                                <span class="font-medium text-destructive">- {{ formatCurrency(retencionesTotal) }}</span>
+                            </div>
+                        </template>
+                        <div
+                            class="flex justify-between"
+                            style="padding: 14px 20px; font-size: 15px; font-weight: 500; border-top: 1px solid hsl(var(--border))"
+                        >
+                            <span>Total a pagar</span>
+                            <span class="font-bold">{{ formatCurrency(totalPagar) }}</span>
+                        </div>
+                    </div>
                 </div>
-
             </div>
 
             <div class="flex justify-end gap-2 pt-2">
                 <Button variant="outline" size="pill" @click="cancel">Cancelar</Button>
-                <Button variant="default" size="pill" :disabled="isSubmitting" @click.prevent="handleSubmit(false)">{{ mode === 'create' ? 'Guardar factura' : 'Actualizar' }}</Button>
-                <Button variant="default" size="pill" :disabled="isSubmitting" @click.prevent="handleSubmit(true)">Guardar y enviar por correo</Button>
+                <Button variant="default" size="pill" :disabled="isSubmitting" @click.prevent="handleSubmit(false)">{{
+                    mode === 'create' ? 'Guardar factura' : 'Actualizar'
+                }}</Button>
+                <Button variant="default" size="pill" :disabled="isSubmitting" @click.prevent="handleSubmit(true)"
+                    >Guardar y enviar por correo</Button
+                >
             </div>
-            <ContactDialog v-if="isContactDialogOpen" :isOpen="isContactDialogOpen" dialog-type="create" :contactData="contactDialogForm" :externalError="contactDialogError" @close="isContactDialogOpen = false; contactDialogError = ''" @submit="handleContactDialogSubmit" @update:contactData="handleContactFormUpdate" />
+            <ContactDialog
+                v-if="isContactDialogOpen"
+                :isOpen="isContactDialogOpen"
+                dialog-type="create"
+                :contactData="contactDialogForm"
+                :externalError="contactDialogError"
+                @close="
+                    isContactDialogOpen = false;
+                    contactDialogError = '';
+                "
+                @submit="handleContactDialogSubmit"
+                @update:contactData="handleContactFormUpdate"
+            />
+            <DifferenceDialog
+                :open="differenceDialogOpen"
+                :total="total"
+                :orderTotal="orderTotal"
+                description="El precio o cantidad de uno o más ítems difiere de la orden de compra referenciada."
+                :requireEvidence="false"
+                :allowEvidenceUrl="true"
+                :enableCamera="false"
+                @update:open="handleDifferenceDialogOpenChange"
+                @save="handleDifferenceDialogSave"
+                @cancel="closeDifferenceDialog"
+            />
         </div>
     </AppLayout>
 </template>

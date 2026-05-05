@@ -2,13 +2,12 @@
 import AlertBox from '@/components/AlertBox.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormDialogFooter from '@/components/FormDialogFooter.vue';
-import FormDialogHeader from '@/components/FormDialogHeader.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { PurchaseInvoice } from '@/domain/Expenses';
 import axios from 'axios';
-import { CheckCircle2, XCircle } from 'lucide-vue-next';
+import { CheckCircle2, ShieldCheck, XCircle } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{
@@ -116,13 +115,23 @@ async function handleReject() {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <FormDialogContent
-            size="md"
-            class="flex h-[90vh] max-h-[90vh] flex-col overflow-hidden p-0"
-        >
-            <FormDialogHeader title="Revisión de diferencia en factura" description="Revisa los detalles de la diferencia registrada y toma una decisión." />
+        <FormDialogContent size="md" class="flex max-h-[90vh] flex-col overflow-hidden p-0">
+            <DialogHeader class="border-b border-border/50 bg-primary/5 px-6 py-5">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                        <ShieldCheck class="h-4 w-4 text-primary" />
+                    </div>
+                    <div class="min-w-0">
+                        <DialogTitle class="text-base font-semibold leading-tight">Revisión de diferencia en factura</DialogTitle>
+                        <p class="mt-0.5 text-sm text-muted-foreground">Revisa los detalles y toma una decisión.</p>
+                        <DialogDescription class="mt-0.5 truncate text-xs text-muted-foreground">
+                            Factura:
+                            <span class="ml-1 font-mono font-semibold text-foreground">{{ invoice?.document_number ?? `#${invoice?.id}` }}</span>
+                        </DialogDescription>
+                    </div>
+                </div>
+            </DialogHeader>
 
-            <!-- Alerta interna del dialog -->
             <div
                 v-if="errorMessage"
                 class="pointer-events-none fixed left-1/2 top-6 z-[99999] flex -translate-x-1/2 justify-center px-4 sm:px-0"
@@ -137,15 +146,7 @@ async function handleReject() {
                 />
             </div>
 
-            <!-- Cuerpo del dialog -->
-            <div class="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
-                <!-- Número de factura -->
-                <p class="text-sm text-muted-foreground">
-                    Factura:
-                    <span class="font-semibold text-foreground">{{ invoice?.document_number ?? `#${invoice?.id}` }}</span>
-                </p>
-
-                <!-- Estado actual (si no es pending) -->
+            <div class="flex flex-1 flex-col gap-4 overflow-y-auto bg-white px-5 py-4">
                 <div v-if="isApproved" class="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
                     <CheckCircle2 class="h-5 w-5 shrink-0 text-green-600" />
                     <div class="text-sm text-green-800">
@@ -164,32 +165,39 @@ async function handleReject() {
                     </div>
                 </div>
 
-                <!-- Motivo de la diferencia -->
-                <div class="rounded-lg border bg-muted/40 p-4">
-                    <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Motivo de la diferencia</p>
-                    <p class="text-sm text-foreground">{{ invoice?.rejection_reason ?? '—' }}</p>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="flex flex-col gap-1">
+                        <span class="text-sm font-medium text-muted-foreground">Motivo de la diferencia</span>
+                        <div class="min-h-[80px] rounded-lg bg-muted/50 p-3 text-sm text-foreground">
+                            {{ invoice?.rejection_reason ?? '—' }}
+                        </div>
 
-                    <template v-if="invoice?.rejection_notes">
-                        <p class="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notas adicionales</p>
-                        <p class="text-sm text-foreground">{{ invoice.rejection_notes }}</p>
-                    </template>
+                        <template v-if="invoice?.rejection_notes">
+                            <span class="pt-1 text-sm font-medium text-muted-foreground">Notas adicionales</span>
+                            <div class="rounded-lg bg-muted/50 p-3 text-sm text-foreground">
+                                {{ invoice.rejection_notes }}
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="flex flex-col gap-1">
+                        <span class="text-sm font-medium text-muted-foreground">Evidencia fotográfica</span>
+                        <button
+                            v-if="evidenceUrl"
+                            type="button"
+                            class="overflow-hidden rounded-lg border shadow-sm transition hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-primary"
+                            @click="lightboxOpen = true"
+                        >
+                            <img :src="evidenceUrl" alt="Evidencia" class="max-h-[140px] w-full cursor-pointer object-cover" />
+                        </button>
+                        <div v-else class="flex min-h-[140px] items-center justify-center rounded-lg bg-muted/50 px-3 text-sm text-muted-foreground">
+                            Sin evidencia fotográfica.
+                        </div>
+                        <span v-if="evidenceUrl" class="text-xs text-muted-foreground">Haz clic para ver en grande.</span>
+                    </div>
                 </div>
 
-                <!-- Evidencia fotográfica -->
-                <div v-if="evidenceUrl">
-                    <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Evidencia fotográfica</p>
-                    <button
-                        type="button"
-                        class="overflow-hidden rounded-lg border shadow-sm transition hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-primary"
-                        @click="lightboxOpen = true"
-                    >
-                        <img :src="evidenceUrl" alt="Evidencia" class="h-40 w-auto object-contain" />
-                    </button>
-                    <p class="mt-1 text-xs text-muted-foreground">Haz clic para ver en grande.</p>
-                </div>
-
-                <!-- Notas para aprobación/rechazo (solo si está pendiente) -->
-                <div v-if="isPending" class="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+                <div v-if="isPending" class="rounded-lg border border-amber-200 bg-amber-50 p-4">
                     <p class="mb-3 text-sm text-yellow-800">
                         <strong>Estado pendiente.</strong> Revisa la información anterior y decide si apruebas o rechazas la diferencia.
                         Las notas son obligatorias al rechazar.
@@ -204,7 +212,7 @@ async function handleReject() {
             </div>
 
             <FormDialogFooter>
-                <Button variant="outline" size="pill" :disabled="isSubmitting" @click="dialogOpen = false"> Cerrar </Button>
+                <Button variant="outline" size="pill" class="rounded-full" :disabled="isSubmitting" @click="dialogOpen = false">Cerrar</Button>
                 <template v-if="isPending">
                     <button
                         type="button"
@@ -229,7 +237,6 @@ async function handleReject() {
         </FormDialogContent>
     </Dialog>
 
-    <!-- Lightbox imagen -->
     <Dialog v-if="evidenceUrl" v-model:open="lightboxOpen">
         <FormDialogContent size="lg">
             <DialogTitle class="sr-only">Evidencia</DialogTitle>
