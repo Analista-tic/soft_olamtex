@@ -29,6 +29,7 @@ import { Switch } from '@/components/ui/switch';
 
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 import AdditionalFieldDialog from '@/pages/MasterData/AdditionalFields/AdditionalFieldDialog.vue';
+import ColorPickerSelect from '@/components/ColorPickerSelect.vue';
 import ExtraFieldsForm from '@/pages/MasterData/Item/ExtraFieldsForm.vue';
 import GroupDialog from '@/pages/MasterData/Category/GroupDialog.vue';
 
@@ -116,7 +117,15 @@ type ItemWarehouseStockSource = {
     } | null;
 };
 
+type ItemColorSource = {
+    id?: number | string | null;
+    name?: string | null;
+    rgb?: string | null;
+};
+
 type ItemFormSource = Partial<Item> & {
+    color_id?: number | string | null;
+    color?: ItemColorSource | null;
     tax?: ItemTaxRelation | null; // compat backend
     warehouse_stocks?: ItemWarehouseStockSource[] | null;
     warehouse_items?: ItemWarehouseStockSource[] | null;
@@ -125,6 +134,8 @@ type ItemFormSource = Partial<Item> & {
 type ItemForm = Omit<Partial<Item>, 'tax_id' | 'category_sub_group_id'> & {
     tax_id?: Item['tax_id'] | 'none';
     category_sub_group_id?: number | string;
+    color_id?: number | string | null;
+    color?: ItemColorSource | null;
 };
 
 const normalizeItemType = (value?: string | null): ItemType => (value === 'service' ? 'service' : 'product');
@@ -151,6 +162,11 @@ function mapItemToFormState(source: ItemFormSource): ItemForm {
             source.category_sub_group_id !== undefined && source.category_sub_group_id !== null && String(source.category_sub_group_id).trim() !== ''
                 ? String(source.category_sub_group_id)
                 : undefined,
+        color_id:
+            source.color_id !== undefined && source.color_id !== null && String(source.color_id).trim() !== ''
+                ? Number(source.color_id)
+                : null,
+        color: source.color ?? null,
         reference: source.reference || '',
         bar_code: source.bar_code ?? '',
         tax_id: resolvedTaxId,
@@ -190,6 +206,7 @@ const additionalFieldOptions = ref<Record<string, string[]>>({});
 const additionalFieldsMeta = ref<AdditionalField[]>([]);
 
 const nameField = ref('');
+const selectedColorName = ref('');
 
 const dialogInnerRef = ref<HTMLElement | null>(null);
 
@@ -435,8 +452,15 @@ function updateNameField(orderedFields?: Record<string, string>): void {
         );
 
     const extras = Object.values(extrasObj).join(' ');
-    nameField.value = [subGroup?.name ?? '', extras].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+    const baseName = [subGroup?.name ?? '', extras].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+    nameField.value = selectedColorName.value && !baseName.includes(selectedColorName.value)
+        ? [baseName, selectedColorName.value].filter(Boolean).join(' ').trim()
+        : baseName;
     localForm.value.name = nameField.value;
+}
+
+function handleSelectedColor(color: ItemColorSource | null) {
+    selectedColorName.value = color?.name ? String(color.name).trim() : '';
 }
 
 function syncGroupFromSubgroup() {
@@ -454,13 +478,12 @@ function syncGroupFromSubgroup() {
 function applyFormData(source: ItemFormSource) {
     localForm.value = mapItemToFormState(source);
     unitMeasure.value = getInitialUnitMeasure(source);
+    selectedColorName.value = source.color?.name ? String(source.color.name).trim() : '';
     fillExtraFields(source.extra_fields);
     warehouseStocks.value = normalizeWarehouseStocksFromSource(source);
 
     imageFile.value = null;
     if (fileInputRef.value) fileInputRef.value.value = '';
-
-    console.log('[applyFormData] img:', source.img, 'img_url:', source.img_url, 'imagePreview resultado:', resolveImageUrl(source.img, source.img_url));
 
     imagePreview.value = resolveImageUrl(localForm.value.img, localForm.value.img_url);
 
@@ -529,7 +552,7 @@ async function fetchTaxes(force = false) {
         cachedTaxes = (raw ?? []).filter((t: any) => t.status);
         taxes.value = [...cachedTaxes];
     } catch (error) {
-        console.warn('fetchTaxes error:', error);
+        console.error('fetchTaxes error:', error);
         taxes.value = [];
     }
 }
@@ -614,7 +637,7 @@ async function fetchWarehouseStocks(itemId: number) {
         const { data } = await axios.get<ItemFormSource>(`/item/${itemId}`);
         warehouseStocks.value = normalizeWarehouseStocksFromSource(data);
     } catch (e) {
-        console.log(e);
+        console.error('Error fetching warehouse stocks:', e);
     }
 }
 
@@ -943,7 +966,7 @@ function persistAdvancedFormDraft() {
     try {
         localStorage.setItem(ITEM_FORM_DRAFT_KEY, JSON.stringify(buildAdvancedFormDraft()));
     } catch (error) {
-        console.warn('No se pudo guardar el borrador del formulario avanzado en el almacenamiento local.', error);
+        console.error('No se pudo guardar el borrador del formulario avanzado en el almacenamiento local.', error);
     }
 }
 
@@ -974,6 +997,7 @@ async function checkDuplicateName(): Promise<string | null> {
             params: {
                 reference,
                 category_sub_group_id: subGroupId,
+                color_id: localForm.value.color_id ?? null,
                 extra_fields: JSON.stringify(extraFields.value ?? {}),
                 item_id: localForm.value.id ?? props.form.id ?? null,
             },
@@ -997,6 +1021,10 @@ function mapFormStateToPayload(orderedExtraFields: Record<string, string>): Reco
     return {
         ...localForm.value,
         category_sub_group_id: Number(localForm.value.category_sub_group_id) || undefined,
+        color_id:
+            localForm.value.color_id !== undefined && localForm.value.color_id !== null && String(localForm.value.color_id).trim() !== ''
+                ? Number(localForm.value.color_id)
+                : '',
         tax_id: resolvedTaxId !== undefined && resolvedTaxId !== null && String(resolvedTaxId) !== '' ? Number(resolvedTaxId) : undefined,
         tax: Number.isFinite(selectedTaxPercentage) ? selectedTaxPercentage : 0,
         negative_movement: localForm.value.negative_movement,
@@ -1108,6 +1136,7 @@ async function handleSubmit() {
         'tax',
         'tax_id',
         'category_sub_group_id',
+        'color_id',
         'img',
         'income_account_id',
         'inventory_account_id',
@@ -1280,7 +1309,7 @@ watch(
 );
 
 watch(
-    [() => localForm.value.category_sub_group_id, () => extraFieldNames.value.map((key) => extraFields.value[key]).join('|')],
+    [() => localForm.value.category_sub_group_id, () => localForm.value.color_id, () => extraFieldNames.value.map((key) => extraFields.value[key]).join('|')],
     () => updateNameField(),
     { immediate: true },
 );
@@ -1471,7 +1500,7 @@ onBeforeUnmount(() => {
                                 <Input v-model="nameField" label="Nombre" readonly class="mt-1" placeholder="Nombre autocompletado" />
                             </div>
 
-                            <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+                            <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
                                 <template v-if="isViewMode">
                                     <div class="flex flex-col gap-1">
                                         <Label>Grupo</Label>
@@ -1491,6 +1520,13 @@ onBeforeUnmount(() => {
                                         <Label>Impuesto</Label>
                                         <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
                                             {{ displayedTaxLabel }}
+                                        </div>
+                                    </div>
+
+                                    <div class="flex flex-col gap-1">
+                                        <Label>Referencia</Label>
+                                        <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                            {{ localForm.reference || '-' }}
                                         </div>
                                     </div>
                                 </template>
@@ -1554,6 +1590,8 @@ onBeforeUnmount(() => {
                                             </Button>
                                         </template>
                                     </SelectField>
+
+                                    <InputField v-model="localForm.reference" label="Referencia" required />
                                 </template>
                             </div>
 
@@ -1723,11 +1761,16 @@ onBeforeUnmount(() => {
                         </div>
 
                         <div class="md:col-span-1">
-                            <InputField v-model="localForm.bar_code" label="Código de Barras" />
+                            <ColorPickerSelect
+                                v-model="localForm.color_id"
+                                label="Color"
+                                :disabled="isViewMode"
+                                @selected-color="handleSelectedColor"
+                            />
                         </div>
 
                         <div class="md:col-span-1">
-                            <InputField v-model="localForm.reference" label="Referencia" required />
+                            <InputField v-model="localForm.bar_code" label="Código de Barras" />
                         </div>
 
                         <div class="md:col-span-1">

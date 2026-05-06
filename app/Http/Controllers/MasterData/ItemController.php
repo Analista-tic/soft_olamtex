@@ -113,13 +113,15 @@ class ItemController extends Controller
         $data = $request->validate([
             'reference' => 'required|string',
             'category_sub_group_id' => 'required|integer',
+            'color_id' => 'nullable|integer|exists:colors,id',
             'extra_fields' => 'nullable',
             'item_id' => 'nullable|integer',
         ]);
 
         $extraFields = $this->service->normalizeExtraFields($request->input('extra_fields') ?? []);
         $subGroupId = (int) $data['category_sub_group_id'];
-        $name = $this->service->computeName($subGroupId, $extraFields);
+        $colorId = !empty($data['color_id']) ? (int) $data['color_id'] : null;
+        $name = $this->service->computeName($subGroupId, $extraFields, $colorId);
         $excludeId = $data['item_id'] ?? null;
 
         $status = $this->service->duplicateStatus($data['reference'], $name, $excludeId);
@@ -268,6 +270,7 @@ class ItemController extends Controller
             $request->input('extra_fields') ?? ($item?->extra_fields ?? [])
         );
         $data['extra_fields'] = $extraFields;
+        $data['color_id'] = $request->filled('color_id') ? (int) $request->input('color_id') : null;
 
         $subGroupId = $request->has('category_sub_group_id')
             ? (int) $request->input('category_sub_group_id')
@@ -276,7 +279,8 @@ class ItemController extends Controller
         $reference = trim($data['reference'] ?? '');
         $data['reference'] = $reference;
 
-        $itemName = $this->service->computeName((int) ($subGroupId ?? 0), $extraFields);
+        $colorId = !empty($data['color_id']) ? (int) $data['color_id'] : null;
+        $itemName = $this->service->computeName((int) ($subGroupId ?? 0), $extraFields, $colorId);
         $this->service->assertUniqueReferenceAndName($reference, $itemName, $item?->id);
 
         $itemType = ($data['item_type'] ?? ($item?->item_type ?? 'product')) === 'service'
@@ -320,6 +324,7 @@ class ItemController extends Controller
             'category_sub_group_id' => ($isUpdate ? 'sometimes' : 'required') . '|integer',
             'img' => 'nullable|string',
             'image' => 'nullable|file|image',
+            'color_id' => 'nullable|integer|exists:colors,id',
             'tax_id' => 'nullable|integer',
             'tax' => ($isUpdate ? 'sometimes' : 'required') . '|numeric',
             'bar_code' => 'nullable|string',

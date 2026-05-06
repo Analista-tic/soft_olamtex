@@ -103,10 +103,45 @@ function normalizeOrderWidth(value: string | number | null | undefined) {
 }
 
 function normalizeIncomingItem(item: PurchaseInvoiceItem): PurchaseInvoiceItem {
+    function parseLocaleNumber(value: unknown, allowDecimals = true) {
+        if (value === null || value === undefined) return '';
+        const s = String(value).trim();
+        if (s === '') return '';
+
+        // Assume locale uses '.' as thousand separator and ',' as decimal (es-*).
+        // If both present: remove thousands ('.') and convert decimal ',' -> '.'.
+        // If only ',' present -> treat as decimal separator.
+        // If only '.' present -> treat as thousand separator and remove it.
+        let cleaned = s.replace(/[^0-9.,-]/g, '');
+
+        const hasDot = cleaned.indexOf('.') !== -1;
+        const hasComma = cleaned.indexOf(',') !== -1;
+
+        if (hasDot && hasComma) {
+            cleaned = cleaned.replace(/\./g, '').replace(/,/g, '.');
+        } else if (hasComma && !hasDot) {
+            // treat comma as decimal
+            cleaned = cleaned.replace(/,/g, '.');
+        } else if (hasDot && !hasComma) {
+            // treat dot as thousand separator
+            cleaned = cleaned.replace(/\./g, '');
+        }
+
+        if (!allowDecimals) {
+            // remove decimal part
+            cleaned = cleaned.split(/[,|\.]/)[0];
+        }
+
+        const num = Number(cleaned);
+        return Number.isFinite(num) ? num : '';
+    }
+
     return {
         ...item,
-        price: props.isCreating ? '' : (item.price ?? ''),
-        quantity: props.isCreating ? '' : (item.quantity ?? ''),
+        price: props.isCreating ? '' : (parseLocaleNumber(item.price, true) === '' ? '' : parseLocaleNumber(item.price, true)),
+        quantity: props.isCreating
+            ? ''
+            : (props.telaMode === true ? (parseLocaleNumber(item.quantity, true) === '' ? '' : parseLocaleNumber(item.quantity, true)) : (parseLocaleNumber(item.quantity, false) === '' ? '' : parseLocaleNumber(item.quantity, false))),
         tax: Number(item.tax) || 0,
         supplier_code: item.supplier_code || '',
         supplier_color: item.supplier_color || '',
@@ -144,6 +179,24 @@ watch(
     (items) => {
         items.forEach((item) => {
             item.tax = isNaN(Number(item.tax)) ? 0 : Number(item.tax);
+
+                // Enforce positive integer quantities cuando no es modo Tela
+                if (props.telaMode !== true) {
+                    const q = Number(item.quantity);
+                    if (Number.isFinite(q)) {
+                        const intQ = Math.max(0, Math.floor(q));
+                        if (intQ !== q) {
+                            item.quantity = intQ;
+                        }
+                    }
+                } else {
+                    // En modo Tela permitir decimales positivos
+                    const q = Number(item.quantity);
+                    if (Number.isFinite(q)) {
+                        const normalized = Math.max(0, q);
+                        if (normalized !== q) item.quantity = normalized;
+                    }
+                }
 
             if (!(item as any).__watching) {
                 (item as any).__watching = true;

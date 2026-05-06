@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\MasterData\CategoryGroupController;
 use App\Http\Controllers\MasterData\CategorySubGroupController;
+use App\Http\Controllers\MasterData\ColorController;
 use App\Http\Controllers\MasterData\ContactController;
 use App\Http\Controllers\MasterData\ItemController;
 use App\Http\Controllers\MasterData\ParameterController;
@@ -52,6 +53,11 @@ Route::prefix('item')->name('item.')->group(function () {
     Route::put('/{id}', [ItemController::class, 'update'])->name('update');
     Route::delete('/{id}', [ItemController::class, 'destroy'])->name('destroy');
     Route::post('/{id}/toggle-status', [ItemController::class, 'toggleStatus'])->name('toggle-status')->middleware('permission:activar desactivar item');
+});
+
+Route::middleware('auth')->group(function () {
+    Route::get('/colors', [ColorController::class, 'index']);
+    Route::post('/colors', [ColorController::class, 'store']);
 });
 
 // === PARAMETROS ===

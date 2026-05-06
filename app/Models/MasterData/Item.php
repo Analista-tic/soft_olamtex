@@ -3,6 +3,7 @@
 namespace App\Models\MasterData;
 
 use App\Models\Finance\AccountingAccount;
+use App\Models\MasterData\Color;
 use App\Models\Finance\Tax;
 use App\Models\Inventory\Warehouse;
 use App\Models\Inventory\WarehouseItem;
@@ -38,6 +39,7 @@ class Item extends Model implements \App\Contracts\HasAuditLabel
         'income_account_id',
         'inventory_account_id',
         'cost_of_sale_account_id',
+        'color_id',
     ];
 
     protected $casts = [
@@ -164,5 +166,10 @@ class Item extends Model implements \App\Contracts\HasAuditLabel
     public function shouldHighlightAsImported(): bool
     {
         return $this->isMigrationOrigin() && !$this->was_edited_after_import;
+    }
+
+    public function color(): BelongsTo
+    {
+        return $this->belongsTo(Color::class);
     }
 }

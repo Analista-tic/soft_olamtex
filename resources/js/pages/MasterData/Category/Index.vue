@@ -18,7 +18,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch, onBeforeUnmount } from 'vue';
 import SubGroupDialog from './SubGroupDialog.vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -133,29 +133,47 @@ async function submitForm(subGroupData: Partial<CategorySubGroup>): Promise<void
     }
 }
 
-async function fetchSubGroups(page: number = 1, search: string = '', groupId: Option['id'] | null = null): Promise<void> {
-    console.log('Fetching subgroups:', { page, search, groupId });
+let activeFetchController: AbortController | null = null;
+
+async function fetchSubGroups(page: number = 1, search?: string, groupId?: Option['id'] | null): Promise<void> {
+    const q = search !== undefined ? search : searchQuery.value;
+    const g = groupId !== undefined ? groupId : normalizedGroupId.value;
+
+    if (activeFetchController) {
+        activeFetchController.abort();
+    }
+
+    const controller = new AbortController();
+    activeFetchController = controller;
+
     isLoading.value = true;
     try {
         const response = await axios.get('/categorias/subgrupos-data', {
             params: {
                 page,
                 per_page: itemsPerPage.value,
-                search,
-                group_id: typeof groupId === 'string' && groupId !== '' ? Number(groupId) : groupId,
+                search: q,
+                group_id: typeof g === 'string' && g !== '' ? Number(g) : g,
                 sort_by: sortBy.value,
                 sort_dir: sortDir.value,
             },
+            signal: controller.signal,
         });
+
+        if (activeFetchController !== controller) return;
 
         subGroups.value = response.data.data;
         totalItems.value = Number(response.data.total ?? 0);
         currentPage.value = response.data.current_page;
     } catch (error) {
+        if (axios.isCancel?.(error)) return;
         console.error('Error al obtener los subgrupos:', error);
         subGroups.value = [];
     } finally {
-        isLoading.value = false;
+        if (activeFetchController === controller) {
+            activeFetchController = null;
+            isLoading.value = false;
+        }
     }
 }
 
@@ -172,12 +190,29 @@ function toggleSort(column: string): void {
 
 // Observadores con tipado explícito
 watch([searchQuery, normalizedGroupId], ([newQuery, newGroup]) => {
-    fetchSubGroups(1, newQuery, newGroup);
+    // reset to first page when filters/search change
+    void fetchSubGroups(1, newQuery, newGroup);
 });
 
 // Llamada inicial al montar el componente
 onMounted(() => {
-    fetchSubGroups();
+    void fetchSubGroups();
+});
+
+async function handlePageChange(newPage: number) {
+    if (newPage === currentPage.value) return;
+    await fetchSubGroups(newPage);
+}
+
+function onFetchData(page?: number): void {
+    void handlePageChange(page ?? 1);
+}
+
+onBeforeUnmount(() => {
+    if (activeFetchController) {
+        activeFetchController.abort();
+        activeFetchController = null;
+    }
 });
 </script>
 
@@ -276,12 +311,12 @@ onMounted(() => {
                     </TableBody>
                 </Table>
                 <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
-                  <ServerPagination 
-                    v-model:current-page="currentPage"
-                    v-model:page-size="itemsPerPage"
-                    :total-items="totalItems"
-                    @fetch-data="() => fetchSubGroups(currentPage, searchQuery, normalizedGroupId)" 
-                  />
+                                    <ServerPagination 
+                                        v-model:current-page="currentPage"
+                                        v-model:page-size="itemsPerPage"
+                                        :total-items="totalItems"
+                                        @fetch-data="onFetchData" 
+                                    />
                 </div>
             </div>
         </div>

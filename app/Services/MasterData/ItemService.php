@@ -9,6 +9,7 @@ use App\Models\Inventory\InventoryAdjustmentLine;
 use App\Models\Inventory\Warehouse;
 use App\Models\Inventory\WarehouseItem;
 use App\Models\MasterData\CategorySubGroup;
+use App\Models\MasterData\Color;
 use App\Models\MasterData\Item;
 use App\Models\Settings\Setting;
 use App\Support\TextNormalizer;
@@ -41,10 +42,12 @@ class ItemService
             'import_batch_id',
             'tax_id',
             'category_sub_group_id',
+            'color_id',
         ])->with([
             'categorySubGroup:id,name,category_group_id',
             'categorySubGroup.categoryGroup:id,name',
             'tax:id,name,percentage',
+            'color:id,name,rgb',
         ]);
 
         if (!empty($filters['search'])) {
@@ -102,7 +105,7 @@ class ItemService
 
     public function findWithRelations(int $id, array $relations = ['categorySubGroup', 'tax']): Item
     {
-        return Item::with($relations)->findOrFail($id);
+        return Item::with(array_values(array_unique(array_merge($relations, ['color']))))->findOrFail($id);
     }
 
     public function find(int $id): Item
@@ -876,9 +879,14 @@ class ItemService
                 ? $this->normalizeAccountId($data['inventory_account_id'] ?? null)
                 : null,
             'cost_of_sale_account_id' => $this->normalizeAccountId($data['cost_of_sale_account_id'] ?? null),
+            'color_id' => $this->normalizeColorId($data['color_id'] ?? null),
         ];
 
-        $payload['name'] = $this->buildName($payload['category_sub_group_id'], $extraFields);
+        $payload['name'] = $this->buildName(
+            $payload['category_sub_group_id'],
+            $extraFields,
+            $payload['color_id'] ?? null
+        );
 
         // debug logs removed
 
@@ -901,6 +909,7 @@ class ItemService
             'income_account_id',
             'inventory_account_id',
             'cost_of_sale_account_id',
+            'color_id',
         ];
 
         foreach ($fields as $field) {
@@ -913,6 +922,10 @@ class ItemService
             if (array_key_exists($accountField, $payload)) {
                 $payload[$accountField] = $this->normalizeAccountId($payload[$accountField]);
             }
+        }
+
+        if (array_key_exists('color_id', $payload)) {
+            $payload['color_id'] = $this->normalizeColorId($payload['color_id']);
         }
 
         if (array_key_exists('status', $data)) {
@@ -946,7 +959,8 @@ class ItemService
         $payload['extra_fields'] = $extraFields;
 
         $subGroupId = $data['category_sub_group_id'] ?? $item->category_sub_group_id;
-        $payload['name'] = $this->buildName($subGroupId, $extraFields);
+        $resolvedColorId = $payload['color_id'] ?? $item->color_id ?? null;
+        $payload['name'] = $this->buildName($subGroupId, $extraFields, $resolvedColorId);
 
         if (array_key_exists('tax_id', $data)) {
             $payload['tax_id'] = $this->ensureTaxId($data['tax_id']);
@@ -976,6 +990,15 @@ class ItemService
     }
 
     protected function normalizeAccountId(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return is_numeric($value) ? (int) $value : null;
+    }
+
+    protected function normalizeColorId(mixed $value): ?int
     {
         if ($value === null || $value === '') {
             return null;
@@ -1016,16 +1039,24 @@ class ItemService
         return $tax->id;
     }
 
-    protected function buildName(?int $subGroupId, array $extraFields): string
+    protected function buildName(?int $subGroupId, array $extraFields, ?int $colorId = null): string
     {
         $subGroupName = optional(CategorySubGroup::find($subGroupId))->name ?? '';
         $extrasString = $this->buildExtraFieldsNameSegment($extraFields);
-        return trim("{$subGroupName} {$extrasString}");
+        $name = trim("{$subGroupName} {$extrasString}");
+        if (!empty($colorId)) {
+            $color = Color::find($colorId);
+            $colorName = $color ? trim((string) $color->name) : '';
+            if ($colorName !== '' && !str_contains(mb_strtolower($name), mb_strtolower($colorName))) {
+                $name = trim($name . ' ' . $colorName);
+            }
+        }
+        return $name;
     }
 
-    public function computeName(?int $subGroupId, array $extraFields): string
+    public function computeName(?int $subGroupId, array $extraFields, ?int $colorId = null): string
     {
-        return $this->buildName($subGroupId, $extraFields);
+        return $this->buildName($subGroupId, $extraFields, $colorId);
     }
 
     public function existsByReference(string $reference, ?int $excludeId = null): bool
