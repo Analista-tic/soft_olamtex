@@ -64,6 +64,7 @@ abstract class BaseProductSheetRequest extends FormRequest
                 $this->catalogRule('yarn_bases'),
             ]),
             'type' => ['required', 'string', Rule::in([self::TYPE_PRODUCT, self::TYPE_SAMPLE])],
+            'garment_type' => ['nullable', 'string', Rule::in(['superior', 'inferior'])],
             'sample_reference' => $sampleReferenceRules,
             'product_reference' => $productReferenceRules,
             'product_reference_2' => ['nullable', 'string', 'max:255'],

@@ -10,12 +10,11 @@ class ProductSheetPersistenceService
 {
     /**
      * Normaliza tallas a JSON objeto {talla: boolean} para almacenar correctamente.
-     * No convierte a array; preserva el formato objeto.
+     * Retorna array asociativo para que Eloquent (cast array) serialice una sola vez.
      */
-    public function normalizeSizes(mixed $sizesValue): string
+    public function normalizeSizes(mixed $sizesValue): array
     {
-        $obj = $this->toSizesObject($sizesValue);
-        return json_encode($obj, JSON_UNESCAPED_UNICODE);
+        return $this->toSizesObject($sizesValue);
     }
 
     /**
