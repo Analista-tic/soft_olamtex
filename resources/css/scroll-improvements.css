@@ -95,8 +95,7 @@ tr.drag-over {
 
 /* Hardware acceleration para animaciones suaves */
 .scroll-smooth,
-tr[draggable='true'],
-.transition-all {
+tr[draggable='true'] {
     will-change: transform;
     transform: translateZ(0);
 }

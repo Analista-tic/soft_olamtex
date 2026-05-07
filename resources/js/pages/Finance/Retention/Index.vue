@@ -176,7 +176,7 @@ onMounted(() => fetchRetentions());
             @close-error="errorMessage = ''"
         />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
-            <div class="flex flex-col gap-3">
+            <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
                     <h1 class="text-lg font-bold">Gestión de retenciones</h1>
                     <p class="text-sm text-muted-foreground">
@@ -184,7 +184,12 @@ onMounted(() => fetchRetentions());
                         seleccionarlas en las facturas para calcular el total a pagar.
                     </p>
                 </div>
-                <Button variant="default" size="pill" class="self-end" @click="openDialog('create')">
+                <Button
+                    variant="default"
+                    size="pill"
+                    class="flex h-10 items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+                    @click="openDialog('create')"
+                >
                     <PlusCircle class="h-4 w-4" />
                     Nueva Retención
                 </Button>

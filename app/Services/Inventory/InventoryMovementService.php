@@ -152,6 +152,7 @@ class InventoryMovementService
                 'warehouse_id' => $data['warehouse_id'],
                 'source_type' => $data['source_type'] ?? null,
                 'source_id' => $data['source_id'] ?? null,
+                'source_reference' => $data['source_reference'] ?? null,
                 'type' => $data['type'],
                 'date' => $data['date'] ?? now()->toDateString(),
                 'quantity' => $quantity,
@@ -166,7 +167,19 @@ class InventoryMovementService
             ]);
 
             // Actualizar stock y PP en warehouse_items (estado derivado por bodega)
-            $this->updateWarehouseStock($data['item_id'], $data['warehouse_id'], $newStock, $newWeightedPrice);
+            $lastUnitCost = ($unitPrice !== null && in_array($data['type'], ['entrada', 'ajuste'], true))
+                ? $unitPrice
+                : null;
+
+            $this->updateWarehouseStock(
+                $data['item_id'],
+                $data['warehouse_id'],
+                $newStock,
+                $newWeightedPrice,
+                $lastUnitCost,
+                $data['source_type'] ?? null,
+                $data['source_reference'] ?? null,
+            );
 
             return $movement->load(['item', 'warehouse', 'createdBy']);
         });
@@ -307,7 +320,15 @@ class InventoryMovementService
     /**
      * Actualizar stock y PP en warehouse_items (estado derivado por bodega).
      */
-    protected function updateWarehouseStock(int $itemId, int $warehouseId, float $newStock, ?float $weightedPrice = null): void
+    protected function updateWarehouseStock(
+        int $itemId,
+        int $warehouseId,
+        float $newStock,
+        ?float $weightedPrice = null,
+        ?float $lastUnitCost = null,
+        ?string $sourceType = null,
+        ?string $sourceReference = null
+    ): void
     {
         $row = DB::table('warehouse_items')
             ->where('item_id', $itemId)
@@ -321,6 +342,30 @@ class InventoryMovementService
 
         if ($weightedPrice !== null) {
             $payload['weighted_average_price'] = $weightedPrice;
+        }
+
+        $effectiveAverageCost = $weightedPrice;
+        if ($effectiveAverageCost === null && $row && isset($row->weighted_average_price)) {
+            $effectiveAverageCost = $row->weighted_average_price !== null
+                ? (float) $row->weighted_average_price
+                : null;
+        }
+
+        if ($lastUnitCost !== null) {
+            $payload['last_unit_cost'] = $lastUnitCost;
+        }
+
+        $payload['total_cost'] = round(
+            $newStock * (float) ($effectiveAverageCost ?? 0),
+            4
+        );
+
+        if ($sourceType !== null) {
+            $payload['source_type'] = $sourceType;
+        }
+
+        if ($sourceReference !== null) {
+            $payload['source_reference'] = $sourceReference;
         }
 
         if ($row) {
@@ -398,7 +443,9 @@ class InventoryMovementService
      */
     public function paginate(array $filters = [], int $perPage = 20, ?User $user = null): LengthAwarePaginator
     {
-        $query = InventoryMovement::with(['item', 'warehouse', 'createdBy']);
+        // Eager-load `source` (morphTo) to allow resolving document numbers
+        // without incurring N+1 queries when the accessor reads the related model.
+        $query = InventoryMovement::with(['item', 'warehouse', 'createdBy', 'source']);
         ScopeHelper::apply($query, $user, 'ver propios movimientos inventario', null, 'ver todos movimientos inventario');
 
         if (!empty($filters['item_id'])) {
@@ -417,7 +464,15 @@ class InventoryMovementService
             $search = $filters['search'];
             $query->where(function ($q) use ($search) {
                 $q->where('document_number', 'like', "%{$search}%")
-                    ->orWhere('notes', 'like', "%{$search}%");
+                    ->orWhere('notes', 'like', "%{$search}%")
+                    ->orWhere('source_type', 'like', "%{$search}%")
+                    ->orWhere('source_reference', 'like', "%{$search}%")
+                    ->orWhere('type', 'like', "%{$search}%")
+                    ->orWhereHas('item', fn ($iq) => $iq
+                        ->where('name', 'like', "%{$search}%")
+                        ->orWhere('reference', 'like', "%{$search}%"))
+                    ->orWhereHas('warehouse', fn ($wq) => $wq
+                        ->where('name', 'like', "%{$search}%"));
             });
         }
 
@@ -429,9 +484,43 @@ class InventoryMovementService
             $query->whereDate('date', '<=', $filters['date_to']);
         }
 
-        return $query->orderByDesc('date')
-            ->orderByDesc('id')
-            ->paginate($perPage);
+        // Filtros de rango numérico
+        if (isset($filters['quantity_min']) && $filters['quantity_min'] !== '') {
+            $query->where('quantity', '>=', (float) $filters['quantity_min']);
+        }
+        if (isset($filters['quantity_max']) && $filters['quantity_max'] !== '') {
+            $query->where('quantity', '<=', (float) $filters['quantity_max']);
+        }
+        if (isset($filters['unit_price_min']) && $filters['unit_price_min'] !== '') {
+            $query->where('unit_price', '>=', (float) $filters['unit_price_min']);
+        }
+        if (isset($filters['unit_price_max']) && $filters['unit_price_max'] !== '') {
+            $query->where('unit_price', '<=', (float) $filters['unit_price_max']);
+        }
+        if (isset($filters['new_stock_min']) && $filters['new_stock_min'] !== '') {
+            $query->where('new_stock', '>=', (float) $filters['new_stock_min']);
+        }
+        if (isset($filters['new_stock_max']) && $filters['new_stock_max'] !== '') {
+            $query->where('new_stock', '<=', (float) $filters['new_stock_max']);
+        }
+        if (isset($filters['weighted_price_min']) && $filters['weighted_price_min'] !== '') {
+            $query->where('new_weighted_price', '>=', (float) $filters['weighted_price_min']);
+        }
+        if (isset($filters['weighted_price_max']) && $filters['weighted_price_max'] !== '') {
+            $query->where('new_weighted_price', '<=', (float) $filters['weighted_price_max']);
+        }
+
+        // Ordenamiento
+        $allowedSortColumns = ['date', 'quantity', 'unit_price', 'new_stock', 'new_weighted_price'];
+        $sortBy = in_array($filters['sort_by'] ?? '', $allowedSortColumns) ? $filters['sort_by'] : 'date';
+        $sortDir = ($filters['sort_direction'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
+
+        $query->orderBy($sortBy, $sortDir);
+        if ($sortBy !== 'id') {
+            $query->orderBy('id', 'desc');
+        }
+
+        return $query->paginate($perPage);
     }
 
     /**

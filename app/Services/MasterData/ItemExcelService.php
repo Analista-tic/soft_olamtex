@@ -4,9 +4,11 @@ namespace App\Services\MasterData;
 
 use App\Models\Finance\Tax;
 use App\Models\Inventory\Warehouse;
+use App\Models\Inventory\WarehouseItem;
 use App\Models\MasterData\CategoryGroup;
 use App\Models\MasterData\CategorySubGroup;
 use App\Models\MasterData\Item;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -34,6 +36,7 @@ class ItemExcelService
             'SUBGRUPO',
             'IMPUESTO (%)',
             'BODEGA',
+            'PRECIO',
             'CANTIDAD',
             'CANTIDAD MIN',
             'CANTIDAD MAX',
@@ -44,6 +47,7 @@ class ItemExcelService
             'MOVIMIENTO NEGATIVO',
             'CAMPOS ADICIONALES',
             'VALORES ADICIONALES',
+            'COLOR',
             'ESTADO',
         ];
     }
@@ -66,8 +70,9 @@ class ItemExcelService
         $mainSheet = $spreadsheet->getActiveSheet();
         $mainSheet->setTitle('items');
 
-        $exampleGroup = $catalogData['subGroups'][0]['group'] ?? ($catalogData['groups']->first()?->name ?? 'Suministros');
-        $exampleSubGroup = $catalogData['subGroups'][0]['name'] ?? 'Papel';
+        $exampleGroup     = $catalogData['subGroups'][0]['group'] ?? ($catalogData['groups']->first()?->name ?? 'Suministros');
+        $exampleSubGroup  = $catalogData['subGroups'][0]['name'] ?? 'Papel';
+        $exampleWarehouse = $catalogData['warehouses']->first()?->name ?? 'Almacén 008';
 
         $exampleRow = [
             'Producto',
@@ -75,7 +80,8 @@ class ItemExcelService
             $exampleGroup,
             $exampleSubGroup,
             '19',
-            'Principal',
+            $exampleWarehouse,
+            '',           // PRECIO — viene de warehouse_items.weighted_average_price al importar
             '100',
             '10',
             '200',
@@ -84,8 +90,9 @@ class ItemExcelService
             'ART-001',
             'Descripcion de articulo de prueba',
             'NO',
-            'COLOR',
-            'Rojo',
+            'BASE TELA',
+            'RIB',
+            'Mocca',
             'Activo',
         ];
 
@@ -129,7 +136,10 @@ class ItemExcelService
      */
     public function exportAll(): BinaryFileResponse
     {
-        $items = Item::with(['categorySubGroup.categoryGroup', 'tax', 'warehouses', 'warehouseItems'])->get();
+        // Eager loading: warehouseItems.warehouse evita N+1.
+        // No se carga 'warehouses' porque esa relación es hasManyThrough (sin pivot usable).
+        $items = Item::with(['categorySubGroup.categoryGroup', 'tax', 'warehouseItems.warehouse', 'color'])->get();
+
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('items');
@@ -137,10 +147,20 @@ class ItemExcelService
         $headers = $this->templateHeaders();
         $sheet->fromArray($headers, null, 'A1');
 
+        // Política: una fila por ítem+bodega, porque BODEGA, PRECIO y CANTIDAD son por bodega.
         $rowNum = 2;
         foreach ($items as $item) {
-            $sheet->fromArray($this->exportRowForItem($item), null, "A{$rowNum}");
-            $rowNum++;
+            $itemWarehouseItems = $item->warehouseItems;
+            if ($itemWarehouseItems->isEmpty()) {
+                // Ítem sin stock registrado: exportar con columnas de bodega vacías.
+                $sheet->fromArray($this->exportRowForItem($item, null), null, "A{$rowNum}");
+                $rowNum++;
+            } else {
+                foreach ($itemWarehouseItems as $warehouseItem) {
+                    $sheet->fromArray($this->exportRowForItem($item, $warehouseItem), null, "A{$rowNum}");
+                    $rowNum++;
+                }
+            }
         }
 
         $catalogData = $this->loadCatalogData();
@@ -158,6 +178,57 @@ class ItemExcelService
         $writer->save($tempFile);
 
         return response()->download($tempFile, $fileName)->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Resuelve el último precio unitario conocido para cada item_id con exactamente 2 queries.
+     *
+     * Prioridad:
+     *   1. Último unit_price de línea de factura de compra (purchase_invoice).
+     *   2. Último unit_price de movimiento de inventario (entrada).
+     *
+     * @return array<int, float>  item_id → precio
+     */
+    private function loadLatestPriceByItem(): array
+    {
+        // 1. Último precio por factura de compra.
+        $invoicePrices = DB::table('purchase_document_items as pdi')
+            ->join('purchase_documents as pd', 'pd.id', '=', 'pdi.purchase_document_id')
+            ->where('pd.document_type', 'purchase_invoice')
+            ->whereNotNull('pdi.item_id')
+            ->where('pdi.price', '>', 0)
+            ->orderByDesc('pd.invoiced_at')
+            ->orderByDesc('pd.created_at')
+            ->orderByDesc('pdi.id')
+            ->select('pdi.item_id', 'pdi.price')
+            ->get()
+            ->unique('item_id')
+            ->pluck('price', 'item_id')
+            ->map(fn($v) => (float) $v)
+            ->all();
+
+        // 2. Último unit_price de movimiento de inventario (fallback).
+        $movementPrices = DB::table('inventory_movements')
+            ->where('type', 'entrada')
+            ->whereNotNull('unit_price')
+            ->where('unit_price', '>', 0)
+            ->whereNotNull('item_id')
+            ->orderByDesc('date')
+            ->orderByDesc('id')
+            ->select('item_id', 'unit_price')
+            ->get()
+            ->unique('item_id')
+            ->pluck('unit_price', 'item_id')
+            ->map(fn($v) => (float) $v)
+            ->all();
+
+        // Combinar: factura tiene prioridad sobre movimiento.
+        $result = $movementPrices;
+        foreach ($invoicePrices as $itemId => $price) {
+            $result[(int) $itemId] = $price;
+        }
+
+        return $result;
     }
 
     // ─── Métodos internos: catálogos y hojas de referencia ───
@@ -423,7 +494,7 @@ class ItemExcelService
     /**
      * Convierte un Item a un array representando una fila de exportación Excel.
      */
-    public function exportRowForItem($item): array
+    public function exportRowForItem($item, ?WarehouseItem $warehouseItem = null): array
     {
         $extra = is_array($item->extra_fields) ? $item->extra_fields : (json_decode($item->extra_fields, true) ?: []);
         $migrationTerms = ['LEGACY', 'MIGRATION', 'SOURCE', 'RAW_ROW', 'BATCH'];
@@ -456,15 +527,14 @@ class ItemExcelService
 
         $groupName = optional(optional($item->categorySubGroup)->categoryGroup)->name ?? '';
         $subGroupName = optional($item->categorySubGroup)->name;
-        $warehouse = $item->warehouses->first();
-        $warehouseItems = $item->warehouseItems ?? collect();
-        $warehouseName = optional($warehouse)->name ?? '';
-        $warehousePivot = $warehouse ? $warehouse->pivot : null;
-        $quantityValue = $warehouseItems->count() === 1
-            ? ($warehouseItems->first()?->quantity ?? 0)
-            : $warehouseItems->sum('quantity');
-        $stockMinValue = $warehousePivot && isset($warehousePivot->stock_min) ? $warehousePivot->stock_min : '';
-        $stockMaxValue = $warehousePivot && isset($warehousePivot->stock_max) ? $warehousePivot->stock_max : '';
+
+        // Datos de bodega desde warehouse_items (relación hasMany, no belongsToMany → sin pivot).
+        $warehouseName = optional($warehouseItem?->warehouse)->name ?? '';
+        $priceValue    = $warehouseItem?->weighted_average_price;
+        $quantityValue = $warehouseItem !== null ? $warehouseItem->quantity : '';
+        $stockMinValue = $warehouseItem !== null ? $warehouseItem->stock_min : '';
+        $stockMaxValue = $warehouseItem !== null ? $warehouseItem->stock_max : '';
+
         $descriptionValue = trim((string) ($item->description ?? ''));
 
         if (
@@ -481,6 +551,7 @@ class ItemExcelService
             $subGroupName,
             $tax ? number_format((float) $tax->percentage, 2, '.', '') : '',
             $warehouseName,
+            $priceValue !== null ? number_format((float) $priceValue, 4, '.', '') : '',
             $quantityValue,
             $stockMinValue,
             $stockMaxValue,
@@ -491,6 +562,7 @@ class ItemExcelService
             $item->negative_movement ? 'SI' : 'NO',
             $fieldsCol,
             $valuesCol,
+            optional($item->color)->name ?? '',
             $statusLabel,
         ];
     }

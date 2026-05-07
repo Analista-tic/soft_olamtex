@@ -13,37 +13,32 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
     {
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        $criticalAndMissingPermissions = [
+        $permissions = [
+            'ver colores',
+            'crear colores',
+            'editar colores',
+            'eliminar colores',
+            'crear solicitudes compra',
+            'editar solicitudes compra',
+            'eliminar solicitudes compra',
             'aprobar solicitudes compra',
             'rechazar solicitudes compra',
             'cancelar solicitudes compra',
             'aprobar orden compra',
             'recibir factura compra',
             'anular factura compra',
+            'gestionar diferencias factura compra',
+            'crear cotizaciones',
+            'editar cotizaciones',
+            'eliminar cotizaciones',
+            'crear pedidos venta',
+            'editar pedidos venta',
+            'eliminar pedidos venta',
+            'crear facturas venta',
+            'editar facturas venta',
+            'eliminar facturas venta',
             'entregar solicitudes insumos',
             'rechazar solicitudes insumos',
-            'gestionar diferencias factura compra',
-
-            // Datos maestros
-            'ver categorias',
-            'crear categorias',
-            'editar categorias',
-            'eliminar categorias',
-            'ver contactos',
-            'crear contactos',
-            'editar contactos',
-            'eliminar contactos',
-            'ver parametros',
-            'editar parametros',
-            'ver campos adicionales',
-            'crear campos adicionales',
-            'editar campos adicionales',
-            'eliminar campos adicionales',
-            'activar desactivar item',
-            'carga masiva items',
-            'exportar items',
-
-            // Producción / Inventario / Textil pack
             'actualizar tiempo estandar operacion',
             'ver control lotes',
             'ver propios control lotes',
@@ -66,17 +61,17 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'rechazar recepcion tela',
         ];
 
-        foreach ($criticalAndMissingPermissions as $permissionName) {
+        foreach ($permissions as $permissionName) {
             Permission::findOrCreate($permissionName, 'web');
         }
 
-        $admin = Role::findByName('admin', 'web');
-        $produccion = Role::findByName('produccion', 'web');
-        $logistica = Role::findByName('logistica', 'web');
-        $contabilidad = Role::findByName('contabilidad', 'web');
-        $general = Role::findByName('general', 'web');
+        $admin = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+        $produccion = Role::firstOrCreate(['name' => 'produccion', 'guard_name' => 'web']);
+        $logistica = Role::firstOrCreate(['name' => 'logistica', 'guard_name' => 'web']);
+        $contabilidad = Role::firstOrCreate(['name' => 'contabilidad', 'guard_name' => 'web']);
+        $general = Role::firstOrCreate(['name' => 'general', 'guard_name' => 'web']);
+        $gerencia = Role::firstOrCreate(['name' => 'gerencia', 'guard_name' => 'web']);
 
-        // Admin conserva acceso total.
         $admin->syncPermissions(Permission::all());
 
         $commonMasterDataAndCore = [
@@ -85,7 +80,6 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'editar perfil',
             'ver personalizacion',
             'editar personalizacion',
-
             'ver categorias',
             'crear categorias',
             'editar categorias',
@@ -103,10 +97,10 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'activar desactivar item',
             'carga masiva items',
             'exportar items',
+            'ver colores',
         ];
 
         $sharedProductionInventoryTextil = [
-            // Producción
             'ver programador',
             'ver todos programacion produccion',
             'crear programador',
@@ -129,8 +123,6 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'reportar novedad lote',
             'resolver novedad lote',
             'registrar consumo tela corte',
-
-            // Inventario textil
             'ver telas',
             'crear telas',
             'editar telas',
@@ -147,14 +139,10 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'crear inventario telas',
             'editar inventario telas',
             'eliminar inventario telas',
-
-            // Solicitudes de insumos (base sin atender/entregar/rechazar)
             'ver solicitudes insumos',
             'crear solicitudes insumos',
             'ver propios solicitudes insumos',
             'ver area solicitudes insumos',
-
-            // Textil pack
             'ver telas rollos',
             'crear telas rollos',
             'editar telas rollos',
@@ -165,131 +153,96 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'rechazar recepcion tela',
         ];
 
-        $produccion->givePermissionTo(array_merge($commonMasterDataAndCore, $sharedProductionInventoryTextil));
-
-        // Producción NO transfiere bodegas ni atiende/aprueba/rechaza solicitudes de insumos.
-        $produccionRestricted = [
-            'atender solicitudes insumos',
-            'entregar solicitudes insumos',
-            'rechazar solicitudes insumos',
-            'ver transferencias bodegas',
-            'crear transferencias bodegas',
-            'editar transferencias bodegas',
-            'eliminar transferencias bodegas',
-        ];
-        foreach ($produccionRestricted as $permissionName) {
-            if ($produccion->hasPermissionTo($permissionName)) {
-                $produccion->revokePermissionTo($permissionName);
-            }
-        }
-
-        $logistica->givePermissionTo(array_merge(
-            $commonMasterDataAndCore,
-            $sharedProductionInventoryTextil,
-            [
-                // Extra Logística
-                'atender solicitudes insumos',
-                'entregar solicitudes insumos',
-                'rechazar solicitudes insumos',
-                'ver transferencias bodegas',
-                'crear transferencias bodegas',
-                'editar transferencias bodegas',
-                'eliminar transferencias bodegas',
-                'ver todos transferencias bodegas',
-
-                // Gastos: solo solicitudes + órdenes
-                'ver gastos',
-                'ver propios solicitudes compra',
-                'ver area solicitudes compra',
-                'ver ordenes compra',
-                'crear ordenes compra',
-                'editar ordenes compra',
-                'eliminar ordenes compra',
-            ]
-        ));
-
-        // Logística NO aprueba/rechaza solicitudes de compra ni gestiona facturas de compra.
-        $logisticaRestricted = [
-            'aprobar solicitudes compra',
-            'rechazar solicitudes compra',
-            'cancelar solicitudes compra',
-            'ver facturas compra',
-            'aprobar facturas compra',
-            'gestionar diferencias factura compra',
-            'ver todos documentos compra',
-            'ver propios documentos compra',
-            'ver area documentos compra',
-        ];
-        foreach ($logisticaRestricted as $permissionName) {
-            if ($logistica->hasPermissionTo($permissionName)) {
-                $logistica->revokePermissionTo($permissionName);
-            }
-        }
-
-        $contabilidad->givePermissionTo([
-            'ver empresa',
-            'ver perfil',
-            'editar perfil',
-            'ver personalizacion',
-            'editar personalizacion',
-
-            // Módulos requeridos
-            'ver ingresos',
+        $purchaseRequestBase = [
             'ver gastos',
-            'ver financiero',
-
-            // Datos maestros
-            'ver categorias',
-            'crear categorias',
-            'editar categorias',
-            'eliminar categorias',
-            'ver contactos',
-            'crear contactos',
-            'editar contactos',
-            'eliminar contactos',
-            'ver parametros',
-            'editar parametros',
-            'ver campos adicionales',
-            'crear campos adicionales',
-            'editar campos adicionales',
-            'eliminar campos adicionales',
-            'activar desactivar item',
-            'carga masiva items',
-            'exportar items',
-
-            // Inventario
-            'ver solicitudes insumos',
-            'ver propios solicitudes insumos',
-            'ver area solicitudes insumos',
-            'ver todos solicitudes insumos',
-            'ver transferencias bodegas',
-
-            // Compras y control de aprobación
+            'crear solicitudes compra',
+            'editar solicitudes compra',
+            'eliminar solicitudes compra',
             'ver propios solicitudes compra',
-            'ver area solicitudes compra',
+        ];
+
+        $purchaseRequestApprovals = [
             'ver todos solicitudes compra',
             'aprobar solicitudes compra',
             'rechazar solicitudes compra',
             'cancelar solicitudes compra',
+        ];
+
+        $purchaseOrderViewAll = [
             'ver ordenes compra',
+            'ver todos ordenes compra',
+        ];
+
+        $purchaseOrderManage = [
             'crear ordenes compra',
             'editar ordenes compra',
             'eliminar ordenes compra',
-            'aprobar orden compra',
-            'ver facturas compra',
-            'crear facturas compra',
-            'editar facturas compra',
-            'eliminar facturas compra',
-            'aprobar facturas compra',
-            'gestionar diferencias factura compra',
+        ];
 
-            // Financiero existente
+        $purchaseInvoiceViewAll = [
+            'ver facturas compra',
+            'ver todos facturas compra',
+        ];
+
+        $incomeProductionPermissions = [
+            'ver ingresos',
+            'ver propios cotizaciones',
+            'ver area cotizaciones',
+            'crear cotizaciones',
+            'editar cotizaciones',
+            'eliminar cotizaciones',
+            'convertir cotizacion a pedido',
+            'ver propios pedidos venta',
+            'ver area pedidos venta',
+            'crear pedidos venta',
+            'editar pedidos venta',
+            'eliminar pedidos venta',
+            'convertir pedido a factura venta',
+            'ver propios facturas venta',
+            'ver area facturas venta',
+            'crear facturas venta',
+            'editar facturas venta',
+            'eliminar facturas venta',
+            'emitir factura venta',
+            'anular factura venta',
+            'emitir nota credito debito venta',
+            'anular nota credito debito venta',
+            'ver propios recibos caja',
+        ];
+
+        $incomeAccountingPermissions = [
+            'ver ingresos',
+            'ver todos cotizaciones',
+            'ver todos pedidos venta',
+            'ver todos facturas venta',
+            'ver todos recibos caja',
+            'crear facturas venta',
+            'editar facturas venta',
+            'emitir factura venta',
+            'anular factura venta',
+            'emitir nota credito debito venta',
+            'anular nota credito debito venta',
+            'anular recibo caja',
+        ];
+
+        $incomeManagementViewPermissions = [
+            'ver ingresos',
+            'ver todos cotizaciones',
+            'ver todos pedidos venta',
+            'ver todos facturas venta',
+            'ver todos recibos caja',
+        ];
+
+        $financialPermissions = [
+            'ver financiero',
             'ver catalogo cuentas',
             'crear catalogo cuentas',
             'editar catalogo cuentas',
+            'ver movimientos cuenta contable',
             'ver comprobantes egreso',
             'crear comprobantes egreso',
             'editar comprobantes egreso',
+            'anular comprobantes egreso',
             'ver notas credito debito',
             'crear notas credito debito',
             'editar notas credito debito',
@@ -302,25 +255,84 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'crear retenciones',
             'editar retenciones',
             'eliminar retenciones',
-        ]);
-
-        $general->givePermissionTo([
-            'ver solicitudes insumos',
-            'crear solicitudes insumos',
-            'ver propios solicitudes insumos',
-        ]);
-
-        // General NO atiende ni rechaza solicitudes de insumos.
-        $generalRestricted = [
-            'atender solicitudes insumos',
-            'entregar solicitudes insumos',
-            'rechazar solicitudes insumos',
         ];
-        foreach ($generalRestricted as $permissionName) {
-            if ($general->hasPermissionTo($permissionName)) {
-                $general->revokePermissionTo($permissionName);
-            }
-        }
+
+        $general->syncPermissions(array_merge(
+            $commonMasterDataAndCore,
+            $purchaseRequestBase,
+            $purchaseOrderViewAll,
+            [
+                'ver solicitudes insumos',
+                'crear solicitudes insumos',
+                'ver propios solicitudes insumos',
+            ]
+        ));
+
+        $produccion->syncPermissions(array_merge(
+            $commonMasterDataAndCore,
+            $sharedProductionInventoryTextil,
+            $purchaseRequestBase,
+            $purchaseOrderViewAll,
+            $purchaseOrderManage,
+            $incomeProductionPermissions,
+        ));
+
+        $logistica->syncPermissions(array_merge(
+            $commonMasterDataAndCore,
+            $sharedProductionInventoryTextil,
+            $purchaseRequestBase,
+            $purchaseOrderViewAll,
+            $purchaseOrderManage,
+            $purchaseInvoiceViewAll,
+            [
+                'atender solicitudes insumos',
+                'entregar solicitudes insumos',
+                'rechazar solicitudes insumos',
+                'ver todos solicitudes insumos',
+                'ver transferencias bodegas',
+                'crear transferencias bodegas',
+                'editar transferencias bodegas',
+                'eliminar transferencias bodegas',
+                'ver todos transferencias bodegas',
+                'recibir factura compra',
+            ]
+        ));
+
+        $contabilidad->syncPermissions(array_merge(
+            $commonMasterDataAndCore,
+            $purchaseRequestBase,
+            $purchaseRequestApprovals,
+            $purchaseOrderViewAll,
+            $purchaseInvoiceViewAll,
+            $incomeAccountingPermissions,
+            $financialPermissions,
+            [
+                'ver solicitudes insumos',
+                'ver area solicitudes insumos',
+                'ver todos solicitudes insumos',
+                'ver transferencias bodegas',
+                'ver todos documentos compra',
+                'crear facturas compra',
+                'editar facturas compra',
+                'eliminar facturas compra',
+                'aprobar facturas compra',
+                'anular factura compra',
+                'gestionar diferencias factura compra',
+            ]
+        ));
+
+        $gerencia->syncPermissions(array_merge(
+            $commonMasterDataAndCore,
+            $purchaseRequestBase,
+            $purchaseRequestApprovals,
+            $purchaseOrderViewAll,
+            $purchaseInvoiceViewAll,
+            $incomeManagementViewPermissions,
+            [
+                'aprobar orden compra',
+                'ver auditoria',
+            ]
+        ));
 
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
     }

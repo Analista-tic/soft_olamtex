@@ -5,6 +5,7 @@ namespace App\Services\Expenses;
 use App\Helpers\ScopeHelper;
 use App\Models\Expenses\PurchaseRequest;
 use App\Models\Settings\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -107,6 +108,18 @@ class PurchaseRequestService
     public function loadWithRelations(PurchaseRequest $purchaseRequest): PurchaseRequest
     {
         return $purchaseRequest->load(['requester', 'approvedBy', 'rejectedBy', 'processor']);
+    }
+
+    public function findAccessibleOrFail(PurchaseRequest $purchaseRequest, ?User $user): PurchaseRequest
+    {
+        $query = PurchaseRequest::query()->whereKey($purchaseRequest->getKey());
+        ScopeHelper::apply($query, $user, 'ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra', 'requester_user_id');
+
+        if (!$query->exists()) {
+            throw new AuthorizationException('No tienes permisos para acceder a esta solicitud de compra.');
+        }
+
+        return $this->loadWithRelations($purchaseRequest);
     }
 
     public function sendToApproval(PurchaseRequest $purchaseRequest): PurchaseRequest

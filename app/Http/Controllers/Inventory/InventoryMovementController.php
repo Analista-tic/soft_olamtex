@@ -29,12 +29,24 @@ class InventoryMovementController extends Controller
     public function getData(Request $request): JsonResponse
     {
         $filters = [
-            'item_id' => $request->input('item_id'),
-            'warehouse_id' => $request->input('warehouse_id'),
-            'type' => $request->input('type'),
-            'search' => $request->input('search'),
-            'date_from' => $request->input('date_from'),
-            'date_to' => $request->input('date_to'),
+            'item_id'            => $request->input('item_id'),
+            'warehouse_id'       => $request->input('warehouse_id'),
+            'type'               => $request->input('type'),
+            'search'             => $request->input('search'),
+            'date_from'          => $request->input('date_from'),
+            'date_to'            => $request->input('date_to'),
+            // rangos numéricos
+            'quantity_min'       => $request->input('quantity_min'),
+            'quantity_max'       => $request->input('quantity_max'),
+            'unit_price_min'     => $request->input('unit_price_min'),
+            'unit_price_max'     => $request->input('unit_price_max'),
+            'new_stock_min'      => $request->input('new_stock_min'),
+            'new_stock_max'      => $request->input('new_stock_max'),
+            'weighted_price_min' => $request->input('weighted_price_min'),
+            'weighted_price_max' => $request->input('weighted_price_max'),
+            // ordenamiento
+            'sort_by'        => $request->input('sort_by', 'date'),
+            'sort_direction' => $request->input('sort_direction', 'desc'),
         ];
 
         $perPage = (int) $request->input('per_page', 20);
@@ -89,6 +101,7 @@ class InventoryMovementController extends Controller
             'unit_price' => 'nullable|numeric|min:0',
             'source_type' => 'nullable|string',
             'source_id' => 'nullable|integer',
+            'source_reference' => 'nullable|string|max:120',
             'notes' => 'required|string|max:1000',
         ];
 

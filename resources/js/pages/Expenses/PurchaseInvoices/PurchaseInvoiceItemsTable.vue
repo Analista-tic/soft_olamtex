@@ -4,6 +4,7 @@ import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { PurchaseInvoiceItem } from '@/domain/Expenses';
 import type { Tax } from '@/domain/Finance';
 import type { Item } from '@/domain/MasterData';
@@ -11,6 +12,7 @@ import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/tax
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 import ItemDialog from '@/pages/MasterData/Item/ItemDialog.vue';
 import axios from 'axios';
+import { AlertTriangle } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 
 // Caché a nivel de módulo — persiste entre montajes del componente
@@ -101,10 +103,45 @@ function normalizeOrderWidth(value: string | number | null | undefined) {
 }
 
 function normalizeIncomingItem(item: PurchaseInvoiceItem): PurchaseInvoiceItem {
+    function parseLocaleNumber(value: unknown, allowDecimals = true) {
+        if (value === null || value === undefined) return '';
+        const s = String(value).trim();
+        if (s === '') return '';
+
+        // Assume locale uses '.' as thousand separator and ',' as decimal (es-*).
+        // If both present: remove thousands ('.') and convert decimal ',' -> '.'.
+        // If only ',' present -> treat as decimal separator.
+        // If only '.' present -> treat as thousand separator and remove it.
+        let cleaned = s.replace(/[^0-9.,-]/g, '');
+
+        const hasDot = cleaned.indexOf('.') !== -1;
+        const hasComma = cleaned.indexOf(',') !== -1;
+
+        if (hasDot && hasComma) {
+            cleaned = cleaned.replace(/\./g, '').replace(/,/g, '.');
+        } else if (hasComma && !hasDot) {
+            // treat comma as decimal
+            cleaned = cleaned.replace(/,/g, '.');
+        } else if (hasDot && !hasComma) {
+            // treat dot as thousand separator
+            cleaned = cleaned.replace(/\./g, '');
+        }
+
+        if (!allowDecimals) {
+            // remove decimal part
+            cleaned = cleaned.split(/[,|\.]/)[0];
+        }
+
+        const num = Number(cleaned);
+        return Number.isFinite(num) ? num : '';
+    }
+
     return {
         ...item,
-        price: props.isCreating ? '' : (item.price ?? ''),
-        quantity: props.isCreating ? '' : (item.quantity ?? ''),
+        price: props.isCreating ? '' : (parseLocaleNumber(item.price, true) === '' ? '' : parseLocaleNumber(item.price, true)),
+        quantity: props.isCreating
+            ? ''
+            : (props.telaMode === true ? (parseLocaleNumber(item.quantity, true) === '' ? '' : parseLocaleNumber(item.quantity, true)) : (parseLocaleNumber(item.quantity, false) === '' ? '' : parseLocaleNumber(item.quantity, false))),
         tax: Number(item.tax) || 0,
         supplier_code: item.supplier_code || '',
         supplier_color: item.supplier_color || '',
@@ -142,6 +179,24 @@ watch(
     (items) => {
         items.forEach((item) => {
             item.tax = isNaN(Number(item.tax)) ? 0 : Number(item.tax);
+
+                // Enforce positive integer quantities cuando no es modo Tela
+                if (props.telaMode !== true) {
+                    const q = Number(item.quantity);
+                    if (Number.isFinite(q)) {
+                        const intQ = Math.max(0, Math.floor(q));
+                        if (intQ !== q) {
+                            item.quantity = intQ;
+                        }
+                    }
+                } else {
+                    // En modo Tela permitir decimales positivos
+                    const q = Number(item.quantity);
+                    if (Number.isFinite(q)) {
+                        const normalized = Math.max(0, q);
+                        if (normalized !== q) item.quantity = normalized;
+                    }
+                }
 
             if (!(item as any).__watching) {
                 (item as any).__watching = true;
@@ -211,9 +266,7 @@ async function fetchTaxes() {
     taxesFetchPromise = axios
         .get('/impuestos/data', { params: { per_page: 1000, status: true } })
         .then((res) => {
-            cachedTaxes = Array.isArray(res.data?.data)
-                ? res.data.data.filter((t: any) => t.status)
-                : [];
+            cachedTaxes = Array.isArray(res.data?.data) ? res.data.data.filter((t: any) => t.status) : [];
             taxes.value = cachedTaxes!;
         })
         .catch((err) => {
@@ -255,9 +308,7 @@ async function handleTaxDialogSubmit(formData: TaxDialogForm) {
 
 function openItemDialog(targetRowIdx: number | null = null) {
     itemDialogTargetRowIndex.value = targetRowIdx;
-    itemCatalogSnapshotBeforeCreate.value = catalogItems.value
-        .map((item) => Number(item.id))
-        .filter((id) => Number.isFinite(id));
+    itemCatalogSnapshotBeforeCreate.value = catalogItems.value.map((item) => Number(item.id)).filter((id) => Number.isFinite(id));
     createdItemCandidateId.value = null;
     itemDialogForm.value = {
         reference: '',
@@ -457,6 +508,33 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
     return Number(item.quantity) !== Number(suggested);
 }
 
+function formatCurrency(value: number): string {
+    return Number(value || 0).toLocaleString('es-CO', {
+        style: 'currency',
+        currency: 'COP',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    });
+}
+
+function getPriceDifferenceTooltip(item: PurchaseInvoiceItem): string {
+    const suggested = getSuggestedPrice(item);
+    if (suggested === null) {
+        return 'El precio del ítem difiere de la orden de compra.';
+    }
+
+    return `Precio orden: ${formatCurrency(suggested)}. Precio actual: ${formatCurrency(Number(item.price) || 0)}.`;
+}
+
+function getQuantityDifferenceTooltip(item: PurchaseInvoiceItem): string {
+    const suggested = getSuggestedQuantity(item);
+    if (suggested === null) {
+        return 'La cantidad del ítem difiere de la orden de compra.';
+    }
+
+    return `Cantidad orden: ${Number(suggested).toLocaleString('es-CO')}. Cantidad actual: ${Number(item.quantity || 0).toLocaleString('es-CO')}.`;
+}
+
 defineExpose({ addItem });
 </script>
 
@@ -473,17 +551,27 @@ defineExpose({ addItem });
                             >Precio SIN Impuesto <span class="text-red-600">*</span></TableHead
                         >
                         <TableHead :class="[props.telaMode === true ? 'min-w-[170px]' : 'min-w-[160px]', 'text-left']">Impuesto (%)</TableHead>
-                        <TableHead class="min-w-[140px] text-left">{{ props.telaMode ? 'Longitud (mts)' : 'Cantidad' }} <span class="text-red-600">*</span></TableHead>
+                        <TableHead class="min-w-[140px] text-left"
+                            >{{ props.telaMode ? 'Longitud (mts)' : 'Cantidad' }} <span class="text-red-600">*</span></TableHead
+                        >
                         <TableHead class="min-w-[160px] text-left">Descripción</TableHead>
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
-                            ><span class="inline-flex items-center gap-1">Código proveedor <span class="text-red-600">*</span><HelpTooltip text="Referencia interna del proveedor para identificar esta tela en su catálogo. Aparece en la factura del proveedor." /></span></TableHead
-                        >
+                            ><span class="inline-flex items-center gap-1"
+                                >Código proveedor <span class="text-red-600">*</span
+                                ><HelpTooltip
+                                    text="Referencia interna del proveedor para identificar esta tela en su catálogo. Aparece en la factura del proveedor." /></span
+                        ></TableHead>
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
-                            ><span class="inline-flex items-center gap-1">Color proveedor <span class="text-red-600">*</span><HelpTooltip text="Nombre o código del color según el proveedor. Puede diferir del nombre interno del sistema." /></span></TableHead
-                        >
+                            ><span class="inline-flex items-center gap-1"
+                                >Color proveedor <span class="text-red-600">*</span
+                                ><HelpTooltip
+                                    text="Nombre o código del color según el proveedor. Puede diferir del nombre interno del sistema." /></span
+                        ></TableHead>
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
-                            ><span class="inline-flex items-center gap-1">Ancho pedido <span class="text-red-600">*</span><HelpTooltip text="Ancho de la tela en centímetros según lo pactado en la orden de compra." /></span></TableHead
-                        >
+                            ><span class="inline-flex items-center gap-1"
+                                >Ancho pedido <span class="text-red-600">*</span
+                                ><HelpTooltip text="Ancho de la tela en centímetros según lo pactado en la orden de compra." /></span
+                        ></TableHead>
                         <TableHead class="min-w-[90px] text-left">Total</TableHead>
                         <TableHead v-if="showActionsColumn" class="w-[60px]"></TableHead>
                     </TableRow>
@@ -512,21 +600,35 @@ defineExpose({ addItem });
                         <!-- Precio -->
                         <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '150px' : '120px' }">
                             <div class="flex flex-col">
-                                <InputField
-                                    v-model="item.price"
-                                    type="currency"
-                                    label=""
-                                    :min="0"
-                                    :step="0.01"
-                                    :decimals="2"
-                                    :readonly="isReadOnly"
-                                    :disabled="isReadOnly"
-                                    class="h-10 w-full"
-                                    @input="calcTotals(item)"
-                                    :error="isPriceDifferent(item)"
-                                    :dusk="`factura-item-${idx}-precio`"
-                                />
-                                <div class="min-h-[20px] mt-1 text-xs text-gray-500">
+                                <div class="relative">
+                                    <InputField
+                                        v-model="item.price"
+                                        type="currency"
+                                        label=""
+                                        :min="0"
+                                        :step="0.01"
+                                        :decimals="2"
+                                        :readonly="isReadOnly"
+                                        :disabled="isReadOnly"
+                                        class="h-10 w-full pr-10"
+                                        @input="calcTotals(item)"
+                                        :dusk="`factura-item-${idx}-precio`"
+                                    />
+                                    <Tooltip v-if="isPriceDifferent(item)">
+                                        <TooltipTrigger as-child>
+                                            <span
+                                                class="absolute inset-y-0 right-3 inline-flex items-center text-amber-500"
+                                                aria-label="Precio diferente a la orden"
+                                            >
+                                                <AlertTriangle class="h-4 w-4" />
+                                            </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top" class="max-w-xs">
+                                            {{ getPriceDifferenceTooltip(item) }}
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </div>
+                                <div class="mt-1 min-h-[20px] text-xs text-gray-500">
                                     <template v-if="getSuggestedPrice(item) !== null">
                                         Orden:
                                         {{
@@ -555,7 +657,7 @@ defineExpose({ addItem });
                                     @action="openTaxDialog"
                                     @update:modelValue="
                                         (val) => {
-                                            item.tax = val === null ? null : (Number(val) || 0);
+                                            item.tax = val === null ? null : Number(val) || 0;
                                             calcTotals(item);
                                         }
                                     "
@@ -566,18 +668,32 @@ defineExpose({ addItem });
                         <!-- Cantidad -->
                         <TableCell class="p-1 text-left align-top" style="width: 110px">
                             <div class="flex flex-col">
-                                <InputField
-                                    v-model="item.quantity"
-                                    type="number"
-                                    label=""
-                                    class="h-10 w-full"
-                                    @input="calcTotals(item)"
-                                    :readonly="isReadOnly"
-                                    :disabled="isReadOnly"
-                                    :error="isQuantityDifferent(item)"
-                                    :dusk="`factura-item-${idx}-cantidad`"
-                                />
-                                <div class="min-h-[20px] mt-1 text-xs text-gray-500">
+                                <div class="relative">
+                                    <InputField
+                                        v-model="item.quantity"
+                                        type="number"
+                                        label=""
+                                        class="h-10 w-full pr-10"
+                                        @input="calcTotals(item)"
+                                        :readonly="isReadOnly"
+                                        :disabled="isReadOnly"
+                                        :dusk="`factura-item-${idx}-cantidad`"
+                                    />
+                                    <Tooltip v-if="isQuantityDifferent(item)">
+                                        <TooltipTrigger as-child>
+                                            <span
+                                                class="absolute inset-y-0 right-3 inline-flex items-center text-amber-500"
+                                                aria-label="Cantidad diferente a la orden"
+                                            >
+                                                <AlertTriangle class="h-4 w-4" />
+                                            </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top" class="max-w-xs">
+                                            {{ getQuantityDifferenceTooltip(item) }}
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </div>
+                                <div class="mt-1 min-h-[20px] text-xs text-gray-500">
                                     <template v-if="getSuggestedQuantity(item) !== null">
                                         Cantidad: {{ Number(getSuggestedQuantity(item)).toLocaleString('es-CO') }}
                                     </template>
@@ -587,7 +703,14 @@ defineExpose({ addItem });
                         <!-- Descripción -->
                         <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '220px' : '160px' }">
                             <div class="flex flex-col">
-                                <InputField v-model="item.description" label="" class="h-10 w-full" :readonly="isReadOnly" :disabled="isReadOnly" :dusk="`factura-item-${idx}-descripcion`" />
+                                <InputField
+                                    v-model="item.description"
+                                    label=""
+                                    class="h-10 w-full"
+                                    :readonly="isReadOnly"
+                                    :disabled="isReadOnly"
+                                    :dusk="`factura-item-${idx}-descripcion`"
+                                />
                                 <div class="min-h-[20px]"></div>
                             </div>
                         </TableCell>

@@ -6,14 +6,17 @@ use App\Models\Finance\Tax;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Inventory\InventoryAdjustmentLine;
+use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\Warehouse;
 use App\Models\Inventory\WarehouseItem;
 use App\Models\MasterData\CategorySubGroup;
+use App\Models\MasterData\Color;
 use App\Models\MasterData\Item;
 use App\Models\Settings\Setting;
 use App\Support\TextNormalizer;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ItemService
@@ -41,10 +44,12 @@ class ItemService
             'import_batch_id',
             'tax_id',
             'category_sub_group_id',
+            'color_id',
         ])->with([
             'categorySubGroup:id,name,category_group_id',
             'categorySubGroup.categoryGroup:id,name',
             'tax:id,name,percentage',
+            'color:id,name,rgb',
         ]);
 
         if (!empty($filters['search'])) {
@@ -102,7 +107,7 @@ class ItemService
 
     public function findWithRelations(int $id, array $relations = ['categorySubGroup', 'tax']): Item
     {
-        return Item::with($relations)->findOrFail($id);
+        return Item::with(array_values(array_unique(array_merge($relations, ['color']))))->findOrFail($id);
     }
 
     public function find(int $id): Item
@@ -306,6 +311,11 @@ class ItemService
 
         $orderedFieldNames = $this->orderedAdditionalFieldNames();
 
+        // Pre-cargar cache nombre→id de colores (evita N+1 por fila).
+        $colorNameToId = Color::all()->mapWithKeys(
+            fn ($c) => [mb_strtolower(trim((string) $c->name)) => (int) $c->id]
+        )->all();
+
         foreach ($rows as $rowNum => $row) {
             if (empty(array_filter($row))) {
                 continue;
@@ -347,7 +357,33 @@ class ItemService
                 }
 
                 $extrasString = $this->buildExtraFieldsNameSegment($extraFields, $orderedFieldNames);
-                $colorValue = $this->extractColorNameFromExtraFields($extraFields);
+
+                // ── Resolver color_id ──────────────────────────────────────────────────
+                // Prioridad: columna COLOR dedicada en el Excel.
+                // Fallback: COLOR dentro de CAMPOS ADICIONALES (formato anterior).
+                $dedicatedColorKey = $this->normalizeHeader('COLOR');
+                $colorNameRaw = isset($normalizedRow[$dedicatedColorKey])
+                    ? trim((string) ($normalizedRow[$dedicatedColorKey] ?? ''))
+                    : '';
+
+                if ($colorNameRaw !== '') {
+                    // Columna COLOR dedicada: resolver color_id y excluir de extra_fields.
+                    $resolvedColorId = $colorNameToId[mb_strtolower($colorNameRaw)] ?? null;
+                    foreach (array_keys($extraFields) as $efKey) {
+                        if (strcasecmp(trim((string) $efKey), 'color') === 0) {
+                            unset($extraFields[$efKey]);
+                        }
+                    }
+                    $colorValue = $colorNameRaw;
+                } else {
+                    // Fallback: COLOR venía en CAMPOS ADICIONALES (compatibilidad con archivos anteriores).
+                    $colorValue    = $this->extractColorNameFromExtraFields($extraFields);
+                    $resolvedColorId = $colorValue !== ''
+                        ? ($colorNameToId[mb_strtolower($colorValue)] ?? null)
+                        : null;
+                }
+                // ── Fin resolver color_id ──────────────────────────────────────────────
+
                 $nameParts = array_filter([
                     optional($subGroup)->name,
                     $extrasString,
@@ -404,6 +440,7 @@ class ItemService
 
                 $itemData = [
                     'category_sub_group_id' => $subGroup->id,
+                    'color_id'              => $resolvedColorId,
                     'tax_id' => $this->resolveTaxIdFromImportValue($taxValue),
                     'tax' => $taxValue,
                     'bar_code' => $barCodeValue,
@@ -423,7 +460,12 @@ class ItemService
                 // debug logs removed
 
                 $warehouses = $this->buildWarehousePayloadFromRow($normalizedRow, $headerMap, $errors, $rowNum);
-                $this->create($itemData, $warehouses);
+
+                if (!empty($warehouses)) {
+                    $this->createImportedItemWithOpeningBalances($itemData, $warehouses, $importBatchId, (int) $rowNum);
+                } else {
+                    $this->create($itemData, $warehouses);
+                }
                 $inserted++;
             } catch (\Throwable $e) {
                 $errors[] = "Fila $rowNum: " . $e->getMessage();
@@ -706,12 +748,14 @@ class ItemService
         $quantity = $this->parseDecimalValue($this->getRowValueFromAlternatives($normalizedRow, ['CANTIDAD', 'TOTAL CANTIDAD'], 0));
         $stockMin = $this->parseDecimalValue($this->getRowValueFromAlternatives($normalizedRow, ['CANTIDAD MIN', 'CANTIDAD MINIMA'], 0));
         $stockMax = $this->parseDecimalValue($this->getRowValueFromAlternatives($normalizedRow, ['CANTIDAD MAX', 'CANTIDAD MAXIMA'], 0));
+        $unitPrice = $this->parseDecimalOrNull($this->getRowValueFromAlternatives($normalizedRow, ['PRECIO'], null));
 
         return [[
             'warehouse_id' => $warehouseId,
             'quantity' => $quantity,
             'stock_min' => $stockMin,
             'stock_max' => $stockMax,
+            'unit_price' => $unitPrice,
         ]];
     }
 
@@ -777,11 +821,45 @@ class ItemService
 
     protected function parseDecimalValue($value): float
     {
+        $parsed = $this->parseDecimalOrNull($value);
+        return $parsed ?? 0.0;
+    }
+
+    protected function parseDecimalOrNull($value): ?float
+    {
         if ($value === null || $value === '') {
-            return 0.0;
+            return null;
         }
-        $normalized = str_replace(',', '.', (string) $value);
-        return is_numeric($normalized) ? (float) $normalized : 0.0;
+
+        $clean = trim((string) $value);
+        if ($clean === '' || $clean === '-') {
+            return null;
+        }
+
+        $clean = preg_replace('/[^0-9,.\- ]/', '', $clean);
+        $clean = trim((string) $clean);
+
+        if ($clean === '' || $clean === '-') {
+            return null;
+        }
+
+        $lastComma = strrpos($clean, ',');
+        $lastDot = strrpos($clean, '.');
+
+        if ($lastComma !== false && $lastDot !== false) {
+            if ($lastComma > $lastDot) {
+                $clean = str_replace('.', '', $clean);
+                $clean = str_replace(',', '.', $clean);
+            } else {
+                $clean = str_replace(',', '', $clean);
+            }
+        } elseif ($lastComma !== false) {
+            $clean = str_replace(',', '.', $clean);
+        }
+
+        $clean = str_replace(' ', '', $clean);
+
+        return is_numeric($clean) ? (float) $clean : null;
     }
 
     protected function normalizeWarehouseName(string $name): string
@@ -876,9 +954,14 @@ class ItemService
                 ? $this->normalizeAccountId($data['inventory_account_id'] ?? null)
                 : null,
             'cost_of_sale_account_id' => $this->normalizeAccountId($data['cost_of_sale_account_id'] ?? null),
+            'color_id' => $this->normalizeColorId($data['color_id'] ?? null),
         ];
 
-        $payload['name'] = $this->buildName($payload['category_sub_group_id'], $extraFields);
+        $payload['name'] = $this->buildName(
+            $payload['category_sub_group_id'],
+            $extraFields,
+            $payload['color_id'] ?? null
+        );
 
         // debug logs removed
 
@@ -901,6 +984,7 @@ class ItemService
             'income_account_id',
             'inventory_account_id',
             'cost_of_sale_account_id',
+            'color_id',
         ];
 
         foreach ($fields as $field) {
@@ -913,6 +997,10 @@ class ItemService
             if (array_key_exists($accountField, $payload)) {
                 $payload[$accountField] = $this->normalizeAccountId($payload[$accountField]);
             }
+        }
+
+        if (array_key_exists('color_id', $payload)) {
+            $payload['color_id'] = $this->normalizeColorId($payload['color_id']);
         }
 
         if (array_key_exists('status', $data)) {
@@ -946,7 +1034,8 @@ class ItemService
         $payload['extra_fields'] = $extraFields;
 
         $subGroupId = $data['category_sub_group_id'] ?? $item->category_sub_group_id;
-        $payload['name'] = $this->buildName($subGroupId, $extraFields);
+        $resolvedColorId = $payload['color_id'] ?? $item->color_id ?? null;
+        $payload['name'] = $this->buildName($subGroupId, $extraFields, $resolvedColorId);
 
         if (array_key_exists('tax_id', $data)) {
             $payload['tax_id'] = $this->ensureTaxId($data['tax_id']);
@@ -976,6 +1065,15 @@ class ItemService
     }
 
     protected function normalizeAccountId(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return is_numeric($value) ? (int) $value : null;
+    }
+
+    protected function normalizeColorId(mixed $value): ?int
     {
         if ($value === null || $value === '') {
             return null;
@@ -1016,16 +1114,24 @@ class ItemService
         return $tax->id;
     }
 
-    protected function buildName(?int $subGroupId, array $extraFields): string
+    protected function buildName(?int $subGroupId, array $extraFields, ?int $colorId = null): string
     {
         $subGroupName = optional(CategorySubGroup::find($subGroupId))->name ?? '';
         $extrasString = $this->buildExtraFieldsNameSegment($extraFields);
-        return trim("{$subGroupName} {$extrasString}");
+        $name = trim("{$subGroupName} {$extrasString}");
+        if (!empty($colorId)) {
+            $color = Color::find($colorId);
+            $colorName = $color ? trim((string) $color->name) : '';
+            if ($colorName !== '' && !str_contains(mb_strtolower($name), mb_strtolower($colorName))) {
+                $name = trim($name . ' ' . $colorName);
+            }
+        }
+        return $name;
     }
 
-    public function computeName(?int $subGroupId, array $extraFields): string
+    public function computeName(?int $subGroupId, array $extraFields, ?int $colorId = null): string
     {
-        return $this->buildName($subGroupId, $extraFields);
+        return $this->buildName($subGroupId, $extraFields, $colorId);
     }
 
     public function existsByReference(string $reference, ?int $excludeId = null): bool
@@ -1123,6 +1229,67 @@ class ItemService
                 ]
             );
         }
+    }
+
+    protected function createImportedItemWithOpeningBalances(
+        array $itemData,
+        array $warehouses,
+        string $importBatchId,
+        int $rowNum
+    ): Item {
+        return DB::transaction(function () use ($itemData, $warehouses, $importBatchId, $rowNum) {
+            $item = Item::create($this->buildCreatePayload($itemData));
+
+            foreach (array_values($warehouses) as $index => $warehouse) {
+                $quantity = (float) ($warehouse['quantity'] ?? 0);
+                $unitPrice = array_key_exists('unit_price', $warehouse) && $warehouse['unit_price'] !== null
+                    ? (float) $warehouse['unit_price']
+                    : null;
+
+                WarehouseItem::updateOrCreate(
+                    [
+                        'item_id' => $item->id,
+                        'warehouse_id' => $warehouse['warehouse_id'],
+                    ],
+                    [
+                        'quantity' => $quantity,
+                        'stock_min' => $warehouse['stock_min'] ?? 0,
+                        'stock_max' => $warehouse['stock_max'] ?? 0,
+                        'weighted_average_price' => $quantity > 0 && $unitPrice !== null ? $unitPrice : null,
+                        'last_unit_cost' => $unitPrice,
+                        'total_cost' => round($quantity * (float) ($unitPrice ?? 0), 4),
+                        'source_type' => 'item_excel_import',
+                        'source_reference' => $importBatchId,
+                    ]
+                );
+
+                if ($quantity <= 0) {
+                    continue;
+                }
+
+                InventoryMovement::create([
+                    'document_number' => mb_substr("BI-{$importBatchId}-{$rowNum}-{$index}", 0, 50),
+                    'item_id' => $item->id,
+                    'warehouse_id' => $warehouse['warehouse_id'],
+                    'source_type' => 'item_excel_import',
+                    'source_id' => null,
+                    'source_reference' => $importBatchId,
+                    'type' => 'entrada',
+                    'date' => now()->toDateString(),
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'total_cost' => $unitPrice !== null ? round($quantity * $unitPrice, 4) : null,
+                    'previous_stock' => 0,
+                    'previous_weighted_price' => 0,
+                    'new_stock' => $quantity,
+                    'new_weighted_price' => $unitPrice ?? 0,
+                    'notes' => 'Saldo inicial importado desde plantilla de items',
+                    'created_by_user_id' => null,
+                ]);
+            }
+
+            return $item;
+        });
     }
 
     protected function gatherDeletionReasons(Item $item): array

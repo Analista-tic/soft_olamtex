@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import type { Option } from '@/domain/shared';
 import { ChevronDown, Check, Plus, X } from 'lucide-vue-next';
 import { computePosition, offset, flip, shift, autoUpdate } from '@floating-ui/dom';
+import { onMounted } from 'vue';
 
 // Copiado desde SelectField.vue porque el flujo de creacion inline necesita
 // reemplazar el contenido del dropdown y controlar su cierre sin modificar el componente base.
@@ -364,6 +365,12 @@ const floatingStyles = ref<Record<string, string>>({
     zIndex: '99999',
 });
 let floatingCleanup: ReturnType<typeof autoUpdate> | null = null;
+const teleportTarget = ref<string | HTMLElement>('body');
+
+onMounted(() => {
+    const dlg = document.querySelector('[role="dialog"]') as HTMLElement | null;
+    teleportTarget.value = dlg ?? 'body';
+});
 
 async function updateFloatingPosition() {
     if (!triggerRef.value || !floatingRef.value) return;
@@ -372,7 +379,7 @@ async function updateFloatingPosition() {
         const { x, y } = await computePosition(triggerRef.value, floatingRef.value, {
             strategy: 'fixed',
             placement: 'bottom-start',
-            middleware: [offset(4), flip({ padding: 8 }), shift({ padding: 8 })],
+            middleware: [offset(4), flip({ padding: 4 }), shift({ padding: 4 })],
         });
         const width = Math.max(rect.width, 120);
         floatingStyles.value = {
@@ -606,7 +613,7 @@ defineExpose({ closeInlineFromParent });
                         >
                             <ChevronDown class="h-4 w-4" />
                         </ComboboxButton>
-                        <Teleport to="body">
+                        <Teleport :to="teleportTarget">
                             <div
                                 v-if="open || isCreating"
                                 ref="floatingRef"
@@ -764,10 +771,10 @@ defineExpose({ closeInlineFromParent });
                                         <p v-if="inlineError" class="mt-1 text-xs text-destructive">
                                             {{ inlineError }}
                                         </p>
-                                        <div class="mt-2 flex items-center justify-end gap-2">
+                                        <div class="flex items-center justify-end gap-2 mt-3 p-2">
                                             <Button
                                                 type="button"
-                                                variant="ghost"
+                                                variant="outline-primary"
                                                 size="pill"
                                                 :disabled="inlineLoading"
                                                 @mousedown.prevent

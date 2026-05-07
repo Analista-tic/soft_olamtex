@@ -58,7 +58,12 @@ class LegacyItemsSeeder extends Seeder
         $this->command?->info("Legacy import completo — Batch: {$batchId}");
         $this->command?->info(
             "  Leídos: {$summary['total_read']}  |  " .
-            "Insertados: {$summary['inserted']}  |  " .
+            "Items insertados: {$summary['items_inserted']}  |  " .
+            "Items actualizados: {$summary['items_updated']}  |  " .
+            "WarehouseItems creados: {$summary['warehouse_items_created']}  |  " .
+            "WarehouseItems actualizados: {$summary['warehouse_items_updated']}  |  " .
+            "Sin bodega: {$summary['missing_warehouse']}  |  " .
+            "Cantidades invÃ¡lidas: {$summary['invalid_quantities']}  |  " .
             "Omitidos: {$summary['skipped']}"
         );
 

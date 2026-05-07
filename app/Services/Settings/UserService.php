@@ -6,8 +6,6 @@ use App\Models\Settings\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
-use Spatie\Permission\Models\Role;
-
 class UserService
 {
     public function listAll(): Collection
@@ -33,8 +31,6 @@ class UserService
             $user = User::create($data);
             if (!empty($roles)) {
                 $user->syncRoles($roles);
-                $permissions = Role::whereIn('name', $roles)->with('permissions')->get()->pluck('permissions.*.name')->flatten();
-                $user->syncPermissions($permissions);
             }
 
             return $user->fresh();
@@ -59,8 +55,6 @@ class UserService
 
             if ($roles !== null) {
                 $user->syncRoles($roles);
-                $permissions = Role::whereIn('name', $roles)->with('permissions')->get()->pluck('permissions.*.name')->flatten();
-                $user->syncPermissions($permissions);
             }
 
             return $user->fresh();

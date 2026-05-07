@@ -41,12 +41,13 @@ class PurchaseDocumentController extends Controller
     protected function showGeneric(PurchaseDocument $purchaseDocument, string $documentType)
     {
         $this->ensureDocumentType($purchaseDocument, $documentType);
-        return response()->json(['data' => $this->service->loadWithRelations($purchaseDocument)]);
+        return response()->json(['data' => $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user())]);
     }
 
     protected function updateGeneric(Request $request, PurchaseDocument $purchaseDocument, string $documentType, callable $validator)
     {
         $this->ensureDocumentType($purchaseDocument, $documentType);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, $request->user());
         $payload = $validator($request, true);
         $items = $request->has('items') ? $payload['items'] ?? [] : null;
 
@@ -57,6 +58,7 @@ class PurchaseDocumentController extends Controller
     protected function destroyGeneric(PurchaseDocument $purchaseDocument, string $documentType, string $message = 'Documento eliminado')
     {
         $this->ensureDocumentType($purchaseDocument, $documentType);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
         $this->service->deleteDocument($purchaseDocument);
         return response()->json(['message' => $message]);
     }

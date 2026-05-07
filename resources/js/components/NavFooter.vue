@@ -43,17 +43,17 @@ const isRouteActive = (href: string) => {
     <SidebarGroup :class="`group-data-[collapsible=icon]:p-0 ${$props.class || ''}`">
         <SidebarGroupContent>
             <SidebarMenu>
-                <SidebarMenuItem v-for="item in items" :key="item.title">
+                <SidebarMenuItem v-for="item in items" :key="item.title" class="bg-sidebar">
                     <SidebarMenuButton
                         v-if="!isExternal(item.href)"
                         as-child
                         size="lg"
                         :tooltip="item.title"
                         :is-active="isRouteActive(item.href)"
-                        class="mx-1 h-10 rounded-md px-0 text-sidebar-foreground/80 hover:text-sidebar-foreground data-[active=true]:bg-sidebar-accent/50 data-[active=true]:text-primary"
+                        class="mx-1 h-full rounded-md px-0 text-sidebar-foreground/80 hover:text-sidebar-foreground data-[active=true]:bg-sidebar-accent/50 data-[active=true]:text-primary"
                     >
                         <Link :href="item.href" class="flex w-full items-center">
-                            <div class="icon-column flex h-10 w-[56px] shrink-0 items-center justify-center">
+                            <div class="icon-column flex h-full w-[56px] shrink-0 items-center justify-center group-data-[collapsible=icon]:w-8 bg-sidebar">
                                 <component v-if="item.icon" :is="item.icon" class="size-[18px] shrink-0 text-current" />
                             </div>
                             <span
@@ -72,7 +72,7 @@ const isRouteActive = (href: string) => {
                         class="mx-1 h-10 rounded-md px-0 text-sidebar-foreground/80 hover:text-sidebar-foreground"
                     >
                         <a :href="item.href" target="_blank" rel="noopener noreferrer" class="flex w-full items-center">
-                            <div class="icon-column flex h-10 w-[56px] shrink-0 items-center justify-center">
+                            <div class="icon-column flex h-full w-[56px] shrink-0 items-center justify-center group-data-[collapsible=icon]:w-8 bg-sidebar">
                                 <component v-if="item.icon" :is="item.icon" class="size-[18px] shrink-0 text-current" />
                             </div>
                             <span

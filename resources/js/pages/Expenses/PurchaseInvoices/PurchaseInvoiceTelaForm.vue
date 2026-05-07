@@ -2,6 +2,7 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import DateField from '@/components/DateField.vue';
+import DifferenceDialog from '@/components/DifferenceDialog.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
@@ -39,6 +40,27 @@ const invoiceItemsTableRef = ref<{ addItem: () => void } | null>(null);
 const invoiceDate = ref<Date | null>(null);
 const deliveryDate = ref<Date | null>(null);
 const isReadOnly = computed(() => false);
+
+// ── Flujo de diferencias ──────────────────────────────────────────────────
+const differenceDialogOpen = ref(false);
+const pendingDifferenceSendMail = ref<boolean | null>(null);
+const differenceReason = ref('');
+const differenceEvidenceData = ref<string | null>(null);
+const savedInvoiceId = ref<number | null>(null);
+const orderTotal = ref<number | null>(null);
+
+/** Compara precio y longitud (quantity en DB) de cada ítem contra la orden original */
+const hasModifiedPriceOrQuantity = computed(() => {
+    const items: any[] = Array.isArray(localForm.value.items) ? localForm.value.items : [];
+    return items.some((item: any) => {
+        if (!item.original_order_item) return false;
+        const suggestedPrice = Number(item.original_order_item.price);
+        const suggestedQty = Number(item.original_order_item.quantity);
+        const priceChanged = Number.isFinite(suggestedPrice) && Number(item.price) !== suggestedPrice;
+        const qtyChanged = Number.isFinite(suggestedQty) && Number(item.quantity) !== suggestedQty;
+        return priceChanged || qtyChanged;
+    });
+});
 
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc: number, item: any) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc: number, item: any) => acc + (Number(item.total_tax) || 0), 0));
@@ -199,10 +221,16 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
               supplier_code: item.supplier_code || '',
               supplier_color: item.supplier_color || '',
               order_width: item.order_width || '',
+              original_order_item: { ...item },
           }))
         : [createEmptyItem()];
     selectedPurchaseOrderId.value = Number(orderId);
     localForm.value.purchase_order_id = Number(orderId);
+    localForm.value.parent_document_id = Number(orderId);
+    orderTotal.value = (Array.isArray(order.items) ? order.items : []).reduce(
+        (acc: number, item: any) => acc + (Number(item.total) || 0) + (Number(item.total_tax) || 0),
+        0,
+    );
     if (order.delivery_date) deliveryDate.value = new Date(order.delivery_date);
 }
 
@@ -267,23 +295,75 @@ function validateForm(): boolean {
     return true;
 }
 
-async function handleSubmit(sendMail = false) {
-    if (!validateForm()) return;
+async function handleSubmit(sendMail = false, options: { skipDifferenceCheck?: boolean; suppressRedirect?: boolean } = {}): Promise<boolean> {
+    if (!validateForm()) return false;
+
+    // Interceptar guardado si hay diferencias respecto a la orden
+    if (!options.skipDifferenceCheck && hasModifiedPriceOrQuantity.value) {
+        pendingDifferenceSendMail.value = sendMail;
+        differenceDialogOpen.value = true;
+        return false;
+    }
+
     isSubmitting.value = true;
     const formToSend = { ...localForm.value };
-    formToSend.date = invoiceDate.value ? invoiceDate.value.toISOString().slice(0,10) : localForm.value.date;
-    formToSend.delivery_date = deliveryDate.value ? deliveryDate.value.toISOString().slice(0,10) : localForm.value.delivery_date;
+    formToSend.date = invoiceDate.value ? invoiceDate.value.toISOString().slice(0, 10) : localForm.value.date;
+    formToSend.delivery_date = deliveryDate.value ? deliveryDate.value.toISOString().slice(0, 10) : localForm.value.delivery_date;
+    formToSend.reason = differenceReason.value.trim() || localForm.value.reason || null;
+    formToSend.evidence_path = differenceEvidenceData.value ?? localForm.value.evidence_path ?? null;
     try {
         const url = mode.value === 'create' ? '/gastos/facturas-compra-tela' : `/gastos/facturas-compra-tela/${localForm.value.id}`;
         const method = mode.value === 'create' ? 'POST' : 'PUT';
         const { data } = await axios({ method, url, data: formToSend });
-        if (sendMail) await axios.post(`${url}/${data.data.id}/enviar-correo`);
-        router.visit('/gastos/facturas-compra-tela');
+        const invoiceId = data?.data?.id ?? data?.id ?? localForm.value.id ?? null;
+        savedInvoiceId.value = invoiceId;
+        if (sendMail && invoiceId) await axios.post(`/gastos/facturas-compra-tela/${invoiceId}/enviar-correo`);
+        if (!options.suppressRedirect) router.visit('/gastos/facturas-compra-tela');
+        return true;
     } catch (e: any) {
         showError(e?.response?.data?.message || 'Error al guardar la factura.');
+        return false;
     } finally {
         isSubmitting.value = false;
     }
+}
+
+async function handleDifferenceDialogSave(payload: {
+    reason: string;
+    evidenceData: string | null;
+    evidenceName: string;
+    evidenceUrl: string | null;
+}): Promise<void> {
+    differenceReason.value = payload.reason.trim();
+    differenceEvidenceData.value = payload.evidenceData ?? payload.evidenceUrl;
+    differenceDialogOpen.value = false;
+
+    const sendMail = pendingDifferenceSendMail.value ?? false;
+    pendingDifferenceSendMail.value = null;
+
+    const wasSaved = await handleSubmit(sendMail, { skipDifferenceCheck: true, suppressRedirect: true });
+    if (!wasSaved || !savedInvoiceId.value) return;
+
+    try {
+        await axios.post(`/gastos/facturas-compra-tela/${savedInvoiceId.value}/justificar`, {
+            difference_reason: differenceReason.value,
+            difference_evidence_path: differenceEvidenceData.value,
+            difference_notes: null,
+        });
+        router.visit('/gastos/facturas-compra-tela');
+    } catch (error: any) {
+        showError(error?.response?.data?.message || 'La factura se guardó, pero no se pudo enviar la diferencia para aprobación.');
+    }
+}
+
+function closeDifferenceDialog(): void {
+    differenceDialogOpen.value = false;
+    pendingDifferenceSendMail.value = null;
+}
+
+function handleDifferenceDialogOpenChange(isOpen: boolean): void {
+    differenceDialogOpen.value = isOpen;
+    if (!isOpen) pendingDifferenceSendMail.value = null;
 }
 
 </script>
@@ -464,6 +544,18 @@ async function handleSubmit(sendMail = false) {
                 <Button variant="default" size="pill" :disabled="isSubmitting" @click.prevent="handleSubmit(true)">Guardar y enviar por correo</Button>
             </div>
             <ContactDialog v-if="isContactDialogOpen" :isOpen="isContactDialogOpen" dialog-type="create" :contactData="contactDialogForm" :externalError="contactDialogError" @close="isContactDialogOpen = false; contactDialogError = ''" @submit="handleContactDialogSubmit" @update:contactData="handleContactFormUpdate" />
+            <DifferenceDialog
+                :open="differenceDialogOpen"
+                :total="total"
+                :orderTotal="orderTotal"
+                description="El precio o longitud (mts) de uno o más ítems difiere de la orden de compra referenciada."
+                :requireEvidence="false"
+                :allowEvidenceUrl="true"
+                :enableCamera="false"
+                @update:open="handleDifferenceDialogOpenChange"
+                @save="handleDifferenceDialogSave"
+                @cancel="closeDifferenceDialog"
+            />
         </div>
     </AppLayout>
 </template>

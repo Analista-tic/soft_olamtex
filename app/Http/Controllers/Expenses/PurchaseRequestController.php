@@ -66,11 +66,13 @@ class PurchaseRequestController extends Controller
 
     public function show(PurchaseRequest $purchaseRequest)
     {
-        return response()->json(['data' => $this->service->loadWithRelations($purchaseRequest)]);
+        return response()->json(['data' => $this->service->findAccessibleOrFail($purchaseRequest, request()->user())]);
     }
 
     public function update(Request $request, PurchaseRequest $purchaseRequest)
     {
+        $purchaseRequest = $this->service->findAccessibleOrFail($purchaseRequest, $request->user());
+
         try {
             $payload = $this->validateRequestPayload($request, true);
             $payload['items'] = $this->prepareItemsPayload($request, $payload['items'] ?? [], $purchaseRequest);
@@ -94,6 +96,8 @@ class PurchaseRequestController extends Controller
 
     public function destroy(PurchaseRequest $purchaseRequest)
     {
+        $purchaseRequest = $this->service->findAccessibleOrFail($purchaseRequest, request()->user());
+
         if (!$purchaseRequest->canEdit() && !$purchaseRequest->isCancelled()) {
             return response()->json([
                 'message' => 'No se puede eliminar una solicitud que no esta en borrador o cancelada.',
@@ -107,6 +111,8 @@ class PurchaseRequestController extends Controller
 
     public function sendToApproval(PurchaseRequest $purchaseRequest)
     {
+        $purchaseRequest = $this->service->findAccessibleOrFail($purchaseRequest, request()->user());
+
         try {
             $updated = $this->service->sendToApproval($purchaseRequest);
             $data = $updated->toArray();

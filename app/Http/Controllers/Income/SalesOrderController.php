@@ -74,7 +74,7 @@ class SalesOrderController extends Controller
 
     public function show(SaleDocument $saleDocument)
     {
-        $salesOrder = $this->resolveSalesOrder($saleDocument);
+        $salesOrder = $this->resolveAccessibleSalesOrder($saleDocument, request()->user());
 
         return response()->json([
             'data' => $this->service->loadWithRelations($salesOrder),
@@ -83,7 +83,7 @@ class SalesOrderController extends Controller
 
     public function update(Request $request, SaleDocument $saleDocument)
     {
-        $salesOrder = $this->resolveSalesOrder($saleDocument);
+        $salesOrder = $this->resolveAccessibleSalesOrder($saleDocument, $request->user());
 
         if (!$salesOrder->canEditSalesOrder()) {
             throw ValidationException::withMessages([
@@ -123,7 +123,7 @@ class SalesOrderController extends Controller
 
     public function destroy(SaleDocument $saleDocument)
     {
-        $salesOrder = $this->resolveSalesOrder($saleDocument);
+        $salesOrder = $this->resolveAccessibleSalesOrder($saleDocument, request()->user());
 
         if (!$salesOrder->canDeleteSalesOrder()) {
             throw ValidationException::withMessages([
@@ -140,6 +140,8 @@ class SalesOrderController extends Controller
 
     public function convert(SaleDocument $salesOrder)
     {
+        $this->resolveAccessibleSalesOrder($salesOrder, request()->user());
+
         $salesInvoice = DB::transaction(function () use ($salesOrder) {
             $salesOrder = SaleDocument::query()
                 ->with('items')
@@ -210,6 +212,17 @@ class SalesOrderController extends Controller
         }
 
         return $document;
+    }
+
+    private function resolveAccessibleSalesOrder(SaleDocument $document, mixed $user): SaleDocument
+    {
+        return $this->service->findAccessibleDocumentOrFail(
+            $this->resolveSalesOrder($document),
+            $user,
+            'ver propios pedidos venta',
+            'ver area pedidos venta',
+            'ver todos pedidos venta',
+        );
     }
 
     private function resolveOriginQuote(mixed $parentDocumentId): ?SaleDocument

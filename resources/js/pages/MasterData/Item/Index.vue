@@ -18,6 +18,7 @@ import Button from '@/components/ui/button/Button.vue';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -107,8 +108,9 @@ function getEmptyForm(): Partial<Item> {
         negative_movement: false,
         description: '',
         extra_fields: {},
+        color_id: null,
         status: true,
-    };
+    } as Partial<Item>;
 }
 
 function setSuccess(message: string) {
@@ -277,10 +279,7 @@ function handleBulkUploadError(payload: { message: string }) {
     setError(payload.message);
 }
 
-async function handlePageChange(newPage: number) {
-    if (newPage === currentPage.value) return;
-    await fetchItems(newPage);
-}
+
 
 // Debounce simple para búsqueda sin saturar el endpoint
 let searchDebounce: number | undefined;
@@ -447,14 +446,14 @@ onBeforeUnmount(() => {
                         <TableBody>
                             <template v-if="isLoading">
                                 <TableRow v-for="i in 5" :key="`item-skeleton-${i}`">
-                                    <TableCell v-for="col in 6" :key="`item-skeleton-${i}-${col}`" class="px-4 py-3">
+                                    <TableCell v-for="col in 7" :key="`item-skeleton-${i}-${col}`" class="px-4 py-3">
                                         <Skeleton class="h-4 w-full" />
                                     </TableCell>
                                 </TableRow>
                             </template>
                             <template v-else-if="items.length === 0">
                                 <TableRow>
-                                    <TableCell :colspan="6" class="py-6 text-center text-sm text-muted-foreground">
+                                    <TableCell :colspan="7" class="py-6 text-center text-sm text-muted-foreground">
                                         No hay ítems registrados.
                                     </TableCell>
                                 </TableRow>
@@ -542,11 +541,11 @@ onBeforeUnmount(() => {
                 </TooltipProvider>
                 <div class="px-4 pb-4">
                     <ServerPagination
-                        v-model:current-page="currentPage"
-                        v-model:page-size="itemsPerPage"
-                        :total-items="totalItems"
-                        @fetch-data="fetchItems"
-                    />
+                            v-model:current-page="currentPage"
+                            v-model:page-size="itemsPerPage"
+                            :total-items="totalItems"
+                            @fetch-data="fetchItems"
+                        />
                 </div>
             </div>
         </div>

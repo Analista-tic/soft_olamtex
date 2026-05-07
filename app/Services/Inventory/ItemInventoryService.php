@@ -9,14 +9,15 @@ class ItemInventoryService
 {
     public function paginate(array $filters = [], int $perPage = 10): LengthAwarePaginator
     {
-        $allowedSorts = ['quantity', 'average_cost', 'total'];
+        $allowedSorts = ['quantity', 'average_cost', 'last_unit_cost', 'total_cost'];
         $sortBy = in_array($filters['sort_by'] ?? null, $allowedSorts, true)
             ? (string) $filters['sort_by']
-            : 'total';
+            : 'total_cost';
         $sortDir = ($filters['sort_dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
 
         return $this->buildQuery($filters)
             ->orderBy($sortBy, $sortDir)
+            ->orderBy('warehouses.name')
             ->orderBy('items.name')
             ->paginate($perPage);
     }
@@ -25,34 +26,28 @@ class ItemInventoryService
     {
         $query = DB::table('warehouse_items')
             ->join('items', 'items.id', '=', 'warehouse_items.item_id')
+            ->join('warehouses', 'warehouses.id', '=', 'warehouse_items.warehouse_id')
             ->leftJoin('category_sub_groups',
                        'category_sub_groups.id', '=',
                        'items.category_sub_group_id')
             ->select([
-                DB::raw('MIN(warehouse_items.id) as id'),
+                'warehouse_items.id',
                 'items.id as item_id',
                 'items.name as item_name',
                 'items.reference',
                 'items.status',
+                'warehouses.id as warehouse_id',
+                'warehouses.name as warehouse_name',
                 'category_sub_groups.id as category_sub_group_id',
                 'category_sub_groups.category_group_id',
-                DB::raw('SUM(warehouse_items.quantity) as quantity'),
-                DB::raw('
-                    CASE
-                        WHEN SUM(warehouse_items.quantity) > 0
-                        THEN SUM(
-                            COALESCE(warehouse_items.weighted_average_price, 0)
-                            * warehouse_items.quantity
-                        ) / SUM(warehouse_items.quantity)
-                        ELSE 0
-                    END as average_cost
-                '),
-                DB::raw('
-                    SUM(
-                        warehouse_items.quantity
-                        * COALESCE(warehouse_items.weighted_average_price, 0)
-                    ) as total
-                '),
+                'warehouse_items.quantity',
+                DB::raw('COALESCE(warehouse_items.weighted_average_price, 0) as average_cost'),
+                DB::raw('COALESCE(warehouse_items.last_unit_cost, warehouse_items.weighted_average_price, 0) as last_unit_cost'),
+                DB::raw('COALESCE(warehouse_items.total_cost, warehouse_items.quantity * COALESCE(warehouse_items.weighted_average_price, 0), 0) as total_cost'),
+                'warehouse_items.stock_min as min_quantity',
+                'warehouse_items.stock_max as max_quantity',
+                'warehouse_items.source_type',
+                'warehouse_items.source_reference',
             ]);
 
         if (!empty($filters['warehouse_id'])) {
@@ -80,15 +75,7 @@ class ItemInventoryService
         }
 
         $query->where('items.deleted_at', null);
-
-        $query->groupBy(
-            'items.id',
-            'items.name',
-            'items.reference',
-            'items.status',
-            'category_sub_groups.id',
-            'category_sub_groups.category_group_id'
-        );
+        $query->where('warehouse_items.quantity', '<>', 0);
 
         return $query;
     }

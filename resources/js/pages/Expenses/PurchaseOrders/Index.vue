@@ -17,7 +17,7 @@ import type { PurchaseOrder } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Eye, PlusCircle, Search, Printer, Mail, Trash2, MoreVertical } from 'lucide-vue-next';
+import { Eye, PlusCircle, Search, Printer, Mail, MoreVertical } from 'lucide-vue-next';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -448,13 +448,6 @@ function handleDialogError(message?: string) {
                                             <DropdownMenuItem @click="sendOrderByEmail(order)">
                                                 <Mail class="mr-2 h-4 w-4" />
                                                 Enviar por correo
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                class="text-destructive focus:text-destructive"
-                                                @click="confirmDeleteOrder(order)"
-                                            >
-                                                <Trash2 class="mr-2 h-4 w-4" />
-                                                Eliminar
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>

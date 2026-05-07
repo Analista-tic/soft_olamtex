@@ -143,6 +143,10 @@ html {
         @apply border-border;
     }
 
+    [data-sidebar="menu-button"] {
+        border-color: transparent;
+    }
+
     body {
         @apply bg-background text-foreground;
     }

@@ -7,6 +7,7 @@ import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
@@ -95,7 +96,7 @@ async function fetchRequests(page = 1, search = '') {
     try {
             const params: Record<string, any> = {
                 page,
-                per_page: itemsPerPage,
+                per_page: itemsPerPage.value,
                 search,
                 sort_by: sortBy.value,
                 sort_dir: sortDir.value,
@@ -385,7 +386,7 @@ onMounted(() => {
                         v-model:current-page="currentPage"
                         v-model:page-size="itemsPerPage"
                         :total-items="totalItems"
-                        @fetch-data="() => fetchRequests(currentPage, searchQuery)"
+                        @fetch-data="() => fetchRequests(currentPage.value, searchQuery.value)"
                     />
                 </div>
             </div>

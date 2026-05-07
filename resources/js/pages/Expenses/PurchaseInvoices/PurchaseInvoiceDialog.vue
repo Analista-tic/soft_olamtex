@@ -22,10 +22,10 @@ import type { Contact } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { parseToDate, toIsoDateString } from '@/lib/date';
+import ContactDialog from '@/pages/MasterData/Contact/ContactDialog.vue';
 import axios from 'axios';
 import { X } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
-import ContactDialog from '@/pages/MasterData/Contact/ContactDialog.vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
 import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
 
@@ -126,23 +126,17 @@ const contactPhone = computed(() => selectedContactData.value?.phone || '');
 const { company, logoUrl } = useCompanyInfo();
 
 const pendingPurchaseOrderOptions = computed<Option[]>(() =>
-    purchaseOrders.value.map(
-        (order: {
-            id: number | string;
-            document_number?: string;
-            supplier?: { full_name?: string };
-        }) => {
-            const rawId = order?.id ?? '';
-            const numericId = Number(rawId);
-            const optionId = Number.isNaN(numericId) ? rawId : numericId;
-            const orderNumber = order?.document_number || String(order?.id ?? '');
-            const providerLabel = order?.supplier?.full_name || 'Sin proveedor';
-            return {
-                id: optionId,
-                name: `${orderNumber} - ${providerLabel}`,
-            };
-        },
-    ),
+    purchaseOrders.value.map((order: { id: number | string; document_number?: string; supplier?: { full_name?: string } }) => {
+        const rawId = order?.id ?? '';
+        const numericId = Number(rawId);
+        const optionId = Number.isNaN(numericId) ? rawId : numericId;
+        const orderNumber = order?.document_number || String(order?.id ?? '');
+        const providerLabel = order?.supplier?.full_name || 'Sin proveedor';
+        return {
+            id: optionId,
+            name: `${orderNumber} - ${providerLabel}`,
+        };
+    }),
 );
 
 const selectedPurchaseOrderValue = computed<Option['id'] | ''>({
@@ -319,9 +313,7 @@ function handleContactFormUpdate(updatedContact: Partial<Contact>) {
 
 async function handleContactDialogSubmit(contactData: Partial<Contact>) {
     try {
-        const previousIds = contacts.value
-            .map((c) => Number(c.id))
-            .filter((id) => Number.isFinite(id));
+        const previousIds = contacts.value.map((c) => Number(c.id)).filter((id) => Number.isFinite(id));
 
         await axios.post('/contactos', contactData);
         isContactDialogOpen.value = false;
@@ -334,9 +326,7 @@ async function handleContactDialogSubmit(contactData: Partial<Contact>) {
     } catch (error: any) {
         const validationErrors = error?.response?.data?.errors;
         if (validationErrors) {
-            const messages = Object.values(validationErrors)
-                .flat()
-                .join(' ');
+            const messages = Object.values(validationErrors).flat().join(' ');
             contactDialogError.value = messages;
         } else {
             contactDialogError.value = 'Ocurrió un error al guardar el contacto.';
@@ -469,11 +459,7 @@ function handleInvoiceAddLine() {
     invoiceItemsTableRef.value?.addItem();
 }
 
-async function handleDifferenceDialogSave(payload: {
-    reason: string;
-    evidenceData: string;
-    evidenceName: string;
-}) {
+async function handleDifferenceDialogSave(payload: { reason: string; evidenceData: string | null; evidenceName: string }) {
     const trimmedReason = payload.reason.trim();
     differenceReason.value = trimmedReason;
     differenceEvidenceData.value = payload.evidenceData;
@@ -492,14 +478,11 @@ async function handleDifferenceDialogSave(payload: {
     // Para acceder al id después del submit usamos savedInvoiceId.
     if (savedInvoiceId.value) {
         try {
-            await axios.post(
-                `/gastos/facturas-compra/${savedInvoiceId.value}/justificar`,
-                {
-                    difference_reason: trimmedReason,
-                    difference_evidence_path: payload.evidenceData,
-                    difference_notes: null,
-                }
-            );
+            await axios.post(`/gastos/facturas-compra/${savedInvoiceId.value}/justificar`, {
+                difference_reason: trimmedReason,
+                difference_evidence_path: payload.evidenceData,
+                difference_notes: null,
+            });
         } catch (e) {
             console.error('Error al registrar diferencia:', e);
         }
@@ -509,10 +492,7 @@ async function handleDifferenceDialogSave(payload: {
     differenceReason.value = '';
     differenceEvidenceData.value = null;
     dialogOpen.value = false;
-    emit('refresh', props.dialogType === 'create'
-        ? 'Factura creada correctamente.'
-        : 'Factura actualizada correctamente.'
-    );
+    emit('refresh', props.dialogType === 'create' ? 'Factura creada correctamente.' : 'Factura actualizada correctamente.');
 }
 
 function closeDifferenceDialog() {
@@ -520,11 +500,7 @@ function closeDifferenceDialog() {
     pendingDifferenceSendMail.value = null;
 }
 
-async function handleSubmit(
-    sendMail = false,
-    skipDifferenceCheck = false,
-    suppressRefresh = false
-) {
+async function handleSubmit(sendMail = false, skipDifferenceCheck = false, suppressRefresh = false) {
     if (isReadOnly.value) return;
     successMessage.value = '';
     errorMessage.value = '';
@@ -737,7 +713,7 @@ watch(dialogOpen, (isOpen) => {
                             <div class="space-y-1">
                                 <label class="text-sm font-medium leading-none text-foreground">Cargar desde orden pendiente</label>
                                 <div class="flex items-center gap-2">
-                                    <div class="flex-1 min-w-0">
+                                    <div class="min-w-0 flex-1">
                                         <SelectField
                                             v-model="selectedPurchaseOrderValue"
                                             :options="pendingPurchaseOrderOptions"
@@ -752,10 +728,13 @@ watch(dialogOpen, (isOpen) => {
                                     </div>
                                     <button
                                         type="button"
-                                        class="flex-shrink-0 h-7 w-7 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
+                                        class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-border bg-background text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
                                         :disabled="!selectedPurchaseOrderId || isReadOnly"
                                         title="Limpiar selección"
-                                        @click="selectedPurchaseOrderId = null; resetForm()"
+                                        @click="
+                                            selectedPurchaseOrderId = null;
+                                            resetForm();
+                                        "
                                     >
                                         <X class="h-3.5 w-3.5" />
                                     </button>
@@ -774,8 +753,7 @@ watch(dialogOpen, (isOpen) => {
                     <div>
                         <p class="font-semibold">Diferencia pendiente de aprobación</p>
                         <p class="text-xs text-yellow-700">
-                            Esta factura tiene una diferencia registrada que requiere
-                            aprobación por un usuario autorizado.
+                            Esta factura tiene una diferencia registrada que requiere aprobación por un usuario autorizado.
                         </p>
                     </div>
                 </div>
@@ -790,12 +768,9 @@ watch(dialogOpen, (isOpen) => {
                             Rechazado por
                             <strong>{{ localForm.approved_by?.name ?? 'Usuario' }}</strong>
                             <template v-if="localForm.approved_at">
-                                el {{ new Date(localForm.approved_at).toLocaleString('es-CO',
-                                    { dateStyle: 'medium', timeStyle: 'short' }) }}
+                                el {{ new Date(localForm.approved_at).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' }) }}
                             </template>
-                            <template v-if="localForm.approval_notes">
-                                — {{ localForm.approval_notes }}
-                            </template>
+                            <template v-if="localForm.approval_notes"> — {{ localForm.approval_notes }} </template>
                         </p>
                     </div>
                 </div>
@@ -807,21 +782,13 @@ watch(dialogOpen, (isOpen) => {
                         message="Cargando factura de compra..."
                         description="Preparando proveedores, ordenes pendientes y datos iniciales."
                     />
-                    <div
-                        :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingInvoiceId }"
-                        class="space-y-6 pb-4"
-                    >
+                    <div :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingInvoiceId }" class="space-y-6 pb-4">
                         <template v-if="canRenderForm">
                             <div class="space-y-4 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
                                 <!-- Orden relacionada (solo lectura) -->
-                                <div
-                                    v-if="isReadOnly && relatedOrder"
-                                    class="rounded-lg border border-border bg-muted/30 p-4"
-                                >
+                                <div v-if="isReadOnly && relatedOrder" class="rounded-lg border border-border bg-muted/30 p-4">
                                     <div class="mb-3 flex items-center justify-between">
-                                        <h3 class="text-sm font-medium text-foreground">
-                                            Orden relacionada: {{ relatedOrder.document_number }}
-                                        </h3>
+                                        <h3 class="text-sm font-medium text-foreground">Orden relacionada: {{ relatedOrder.document_number }}</h3>
                                     </div>
                                     <div class="grid grid-cols-2 gap-3 text-sm">
                                         <div>
@@ -833,11 +800,15 @@ watch(dialogOpen, (isOpen) => {
                                         <div>
                                             <span class="text-muted-foreground">Fecha:</span>
                                             <span class="ml-2 text-foreground">
-                                                {{ relatedOrder.date
-                                                    ? new Date(relatedOrder.date).toLocaleDateString('es-CO', {
-                                                        day: '2-digit', month: '2-digit', year: 'numeric'
-                                                    })
-                                                    : 'No especificada' }}
+                                                {{
+                                                    relatedOrder.date
+                                                        ? new Date(relatedOrder.date).toLocaleDateString('es-CO', {
+                                                              day: '2-digit',
+                                                              month: '2-digit',
+                                                              year: 'numeric',
+                                                          })
+                                                        : 'No especificada'
+                                                }}
                                             </span>
                                         </div>
                                         <div class="col-span-2">
@@ -853,7 +824,10 @@ watch(dialogOpen, (isOpen) => {
                                     <div class="flex flex-col gap-1">
                                         <div class="flex items-center gap-2">
                                             <label class="text-sm font-medium">N° Factura de Compra</label>
-                                            <HelpTooltip text="Número interno del sistema para esta factura. Es diferente al número de la factura del proveedor." aria-label="Ayuda sobre número de factura" />
+                                            <HelpTooltip
+                                                text="Número interno del sistema para esta factura. Es diferente al número de la factura del proveedor."
+                                                aria-label="Ayuda sobre número de factura"
+                                            />
                                         </div>
                                         <InputField
                                             label=""
@@ -894,7 +868,7 @@ watch(dialogOpen, (isOpen) => {
                                             :options="contacts.map((c) => ({ id: Number(c.id), name: c.full_name }))"
                                             :disabled="isReadOnly"
                                             :searchable="true"
-                                            :action-label="(!isReadOnly) ? 'Nuevo contacto' : undefined"
+                                            :action-label="!isReadOnly ? 'Nuevo contacto' : undefined"
                                             :action-disabled="isReadOnly"
                                             required
                                             :key="contacts.length + '-' + localForm.contact_id"
@@ -915,7 +889,6 @@ watch(dialogOpen, (isOpen) => {
                                     />
                                 </div>
 
-
                                 <!-- Fechas -->
                                 <div class="grid grid-cols-3 gap-4">
                                     <div class="flex flex-col gap-1">
@@ -933,7 +906,10 @@ watch(dialogOpen, (isOpen) => {
                                     <div class="flex flex-col gap-1">
                                         <div class="flex items-center gap-2">
                                             <label class="text-sm font-medium">Fecha de entrega<span class="text-red-500">*</span></label>
-                                            <HelpTooltip text="Fecha en que se recibe la mercancía en bodega. Puede ser diferente a la fecha de la factura." aria-label="Ayuda sobre fecha de entrega" />
+                                            <HelpTooltip
+                                                text="Fecha en que se recibe la mercancía en bodega. Puede ser diferente a la fecha de la factura."
+                                                aria-label="Ayuda sobre fecha de entrega"
+                                            />
                                         </div>
                                         <DateField
                                             v-model="deliveryDate"
@@ -948,9 +924,19 @@ watch(dialogOpen, (isOpen) => {
                                     <div class="flex flex-col gap-1">
                                         <div class="flex items-center gap-2">
                                             <label class="text-sm font-medium">N° factura proveedor<span class="text-red-500">*</span></label>
-                                            <HelpTooltip text="Número que aparece impreso en la factura física del proveedor. Es obligatorio para la trazabilidad." aria-label="Ayuda sobre número de factura proveedor" />
+                                            <HelpTooltip
+                                                text="Número que aparece impreso en la factura física del proveedor. Es obligatorio para la trazabilidad."
+                                                aria-label="Ayuda sobre número de factura proveedor"
+                                            />
                                         </div>
-                                        <InputField v-model="localForm.supplier_invoice_number" label="" :readonly="isReadOnly" :disabled="isReadOnly" required dusk="factura-input-numero-proveedor" />
+                                        <InputField
+                                            v-model="localForm.supplier_invoice_number"
+                                            label=""
+                                            :readonly="isReadOnly"
+                                            :disabled="isReadOnly"
+                                            required
+                                            dusk="factura-input-numero-proveedor"
+                                        />
                                     </div>
                                 </div>
 
@@ -1063,10 +1049,23 @@ watch(dialogOpen, (isOpen) => {
                 </FormDialogBody>
                 <FormDialogFooter class="justify-end gap-4 bg-background">
                     <Button type="button" variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
-                    <Button v-if="!isReadOnly" variant="default" size="pill" :disabled="isLoading || isSendingMail || isBlockingLoading" @click.prevent="handleSubmit(false)" dusk="btn-guardar-factura">
+                    <Button
+                        v-if="!isReadOnly"
+                        variant="default"
+                        size="pill"
+                        :disabled="isLoading || isSendingMail || isBlockingLoading"
+                        @click.prevent="handleSubmit(false)"
+                        dusk="btn-guardar-factura"
+                    >
                         {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
                     </Button>
-                    <Button v-if="!isReadOnly" variant="default" size="pill" :disabled="isLoading || isSendingMail || isBlockingLoading" @click.prevent="handleSubmit(true)">
+                    <Button
+                        v-if="!isReadOnly"
+                        variant="default"
+                        size="pill"
+                        :disabled="isLoading || isSendingMail || isBlockingLoading"
+                        @click.prevent="handleSubmit(true)"
+                    >
                         {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
                     </Button>
                 </FormDialogFooter>
@@ -1086,7 +1085,10 @@ watch(dialogOpen, (isOpen) => {
         dialog-type="create"
         :contactData="contactDialogForm"
         :externalError="contactDialogError"
-        @close="isContactDialogOpen = false; contactDialogError = ''"
+        @close="
+            isContactDialogOpen = false;
+            contactDialogError = '';
+        "
         @submit="handleContactDialogSubmit"
         @update:contactData="handleContactFormUpdate"
     />

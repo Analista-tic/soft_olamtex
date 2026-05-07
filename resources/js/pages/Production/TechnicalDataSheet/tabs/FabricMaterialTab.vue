@@ -464,6 +464,34 @@ const rollTotalProgrammed = computed<Map<string, number>>(() => {
     return map;
 });
 
+const rollOriginalAvailability = computed<Map<string, number>>(() => {
+    const map = new Map<string, number>();
+
+    for (const trazo of trazos.value) {
+        for (const line of trazo.lines) {
+            for (const assignment of line.assignedRolls) {
+                if (assignment.roll.availableMeters !== null && !map.has(assignment.roll.rollId)) {
+                    map.set(assignment.roll.rollId, assignment.roll.availableMeters);
+                }
+            }
+
+            for (const roll of line.availableRolls) {
+                if (roll.availableMeters !== null && !map.has(roll.rollId)) {
+                    map.set(roll.rollId, roll.availableMeters);
+                }
+            }
+        }
+    }
+
+    return map;
+});
+
+function realAvailableForRoll(rollId: string): number {
+    const original = rollOriginalAvailability.value.get(rollId) ?? 0;
+    const programmed = rollTotalProgrammed.value.get(rollId) ?? 0;
+    return Math.max(0, original - programmed);
+}
+
 function hasOverAllocation(assignment: AssignedRoll): boolean {
     if (assignment.roll.availableMeters === null) return false;
     const meters = toNumber(assignment.metersProgrammed);
@@ -849,7 +877,7 @@ async function handleSave(): Promise<void> {
 watch(
     anyOverAllocation,
     (value) => {
-        const message = warningMessage.value ?? overAllocationWarningMessage;
+        const message = warningMessage.value ?? 'La cantidad asignada supera la disponibilidad del rollo.';
 
         if (value) {
             showWarning(message);
@@ -1047,13 +1075,8 @@ watch(
                                                 <td class="px-2 py-1 tabular-nums text-muted-foreground">{{ formatCOP(assignment.roll.pricePerMeter) }}/m</td>
                                                 <td class="px-2 py-1 tabular-nums" :class="hasOverAllocation(assignment) ? 'font-medium text-destructive' : 'text-muted-foreground'">
                                                     <template v-if="assignment.roll.availableMeters !== null">
-                                                        <template v-if="toNumber(assignment.metersProgrammed) > 0">
-                                                            {{ formatMeters(Math.max(0, assignment.roll.availableMeters - toNumber(assignment.metersProgrammed))) }}
-                                                            <span class="text-muted-foreground">/{{ formatMeters(assignment.roll.availableMeters) }}</span>
-                                                        </template>
-                                                        <template v-else>
-                                                            {{ formatMeters(assignment.roll.availableMeters) }}
-                                                        </template>
+                                                        {{ formatMeters(realAvailableForRoll(assignment.roll.rollId)) }}
+                                                        <span class="text-muted-foreground">/{{ formatMeters(assignment.roll.availableMeters) }}</span>
                                                     </template>
                                                     <template v-else>-</template>
                                                 </td>

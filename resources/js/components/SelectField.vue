@@ -286,7 +286,6 @@ function handleActionClick() {
 
 const triggerRef = ref<HTMLElement | null>(null);
 const floatingRef = ref<HTMLElement | null>(null);
-const inputRef = ref<HTMLInputElement | null>(null);
 const floatingStyles = ref<Record<string, string>>({
     position: 'fixed',
     left: '0px',
@@ -339,12 +338,6 @@ function stopFloatingUpdates() {
         floatingCleanup = null;
     }
 }
-
-watch(triggerRef, () => {
-    if (triggerRef.value && floatingRef.value) {
-        nextTick(startFloatingUpdates);
-    }
-});
 
 watch(
     () => floatingRef.value,
@@ -401,7 +394,6 @@ watch(
 
                         <ComboboxInput
                             v-bind="$attrs"
-                            ref="inputRef"
                             class="h-10 min-h-[42px] w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm text-foreground shadow-sm transition placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60"
                             :class="[
                                 !isSearchEnabled ? 'cursor-default' : '',

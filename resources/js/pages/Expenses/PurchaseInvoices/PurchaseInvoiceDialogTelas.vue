@@ -80,9 +80,7 @@ function getWithholdingAmount(w: { base_amount?: number | null; percentage?: num
 }
 const retencionesTotal = computed(() => (localForm.value.withholdings || []).reduce((acc, w) => acc + getWithholdingAmount(w), 0));
 const totalPagar = computed(() => Number(total.value) - Number(retencionesTotal.value));
-const amountDifference = computed(() =>
-    orderTotal.value != null ? Number(total.value) - orderTotal.value : 0
-);
+const amountDifference = computed(() => (orderTotal.value != null ? Number(total.value) - orderTotal.value : 0));
 
 const hasModifiedPriceOrQuantity = computed(() => {
     const items = Array.isArray(localForm.value.items) ? localForm.value.items : [];
@@ -98,9 +96,7 @@ const hasModifiedPriceOrQuantity = computed(() => {
 });
 
 const hasDifference = computed(() => {
-    return orderTotal.value != null
-        && Math.abs(amountDifference.value) > 0.01
-        && hasModifiedPriceOrQuantity.value;
+    return orderTotal.value != null && Math.abs(amountDifference.value) > 0.01 && hasModifiedPriceOrQuantity.value;
 });
 
 const selectedContactData = computed(() => contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id)) || null);
@@ -478,11 +474,7 @@ async function handleSubmit(sendMail = false, skipDifferenceCheck = false, keepO
     }
 }
 
-async function handleDifferenceDialogSave(payload: {
-    reason: string;
-    evidenceData: string;
-    evidenceName: string;
-}) {
+async function handleDifferenceDialogSave(payload: { reason: string; evidenceData: string | null; evidenceName: string }) {
     const trimmedReason = payload.reason.trim();
     differenceReason.value = trimmedReason;
     differenceEvidenceData.value = payload.evidenceData;
@@ -497,14 +489,11 @@ async function handleDifferenceDialogSave(payload: {
     const invoiceId = savedInvoiceId.value ?? (localForm.value.id ? Number(localForm.value.id) : null);
     if (invoiceId) {
         try {
-            await axios.post(
-                `/gastos/facturas-compra-tela/${invoiceId}/justificar`,
-                {
-                    difference_reason: trimmedReason,
-                    difference_evidence_path: payload.evidenceData,
-                    difference_notes: null,
-                }
-            );
+            await axios.post(`/gastos/facturas-compra-tela/${invoiceId}/justificar`, {
+                difference_reason: trimmedReason,
+                difference_evidence_path: payload.evidenceData,
+                difference_notes: null,
+            });
         } catch (e) {
             console.error('Error al registrar diferencia en tela:', e);
         }
@@ -514,10 +503,7 @@ async function handleDifferenceDialogSave(payload: {
     differenceReason.value = '';
     differenceEvidenceData.value = null;
     dialogOpen.value = false;
-    emit('refresh', props.dialogType === 'create'
-        ? 'Factura creada correctamente.'
-        : 'Factura actualizada correctamente.'
-    );
+    emit('refresh', props.dialogType === 'create' ? 'Factura creada correctamente.' : 'Factura actualizada correctamente.');
 }
 
 function closeDifferenceDialog() {
@@ -650,270 +636,287 @@ watch(dialogOpen, (isOpen) => {
             :scrollable="false"
         >
             <TooltipProvider>
-            <div class="relative flex min-h-0 flex-1 flex-col">
-            <AlertStack
-                :success-message="successMessage"
-                :error-message="errorMessage"
-                success-title="Éxito"
-                error-title="Error"
-                :error-type="errorType"
-                @close-success="successMessage = ''"
-                @close-error="errorMessage = ''"
-            />
-            <FormDialogHeader class="px-4 pb-3 pr-12 pt-4">
-                <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                    <div class="flex min-w-0 flex-col gap-1">
-                    <DialogTitle>{{ isReadOnly ? 'Ver' : dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra Tela</DialogTitle>
-                    <DialogDescription> Completa los campos y añade los ítems de la factura. </DialogDescription>
-                    </div>
-                <div v-if="!isReadOnly" class="w-full shrink-0 sm:w-[340px]">
-                    <div class="space-y-1">
-                        <label class="text-sm font-medium leading-none text-foreground">
-                            Cargar desde orden pendiente
-                        </label>
-                        <div class="flex items-center gap-2">
-                            <div class="flex-1 min-w-0">
-                                <SelectField
-                                    v-model="selectedPurchaseOrderValue"
-                                    :options="pendingPurchaseOrderOptions"
-                                    label=""
-                                    placeholder="Selecciona una orden existente"
-                                    :disabled="isReadOnly"
-                                    :readonly="isReadOnly"
-                                    :searchable="pendingPurchaseOrderOptions.length >= 6"
-                                    search-placeholder="Buscar orden de compra..."
-                                    tooltip-text="Selecciona una orden de compra aprobada para pre-llenar automáticamente los ítems de esta factura."
-                                />
+                <div class="relative flex min-h-0 flex-1 flex-col">
+                    <AlertStack
+                        :success-message="successMessage"
+                        :error-message="errorMessage"
+                        success-title="Éxito"
+                        error-title="Error"
+                        :error-type="errorType"
+                        @close-success="successMessage = ''"
+                        @close-error="errorMessage = ''"
+                    />
+                    <FormDialogHeader class="px-4 pb-3 pr-12 pt-4">
+                        <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                            <div class="flex min-w-0 flex-col gap-1">
+                                <DialogTitle
+                                    >{{ isReadOnly ? 'Ver' : dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra Tela</DialogTitle
+                                >
+                                <DialogDescription> Completa los campos y añade los ítems de la factura. </DialogDescription>
                             </div>
-                            <button
-                                type="button"
-                                class="shrink-0 h-7 w-7 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
-                                :disabled="!selectedPurchaseOrderId || isReadOnly"
-                                title="Limpiar selección"
-                                @click="clearSelectedPurchaseOrder()"
-                            >
-                                <X class="h-3.5 w-3.5" />
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                </div>
-            </FormDialogHeader>
-            <FormDialogBody
-                class="relative px-4 pr-2"
-                :class="{ 'min-h-[420px]': isBlockingLoading }"
-                style="scrollbar-width: thin"
-            >
-                <FormLoadingOverlay
-                    :active="isBlockingLoading"
-                    :delay-ms="0"
-                    message="Cargando factura de compra tela..."
-                    description="Preparando proveedores, ordenes de tela pendientes y datos iniciales."
-                />
-                <div
-                    v-if="canRenderForm"
-                    :class="{ 'pointer-events-none opacity-50': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly }"
-                    class="space-y-6 pb-4"
-                >
-                    <fieldset v-if="canRenderForm" class="space-y-6">
-                    <div class="space-y-4 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
-                        <!-- Cabecera -->
-                        <div class="grid grid-cols-3 items-start gap-4">
-                            <div class="flex flex-col gap-1">
-                                <div class="flex items-center gap-2">
-                                    <label class="text-sm font-medium">N° Factura de Compra Tela</label>
-                                    <HelpTooltip text="Número interno del sistema para esta factura. Es diferente al número de la factura del proveedor." aria-label="Ayuda sobre número de factura" />
-                                </div>
-                                <InputField
-                                    label=""
-                                    :modelValue="id"
-                                    readonly
-                                    v-if="dialogType === 'edit' || (dialogType === 'create' && !isLoadingInvoiceId && id)"
-                                />
-                                <span v-else-if="dialogType === 'create' && isLoadingInvoiceId" class="text-gray-400">Cargando...</span>
-                            </div>
-                            <div class="flex h-full items-center justify-center rounded p-4">
-                                <img :src="logoUrl" alt="Logotipo de la empresa" class="max-h-24 w-auto max-w-[160px] object-contain" />
-                            </div>
-                            <div>
-                                <div class="text-sm font-semibold">Datos empresa</div>
-                                <p class="text-xs">
-                                    Razón Social:
-                                    <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
-                                </p>
-                                <p class="text-xs">
-                                    NIT:
-                                    <span class="font-normal">{{ company?.nit || 'Sin NIT' }}</span>
-                                </p>
-                                <p class="text-xs">
-                                    Correo:
-                                    <span class="font-normal">{{ company?.email || 'Sin correo' }}</span>
-                                </p>
-                            </div>
-                        </div>
-
-                        <!-- Proveedor -->
-                        <div class="grid grid-cols-3 gap-4">
-                            <div class="flex flex-col gap-1">
-                            <label class="text-sm font-medium">Proveedor<span class="text-red-500">*</span></label>
-                            <SelectField
-                                v-model="localForm.contact_id"
-                                label=""
-                                :options="contacts.map((c) => ({ id: Number(c.id), name: c.full_name }))"
-                                :disabled="isReadOnly"
-                                :searchable="true"
-                                required
-                                :key="contacts.length + '-' + localForm.contact_id"
-                            />
-                            </div>
-                            <InputField
-                                :key="`idnumber-${localForm.contact_id ?? ''}`"
-                                label="Número de identificación"
-                                :modelValue="contactIdNumber"
-                                readonly
-                            />
-                            <InputField
-                                :key="`phone-${localForm.contact_id ?? ''}`"
-                                label="Número de contacto"
-                                :modelValue="contactPhone"
-                                readonly
-                            />
-                        </div>
-                        <div class="grid grid-cols-3 gap-4">
-                            <DateField
-                                v-model="invoiceDate"
-                                label="Fecha de factura"
-                                :disabled="isReadOnly"
-                                :clearable="true"
-                                :show-today="true"
-                                required
-                            />
-                            <div class="flex flex-col gap-1">
-                                <div class="flex items-center gap-2">
-                                    <label class="text-sm font-medium">Fecha de entrega<span class="text-red-500">*</span></label>
-                                    <HelpTooltip text="Fecha en que se recibe la mercancía en bodega. Puede ser diferente a la fecha de la factura." aria-label="Ayuda sobre fecha de entrega" />
-                                </div>
-                                <DateField
-                                    v-model="deliveryDate"
-                                    label=""
-                                    :disabled="isReadOnly"
-                                    :clearable="true"
-                                    :show-today="true"
-                                    required
-                                />
-                            </div>
-                            <div class="flex flex-col gap-1">
-                                <div class="flex items-center gap-2">
-                                    <label class="text-sm font-medium">N° factura proveedor<span class="text-red-500">*</span></label>
-                                    <HelpTooltip text="Número que aparece impreso en la factura física del proveedor. Es obligatorio para la trazabilidad." aria-label="Ayuda sobre número de factura proveedor" />
-                                </div>
-                                <InputField v-model="localForm.supplier_invoice_number" label="" :disabled="isReadOnly" required />
-                            </div>
-                        </div>
-                        <InventoryDetailTableLayout
-                            @create-line="handleInvoiceAddLine"
-                            :showCreateLineButton="!isReadOnly"
-                            :createLineButtonDisabled="isReadOnly"
-                        >
-                            <PurchaseInvoiceItemsTable
-                                ref="invoiceItemsTableRef"
-                                :items="localForm.items || []"
-                                :isCreating="dialogType === 'create'"
-                                :isReadOnly="isReadOnly"
-                                :telaMode="true"
-                                @update:items="(items) => (localForm.items = items)"
-                            />
-                        </InventoryDetailTableLayout>
-                        <div class="space-y-4 pt-6">
-                            <div class="rounded border border-sidebar-border/70 bg-card p-3 text-card-foreground">
-                                <PurchaseInvoiceWithholdingsTable
-                                    :modelValue="localForm.withholdings || []"
-                                    @update:modelValue="(val) => (localForm.withholdings = val)"
-                                    :invoiceSubtotal="subtotal"
-                                    :isReadOnly="isReadOnly"
-                                />
-                            </div>
-                            <div class="flex w-full flex-col items-end space-y-0 text-sm">
-                                <div class="w-full max-w-xs space-y-1 rounded bg-card p-2 text-card-foreground shadow-sm">
-                                    <div class="flex items-center justify-between">
-                                        <span class="font-semibold text-card-foreground/70">Subtotal</span>
-                                        <span>{{
-                                            Number(subtotal || 0).toLocaleString('es-CO', {
-                                                style: 'currency',
-                                                currency: 'COP',
-                                                minimumFractionDigits: 0,
-                                                maximumFractionDigits: 0,
-                                            })
-                                        }}</span>
-                                    </div>
-                                    <div class="flex items-center justify-between">
-                                        <span class="font-semibold text-card-foreground/70">IVA 19%</span>
-                                        <span>{{
-                                            Number(iva || 0).toLocaleString('es-CO', {
-                                                style: 'currency',
-                                                currency: 'COP',
-                                                minimumFractionDigits: 0,
-                                                maximumFractionDigits: 0,
-                                            })
-                                        }}</span>
-                                    </div>
-                                    <div class="flex items-center justify-between pt-1">
-                                        <span class="font-bold text-card-foreground">Total orden de compra</span>
-                                        <span class="font-bold text-card-foreground">{{
-                                            Number(total || 0).toLocaleString('es-CO', {
-                                                style: 'currency',
-                                                currency: 'COP',
-                                                minimumFractionDigits: 0,
-                                                maximumFractionDigits: 0,
-                                            })
-                                        }}</span>
-                                    </div>
-                                    <template v-for="(w, idx) in localForm.withholdings || []" :key="idx">
-                                        <div class="flex items-center justify-between">
-                                            <span class="text-card-foreground/60">- {{ w.name }}</span>
-                                            <span class="text-red-500 dark:text-red-400"
-                                                >-{{
-                                                    getWithholdingAmount(w).toLocaleString('es-CO', {
-                                                        style: 'currency',
-                                                        currency: 'COP',
-                                                        minimumFractionDigits: 0,
-                                                        maximumFractionDigits: 0,
-                                                    })
-                                                }}</span
-                                            >
+                            <div v-if="!isReadOnly" class="w-full shrink-0 sm:w-[340px]">
+                                <div class="space-y-1">
+                                    <label class="text-sm font-medium leading-none text-foreground"> Cargar desde orden pendiente </label>
+                                    <div class="flex items-center gap-2">
+                                        <div class="min-w-0 flex-1">
+                                            <SelectField
+                                                v-model="selectedPurchaseOrderValue"
+                                                :options="pendingPurchaseOrderOptions"
+                                                label=""
+                                                placeholder="Selecciona una orden existente"
+                                                :disabled="isReadOnly"
+                                                :readonly="isReadOnly"
+                                                :searchable="pendingPurchaseOrderOptions.length >= 6"
+                                                search-placeholder="Buscar orden de compra..."
+                                                tooltip-text="Selecciona una orden de compra aprobada para pre-llenar automáticamente los ítems de esta factura."
+                                            />
                                         </div>
-                                    </template>
-                                    <div class="mt-1 flex items-center justify-between border-t border-border/50 pt-2">
-                                        <span class="font-bold text-card-foreground">Total a pagar</span>
-                                        <span class="font-bold text-green-500 dark:text-green-400">{{
-                                            Number(totalPagar || 0).toLocaleString('es-CO', {
-                                                style: 'currency',
-                                                currency: 'COP',
-                                                minimumFractionDigits: 0,
-                                                maximumFractionDigits: 0,
-                                            })
-                                        }}</span>
+                                        <button
+                                            type="button"
+                                            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-background text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
+                                            :disabled="!selectedPurchaseOrderId || isReadOnly"
+                                            title="Limpiar selección"
+                                            @click="clearSelectedPurchaseOrder()"
+                                        >
+                                            <X class="h-3.5 w-3.5" />
+                                        </button>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div>
-                            <TextareaField v-model="localForm.description" label="Observación" :disabled="isReadOnly" />
+                    </FormDialogHeader>
+                    <FormDialogBody class="relative px-4 pr-2" :class="{ 'min-h-[420px]': isBlockingLoading }" style="scrollbar-width: thin">
+                        <FormLoadingOverlay
+                            :active="isBlockingLoading"
+                            :delay-ms="0"
+                            message="Cargando factura de compra tela..."
+                            description="Preparando proveedores, ordenes de tela pendientes y datos iniciales."
+                        />
+                        <div
+                            v-if="canRenderForm"
+                            :class="{ 'pointer-events-none opacity-50': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly }"
+                            class="space-y-6 pb-4"
+                        >
+                            <fieldset v-if="canRenderForm" class="space-y-6">
+                                <div class="space-y-4 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
+                                    <!-- Cabecera -->
+                                    <div class="grid grid-cols-3 items-start gap-4">
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex items-center gap-2">
+                                                <label class="text-sm font-medium">N° Factura de Compra Tela</label>
+                                                <HelpTooltip
+                                                    text="Número interno del sistema para esta factura. Es diferente al número de la factura del proveedor."
+                                                    aria-label="Ayuda sobre número de factura"
+                                                />
+                                            </div>
+                                            <InputField
+                                                label=""
+                                                :modelValue="id"
+                                                readonly
+                                                v-if="dialogType === 'edit' || (dialogType === 'create' && !isLoadingInvoiceId && id)"
+                                            />
+                                            <span v-else-if="dialogType === 'create' && isLoadingInvoiceId" class="text-gray-400">Cargando...</span>
+                                        </div>
+                                        <div class="flex h-full items-center justify-center rounded p-4">
+                                            <img :src="logoUrl" alt="Logotipo de la empresa" class="max-h-24 w-auto max-w-[160px] object-contain" />
+                                        </div>
+                                        <div>
+                                            <div class="text-sm font-semibold">Datos empresa</div>
+                                            <p class="text-xs">
+                                                Razón Social:
+                                                <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
+                                            </p>
+                                            <p class="text-xs">
+                                                NIT:
+                                                <span class="font-normal">{{ company?.nit || 'Sin NIT' }}</span>
+                                            </p>
+                                            <p class="text-xs">
+                                                Correo:
+                                                <span class="font-normal">{{ company?.email || 'Sin correo' }}</span>
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <!-- Proveedor -->
+                                    <div class="grid grid-cols-3 gap-4">
+                                        <div class="flex flex-col gap-1">
+                                            <label class="text-sm font-medium">Proveedor<span class="text-red-500">*</span></label>
+                                            <SelectField
+                                                v-model="localForm.contact_id"
+                                                label=""
+                                                :options="contacts.map((c) => ({ id: Number(c.id), name: c.full_name }))"
+                                                :disabled="isReadOnly"
+                                                :searchable="true"
+                                                required
+                                                :key="contacts.length + '-' + localForm.contact_id"
+                                            />
+                                        </div>
+                                        <InputField
+                                            :key="`idnumber-${localForm.contact_id ?? ''}`"
+                                            label="Número de identificación"
+                                            :modelValue="contactIdNumber"
+                                            readonly
+                                        />
+                                        <InputField
+                                            :key="`phone-${localForm.contact_id ?? ''}`"
+                                            label="Número de contacto"
+                                            :modelValue="contactPhone"
+                                            readonly
+                                        />
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-4">
+                                        <DateField
+                                            v-model="invoiceDate"
+                                            label="Fecha de factura"
+                                            :disabled="isReadOnly"
+                                            :clearable="true"
+                                            :show-today="true"
+                                            required
+                                        />
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex items-center gap-2">
+                                                <label class="text-sm font-medium">Fecha de entrega<span class="text-red-500">*</span></label>
+                                                <HelpTooltip
+                                                    text="Fecha en que se recibe la mercancía en bodega. Puede ser diferente a la fecha de la factura."
+                                                    aria-label="Ayuda sobre fecha de entrega"
+                                                />
+                                            </div>
+                                            <DateField
+                                                v-model="deliveryDate"
+                                                label=""
+                                                :disabled="isReadOnly"
+                                                :clearable="true"
+                                                :show-today="true"
+                                                required
+                                            />
+                                        </div>
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex items-center gap-2">
+                                                <label class="text-sm font-medium">N° factura proveedor<span class="text-red-500">*</span></label>
+                                                <HelpTooltip
+                                                    text="Número que aparece impreso en la factura física del proveedor. Es obligatorio para la trazabilidad."
+                                                    aria-label="Ayuda sobre número de factura proveedor"
+                                                />
+                                            </div>
+                                            <InputField v-model="localForm.supplier_invoice_number" label="" :disabled="isReadOnly" required />
+                                        </div>
+                                    </div>
+                                    <InventoryDetailTableLayout
+                                        @create-line="handleInvoiceAddLine"
+                                        :showCreateLineButton="!isReadOnly"
+                                        :createLineButtonDisabled="isReadOnly"
+                                    >
+                                        <PurchaseInvoiceItemsTable
+                                            ref="invoiceItemsTableRef"
+                                            :items="localForm.items || []"
+                                            :isCreating="dialogType === 'create'"
+                                            :isReadOnly="isReadOnly"
+                                            :telaMode="true"
+                                            @update:items="(items) => (localForm.items = items)"
+                                        />
+                                    </InventoryDetailTableLayout>
+                                    <div class="space-y-4 pt-6">
+                                        <div class="rounded border border-sidebar-border/70 bg-card p-3 text-card-foreground">
+                                            <PurchaseInvoiceWithholdingsTable
+                                                :modelValue="localForm.withholdings || []"
+                                                @update:modelValue="(val) => (localForm.withholdings = val)"
+                                                :invoiceSubtotal="subtotal"
+                                                :isReadOnly="isReadOnly"
+                                            />
+                                        </div>
+                                        <div class="flex w-full flex-col items-end space-y-0 text-sm">
+                                            <div class="w-full max-w-xs space-y-1 rounded bg-card p-2 text-card-foreground shadow-sm">
+                                                <div class="flex items-center justify-between">
+                                                    <span class="font-semibold text-card-foreground/70">Subtotal</span>
+                                                    <span>{{
+                                                        Number(subtotal || 0).toLocaleString('es-CO', {
+                                                            style: 'currency',
+                                                            currency: 'COP',
+                                                            minimumFractionDigits: 0,
+                                                            maximumFractionDigits: 0,
+                                                        })
+                                                    }}</span>
+                                                </div>
+                                                <div class="flex items-center justify-between">
+                                                    <span class="font-semibold text-card-foreground/70">IVA 19%</span>
+                                                    <span>{{
+                                                        Number(iva || 0).toLocaleString('es-CO', {
+                                                            style: 'currency',
+                                                            currency: 'COP',
+                                                            minimumFractionDigits: 0,
+                                                            maximumFractionDigits: 0,
+                                                        })
+                                                    }}</span>
+                                                </div>
+                                                <div class="flex items-center justify-between pt-1">
+                                                    <span class="font-bold text-card-foreground">Total orden de compra</span>
+                                                    <span class="font-bold text-card-foreground">{{
+                                                        Number(total || 0).toLocaleString('es-CO', {
+                                                            style: 'currency',
+                                                            currency: 'COP',
+                                                            minimumFractionDigits: 0,
+                                                            maximumFractionDigits: 0,
+                                                        })
+                                                    }}</span>
+                                                </div>
+                                                <template v-for="(w, idx) in localForm.withholdings || []" :key="idx">
+                                                    <div class="flex items-center justify-between">
+                                                        <span class="text-card-foreground/60">- {{ w.name }}</span>
+                                                        <span class="text-red-500 dark:text-red-400"
+                                                            >-{{
+                                                                getWithholdingAmount(w).toLocaleString('es-CO', {
+                                                                    style: 'currency',
+                                                                    currency: 'COP',
+                                                                    minimumFractionDigits: 0,
+                                                                    maximumFractionDigits: 0,
+                                                                })
+                                                            }}</span
+                                                        >
+                                                    </div>
+                                                </template>
+                                                <div class="mt-1 flex items-center justify-between border-t border-border/50 pt-2">
+                                                    <span class="font-bold text-card-foreground">Total a pagar</span>
+                                                    <span class="font-bold text-green-500 dark:text-green-400">{{
+                                                        Number(totalPagar || 0).toLocaleString('es-CO', {
+                                                            style: 'currency',
+                                                            currency: 'COP',
+                                                            minimumFractionDigits: 0,
+                                                            maximumFractionDigits: 0,
+                                                        })
+                                                    }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <TextareaField v-model="localForm.description" label="Observación" :disabled="isReadOnly" />
+                                    </div>
+                                </div>
+                            </fieldset>
                         </div>
-                    </div>
-                    </fieldset>
+                    </FormDialogBody>
+                    <FormDialogFooter class="justify-end gap-4 bg-background px-4 py-4">
+                        <Button type="button" variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
+                        <Button
+                            v-if="!isReadOnly"
+                            variant="default"
+                            size="pill"
+                            :disabled="isLoading || isSendingMail || isBlockingLoading"
+                            @click.prevent="handleSubmit(false)"
+                        >
+                            {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
+                        </Button>
+                        <Button
+                            v-if="!isReadOnly"
+                            variant="default"
+                            size="pill"
+                            :disabled="isLoading || isSendingMail || isBlockingLoading"
+                            @click.prevent="handleSubmit(true)"
+                        >
+                            {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
+                        </Button>
+                    </FormDialogFooter>
                 </div>
-            </FormDialogBody>
-            <FormDialogFooter class="justify-end gap-4 bg-background px-4 py-4">
-                <Button type="button" variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
-                <Button v-if="!isReadOnly" variant="default" size="pill" :disabled="isLoading || isSendingMail || isBlockingLoading" @click.prevent="handleSubmit(false)">
-                    {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
-                </Button>
-                <Button v-if="!isReadOnly" variant="default" size="pill" :disabled="isLoading || isSendingMail || isBlockingLoading" @click.prevent="handleSubmit(true)">
-                    {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
-                </Button>
-            </FormDialogFooter>
-            </div>
             </TooltipProvider>
         </FormDialogContent>
     </Dialog>

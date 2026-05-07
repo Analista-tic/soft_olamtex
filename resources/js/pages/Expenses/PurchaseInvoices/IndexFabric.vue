@@ -17,13 +17,14 @@ import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { PurchaseInvoice } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useAuthStore } from '@/stores/auth';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
+import { route } from 'ziggy-js';
 import { Eye, Mail, MinusCircle, MoreVertical, Package, PlusCircle, Printer, Search, ShieldCheck } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import InvoiceDifferenceApprovalDialog from './InvoiceDifferenceApprovalDialog.vue';
 import PurchaseInvoiceDialogTelas from './PurchaseInvoiceDialogTelas.vue';
-import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
 import ServerPagination from '@/components/common/ServerPagination.vue';
 
 const breadcrumbs = [{ title: 'Facturas de Compra Tela', href: '/gastos/facturas-compra-tela' }];
@@ -44,11 +45,10 @@ const searchQuery = ref('');
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
 const totalItems = ref(0);
-const isPrintDialogOpen = ref(false);
-const invoiceToPrint = ref<PurchaseInvoice | null>(null);
-const isSendingMail = ref(false);
 const isApprovalDialogOpen = ref(false);
 const invoiceForApproval = ref<PurchaseInvoice | null>(null);
+const authStore = useAuthStore();
+const canApproveDifference = computed(() => authStore.can('gestionar diferencias factura compra'));
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError } = useAlertStack();
 function toggleSort(column: string) {
     if (sortBy.value === column) {
@@ -70,8 +70,7 @@ const receptionReturnParam = 'return_to';
 const receptionScopeParam = 'scope';
 const receptionScopeValue = 'fabric';
 
-const DEFAULT_STATUS_FILTER: string | null = null;
-const DEFAULT_PROVIDER_FILTER: string | null = null;
+// const DEFAULT_STATUS_FILTER and DEFAULT_PROVIDER_FILTER removed (unused)
 
 const statusOptions = [
     { id: 'status_pending', name: 'Pendiente' },
@@ -81,6 +80,8 @@ const statusOptions = [
     { id: 'approval_approved', name: 'Diferencia aprobada' },
     { id: 'approval_difference_rejected', name: 'Diferencia rechazada' },
 ];
+
+const isSendingMail = ref(false);
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value != null);
@@ -243,24 +244,22 @@ watch(currentPage, (newPage) => {
     }
 });
 
-onMounted(() => {
+onMounted(async () => {
+    try {
+        await authStore.fetchUser();
+    } catch (error) {
+        console.error('Error al cargar permisos de facturas tela:', error);
+    }
     fetchInvoices();
     fetchProviders();
 });
 
-async function openPrintDialog(invoice: PurchaseInvoice) {
-    // Cargar el objeto completo con items si no los tiene
-    if (!invoice.items || invoice.items.length === 0) {
-        try {
-            const { data } = await axios.get(`/gastos/facturas-compra-tela/${invoice.id}`);
-            invoiceToPrint.value = data.data || data;
-        } catch {
-            invoiceToPrint.value = invoice;
-        }
-    } else {
-        invoiceToPrint.value = invoice;
-    }
-    isPrintDialogOpen.value = true;
+function openPrintDialog(invoice: PurchaseInvoice) {
+    window.open(
+        route('gastos.purchase-invoices-fabric.print', { purchaseInvoice: invoice.id }),
+        '_blank',
+        'width=900,height=700,noopener,noreferrer',
+    );
 }
 
 async function sendInvoiceByEmail(invoice: PurchaseInvoice, event?: Event) {
@@ -316,9 +315,25 @@ function isReceptionBlockedForInvoice(invoice: PurchaseInvoice): boolean {
     );
 }
 
-function viewInvoiceDetails(invoice: PurchaseInvoice) {
-    if (!invoice?.id) return;
-    router.visit(`/gastos/facturas-compra-tela/${invoice.id}/editar`);
+async function viewInvoiceDetails(invoice: PurchaseInvoice) {
+    if (!invoice.id) return;
+    if (isPreparingDialog.value) return;
+    isPreparingDialog.value = true;
+
+    try {
+        const response = await axios.get(`/gastos/facturas-compra-tela/${invoice.id}`);
+        dialogType.value = 'edit';
+        isDialogReadOnly.value = true;
+        form.value = response.data?.data || {};
+        clearError();
+        clearSuccess();
+        isDialogOpen.value = true;
+    } catch (error) {
+        console.error('Error al obtener factura tela para visualización', error);
+        showError('No se pudo cargar la factura para visualizar.');
+    } finally {
+        isPreparingDialog.value = false;
+    }
 }
 
 async function handleDialogRefresh(message?: string) {
@@ -548,7 +563,7 @@ function handleDialogError(message?: string) {
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end" class="w-56">
                                                 <DropdownMenuItem
-                                                    v-if="invoice.approval_status === 'pending_difference_approval'"
+                                                    v-if="canApproveDifference && invoice.approval_status === 'pending_difference_approval'"
                                                     class="cursor-pointer gap-2 text-amber-600"
                                                     @select="openApprovalDialog(invoice, $event)"
                                                 >
@@ -587,11 +602,11 @@ function handleDialogError(message?: string) {
                     </TableBody>
                 </Table>
                 <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
-                  <ServerPagination 
+                  <ServerPagination
                     v-model:current-page="currentPage"
                     v-model:page-size="itemsPerPage"
                     :total-items="totalItems"
-                    @fetch-data="() => fetchInvoices(currentPage, searchQuery)" 
+                    @fetch-data="() => fetchInvoices(currentPage, searchQuery)"
                   />
                 </div>
             </div>
@@ -605,12 +620,6 @@ function handleDialogError(message?: string) {
             @close="closeDialog"
             @refresh="handleDialogRefresh"
             @error="handleDialogError"
-        />
-        <PurchaseInvoicePrintDialog
-            v-if="isPrintDialogOpen"
-            :isOpen="isPrintDialogOpen"
-            :invoice="invoiceToPrint"
-            @close="isPrintDialogOpen = false"
         />
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"

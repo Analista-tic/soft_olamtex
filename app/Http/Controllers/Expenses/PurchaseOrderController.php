@@ -33,6 +33,7 @@ class PurchaseOrderController extends PurchaseDocumentController
     public function edit(PurchaseDocument $purchaseDocument)
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
 
         $order = $this->service->loadWithRelations($purchaseDocument);
 
@@ -82,6 +83,7 @@ class PurchaseOrderController extends PurchaseDocumentController
     public function sendOrderPdf(PurchaseDocument $purchaseDocument)
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
 
         try {
             $order = $this->service->loadWithRelations($purchaseDocument);
@@ -109,6 +111,7 @@ class PurchaseOrderController extends PurchaseDocumentController
     public function print(PurchaseDocument $purchaseDocument)
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
 
         $order = $this->service->loadWithRelations($purchaseDocument);
 
@@ -120,6 +123,7 @@ class PurchaseOrderController extends PurchaseDocumentController
     public function convertToInvoice(PurchaseDocument $purchaseDocument)
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
 
         if ($purchaseDocument->children()
             ->where('document_type', PurchaseDocument::TYPE_INVOICE)
@@ -145,6 +149,7 @@ class PurchaseOrderController extends PurchaseDocumentController
     public function approve(PurchaseDocument $purchaseDocument)
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
 
         // Validar que la orden pueda ser aprobada
         if (!$purchaseDocument->canApprove()) {

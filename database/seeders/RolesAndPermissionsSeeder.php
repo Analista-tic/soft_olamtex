@@ -151,6 +151,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'editar facturas compra',
             'eliminar facturas compra',
             'aprobar facturas compra',
+            'gestionar diferencias factura compra',
 
             // Visibilidad - Facturas de compra
             'ver propios facturas compra',
@@ -300,6 +301,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'editar facturas compra',
             'eliminar facturas compra',
             'aprobar facturas compra',
+            'gestionar diferencias factura compra',
         ]);
 
         // Logística: inventario completo + atender solicitudes + ver compras

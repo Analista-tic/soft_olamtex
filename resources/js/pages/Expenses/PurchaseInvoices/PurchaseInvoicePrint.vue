@@ -2,19 +2,20 @@
 import { usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
+import { printElement } from '@/utils/print';
 
 const page = usePage();
 const props = page.props;
 const invoice = computed(() => props.value.invoice || {});
 const { company, logoUrl } = useCompanyInfo();
 
-function doPrint() {
-  window.print();
+async function doPrint() {
+  await printElement('print-root');
 }
 </script>
 
 <template>
-  <div class="print-root" style="background:white;padding:12mm;color:#111;font-family:system-ui,Segoe UI,Roboto,Arial">
+  <div id="print-root" class="print-root" style="background:white;padding:12mm;color:#111;font-family:system-ui,Segoe UI,Roboto,Arial">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <div>
         <p style="font-size:12px;color:#555">{{ company?.name }}</p>

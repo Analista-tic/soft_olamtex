@@ -115,6 +115,11 @@ export interface Item extends Timestamps {
     income_account_id?: number | null;
     inventory_account_id?: number | null;
     cost_of_sale_account_id?: number | null;
+    color?: {
+        id: number;
+        name: string;
+        rgb: string | null;
+    } | null;
     export_tariff_code?: string | null;
     export_brand?: string | null;
     export_model?: string | null;

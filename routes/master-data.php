@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\MasterData\CategoryGroupController;
 use App\Http\Controllers\MasterData\CategorySubGroupController;
+use App\Http\Controllers\MasterData\ColorController;
 use App\Http\Controllers\MasterData\ContactController;
 use App\Http\Controllers\MasterData\ItemController;
 use App\Http\Controllers\MasterData\ParameterController;
@@ -39,7 +40,7 @@ Route::prefix('contactos')->name('contactos.')->middleware('permission:ver conta
 });
 
 // === ITEMS ===
-Route::prefix('item')->name('item.')->group(function () {
+Route::prefix('item')->name('item.')->middleware('permission:ver inventario telas')->group(function () {
     Route::get('/descargar-plantilla', [ItemController::class, 'downloadTemplate'])->name('descargar-plantilla');
     Route::get('/exportar-excel', [ItemController::class, 'exportExcel'])->name('exportar-excel')->middleware('permission:exportar items');
     Route::get('/', [ItemController::class, 'index'])->name('index');
@@ -48,10 +49,17 @@ Route::prefix('item')->name('item.')->group(function () {
     Route::get('/check-duplicate', [ItemController::class, 'checkDuplicate'])->name('check-duplicate');
     Route::get('/search', [ItemController::class, 'search'])->name('search');
     Route::get('/{id}', [ItemController::class, 'show'])->name('show');
-    Route::post('/', [ItemController::class, 'store'])->name('store');
-    Route::put('/{id}', [ItemController::class, 'update'])->name('update');
-    Route::delete('/{id}', [ItemController::class, 'destroy'])->name('destroy');
+    Route::post('/', [ItemController::class, 'store'])->name('store')->middleware('permission:crear inventario telas');
+    Route::put('/{id}', [ItemController::class, 'update'])->name('update')->middleware('permission:editar inventario telas');
+    Route::delete('/{id}', [ItemController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar inventario telas');
     Route::post('/{id}/toggle-status', [ItemController::class, 'toggleStatus'])->name('toggle-status')->middleware('permission:activar desactivar item');
+});
+
+Route::middleware(['auth', 'permission:ver colores'])->group(function () {
+    Route::get('/colors', [ColorController::class, 'index']);
+    Route::post('/colors', [ColorController::class, 'store'])->middleware('permission:crear colores');
+    Route::put('/colors/{color}', [ColorController::class, 'update'])->middleware('permission:editar colores');
+    Route::delete('/colors/{color}', [ColorController::class, 'destroy'])->middleware('permission:eliminar colores');
 });
 
 // === PARAMETROS ===

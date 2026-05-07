@@ -7,6 +7,7 @@ use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Settings\User;
 use App\Notifications\PurchaseInvoiceDifferenceNotification;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
@@ -65,6 +66,21 @@ class PurchaseDocumentService
         if ($permissions) {
             ScopeHelper::apply($query, $user, $permissions[0], $permissions[1], $permissions[2]);
         }
+    }
+
+    public function findAccessibleDocumentOrFail(PurchaseDocument $document, ?User $user): PurchaseDocument
+    {
+        $query = PurchaseDocument::query()
+            ->whereKey($document->getKey())
+            ->where('document_type', $document->document_type);
+
+        $this->applyScopeForDocumentType($query, $document->document_type, $user);
+
+        if (!$query->exists()) {
+            throw new AuthorizationException('No tienes permisos para acceder a este documento.');
+        }
+
+        return $this->loadWithRelations($document);
     }
 
     public function buildDocumentQuery(string $documentType): Builder

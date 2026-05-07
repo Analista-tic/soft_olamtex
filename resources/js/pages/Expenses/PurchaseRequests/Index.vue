@@ -312,8 +312,8 @@ async function fetchRequests(page = 1) {
 
     try {
         const response = await axios.get('/gastos/solicitudes-compra/data', { params });
-        const rows = Array.isArray(payload?.data) ? payload.data : [];
         const payload = response.data;
+        const rows = Array.isArray(payload?.data) ? payload.data : [];
 
         requests.value = rows.map((request: any) => {
             if (request.items && typeof request.items === 'string') {

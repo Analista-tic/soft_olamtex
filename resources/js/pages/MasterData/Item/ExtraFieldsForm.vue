@@ -68,7 +68,7 @@ const addableFieldNames = computed(() => availableFieldNames.value.filter((name)
 
 const fieldSelectOptions = computed(() => addableFieldNames.value.map((name) => ({ id: name, name })));
 
-// dynamicFieldOptions incluye catálogos, props.fieldOptions y opciones desde metadatos
+// dynamicFieldOptions incluye catÃ¡logos, props.fieldOptions y opciones desde metadatos
 const dynamicFieldOptions = computed(() => {
     const base = { ...(props.fieldOptions ?? {}) } as Record<string, string[]>;
     for (const meta of props.additionalFieldsMeta ?? []) {
@@ -129,7 +129,7 @@ function resolveInputTypeByMeta(meta?: AdditionalField): 'text' | 'number' | 'da
     return 'text';
 }
 
-// Función para inicializar campos obligatorios
+// FunciÃ³n para inicializar campos obligatorios
 function initializeRequiredFields() {
     const requiredFields = (props.additionalFieldsMeta ?? []).filter((f) => f.is_required);
     let hasChanges = false;
@@ -137,7 +137,7 @@ function initializeRequiredFields() {
 
     requiredFields.forEach((field) => {
         if (!updated[field.name]) {
-            // Agregar campo con valor por defecto o vacío
+            // Agregar campo con valor por defecto o vacÃ­o
             updated[field.name] = field.default_value !== undefined && field.default_value !== null ? String(field.default_value) : '';
             hasChanges = true;
         }
@@ -148,7 +148,7 @@ function initializeRequiredFields() {
     }
 }
 
-// Mantener sincronización solo cuando cambian las props externamente
+// Mantener sincronizaciÃ³n solo cuando cambian las props externamente
 watch(
     () => props.extraFields,
     (val) => {
@@ -189,46 +189,12 @@ watch(selectedExtraField, () => {
 function addExtraField() {
     const field = selectedExtraField.value;
     if (!field) return;
-    if (field === 'Campo adicional') {
-        if (extraFieldValue.value.trim()) {
-            localExtraFields.value['Campo adicional'] = extraFieldValue.value.trim();
-            selectedExtraField.value = '';
-        }
-    } else {
-        // verificar metadata del campo
-        const meta = (props.additionalFieldsMeta ?? []).find((m) => m.name === field);
-        if (meta) {
-            // para campos select, el valor viene de extraFieldValue
-            if (meta.field_type === 'select') {
-                if (extraFieldValue.value && !localExtraFields.value[field]) {
-                    localExtraFields.value[field] = extraFieldValue.value;
-                    selectedExtraField.value = '';
-                }
-            } else if (meta.field_type === 'number') {
-                if (extraFieldValue.value && !localExtraFields.value[field]) {
-                    localExtraFields.value[field] = extraFieldValue.value;
-                    selectedExtraField.value = '';
-                }
-            } else if (meta.field_type === 'date') {
-                if (extraFieldValue.value && !localExtraFields.value[field]) {
-                    localExtraFields.value[field] = extraFieldValue.value;
-                    selectedExtraField.value = '';
-                }
-            } else {
-                if (extraFieldValue.value.trim() && !localExtraFields.value[field]) {
-                    localExtraFields.value[field] = extraFieldValue.value.trim();
-                    selectedExtraField.value = '';
-                }
-            }
-        } else {
-            // campo genérico o catálogo
-            if (extraFieldValue.value.trim() && !localExtraFields.value[field]) {
-                localExtraFields.value[field] = extraFieldValue.value.trim();
-                selectedExtraField.value = '';
-            }
-        }
-    }
-    // Limpiar valores auxiliares
+
+    const value = extraFieldValue.value.trim?.() ?? extraFieldValue.value;
+    if (!value || localExtraFields.value[field]) return;
+
+    localExtraFields.value[field] = value;
+    selectedExtraField.value = '';
     extraFieldValue.value = '';
 }
 
@@ -298,7 +264,7 @@ function isAddDisabled() {
                         label="Valor"
                         v-model="extraFieldValue"
                         :options="[
-                            { id: 'true', name: 'Sí' },
+                            { id: 'true', name: 'SÃ­' },
                             { id: 'false', name: 'No' },
                         ]"
                         option-label="name"
@@ -345,7 +311,7 @@ function isAddDisabled() {
                 :disabled="isAddDisabled()"
                 @click="addExtraField"
             >
-                Añadir
+                AÃ±adir
             </Button>
         </div>
 
@@ -377,7 +343,7 @@ function isAddDisabled() {
                             v-model="localExtraFields[field]"
                             label=""
                             :options="[
-                                { id: 'true', name: 'Sí' },
+                                { id: 'true', name: 'SÃ­' },
                                 { id: 'false', name: 'No' },
                             ]"
                             option-label="name"

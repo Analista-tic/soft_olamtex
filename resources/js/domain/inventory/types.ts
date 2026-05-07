@@ -15,6 +15,8 @@ export type WarehouseOption = { id: number; name: string };
 export interface InventoryMovement {
     id: number;
     document_number?: string | null;
+    display_document_number?: string | null;
+    source_group_label?: string | null;
     date?: string | null;
     type: 'entrada' | 'salida' | 'ajuste' | string;
     quantity: number;
@@ -26,6 +28,7 @@ export interface InventoryMovement {
     new_weighted_price: number;
     source_type?: string | null;
     source_id?: number | null;
+    source_reference?: string | null;
     notes?: string | null;
     item_id?: number | null;
     warehouse_id?: number | null;

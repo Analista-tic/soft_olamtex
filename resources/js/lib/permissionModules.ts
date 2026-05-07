@@ -245,6 +245,9 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         label: 'Cotizaciones',
         tokens: ['cotizaciones', 'cotizacion a pedido'],
         permissions: [
+            'crear cotizaciones',
+            'editar cotizaciones',
+            'eliminar cotizaciones',
             'ver propios cotizaciones',
             'ver area cotizaciones',
             'ver todos cotizaciones',
@@ -256,6 +259,9 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         label: 'Pedidos de Venta',
         tokens: ['pedidos venta'],
         permissions: [
+            'crear pedidos venta',
+            'editar pedidos venta',
+            'eliminar pedidos venta',
             'ver propios pedidos venta',
             'ver area pedidos venta',
             'ver todos pedidos venta',
@@ -267,6 +273,9 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         label: 'Facturas de Venta',
         tokens: ['facturas venta', 'emitir factura venta', 'anular factura venta'],
         permissions: [
+            'crear facturas venta',
+            'editar facturas venta',
+            'eliminar facturas venta',
             'ver propios facturas venta',
             'ver area facturas venta',
             'ver todos facturas venta',
@@ -300,6 +309,9 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         label: 'Solicitudes de Compra',
         tokens: ['solicitudes compra'],
         permissions: [
+            'crear solicitudes compra',
+            'editar solicitudes compra',
+            'eliminar solicitudes compra',
             'ver propios solicitudes compra',
             'ver area solicitudes compra',
             'ver todos solicitudes compra',
@@ -453,6 +465,17 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         permissions: [
             'ver parametros',
             'editar parametros',
+        ],
+        category: 'Configuración',
+    },
+    {
+        label: 'Colores',
+        tokens: ['colores'],
+        permissions: [
+            'ver colores',
+            'crear colores',
+            'editar colores',
+            'eliminar colores',
         ],
         category: 'Configuración',
     },

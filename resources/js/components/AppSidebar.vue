@@ -485,7 +485,7 @@ watch(
                 </Collapsible>
             </template>
         </SidebarContent>
-        <SidebarFooter class="mt-auto border-t border-sidebar-border/80 px-1 py-2">
+        <SidebarFooter class="mt-auto border-t border-sidebar-border/80 px-1 py-2 bg-sidebar [background-image:none]">
             <NavFooter :items="filteredFooterNavItems" />
         </SidebarFooter>
     </Sidebar>

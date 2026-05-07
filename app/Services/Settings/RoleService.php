@@ -6,6 +6,7 @@ use App\Models\Settings\Role;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\PermissionRegistrar;
 
 class RoleService
 {
@@ -28,6 +29,8 @@ class RoleService
 
             if (!empty($data['permissions'])) {
                 $role->syncPermissions($data['permissions']);
+                // Limpiar caché de permisos para que los cambios sean inmediatos
+                app()[PermissionRegistrar::class]->forgetCachedPermissions();
             }
 
             return $role->fresh('permissions');
@@ -43,6 +46,8 @@ class RoleService
 
             if (array_key_exists('permissions', $data)) {
                 $role->syncPermissions($data['permissions'] ?? []);
+                // Limpiar caché de permisos para que los cambios sean inmediatos
+                app()[PermissionRegistrar::class]->forgetCachedPermissions();
             }
 
             return $role->fresh('permissions');
@@ -52,6 +57,8 @@ class RoleService
     public function delete(Role $role): void
     {
         $role->delete();
+        // Limpiar caché tras eliminar rol/permiso relacionado
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
     }
 
     public function paginate(array $filters = [], int $perPage = 10, int $page = 1): LengthAwarePaginator

@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Eye, Plus, X } from 'lucide-vue-next';
+import { Eye, Plus, X, Check } from 'lucide-vue-next';
 import { computed } from 'vue';
 import type { BatchControlRow, CutCurves, CutFabricConsumptionLine, CutSize, CutUnitsReportRow } from '../../types';
 import { CUT_SIZES } from '../../types';
@@ -585,11 +585,12 @@ const inputRef = 'h-7 w-full min-w-[3rem] border border-blue-200 rounded px-1 te
 
             <!-- Footer -->
             <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border/60 bg-background px-4 py-3">
-                <Button type="button" variant="outline" size="sm" :disabled="isSaving" @click="emit('close')">Cerrar</Button>
-                <Button type="button" variant="outline" size="sm" :disabled="isSaving || isLoading" @click="emit('export-csv')">Exportar CSV</Button>
+                <Button type="button" variant="outline" size="pill" :disabled="isSaving" @click="emit('close')">Cerrar</Button>
+                <Button type="button" variant="secondary" size="pill" :disabled="isSaving || isLoading" @click="emit('export-csv')">Exportar CSV</Button>
                 <template v-if="!viewOnly">
-                    <Button type="button" variant="outline" size="sm" :disabled="isSaving || isLoading" @click="emit('reset')">Limpiar</Button>
-                    <Button type="button" size="sm" :disabled="isSaving || isLoading" @click="emit('save')">
+                    <Button type="button" variant="outline" size="pill" :disabled="isSaving || isLoading" @click="emit('reset')">Limpiar</Button>
+                    <Button type="button" size="pill" class="shadow-sm" :disabled="isSaving || isLoading" @click="emit('save')">
+                        <Check class="mr-1.5 h-3.5 w-3.5" />
                         {{ isSaving ? 'Guardando…' : 'Guardar registro' }}
                     </Button>
                 </template>

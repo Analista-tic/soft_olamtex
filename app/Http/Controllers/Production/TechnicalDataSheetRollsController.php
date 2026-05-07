@@ -304,11 +304,36 @@ class TechnicalDataSheetRollsController extends Controller
         $lines = is_array($payload['lines'] ?? null) ? $payload['lines'] : [];
         $targetId = trim($lineId);
 
+        // Identificar la línea que se va a eliminar antes de borrarla
+        $removedLine = collect($lines)->firstWhere('id', $targetId);
+
         $payload['lines'] = array_values(array_filter($lines, function (array $line) use ($targetId) {
             return (string) ($line['id'] ?? '') !== $targetId;
         }));
 
         $this->store->write($opId, $payload);
+
+        // ── Actualizar partial_output del rollo liberado (si aplica) ──────────────
+        if ($removedLine !== null) {
+            $rid = isset($removedLine['rollId']) ? trim((string) $removedLine['rollId']) : '';
+            $meters = is_numeric($removedLine['programmedMeters'] ?? null)
+                ? (float) $removedLine['programmedMeters']
+                : 0.0;
+
+            if ($rid !== '' && is_numeric($rid) && $meters > 0.001) {
+                DB::transaction(function () use ($rid, $meters) {
+                    $roll = FabricRoll::lockForUpdate()->find((int) $rid);
+                    if ($roll) {
+                        $roll->partial_output = round(
+                            max(0.0, (float) $roll->partial_output - $meters),
+                            2
+                        );
+                        $roll->save();
+                    }
+                });
+            }
+        }
+
         return response()->json($payload);
     }
 
