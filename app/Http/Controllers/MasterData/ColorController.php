@@ -75,7 +75,13 @@ class ColorController extends Controller
 
     public function destroy(Color $color)
     {
-        $this->service->delete($color);
-        return response()->noContent();
+        try {
+            $this->service->delete($color);
+            return response()->noContent();
+        } catch (\RuntimeException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 409);
+        }
     }
 }

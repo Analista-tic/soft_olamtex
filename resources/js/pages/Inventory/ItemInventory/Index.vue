@@ -146,7 +146,7 @@ async function fetchWarehouses() {
     }
 }
 
-watch([searchQuery, selectedWarehouseId, resolvedStatusFilter], () => {
+watch([searchQuery, warehouseFilter, statusFilter], () => {
     currentPage.value = 1;
     void fetchItems(1);
 });

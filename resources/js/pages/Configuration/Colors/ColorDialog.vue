@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import { Label } from '@/components/ui/label';
+import { hexToRgb } from '@/lib/colorUtils';
 import { Copy } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { useClipboard } from '@vueuse/core';
@@ -53,12 +54,6 @@ const { copy: copyToClipboard } = useClipboard();
 
 type ColorFormat = 'hex' | 'rgb' | 'hsl';
 const colorFormat = ref<ColorFormat>('hex');
-
-function hexToRgb(hex: string): string | null {
-    const n = hex.trim().replace('#', '');
-    if (!/^[0-9a-fA-F]{6}$/.test(n)) return null;
-    return `${parseInt(n.slice(0, 2), 16)},${parseInt(n.slice(2, 4), 16)},${parseInt(n.slice(4, 6), 16)}`;
-}
 
 function hexToRgbValues(hex: string): { r: number; g: number; b: number } | null {
     const rgb = hexToRgb(hex);

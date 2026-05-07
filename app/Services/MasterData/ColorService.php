@@ -3,6 +3,7 @@
 namespace App\Services\MasterData;
 
 use App\Models\MasterData\Color;
+use App\Models\MasterData\Item;
 use Illuminate\Support\Collection;
 
 class ColorService
@@ -26,6 +27,19 @@ class ColorService
 
     public function delete(Color $color): void
     {
+        $itemCount = Item::where('color_id', $color->id)->count();
+
+        if ($itemCount > 0) {
+            $label = $itemCount === 1
+                ? '1 ítem asignado'
+                : "{$itemCount} ítems asignados";
+
+            throw new \RuntimeException(
+                "No se puede eliminar el color \"{$color->name}\" porque tiene {$label}. "
+                . "Reasigne o quite el color de esos ítems antes de eliminarlo."
+            );
+        }
+
         $color->delete();
     }
 }

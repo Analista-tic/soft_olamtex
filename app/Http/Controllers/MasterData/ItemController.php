@@ -299,7 +299,13 @@ class ItemController extends Controller
         // Las cuentas contables solo son obligatorias desde el formulario avanzado.
         // El dialog básico no las expone, por lo que se omiten si no vienen en el payload.
 
-        if (! $tracksInventory && empty($data['cost_of_sale_account_id'])) {
+        $isAdvancedForm = $request->hasAny([
+            'income_account_id',
+            'inventory_account_id',
+            'cost_of_sale_account_id',
+        ]);
+
+        if ($isAdvancedForm && ! $tracksInventory && empty($data['cost_of_sale_account_id'])) {
             throw ValidationException::withMessages([
                 'cost_of_sale_account_id' => ['La cuenta de costo/gasto directo es obligatoria cuando el item no controla inventario.'],
             ]);

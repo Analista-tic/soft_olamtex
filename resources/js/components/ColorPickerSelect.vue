@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useClipboard } from '@vueuse/core';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { hexToRgb } from '@/lib/colorUtils';
 import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom';
 import {
     Combobox,
@@ -99,12 +100,6 @@ function handleInput(event: Event) {
 
 function colorStyle(rgb: string | null) {
     return { backgroundColor: rgb ? `rgb(${rgb})` : '#9ca3af' };
-}
-
-function hexToRgb(hex: string): string | null {
-    const n = hex.trim().replace('#', '');
-    if (!/^[0-9a-fA-F]{6}$/.test(n)) return null;
-    return `${parseInt(n.slice(0, 2), 16)},${parseInt(n.slice(2, 4), 16)},${parseInt(n.slice(4, 6), 16)}`;
 }
 
 const createPreviewRgb = computed(() => hexToRgb(createHex.value));

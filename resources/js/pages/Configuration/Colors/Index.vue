@@ -10,12 +10,14 @@ import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { hexToRgb } from '@/lib/colorUtils';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import ColorDialog from './ColorDialog.vue';
+import ColorSwatch from '@/components/common/ColorSwatch.vue';
 
 type Color = {
     id: number;
@@ -31,14 +33,6 @@ type ColorForm = {
     hex: string;
     description: string;
 };
-
-function hexToRgb(hex: string): string | null {
-    const n = hex.trim().replace('#', '');
-    if (!/^[0-9a-fA-F]{6}$/.test(n)) return null;
-    return `${parseInt(n.slice(0, 2), 16)},` +
-           `${parseInt(n.slice(2, 4), 16)},` +
-           `${parseInt(n.slice(4, 6), 16)}`;
-}
 
 function rgbToHex(rgb: string | null): string {
     if (!rgb) return '#9ca3af';
@@ -270,16 +264,10 @@ onMounted(() => {
                                 <TableCell class="font-medium">{{ color.id }}</TableCell>
                                 <TableCell class="font-medium">{{ color.name }}</TableCell>
                                 <TableCell>
-                                    <div
-                                        v-if="color.rgb"
-                                        class="mx-auto h-5 w-5 rounded-full border border-slate-200"
-                                        :style="{ backgroundColor: `rgb(${color.rgb})` }"
-                                        :title="color.hexadecimal ?? color.name"
-                                    />
-                                    <div
-                                        v-else
-                                        class="mx-auto h-5 w-5 rounded-full border border-slate-200 bg-slate-300"
-                                        title="Sin color definido"
+                                    <ColorSwatch
+                                        :rgb="color.rgb"
+                                        :hex="color.hexadecimal"
+                                        :name="color.name"
                                     />
                                 </TableCell>
                                 <TableCell>{{ color.description || '-' }}</TableCell>

@@ -139,23 +139,29 @@ class InventoryMovement extends Model implements HasAuditLabel
 
     public function getDisplayDocumentNumberAttribute(): ?string
     {
-        // Prefer resolver from related source when available (eager-loaded to avoid N+1)
-        // 1) legacy imports keep their "Migración N" label
-        // 2) if source relation is loaded and has a document-like field, use it
-        // 3) fallback to movement.document_number, then to source_reference, then to "Sin documento"
+        // Rules implemented:
+        // - Legacy imports -> "Migración"
+        // - Bulk/Excel imports -> "Importación"
+        // - PurchaseDocument / Adjustment / Transfer / Request / Exit -> return the raw document number
+        //   but cleaned (no textual prefixes like "Factura ", "Ajuste ").
+        // - Technical codes (BI-bulk_, legacy_, LM-legacy_) are never shown.
+        // - Avoid N+1: rely on relationLoaded('source') when reading related model fields.
 
-        $documentNumber = is_string($this->document_number) ? trim($this->document_number) : null;
+        $sourceType = (string) ($this->source_type ?? '');
+        $doc = is_string($this->document_number) ? trim($this->document_number) : null;
+        $srcRef = is_string($this->source_reference) ? trim($this->source_reference) : null;
 
-        // Legacy import special casing: keep "Migración N"
-        if (
-            in_array($this->source_type, ['legacy_import', 'item_excel_import'], true)
-            && is_string($documentNumber)
-            && preg_match('/^Migraci(?:o|\x{00F3}|\?)n (\d+)-\d{4}$/u', $documentNumber, $matches) === 1
-        ) {
-            return self::legacyDocumentDisplayPrefix() . ' ' . $matches[1];
+        // 1) Legacy import explicit
+        if ($this->isLegacySource($sourceType) || ($doc !== null && self::isTechnicalCode($doc)) || ($srcRef !== null && self::isTechnicalCode($srcRef))) {
+            return 'Migración';
         }
 
-        // If the polymorphic relation was eager-loaded, try to read document number from it
+        // 2) Bulk / Excel import
+        if ($this->isBulkImportSource($sourceType) || ($doc !== null && stripos($doc, 'BI-bulk_') === 0)) {
+            return 'Importación';
+        }
+
+        // 3) If related source was eager-loaded, try to resolve a meaningful number
         if ($this->relationLoaded('source') && $this->source) {
             $src = $this->source;
             $candidates = [
@@ -167,22 +173,96 @@ class InventoryMovement extends Model implements HasAuditLabel
             ];
 
             foreach ($candidates as $field) {
-                if (isset($src->{$field}) && is_string($src->{$field}) && trim($src->{$field}) !== '') {
-                    return trim($src->{$field});
+                if (isset($src->{$field}) && is_string($src->{$field})) {
+                    $value = trim($src->{$field});
+                    if ($value === '') {
+                        continue;
+                    }
+                    if (self::isTechnicalCode($value)) {
+                        // prefer Importación if it's a bulk technical code
+                        if (stripos($value, 'BI-bulk_') === 0) {
+                            return 'Importación';
+                        }
+                        // otherwise consider it legacy/technical and hide
+                        return 'Sin documento';
+                    }
+
+                    return self::cleanDocumentLabel($value);
                 }
             }
         }
 
-        // Fallbacks
-        if (is_string($documentNumber) && $documentNumber !== '') {
-            return $documentNumber;
+        // 4) Fallback to movement.document_number (cleaned), unless it's a technical code
+        if ($doc !== null && $doc !== '') {
+            if (self::isTechnicalCode($doc)) {
+                // If document_number is a technical bulk id, treat as Importación
+                if (stripos($doc, 'BI-bulk_') === 0) {
+                    return 'Importación';
+                }
+                return 'Sin documento';
+            }
+            return self::cleanDocumentLabel($doc);
         }
 
-        if (isset($this->source_reference) && is_string($this->source_reference) && trim($this->source_reference) !== '') {
-            return trim($this->source_reference);
+        // 5) Fallback to source_reference if present and not technical
+        if ($srcRef !== null && $srcRef !== '') {
+            if (self::isTechnicalCode($srcRef)) {
+                if (stripos($srcRef, 'BI-bulk_') === 0) {
+                    return 'Importación';
+                }
+                return 'Sin documento';
+            }
+            return self::cleanDocumentLabel($srcRef);
         }
 
         return 'Sin documento';
+    }
+
+    private static function isTechnicalCode(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return false;
+        }
+        $patterns = [
+            '/^BI-bulk_/i',
+            '/^legacy_/i',
+            '/^LM-legacy_/i',
+        ];
+        foreach ($patterns as $p) {
+            if (preg_match($p, $value) === 1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function isLegacySource(string $sourceType): bool
+    {
+        if ($sourceType === '') {
+            return false;
+        }
+        $s = strtolower($sourceType);
+        return str_contains($s, 'legacy') || $s === 'legacy_import';
+    }
+
+    private function isBulkImportSource(string $sourceType): bool
+    {
+        if ($sourceType === '') {
+            return false;
+        }
+        $s = strtolower($sourceType);
+        return str_contains($s, 'bulk') || str_contains($s, 'import') || str_contains($s, 'excel');
+    }
+
+    private static function cleanDocumentLabel(string $value): string
+    {
+        $v = trim($value);
+        // Remove common Spanish prefixes like "Factura ", "Ajuste ", "Salida ", "Traslado ", "Solicitud "
+        $v = preg_replace('/^(Factura(?: de compra)?|Ajuste|Salida|Traslado|Solicitud|Solicitud de insumos)\s*[:\-]?\s*/i', '', $v);
+        // Also remove words followed by colon like "Factura: FC-0001"
+        $v = preg_replace('/^[A-Za-z\s]+:\s*/', '', $v);
+        return trim($v);
     }
 
     public function getSourceGroupLabelAttribute(): ?string

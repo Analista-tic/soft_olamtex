@@ -279,17 +279,7 @@ function handleBulkUploadError(payload: { message: string }) {
     setError(payload.message);
 }
 
-async function handlePageChange(newPage: number) {
-    if (newPage === currentPage.value) return;
-    await fetchItems(newPage);
-}
 
-// Adapter para cumplir la firma esperada por `ServerPagination`.
-// El componente espera una función sincrónica `(page?: number) => void`,
-// así que delegamos en `handlePageChange` y devolvemos `void`.
-function onFetchData(page?: number): void {
-    void handlePageChange(page ?? 1);
-}
 
 // Debounce simple para búsqueda sin saturar el endpoint
 let searchDebounce: number | undefined;
@@ -554,7 +544,7 @@ onBeforeUnmount(() => {
                             v-model:current-page="currentPage"
                             v-model:page-size="itemsPerPage"
                             :total-items="totalItems"
-                            @fetch-data="onFetchData"
+                            @fetch-data="fetchItems"
                         />
                 </div>
             </div>
