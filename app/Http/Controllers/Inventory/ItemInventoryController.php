@@ -13,7 +13,7 @@ class ItemInventoryController extends Controller
 
     public function index()
     {
-        return Inertia::render('MasterData/Item/ItemInventory');
+        return Inertia::render('Inventory/ItemInventory/Index');
     }
 
     public function getData(Request $request)

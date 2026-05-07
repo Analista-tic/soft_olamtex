@@ -52,8 +52,8 @@ const errorMessage = ref<string>('');
 const isSendingMail = ref(false);
 const isConverting = ref<number | null>(null);
 const isPrintDialogOpen = ref(false);
+const isLoading = ref(false);
 const adjustmentToPrint = ref<InventoryAdjustment | null>(null);
-const DEFAULT_TYPE_FILTER = null;
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isTypeFilterActive = computed(() => typeFilter.value != null);
 const typeButtonClasses = useFilterButtonClasses(isTypeFilterActive);
@@ -381,7 +381,7 @@ onMounted(() => {
                 </Table>
 
                 <div class="px-4 pb-2">
-                  <ServerPagination 
+                  <ServerPagination
                     v-model:current-page="currentPage"
                     v-model:page-size="itemsPerPage"
                     :total-items="totalItems"

@@ -139,20 +139,50 @@ class InventoryMovement extends Model implements HasAuditLabel
 
     public function getDisplayDocumentNumberAttribute(): ?string
     {
-        $documentNumber = $this->document_number;
+        // Prefer resolver from related source when available (eager-loaded to avoid N+1)
+        // 1) legacy imports keep their "Migración N" label
+        // 2) if source relation is loaded and has a document-like field, use it
+        // 3) fallback to movement.document_number, then to source_reference, then to "Sin documento"
 
-        if (!is_string($documentNumber) || trim($documentNumber) === '') {
-            return null;
-        }
+        $documentNumber = is_string($this->document_number) ? trim($this->document_number) : null;
 
+        // Legacy import special casing: keep "Migración N"
         if (
             in_array($this->source_type, ['legacy_import', 'item_excel_import'], true)
+            && is_string($documentNumber)
             && preg_match('/^Migraci(?:o|\x{00F3}|\?)n (\d+)-\d{4}$/u', $documentNumber, $matches) === 1
         ) {
             return self::legacyDocumentDisplayPrefix() . ' ' . $matches[1];
         }
 
-        return $documentNumber;
+        // If the polymorphic relation was eager-loaded, try to read document number from it
+        if ($this->relationLoaded('source') && $this->source) {
+            $src = $this->source;
+            $candidates = [
+                'document_number',
+                'number',
+                'reference',
+                'supplier_invoice_number',
+                'supplier_order_number',
+            ];
+
+            foreach ($candidates as $field) {
+                if (isset($src->{$field}) && is_string($src->{$field}) && trim($src->{$field}) !== '') {
+                    return trim($src->{$field});
+                }
+            }
+        }
+
+        // Fallbacks
+        if (is_string($documentNumber) && $documentNumber !== '') {
+            return $documentNumber;
+        }
+
+        if (isset($this->source_reference) && is_string($this->source_reference) && trim($this->source_reference) !== '') {
+            return trim($this->source_reference);
+        }
+
+        return 'Sin documento';
     }
 
     public function getSourceGroupLabelAttribute(): ?string
