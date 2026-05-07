@@ -16,6 +16,10 @@ class WarehouseItem extends Model
         'stock_min',
         'stock_max',
         'weighted_average_price',
+        'last_unit_cost',
+        'total_cost',
+        'source_type',
+        'source_reference',
     ];
 
     protected $casts = [
@@ -23,6 +27,8 @@ class WarehouseItem extends Model
         'stock_min'              => 'float',
         'stock_max'              => 'float',
         'weighted_average_price' => 'float',
+        'last_unit_cost'         => 'float',
+        'total_cost'             => 'float',
     ];
 
     public function item(): \Illuminate\Database\Eloquent\Relations\BelongsTo

@@ -54,7 +54,6 @@ const warehousesStore = useWarehousesStore();
 // Items y warehouses para filtros
 const rawItemOptions = ref<Item[]>([]);
 
-const DEFAULT_TYPE_FILTER = null;
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isTypeFilterActive = computed(() => typeFilter.value != null);
 const isItemFilterActive = computed(() => itemFilter.value != null);
@@ -127,9 +126,15 @@ const getSourceLabel = (movement: InventoryMovement): string => {
         'App\\Models\\Expenses\\PurchaseDocument': 'Factura de Compra',
         'App\\Models\\Inventory\\InventoryAdjustment': 'Ajuste de Inventario',
         'App\\Models\\Inventory\\FabricRoll': 'Descargue de Tela',
+        legacy_import: 'Migracion Legacy',
+        item_excel_import: 'Importacion Excel',
     };
 
     return sourceTypeMap[movement.source_type] || movement.source_type;
+};
+
+const getDocumentLabel = (movement: InventoryMovement): string => {
+    return movement.display_document_number || movement.document_number || '-';
 };
 
 async function fetchMovements(page = 1, search = '') {
@@ -185,7 +190,7 @@ const fetchItems = async () => {
     try {
         const { data } = await axios.get('/item/data', { params: { per_page: 1000 } });
         rawItemOptions.value = data.data;
-    } catch (e) {
+    } catch {
         console.error('Error cargando ítems');
     }
 };
@@ -299,12 +304,11 @@ onMounted(() => {
                     <Table class="text-center">
                         <TableHeader>
                             <TableRow>
-                                <TableHead># Documento</TableHead>
+                                <TableHead>N° Documento</TableHead>
                                 <TableHead>Fecha</TableHead>
                                 <TableHead>Item</TableHead>
                                 <TableHead>Bodega</TableHead>
                                 <TableHead>Tipo</TableHead>
-                                <TableHead>Origen</TableHead>
                                 <TableHead>Cantidad</TableHead>
                                 <TableHead>Precio Unit.</TableHead>
                                 <TableHead>Stock Anterior</TableHead>
@@ -326,7 +330,7 @@ onMounted(() => {
                             </TableRow>
                             <TableRow v-else v-for="movement in movements" :key="movement.id">
                                 <TableCell class="font-medium">
-                                    {{ movement.document_number || '-' }}
+                                    {{ getDocumentLabel(movement) }}
                                 </TableCell>
                                 <TableCell>{{ formatDate(movement.date) }}</TableCell>
                                 <TableCell class="max-w-[200px] truncate text-left">
@@ -344,9 +348,6 @@ onMounted(() => {
                                     >
                                         {{ typeLabelMap[movement.type] || movement.type }}
                                     </span>
-                                </TableCell>
-                                <TableCell class="text-xs text-muted-foreground">
-                                    {{ getSourceLabel(movement) }}
                                 </TableCell>
                                 <TableCell>
                                     <span :class="movement.type === 'entrada' ? 'text-green-600' : 'text-red-600'">
@@ -429,8 +430,8 @@ onMounted(() => {
                 <div v-if="selectedMovement" class="space-y-4">
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="text-sm font-medium text-muted-foreground"># Documento</label>
-                            <p class="text-sm font-semibold">{{ selectedMovement.document_number || '-' }}</p>
+                            <label class="text-sm font-medium text-muted-foreground">N° Documento</label>
+                            <p class="text-sm font-semibold">{{ getDocumentLabel(selectedMovement) }}</p>
                         </div>
                         <div>
                             <label class="text-sm font-medium text-muted-foreground">Fecha</label>
@@ -567,6 +568,11 @@ onMounted(() => {
                     <div v-if="selectedMovement.notes" class="border-t pt-4">
                         <label class="text-sm font-medium text-muted-foreground">Notas</label>
                         <p class="text-sm">{{ selectedMovement.notes }}</p>
+                    </div>
+
+                    <div v-if="selectedMovement.source_reference" class="border-t pt-4">
+                        <label class="text-sm font-medium text-muted-foreground">Referencia técnica</label>
+                        <p class="text-sm font-mono">{{ selectedMovement.source_reference }}</p>
                     </div>
 
                     <div v-if="selectedMovement.created_by" class="border-t pt-4">

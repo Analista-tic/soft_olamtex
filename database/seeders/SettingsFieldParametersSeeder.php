@@ -562,33 +562,6 @@ class SettingsFieldParametersSeeder extends Seeder
             ],
             [
                 'kind' => 'field',
-                'key'  => 'color',
-                'data' => [
-                    'label'      => 'Color',
-                    'field_type' => 'select',
-                    'options'    => [
-                        'AZUL PETROLEO', 'SALMON', 'VERDE CLARO', 'GRIS CLARO', 'KAKI',
-                        'TERRACOTA', 'TAUPE', 'CAFÉ', 'BEIGE', 'VERDE OSCURO', 'VERDE LIMÓN',
-                        'TURQUESA', 'NARANJA NEON', 'AZUL ELECTRICO', 'CAMEL', 'GRANATE',
-                        'CEREZA', 'BEIGE OSCURO', 'BERENJENA', 'AZUL CELESTE', 'ROSADO',
-                        'VINOTINTO', 'NEGRO', 'ROJO', 'AMARILLO', 'NARANJA', 'BLANCO',
-                        'LILA', 'VIOLETA', 'FUCSIA', 'AZUL OSCURO', 'PALO ROSA', 'GRIS OSCURO',
-                        'VERDE MILITAR', 'CRUDO', 'MOSTAZA', 'VERDE', 'AZUL REY', 'VERDE JADE',
-                        'CURUBA', 'AZUL INDIGO', 'AZUL CLARO', 'ROSADO CLARO', 'ROSADO NEON',
-                        'GRIS', 'VERDE FUERTE', 'AMARILLO OSCURO', 'VERDE MENTA', 'MAGENTA',
-                        'VERDE NEON', 'MENTA', 'AZUL NAVY', 'NUDE', 'ROSA VIEJO', 'CAOBA',
-                        'LIMA', 'VERDE PISTACHO', 'AZUL', 'PETROLEO', 'LAVANDA', 'VERDE OLIVA',
-                        'DURAZNO', 'AMARILLO CLARO', 'MORADO', 'CREMA', 'MANDARINA', 'GUAYABA',
-                        'CANELA', 'INDIGO', 'VERDE SALVIA', 'CAFÉ OSCURO', 'MAUVE',
-                        'VERDE PASTEL', 'MARFIL', 'VERDE OSC', 'ROJA', 'GRIS PERLA',
-                        'GENERAL', 'OFWHITE', 'ORANGE', 'AZUL NOCHE',
-                    ],
-                    'position'   => 3,
-                    'status'     => true,
-                ],
-            ],
-            [
-                'kind' => 'field',
                 'key'  => 'talla',
                 'data' => [
                     'label'      => 'Talla',

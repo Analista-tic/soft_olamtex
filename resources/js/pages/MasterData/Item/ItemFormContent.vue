@@ -408,7 +408,28 @@ function normalizeExtraFieldsValue(value: unknown): Record<string, unknown> {
     return {};
 }
 
-const LEGACY_META_KEYS = new Set(['legacy_import', 'legacy_source', 'migration_batch', 'legacy_row_number', 'legacy_raw_row']);
+const HIDDEN_EXTRA_FIELD_KEYS = new Set([
+    'legacy_import',
+    'legacy_source',
+    'migration_batch',
+    'legacy_row_number',
+    'legacy_raw_row',
+    'legacy_color_name',
+    'legacy_initial_unit_cost',
+    'legacy_initial_unit_cost_source',
+    'color',
+    'precio',
+    'origin_type',
+    'imported_at',
+    'source_reference',
+]);
+
+function shouldExposeExtraField(fieldName: string): boolean {
+    const normalized = String(fieldName ?? '').trim().toLowerCase();
+    if (!normalized) return false;
+    if (HIDDEN_EXTRA_FIELD_KEYS.has(normalized)) return false;
+    return !['legacy_', 'import_', '__'].some((prefix) => normalized.startsWith(prefix));
+}
 
 function fillExtraFields(obj: unknown) {
     extraFields.value = {};
@@ -417,7 +438,7 @@ function fillExtraFields(obj: unknown) {
     Object.entries(normalized).forEach(([key, value]) => {
         const fieldName = String(key ?? '').trim();
         if (!fieldName) return;
-        if (LEGACY_META_KEYS.has(fieldName)) return;
+        if (!shouldExposeExtraField(fieldName)) return;
         if (value === undefined || value === null) return;
 
         const stringValue = (typeof value === 'string' ? value : String(value)).trim();
@@ -1095,6 +1116,10 @@ async function handleSubmit() {
 
     const extraFieldsToSend: Record<string, string> = {};
     extraFieldNames.value.forEach((key) => {
+        if (!shouldExposeExtraField(key)) {
+            return;
+        }
+
         if (extraFields.value[key] && String(extraFields.value[key]).trim() !== '') {
             extraFieldsToSend[key] = String(extraFields.value[key]);
         }

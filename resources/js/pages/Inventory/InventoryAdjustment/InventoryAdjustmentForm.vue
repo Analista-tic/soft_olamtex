@@ -301,13 +301,13 @@ function handleItemChange(selectedItemId: any, line: Line) {
     if (!selectedItemId) return;
     const selectedItem = items.value.find(item => String(item.id) === String(selectedItemId));
     if (selectedItem) {
-        const itemTaxId = selectedItem.tax_id; 
+        const itemTaxId = selectedItem.tax_id;
         if (itemTaxId) {
             line.taxId = Number(itemTaxId);
             const selectedTax = taxes.value.find(t => String(t.id) === String(itemTaxId));
             line.tax = selectedTax ? Number(selectedTax.percentage) : 0;
         } else {
-            line.taxId = 0; 
+            line.taxId = 0;
             line.tax = 0;
         }
     }
@@ -413,7 +413,7 @@ async function handleSubmit() {
     // Si es 'entrada' -> mandamos 'entry_regularization'
     // Si es 'salida'  -> mandamos 'exit_regularization'
     const backendReason = uiReason === 'salida' ? 'exit_regularization' : 'entry_regularization';
-    
+
     // 3. El 'type' siempre debe ser 'entrada' o 'salida' estrictamente
     const type = uiReason === 'salida' ? 'salida' : 'entrada';
 
@@ -505,7 +505,7 @@ async function handleSubmit() {
                     <div class="space-y-4">
                         <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                             <div>
-                                <Label># Documento</Label>
+                                <Label>N° Documento</Label>
                                 <Input v-model="documentNumber" class="pointer-events-none mt-1 select-none" readonly tabindex="-1" />
                             </div>
                             <div class="relative flex h-full items-center justify-center rounded p-4">

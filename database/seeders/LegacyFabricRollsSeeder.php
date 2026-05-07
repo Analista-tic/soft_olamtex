@@ -185,18 +185,27 @@ class LegacyFabricRollsSeeder extends Seeder
         $actualizados = 0;
 
         foreach ($itemMap as $ref => $itemId) {
-            $totalMetros = round((float) ($totales->get($itemId)?->total_metrosr9 ?? 0), 2);
+            $existingRow = DB::table('warehouse_items')
+                ->where('item_id', $itemId)
+                ->where('warehouse_id', $warehouseId)
+                ->first();
 
+            if ($existingRow) {
+                continue;
+            }
+
+            $totalMetros = round((float) ($totales->get($itemId)?->total_metros ?? 0), 4);
             DB::table('warehouse_items')->upsert(
                 [
                     'item_id'      => $itemId,
                     'warehouse_id' => $warehouseId,
                     'quantity'     => $totalMetros,
+                    'total_cost'   => 0,
                     'created_at'   => now(),
                     'updated_at'   => now(),
                 ],
                 ['item_id', 'warehouse_id'],  // columnas únicas para detectar duplicado
-                ['quantity', 'updated_at']    // columnas a actualizar si ya existe
+                ['quantity', 'total_cost', 'updated_at']    // columnas a actualizar si ya existe
             );
 
             $actualizados++;

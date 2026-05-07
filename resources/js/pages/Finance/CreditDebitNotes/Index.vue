@@ -592,7 +592,7 @@ onMounted(async () => {
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead># Documento</TableHead>
+                            <TableHead>N° Documento</TableHead>
                             <TableHead>Tipo</TableHead>
                             <TableHead>Fecha</TableHead>
                             <TableHead>{{ counterpartLabel }}</TableHead>

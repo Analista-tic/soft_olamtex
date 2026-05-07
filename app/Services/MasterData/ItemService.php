@@ -311,6 +311,11 @@ class ItemService
 
         $orderedFieldNames = $this->orderedAdditionalFieldNames();
 
+        // Pre-cargar cache nombre→id de colores (evita N+1 por fila).
+        $colorNameToId = Color::all()->mapWithKeys(
+            fn ($c) => [mb_strtolower(trim((string) $c->name)) => (int) $c->id]
+        )->all();
+
         foreach ($rows as $rowNum => $row) {
             if (empty(array_filter($row))) {
                 continue;
@@ -352,7 +357,33 @@ class ItemService
                 }
 
                 $extrasString = $this->buildExtraFieldsNameSegment($extraFields, $orderedFieldNames);
-                $colorValue = $this->extractColorNameFromExtraFields($extraFields);
+
+                // ── Resolver color_id ──────────────────────────────────────────────────
+                // Prioridad: columna COLOR dedicada en el Excel.
+                // Fallback: COLOR dentro de CAMPOS ADICIONALES (formato anterior).
+                $dedicatedColorKey = $this->normalizeHeader('COLOR');
+                $colorNameRaw = isset($normalizedRow[$dedicatedColorKey])
+                    ? trim((string) ($normalizedRow[$dedicatedColorKey] ?? ''))
+                    : '';
+
+                if ($colorNameRaw !== '') {
+                    // Columna COLOR dedicada: resolver color_id y excluir de extra_fields.
+                    $resolvedColorId = $colorNameToId[mb_strtolower($colorNameRaw)] ?? null;
+                    foreach (array_keys($extraFields) as $efKey) {
+                        if (strcasecmp(trim((string) $efKey), 'color') === 0) {
+                            unset($extraFields[$efKey]);
+                        }
+                    }
+                    $colorValue = $colorNameRaw;
+                } else {
+                    // Fallback: COLOR venía en CAMPOS ADICIONALES (compatibilidad con archivos anteriores).
+                    $colorValue    = $this->extractColorNameFromExtraFields($extraFields);
+                    $resolvedColorId = $colorValue !== ''
+                        ? ($colorNameToId[mb_strtolower($colorValue)] ?? null)
+                        : null;
+                }
+                // ── Fin resolver color_id ──────────────────────────────────────────────
+
                 $nameParts = array_filter([
                     optional($subGroup)->name,
                     $extrasString,
@@ -409,6 +440,7 @@ class ItemService
 
                 $itemData = [
                     'category_sub_group_id' => $subGroup->id,
+                    'color_id'              => $resolvedColorId,
                     'tax_id' => $this->resolveTaxIdFromImportValue($taxValue),
                     'tax' => $taxValue,
                     'bar_code' => $barCodeValue,
@@ -1224,6 +1256,10 @@ class ItemService
                         'stock_min' => $warehouse['stock_min'] ?? 0,
                         'stock_max' => $warehouse['stock_max'] ?? 0,
                         'weighted_average_price' => $quantity > 0 && $unitPrice !== null ? $unitPrice : null,
+                        'last_unit_cost' => $unitPrice,
+                        'total_cost' => round($quantity * (float) ($unitPrice ?? 0), 4),
+                        'source_type' => 'item_excel_import',
+                        'source_reference' => $importBatchId,
                     ]
                 );
 
@@ -1237,6 +1273,7 @@ class ItemService
                     'warehouse_id' => $warehouse['warehouse_id'],
                     'source_type' => 'item_excel_import',
                     'source_id' => null,
+                    'source_reference' => $importBatchId,
                     'type' => 'entrada',
                     'date' => now()->toDateString(),
                     'quantity' => $quantity,

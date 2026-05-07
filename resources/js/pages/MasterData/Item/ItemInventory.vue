@@ -24,12 +24,12 @@ type InventoryViewItem = {
     quantity: number;
     status: boolean;
     average_cost: number;
-    total: number;
+    total_cost: number;
     category_group_id?: number | null;
     category_sub_group_id?: number | null;
 };
 
-const breadcrumbs = [{ title: 'Inventario de Ítems', href: '/inventario-item' }];
+const breadcrumbs = [{ title: 'Inventario de Items', href: '/inventario-item' }];
 
 const warehousesStore = useWarehousesStore();
 
@@ -53,7 +53,7 @@ const currentPage = ref(1);
 const itemsPerPage = ref(10);
 const totalItems = ref(0);
 const isLoading = ref(false);
-const sortBy = ref<string>('total');
+const sortBy = ref<string>('total_cost');
 const sortDir = ref<'asc' | 'desc'>('desc');
 
 const currencyFormatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' });
@@ -105,7 +105,7 @@ async function fetchItems(page = 1) {
     isLoading.value = true;
     const params: Record<string, unknown> = {
         page,
-        per_page: itemsPerPage,
+        per_page: itemsPerPage.value,
         sort_by: sortBy.value,
         sort_dir: sortDir.value,
     };
@@ -113,8 +113,6 @@ async function fetchItems(page = 1) {
     if (searchQuery.value.trim()) {
         params.search = searchQuery.value.trim();
     }
-
-    // Fecha filter removed — no date params sent
 
     if (selectedWarehouseId.value) {
         params.warehouse_id = selectedWarehouseId.value;
@@ -160,27 +158,26 @@ onMounted(() => {
 </script>
 
 <template>
-    <Head title="Inventario de Ítems" />
+    <Head title="Inventario de Items" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Inventario de Ítems</h1>
-                    <p class="text-sm text-muted-foreground">
-                        Visualiza el stock por bodega, consulta referencias y controla el estado de los ítems.
-                    </p>
+                    <h1 class="text-lg font-bold">Inventario de Items</h1>
+                    <p class="text-sm text-muted-foreground">Visualiza el stock actual, su costo promedio y el valor total.</p>
                 </div>
             </div>
-            <!-- FILTROS -->
+
             <FilterBar align="start" gap="gap-4">
                 <FilterField label="Buscar referencia" :active="isSearchFilterActive" class="min-w-[220px] flex-1">
                     <div class="relative">
-                        <Input v-model="searchQuery" placeholder="Buscar ítem o referencia" class="h-10 w-full pl-12" />
+                        <Input v-model="searchQuery" placeholder="Buscar item o referencia" class="h-10 w-full pl-12" />
                         <span class="pointer-events-none absolute inset-y-0 start-3 flex items-center justify-center">
                             <Search :size="18" class="text-muted-foreground" />
                         </span>
                     </div>
                 </FilterField>
+
                 <FilterField label="Bodega" :active="isWarehouseActive" class="min-w-[220px] flex-1">
                     <SelectField
                         v-model="warehouseFilter"
@@ -202,11 +199,12 @@ onMounted(() => {
                     />
                 </FilterField>
             </FilterBar>
+
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead class="text-start">Nombre ítem</TableHead>
+                            <TableHead class="text-start">Item</TableHead>
                             <TableHead>Referencia</TableHead>
                             <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('quantity')">
                                 <span class="inline-flex items-center gap-1">
@@ -235,11 +233,11 @@ onMounted(() => {
                                     </span>
                                 </span>
                             </TableHead>
-                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('total')">
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('total_cost')">
                                 <span class="inline-flex items-center gap-1">
                                     Total
                                     <span class="text-muted-foreground">
-                                        <template v-if="sortBy === 'total'">
+                                        <template v-if="sortBy === 'total_cost'">
                                             {{ sortDir === 'asc' ? '↑' : '↓' }}
                                         </template>
                                         <template v-else>
@@ -250,17 +248,20 @@ onMounted(() => {
                             </TableHead>
                         </TableRow>
                     </TableHeader>
+
                     <TableBody>
                         <template v-if="isLoading">
                             <TableRow>
-                                <TableCell :colspan="6" class="py-6 text-center text-sm text-muted-foreground"
-                                    >Cargando inventario de ítems...</TableCell
-                                >
+                                <TableCell :colspan="6" class="py-6 text-center text-sm text-muted-foreground">
+                                    Cargando inventario de items...
+                                </TableCell>
                             </TableRow>
                         </template>
                         <template v-else-if="items.length === 0">
                             <TableRow>
-                                <TableCell :colspan="6" class="text-center text-muted-foreground">No hay ítems en el inventario.</TableCell>
+                                <TableCell :colspan="6" class="text-center text-muted-foreground">
+                                    No hay items con stock actual en el inventario.
+                                </TableCell>
                             </TableRow>
                         </template>
                         <template v-else>
@@ -272,11 +273,12 @@ onMounted(() => {
                                     <StatusBadge :status="item.status" />
                                 </TableCell>
                                 <TableCell class="text-center">{{ formatCurrency(item.average_cost) }}</TableCell>
-                                <TableCell class="text-center">{{ formatCurrency(item.total) }}</TableCell>
+                                <TableCell class="text-center">{{ formatCurrency(item.total_cost) }}</TableCell>
                             </TableRow>
                         </template>
                     </TableBody>
                 </Table>
+
                 <div class="px-4 pb-4">
                     <ServerPagination
                         v-model:current-page="currentPage"

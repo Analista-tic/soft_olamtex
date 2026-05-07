@@ -152,6 +152,7 @@ class InventoryMovementService
                 'warehouse_id' => $data['warehouse_id'],
                 'source_type' => $data['source_type'] ?? null,
                 'source_id' => $data['source_id'] ?? null,
+                'source_reference' => $data['source_reference'] ?? null,
                 'type' => $data['type'],
                 'date' => $data['date'] ?? now()->toDateString(),
                 'quantity' => $quantity,
@@ -166,7 +167,19 @@ class InventoryMovementService
             ]);
 
             // Actualizar stock y PP en warehouse_items (estado derivado por bodega)
-            $this->updateWarehouseStock($data['item_id'], $data['warehouse_id'], $newStock, $newWeightedPrice);
+            $lastUnitCost = ($unitPrice !== null && in_array($data['type'], ['entrada', 'ajuste'], true))
+                ? $unitPrice
+                : null;
+
+            $this->updateWarehouseStock(
+                $data['item_id'],
+                $data['warehouse_id'],
+                $newStock,
+                $newWeightedPrice,
+                $lastUnitCost,
+                $data['source_type'] ?? null,
+                $data['source_reference'] ?? null,
+            );
 
             return $movement->load(['item', 'warehouse', 'createdBy']);
         });
@@ -307,7 +320,15 @@ class InventoryMovementService
     /**
      * Actualizar stock y PP en warehouse_items (estado derivado por bodega).
      */
-    protected function updateWarehouseStock(int $itemId, int $warehouseId, float $newStock, ?float $weightedPrice = null): void
+    protected function updateWarehouseStock(
+        int $itemId,
+        int $warehouseId,
+        float $newStock,
+        ?float $weightedPrice = null,
+        ?float $lastUnitCost = null,
+        ?string $sourceType = null,
+        ?string $sourceReference = null
+    ): void
     {
         $row = DB::table('warehouse_items')
             ->where('item_id', $itemId)
@@ -321,6 +342,30 @@ class InventoryMovementService
 
         if ($weightedPrice !== null) {
             $payload['weighted_average_price'] = $weightedPrice;
+        }
+
+        $effectiveAverageCost = $weightedPrice;
+        if ($effectiveAverageCost === null && $row && isset($row->weighted_average_price)) {
+            $effectiveAverageCost = $row->weighted_average_price !== null
+                ? (float) $row->weighted_average_price
+                : null;
+        }
+
+        if ($lastUnitCost !== null) {
+            $payload['last_unit_cost'] = $lastUnitCost;
+        }
+
+        $payload['total_cost'] = round(
+            $newStock * (float) ($effectiveAverageCost ?? 0),
+            4
+        );
+
+        if ($sourceType !== null) {
+            $payload['source_type'] = $sourceType;
+        }
+
+        if ($sourceReference !== null) {
+            $payload['source_reference'] = $sourceReference;
         }
 
         if ($row) {

@@ -29,6 +29,7 @@ class InventoryMovement extends Model implements HasAuditLabel
         'warehouse_id',
         'source_type',
         'source_id',
+        'source_reference',
         'type',
         'date',
         'quantity',
@@ -52,6 +53,16 @@ class InventoryMovement extends Model implements HasAuditLabel
         'new_stock' => 'decimal:4',
         'new_weighted_price' => 'decimal:4',
     ];
+
+    protected $appends = [
+        'display_document_number',
+        'source_group_label',
+    ];
+
+    private static function legacyDocumentDisplayPrefix(): string
+    {
+        return "Migraci\u{00F3}n";
+    }
 
     /**
      * Relación con el item afectado
@@ -124,5 +135,35 @@ class InventoryMovement extends Model implements HasAuditLabel
     public function scopeDateRange($query, $from, $to)
     {
         return $query->whereBetween('date', [$from, $to]);
+    }
+
+    public function getDisplayDocumentNumberAttribute(): ?string
+    {
+        $documentNumber = $this->document_number;
+
+        if (!is_string($documentNumber) || trim($documentNumber) === '') {
+            return null;
+        }
+
+        if (
+            in_array($this->source_type, ['legacy_import', 'item_excel_import'], true)
+            && preg_match('/^Migraci(?:o|\x{00F3}|\?)n (\d+)-\d{4}$/u', $documentNumber, $matches) === 1
+        ) {
+            return self::legacyDocumentDisplayPrefix() . ' ' . $matches[1];
+        }
+
+        return $documentNumber;
+    }
+
+    public function getSourceGroupLabelAttribute(): ?string
+    {
+        $display = $this->display_document_number;
+        $prefix = self::legacyDocumentDisplayPrefix();
+
+        if (is_string($display) && str_starts_with($display, $prefix . ' ')) {
+            return $display;
+        }
+
+        return null;
     }
 }

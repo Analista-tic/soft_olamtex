@@ -9,6 +9,7 @@ use App\Models\MasterData\Color;
 use App\Models\MasterData\Item;
 use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\WarehouseItem;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -91,6 +92,8 @@ class LegacyItemsMigrationService
     protected array $taxCache = [];
     /** Mapa normalizado_color_name → color_id */
     protected array $colorCache = [];
+    protected array $legacyBatchNumbers = [];
+    protected array $legacyBatchSequences = [];
     protected ?int $fallbackSubGroupId = null;
     protected ?int $defaultTaxId = null;
 
@@ -214,8 +217,9 @@ class LegacyItemsMigrationService
     public function importAll(array $csvPaths, string $batchId): array
     {
         $this->warmCaches();
+        $this->prepareLegacyBatch($batchId);
 
-        $summary = ['total_read' => 0, 'inserted' => 0, 'skipped' => 0, 'errors' => []];
+        $summary = $this->makeImportSummary();
 
         foreach ($csvPaths as $csvPath) {
             $sourceName = basename($csvPath);
@@ -224,15 +228,29 @@ class LegacyItemsMigrationService
             $result = $this->importCsv($csvPath, $sourceName, $batchId);
 
             $summary['total_read'] += $result['total_read'];
-            $summary['inserted']   += $result['inserted'];
-            $summary['skipped']    += $result['skipped'];
-            $summary['errors']      = array_merge($summary['errors'], $result['errors']);
+            $summary['inserted'] += $result['inserted'];
+            $summary['updated'] += $result['updated'];
+            $summary['skipped'] += $result['skipped'];
+            $summary['items_inserted'] += $result['items_inserted'];
+            $summary['items_updated'] += $result['items_updated'];
+            $summary['warehouse_items_created'] += $result['warehouse_items_created'];
+            $summary['warehouse_items_updated'] += $result['warehouse_items_updated'];
+            $summary['missing_warehouse'] += $result['missing_warehouse'];
+            $summary['invalid_quantities'] += $result['invalid_quantities'];
+            $summary['errors'] = array_merge($summary['errors'], $result['errors']);
 
             Log::info('legacy_import.file_done', [
                 'file'     => $sourceName,
                 'read'     => $result['total_read'],
                 'inserted' => $result['inserted'],
+                'updated'  => $result['updated'],
                 'skipped'  => $result['skipped'],
+                'items_inserted' => $result['items_inserted'],
+                'items_updated' => $result['items_updated'],
+                'warehouse_items_created' => $result['warehouse_items_created'],
+                'warehouse_items_updated' => $result['warehouse_items_updated'],
+                'missing_warehouse' => $result['missing_warehouse'],
+                'invalid_quantities' => $result['invalid_quantities'],
                 'errors'   => count($result['errors']),
             ]);
         }
@@ -241,7 +259,14 @@ class LegacyItemsMigrationService
             'batch'    => $batchId,
             'read'     => $summary['total_read'],
             'inserted' => $summary['inserted'],
+            'updated'  => $summary['updated'],
             'skipped'  => $summary['skipped'],
+            'items_inserted' => $summary['items_inserted'],
+            'items_updated' => $summary['items_updated'],
+            'warehouse_items_created' => $summary['warehouse_items_created'],
+            'warehouse_items_updated' => $summary['warehouse_items_updated'],
+            'missing_warehouse' => $summary['missing_warehouse'],
+            'invalid_quantities' => $summary['invalid_quantities'],
             'errors'   => count($summary['errors']),
         ]);
 
@@ -254,7 +279,7 @@ class LegacyItemsMigrationService
 
     protected function importCsv(string $path, string $sourceName, string $batchId): array
     {
-        $result = ['total_read' => 0, 'inserted' => 0, 'skipped' => 0, 'errors' => []];
+        $result = $this->makeImportSummary();
 
         if (!file_exists($path) || !is_readable($path)) {
             $result['errors'][] = "Archivo no encontrado o no legible: {$path}";
@@ -299,53 +324,59 @@ class LegacyItemsMigrationService
                 $mapped = $this->mapRowToFields($row, $headerMap, $rawHeaders);
                 $payload = $this->buildItemPayload($mapped, $sourceName, $batchId, $rowNum);
 
-                DB::transaction(function () use ($payload) {
-                    $item = Item::create($payload['attributes']);
+                $rowStats = [
+                    'item_action' => null,
+                    'warehouse_item_action' => null,
+                ];
+
+                DB::transaction(function () use ($payload, $batchId, &$rowStats) {
+                    [$item, $rowStats['item_action']] = $this->persistLegacyItem($payload['attributes']);
 
                     if (!empty($payload['warehouses'])) {
                         $mv  = $payload['initial_movement'];
-                        $whIdx = 0;
 
                         foreach ($payload['warehouses'] as $wh) {
                             $qty = (float) $wh['quantity'];
                             $unitPrice = $mv['unit_price'];
+                            $signedTotalCost = $this->calculateSignedTotalCost($qty, $unitPrice);
 
-                            WarehouseItem::create([
-                                'item_id'      => $item->id,
-                                'warehouse_id' => $wh['warehouse_id'],
-                                'quantity'     => $qty,
-                                'stock_min'    => $wh['stock_min'],
-                                'stock_max'    => $wh['stock_max'],
-                                'weighted_average_price' => $qty > 0 && $unitPrice !== null ? $unitPrice : null,
-                            ]);
-
-                            if ($qty <= 0) {
-                                $whIdx++;
-                                continue;
-                            }
-
-                            // Movimiento inicial de inventario (saldo de apertura legacy).
-                            $totalCost  = ($unitPrice !== null && $qty > 0)
-                                ? round($qty * $unitPrice, 4)
-                                : null;
-
-                            // document_number único: LM-{batchId}-{rowNum}-{whIdx}
-                            $docNumber = mb_substr(
-                                'LM-' . $mv['batch_id'] . '-' . $mv['row_num'] . '-' . $whIdx,
-                                0, 50
+                            $warehouseItem = WarehouseItem::updateOrCreate(
+                                [
+                                    'item_id' => $item->id,
+                                    'warehouse_id' => $wh['warehouse_id'],
+                                ],
+                                [
+                                    'quantity' => $qty,
+                                    'stock_min' => $wh['stock_min'],
+                                    'stock_max' => $wh['stock_max'],
+                                    'weighted_average_price' => $unitPrice,
+                                    'last_unit_cost' => $unitPrice,
+                                    'total_cost' => $signedTotalCost,
+                                    'source_type' => $mv['source_type'],
+                                    'source_reference' => $mv['source_reference'],
+                                ]
                             );
 
+                            $rowStats['warehouse_item_action'] = $warehouseItem->wasRecentlyCreated ? 'created' : 'updated';
+
+                            $movementType = $qty < 0 ? 'salida' : 'entrada';
+                            $movementQuantity = round(abs($qty), 4);
+                            $movementTotalCost = $unitPrice !== null
+                                ? round($movementQuantity * $unitPrice, 4)
+                                : null;
+
                             InventoryMovement::create([
-                                'document_number'         => $docNumber,
+                                'document_number'         => $this->nextLegacyDocumentNumber($batchId),
                                 'item_id'                 => $item->id,
                                 'warehouse_id'            => $wh['warehouse_id'],
                                 'source_type'             => $mv['source_type'],
                                 'source_id'               => null,
-                                'type'                    => 'entrada',
+                                'source_reference'        => $mv['source_reference'],
+                                'type'                    => $movementType,
                                 'date'                    => $mv['date'],
-                                'quantity'                => $qty,
+                                'quantity'                => $movementQuantity,
                                 'unit_price'              => $unitPrice,
-                                'total_cost'              => $totalCost,
+                                'total_cost'              => $movementTotalCost,
                                 'previous_stock'          => 0,
                                 'previous_weighted_price' => 0,
                                 'new_stock'               => $qty,
@@ -353,24 +384,44 @@ class LegacyItemsMigrationService
                                 'notes'                   => 'Saldo inicial importado — ' . $mv['source_name'],
                                 'created_by_user_id'      => null,
                             ]);
-
-                            $whIdx++;
                         }
                     }
                 });
 
-                $result['inserted']++;
+                if ($rowStats['item_action'] === 'updated') {
+                    $result['updated']++;
+                    $result['items_updated']++;
+                } else {
+                    $result['inserted']++;
+                    $result['items_inserted']++;
+                }
+
+                if ($rowStats['warehouse_item_action'] === 'updated') {
+                    $result['warehouse_items_updated']++;
+                } else {
+                    $result['warehouse_items_created']++;
+                }
 
                 // Log de progreso cada 500 filas
-                if ($result['inserted'] % 500 === 0) {
+                if (($result['inserted'] + $result['updated']) % 500 === 0) {
                     Log::info('legacy_import.progress', [
-                        'file' => $sourceName, 'row' => $rowNum, 'inserted' => $result['inserted'],
+                        'file' => $sourceName,
+                        'row' => $rowNum,
+                        'inserted' => $result['inserted'],
+                        'updated' => $result['updated'],
+                        'warehouse_items_created' => $result['warehouse_items_created'],
+                        'warehouse_items_updated' => $result['warehouse_items_updated'],
                     ]);
                 }
             } catch (\Throwable $e) {
                 $errorMsg = "Fila {$rowNum}: {$e->getMessage()}";
                 $result['errors'][] = $errorMsg;
                 $result['skipped']++;
+                if ((int) $e->getCode() === 1001) {
+                    $result['missing_warehouse']++;
+                } elseif ((int) $e->getCode() === 1002) {
+                    $result['invalid_quantities']++;
+                }
                 Log::warning('legacy_import.row_error', [
                     'file' => $sourceName, 'row' => $rowNum, 'error' => $e->getMessage(),
                 ]);
@@ -389,6 +440,50 @@ class LegacyItemsMigrationService
      * Construye [índice_columna => campo_destino] usando COLUMN_MAP.
      * Columnas no reconocidas se prefijan con _unmapped:.
      */
+    protected function makeImportSummary(): array
+    {
+        return [
+            'total_read' => 0,
+            'inserted' => 0,
+            'updated' => 0,
+            'items_inserted' => 0,
+            'items_updated' => 0,
+            'warehouse_items_created' => 0,
+            'warehouse_items_updated' => 0,
+            'missing_warehouse' => 0,
+            'invalid_quantities' => 0,
+            'skipped' => 0,
+            'errors' => [],
+        ];
+    }
+
+    protected function persistLegacyItem(array $attributes): array
+    {
+        $reference = trim((string) ($attributes['reference'] ?? ''));
+        if ($reference === '') {
+            $item = Item::create($attributes);
+            return [$item, 'created'];
+        }
+
+        $item = Item::query()->where('reference', $reference)->first();
+        if ($item) {
+            $item->fill($attributes);
+            $item->save();
+            return [$item, 'updated'];
+        }
+
+        return [Item::create($attributes), 'created'];
+    }
+
+    protected function calculateSignedTotalCost(float $quantity, ?float $unitPrice): ?float
+    {
+        if ($unitPrice === null) {
+            return null;
+        }
+
+        return round($quantity * $unitPrice, 4);
+    }
+
     protected function buildHeaderMap(array $rawHeaders): array
     {
         $map = [];
@@ -492,7 +587,7 @@ class LegacyItemsMigrationService
         $attributes['import_batch_id']    = $batchId;
 
         // --- Color ---
-        [$colorId, $colorName] = $this->resolveColorId($mapped['_color'] ?? '');
+        [$colorId] = $this->resolveColorId($mapped['_color'] ?? '');
         $attributes['color_id'] = $colorId;
 
         // --- Costo inicial (columna PRECIO = ultimocosto del legacy) ---
@@ -509,33 +604,25 @@ class LegacyItemsMigrationService
         }
 
         // --- extra_fields: campos adicionales + trazabilidad legacy ---
-        $extraFields = $this->resolveExtraFields($mapped);
-
-        // Conservar el nombre original del color en extra_fields (trazabilidad).
-        if ($colorName !== '') {
-            $extraFields['legacy_color_name'] = $colorName;
-        }
+        $attributes['extra_fields'] = $this->resolveExtraFields($mapped);
 
         // Trazabilidad del costo inicial (no se guarda como precio funcional del ítem).
-        $extraFields['legacy_initial_unit_cost']        = $unitCost;
-        $extraFields['legacy_initial_unit_cost_source'] = 'ultimocosto';
 
-        // Conservar trazabilidad legacy detallada dentro de extra_fields.
-        $extraFields['legacy_import']     = true;
-        $extraFields['legacy_source']     = $sourceName;
-        $extraFields['migration_batch']   = $batchId;
-        $extraFields['legacy_row_number'] = $rowNum;
-        $extraFields['legacy_raw_row']    = $mapped['_raw_row'] ?? [];
-
-        $attributes['extra_fields'] = $extraFields;
 
         // --- Bodegas ---
-        $warehouses = $this->resolveWarehouse($mapped);
+        $warehouses = $this->resolveWarehouse(
+            $mapped,
+            $sourceName,
+            $rowNum,
+            (string) $attributes['reference'],
+            (string) $attributes['name'],
+        );
 
         // --- Movimiento inicial de inventario ---
         $initialMovement = [
             'unit_price'  => $unitCost,
             'source_type' => 'legacy_import',
+            'source_reference' => $batchId,
             'date'        => now()->toDateString(),
             'batch_id'    => $batchId,
             'row_num'     => $rowNum,
@@ -763,6 +850,10 @@ class LegacyItemsMigrationService
         );
         $count = min(count($keys), count($vals));
         for ($i = 0; $i < $count; $i++) {
+            if (!$this->shouldKeepUserExtraField($keys[$i])) {
+                continue;
+            }
+
             $extra[$keys[$i]] = $vals[$i];
         }
 
@@ -773,6 +864,10 @@ class LegacyItemsMigrationService
         foreach ($mapped as $key => $value) {
             if (str_starts_with($key, '_unmapped:') && $value !== '') {
                 $fieldName = str_replace('_unmapped:', '', $key);
+                if (!$this->shouldKeepUserExtraField($fieldName)) {
+                    continue;
+                }
+
                 $extra[$fieldName] = $value;
             }
         }
@@ -780,41 +875,103 @@ class LegacyItemsMigrationService
         return $extra;
     }
 
-    protected function resolveWarehouse(array $mapped): array
+    protected function shouldKeepUserExtraField(string $fieldName): bool
     {
-        $whName = $mapped['_warehouse_name'] ?? '';
-        if ($whName === '') {
-            return [];
+        $trimmed = trim($fieldName);
+        if ($trimmed === '') {
+            return false;
         }
 
-        $normalizedWh = mb_strtoupper(trim($whName), 'UTF-8');
+        $lower = mb_strtolower($trimmed, 'UTF-8');
+        foreach (['legacy_', 'import_', '__'] as $prefix) {
+            if (str_starts_with($lower, $prefix)) {
+                return false;
+            }
+        }
+
+        return !in_array($this->normalize($trimmed), [
+            'COLOR',
+            'PRECIO',
+            'LEGACY_COLOR_NAME',
+            'LEGACY_INITIAL_UNIT_COST',
+            'LEGACY_INITIAL_UNIT_COST_SOURCE',
+            'LEGACY_IMPORT',
+            'LEGACY_SOURCE',
+            'LEGACY_ROW_NUMBER',
+            'LEGACY_RAW_ROW',
+            'MIGRATION_BATCH',
+            'ORIGIN_TYPE',
+            'IMPORTED_AT',
+            'SOURCE_REFERENCE',
+        ], true);
+    }
+
+    protected function resolveWarehouse(
+        array $mapped,
+        string $sourceName,
+        int $rowNum,
+        string $reference,
+        string $itemName
+    ): array
+    {
+        $whName = trim((string) ($mapped['_warehouse_name'] ?? ''));
+        if ($whName === '') {
+            $context = [
+                'file' => $sourceName,
+                'row' => $rowNum,
+                'reference' => $reference,
+                'name' => $itemName,
+                'warehouse_name_original' => $whName,
+            ];
+            Log::warning('legacy_import.warehouse_not_found', $context);
+            throw new \RuntimeException(
+                "Bodega vacia para referencia {$reference} ({$itemName})",
+                1001
+            );
+        }
+
+        $normalizedWh = $this->normalize($whName);
         if (isset($this->warehouseCache[$normalizedWh])) {
             $whId = $this->warehouseCache[$normalizedWh];
         } else {
-            $wh = \App\Models\Inventory\Warehouse::whereRaw('UPPER(name) = ?', [$normalizedWh])->first();
-            if (!$wh) {
-                Log::warning('legacy_import.warehouse_not_found', [
-                    'warehouse_name' => $whName,
-                    'hint' => 'Crear la bodega en la tabla warehouses antes de correr el seeder',
-                ]);
-                return [];
-            }
-            $this->warehouseCache[$normalizedWh] = $wh->id;
-            $whId = $wh->id;
+            $context = [
+                'file' => $sourceName,
+                'row' => $rowNum,
+                'reference' => $reference,
+                'name' => $itemName,
+                'warehouse_name_original' => $whName,
+            ];
+            Log::warning('legacy_import.warehouse_not_found', $context);
+            throw new \RuntimeException(
+                "Bodega no encontrada para referencia {$reference} ({$itemName}): {$whName}",
+                1001
+            );
+        }
+
+        $rawQuantity = (string) ($mapped['_warehouse_qty'] ?? '');
+        $quantity = $this->decimalOrNull($rawQuantity);
+        if ($quantity === null) {
+            $context = [
+                'file' => $sourceName,
+                'row' => $rowNum,
+                'reference' => $reference,
+                'name' => $itemName,
+                'warehouse_name_original' => $whName,
+                'raw_quantity' => $rawQuantity,
+            ];
+            Log::warning('legacy_import.quantity_invalid', $context);
+            throw new \RuntimeException(
+                "Cantidad invalida para referencia {$reference}: {$rawQuantity}",
+                1002
+            );
         }
 
         return [[
             'warehouse_id' => $whId,
-            'quantity'      => $this->parseNumber($mapped['_warehouse_qty'] ?? ''),
-            'stock_min'     => $this->parseNumber($mapped['_warehouse_min'] ?? ''),
-            'stock_max'     => $this->parseNumber($mapped['_warehouse_max'] ?? ''),
+            'quantity' => $quantity,
+            'stock_min' => $this->decimalOrNull((string) ($mapped['_warehouse_min'] ?? '')) ?? 0.0,
+            'stock_max' => $this->decimalOrNull((string) ($mapped['_warehouse_max'] ?? '')) ?? 0.0,
         ]];
-    }
-
-    protected function parseNumber(string $value): float
-    {
-        $normalized = str_replace(',', '.', trim($value));
-        return is_numeric($normalized) ? (float) $normalized : 0.0;
     }
 
     // ─────────────────────────────────────────────────────
@@ -848,7 +1005,7 @@ class LegacyItemsMigrationService
 
         // Pre-cargar bodegas existentes
         \App\Models\Inventory\Warehouse::all(['id', 'name'])->each(function ($wh) {
-            $this->warehouseCache[mb_strtoupper(trim($wh->name), 'UTF-8')] = $wh->id;
+            $this->warehouseCache[$this->normalize($wh->name)] = $wh->id;
         });
 
         // Pre-cargar colores existentes (clave = nombre normalizado)
@@ -862,6 +1019,63 @@ class LegacyItemsMigrationService
             'warehouses' => count($this->warehouseCache),
             'colors'     => count($this->colorCache),
         ]);
+    }
+
+    protected function prepareLegacyBatch(string $batchId): void
+    {
+        if (isset($this->legacyBatchNumbers[$batchId])) {
+            return;
+        }
+
+        $existingNumber = InventoryMovement::query()
+            ->where('source_type', 'legacy_import')
+            ->where('source_reference', $batchId)
+            ->orderBy('id')
+            ->value('document_number');
+
+        if (is_string($existingNumber) && preg_match('/^Migraci(?:o|\x{00F3}|\?)n (\d+)-\d{4}$/u', $existingNumber, $matches) === 1) {
+            $this->legacyBatchNumbers[$batchId] = (int) $matches[1];
+        } else {
+            $maxBatchNumber = InventoryMovement::query()
+                ->where('source_type', 'legacy_import')
+                ->get(['document_number'])
+                ->map(function (InventoryMovement $movement): int {
+                    if (preg_match('/^Migraci(?:o|\x{00F3}|\?)n (\d+)-\d{4}$/u', (string) $movement->document_number, $matches) === 1) {
+                        return (int) $matches[1];
+                    }
+
+                    return 0;
+                })
+                ->max() ?? 0;
+
+            $this->legacyBatchNumbers[$batchId] = $maxBatchNumber + 1;
+        }
+
+        $existingSequenceCount = InventoryMovement::query()
+            ->where('source_type', 'legacy_import')
+            ->where('source_reference', $batchId)
+            ->count();
+
+        $this->legacyBatchSequences[$batchId] = $existingSequenceCount;
+    }
+
+    protected function nextLegacyDocumentNumber(string $batchId): string
+    {
+        $this->prepareLegacyBatch($batchId);
+
+        $this->legacyBatchSequences[$batchId]++;
+
+        return sprintf(
+            '%s %d-%04d',
+            $this->legacyDocumentStoragePrefix(),
+            $this->legacyBatchNumbers[$batchId],
+            $this->legacyBatchSequences[$batchId],
+        );
+    }
+
+    protected function legacyDocumentStoragePrefix(): string
+    {
+        return "Migraci\u{00F3}n";
     }
 
     /**
@@ -961,7 +1175,9 @@ class LegacyItemsMigrationService
         $upper = mb_strtoupper(trim($value), 'UTF-8');
         // Colapsar espacios dobles
         $upper = (string) preg_replace('/\s+/u', ' ', trim($upper));
-        $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $upper);
-        return ($ascii !== false && $ascii !== '') ? (string) preg_replace('/\s+/', ' ', trim($ascii)) : $upper;
+        $ascii = Str::ascii($upper);
+        $normalized = $ascii !== '' ? $ascii : $upper;
+        $normalized = (string) preg_replace('/[^A-Z0-9 ]+/u', ' ', $normalized);
+        return (string) preg_replace('/\s+/', ' ', trim($normalized));
     }
 }

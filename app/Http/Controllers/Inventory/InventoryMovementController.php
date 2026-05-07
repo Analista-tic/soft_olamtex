@@ -89,6 +89,7 @@ class InventoryMovementController extends Controller
             'unit_price' => 'nullable|numeric|min:0',
             'source_type' => 'nullable|string',
             'source_id' => 'nullable|integer',
+            'source_reference' => 'nullable|string|max:120',
             'notes' => 'required|string|max:1000',
         ];
 

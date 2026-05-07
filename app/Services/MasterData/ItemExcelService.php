@@ -46,6 +46,7 @@ class ItemExcelService
             'MOVIMIENTO NEGATIVO',
             'CAMPOS ADICIONALES',
             'VALORES ADICIONALES',
+            'COLOR',
             'ESTADO',
         ];
     }
@@ -87,7 +88,8 @@ class ItemExcelService
             'ART-001',
             'Descripcion de articulo de prueba',
             'NO',
-            'COLOR',
+            'BASE TELA',
+            'RIB',
             'Rojo',
             'Activo',
         ];
@@ -132,7 +134,7 @@ class ItemExcelService
      */
     public function exportAll(): BinaryFileResponse
     {
-        $items = Item::with(['categorySubGroup.categoryGroup', 'tax', 'warehouses', 'warehouseItems'])->get();
+        $items = Item::with(['categorySubGroup.categoryGroup', 'tax', 'warehouses', 'warehouseItems', 'color'])->get();
 
         // Pre-cargar precios derivados por item_id (sin N+1).
         $priceByItem = $this->loadLatestPriceByItem();
@@ -551,6 +553,7 @@ class ItemExcelService
             $item->negative_movement ? 'SI' : 'NO',
             $fieldsCol,
             $valuesCol,
+            optional($item->color)->name ?? '',
             $statusLabel,
         ];
     }
