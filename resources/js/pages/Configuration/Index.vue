@@ -128,6 +128,7 @@ const modules: ConfigurationModule[] = [
             { name: 'Bodegas', href: '/bodegas' },
             { name: 'Campos adicionales', href: '/campos-adicionales' },
             { name: 'Parametros', href: '/parametros' },
+            { name: 'Colores', href: '/colores' },
         ],
     },
     {

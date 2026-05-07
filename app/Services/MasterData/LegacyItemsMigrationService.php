@@ -5,7 +5,9 @@ namespace App\Services\MasterData;
 use App\Models\Finance\Tax;
 use App\Models\MasterData\CategoryGroup;
 use App\Models\MasterData\CategorySubGroup;
+use App\Models\MasterData\Color;
 use App\Models\MasterData\Item;
+use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\WarehouseItem;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -61,6 +63,7 @@ class LegacyItemsMigrationService
         'COLOR'                => '_color',
         'MARCA'                => 'brand',
         'MODELO'               => 'model',
+        'PRECIO'               => '_price',
     ];
 
     /** Valores por defecto para campos obligatorios faltantes */
@@ -86,6 +89,8 @@ class LegacyItemsMigrationService
     protected array $subGroupCache = [];
     protected array $warehouseCache = [];
     protected array $taxCache = [];
+    /** Mapa normalizado_color_name → color_id */
+    protected array $colorCache = [];
     protected ?int $fallbackSubGroupId = null;
     protected ?int $defaultTaxId = null;
 
@@ -298,14 +303,58 @@ class LegacyItemsMigrationService
                     $item = Item::create($payload['attributes']);
 
                     if (!empty($payload['warehouses'])) {
+                        $mv  = $payload['initial_movement'];
+                        $whIdx = 0;
+
                         foreach ($payload['warehouses'] as $wh) {
+                            $qty = (float) $wh['quantity'];
+                            $unitPrice = $mv['unit_price'];
+
                             WarehouseItem::create([
                                 'item_id'      => $item->id,
                                 'warehouse_id' => $wh['warehouse_id'],
-                                'quantity'     => $wh['quantity'],
+                                'quantity'     => $qty,
                                 'stock_min'    => $wh['stock_min'],
                                 'stock_max'    => $wh['stock_max'],
+                                'weighted_average_price' => $qty > 0 && $unitPrice !== null ? $unitPrice : null,
                             ]);
+
+                            if ($qty <= 0) {
+                                $whIdx++;
+                                continue;
+                            }
+
+                            // Movimiento inicial de inventario (saldo de apertura legacy).
+                            $totalCost  = ($unitPrice !== null && $qty > 0)
+                                ? round($qty * $unitPrice, 4)
+                                : null;
+
+                            // document_number único: LM-{batchId}-{rowNum}-{whIdx}
+                            $docNumber = mb_substr(
+                                'LM-' . $mv['batch_id'] . '-' . $mv['row_num'] . '-' . $whIdx,
+                                0, 50
+                            );
+
+                            InventoryMovement::create([
+                                'document_number'         => $docNumber,
+                                'item_id'                 => $item->id,
+                                'warehouse_id'            => $wh['warehouse_id'],
+                                'source_type'             => $mv['source_type'],
+                                'source_id'               => null,
+                                'type'                    => 'entrada',
+                                'date'                    => $mv['date'],
+                                'quantity'                => $qty,
+                                'unit_price'              => $unitPrice,
+                                'total_cost'              => $totalCost,
+                                'previous_stock'          => 0,
+                                'previous_weighted_price' => 0,
+                                'new_stock'               => $qty,
+                                'new_weighted_price'      => $unitPrice ?? 0,
+                                'notes'                   => 'Saldo inicial importado — ' . $mv['source_name'],
+                                'created_by_user_id'      => null,
+                            ]);
+
+                            $whIdx++;
                         }
                     }
                 });
@@ -442,8 +491,34 @@ class LegacyItemsMigrationService
         $attributes['imported_at']        = now();
         $attributes['import_batch_id']    = $batchId;
 
+        // --- Color ---
+        [$colorId, $colorName] = $this->resolveColorId($mapped['_color'] ?? '');
+        $attributes['color_id'] = $colorId;
+
+        // --- Costo inicial (columna PRECIO = ultimocosto del legacy) ---
+        $rawPrice  = $mapped['_price'] ?? '';
+        $unitCost  = $this->decimalOrNull($rawPrice);
+
+        // Advertencia si vino valor pero no fue parseable.
+        if ($rawPrice !== '' && $unitCost === null) {
+            Log::warning('legacy_import.unit_cost_invalid', [
+                'file'      => $sourceName,
+                'row'       => $rowNum,
+                'raw_price' => $rawPrice,
+            ]);
+        }
+
         // --- extra_fields: campos adicionales + trazabilidad legacy ---
         $extraFields = $this->resolveExtraFields($mapped);
+
+        // Conservar el nombre original del color en extra_fields (trazabilidad).
+        if ($colorName !== '') {
+            $extraFields['legacy_color_name'] = $colorName;
+        }
+
+        // Trazabilidad del costo inicial (no se guarda como precio funcional del ítem).
+        $extraFields['legacy_initial_unit_cost']        = $unitCost;
+        $extraFields['legacy_initial_unit_cost_source'] = 'ultimocosto';
 
         // Conservar trazabilidad legacy detallada dentro de extra_fields.
         $extraFields['legacy_import']     = true;
@@ -457,9 +532,20 @@ class LegacyItemsMigrationService
         // --- Bodegas ---
         $warehouses = $this->resolveWarehouse($mapped);
 
+        // --- Movimiento inicial de inventario ---
+        $initialMovement = [
+            'unit_price'  => $unitCost,
+            'source_type' => 'legacy_import',
+            'date'        => now()->toDateString(),
+            'batch_id'    => $batchId,
+            'row_num'     => $rowNum,
+            'source_name' => $sourceName,
+        ];
+
         return [
-            'attributes' => $attributes,
-            'warehouses' => $warehouses,
+            'attributes'       => $attributes,
+            'warehouses'       => $warehouses,
+            'initial_movement' => $initialMovement,
         ];
     }
 
@@ -680,11 +766,8 @@ class LegacyItemsMigrationService
             $extra[$keys[$i]] = $vals[$i];
         }
 
-        // Color como campo extra si viene en columna dedicada
-        $color = $mapped['_color'] ?? '';
-        if ($color !== '' && !isset($extra['Color'])) {
-            $extra['Color'] = $color;
-        }
+        // El nombre original del color se agrega en buildItemPayload como legacy_color_name.
+        // No duplicar aquí para evitar sobreescritura.
 
         // Recoger columnas no mapeadas como campos extra (preservar datos)
         foreach ($mapped as $key => $value) {
@@ -768,18 +851,117 @@ class LegacyItemsMigrationService
             $this->warehouseCache[mb_strtoupper(trim($wh->name), 'UTF-8')] = $wh->id;
         });
 
+        // Pre-cargar colores existentes (clave = nombre normalizado)
+        Color::all(['id', 'name'])->each(function (Color $c) {
+            $this->colorCache[$this->normalize($c->name)] = $c->id;
+        });
+
         Log::info('legacy_import.caches_warmed', [
             'subgroups'  => count($this->subGroupCache),
             'taxes'      => count($this->taxCache),
             'warehouses' => count($this->warehouseCache),
+            'colors'     => count($this->colorCache),
         ]);
+    }
+
+    /**
+     * Parsea un valor monetario/decimal del CSV a float o null.
+     *
+     * Soporta:
+     *   - Coma como separador decimal: "1.234,56" → 1234.56
+     *   - Punto como separador decimal: "1234.56" → 1234.56
+     *   - Símbolos de moneda y espacios: "$ 1.234,56" → 1234.56
+     *   - Vacío o solo texto → null
+     */
+    protected function decimalOrNull(string $value): ?float
+    {
+        $raw = trim($value);
+        if ($raw === '') {
+            return null;
+        }
+
+        // Quitar símbolos de moneda, espacios y caracteres no numéricos salvo . , -
+        $clean = preg_replace('/[^0-9,.\ -]/', '', $raw);
+        $clean = trim((string) $clean);
+
+        if ($clean === '' || $clean === '-') {
+            return null;
+        }
+
+        // Detectar si usa coma como separador decimal (formato europeo/colombiano)
+        // Ejemplo: "1.234,56" → hay punto como separador de miles y coma como decimal
+        if (preg_match('/[.,]/', $clean)) {
+            $lastComma = strrpos($clean, ',');
+            $lastDot   = strrpos($clean, '.');
+
+            if ($lastComma !== false && $lastDot !== false) {
+                // Ambos presentes: el último es el decimal
+                if ($lastComma > $lastDot) {
+                    // Formato: 1.234,56 → quitar puntos, cambiar coma
+                    $clean = str_replace('.', '', $clean);
+                    $clean = str_replace(',', '.', $clean);
+                } else {
+                    // Formato: 1,234.56 → quitar comas
+                    $clean = str_replace(',', '', $clean);
+                }
+            } elseif ($lastComma !== false) {
+                // Solo coma: es el separador decimal
+                $clean = str_replace(',', '.', $clean);
+            }
+            // Solo punto: ya es formato correcto
+        }
+
+        // Quitar espacios restantes (miles con espacio)
+        $clean = str_replace(' ', '', $clean);
+
+        return is_numeric($clean) ? (float) $clean : null;
+    }
+
+    /**
+     * Resuelve el color_id a partir del nombre de color del CSV.
+     *
+     * @return array{0: int|null, 1: string}  [color_id|null, nombre_original]
+     */
+    protected function resolveColorId(string $rawColor): array
+    {
+        $rawColor = trim($rawColor);
+        if ($rawColor === '') {
+            return [null, ''];
+        }
+
+        $normalized = $this->normalize($rawColor);
+
+        if (isset($this->colorCache[$normalized])) {
+            return [$this->colorCache[$normalized], $rawColor];
+        }
+
+        // Buscar en BD por si fue creado después de warmCaches (raro, pero seguro)
+        $color = Color::whereRaw(
+            'UPPER(name) COLLATE utf8mb4_0900_ai_ci = UPPER(?) COLLATE utf8mb4_0900_ai_ci',
+            [$rawColor]
+        )->first();
+
+        if ($color) {
+            $this->colorCache[$normalized] = $color->id;
+            return [$color->id, $rawColor];
+        }
+
+        Log::warning('legacy_import.color_not_found', [
+            'color_raw'        => $rawColor,
+            'color_normalized' => $normalized,
+            'hint'             => 'El color no existe en la tabla colors. Se deja color_id = null.',
+        ]);
+
+        return [null, $rawColor];
     }
 
     /** Normaliza un valor: trim + mayúsculas + transliteración ASCII (sin acentos). */
     protected function normalize(string $value): string
     {
         $upper = mb_strtoupper(trim($value), 'UTF-8');
+        // Colapsar espacios dobles
+        $upper = (string) preg_replace('/\s+/u', ' ', trim($upper));
         $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $upper);
-        return ($ascii !== false && $ascii !== '') ? $ascii : $upper;
+        return ($ascii !== false && $ascii !== '') ? (string) preg_replace('/\s+/', ' ', trim($ascii)) : $upper;
     }
 }

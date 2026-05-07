@@ -78,7 +78,7 @@ class SalesInvoiceController extends Controller
 
     public function show(SaleDocument $saleDocument)
     {
-        $invoice = $this->resolveSalesInvoice($saleDocument);
+        $invoice = $this->resolveAccessibleSalesInvoice($saleDocument, request()->user());
 
         return response()->json([
             'data' => $this->salesInvoiceService->hydratePaymentState($this->service->loadWithRelations($invoice)),
@@ -87,7 +87,7 @@ class SalesInvoiceController extends Controller
 
     public function update(Request $request, SaleDocument $saleDocument)
     {
-        $invoice = $this->resolveSalesInvoice($saleDocument);
+        $invoice = $this->resolveAccessibleSalesInvoice($saleDocument, $request->user());
 
         if (! $invoice->canEditInvoice()) {
             throw ValidationException::withMessages([
@@ -112,7 +112,7 @@ class SalesInvoiceController extends Controller
 
     public function destroy(SaleDocument $saleDocument)
     {
-        $invoice = $this->resolveSalesInvoice($saleDocument);
+        $invoice = $this->resolveAccessibleSalesInvoice($saleDocument, request()->user());
 
         if (! $invoice->canDeleteInvoice()) {
             throw ValidationException::withMessages([
@@ -129,7 +129,7 @@ class SalesInvoiceController extends Controller
 
     public function emit(SaleDocument $salesInvoice)
     {
-        $invoice = $this->resolveSalesInvoice($salesInvoice);
+        $invoice = $this->resolveAccessibleSalesInvoice($salesInvoice, request()->user());
         $emitted = $this->salesInvoiceService->emit($invoice);
 
         return response()->json([
@@ -140,7 +140,7 @@ class SalesInvoiceController extends Controller
 
     public function void(Request $request, SaleDocument $salesInvoice)
     {
-        $invoice = $this->resolveSalesInvoice($salesInvoice);
+        $invoice = $this->resolveAccessibleSalesInvoice($salesInvoice, $request->user());
         $validated = $request->validate([
             'reason' => 'nullable|string',
         ]);
@@ -160,6 +160,17 @@ class SalesInvoiceController extends Controller
         }
 
         return $document;
+    }
+
+    private function resolveAccessibleSalesInvoice(SaleDocument $document, mixed $user): SaleDocument
+    {
+        return $this->service->findAccessibleDocumentOrFail(
+            $this->resolveSalesInvoice($document),
+            $user,
+            'ver propios facturas venta',
+            'ver area facturas venta',
+            'ver todos facturas venta',
+        );
     }
 
     private function resolveParentSalesOrder(mixed $parentDocumentId): ?SaleDocument

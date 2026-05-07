@@ -66,7 +66,7 @@ class QuoteController extends Controller
 
     public function show(SaleDocument $saleDocument)
     {
-        $quote = $this->resolveQuote($saleDocument);
+        $quote = $this->resolveAccessibleQuote($saleDocument, request()->user());
 
         return response()->json([
             'data' => $this->service->loadWithRelations($quote),
@@ -75,7 +75,7 @@ class QuoteController extends Controller
 
     public function update(Request $request, SaleDocument $saleDocument)
     {
-        $quote = $this->resolveQuote($saleDocument);
+        $quote = $this->resolveAccessibleQuote($saleDocument, $request->user());
 
         if (!$quote->canEditQuote()) {
             throw ValidationException::withMessages([
@@ -103,7 +103,7 @@ class QuoteController extends Controller
 
     public function destroy(SaleDocument $saleDocument)
     {
-        $quote = $this->resolveQuote($saleDocument);
+        $quote = $this->resolveAccessibleQuote($saleDocument, request()->user());
 
         if (!$quote->canDeleteQuote()) {
             throw ValidationException::withMessages([
@@ -120,6 +120,8 @@ class QuoteController extends Controller
 
     public function convert(SaleDocument $quote)
     {
+        $this->resolveAccessibleQuote($quote, request()->user());
+
         $salesOrder = DB::transaction(function () use ($quote) {
             $quote = SaleDocument::query()
                 ->with('items')
@@ -190,6 +192,17 @@ class QuoteController extends Controller
         }
 
         return $document;
+    }
+
+    private function resolveAccessibleQuote(SaleDocument $document, mixed $user): SaleDocument
+    {
+        return $this->service->findAccessibleDocumentOrFail(
+            $this->resolveQuote($document),
+            $user,
+            'ver propios cotizaciones',
+            'ver area cotizaciones',
+            'ver todos cotizaciones',
+        );
     }
 
     private function resolveQuoteDocumentNumber(?string $currentNumber): ?string

@@ -311,11 +311,11 @@ onBeforeUnmount(() => {
                     </TableBody>
                 </Table>
                 <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
-                                    <ServerPagination 
+                                    <ServerPagination
                                         v-model:current-page="currentPage"
                                         v-model:page-size="itemsPerPage"
                                         :total-items="totalItems"
-                                        @fetch-data="onFetchData" 
+                                        @fetch-data="onFetchData"
                                     />
                 </div>
             </div>

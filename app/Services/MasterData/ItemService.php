@@ -6,6 +6,7 @@ use App\Models\Finance\Tax;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Inventory\InventoryAdjustmentLine;
+use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\Warehouse;
 use App\Models\Inventory\WarehouseItem;
 use App\Models\MasterData\CategorySubGroup;
@@ -15,6 +16,7 @@ use App\Models\Settings\Setting;
 use App\Support\TextNormalizer;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ItemService
@@ -426,7 +428,12 @@ class ItemService
                 // debug logs removed
 
                 $warehouses = $this->buildWarehousePayloadFromRow($normalizedRow, $headerMap, $errors, $rowNum);
-                $this->create($itemData, $warehouses);
+
+                if (!empty($warehouses)) {
+                    $this->createImportedItemWithOpeningBalances($itemData, $warehouses, $importBatchId, (int) $rowNum);
+                } else {
+                    $this->create($itemData, $warehouses);
+                }
                 $inserted++;
             } catch (\Throwable $e) {
                 $errors[] = "Fila $rowNum: " . $e->getMessage();
@@ -709,12 +716,14 @@ class ItemService
         $quantity = $this->parseDecimalValue($this->getRowValueFromAlternatives($normalizedRow, ['CANTIDAD', 'TOTAL CANTIDAD'], 0));
         $stockMin = $this->parseDecimalValue($this->getRowValueFromAlternatives($normalizedRow, ['CANTIDAD MIN', 'CANTIDAD MINIMA'], 0));
         $stockMax = $this->parseDecimalValue($this->getRowValueFromAlternatives($normalizedRow, ['CANTIDAD MAX', 'CANTIDAD MAXIMA'], 0));
+        $unitPrice = $this->parseDecimalOrNull($this->getRowValueFromAlternatives($normalizedRow, ['PRECIO'], null));
 
         return [[
             'warehouse_id' => $warehouseId,
             'quantity' => $quantity,
             'stock_min' => $stockMin,
             'stock_max' => $stockMax,
+            'unit_price' => $unitPrice,
         ]];
     }
 
@@ -780,11 +789,45 @@ class ItemService
 
     protected function parseDecimalValue($value): float
     {
+        $parsed = $this->parseDecimalOrNull($value);
+        return $parsed ?? 0.0;
+    }
+
+    protected function parseDecimalOrNull($value): ?float
+    {
         if ($value === null || $value === '') {
-            return 0.0;
+            return null;
         }
-        $normalized = str_replace(',', '.', (string) $value);
-        return is_numeric($normalized) ? (float) $normalized : 0.0;
+
+        $clean = trim((string) $value);
+        if ($clean === '' || $clean === '-') {
+            return null;
+        }
+
+        $clean = preg_replace('/[^0-9,.\- ]/', '', $clean);
+        $clean = trim((string) $clean);
+
+        if ($clean === '' || $clean === '-') {
+            return null;
+        }
+
+        $lastComma = strrpos($clean, ',');
+        $lastDot = strrpos($clean, '.');
+
+        if ($lastComma !== false && $lastDot !== false) {
+            if ($lastComma > $lastDot) {
+                $clean = str_replace('.', '', $clean);
+                $clean = str_replace(',', '.', $clean);
+            } else {
+                $clean = str_replace(',', '', $clean);
+            }
+        } elseif ($lastComma !== false) {
+            $clean = str_replace(',', '.', $clean);
+        }
+
+        $clean = str_replace(' ', '', $clean);
+
+        return is_numeric($clean) ? (float) $clean : null;
     }
 
     protected function normalizeWarehouseName(string $name): string
@@ -1154,6 +1197,62 @@ class ItemService
                 ]
             );
         }
+    }
+
+    protected function createImportedItemWithOpeningBalances(
+        array $itemData,
+        array $warehouses,
+        string $importBatchId,
+        int $rowNum
+    ): Item {
+        return DB::transaction(function () use ($itemData, $warehouses, $importBatchId, $rowNum) {
+            $item = Item::create($this->buildCreatePayload($itemData));
+
+            foreach (array_values($warehouses) as $index => $warehouse) {
+                $quantity = (float) ($warehouse['quantity'] ?? 0);
+                $unitPrice = array_key_exists('unit_price', $warehouse) && $warehouse['unit_price'] !== null
+                    ? (float) $warehouse['unit_price']
+                    : null;
+
+                WarehouseItem::updateOrCreate(
+                    [
+                        'item_id' => $item->id,
+                        'warehouse_id' => $warehouse['warehouse_id'],
+                    ],
+                    [
+                        'quantity' => $quantity,
+                        'stock_min' => $warehouse['stock_min'] ?? 0,
+                        'stock_max' => $warehouse['stock_max'] ?? 0,
+                        'weighted_average_price' => $quantity > 0 && $unitPrice !== null ? $unitPrice : null,
+                    ]
+                );
+
+                if ($quantity <= 0) {
+                    continue;
+                }
+
+                InventoryMovement::create([
+                    'document_number' => mb_substr("BI-{$importBatchId}-{$rowNum}-{$index}", 0, 50),
+                    'item_id' => $item->id,
+                    'warehouse_id' => $warehouse['warehouse_id'],
+                    'source_type' => 'item_excel_import',
+                    'source_id' => null,
+                    'type' => 'entrada',
+                    'date' => now()->toDateString(),
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'total_cost' => $unitPrice !== null ? round($quantity * $unitPrice, 4) : null,
+                    'previous_stock' => 0,
+                    'previous_weighted_price' => 0,
+                    'new_stock' => $quantity,
+                    'new_weighted_price' => $unitPrice ?? 0,
+                    'notes' => 'Saldo inicial importado desde plantilla de items',
+                    'created_by_user_id' => null,
+                ]);
+            }
+
+            return $item;
+        });
     }
 
     protected function gatherDeletionReasons(Item $item): array

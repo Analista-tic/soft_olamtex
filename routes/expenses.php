@@ -10,17 +10,17 @@ use Illuminate\Support\Facades\Route;
 // === GASTOS (AGRUPADO) ===
 Route::prefix('gastos')->name('gastos.')->group(function () {
     // === SOLICITUD DE COMPRA ===
-    Route::prefix('solicitudes-compra')->name('purchase-requests.')->group(function () {
+    Route::prefix('solicitudes-compra')->name('purchase-requests.')->middleware('permission:ver propios solicitudes compra|ver area solicitudes compra|ver todos solicitudes compra')->group(function () {
         Route::get('/', [PurchaseRequestController::class, 'index'])->name('index');
         Route::get('/data', [PurchaseRequestController::class, 'getData'])->name('getData');
-        Route::post('/', [PurchaseRequestController::class, 'store'])->name('store');
+        Route::post('/', [PurchaseRequestController::class, 'store'])->name('store')->middleware('permission:crear solicitudes compra');
         Route::get('/{purchaseRequest}', [PurchaseRequestController::class, 'show'])->name('show');
-        Route::put('/{purchaseRequest}', [PurchaseRequestController::class, 'update'])->name('update');
-        Route::delete('/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])->name('destroy');
+        Route::put('/{purchaseRequest}', [PurchaseRequestController::class, 'update'])->name('update')->middleware('permission:editar solicitudes compra');
+        Route::delete('/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar solicitudes compra');
 
         // Acciones de transición de estados
         Route::post('/{purchaseRequest}/send-to-approval', [PurchaseRequestController::class, 'sendToApproval'])
-            ->middleware('permission:aprobar solicitudes compra')
+            ->middleware('permission:editar solicitudes compra')
             ->name('send-to-approval');
         Route::post('/{purchaseRequest}/approve', [PurchaseRequestController::class, 'approve'])
             ->middleware('permission:aprobar solicitudes compra')
@@ -49,7 +49,7 @@ Route::prefix('gastos')->name('gastos.')->group(function () {
             ->middleware('permission:editar ordenes compra');
         Route::post('/{purchaseDocument}/convert-to-invoice', [PurchaseOrderController::class, 'convertToInvoice'])
             ->name('convert-to-invoice')
-            ->middleware('permission:editar ordenes compra');
+            ->middleware('permission:crear facturas compra');
         Route::patch('/{purchaseDocument}/approve', [PurchaseOrderController::class, 'approve'])
             ->name('approve')
             ->middleware('permission:aprobar orden compra');

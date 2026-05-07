@@ -7,6 +7,7 @@ use App\Models\Inventory\Warehouse;
 use App\Models\MasterData\CategoryGroup;
 use App\Models\MasterData\CategorySubGroup;
 use App\Models\MasterData\Item;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -34,6 +35,7 @@ class ItemExcelService
             'SUBGRUPO',
             'IMPUESTO (%)',
             'BODEGA',
+            'PRECIO',
             'CANTIDAD',
             'CANTIDAD MIN',
             'CANTIDAD MAX',
@@ -76,6 +78,7 @@ class ItemExcelService
             $exampleSubGroup,
             '19',
             'Principal',
+            '',           // PRECIO — derivado del inventario, dejar vacío en plantilla
             '100',
             '10',
             '200',
@@ -130,6 +133,10 @@ class ItemExcelService
     public function exportAll(): BinaryFileResponse
     {
         $items = Item::with(['categorySubGroup.categoryGroup', 'tax', 'warehouses', 'warehouseItems'])->get();
+
+        // Pre-cargar precios derivados por item_id (sin N+1).
+        $priceByItem = $this->loadLatestPriceByItem();
+
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('items');
@@ -139,7 +146,8 @@ class ItemExcelService
 
         $rowNum = 2;
         foreach ($items as $item) {
-            $sheet->fromArray($this->exportRowForItem($item), null, "A{$rowNum}");
+            $price = $priceByItem[(int) $item->id] ?? null;
+            $sheet->fromArray($this->exportRowForItem($item, $price), null, "A{$rowNum}");
             $rowNum++;
         }
 
@@ -158,6 +166,57 @@ class ItemExcelService
         $writer->save($tempFile);
 
         return response()->download($tempFile, $fileName)->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Resuelve el último precio unitario conocido para cada item_id con exactamente 2 queries.
+     *
+     * Prioridad:
+     *   1. Último unit_price de línea de factura de compra (purchase_invoice).
+     *   2. Último unit_price de movimiento de inventario (entrada).
+     *
+     * @return array<int, float>  item_id → precio
+     */
+    private function loadLatestPriceByItem(): array
+    {
+        // 1. Último precio por factura de compra.
+        $invoicePrices = DB::table('purchase_document_items as pdi')
+            ->join('purchase_documents as pd', 'pd.id', '=', 'pdi.purchase_document_id')
+            ->where('pd.document_type', 'purchase_invoice')
+            ->whereNotNull('pdi.item_id')
+            ->where('pdi.price', '>', 0)
+            ->orderByDesc('pd.invoiced_at')
+            ->orderByDesc('pd.created_at')
+            ->orderByDesc('pdi.id')
+            ->select('pdi.item_id', 'pdi.price')
+            ->get()
+            ->unique('item_id')
+            ->pluck('price', 'item_id')
+            ->map(fn($v) => (float) $v)
+            ->all();
+
+        // 2. Último unit_price de movimiento de inventario (fallback).
+        $movementPrices = DB::table('inventory_movements')
+            ->where('type', 'entrada')
+            ->whereNotNull('unit_price')
+            ->where('unit_price', '>', 0)
+            ->whereNotNull('item_id')
+            ->orderByDesc('date')
+            ->orderByDesc('id')
+            ->select('item_id', 'unit_price')
+            ->get()
+            ->unique('item_id')
+            ->pluck('unit_price', 'item_id')
+            ->map(fn($v) => (float) $v)
+            ->all();
+
+        // Combinar: factura tiene prioridad sobre movimiento.
+        $result = $movementPrices;
+        foreach ($invoicePrices as $itemId => $price) {
+            $result[(int) $itemId] = $price;
+        }
+
+        return $result;
     }
 
     // ─── Métodos internos: catálogos y hojas de referencia ───
@@ -423,7 +482,7 @@ class ItemExcelService
     /**
      * Convierte un Item a un array representando una fila de exportación Excel.
      */
-    public function exportRowForItem($item): array
+    public function exportRowForItem($item, ?float $resolvedPrice = null): array
     {
         $extra = is_array($item->extra_fields) ? $item->extra_fields : (json_decode($item->extra_fields, true) ?: []);
         $migrationTerms = ['LEGACY', 'MIGRATION', 'SOURCE', 'RAW_ROW', 'BATCH'];
@@ -481,6 +540,7 @@ class ItemExcelService
             $subGroupName,
             $tax ? number_format((float) $tax->percentage, 2, '.', '') : '',
             $warehouseName,
+            $resolvedPrice !== null ? number_format($resolvedPrice, 4, '.', '') : '',
             $quantityValue,
             $stockMinValue,
             $stockMaxValue,

@@ -21,6 +21,7 @@ class PurchaseInvoiceController extends PurchaseDocumentController
     public function receive(Request $request, PurchaseDocument $purchaseDocument)
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, $request->user());
 
         $invoice = $this->invoiceService->receiveInvoice($purchaseDocument, Auth::id());
 
@@ -33,6 +34,7 @@ class PurchaseInvoiceController extends PurchaseDocumentController
     public function reject(Request $request, PurchaseDocument $purchaseDocument)
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, $request->user());
         $validated = $request->validate([
             'rejection_reason' => 'required|string',
             'rejection_notes' => 'nullable|string',
@@ -67,6 +69,7 @@ class PurchaseInvoiceController extends PurchaseDocumentController
     public function edit(PurchaseDocument $purchaseDocument)
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
         $invoice = $this->service->loadWithRelations($purchaseDocument);
         return Inertia::render('Expenses/PurchaseInvoices/PurchaseInvoiceForm', [
             'mode' => 'edit',
@@ -97,6 +100,7 @@ class PurchaseInvoiceController extends PurchaseDocumentController
     public function creditDebitNotes(PurchaseDocument $purchaseDocument)
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
 
         return response()->json([
             'data' => $this->invoiceService->getLinkedCreditDebitNotes($purchaseDocument),
@@ -106,6 +110,7 @@ class PurchaseInvoiceController extends PurchaseDocumentController
     public function notesSummary(PurchaseDocument $purchaseDocument)
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
 
         return response()->json([
             'data' => $this->invoiceService->getInvoiceNotesSummary($purchaseDocument),
@@ -171,6 +176,7 @@ class PurchaseInvoiceController extends PurchaseDocumentController
     public function justify(Request $request, PurchaseDocument $purchaseDocument)
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, $request->user());
 
         $validated = $request->validate([
             'difference_reason' => 'required|string',
@@ -191,6 +197,7 @@ class PurchaseInvoiceController extends PurchaseDocumentController
     public function approveDifference(Request $request, PurchaseDocument $purchaseDocument)
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, $request->user());
 
         $validated = $request->validate([
             'approval_notes' => 'nullable|string|max:1000',
@@ -211,6 +218,7 @@ class PurchaseInvoiceController extends PurchaseDocumentController
     public function print(PurchaseDocument $purchaseDocument)
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
 
         $invoice = $this->service->loadWithRelations($purchaseDocument);
 
@@ -222,6 +230,7 @@ class PurchaseInvoiceController extends PurchaseDocumentController
     public function rejectDifference(Request $request, PurchaseDocument $purchaseDocument)
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, $request->user());
 
         $validated = $request->validate([
             'approval_notes' => 'required|string|max:1000',

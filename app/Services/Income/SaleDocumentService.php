@@ -9,6 +9,7 @@ use App\Enums\Income\SalesOrderStatus;
 use App\Helpers\ScopeHelper;
 use App\Models\Income\SaleDocument;
 use App\Models\Settings\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -185,6 +186,26 @@ class SaleDocumentService
         }
 
         return $document;
+    }
+
+    public function findAccessibleDocumentOrFail(
+        SaleDocument $document,
+        ?User $user,
+        ?string $ownPermission,
+        ?string $areaPermission,
+        ?string $allPermission,
+    ): SaleDocument {
+        $query = SaleDocument::query()
+            ->whereKey($document->getKey())
+            ->where('document_type', $document->document_type);
+
+        ScopeHelper::apply($query, $user, $ownPermission, $areaPermission, $allPermission);
+
+        if (!$query->exists()) {
+            throw new AuthorizationException('No tienes permisos para acceder a este documento de ingresos.');
+        }
+
+        return $this->loadWithRelations($document);
     }
 
     protected function syncItems(SaleDocument $document, array $items): void

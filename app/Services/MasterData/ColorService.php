@@ -17,4 +17,15 @@ class ColorService
     {
         return Color::create($data);
     }
+
+    public function update(Color $color, array $data): Color
+    {
+        $color->update($data);
+        return $color->fresh();
+    }
+
+    public function delete(Color $color): void
+    {
+        $color->delete();
+    }
 }

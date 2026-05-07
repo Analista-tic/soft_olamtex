@@ -17,17 +17,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('configuracion', fn () => Inertia::render('Configuration/Index'))
         ->name('configuracion');
 
+    Route::get('/colores', function () {
+        return Inertia::render('Configuration/Colors/Index');
+    })->middleware('permission:ver colores')->name('configuracion.colores.index');
+
     Route::get('configuracion/empresa', [CompanySettingsController::class, 'edit'])
-        // ->middleware('permission:ver empresa')
+        ->middleware('permission:ver empresa')
         ->name('configuracion.empresa');
 
     Route::get('configuracion/perfil', [CompanySettingsController::class, 'edit'])
-        // ->middleware('permission:ver perfil')
+        ->middleware('permission:ver perfil')
         ->name('configuracion.perfil')
         ->defaults('section', 'perfil');
 
     Route::get('configuracion/apariencia', [CompanySettingsController::class, 'edit'])
-        // ->middleware('permission:ver personalizacion')
+        ->middleware('permission:ver personalizacion')
         ->name('configuracion.apariencia')
         ->defaults('section', 'personalizacion');
 
