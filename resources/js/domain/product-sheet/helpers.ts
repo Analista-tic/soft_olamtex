@@ -27,6 +27,21 @@ export function parseBooleanRecord(value: unknown): Record<string, boolean> {
     if (typeof value === 'string') {
         try {
             const parsed = JSON.parse(value);
+
+            if (typeof parsed === 'string') {
+                try {
+                    const parsedNested = JSON.parse(parsed);
+                    if (Array.isArray(parsedNested)) {
+                        return mapArrayToRecord(parsedNested);
+                    }
+                    if (parsedNested && typeof parsedNested === 'object' && !Array.isArray(parsedNested)) {
+                        return parsedNested as Record<string, boolean>;
+                    }
+                } catch {
+                    return {};
+                }
+            }
+
             if (Array.isArray(parsed)) {
                 return mapArrayToRecord(parsed);
             }
