@@ -17,16 +17,22 @@ class ProductOperationListResource extends JsonResource
         $samBase = $this->sam_base ?? $this->sam ?? $this->optimal_time ?? 0;
         $samTotalUnitario = $this->sam_total_unitario;
         $samTotalOperacion = $this->sam_total_operacion;
+        $operationSection = $this->operation?->section;
+        $sheetFabricBaseId = $this->productSheet?->fabric_base_id;
+        $operationQuantity = (int) ($this->operation?->quantity ?? 1);
+        if ($operationQuantity <= 0) {
+            $operationQuantity = 1;
+        }
 
         return [
             'id' => $this->id,
             'product_sheet_id' => $this->product_sheet_id,
             'operation_id' => $this->operation_id,
-            'machine_id' => $this->machine_id,
-            'operation_section_id' => $this->operation_section_id,
+            'machine_id' => $this->whenLoaded('operation', fn() => $this->operation->machineReference?->id),
+            'operation_section_id' => $operationSection?->id,
             'sequence' => $this->sequence,
-            'fabric_base_id' => $this->fabric_base_id,
-            'quantity' => $this->quantity ?? 1,
+            'fabric_base_id' => $sheetFabricBaseId,
+            'quantity' => $operationQuantity,
             'is_active' => $this->is_active,
 
             // Tiempos y SAM
@@ -67,23 +73,27 @@ class ProductOperationListResource extends JsonResource
                     'name' => $this->operation->name,
                     'action' => $this->operation->action,
                     'garment_part' => $this->operation->garment_part,
+                    'section_id' => $this->operation->section_id,
+                    'quantity' => $this->operation->quantity,
                 ];
             }),
             
-            'machine' => $this->whenLoaded('machine', function () {
-                return [
-                    'id' => $this->machine->id,
-                    'code' => $this->machine->code,
-                    'name' => $this->machine->name,
-                    'supplement_factor' => $this->machine->supplement_factor,
-                ];
+            'machine' => $this->whenLoaded('operation', function () {
+                $machine = $this->operation->machineReference;
+                return $machine ? [
+                    'id' => $machine->id,
+                    'code' => $machine->code,
+                    'name' => $machine->name,
+                    'supplement_factor' => $machine->supplement_factor,
+                ] : null;
             }),
             
-            'operation_section' => $this->whenLoaded('operationSection', function () {
+            'operation_section' => $this->whenLoaded('operation', function () {
+                $section = $this->operation?->section;
                 return [
-                    'id' => $this->operationSection->id,
-                    'name' => $this->operationSection->name,
-                    'type' => $this->operationSection->type,
+                    'id' => $section?->id,
+                    'name' => $section?->name,
+                    'type' => $section?->type,
                 ];
             }),
             

@@ -5,6 +5,7 @@ namespace App\Services\Production;
 use App\Models\Production\Operation;
 use App\Models\Production\Machine;
 use App\Models\Production\ProductOperationList;
+use App\Models\Production\ProductSheet;
 use App\Models\Production\ProductSheetOperationHistory;
 use App\Services\Settings\SettingService;
 use Illuminate\Support\Collection;
@@ -89,17 +90,15 @@ class ProductOperationListService
             throw new \InvalidArgumentException('La operación seleccionada no existe.');
         }
 
+        // Asignar operation_section_id desde la operación si no viene en el payload
+        if (empty($data['operation_section_id'])) {
+            $data['operation_section_id'] = $operation->section_id ?? $currentItem?->operation_section_id ?? null;
+        }
+
+        // La máquina es siempre la de la operación; no se permite override a nivel de listado.
         $baseMachineId = (int) ($operation->machine_id_reference ?? 0);
         $baseSam = (float) ($operation->sam_base ?? 0);
         $baseEfficiency = $this->resolveDefaultEfficiencyFactor($operation);
-
-        $resolvedMachineId = array_key_exists('machine_id', $data)
-            ? ($data['machine_id'] !== null && $data['machine_id'] !== '' ? (int) $data['machine_id'] : null)
-            : ($currentItem?->machine_id ?? ($baseMachineId > 0 ? $baseMachineId : null));
-
-        if ($resolvedMachineId === null && $baseMachineId > 0) {
-            $resolvedMachineId = $baseMachineId;
-        }
 
         $samBase = array_key_exists('sam_base', $data)
             ? (float) $data['sam_base']
@@ -113,21 +112,30 @@ class ProductOperationListService
 
         $machineSupplementFactor = array_key_exists('machine_supplement_factor', $data)
             ? (float) $data['machine_supplement_factor']
-            : (float) ($currentItem?->machine_supplement_factor ?? $this->resolveMachineSupplementById($resolvedMachineId));
+            : (float) ($currentItem?->machine_supplement_factor ?? $this->resolveMachineSupplementById($baseMachineId));
 
-        $data['machine_id'] = $resolvedMachineId;
+        $targetSheetId = (int) ($data['product_sheet_id'] ?? $currentItem?->product_sheet_id ?? 0);
+        if ($targetSheetId <= 0) {
+            throw new \InvalidArgumentException('Debe indicar una sábana válida para el listado operacional.');
+        }
+
+        $sheet = ProductSheet::query()->select(['id', 'fabric_base_id'])->find($targetSheetId);
+        if (!$sheet) {
+            throw new \InvalidArgumentException('La sábana seleccionada no existe.');
+        }
+
+        $quantity = (int) ($operation->quantity ?? 1);
+        if ($quantity <= 0) {
+            $quantity = 1;
+        }
+
         $data['sam_base'] = $samBase;
         $data['optimal_time'] = (float) ($data['optimal_time'] ?? $samBase);
         $data['sam'] = $data['optimal_time'];
         $data['operator_efficiency_factor'] = $operatorEfficiencyFactor;
         $data['machine_supplement_factor'] = $machineSupplementFactor;
-        $data['fabric_base_factor'] = $this->resolveFabricBaseFactor($data['fabric_base_id'] ?? $currentItem?->fabric_base_id ?? null);
-
-        $data['has_override'] =
-            ($resolvedMachineId !== null && $baseMachineId > 0 && (int) $resolvedMachineId !== $baseMachineId)
-            || abs($samBase - $baseSam) > 0.0001
-            || abs($operatorEfficiencyFactor - $baseEfficiency) > 0.0001
-            || abs($machineSupplementFactor - $this->resolveMachineSupplementById($resolvedMachineId)) > 0.0001;
+        $data['fabric_base_factor'] = $this->resolveFabricBaseFactor($sheet->fabric_base_id);
+        $data['quantity'] = $quantity;
     }
 
     /**
@@ -156,7 +164,7 @@ class ProductOperationListService
     public function listBySheet(int $productSheetId): Collection
     {
         return $this->model
-            ->with(['operation', 'machine', 'operationSection'])
+            ->with(['productSheet:id,fabric_base_id', 'operation.machineReference', 'operation.section'])
             ->bySheet($productSheetId)
             ->ordered()
             ->get();
@@ -173,13 +181,11 @@ class ProductOperationListService
     {
         $query = $this->model
             ->newQuery()
-            ->with(['operation:id,action,garment_part,anexo', 'machine:id,name,code', 'operationSection:id,name,type'])
+            ->with(['operation:id,action,garment_part,anexo,machine_id_reference,section_id', 'operation.machineReference:id,name,code', 'operation.section:id,name,type'])
             ->select([
                 'id',
                 'product_sheet_id',
                 'operation_id',
-                'machine_id',
-                'operation_section_id',
                 'sam_total_operacion',
                 'sam',
                 'is_active',
@@ -204,8 +210,12 @@ class ProductOperationListService
                     $samValue = (float) ($row->sam_total_operacion ?? $row->sam ?? 0);
                     $totalSam += $samValue;
 
-                    $sectionType = strtolower((string) ($row->operationSection?->type ?? ''));
-                    if ($sectionType === 'confeccion') {
+                    $sectionType = strtolower((string) ($row->operation?->section?->type ?? ''));
+                    $sectionName = strtolower((string) ($row->operation?->section?->name ?? ''));
+                    if (
+                        in_array($sectionType, ['confeccion', 'preparacion', 'preparación', 'ensamble', 'emsamble'], true)
+                        || in_array($sectionName, ['confeccion', 'preparacion', 'preparación', 'ensamble', 'emsamble'], true)
+                    ) {
                         $totalSamConfeccion += $samValue;
                     } elseif (in_array($sectionType, ['presentacion', 'terminacion'], true)) {
                         $totalSamTerminacion += $samValue;
@@ -215,11 +225,12 @@ class ProductOperationListService
                         $isActive = false;
                     }
 
+                    $machine = $row->operation?->machineReference;
                     $searchParts[] = trim(implode(' ', array_filter([
-                        (string) ($row->operationSection?->name ?? ''),
+                        (string) ($row->operation?->section?->name ?? ''),
                         (string) ($row->operation?->name ?? ''),
-                        (string) ($row->machine?->name ?? ''),
-                        (string) ($row->machine?->code ?? ''),
+                        (string) ($machine?->name ?? ''),
+                        (string) ($machine?->code ?? ''),
                     ])));
                 }
 
@@ -241,7 +252,7 @@ class ProductOperationListService
     public function listBySection(int $productSheetId, int $sectionId): Collection
     {
         return $this->model
-            ->with(['operation', 'machine', 'operationSection'])
+            ->with(['productSheet:id,fabric_base_id', 'operation.machineReference', 'operation.section'])
             ->bySheet($productSheetId)
             ->bySection($sectionId)
             ->ordered()
@@ -260,11 +271,11 @@ class ProductOperationListService
         
         // Totales por tipo de sección
         $samConfeccion = $operations
-            ->where('operationSection.type', 'confeccion')
+            ->where('operation.section.type', 'confeccion')
             ->sum('sam');
         
         $samPresentacion = $operations
-            ->where('operationSection.type', 'presentacion')
+            ->where('operation.section.type', 'presentacion')
             ->sum('sam');
 
         return [
@@ -298,7 +309,6 @@ class ProductOperationListService
 
             $samBase = (float) ($data['sam_base'] ?? $data['optimal_time'] ?? 0);
             $quantity = (int) ($data['quantity'] ?? 1);
-            $data['quantity'] = $quantity;
 
             $data['sam_total_unitario'] = round(
                 $samBase * $data['machine_supplement_factor'] * $data['fabric_base_factor'] * $data['operator_efficiency_factor'],
@@ -363,7 +373,6 @@ class ProductOperationListService
 
                 $samBase = (float) ($data['sam_base'] ?? $data['optimal_time'] ?? 0);
                 $quantity = (int) ($data['quantity'] ?? 1);
-                $data['quantity'] = $quantity;
 
                 $data['sam_total_unitario'] = round(
                     $samBase * $data['machine_supplement_factor'] * $data['fabric_base_factor'] * $data['operator_efficiency_factor'],
@@ -527,7 +536,7 @@ class ProductOperationListService
             $this->recordChangeIfNeeded($item, $before, $motivo);
             $this->syncOperationBase($item);
 
-            return $item->fresh(['operation', 'machine', 'operationSection']);
+            return $item->fresh(['productSheet:id,fabric_base_id', 'operation.machineReference', 'operation.section']);
         });
     }
 
@@ -712,7 +721,7 @@ class ProductOperationListService
     {
         $operations = $this->model
             ->bySheet($productSheetId)
-            ->with(['operationSection', 'operation', 'machine'])
+            ->with(['operation.machineReference', 'operation.section'])
             ->ordered()
             ->get();
 
@@ -724,7 +733,7 @@ class ProductOperationListService
 
         foreach ($operations as $op) {
             /** @var \App\Models\Production\ProductOperationList $op */
-            $sectionType = $op->operationSection?->type ?? '';
+            $sectionType = $op->operation?->section?->type ?? '';
 
             if ($sectionType === 'PREPARACION') {
                 // Para PREPARACION, agrupar por grupo_preparacion
@@ -769,7 +778,7 @@ class ProductOperationListService
     {
         $operations = $this->model
             ->bySheet($productSheetId)
-            ->with('operationSection')
+            ->with('operation.section')
             ->get();
 
         $totals = [
@@ -782,7 +791,7 @@ class ProductOperationListService
         foreach ($operations as $op) {
             /** @var \App\Models\Production\ProductOperationList $op */
             $sam = $op->sam_total_unitario ?? 0;
-            $sectionType = $op->operationSection?->type ?? '';
+            $sectionType = $op->operation?->section?->type ?? '';
 
             if (isset($totals[$sectionType])) {
                 $totals[$sectionType] += $sam;
@@ -799,16 +808,18 @@ class ProductOperationListService
      */
     public function validateGrupoPreparacionRequired(array $data): array
     {
-        // Si operation_section_id corresponde a PREPARACION, grupo_preparacion es requerido
-        if (isset($data['operation_section_id'])) {
-            $section = \App\Models\Production\OperationSection::find($data['operation_section_id']);
-            if ($section && $section->type === 'PREPARACION') {
-                if (empty($data['grupo_preparacion'] ?? null)) {
-                    throw new \InvalidArgumentException(
-                        'El campo "grupo_preparacion" es requerido para operaciones de tipo PREPARACION.'
-                    );
-                }
-            }
+        $operationId = (int) ($data['operation_id'] ?? 0);
+        if ($operationId <= 0) {
+            return $data;
+        }
+
+        $operation = Operation::query()->with('section:id,type')->find($operationId);
+        $sectionType = $operation?->section?->type;
+
+        if ($sectionType === 'PREPARACION' && empty($data['grupo_preparacion'] ?? null)) {
+            throw new \InvalidArgumentException(
+                'El campo "grupo_preparacion" es requerido para operaciones de tipo PREPARACION.'
+            );
         }
 
         return $data;

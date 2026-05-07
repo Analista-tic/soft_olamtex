@@ -8,6 +8,29 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Builder;
 
+/**
+ * Listado operacional por sábana (instancia operativa de una operación base).
+ *
+ * Cada registro representa cómo se ejecuta una operación dentro de una
+ * `product_sheet` específica, conservando snapshots de factores de cálculo
+ * para trazabilidad histórica.
+ *
+ * Campos principales:
+ * - product_sheet_id: sábana/ficha técnica a la que pertenece.
+ * - operation_id: operación base del catálogo (`Operation`).
+ * - grupo_preparacion: agrupador (solo para PREPARACION).
+ * - sequence: orden de ejecución en el flujo.
+ * - sam_base: snapshot del SAM base utilizado.
+ * - sam / optimal_time: tiempo estándar final usado en la fila.
+ * - fabric_base_factor: factor de base tela aplicado.
+ * - operator_efficiency_factor: factor de eficiencia del operario aplicado.
+ * - machine_supplement_factor: suplemento de máquina aplicado.
+ * - sam_total_unitario: SAM calculado por unidad.
+ * - sam_total_operacion: SAM total por operación (incluyendo cantidad).
+ * - production_time / actual_time / variance: métricas de ejecución.
+ * - notes: observaciones operativas.
+ * - is_active: estado lógico de activación.
+ */
 class ProductOperationList extends Model
 {
     use HasFactory, SoftDeletes, HasAuditLabel;
@@ -17,14 +40,11 @@ class ProductOperationList extends Model
     protected $fillable = [
         'product_sheet_id',
         'operation_id',
-        'machine_id',
         'operation_section_id',
+        'machine_id',
+        'quantity',
         'grupo_preparacion',
         'sequence',
-        'sequence_order', // Alias para sequence (mapeado vía mutator)
-        'fabric_base_id',
-        'quantity',
-        'has_override',
         'sam_base',
         'sam',
         'fabric_base_factor',
@@ -40,13 +60,15 @@ class ProductOperationList extends Model
         'notes',
     ];
 
+    public array $auditIgnore = ['created_at', 'updated_at', 'deleted_at'];
+
     protected $casts = [
         'product_sheet_id' => 'integer',
         'operation_id' => 'integer',
-        'machine_id' => 'integer',
         'operation_section_id' => 'integer',
+        'machine_id' => 'integer',
+        'quantity' => 'integer',
         'sequence' => 'integer',
-        'has_override' => 'boolean',
         'is_active' => 'boolean',
         'optimal_time' => 'float',
         'sam' => 'float',
@@ -66,7 +88,7 @@ class ProductOperationList extends Model
     {
         static::saving(function (self $model) {
             // Validar que grupo_preparacion solo esté en operaciones PREPARACION
-            if ($model->relationLoaded('operationSection')) {
+            if ($model->operation_id) {
                 $model->validateGrupoPreparacionRestriction();
             }
         });
@@ -83,14 +105,17 @@ class ProductOperationList extends Model
         return $this->belongsTo(Operation::class);
     }
 
-    public function machine()
+    /**
+     * Máquina derivada de la operación base (sin columna propia en el listado).
+     */
+    public function getMachineAttribute(): ?Machine
     {
-        return $this->belongsTo(Machine::class);
+        return $this->operation?->machineReference;
     }
 
-    public function operationSection()
+    public function history()
     {
-        return $this->belongsTo(OperationSection::class);
+        return $this->hasMany(ProductSheetOperationHistory::class, 'product_sheet_operation_id');
     }
 
     public function calculateSamTotalUnitario(): float
@@ -105,7 +130,10 @@ class ProductOperationList extends Model
 
     public function calculateSamTotalOperacion(): float
     {
-        return $this->calculateSamTotalUnitario() * ($this->quantity ?? 1);
+        $operationQuantity = (int) ($this->operation?->quantity ?? 1);
+        $quantity = $operationQuantity > 0 ? $operationQuantity : 1;
+
+        return $this->calculateSamTotalUnitario() * $quantity;
     }
 
     /**
@@ -126,7 +154,7 @@ class ProductOperationList extends Model
      */
     public function isPreparationSection(): bool
     {
-        return $this->operationSection?->type === 'PREPARACION';
+        return $this->operation?->section?->type === 'PREPARACION';
     }
 
     /**
@@ -134,7 +162,7 @@ class ProductOperationList extends Model
      */
     public function isAssemblySection(): bool
     {
-        return $this->operationSection?->type === 'ENSAMBLE';
+        return $this->operation?->section?->type === 'ENSAMBLE';
     }
 
     /**
@@ -142,7 +170,7 @@ class ProductOperationList extends Model
      */
     public function isFinishingSection(): bool
     {
-        return $this->operationSection?->type === 'TERMINACION';
+        return $this->operation?->section?->type === 'TERMINACION';
     }
 
     /**
@@ -150,7 +178,7 @@ class ProductOperationList extends Model
      */
     public function getSectionType(): string
     {
-        return $this->operationSection?->type ?? '';
+        return $this->operation?->section?->type ?? '';
     }
 
     /**
@@ -182,17 +210,17 @@ class ProductOperationList extends Model
 
     public function scopePreparacionSection(Builder $query): Builder
     {
-        return $query->whereHas('operationSection', fn ($q) => $q->where('type', 'PREPARACION'));
+        return $query->whereHas('operation.section', fn ($q) => $q->where('type', 'PREPARACION'));
     }
 
     public function scopeEnsambleSection(Builder $query): Builder
     {
-        return $query->whereHas('operationSection', fn ($q) => $q->where('type', 'ENSAMBLE'));
+        return $query->whereHas('operation.section', fn ($q) => $q->where('type', 'ENSAMBLE'));
     }
 
     public function scopeTerminacionSection(Builder $query): Builder
     {
-        return $query->whereHas('operationSection', fn ($q) => $q->where('type', 'TERMINACION'));
+        return $query->whereHas('operation.section', fn ($q) => $q->where('type', 'TERMINACION'));
     }
 
     public function scopeBySheet(Builder $query, int $sheetId): Builder
@@ -202,17 +230,12 @@ class ProductOperationList extends Model
 
     public function scopeBySection(Builder $query, int $sectionId): Builder
     {
-        return $query->where('operation_section_id', $sectionId);
+        return $query->whereHas('operation', fn ($q) => $q->where('section_id', $sectionId));
     }
 
     public function scopeByOperation(Builder $query, int $operationId): Builder
     {
         return $query->where('operation_id', $operationId);
-    }
-
-    public function scopeByMachine(Builder $query, int $machineId): Builder
-    {
-        return $query->where('machine_id', $machineId);
     }
 
     public function scopeOrdered(Builder $query): Builder
@@ -222,6 +245,6 @@ class ProductOperationList extends Model
 
     public function scopeWithRelations(Builder $query): Builder
     {
-        return $query->with(['operation', 'machine', 'operationSection', 'productSheet']);
+        return $query->with(['operation.machineReference', 'operation.section', 'productSheet']);
     }
 }

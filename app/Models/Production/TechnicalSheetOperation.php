@@ -108,11 +108,11 @@ class TechnicalSheetOperation extends Model
     }
 
     /**
-     * Operación fuente de la plantilla (ProductSheetOperation) de la que se generó este snapshot.
+     * Ítem del listado operacional (product_sheet_operations) del que se generó este snapshot.
      */
     public function productSheetOperation()
     {
-        return $this->belongsTo(ProductSheetOperation::class, 'product_sheet_operation_id');
+        return $this->belongsTo(ProductOperationList::class, 'product_sheet_operation_id');
     }
 
     // ─── Scopes ───────────────────────────────────────────
@@ -167,7 +167,7 @@ class TechnicalSheetOperation extends Model
     /**
      * Obtiene la operación fuente de la plantilla original para comparación.
      */
-    public function getSourceOperation(): ?ProductSheetOperation
+    public function getSourceOperation(): ?ProductOperationList
     {
         return $this->productSheetOperation;
     }

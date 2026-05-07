@@ -32,8 +32,6 @@ class StoreProductOperationListRequest extends FormRequest
                     ->where('product_sheet_id', $this->input('product_sheet_id'))
                     ->whereNull('deleted_at'),
             ],
-            'machine_id' => ['nullable', 'integer', 'exists:machines,id'],
-            'operation_section_id' => ['required', 'integer', 'exists:operation_sections,id'],
             'sequence' => [
                 'required',
                 'integer',
@@ -56,8 +54,6 @@ class StoreProductOperationListRequest extends FormRequest
                 'max:5.0',
             ],
             'grupo_preparacion' => ['nullable', 'string', 'max:100'],
-            'fabric_base_id' => ['nullable', 'integer'],
-            'quantity' => ['nullable', 'integer', 'min:1'],
             'actual_time' => ['nullable', 'numeric', 'min:0', 'max:999.99'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'is_active' => ['sometimes', 'boolean'],
@@ -91,15 +87,11 @@ class StoreProductOperationListRequest extends FormRequest
         return [
             'product_sheet_id' => 'lote',
             'operation_id' => 'operación',
-            'machine_id' => 'máquina',
-            'operation_section_id' => 'sección',
             'grupo_preparacion' => 'grupo preparación',
             'sequence' => 'secuencia',
             'optimal_time' => 'tiempo óptimo',
             'operator_efficiency_factor' => 'factor de eficiencia del operario',
             'machine_supplement_factor' => 'suplemento de máquina',
-            'fabric_base_id' => 'base tela',
-            'quantity' => 'cantidad',
             'actual_time' => 'tiempo real',
         ];
     }
