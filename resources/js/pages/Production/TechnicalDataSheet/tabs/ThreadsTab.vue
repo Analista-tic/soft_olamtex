@@ -380,9 +380,6 @@ onBeforeUnmount(() => {
             </div>
 
             <div v-else class="space-y-4">
-                <div class="rounded-lg border border-border bg-background/70 p-3 text-sm text-muted-foreground">
-                    Cada fila corresponde a un color unico detectado en la materia prima principal. Los valores guardados se conservan por color.
-                </div>
 
                 <div class="overflow-x-auto rounded-md border border-border">
                     <Table>
