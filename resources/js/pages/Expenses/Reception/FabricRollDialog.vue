@@ -46,6 +46,7 @@ type RollRecord = {
 
 type ApiMessageResponse = {
     message?: string;
+    errors?: Record<string, string[] | string>;
 };
 
 function normalizeRollRecord(payload: unknown): RollRecord | null {
@@ -84,7 +85,20 @@ function isRollRecord(record: RollRecord | null): record is RollRecord {
 
 function getApiErrorMessage(error: unknown, fallback: string): string {
     if (axios.isAxiosError<ApiMessageResponse>(error)) {
-        return error.response?.data?.message || fallback;
+        const responseData = error.response?.data;
+        const validationErrors = responseData?.errors;
+
+        if (validationErrors && typeof validationErrors === 'object') {
+            const firstError = Object.values(validationErrors)
+                .flatMap((value) => Array.isArray(value) ? value : [value])
+                .find((message) => typeof message === 'string' && message.trim() !== '');
+
+            if (typeof firstError === 'string' && firstError.trim() !== '') {
+                return firstError;
+            }
+        }
+
+        return responseData?.message || fallback;
     }
 
     return fallback;

@@ -33,6 +33,11 @@ const taxForm = ref<TaxDialogForm>({ name: '', percentage: 0, status: true });
 
 const fileInputRefs = ref<Record<string, HTMLInputElement | null>>({});
 const persistedImageUrls = ref<Record<string, string | null>>({});
+const itemTypedNames = ref<Record<number, string>>({});
+
+function onItemSearch(rowIdx: number, term: string) {
+    itemTypedNames.value[rowIdx] = term;
+}
 const showLightbox = ref(false);
 const lightboxUrl = ref<string | null>(null);
 let lightboxKeydownListenerAttached = false;
@@ -451,7 +456,12 @@ watch(
                 (item as any).__watching = true;
                 watch(
                     () => item.item_id,
-                    () => {
+                    (newId) => {
+                        const n = Number(newId);
+                        if (newId != null && Number.isInteger(n) && n > 0) {
+                            const rowIdx = localItems.value.indexOf(item);
+                            if (rowIdx >= 0) itemTypedNames.value[rowIdx] = '';
+                        }
                         setTaxFromItem(item);
                         setDescriptionFromItem(item);
                         calcTotals(item);
@@ -534,8 +544,11 @@ function selectSuggestedItemInRow(rowIdx: number) {
         return;
     }
 
+    // No hay match en catálogo: guardar el nombre sugerido para el mensaje de error y dejar item_id en null
     const label = getSuggestedItemLabel(rowIdx).trim();
-    localItems.value = localItems.value.map((item, i) => (i === rowIdx ? { ...item, item_id: label as never } : item));
+    if (label) {
+        itemTypedNames.value[rowIdx] = label;
+    }
     emit('update:items', localItems.value);
 }
 
@@ -582,7 +595,7 @@ async function handleItemDialogSaved(mode: 'create' | 'edit') {
     isItemDialogOpen.value = false;
 }
 
-defineExpose({ addItem, validateFabricFields, openItemDialog });
+defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
 </script>
 
 <template>
@@ -676,6 +689,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog });
                                             :action-label="!getSuggestedItemForRow(idx) && !isReadOnly ? 'Nuevo ítem' : undefined"
                                             :action-disabled="isReadOnly"
                                             @action="openItemDialog(idx, false)"
+                                            @search="(term) => onItemSearch(idx, term)"
                                             v-if="!isReadOnly"
                                         />
                                         <SelectField

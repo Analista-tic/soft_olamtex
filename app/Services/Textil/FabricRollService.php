@@ -4,9 +4,11 @@ namespace App\Services\Textil;
 
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
+use App\Models\MasterData\Item;
 use App\Models\Production\ProductionRollConsumption;
 use App\Models\Textil\FabricRoll;
 use App\Services\Inventory\InventoryMovementService;
+use App\Services\Inventory\WarehouseResolver;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +18,8 @@ use Illuminate\Validation\ValidationException;
 class FabricRollService
 {
     public function __construct(
-        protected InventoryMovementService $movementService
+        protected InventoryMovementService $movementService,
+        protected WarehouseResolver $warehouseResolver
     ) {}
     /** Tolerancia de cantidad al aprobar recepción: ±30% respecto al pedido por ítem. */
     public const TOLERANCE_QUANTITY_PERCENT = 30;
@@ -230,6 +233,20 @@ class FabricRollService
         $pdi = PurchaseDocumentItem::findOrFail($data['purchase_document_item_id']);
         $data['item_id'] = $pdi->item_id;
 
+        // Resolver color desde el item si no viene en el payload
+        if (empty($data['internal_color_name']) && $pdi->item_id) {
+            $item = Item::with('color')->find($pdi->item_id);
+            if ($item && $item->color) {
+                $data['internal_color_name'] = $item->color->name;
+            }
+        }
+
+        // Resolver price_per_meter desde la factura
+        // si no viene en el payload
+        if (empty($data['price_per_meter']) && $pdi->price) {
+            $data['price_per_meter'] = (float) $pdi->price;
+        }
+
         return $this->create($data);
     }
 
@@ -278,8 +295,8 @@ class FabricRollService
     public function export(array $fabricItemIds = []): Collection
     {
         $query = FabricRoll::with([
-            'item',
-            'purchaseDocumentItem.item',
+            'item.color',
+            'purchaseDocumentItem.item.color',
             'purchaseDocumentItem.document.supplier',
             'purchaseDocumentItem.document.creator',
         ]);
@@ -332,12 +349,14 @@ class FabricRollService
                 'fr.partial_output',
                 'fr.actual_output',
                 'fr.internal_color_name',
+                DB::raw('COALESCE(col_fi.hexadecimal, col_i.hexadecimal) as item_color_hex'),
+                DB::raw('COALESCE(col_fi.name, col_i.name) as item_color_name'),
                 DB::raw("COALESCE(fi.name, i.name, pdi.item_name, fr.description, 'Tela') as fabric"),
                 'pdi.id as purchase_document_item_id',
                 DB::raw('COALESCE(fr.item_id, pdi.item_id) as fabric_item_id'),
                 'pdi.supplier_color',
                 'pdi.supplier_code',
-                'pdi.price as price_per_meter',
+                DB::raw('COALESCE(fr.price_per_meter, pdi.price) as price_per_meter'),
                 DB::raw("COALESCE(c.full_name, pd.provider_name, 'Proveedor') as provider"),
                 DB::raw("COALESCE(pd.supplier_order_number, pd.document_number, 'N/A') as order_number"),
                 'pd.created_at as doc_created_at',
@@ -345,7 +364,9 @@ class FabricRollService
             ])
             ->leftJoin('purchase_document_items as pdi', 'pdi.id', '=', 'fr.purchase_document_item_id')
             ->leftJoin('items as fi', 'fi.id', '=', 'fr.item_id')
+            ->leftJoin('colors as col_fi', 'col_fi.id', '=', 'fi.color_id')
             ->leftJoin('items as i', 'i.id', '=', 'pdi.item_id')
+            ->leftJoin('colors as col_i', 'col_i.id', '=', 'i.color_id')
             ->leftJoin('purchase_documents as pd', 'pd.id', '=', 'pdi.purchase_document_id')
             ->leftJoin('contacts as c', 'c.id', '=', 'pd.contact_id')
             ->leftJoin('users as u', 'u.id', '=', 'pd.created_by_user_id')
@@ -414,15 +435,79 @@ class FabricRollService
         $this->validateReceptionTolerances($invoice);
 
         return DB::transaction(function () use ($invoice) {
-            $invoice->update(['status' => 'approved']);
+            $lockedInvoice = PurchaseDocument::query()
+                ->where('document_type', PurchaseDocument::TYPE_INVOICE)
+                ->lockForUpdate()
+                ->findOrFail($invoice->id);
 
-            FabricRoll::whereHas('purchaseDocumentItem', function ($q) use ($invoice) {
-                $q->where('purchase_document_id', $invoice->id);
-            })
+            $pendingRolls = FabricRoll::with([
+                'item',
+                'purchaseDocumentItem.item',
+            ])
+                ->whereHas('purchaseDocumentItem', function ($q) use ($invoice) {
+                    $q->where('purchase_document_id', $invoice->id);
+                })
                 ->where('approval_status', FabricRoll::APPROVAL_PENDING)
-                ->update(['approval_status' => FabricRoll::APPROVAL_APPROVED]);
+                ->lockForUpdate()
+                ->get();
 
-            return $invoice;
+            $lockedInvoice->update(['status' => 'approved']);
+
+            if ($pendingRolls->isNotEmpty()) {
+                FabricRoll::whereIn('id', $pendingRolls->pluck('id'))
+                    ->update(['approval_status' => FabricRoll::APPROVAL_APPROVED]);
+
+                $existingMovementReferences = DB::table('inventory_movements')
+                    ->where('source_type', PurchaseDocument::class)
+                    ->where('source_id', $lockedInvoice->id)
+                    ->whereIn('source_reference', $pendingRolls->pluck('roll_number'))
+                    ->pluck('source_reference')
+                    ->all();
+
+                $existingMovementReferences = array_fill_keys($existingMovementReferences, true);
+                $documentNumber = trim((string) ($lockedInvoice->document_number ?? '')) !== ''
+                    ? trim((string) $lockedInvoice->document_number)
+                    : 'Factura #' . $lockedInvoice->id;
+                $responsibleUserId = Auth::id() ?? $lockedInvoice->approved_by_user_id ?? $lockedInvoice->created_by_user_id;
+
+                if (empty($responsibleUserId)) {
+                    throw new \RuntimeException('No se pudo resolver el usuario responsable de la recepción de rollos.');
+                }
+
+                foreach ($pendingRolls as $roll) {
+                    if (isset($existingMovementReferences[$roll->roll_number])) {
+                        continue;
+                    }
+
+                    $item = $roll->item ?? $roll->purchaseDocumentItem?->item;
+                    if (! $item) {
+                        continue;
+                    }
+
+                    $warehouseId = $this->warehouseResolver->resolveWarehouseId($item, null);
+                    $unitPrice = $roll->price_per_meter !== null
+                        ? (float) $roll->price_per_meter
+                        : (float) ($roll->purchaseDocumentItem?->price ?? 0);
+                    $movementDocumentNumber = mb_substr($documentNumber . ' [' . $roll->roll_number . ']', 0, 50);
+
+                    $this->movementService->createMovement([
+                        'document_number' => $movementDocumentNumber,
+                        'item_id' => $item->id,
+                        'warehouse_id' => $warehouseId,
+                        'type' => 'entrada',
+                        'quantity' => (float) $roll->quantity,
+                        'unit_price' => $unitPrice,
+                        'date' => $roll->entry_date?->toDateString() ?? now()->toDateString(),
+                        'source_type' => PurchaseDocument::class,
+                        'source_id' => $lockedInvoice->id,
+                        'source_reference' => $roll->roll_number,
+                        'notes' => 'Recepción de rollo ' . $roll->roll_number . ' de factura ' . $documentNumber,
+                        'created_by_user_id' => (int) $responsibleUserId,
+                    ]);
+                }
+            }
+
+            return $lockedInvoice->fresh();
         });
     }
 

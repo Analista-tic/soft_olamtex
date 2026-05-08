@@ -492,7 +492,17 @@ function handleImportError(payload: { message: string }) {
                                 <TableCell class="text-center text-sm">{{ roll.roll }}</TableCell>
                                 <TableCell class="text-center text-sm">{{ roll.location }}</TableCell>
                                 <TableCell class="text-center text-sm">{{ roll.fabric }}</TableCell>
-                                <TableCell class="text-center text-sm">{{ roll.color }}</TableCell>
+                                <TableCell class="text-center text-sm">
+                                    <div class="flex items-center justify-center gap-1.5">
+                                        <span
+                                            v-if="roll.color_code"
+                                            class="inline-block h-3.5 w-3.5 shrink-0 rounded-full border border-black/10"
+                                            :style="{ backgroundColor: roll.color_code }"
+                                            :title="roll.color"
+                                        />
+                                        <span>{{ roll.color !== 'N/A' ? roll.color : '-' }}</span>
+                                    </div>
+                                </TableCell>
                                 <TableCell class="text-center text-sm text-foreground/90">{{ formatWidthToMeters(roll.width) }}</TableCell>
                                 <TableCell class="text-center text-sm text-foreground/90">{{ formatMeters(roll.roll_qty) }}</TableCell>
                                 <TableCell class="text-center text-sm text-foreground/90">{{ formatMeters(roll.partial_output) }}</TableCell>

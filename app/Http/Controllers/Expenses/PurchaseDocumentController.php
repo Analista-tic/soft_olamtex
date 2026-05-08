@@ -157,7 +157,13 @@ class PurchaseDocumentController extends Controller
             $rules['items'] = 'sometimes|array|min:1';
         }
 
-        return $request->validate($rules);
+        $messages = [
+            'items.*.item_id.required' => 'Uno de los ítems no existe en el catálogo. Créalo primero o selecciona uno existente.',
+            'items.*.item_id.integer'  => 'Uno de los ítems no existe en el catálogo. Créalo primero o selecciona uno existente.',
+            'items.*.item_id.exists'   => 'Uno de los ítems no existe en el catálogo. Créalo primero o selecciona uno existente.',
+        ];
+
+        return $request->validate($rules, $messages);
     }
 
 }
