@@ -14,7 +14,6 @@ export interface CuttingPiece {
     sequence: number;
     name: string;
     piece_type: 'PRINCIPAL' | 'SECUNDARIO';
-    fabric_uid: string | null;
     side: 'IZQUIERDA' | 'DERECHA' | 'IZQ/DER' | 'NO_APLICA';
     grain: '90' | '180' | 'SESGO';
     quantity: number;
@@ -26,12 +25,10 @@ const props = withDefaults(
     defineProps<{
         modelValue: CuttingPiece[];
         readonly?: boolean;
-        fabricsOptions?: { id: string; name: string }[];
     }>(),
     {
         modelValue: () => [],
         readonly: false,
-        fabricsOptions: () => [],
     },
 );
 
@@ -109,7 +106,6 @@ const addPiece = () => {
         sequence: localPieces.value.length + 1,
         name: '',
         piece_type: 'PRINCIPAL',
-        fabric_uid: null,
         side: 'NO_APLICA',
         grain: '90',
         quantity: 1,
@@ -146,8 +142,7 @@ const updateData = () => {
                         <TableHead class="min-w-[150px] px-4 py-3 text-left text-sm font-semibold text-muted-foreground"
                             >Nombre de la Pieza</TableHead
                         >
-                        <TableHead class="min-w-[140px] px-4 py-1.5 text-left text-sm font-semibold text-muted-foreground">Tipo</TableHead>
-                        <TableHead class="min-w-[180px] px-4 py-1.5 text-left text-sm font-semibold text-muted-foreground">Tela</TableHead>
+                        <TableHead class="min-w-[140px] px-4 py-1.5 text-left text-sm font-semibold text-muted-foreground">Tela</TableHead>
                         <TableHead class="min-w-[140px] px-4 py-1.5 text-left text-sm font-semibold text-muted-foreground">Lado</TableHead>
                         <TableHead class="min-w-[120px] px-4 py-1.5 text-left text-sm font-semibold text-muted-foreground">Hilo</TableHead>
                         <TableHead class="w-24 px-4 py-3 text-left text-sm font-semibold text-muted-foreground">Cant.</TableHead>
@@ -160,7 +155,7 @@ const updateData = () => {
 
                 <TransitionGroup name="drag-list" tag="tbody" class="relative [&_tr:last-child]:border-0">
                     <TableRow v-if="localPieces.length === 0" key="empty">
-                        <TableCell :colspan="readonly ? 8 : 9" class="px-4 py-8 text-center text-sm italic text-muted-foreground">
+                        <TableCell :colspan="readonly ? 7 : 8" class="px-4 py-8 text-center text-sm italic text-muted-foreground">
                             No hay piezas registradas en el despiece.
                         </TableCell>
                     </TableRow>
@@ -218,33 +213,6 @@ const updateData = () => {
                                 <SelectContent class="z-[99999]">
                                     <SelectGroup>
                                         <SelectItem v-for="opt in pieceTypeOptions" :key="opt" :value="opt">{{ opt }}</SelectItem>
-                                    </SelectGroup>
-                                </SelectContent>
-                            </Select>
-                        </TableCell>
-
-                        <TableCell class="px-4 py-1.5">
-                            <span v-if="readonly" class="text-foreground">
-                                {{ fabricsOptions.find((f) => String(f.id) === String(piece.fabric_uid))?.name || 'N/A' }}
-                            </span>
-                            <Select
-                                v-else
-                                :model-value="piece.fabric_uid ? String(piece.fabric_uid) : undefined"
-                                @update:model-value="
-                                    (v) => {
-                                        piece.fabric_uid = v;
-                                        updateData();
-                                    }
-                                "
-                            >
-                                <SelectTrigger class="h-9 w-full bg-background">
-                                    <SelectValue placeholder="Seleccionar tela..." />
-                                </SelectTrigger>
-                                <SelectContent class="z-[99999]">
-                                    <SelectGroup>
-                                        <SelectItem v-for="fabric in fabricsOptions" :key="fabric.id" :value="String(fabric.id)">{{
-                                            fabric.name
-                                        }}</SelectItem>
                                     </SelectGroup>
                                 </SelectContent>
                             </Select>

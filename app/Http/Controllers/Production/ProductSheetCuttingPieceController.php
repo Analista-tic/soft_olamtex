@@ -20,8 +20,6 @@ class ProductSheetCuttingPieceController extends Controller
      */
     public function show(ProductSheet $productSheet): JsonResponse
     {
-        $this->authorize('view', $productSheet);
-
         $pieces = $this->service->getCuttingPieces($productSheet->id);
 
         return response()->json([
@@ -32,9 +30,6 @@ class ProductSheetCuttingPieceController extends Controller
                     'sequence' => $piece->sequence,
                     'name' => $piece->name,
                     'piece_type' => $piece->piece_type,
-                    'fabric_type' => $piece->fabric_type,
-                    'fabric_uid' => $piece->fabric_uid,
-                    'trace_location' => $piece->trace_location,
                     'side' => $piece->side,
                     'grain' => $piece->grain,
                     'quantity' => $piece->quantity,
@@ -58,16 +53,12 @@ class ProductSheetCuttingPieceController extends Controller
      */
     public function update(Request $request, ProductSheet $productSheet): JsonResponse
     {
-        $this->authorize('update', $productSheet);
-
         $validated = $request->validate([
-            'pieces' => 'required|array',
+            'pieces' => 'nullable|array',
             'pieces.*.piece_uid' => 'nullable|string',
             'pieces.*.sequence' => 'required|integer',
-            'pieces.*.name' => 'required|string|max:150',
+            'pieces.*.name' => 'nullable|string|max:150',
             'pieces.*.piece_type' => 'required|string|max:30',
-            'pieces.*.fabric_type' => 'required|string|max:30',
-            'pieces.*.fabric_uid' => 'nullable|string|max:100',
             'pieces.*.trace_location' => 'nullable|string|max:30',
             'pieces.*.side' => 'required|string|max:20',
             'pieces.*.grain' => 'required|string|max:10',
@@ -80,7 +71,7 @@ class ProductSheetCuttingPieceController extends Controller
         ]);
 
         try {
-            $pieces = $this->service->syncCuttingPieces($productSheet->id, $validated['pieces']);
+            $pieces = $this->service->syncCuttingPieces($productSheet->id, $validated['pieces'] ?? []);
 
             return response()->json([
                 'message' => 'Despiece sincronizado correctamente',
@@ -91,9 +82,6 @@ class ProductSheetCuttingPieceController extends Controller
                         'sequence' => $piece->sequence,
                         'name' => $piece->name,
                         'piece_type' => $piece->piece_type,
-                        'fabric_type' => $piece->fabric_type,
-                        'fabric_uid' => $piece->fabric_uid,
-                        'trace_location' => $piece->trace_location,
                         'side' => $piece->side,
                         'grain' => $piece->grain,
                         'quantity' => $piece->quantity,

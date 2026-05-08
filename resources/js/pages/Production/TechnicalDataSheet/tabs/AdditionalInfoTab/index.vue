@@ -575,6 +575,7 @@ watch(
             :saving-section="savingSection"
             :raw-materials-info="effectiveRawMaterialsInfo"
             :drawing-url="drawingUrl ?? null"
+            :product-sheet-id="opBasicInfo?.product_sheet_id ?? null"
             @update:data="updateCuttingData"
             @close="isCuttingDialogOpen = false"
             @save="handleSaveAndClose"

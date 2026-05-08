@@ -39,6 +39,7 @@ import ParameterDialog from '@/pages/MasterData/Parameters/ParameterDialog.vue';
 import axios from 'axios';
 import { Loader2 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
+import CuttingBreakdown, { type CuttingPiece } from './components/CuttingBreakdown.vue';
 
 interface Props {
     mode: 'create' | 'edit' | 'view'; // Define si es creación, edición o visualización
@@ -253,6 +254,7 @@ function createInitialFormState(): FormState {
 }
 
 const form = ref<FormState>(createInitialFormState());
+const localCuttingPieces = ref<CuttingPiece[]>([]);
 const sectionOptions = ref<OptionParams[]>([]);
 const groupOptions = ref<OptionParams[]>([]);
 const brandOptions = ref<OptionParams[]>([]);
@@ -1190,6 +1192,16 @@ async function initializeDialog(): Promise<void> {
             }),
             isCreateMode.value ? loadTemplates() : Promise.resolve(),
             (isEditMode.value || isViewMode.value) && props.productSheet?.id ? validateSampleOperationalList(true) : Promise.resolve(true),
+            (isEditMode.value || isViewMode.value) && props.productSheet?.id
+                ? axios
+                      .get(route('produccion.sabana-productos.despiece-corte.show', props.productSheet.id))
+                      .then((r) => {
+                          localCuttingPieces.value = r.data?.data ?? [];
+                      })
+                      .catch(() => {
+                          localCuttingPieces.value = [];
+                      })
+                : Promise.resolve(),
         ]);
     } finally {
         isCatalogBootstrapLoading.value = false;
@@ -1453,13 +1465,30 @@ async function saveProductSheet() {
         const response =
             isEditMode.value && props.productSheet?.id ? await updateProductSheet(props.productSheet.id, payload) : await createProductSheet(payload);
 
+        const savedSheetId = (response.data?.data ?? response.data)?.id ?? (isEditMode.value ? props.productSheet?.id : null);
+        let cuttingPiecesError: string | null = null;
+        if (savedSheetId) {
+            try {
+                await axios.put(route('produccion.sabana-productos.despiece-corte.update', savedSheetId), { pieces: localCuttingPieces.value });
+            } catch (err) {
+                cuttingPiecesError = axios.isAxiosError(err)
+                    ? (err.response?.data?.message ?? 'Error al guardar el despiece de corte.')
+                    : 'Error al guardar el despiece de corte.';
+            }
+        }
+
         emit('productSheetSaved', {
             success: true,
             message: isEditMode.value ? 'Sábana actualizada correctamente.' : 'Sábana creada correctamente.',
             data: response.data?.data ?? response.data,
         });
-        resetForm();
-        localOpen.value = false;
+
+        if (cuttingPiecesError) {
+            setError(`La sábana se guardó correctamente, pero el despiece falló: ${cuttingPiecesError}`, 'warning');
+        } else {
+            resetForm();
+            localOpen.value = false;
+        }
     } catch (error: unknown) {
         let errMsg = `Hubo un error al ${isEditMode.value ? 'actualizar' : 'crear'} el product sheet.`;
         if (axios.isAxiosError(error)) {
@@ -1494,6 +1523,7 @@ function validateForm() {
 
 function resetForm() {
     flatSketchRef.value?.reset();
+    localCuttingPieces.value = [];
     closeConvertDialog();
     hasAppliedDefaultSampleProcess.value = false;
     hasSampleOperationalList.value = true;
@@ -1928,6 +1958,7 @@ function handleClose() {
                                         :disabled="isReadonly"
                                     />
                                 </div>
+
                             </div>
                             <div class="w-full min-w-0 sm:sticky sm:top-0 sm:w-[340px] sm:self-start">
                                 <div class="space-y-4">
@@ -2045,6 +2076,11 @@ function handleClose() {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- Despiece de Corte - ancho completo -->
+                        <div class="mt-6">
+                            <CuttingBreakdown v-model="localCuttingPieces" :readonly="isReadonly" />
                         </div>
                     </template>
                 </div>

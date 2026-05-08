@@ -198,7 +198,6 @@ class TechnicalDataSheetPdfService
                         'id'        => (string) ($p->piece_uid ?? $p->id),
                         'name'      => $p->name,
                         'type'      => $p->piece_type,
-                        'fabricUid' => $p->fabric_uid,
                         'side'      => $p->side,
                         'grain'     => $p->grain,
                         'quantity'  => $p->quantity,

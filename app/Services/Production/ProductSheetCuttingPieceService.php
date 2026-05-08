@@ -60,6 +60,12 @@ class ProductSheetCuttingPieceService
             throw new \Exception("ProductSheet with ID {$productSheetId} not found");
         }
 
+        // Si no vienen piezas, eliminar todas las existentes y retornar vacío
+        if (empty($piecesData)) {
+            ProductSheetCuttingPiece::where('product_sheet_id', $productSheetId)->delete();
+            return collect();
+        }
+
         $upsertedPieceUids = [];
 
         foreach ($piecesData as $pieceData) {
@@ -72,8 +78,6 @@ class ProductSheetCuttingPieceService
                 'sequence' => $pieceData['sequence'] ?? 0,
                 'name' => $pieceData['name'] ?? '',
                 'piece_type' => $pieceData['piece_type'] ?? 'PRINCIPAL',
-                'fabric_type' => $pieceData['fabric_type'] ?? 'PRINCIPAL',
-                'fabric_uid' => $pieceData['fabric_uid'] ?? null,
                 'trace_location' => $pieceData['trace_location'] ?? null,
                 'side' => $pieceData['side'] ?? 'AMBOS',
                 'grain' => $pieceData['grain'] ?? '90',

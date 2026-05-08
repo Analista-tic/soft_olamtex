@@ -6,8 +6,8 @@ import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } fr
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { CuttingPiece, SizeUnit } from '@/domain/Production';
-import type { Option } from '@/domain/shared';
-import CuttingBreakdown from '@/pages/Production/ProductSheets/components/CuttingBreakdown.vue';
+import CuttingBreakdown, { type CuttingPiece as SheetCuttingPiece } from '@/pages/Production/ProductSheets/components/CuttingBreakdown.vue';
+import axios from 'axios';
 import { computed, ref, watch } from 'vue';
 
 // Define la estructura de datos principal que maneja el formulario de "Corte"
@@ -90,6 +90,7 @@ const props = defineProps<{
     savingSection: string | null; // Controla si se está guardando y bloquea el botón
     rawMaterialsInfo: RawMaterialsInfoRow[]; // Lista de telas
     drawingUrl?: string | null;
+    productSheetId?: number | null;
 }>();
 
 // Los "emits" son eventos que este componente dispara hacia su padre para avisarle que algo cambió.
@@ -108,6 +109,8 @@ const emit = defineEmits<{
 const inlineSizeMode = ref<'create' | 'edit' | null>(null);
 const inlineSizeForm = ref<InlineSizeForm>(createEmptyInlineSizeForm());
 const infoMessage = ref<string | null>(null);
+const productSheetPieces = ref<SheetCuttingPiece[]>([]);
+const isLoadingSheetPieces = ref(false);
 const successMessage = ref<string | null>(null);
 const attemptedSectionSave = ref(false);
 const attemptedInlineSizeSave = ref(false);
@@ -123,35 +126,6 @@ const localData = computed({
 const totalUnitsBySize = computed(() => localData.value.sizes.reduce((acc, row) => acc + Number(row.units || 0), 0));
 const totalCurvesBySize = computed(() => localData.value.sizes.reduce((acc, row) => acc + Math.max(0, Number(row.curve || 0)), 0));
 
-// Cálculo de unidades totales requeridas por el despiece.
-const totalUnitsByPieces = computed(() =>
-    localData.value.pieces.reduce((acc, piece) => {
-        const quantity = Number(piece.quantity ?? 0);
-        return acc + (Number.isFinite(quantity) ? Math.max(0, quantity) : 0);
-    }, 0),
-);
-
-function updateCuttingPieces(pieces: CuttingPiece[]): void {
-    localData.value = {
-        ...localData.value,
-        pieces,
-    };
-}
-
-// Mapeo: Transforma la lista cruda de "rawMaterialsInfo" a un formato estándar de {id, name}
-// para que el componente <CuttingBreakdown> pueda renderizar el select (desplegable) de telas.
-const fabricOptions = computed<Option[]>(() => {
-    const seen = new Set<string>();
-    return props.rawMaterialsInfo
-        .map((row, index) => {
-            const id = String(row.uid ?? '').trim();
-            const name = `Tela ${index + 1}`;
-            if (!id || !name || seen.has(id)) return null;
-            seen.add(id);
-            return { id, name } as Option;
-        })
-        .filter((row): row is Option => row !== null);
-});
 
 /**
  * ----------------------------------------------------------------------------
@@ -346,6 +320,22 @@ function handleDialogOpenChange(value: boolean): void {
  * 'watch' permite ejecutar código cada vez que la variable monitoreada cambia.
  * Aquí "escuchamos" el prop.open para inicializar datos frescos cada vez que el modal se abre.
  */
+async function loadProductSheetPieces(): Promise<void> {
+    if (!props.productSheetId) {
+        productSheetPieces.value = [];
+        return;
+    }
+    isLoadingSheetPieces.value = true;
+    try {
+        const response = await axios.get(route('produccion.sabana-productos.despiece-corte.show', props.productSheetId));
+        productSheetPieces.value = response.data?.data ?? [];
+    } catch {
+        productSheetPieces.value = [];
+    } finally {
+        isLoadingSheetPieces.value = false;
+    }
+}
+
 watch(
     () => props.open,
     (isOpen) => {
@@ -355,6 +345,7 @@ watch(
             clearLocalMessages();
             attemptedSectionSave.value = false;
             cancelInlineSizeEditor();
+            void loadProductSheetPieces();
         }
     },
 );
@@ -380,8 +371,8 @@ watch(
             />
 
             <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-                <div class="grid grid-cols-[0.98fr_1.6fr] items-start gap-6" style="grid-template-columns: minmax(260px, 38%) minmax(340px, 62%)">
-                    <div class="rounded-lg border border-border bg-background px-3 py-3 shadow-sm">
+                <div class="flex flex-col gap-6">
+                    <div class="w-full max-w-sm rounded-lg border border-border bg-background px-3 py-3 shadow-sm">
                         <h3 class="mb-2 text-sm font-semibold text-foreground">Tallas</h3>
 
                         <div
@@ -442,22 +433,22 @@ watch(
                         </div>
                     </div>
                     <div class="rounded-lg border border-border bg-background px-4 py-4 shadow-sm">
-                        <div>
-                            <CuttingBreakdown
-                                :model-value="localData.pieces"
-                                @update:model-value="updateCuttingPieces"
-                                :fabricsOptions="fabricOptions"
-                                :readonly="true"
-                            />
+                        <div v-if="isLoadingSheetPieces" class="py-4 text-center text-sm text-muted-foreground">
+                            Cargando piezas...
+                        </div>
+                        <div v-else-if="productSheetPieces.length === 0" class="py-3 text-sm italic text-muted-foreground">
+                            Sin piezas registradas en la sábana de producto.
+                        </div>
+                        <CuttingBreakdown
+                            v-else
+                            :model-value="productSheetPieces"
+                            :readonly="true"
+                        />
 
-                            <div v-if="localData.pieces.length > 0" class="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-                                <span
-                                    >Piezas: <strong class="text-foreground">{{ localData.pieces.length }}</strong></span
-                                >
-                                <span
-                                    >Uds. por pieza: <strong class="text-foreground">{{ totalUnitsByPieces }}</strong></span
-                                >
-                            </div>
+                        <div v-if="productSheetPieces.length > 0" class="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+                            <span
+                                >Piezas: <strong class="text-foreground">{{ productSheetPieces.length }}</strong></span
+                            >
                         </div>
                     </div>
                 </div>

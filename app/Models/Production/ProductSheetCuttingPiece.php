@@ -16,8 +16,6 @@ class ProductSheetCuttingPiece extends Model
         'sequence',
         'name',
         'piece_type',
-        'fabric_type',
-        'fabric_uid',
         'trace_location',
         'side',
         'grain',

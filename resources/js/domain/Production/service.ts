@@ -899,7 +899,6 @@ export async function saveOpCuttingPieces(opId: string | number, pieces: Cutting
         sequence: index,
         name: p.name,
         piece_type: p.type ?? 'PRINCIPAL',
-        fabric_uid: p.fabricUid ?? null,
         side: p.side,
         grain: p.grain,
         quantity: p.quantity,
