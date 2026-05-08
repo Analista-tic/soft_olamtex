@@ -10,8 +10,10 @@ use App\Http\Requests\Production\UpdateProgrammerRequest;
 use App\Models\Production\ProductSheet;
 use App\Models\Production\ProductionOrder;
 use App\Services\Production\ProductionOrderService;
+use App\Services\Production\ProductionOrderSchedulingService;
 use App\Services\Production\ProductSheetStatusService;
 use App\Services\Settings\SettingService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -37,6 +39,7 @@ class ProgrammerController extends Controller
         private SettingService $settingService,
         private ProductionOrderService $productionOrderService,
         private ProductSheetStatusService $productSheetStatusService,
+        private ProductionOrderSchedulingService $schedulingService,
     ) {
     }
 
@@ -162,16 +165,71 @@ class ProgrammerController extends Controller
                     $productSheet = ProductSheet::findOrFail($lot['product_sheet_id']);
                     $ecommerceUnits = $this->normalizeEcommerceUnits($lot['ecommerce_units'] ?? null);
                     $units = isset($lot['units']) ? (int) $lot['units'] : null;
+                    $season = (string) ($lot['season'] ?? '');
+                    $dispatchMonthRaw = isset($lot['dispatch_month']) ? trim((string) $lot['dispatch_month']) : null;
+                    $dispatchMonth = $dispatchMonthRaw !== null && $dispatchMonthRaw !== ''
+                        ? $dispatchMonthRaw
+                        : $season;
+                    $seasonToken = $this->normalizeMonthToken($season);
+                    $dispatchMonthToken = $this->normalizeMonthToken($dispatchMonth);
+                    $isCrossSeasonAdvance = $seasonToken !== '' && $dispatchMonthToken !== '' && $seasonToken !== $dispatchMonthToken;
+                    $isManualAdvance = (bool) ($lot['is_advance'] ?? false);
+                    $isAdvance = $isManualAdvance || $isCrossSeasonAdvance;
+                    $inputPriority = isset($lot['priority']) ? (string) $lot['priority'] : null;
+                    $notes = isset($lot['notes']) ? trim((string) $lot['notes']) : null;
 
-                    $status = $units !== null && $units > 0 ? 'complete' : 'incomplete';
+                    if ($season === '') {
+                        throw ValidationException::withMessages([
+                            'lots' => 'La temporada es requerida para programar órdenes.',
+                        ]);
+                    }
+
+                    $priority = $this->schedulingService->resolvePriorityForNewOrder(
+                        $productSheet,
+                        $season,
+                        max(1, (int) ($units ?? 1)),
+                        $dispatchMonth,
+                        $inputPriority,
+                    );
+
+                    if ($isAdvance) {
+                        $estimatedDeliveryDate = isset($lot['estimated_delivery_date']) ? trim((string) $lot['estimated_delivery_date']) : '';
+
+                        if ($estimatedDeliveryDate === '') {
+                            if ($isCrossSeasonAdvance) {
+                                $estimatedDeliveryDate = $this->schedulingService->resolveStandardDate($dispatchMonth, $priority);
+                            } else {
+                                throw ValidationException::withMessages([
+                                    'lots' => 'La fecha estimada es obligatoria cuando el lote es adelanto.',
+                                ]);
+                            }
+                        }
+
+                        if (!$isCrossSeasonAdvance) {
+                            try {
+                                $this->schedulingService->validateAdvanceDate($estimatedDeliveryDate);
+                            } catch (\InvalidArgumentException $exception) {
+                                throw ValidationException::withMessages([
+                                    'lots' => $exception->getMessage(),
+                                ]);
+                            }
+                        }
+                    } else {
+                        $estimatedDeliveryDate = $this->schedulingService->resolveStandardDate($season, $priority);
+                    }
+
+                    $status = $units !== null && $units > 0 && filled($estimatedDeliveryDate) ? 'complete' : 'incomplete';
 
                     $order = ProductionOrder::create([
                         'product_sheet_id' => $lot['product_sheet_id'],
-                        'season' => $lot['season'],
+                        'season' => $season,
+                        'dispatch_month' => $dispatchMonth,
                         'destination_id' => $lot['destination_id'],
-                        'priority' => $lot['priority'] ?? null,
+                        'priority' => $priority,
                         'units' => $units,
-                        'estimated_delivery_date' => isset($lot['estimated_delivery_date']) ? $lot['estimated_delivery_date'] : null,
+                        'estimated_delivery_date' => $estimatedDeliveryDate,
+                        'is_advance' => $isAdvance,
+                        'notes' => $notes,
                         'ecommerce_units' => $ecommerceUnits,
                         'status' => $status,
                         'current_process' => config('product-sheet.batch_control_processes.0', 'I&D'),
@@ -249,7 +307,18 @@ class ProgrammerController extends Controller
 
         // Si por alguna razÃƒÆ’Ã‚Â³n la validaciÃƒÆ’Ã‚Â³n omitiÃƒÆ’Ã‚Â³ campos que vienen en el request
         // (p. ej. reglas condicionales), tomar valores directos del request como respaldo.
-        $fallbackFields = ['product_sheet_id', 'season', 'destination_id', 'priority', 'units', 'estimated_delivery_date', 'ecommerce_units'];
+        $fallbackFields = [
+            'product_sheet_id',
+            'season',
+            'dispatch_month',
+            'destination_id',
+            'priority',
+            'units',
+            'estimated_delivery_date',
+            'is_advance',
+            'notes',
+            'ecommerce_units',
+        ];
         foreach ($fallbackFields as $f) {
             if (!array_key_exists($f, $validatedData) && $request->has($f)) {
                 $validatedData[$f] = $request->input($f);
@@ -264,13 +333,75 @@ class ProgrammerController extends Controller
             ? (isset($validatedData['units']) ? (int) $validatedData['units'] : null)
             : $programador->units;
 
+        $season = (string) ($validatedData['season'] ?? $programador->season ?? '');
+        $dispatchMonthRaw = array_key_exists('dispatch_month', $validatedData)
+            ? trim((string) ($validatedData['dispatch_month'] ?? ''))
+            : trim((string) ($programador->dispatch_month ?? ''));
+        $dispatchMonth = $dispatchMonthRaw !== '' ? $dispatchMonthRaw : $season;
+        $seasonToken = $this->normalizeMonthToken($season);
+        $dispatchMonthToken = $this->normalizeMonthToken($dispatchMonth);
+        $isCrossSeasonAdvance = $seasonToken !== '' && $dispatchMonthToken !== '' && $seasonToken !== $dispatchMonthToken;
+        $isAdvance = array_key_exists('is_advance', $validatedData)
+            ? (bool) $validatedData['is_advance']
+            : (bool) $programador->is_advance;
+        $isAdvance = $isAdvance || $isCrossSeasonAdvance;
+
+        $priority = (string) ($validatedData['priority'] ?? $programador->priority ?? '');
+
+        if ($priority === '' && $season !== '' && $programador->product_sheet_id) {
+            $sheet = ProductSheet::find($programador->product_sheet_id);
+            if ($sheet) {
+                $priority = $this->schedulingService->resolvePriorityForNewOrder(
+                    $sheet,
+                    $season,
+                    max(1, (int) ($units ?? 1)),
+                    $dispatchMonth,
+                    null,
+                );
+            }
+        }
+
+        if ($isAdvance) {
+            $advanceDate = (string) ($validatedData['estimated_delivery_date']
+                ?? ($programador->estimated_delivery_date?->toDateString() ?? ''));
+
+            if ($advanceDate === '' && $isCrossSeasonAdvance && $season !== '' && $priority !== '') {
+                $advanceDate = $this->schedulingService->resolveStandardDate($dispatchMonth, $priority);
+            }
+
+            if ($advanceDate !== '') {
+                if (!$isCrossSeasonAdvance) {
+                    try {
+                        $this->schedulingService->validateAdvanceDate($advanceDate);
+                    } catch (\InvalidArgumentException $exception) {
+                        throw ValidationException::withMessages([
+                            'estimated_delivery_date' => $exception->getMessage(),
+                        ]);
+                    }
+                }
+            }
+
+            $validatedData['estimated_delivery_date'] = $advanceDate !== '' ? $advanceDate : null;
+        } elseif ($season !== '' && $priority !== '') {
+            $validatedData['estimated_delivery_date'] = $this->schedulingService->resolveStandardDate($season, $priority);
+        }
+
+        if ($priority !== '') {
+            $validatedData['priority'] = $priority;
+        }
+
+        $validatedData['dispatch_month'] = $dispatchMonth;
+        $validatedData['is_advance'] = $isAdvance;
+
         if ($isAutoGenerated) {
             $estimatedDeliveryDate = array_key_exists('estimated_delivery_date', $validatedData)
                 ? $validatedData['estimated_delivery_date']
                 : ($programador->estimated_delivery_date ? $programador->estimated_delivery_date->toDateString() : null);
             $validatedData['status'] = $this->productionOrderService->resolveStatus($units, $estimatedDeliveryDate);
         } else {
-            $validatedData['status'] = $units !== null && $units > 0 ? 'complete' : 'incomplete';
+            $validatedData['status'] = $units !== null && $units > 0 && filled($validatedData['estimated_delivery_date'] ?? null)
+                ? 'complete'
+                : 'incomplete';
         }
 
         // Aplicar explÃƒÆ’Ã‚Â­citamente los campos validados para evitar dependencias
@@ -278,10 +409,13 @@ class ProgrammerController extends Controller
             $updatable = [
                 'product_sheet_id',
                 'season',
+                'dispatch_month',
                 'destination_id',
                 'priority',
                 'units',
                 'estimated_delivery_date',
+                'is_advance',
+                'notes',
                 'ecommerce_units',
                 'status',
             ];
@@ -343,6 +477,7 @@ class ProgrammerController extends Controller
     public function getData(Request $request)
     {
         $filters = $request->only(['season', 'priority', 'status', 'type', 'destination_id', 'search']);
+        $estimatedDeliveryDateFilter = trim((string) $request->input('estimated_delivery_date', ''));
         $perPage = $request->input('per_page', 10);
         $page = $request->input('page', 1);
         $sortBy = in_array($request->input('sort_by'), ['id', 'estimated_delivery_date'], true)
@@ -361,6 +496,7 @@ class ProgrammerController extends Controller
                 'priority' => $filters['priority'] ?? null,
                 'status' => $filters['status'] ?? null,
                 'destination_id' => $filters['destination_id'] ?? null,
+                'estimated_delivery_date' => $estimatedDeliveryDateFilter !== '' ? $estimatedDeliveryDateFilter : null,
                 'search' => isset($filters['search']) ? mb_substr((string) $filters['search'], 0, 80) : null,
                 'sort_by' => $sortBy,
                 'sort_dir' => $sortDir,
@@ -375,11 +511,14 @@ class ProgrammerController extends Controller
                 'op_code',
                 'product_sheet_id',
                 'season',
+                'dispatch_month',
                 'destination_id',
                 'priority',
                 'ecommerce_units',
                 'units',
                 'estimated_delivery_date',
+                'is_advance',
+                'notes',
                 'status',
                 'source',
                 'created_at',
@@ -431,6 +570,10 @@ class ProgrammerController extends Controller
 
         if (!empty($filters['destination_id']) && $filters['destination_id'] !== 'all') {
             $query->where('destination_id', $filters['destination_id']);
+        }
+
+        if ($estimatedDeliveryDateFilter !== '') {
+            $query->whereDate('estimated_delivery_date', $estimatedDeliveryDateFilter);
         }
 
         if (!empty($filters['search']) && trim((string) $filters['search']) !== '') {
@@ -529,6 +672,7 @@ class ProgrammerController extends Controller
                 'product_sheet_id' => $order->product_sheet_id,
                 'product_sheet' => $productSheet,
                 'season' => $order->season,
+                'dispatch_month' => $order->dispatch_month,
                 'season_display' => $seasonDisplay,
                 'temporada_label' => $temporadaLabel,
                 'destination_id' => $order->destination_id,
@@ -537,6 +681,8 @@ class ProgrammerController extends Controller
                 'ecommerce_units' => $order->ecommerce_units,
                 'units' => $order->units,
                 'estimated_delivery_date' => $order->estimated_delivery_date?->toDateString(),
+                'is_advance' => (bool) $order->is_advance,
+                'notes' => $order->notes,
                 'status' => $order->status,
                 'source' => $order->source,
                 'is_auto_from_product_sheet' => $order->is_auto_from_product_sheet,
@@ -567,6 +713,152 @@ class ProgrammerController extends Controller
         ]);
     }
 
+    public function nextOpCode(Request $request): JsonResponse
+    {
+        $prefix = strtoupper(trim((string) $request->input('prefix', 'MF')));
+
+        if (! in_array($prefix, ['MU', 'MUT', 'MF', 'MFT'], true)) {
+            return response()->json(['error' => 'Prefijo inválido.'], 422);
+        }
+
+        $nextCode = $this->productionOrderService->peekNextOpCode($prefix);
+
+        return response()->json(['data' => ['next_code' => $nextCode]]);
+    }
+
+    public function distributionDashboard(Request $request)
+    {
+        $filters = $request->only(['season', 'priority', 'status', 'type', 'destination_id', 'search']);
+        $estimatedDeliveryDateFilter = trim((string) $request->input('estimated_delivery_date', ''));
+
+        $query = ProductionOrder::query()
+            ->select(['id', 'priority', 'units', 'estimated_delivery_date', 'season', 'destination_id', 'status'])
+            ->with(['productSheet:id,type,sample_reference,product_reference']);
+
+        if (!empty($filters['season']) && $filters['season'] !== 'all') {
+            $seasonFilter = $this->resolveMonthFilter((string) $filters['season']);
+            if ($seasonFilter !== '') {
+                $query->whereRaw('UPPER(TRIM(season)) = ?', [$seasonFilter]);
+            }
+        }
+
+        if (!empty($filters['priority']) && $filters['priority'] !== 'all') {
+            $query->where('priority', $filters['priority']);
+        }
+
+        if (!empty($filters['status']) && $filters['status'] !== 'all') {
+            $query->where('status', $filters['status']);
+        }
+
+        if (!empty($filters['type']) && $filters['type'] !== 'all' && in_array($filters['type'], ['muestra', 'producto'], true)) {
+            $query->whereHas('productSheet', function ($q) use ($filters) {
+                $q->where('type', $filters['type']);
+            });
+        }
+
+        if (!empty($filters['destination_id']) && $filters['destination_id'] !== 'all') {
+            $query->where('destination_id', $filters['destination_id']);
+        }
+
+        if ($estimatedDeliveryDateFilter !== '') {
+            $query->whereDate('estimated_delivery_date', $estimatedDeliveryDateFilter);
+        }
+
+        if (!empty($filters['search']) && trim((string) $filters['search']) !== '') {
+            $search = trim((string) $filters['search']);
+            $searchLike = '%' . $search . '%';
+            $query->whereHas('productSheet', function ($sheetQuery) use ($searchLike) {
+                $sheetQuery->where('sample_reference', 'like', $searchLike)
+                    ->orWhere('product_reference', 'like', $searchLike);
+            });
+        }
+
+        return response()->json([
+            'data' => $this->schedulingService->calculateDashboardFromQuery($query),
+        ]);
+    }
+
+    public function bulkUpdateEstimatedDate(Request $request)
+    {
+        $validated = $request->validate([
+            'order_ids' => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['integer', 'exists:production_orders,id'],
+            'estimated_delivery_date' => ['required', 'date'],
+        ]);
+
+        $date = (string) $validated['estimated_delivery_date'];
+
+        $orders = ProductionOrder::query()
+            ->whereIn('id', $validated['order_ids'])
+            ->get();
+
+        $updated = 0;
+
+        DB::transaction(function () use ($orders, $date, &$updated) {
+            foreach ($orders as $order) {
+                /** @var ProductionOrder $order */
+                $order->estimated_delivery_date = $date;
+                $order->is_advance = true;
+                $order->status = $this->productionOrderService->resolveStatus(
+                    $order->units !== null ? (int) $order->units : null,
+                    $date,
+                );
+                $order->save();
+                $updated++;
+            }
+        });
+
+        return response()->json([
+            'message' => "Fecha estimada actualizada en {$updated} registros.",
+            'updated_count' => $updated,
+        ]);
+    }
+
+    public function bulkUpdatePriority(Request $request)
+    {
+        $validated = $request->validate([
+            'order_ids' => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['integer', 'exists:production_orders,id'],
+            'priority' => ['required', 'string', 'in:A,B,C,D'],
+        ]);
+
+        $priority = strtoupper((string) $validated['priority']);
+
+        $orders = ProductionOrder::query()
+            ->whereIn('id', $validated['order_ids'])
+            ->get();
+
+        $updated = 0;
+
+        DB::transaction(function () use ($orders, $priority, &$updated) {
+            foreach ($orders as $order) {
+                /** @var ProductionOrder $order */
+                $season = (string) ($order->season ?? '');
+                if ($season === '') {
+                    continue;
+                }
+
+                $order->priority = $priority;
+
+                if (!$order->is_advance) {
+                    $order->estimated_delivery_date = $this->schedulingService->resolveStandardDate($season, $priority);
+                }
+
+                $order->status = ($order->units !== null && (int) $order->units > 0 && filled($order->estimated_delivery_date))
+                    ? 'complete'
+                    : 'incomplete';
+
+                $order->save();
+                $updated++;
+            }
+        });
+
+        return response()->json([
+            'message' => "Prioridad actualizada en {$updated} registros.",
+            'updated_count' => $updated,
+        ]);
+    }
+
     private function loadCatalogs(array $keys): array
     {
         $catalogs = [];
@@ -576,6 +868,39 @@ class ProgrammerController extends Controller
         }
 
         return $catalogs;
+    }
+
+    private function resolveMonthFilter(string $value): string
+    {
+        return $this->normalizeMonthToken($value);
+    }
+
+    private function normalizeMonthToken(string|int|null $value): string
+    {
+        $raw = strtoupper(trim((string) $value));
+        if ($raw === '') {
+            return '';
+        }
+
+        $option = $this->settingService->getCatalogOptionById('months', $raw);
+        if (is_array($option)) {
+            $name = strtoupper(trim((string) ($option['name'] ?? '')));
+            if ($name !== '') {
+                return $name;
+            }
+        }
+
+        if (ctype_digit($raw)) {
+            $optionByInt = $this->settingService->getCatalogOptionById('months', (int) $raw);
+            if (is_array($optionByInt)) {
+                $name = strtoupper(trim((string) ($optionByInt['name'] ?? '')));
+                if ($name !== '') {
+                    return $name;
+                }
+            }
+        }
+
+        return $raw;
     }
 
     protected function normalizeEcommerceUnits($value): ?array
@@ -631,9 +956,11 @@ class ProgrammerController extends Controller
         return [
             'product_sheet_id' => $lot['product_sheet_id'] ?? null,
             'season' => $lot['season'] ?? null,
+            'dispatch_month' => $lot['dispatch_month'] ?? null,
             'destination_id' => $lot['destination_id'] ?? null,
             'priority' => $lot['priority'] ?? null,
             'units' => $lot['units'] ?? null,
+            'is_advance' => $lot['is_advance'] ?? null,
             'status' => $lot['status'] ?? null,
             'has_ecommerce_units' => array_key_exists('ecommerce_units', $lot) && $lot['ecommerce_units'] !== null,
         ];

@@ -17,6 +17,7 @@ import { normalizeSizes } from '@/domain/Production';
 import type { Option } from '@/domain/shared/types';
 
 import { Button } from '@/components/ui/button';
+import Badge from '@/components/ui/badge/Badge.vue';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -320,6 +321,7 @@ function calculateEstimatedDeliveryDate(season: string | number | null | undefin
 
 function updateEstimatedDeliveryDate() {
     if (isReadOnly.value) return;
+    if (programmer.value.is_advance) return;
 
     const priority = normalizePriorityForApi(programmer.value.priority);
     if (!priority) {
@@ -333,6 +335,17 @@ function updateEstimatedDeliveryDate() {
 }
 
 const selectedSeasonLabel = computed(() => normalizeSeasonForApi(programmer.value.season) || 'Sin temporada');
+const selectedDispatchMonthLabel = computed(() => normalizeSeasonForApi(programmer.value.dispatch_month) || selectedSeasonLabel.value);
+const isCrossSeasonAdvance = computed(() => {
+    const season = normalizeSeasonForApi(programmer.value.season);
+    const dispatchMonth = normalizeSeasonForApi(programmer.value.dispatch_month);
+
+    if (!season || !dispatchMonth) return false;
+    return season !== dispatchMonth;
+});
+
+const orderResumeStatusTone = computed(() => ((programmer.value.is_pending_completion ?? false) ? 'destructive' : 'default'));
+const orderResumeStatusText = computed(() => ((programmer.value.is_pending_completion ?? false) ? 'Pendiente' : 'Completo'));
 
 const ecommerceSummary = computed(() => {
     const values = resolveEcommerceValues(programmer.value.ecommerce_units);
@@ -456,9 +469,12 @@ async function saveChanges() {
         const basePayload = {
             product_sheet_id: programmer.value.product_sheet_id,
             season: normalizeSeasonForApi(programmer.value.season),
+            dispatch_month: normalizeSeasonForApi(programmer.value.dispatch_month ?? programmer.value.season),
             destination_id: programmer.value.destination_id,
             units: programmer.value.units,
             estimated_delivery_date: programmer.value.estimated_delivery_date,
+            is_advance: Boolean(programmer.value.is_advance || isCrossSeasonAdvance.value),
+            notes: programmer.value.notes ?? null,
             ecommerce_units:
                 typeof programmer.value.ecommerce_units === 'string'
                     ? programmer.value.ecommerce_units
@@ -501,6 +517,15 @@ watch(
         updateEstimatedDeliveryDate();
     },
 );
+
+watch(
+    () => isCrossSeasonAdvance.value,
+    (crossSeason) => {
+        if (crossSeason) {
+            programmer.value.is_advance = true;
+        }
+    },
+);
 </script>
 
 <template>
@@ -527,6 +552,18 @@ watch(
                     <FormLoadingOverlay :active="isFormInitializing" message="Cargando programado..." :delay-ms="100" />
 
                     <div v-if="canRenderForm" class="space-y-4 pt-2">
+                        <section class="rounded-xl border border-border/70 bg-muted/20 p-4">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <Badge variant="outline">{{ programmer.op_code || 'OP sin código' }}</Badge>
+                                <Badge :variant="orderResumeStatusTone">{{ orderResumeStatusText }}</Badge>
+                                <Badge variant="outline">Temporada: {{ selectedSeasonLabel }}</Badge>
+                                <Badge variant="outline">Despacho: {{ selectedDispatchMonthLabel }}</Badge>
+                                <Badge :variant="isCrossSeasonAdvance ? 'destructive' : 'outline'">
+                                    {{ isCrossSeasonAdvance ? 'Adelanto entre temporadas' : 'Misma temporada' }}
+                                </Badge>
+                            </div>
+                        </section>
+
                         <section>
                             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <!-- Referencia -->
@@ -595,6 +632,19 @@ watch(
                                     />
                                 </div>
 
+                                <div class="flex flex-col gap-1">
+                                    <div class="flex items-center gap-2">
+                                        <Label class="text-sm font-medium">Mes despacho</Label>
+                                    </div>
+                                    <SelectField
+                                        v-model="programmer.dispatch_month"
+                                        :options="seasonOptions"
+                                        label=""
+                                        :disabled="isReadOnly"
+                                        class="mt-1 w-full"
+                                    />
+                                </div>
+
                                 <!-- Unidades -->
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
@@ -630,6 +680,18 @@ watch(
                                     />
                                 </div>
 
+                                <div class="flex flex-col gap-1">
+                                    <div class="flex items-center gap-2">
+                                        <Label class="text-sm font-medium">Adelanto</Label>
+                                    </div>
+                                    <div class="mt-2 flex items-center gap-2">
+                                        <input type="checkbox" v-model="programmer.is_advance" :disabled="isReadOnly || isCrossSeasonAdvance" />
+                                        <span v-if="isCrossSeasonAdvance" class="text-xs text-destructive">
+                                            Se marca automáticamente porque temporada y despacho son diferentes.
+                                        </span>
+                                    </div>
+                                </div>
+
                                 <!-- Fecha entrega estimada (disponible para todos) -->
                                 <div class="flex flex-col gap-1">
                                     <div class="flex justify-end">
@@ -641,7 +703,17 @@ watch(
                                         label="Fecha entrega estimada"
                                         :clearable="true"
                                         :show-today="true"
-                                        :disabled="isReadOnly || Boolean(programmer.priority)"
+                                        :disabled="isReadOnly || (!programmer.is_advance && Boolean(programmer.priority))"
+                                    />
+                                </div>
+
+                                <div class="flex flex-col gap-1 md:col-span-2">
+                                    <Label class="text-sm font-medium">Nota</Label>
+                                    <InputField
+                                        v-model="programmer.notes"
+                                        label=""
+                                        placeholder="Nota de programación"
+                                        :disabled="isReadOnly"
                                     />
                                 </div>
 

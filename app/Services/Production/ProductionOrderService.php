@@ -239,6 +239,20 @@ class ProductionOrderService
     }
 
     /**
+     * Consulta el siguiente número de secuencia sin bloquear la tabla (para preview).
+     */
+    public function peekNextOpCode(string $prefix): string
+    {
+        $codes = ProductionOrder::withTrashed()
+            ->where('op_code', 'like', "{$prefix}-%")
+            ->pluck('op_code');
+
+        $seq = $this->nextSequence($codes, $prefix);
+
+        return sprintf('%s-%04d', $prefix, $seq);
+    }
+
+    /**
      * Resuelve el prefijo del op_code basado en tipo y woven_product.
      */
     public function resolveOpCodePrefix(string $type, bool $wovenProduct): string
@@ -323,6 +337,10 @@ class ProductionOrderService
             })
             ->filter()
             ->max();
+
+        if ($max === null && $prefix === 'MF') {
+            return 5000;
+        }
 
         return ($max ?? 0) + 1;
     }

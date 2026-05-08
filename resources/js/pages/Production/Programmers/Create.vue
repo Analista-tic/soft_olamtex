@@ -64,9 +64,12 @@ type AlertType = 'success' | 'error' | 'info' | 'warning';
 type ProgrammerLotForm = {
     product_sheet_id: number | null;
     season: string | null;
+    dispatch_month: string | null;
     destination_id: number | null;
     priority: string | null;
     estimated_delivery_date: string | null;
+    is_advance: boolean;
+    notes: string;
     units: number | null;
     ecommerce_units: Record<string, number> | string | null;
     status: 'complete' | 'incomplete';
@@ -161,7 +164,8 @@ const form = ref<{ lotsCount: number | null; productSheetId: number | null }>({
 });
 
 const lotsForm = ref<ProgrammerLotForm[]>([]);
-const formErrors = ref<Array<{ lotIndex: number; fields: string[] }>>([]);
+const nextOpCodes = ref<string[]>([]);
+const formErrors = ref<Array<{ lotIndex: number; fields: string[] }>>([]); 
 const dialogInnerRef = ref<HTMLElement | null>(null);
 
 const isSubmitting = ref(false);
@@ -413,6 +417,30 @@ function updateEstimatedDeliveryDate(lotIndex: number) {
     }
 }
 
+async function fetchNextOpCodes(count: number, prefix: string) {
+    try {
+        const response = await axios.get('/comercial/programmers/siguiente-codigo', {
+            params: { prefix },
+        });
+        const first = response?.data?.data?.next_code as string | undefined;
+        if (!first) {
+            nextOpCodes.value = [];
+            return;
+        }
+        // Parse the numeric part and build the preview array
+        const match = first.match(/(\D+)(\d+)$/);
+        if (!match) {
+            nextOpCodes.value = Array(count).fill(first);
+            return;
+        }
+        const pfx = match[1];
+        const start = parseInt(match[2], 10);
+        nextOpCodes.value = Array.from({ length: count }, (_, i) => `${pfx}${String(start + i).padStart(match[2].length, '0')}`);
+    } catch {
+        nextOpCodes.value = [];
+    }
+}
+
 function generateLots() {
     if (!form.value.lotsCount || form.value.lotsCount <= 0) {
         setAlert('Por favor, ingresa una cantidad válida de lotes.', 'warning');
@@ -432,15 +460,24 @@ function generateLots() {
     lotsForm.value = Array.from({ length: form.value.lotsCount }, () => ({
         product_sheet_id: form.value.productSheetId,
         season: '',
+        dispatch_month: '',
         destination_id: null,
         priority: '',
         estimated_delivery_date: null,
+        is_advance: false,
+        notes: '',
         status: 'incomplete',
         isEcommerce: false,
         ecommerce_units: null,
         units: null,
         unitsInput: '',
     }));
+
+    const sheet = selectedProductSheet.value;
+    const isWoven = Boolean((sheet as any)?.woven_product);
+    const isProduct = sheet?.type === 'producto';
+    const prefix = isProduct ? (isWoven ? 'MFT' : 'MF') : (isWoven ? 'MUT' : 'MU');
+    void fetchNextOpCodes(form.value.lotsCount, prefix);
 }
 
 const errorSummary = computed(() => {
@@ -476,7 +513,6 @@ function getLotErrors(lot: Partial<Programmer>): string[] {
     if (!lot.product_sheet_id) errors.push('Referencia');
     if (!lot.season) errors.push('Temporada');
     if (!lot.destination_id) errors.push('Destino');
-    if (!lot.estimated_delivery_date) errors.push('Fecha entrega');
 
     const units = lot.units;
     const isValidUnits = units !== null && units !== undefined && !Number.isNaN(Number(units)) && Number(units) > 0;
@@ -583,9 +619,12 @@ function buildLotsPayload() {
         return {
             product_sheet_id: lot.product_sheet_id,
             season: normalizeSeason(lot.season),
+            dispatch_month: normalizeSeason(lot.dispatch_month) ?? normalizeSeason(lot.season),
             destination_id: lot.destination_id || null,
-            priority: normalizePriority(lot.priority),
+            priority: null,
             estimated_delivery_date: estimatedDate,
+            is_advance: Boolean(lot.is_advance),
+            notes: typeof lot.notes === 'string' ? lot.notes.trim() : null,
             units: unitsValue,
             ecommerce_units: ecommerceUnitsValue,
             status: lot.status,
@@ -646,6 +685,7 @@ async function resetForm() {
     try {
         form.value = { lotsCount: null, productSheetId: null };
         lotsForm.value = [];
+        nextOpCodes.value = [];
         formErrors.value = [];
         productSheetDialogOpen.value = false;
         dialogInnerRef.value = null;
@@ -823,9 +863,9 @@ watch(
                                         <th class="border bg-gray-50 px-3 py-2 font-semibold">Lote</th>
                                         <th class="border bg-gray-50 px-3 py-2 font-semibold">Referencia</th>
                                         <th class="border bg-gray-50 px-3 py-2 font-semibold">Temporada</th>
+                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Mes despacho</th>
                                         <th class="border bg-gray-50 px-3 py-2 font-semibold">Destino</th>
-                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Prioridad</th>
-                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Fecha est. entrega</th>
+                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Nota</th>
                                         <th class="border bg-gray-50 px-3 py-2 font-semibold">E-commerce (opcional)</th>
                                         <th class="border bg-gray-50 px-3 py-2 font-semibold">Unidades</th>
                                         <th v-if="lotsForm.some((lot) => lot.isEcommerce)" class="border bg-gray-50 px-3 py-2 font-semibold">
@@ -836,7 +876,9 @@ watch(
 
                                 <tbody>
                                     <tr v-for="(lot, index) in lotsForm" :key="index" class="hover:bg-gray-50">
-                                        <td class="whitespace-nowrap border px-3 py-2">MF300{{ index + 1 }}</td>
+                                        <td class="whitespace-nowrap border px-3 py-2 font-mono text-sm text-muted-foreground">
+                                            {{ nextOpCodes[index] ?? '—' }}
+                                        </td>
 
                                         <td class="border px-3 py-2">
                                             {{ getDisplayReference(lot.product_sheet_id) }}
@@ -859,6 +901,21 @@ watch(
                                             />
                                         </td>
 
+                                        <td class="border px-3 py-2" style="min-width: 180px">
+                                            <SelectField
+                                                v-model="lot.dispatch_month"
+                                                :options="monthOptions"
+                                                label=""
+                                                :aria-label="`Mes despacho para lote ${index + 1}`"
+                                                @update:modelValue="
+                                                    (value) => {
+                                                        lot.dispatch_month = value !== null && value !== undefined ? String(value) : null;
+                                                        validateLotField(index);
+                                                    }
+                                                "
+                                            />
+                                        </td>
+
                                         <td class="border px-3 py-2" style="min-width: 200px">
                                             <SelectField
                                                 v-model="lot.destination_id"
@@ -870,31 +927,12 @@ watch(
                                             />
                                         </td>
 
-                                        <td class="border px-3 py-2" style="min-width: 150px">
-                                            <SelectField
-                                                v-model="lot.priority"
-                                                :options="priorityOptions"
+                                        <td class="border px-3 py-2" style="min-width: 220px">
+                                            <InputField
+                                                v-model="lot.notes"
                                                 label=""
-                                                placeholder="Selecciona..."
-                                                :clearable="true"
-                                                :invalid="!lot.priority"
-                                                :aria-label="`Prioridad para lote ${index + 1}`"
-                                                @update:modelValue="
-                                                    (value) => {
-                                                        lot.priority = value !== null && value !== undefined ? String(value) : null;
-                                                        validateLotField(index);
-                                                        updateEstimatedDeliveryDate(index);
-                                                    }
-                                                "
-                                            />
-                                        </td>
-
-                                        <td class="border px-3 py-2" style="min-width: 160px">
-                                            <DatePickerField
-                                                v-model="lot.estimated_delivery_date"
-                                                :clearable="true"
-                                                :show-today="true"
-                                                :disabled="!!lot.priority"
+                                                placeholder="Nota opcional"
+                                                :aria-label="`Nota para lote ${index + 1}`"
                                             />
                                         </td>
 
@@ -934,8 +972,9 @@ watch(
                                             />
                                         </td>
 
-                                        <td v-if="lot.isEcommerce" class="border px-3 py-2 text-center">
+                                        <td v-if="lotsForm.some((item) => item.isEcommerce)" class="border px-3 py-2 text-center">
                                             <EcommerceSizesDialog
+                                                v-if="lot.isEcommerce"
                                                 :productSheet="getDialogProductSheet(selectedProductSheet)"
                                                 :existingValues="resolveEcommerceValues(lot.ecommerce_units)"
                                                 @sizesUpdated="
@@ -954,6 +993,7 @@ watch(
                                                     }
                                                 "
                                             />
+                                            <span v-else class="text-xs text-muted-foreground">—</span>
                                         </td>
                                     </tr>
                                 </tbody>

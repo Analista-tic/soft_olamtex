@@ -21,10 +21,13 @@ class StoreProgrammerRequest extends FormRequest
             'lots' => ['required', 'array', 'min:1'],
             'lots.*.product_sheet_id' => ['required', 'integer', 'exists:product_sheets,id'],
             'lots.*.season' => ['required', 'string', 'max:255'],
+            'lots.*.dispatch_month' => ['nullable', 'string', 'max:255'],
             'lots.*.destination_id' => ['required', 'integer', 'min:1'],
             'lots.*.priority' => ['nullable', 'string', Rule::in(self::PRIORITIES)],
             'lots.*.units' => ['nullable', 'integer', 'min:1'],
             'lots.*.estimated_delivery_date' => ['nullable', 'date'],
+            'lots.*.is_advance' => ['nullable', 'boolean'],
+            'lots.*.notes' => ['nullable', 'string', 'max:2000'],
             'lots.*.ecommerce_units' => ['nullable'],
             'lots.*.status' => ['nullable', 'string', Rule::in(self::STATUSES)],
         ];

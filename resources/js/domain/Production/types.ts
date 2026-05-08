@@ -49,6 +49,7 @@ export interface ProductionOrder {
     product_sheet_id: number | null;
     product_sheet?: ProductSheet | null;
     season: string | null;
+    dispatch_month?: string | null;
     season_display?: string | null;
     destination?: { id: number; name: string } | null;
     destination_id: number | null;
@@ -57,6 +58,8 @@ export interface ProductionOrder {
     ecommerce_units: Record<string, number> | string | null;
     units: number | null;
     estimated_delivery_date?: string | null;
+    is_advance?: boolean;
+    notes?: string | null;
     status: 'complete' | 'incomplete';
     source?: 'auto' | 'manual';
     current_process?: string;

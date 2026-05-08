@@ -284,6 +284,19 @@ Route::prefix('comercial')->name('comercial.')->group(function () {
     Route::get('programmers', [ProgrammerController::class, 'getData'])
         ->middleware('permission:ver programador')
         ->name('programmers.getData');
+    Route::get('programmers/siguiente-codigo', [ProgrammerController::class, 'nextOpCode'])
+        ->middleware('permission:ver programador')
+        ->name('programmers.siguiente-codigo');
+
+    Route::get('programmers/dashboard-distribucion', [ProgrammerController::class, 'distributionDashboard'])
+        ->middleware('permission:ver programador')
+        ->name('programmers.dashboard-distribucion');
+    Route::patch('programmers/prioridad-masiva', [ProgrammerController::class, 'bulkUpdatePriority'])
+        ->middleware('permission:editar programador')
+        ->name('programmers.prioridad-masiva');
+    Route::patch('programmers/fecha-estimada-masiva', [ProgrammerController::class, 'bulkUpdateEstimatedDate'])
+        ->middleware('permission:editar programador')
+        ->name('programmers.fecha-estimada-masiva');
     Route::get('programador', [ProgrammerController::class, 'index'])
         ->middleware('permission:ver programador')
         ->name('programador.index');
