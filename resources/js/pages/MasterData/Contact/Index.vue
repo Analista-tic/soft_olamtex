@@ -9,6 +9,7 @@ import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
+import Skeleton from '@/components/ui/skeleton/Skeleton.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
@@ -81,6 +82,18 @@ const contactTypeButtonClasses = useFilterButtonClasses(isContactTypeFilterActiv
 const successMessage = ref('');
 const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
+
+type PaginatedContactsResponse = {
+    data?: Contact[];
+    total?: number | string;
+    current_page?: number | string;
+    per_page?: number | string;
+    meta?: {
+        total?: number | string;
+        current_page?: number | string;
+        per_page?: number | string;
+    };
+};
 
 const fieldLabels: Record<string, string> = {
     email: 'Correo electrónico',
@@ -304,7 +317,7 @@ async function submitForm(contactData: Partial<Contact>): Promise<void> {
 async function fetchContacts(page: number = 1, search: string = '', contactType: string | null = null): Promise<void> {
     isLoading.value = true;
     try {
-        const response = await axios.get('/contactos/data', {
+        const response = await axios.get<PaginatedContactsResponse>('/contactos/data', {
             params: {
                 page,
                 per_page: itemsPerPage.value,
@@ -314,9 +327,11 @@ async function fetchContacts(page: number = 1, search: string = '', contactType:
                 sort_direction: sortDir.value,
             },
         });
-        contacts.value = response.data.data;
-        totalItems.value = Number(response.data.total ?? 0);
-        currentPage.value = response.data.current_page;
+        const payload = response.data;
+        contacts.value = Array.isArray(payload?.data) ? payload.data : [];
+        totalItems.value = Number(payload?.total ?? payload?.meta?.total ?? 0);
+        currentPage.value = Number(payload?.current_page ?? payload?.meta?.current_page ?? page);
+        itemsPerPage.value = Number(payload?.per_page ?? payload?.meta?.per_page ?? itemsPerPage.value);
     } catch (error) {
         console.error('Error al obtener los contactos:', error);
         contacts.value = [];
@@ -468,7 +483,7 @@ onBeforeUnmount(() => {
                             </TableRow>
                         </template>
                         <template v-else>
-                            <TableRow v-for="(subGroup, index) in subGroups" :key="subGroup.id ?? `subgroup-${index}`">
+                            <TableRow v-for="(contact, index) in contacts" :key="contact.id ?? `contact-${index}`">
                                 <TableCell class="font-medium">{{ contact.id }}</TableCell>
                                 <TableCell>{{ formatContactType(contact.contact_type) }}</TableCell>
                                 <TableCell class="font-medium">{{ contact.full_name }}</TableCell>
