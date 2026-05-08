@@ -13,7 +13,7 @@
 | **Inventario** | warehouses, warehouse_items, warehouse_transfers, warehouse_transfer_items, item_inventories, inventory_movements, inventory_requests, inventory_request_items, inventory_adjustments, inventory_adjustment_lines, inventory_period_locks |
 | **Producción** | product_sheets, product_sheet_operations, product_sheet_operation_history, programmers (production_orders), technical_sheets, technical_sheet_operations, **technical_sheet_processes**, operations, operation_sections, machines, production_roll_consumptions |
 | **Textil**     | fabric_rolls |
-| **Auditoría**  | audit_logs, operation_audit_logs |
+| **Auditoría**  | audit_logs |
 
 ### 1.2 ¿Hay demasiadas tablas?
 

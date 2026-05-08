@@ -161,17 +161,13 @@ export interface ProductOperationListPageProps extends SharedData {
 export interface ProductOperationPayload {
     id?: number | null;
     product_sheet_id: number | null;
-    section_id: number | null;
     operation_id: number | null;
-    machine_id: number | null;
     sequence: number;
     optimal_time: string;
     operator_efficiency_factor: number;
     machine_supplement_factor: number;
     grupo_preparacion?: string | null;
     notes?: string;
-    quantity?: number;
-    fabric_base_id?: number | null;
 }
 
 export interface ProductOperationDialogRow {
@@ -179,9 +175,7 @@ export interface ProductOperationDialogRow {
     id?: number | null;
     section_id: number | null;
     operation_id: number | null;
-    machine_id: number | null;
     optimal_time: string;
-    quantity: number;
     factor_operario: number;
     grupo_preparacion?: string | null;
     row_notes: string;
@@ -192,10 +186,7 @@ export interface ProductOperationDialogRowInput {
     id?: number | null;
     section_id: number | null;
     operation_id: number | null;
-    machine_id: number | null;
     optimal_time: string;
-    quantity?: number;
-    fabric_base_id?: number | string | null;
     factor_operario?: number;
     grupo_preparacion?: string | null;
     row_notes?: string;
@@ -237,13 +228,12 @@ export interface ProductOperationListSummary {
 export interface ProductOperationViewEntry {
     id: number;
     sequence?: number;
-    quantity?: number;
-    fabric_base_id?: number | null;
     operation_section_id?: number | null;
     operation_section?: { name?: string; type?: string };
     operationSection?: { name?: string; type?: string };
     operation?: { name?: string };
     machine?: { code?: string; name?: string; supplement_factor?: number | null };
+    quantity?: number | null;
     optimal_time?: number | string;
     sam?: number | string;
     sam_base?: number | string;
@@ -298,10 +288,7 @@ export interface ProductOperationHistoryEntry {
 export interface ProductOperationGroupedRow {
     section_id: number | null;
     operation_id: number | null;
-    machine_id: number | null;
     optimal_time: string;
-    quantity: number;
-    fabric_base_id: number | string | null;
     operator_efficiency_factor: number;
     grupo_preparacion?: string | null;
     row_notes: string;

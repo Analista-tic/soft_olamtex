@@ -7,7 +7,6 @@ import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
@@ -22,7 +21,7 @@ import type {
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { ArrowUpRight, Eye, Pencil, PlusCircle, Search } from 'lucide-vue-next';
+import { ArrowUpRight, Eye, Pencil, PlusCircle } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import ProductOperationListDialog from './ProductOperationListDialog.vue';
 import ProductOperationListView from './ProductOperationListView.vue';
@@ -74,7 +73,6 @@ const bySheetId = computed(() => {
 });
 
 const isDialogOpen = ref(false);
-const searchQuery = ref('');
 
 function getInitialProductSheetFilter(): number | 'all' {
     if (typeof window === 'undefined') {
@@ -98,6 +96,8 @@ const isDeleteDialogOpen = ref(false);
 const summaryToDelete = ref<ProductOperationListSummary | null>(null);
 const isViewOpen = ref(false);
 const summaryToView = ref<ProductOperationListSummary | null>(null);
+const sortBy = ref<'reference' | 'total_sam' | 'total_sam_confeccion' | 'total_cost_product'>('reference');
+const sortDir = ref<'asc' | 'desc'>('asc');
 const { errorMessage, successMessage, showError, showSuccess, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const dialogMode = ref<'create' | 'edit'>('create');
 const dialogInitialData = ref<ProductOperationDialogInitialData | null>(null);
@@ -228,7 +228,6 @@ async function fetchOperationSummaries() {
 
 
         const rows = Array.isArray(data?.data) ? data.data : [];
-        totalItems.value = data?.total ?? 0;
 
         operationSummaries.value = rows
             .map((row: any) => {
@@ -256,9 +255,12 @@ async function fetchOperationSummaries() {
                 } as ProductOperationListSummary;
             })
             .filter((summary: ProductOperationListSummary | null): summary is ProductOperationListSummary => summary !== null);
+
+        totalItems.value = operationSummaries.value.length;
     } catch (error) {
         console.error('Error al cargar resúmenes de operaciones:', error);
         operationSummaries.value = [];
+        totalItems.value = 0;
     } finally {
         isLoading.value = false;
     }
@@ -278,7 +280,7 @@ function reloadFromDatabase(showSuccessAlert = true) {
 async function handleDialogSave(payloads: ProductOperationPayload[]) {
     isSavingAndRefreshing.value = true;
     try {
-        const validPayloads = payloads.filter((payload) => payload.product_sheet_id && payload.section_id && payload.operation_id && payload.machine_id);
+        const validPayloads = payloads.filter((payload) => payload.product_sheet_id && payload.operation_id);
 
         // Protección crítica: no permitir sync/bulk con payload vacío o sin operaciones válidas.
         // Un sync con operations:[] eliminaría TODOS los registros del listado operacional.
@@ -310,16 +312,12 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
                 id: payload.id ?? null,
                 product_sheet_id: payload.product_sheet_id,
                 operation_id: payload.operation_id,
-                machine_id: payload.machine_id,
-                operation_section_id: payload.section_id,
                 sequence: payload.sequence,
                 optimal_time: Number(payload.optimal_time),
                 operator_efficiency_factor: payload.operator_efficiency_factor,
                 machine_supplement_factor: payload.machine_supplement_factor,
                 grupo_preparacion: payload.grupo_preparacion ?? null,
                 notes: payload.notes,
-                quantity: payload.quantity ?? 1,
-                fabric_base_id: payload.fabric_base_id ?? null,
             }));
 
             if (dialogMode.value === 'edit') {
@@ -445,10 +443,7 @@ async function openEditDialog(summary: ProductOperationListSummary) {
                     id: toNumberOrNull(row.id),
                     section_id: toNumberOrNull(row.operation_section_id ?? row.section_id ?? row.operation_section?.id ?? row.operationSection?.id),
                     operation_id: toNumberOrNull(row.operation_id ?? row.operation?.id),
-                    machine_id: toNumberOrNull(row.machine_id ?? row.machine?.id),
                     optimal_time: formatOptimalTime(row.optimal_time ?? row.sam ?? row.sam_base ?? 0),
-                    quantity: row.quantity ?? 1,
-                    fabric_base_id: row.fabric_base_id ?? null,
                     factor_operario: factorOperario,
                     grupo_preparacion: row.grupo_preparacion ?? null,
                     row_notes: row.notes ?? '',
@@ -475,6 +470,15 @@ function closeDialog() {
     dialogInitialData.value = null;
 }
 
+function toggleSort(column: 'reference' | 'total_sam' | 'total_sam_confeccion' | 'total_cost_product') {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+        return;
+    }
+    sortBy.value = column;
+    sortDir.value = 'asc';
+}
+
 async function deleteSummaryOperations() {
     if (!summaryToDelete.value) {
         return;
@@ -491,14 +495,50 @@ async function deleteSummaryOperations() {
 }
 
 const filteredSummaries = computed(() => {
-    const term = normalizeText(searchQuery.value.trim());
-
     return operationSummaries.value.filter((summary) => {
-        const matchesSearch = term === '' || summary.search_text.includes(term);
         const matchesSheet = selectedProductSheetId.value === 'all' || summary.product_sheet_id === selectedProductSheetId.value;
 
-        return matchesSearch && matchesSheet;
+        return matchesSheet;
     });
+});
+
+const sortedSummaries = computed(() => {
+    const rows = [...filteredSummaries.value];
+    const dir = sortDir.value === 'asc' ? 1 : -1;
+
+    rows.sort((a, b) => {
+        if (sortBy.value === 'reference') {
+            return a.reference.localeCompare(b.reference, 'es', { sensitivity: 'base' }) * dir;
+        }
+
+        const av = Number(a[sortBy.value] ?? 0);
+        const bv = Number(b[sortBy.value] ?? 0);
+        return (av - bv) * dir;
+    });
+
+    return rows;
+});
+
+const paginatedSummaries = computed(() => {
+    const start = (currentPage.value - 1) * itemsPerPage.value;
+    const end = start + itemsPerPage.value;
+    return sortedSummaries.value.slice(start, end);
+});
+
+watch(
+    [filteredSummaries, itemsPerPage],
+    ([rows, perPage]) => {
+        totalItems.value = rows.length;
+        const lastPage = Math.max(1, Math.ceil(rows.length / perPage));
+        if (currentPage.value > lastPage) {
+            currentPage.value = lastPage;
+        }
+    },
+    { immediate: true },
+);
+
+watch([selectedProductSheetId], () => {
+    currentPage.value = 1;
 });
 
 function formatTotal(value: number): string {
@@ -562,14 +602,6 @@ watch(productSheets, () => {
             </Card>
 
             <FilterBar align="start" gap="gap-4">
-                <FilterField label="Buscar operación" :active="searchQuery.trim().length > 0" class="min-w-[220px] flex-1 p-0">
-                    <div class="relative w-full">
-                        <Input v-model="searchQuery" type="text" placeholder="Buscar sección, operación o máquina" class="h-10 w-full pl-10" />
-                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                            <Search :size="20" class="text-muted-foreground" />
-                        </span>
-                    </div>
-                </FilterField>
                 <FilterField label="Referencia" :active="selectedProductSheetId !== 'all'" class="min-w-[240px]">
                     <SelectField v-model="selectedProductSheetId" placeholder="Selecciona referencia" :options="productSheetOptions" />
                 </FilterField>
@@ -604,11 +636,27 @@ watch(productSheets, () => {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Referencia</TableHead>
-                                    <TableHead class="text-center">SAM total</TableHead>
-                                    <TableHead class="text-center">SAM Confección</TableHead>
+                                    <TableHead>
+                                        <button type="button" class="font-semibold" @click="toggleSort('reference')">
+                                            Referencia {{ sortBy === 'reference' ? (sortDir === 'asc' ? '↑' : '↓') : '' }}
+                                        </button>
+                                    </TableHead>
+                                    <TableHead class="text-center">
+                                        <button type="button" class="font-semibold" @click="toggleSort('total_sam')">
+                                            SAM total {{ sortBy === 'total_sam' ? (sortDir === 'asc' ? '↑' : '↓') : '' }}
+                                        </button>
+                                    </TableHead>
+                                    <TableHead class="text-center">
+                                        <button type="button" class="font-semibold" @click="toggleSort('total_sam_confeccion')">
+                                            SAM Confección {{ sortBy === 'total_sam_confeccion' ? (sortDir === 'asc' ? '↑' : '↓') : '' }}
+                                        </button>
+                                    </TableHead>
                                     <TableHead class="text-center">SAM Terminación</TableHead>
-                                    <TableHead class="text-center">Costo Total Producto</TableHead>
+                                    <TableHead class="text-center">
+                                        <button type="button" class="font-semibold" @click="toggleSort('total_cost_product')">
+                                            Costo Total Producto {{ sortBy === 'total_cost_product' ? (sortDir === 'asc' ? '↑' : '↓') : '' }}
+                                        </button>
+                                    </TableHead>
                                     <TableHead class="text-center">Acciones</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -616,12 +664,12 @@ watch(productSheets, () => {
                                 <TableRow v-if="isLoading">
                                     <TableCell colspan="6" class="text-center text-sm text-muted-foreground">Cargando totales...</TableCell>
                                 </TableRow>
-                                <TableRow v-else-if="filteredSummaries.length === 0">
+                                <TableRow v-else-if="paginatedSummaries.length === 0">
                                     <TableCell colspan="6" class="text-center text-sm text-muted-foreground"
                                         >Aun no se han guardado operaciones.</TableCell
                                     >
                                 </TableRow>
-                                <TableRow v-for="summary in filteredSummaries" :key="summary.product_sheet_id" class="text-sm">
+                                <TableRow v-for="summary in paginatedSummaries" :key="summary.product_sheet_id" class="text-sm">
                                     <TableCell>{{ summary.reference }}</TableCell>
                                     <TableCell class="text-center font-mono text-xs">{{ formatTotal(summary.total_sam) }} min</TableCell>
                                     <TableCell class="text-center font-mono text-xs">{{ formatTotal(summary.total_sam_confeccion) }} min</TableCell>
@@ -672,6 +720,7 @@ watch(productSheets, () => {
               <ServerPagination 
                   v-model:current-page="currentPage"
                   v-model:page-size="itemsPerPage"
+                                    :page-size-options="[10, 25, 50, 100]"
                   :total-items="totalItems"
                   @fetch-data="fetchOperationSummaries"
               />

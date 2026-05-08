@@ -35,8 +35,6 @@ class UpdateProductOperationListRequest extends FormRequest
                     ->ignore($listItem->id)
                     ->whereNull('deleted_at'),
             ],
-            'machine_id' => ['sometimes', 'nullable', 'integer', 'exists:machines,id'],
-            'operation_section_id' => ['sometimes', 'integer', 'exists:operation_sections,id'],
             'sequence' => [
                 'sometimes',
                 'integer',
@@ -62,8 +60,6 @@ class UpdateProductOperationListRequest extends FormRequest
             ],
             'grupo_preparacion' => ['nullable', 'string', 'max:100'],
             'fabric_base_factor' => ['sometimes', 'numeric', 'min:0.1', 'max:5.0'],
-            'fabric_base_id' => ['nullable', 'integer'],
-            'quantity' => ['nullable', 'integer', 'min:1'],
             'actual_time' => ['nullable', 'numeric', 'min:0', 'max:999.99'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'motivo' => ['nullable', 'string', 'max:500'],
@@ -96,8 +92,6 @@ class UpdateProductOperationListRequest extends FormRequest
     {
         return [
             'operation_id' => 'operación',
-            'machine_id' => 'máquina',
-            'operation_section_id' => 'sección',
             'grupo_preparacion' => 'grupo preparación',
             'sequence' => 'secuencia',
             'optimal_time' => 'tiempo óptimo',

@@ -10,6 +10,7 @@ use App\Http\Requests\Production\UpdateProgrammerRequest;
 use App\Models\Production\ProductSheet;
 use App\Models\Production\ProductionOrder;
 use App\Services\Production\ProductionOrderService;
+use App\Services\Production\ProductSheetStatusService;
 use App\Services\Settings\SettingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -35,6 +36,7 @@ class ProgrammerController extends Controller
     public function __construct(
         private SettingService $settingService,
         private ProductionOrderService $productionOrderService,
+        private ProductSheetStatusService $productSheetStatusService,
     ) {
     }
 
@@ -43,6 +45,8 @@ class ProgrammerController extends Controller
      */
     public function index()
     {
+        $this->productSheetStatusService->promoteIncompleteWithOperations();
+
         $catalogs = $this->loadCatalogs(self::CATALOG_KEYS);
         $sections = $catalogs['sections']->keyBy('id');
         $groups = $catalogs['groups']->keyBy('id');
@@ -153,8 +157,8 @@ class ProgrammerController extends Controller
             ],
         ]);
 
-        $orders = DB::transaction(function () use ($validatedData, $request) {
-            return collect($validatedData['lots'])->map(function (array $lot) use ($request) {
+        $orders = DB::transaction(function () use ($validatedData, $request, $userId) {
+            return collect($validatedData['lots'])->map(function (array $lot) use ($request, $userId) {
                     $productSheet = ProductSheet::findOrFail($lot['product_sheet_id']);
                     $ecommerceUnits = $this->normalizeEcommerceUnits($lot['ecommerce_units'] ?? null);
                     $units = isset($lot['units']) ? (int) $lot['units'] : null;

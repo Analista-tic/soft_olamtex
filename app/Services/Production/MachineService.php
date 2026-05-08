@@ -40,7 +40,7 @@ class MachineService
     {
         return $this->model
             ->newQuery()
-            ->withCount(['operations', 'productOperationLists'])
+            ->withCount(['operations'])
             ->orderBy('code')
             ->get(['id', 'code', 'name', 'supplement_factor', 'is_active'])
             ->map(function (Machine $machine) {
@@ -50,7 +50,7 @@ class MachineService
                     'name' => mb_strtoupper(trim((string) $machine->name)),
                     'supplement_factor' => (float) $machine->supplement_factor,
                     'is_active' => (bool) $machine->is_active,
-                    'usage_count' => (int) ($machine->operations_count + $machine->product_operation_lists_count),
+                    'usage_count' => (int) $machine->operations_count,
                 ];
             })
             ->values();
@@ -131,9 +131,9 @@ class MachineService
 
     public function delete(Machine $machine): void
     {
-        $machine->loadCount(['operations', 'productOperationLists']);
+        $machine->loadCount(['operations']);
 
-        if (($machine->operations_count ?? 0) > 0 || ($machine->product_operation_lists_count ?? 0) > 0) {
+        if (($machine->operations_count ?? 0) > 0) {
             throw ValidationException::withMessages([
                 'machine' => 'La máquina no se puede eliminar porque ya está en uso. Puedes dejarla inactiva.',
             ]);

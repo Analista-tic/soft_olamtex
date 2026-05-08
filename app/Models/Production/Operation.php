@@ -3,11 +3,34 @@
 namespace App\Models\Production;
 
 use App\Models\Concerns\HasAuditLabel;
+use App\Models\Settings\AuditLog;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Builder;
 
+/**
+ * Catálogo maestro de operaciones de confección.
+ *
+ * Este modelo define la operación base (plantilla) que luego se asigna a
+ * listados operacionales por sábana. Sus valores son referencia para cálculos
+ * y para autocompletar información en ProductOperationList.
+ *
+ * Campos principales:
+ * - codigo: código interno de la operación.
+ * - action: acción principal (ej. CERRAR, UNIR, FILETEAR).
+ * - garment_part: parte de prenda donde aplica la operación.
+ * - anexo: detalle complementario opcional.
+ * - section_id: sección del proceso (PREPARACION, ENSAMBLE, TERMINACION).
+ * - measure: medida en centímetros usada en la descripción/cálculo.
+ * - quantity: cantidad base de repeticiones de la operación.
+ * - description: descripción normalizada autogenerada.
+ * - sam_base: tiempo estándar base de la operación (minutos).
+ * - factor_operario: eficiencia operario base (porcentaje).
+ * - product_sheet_id_reference: sábana de referencia opcional.
+ * - machine_id_reference: máquina de referencia de la operación.
+ * - is_active: estado lógico de activación.
+ */
 class Operation extends Model
 {
     use HasFactory, SoftDeletes, HasAuditLabel;
@@ -111,7 +134,8 @@ class Operation extends Model
 
     public function auditLogs()
     {
-        return $this->hasMany(OperationAuditLog::class);
+        return $this->hasMany(AuditLog::class, 'auditable_id')
+            ->where('auditable_type', self::class);
     }
 
     // Accessors

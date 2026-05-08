@@ -9,6 +9,20 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Builder;
 
+/**
+ * Catálogo maestro de máquinas de producción.
+ *
+ * Define las máquinas disponibles para asociarlas a operaciones base
+ * (`Operation.machine_id_reference`) y calcular el suplemento aplicado en
+ * tiempos/SAM dentro de listados operacionales.
+ *
+ * Campos principales:
+ * - code: código interno o abreviatura de la máquina.
+ * - name: nombre descriptivo de la máquina.
+ * - supplement_factor: factor multiplicador de suplemento (>= 1.0).
+ * - is_active: estado lógico de activación.
+ * - created_by: usuario que registró la máquina.
+ */
 class Machine extends Model
 {
     use HasFactory, SoftDeletes, HasAuditLabel;
@@ -34,27 +48,34 @@ class Machine extends Model
     protected $with = [];
 
     // Relaciones
-    public function productOperationLists()
-    {
-        return $this->hasMany(ProductOperationList::class);
-    }
-
+    /**
+     * Operaciones base que referencian esta máquina.
+     */
     public function operations()
     {
         return $this->hasMany(Operation::class, 'machine_id_reference');
     }
 
+    /**
+     * Usuario creador del registro de máquina.
+     */
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
     // Scopes
+    /**
+     * Filtra únicamente máquinas activas.
+     */
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
     }
 
+    /**
+     * Filtra por código exacto de máquina.
+     */
     public function scopeByCode(Builder $query, string $code): Builder
     {
         return $query->where('code', $code);

@@ -523,10 +523,7 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <FormDialogContent
-            class="flex max-h-[95vh] max-w-[95vw] flex-col px-2 py-2"
-            :scrollable="false"
-        >
+        <FormDialogContent class="flex max-h-[95vh] max-w-[95vw] flex-col px-2 py-2" :scrollable="false">
             <div class="flex min-h-0 flex-1 flex-col">
                 <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                     <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Solicitud de Compra</DialogTitle>
@@ -566,7 +563,10 @@ watch(dialogOpen, (isOpen) => {
                                     <div class="flex flex-col gap-1.5">
                                         <div class="flex items-center gap-2">
                                             <Label class="text-sm font-medium">N° Solicitud</Label>
-                                            <HelpTooltip text="Numero unico de la solicitud de compra." aria-label="Ayuda sobre numero de solicitud" />
+                                            <HelpTooltip
+                                                text="Numero unico de la solicitud de compra."
+                                                aria-label="Ayuda sobre numero de solicitud"
+                                            />
                                         </div>
                                         <InputField
                                             label=""
@@ -584,7 +584,13 @@ watch(dialogOpen, (isOpen) => {
                                             <Label class="text-sm font-medium">Fecha</Label>
                                             <HelpTooltip text="Fecha de la solicitud." aria-label="Ayuda sobre fecha" />
                                         </div>
-                                        <DatePickerField v-model="requestDateModel" dusk="input-fecha" :disabled="isReadOnly" :clearable="true" :show-today="true" />
+                                        <DatePickerField
+                                            v-model="requestDateModel"
+                                            dusk="input-fecha"
+                                            :disabled="isReadOnly"
+                                            :clearable="true"
+                                            :show-today="true"
+                                        />
                                     </div>
                                 </div>
 
@@ -677,12 +683,26 @@ watch(dialogOpen, (isOpen) => {
                     </TooltipProvider>
                 </div>
 
-                <DialogFooter class="shrink-0 border-t border-border px-5 py-4 justify-end gap-2">
+                <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                     <Button variant="outline" size="pill" @click="dialogOpen = false">Cancelar</Button>
-                    <Button v-if="!props.readonly && !isReadOnly" variant="default" size="pill" dusk="btn-guardar-borrador" :disabled="isLoading || isBlockingLoading" @click="handleSubmitSafe(false)">
+                    <Button
+                        v-if="!props.readonly && !isReadOnly"
+                        variant="default"
+                        size="pill"
+                        dusk="btn-guardar-borrador"
+                        :disabled="isLoading || isBlockingLoading"
+                        @click="handleSubmitSafe(false)"
+                    >
                         {{ isLoading ? 'Guardando...' : 'Guardar' }}
                     </Button>
-                    <Button v-if="!props.readonly && !isReadOnly && canSendToApproval" variant="default" size="pill" dusk="btn-guardar-y-enviar" :disabled="isLoading || isBlockingLoading" @click="handleSubmitSafe(true)">
+                    <Button
+                        v-if="!props.readonly && !isReadOnly && canSendToApproval"
+                        variant="default"
+                        size="pill"
+                        dusk="btn-guardar-y-enviar"
+                        :disabled="isLoading || isBlockingLoading"
+                        @click="handleSubmitSafe(true)"
+                    >
                         {{ isLoading ? 'Guardando...' : 'Guardar y enviar a aprobacion' }}
                     </Button>
                 </DialogFooter>

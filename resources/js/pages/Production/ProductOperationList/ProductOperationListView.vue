@@ -17,7 +17,7 @@ import type {
     ProductOperationViewEntry,
     ProductOperationViewGroupedSection,
     ProductOperationViewSubGroup,
-} from '@/domain/product-sheet';
+} from '@/domain/product-sheet/types';
 import axios from 'axios';
 import { ChevronDown, ChevronRight, History, Pencil, Trash2 } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -205,10 +205,10 @@ async function fetchParameters() {
 const operationCost = computed(() => Number(props.costParameters?.operation_cost ?? parameters.value['operation_cost'] ?? 406) || 406);
 
 const groupedOperations = computed<ProductOperationViewGroupedSection[]>(() => {
-    const map = new Map<string, GroupedSection>();
+    const map = new Map<string, ProductOperationViewGroupedSection>();
     const order: string[] = [];
 
-    operations.value.forEach((entry) => {
+    operations.value.forEach((entry: ProductOperationViewEntry) => {
         const sectionName = resolveSectionName(entry) || 'Sin sección';
         const sectionType = resolveSectionType(entry);
         const costType = getNormalizedSectionType(entry);
@@ -234,7 +234,7 @@ const groupedOperations = computed<ProductOperationViewGroupedSection[]>(() => {
 
         if (isPrep && g.subGroups !== null) {
             const groupName = String(entry.grupo_preparacion ?? '').trim() || 'Sin grupo';
-            const existing = g.subGroups.find((sg) => sg.groupName === groupName);
+            const existing = g.subGroups.find((sg: ProductOperationViewSubGroup) => sg.groupName === groupName);
             if (existing) {
                 existing.items.push(entry);
                 existing.totalSam += samVal;
@@ -247,12 +247,12 @@ const groupedOperations = computed<ProductOperationViewGroupedSection[]>(() => {
     return order.map((k) => map.get(k)!);
 });
 
-const totalSam = computed(() => operations.value.reduce((s, e) => s + getSamValue(e), 0));
+const totalSam = computed(() => operations.value.reduce((s: number, e: ProductOperationViewEntry) => s + getSamValue(e), 0));
 const totalSamConfeccion = computed(() =>
-    operations.value.reduce((s, e) => (getNormalizedSectionType(e) === 'confeccion' ? s + getSamValue(e) : s), 0),
+    operations.value.reduce((s: number, e: ProductOperationViewEntry) => (getNormalizedSectionType(e) === 'confeccion' ? s + getSamValue(e) : s), 0),
 );
 const totalSamPresentacion = computed(() =>
-    operations.value.reduce((s, e) => (getNormalizedSectionType(e) === 'presentacion' ? s + getSamValue(e) : s), 0),
+    operations.value.reduce((s: number, e: ProductOperationViewEntry) => (getNormalizedSectionType(e) === 'presentacion' ? s + getSamValue(e) : s), 0),
 );
 const costHilo = computed(() => Number(parameters.value['yarn_cost'] ?? parameters.value['costo hilo'] ?? 0) || 0);
 const costConfeccion = computed(() => totalSamConfeccion.value * operationCost.value);
@@ -442,7 +442,7 @@ watch(
                                                         </TableCell>
                                                         <TableCell class="text-center text-xs text-muted-foreground">{{ entry.machine?.code ?? '-' }}</TableCell>
                                                         <TableCell class="text-right">{{ entry.quantity ?? 1 }}</TableCell>
-                                                        <TableCell class="text-right font-mono">{{ fmtOperationTime(getSamBaseValue(entry)) }}</TableCell>
+                                                        <TableCell class="text-right font-mono">{{ fmt(getSamBaseValue(entry)) }}</TableCell>
                                                         <TableCell class="text-right font-mono text-xs">{{ getMachineFactorDisplay(entry) }}</TableCell>
                                                         <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getFabricFactorDisplay(entry) }}</TableCell>
                                                         <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getOperatorPercentDisplay(entry) }}</TableCell>
@@ -469,7 +469,7 @@ watch(
                                                     </TableCell>
                                                     <TableCell class="text-center text-xs text-muted-foreground">{{ entry.machine?.code ?? '-' }}</TableCell>
                                                     <TableCell class="text-right">{{ entry.quantity ?? 1 }}</TableCell>
-                                                    <TableCell class="text-right font-mono">{{ fmtOperationTime(getSamBaseValue(entry)) }}</TableCell>
+                                                    <TableCell class="text-right font-mono">{{ fmt(getSamBaseValue(entry)) }}</TableCell>
                                                     <TableCell class="text-right font-mono text-xs">{{ getMachineFactorDisplay(entry) }}</TableCell>
                                                     <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getFabricFactorDisplay(entry) }}</TableCell>
                                                     <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getOperatorPercentDisplay(entry) }}</TableCell>
@@ -582,7 +582,7 @@ watch(
                                             </TableCell>
                                             <TableCell class="text-center text-xs text-muted-foreground">{{ entry.machine?.code ?? '-' }}</TableCell>
                                             <TableCell class="text-right">{{ entry.quantity ?? 1 }}</TableCell>
-                                            <TableCell class="text-right font-mono">{{ fmtOperationTime(getSamBaseValue(entry)) }}</TableCell>
+                                            <TableCell class="text-right font-mono">{{ fmt(getSamBaseValue(entry)) }}</TableCell>
                                             <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getMachineFactorDisplay(entry) }}</TableCell>
                                             <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
                                                 getFabricFactorDisplay(entry)

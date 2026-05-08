@@ -4,6 +4,7 @@ import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,7 +19,7 @@ import { uiPatterns } from '@/lib/ui-patterns';
 import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { ChevronLeft, ChevronRight, Database, Eye, Pencil, Plus, Search, Settings2, Trash2 } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import OperationCatalogManagerDialog, { type ManagedMachine, type ManagedSection } from './OperationCatalogManagerDialog.vue';
 import OperationDetailDialog from './OperationDetailDialog.vue';
 import OperationFormDialog from './OperationFormDialog.vue';
@@ -104,7 +105,8 @@ const machines = computed(() => localMachines.value.filter((machine) => machine.
 const actionOptions = computed(() => localActions.value.map((a: string) => ({ id: a, name: a })));
 const sectionFilterOptions = computed(() => [{ id: '', name: 'Todas las secciones' }, ...sections.value.map((s) => ({ id: s.id, name: s.name }))]);
 
-const isLoading = ref(false);
+const isFetchingRecords = ref(false);
+const isRefreshingRecords = ref(false);
 const records = ref<OperationRecord[]>([]);
 const pagination = ref<PaginationMeta>({
     current_page: 1,
@@ -118,6 +120,9 @@ const pagination = ref<PaginationMeta>({
 const searchQuery = ref('');
 const filterAction = ref<string>('');
 const filterSectionId = ref<number | string>('');
+const fetchDebounceMs = 350;
+let fetchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let activeFetchController: AbortController | null = null;
 
 const { errorMessage, successMessage, showError, showSuccess, clearSuccess, clearError } = useAlertStack();
 
@@ -129,20 +134,47 @@ const isDeleteDialogOpen = ref(false);
 const operationToDelete = ref<OperationRecord | null>(null);
 const isCatalogDialogOpen = ref(false);
 
-let searchTimeout: ReturnType<typeof setTimeout> | undefined;
+function clearFetchDebounce() {
+    if (fetchDebounceTimer) {
+        clearTimeout(fetchDebounceTimer);
+        fetchDebounceTimer = null;
+    }
+}
 
-async function fetchPage(pageNum = 1) {
-    isLoading.value = true;
+function scheduleFetch(pageNum = 1) {
+    clearFetchDebounce();
+    fetchDebounceTimer = setTimeout(() => {
+        fetchOperations(pageNum, searchQuery.value, filterAction.value, filterSectionId.value);
+    }, fetchDebounceMs);
+}
+
+async function fetchOperations(
+    pageNum = 1,
+    search = '',
+    action: string | null = null,
+    sectionId: string | number | null = null,
+) {
+    if (activeFetchController) {
+        activeFetchController.abort();
+    }
+
+    const controller = new AbortController();
+    activeFetchController = controller;
+    const hasRenderedRows = records.value.length > 0;
+    isFetchingRecords.value = !hasRenderedRows;
+    isRefreshingRecords.value = hasRenderedRows;
+
     try {
         const params: Record<string, unknown> = {
             page: pageNum,
             per_page: pagination.value.per_page,
         };
-        if (searchQuery.value.trim()) params.search = searchQuery.value.trim();
-        if (filterAction.value) params.action = filterAction.value;
-        if (filterSectionId.value) params.section_id = filterSectionId.value;
+        const normalizedSearch = search.trim();
+        if (normalizedSearch) params.search = normalizedSearch;
+        if (action) params.action = action;
+        if (sectionId) params.section_id = sectionId;
 
-        const { data } = await axios.get('/produccion/operaciones/paginated', { params });
+        const { data } = await axios.get('/produccion/operaciones/paginated', { params, signal: controller.signal });
         records.value = data.data ?? [];
         pagination.value = {
             current_page: data.current_page,
@@ -153,23 +185,47 @@ async function fetchPage(pageNum = 1) {
             to: data.to,
         };
     } catch (e) {
+        if (axios.isCancel(e)) {
+            return;
+        }
         console.error('Error al cargar operaciones:', e);
         showError('Error al cargar las operaciones.');
     } finally {
-        isLoading.value = false;
+        if (activeFetchController === controller) {
+            activeFetchController = null;
+        }
+        isFetchingRecords.value = false;
+        isRefreshingRecords.value = false;
     }
 }
 
 function goToPage(p: number) {
     if (p < 1 || p > pagination.value.last_page) return;
-    fetchPage(p);
+    clearFetchDebounce();
+    fetchOperations(p, searchQuery.value, filterAction.value || null, filterSectionId.value || null);
 }
 
-watch([filterAction, filterSectionId], () => fetchPage(1));
-watch(searchQuery, () => {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => fetchPage(1), 400);
+const currentPage = computed({
+    get: () => pagination.value.current_page,
+    set: (value: number) => {
+        pagination.value.current_page = value;
+    },
 });
+
+const itemsPerPage = computed({
+    get: () => pagination.value.per_page,
+    set: (value: number) => {
+        pagination.value.per_page = value;
+    },
+});
+
+function handleFetchData() {
+    clearFetchDebounce();
+    fetchOperations(pagination.value.current_page, searchQuery.value, filterAction.value || null, filterSectionId.value || null);
+}
+
+watch([filterAction, filterSectionId], () => scheduleFetch(1));
+watch(searchQuery, () => scheduleFetch(1));
 
 function openCreateDialog() {
     editingOperation.value = null;
@@ -202,7 +258,7 @@ async function deleteOperation() {
         showSuccess(`Operación "${operationToDelete.value.name}" eliminada.`);
         isDeleteDialogOpen.value = false;
         operationToDelete.value = null;
-        fetchPage(pagination.value.current_page);
+        scheduleFetch(pagination.value.current_page);
     } catch (e: any) {
         const msg = e?.response?.data?.message ?? 'Error al eliminar la operación.';
         showError(msg);
@@ -216,7 +272,7 @@ function handleDialogSaved(payload?: { reused?: boolean; message?: string }) {
     } else {
         showSuccess(payload?.message || 'Operación guardada correctamente.');
     }
-    fetchPage(pagination.value.current_page);
+    scheduleFetch(pagination.value.current_page);
 }
 
 function handleCatalogsUpdated(payload: { sections: ManagedSection[]; actions: string[]; garmentParts: string[]; machines: ManagedMachine[] }) {
@@ -233,17 +289,15 @@ function handleEditFromDetail() {
     }
 }
 
-const pageNumbers = computed(() => {
-    const { current_page, last_page } = pagination.value;
-    const pages: number[] = [];
-    const range = 2;
-    for (let i = Math.max(1, current_page - range); i <= Math.min(last_page, current_page + range); i++) {
-        pages.push(i);
-    }
-    return pages;
-});
+onMounted(() => fetchOperations());
 
-onMounted(() => fetchPage(1));
+onUnmounted(() => {
+    clearFetchDebounce();
+    if (activeFetchController) {
+        activeFetchController.abort();
+        activeFetchController = null;
+    }
+});
 </script>
 
 <template>
@@ -305,7 +359,7 @@ onMounted(() => fetchPage(1));
             </div>
 
             <!-- Tabla -->
-            <Card class="relative min-h-0 flex-1 overflow-hidden">
+            <Card class="relative min-h-0 flex-1 overflow-hidden" :class="{ 'opacity-80': isRefreshingRecords }">
                 <div class="overflow-x-auto">
                     <TooltipProvider>
                         <Table>
@@ -326,7 +380,7 @@ onMounted(() => fetchPage(1));
                             </TableHeader>
                             <TableBody>
                                 <!-- Loading -->
-                                <template v-if="isLoading">
+                                <template v-if="isFetchingRecords">
                                     <TableRow v-for="i in 8" :key="i">
                                         <TableCell><Skeleton class="h-4 w-16" /></TableCell>
                                         <TableCell><Skeleton class="mx-auto h-4 w-20" /></TableCell>
@@ -425,39 +479,14 @@ onMounted(() => fetchPage(1));
                     </TooltipProvider>
                 </div>
 
-                <!-- Paginación -->
-                <div v-if="pagination.last_page > 1" class="flex items-center justify-between border-t px-4 py-3">
-                    <div class="text-xs text-muted-foreground">Página {{ pagination.current_page }} de {{ pagination.last_page }}</div>
-                    <div class="flex items-center gap-1">
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            class="h-8 w-8"
-                            :disabled="pagination.current_page <= 1"
-                            @click="goToPage(pagination.current_page - 1)"
-                        >
-                            <ChevronLeft class="h-4 w-4" />
-                        </Button>
-                        <Button
-                            v-for="p in pageNumbers"
-                            :key="p"
-                            :variant="p === pagination.current_page ? 'default' : 'outline'"
-                            size="sm"
-                            class="h-8 w-8 text-xs"
-                            @click="goToPage(p)"
-                        >
-                            {{ p }}
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            class="h-8 w-8"
-                            :disabled="pagination.current_page >= pagination.last_page"
-                            @click="goToPage(pagination.current_page + 1)"
-                        >
-                            <ChevronRight class="h-4 w-4" />
-                        </Button>
-                    </div>
+                <div class="border-t px-4 py-3">
+                    <ServerPagination
+                        v-model:current-page="currentPage"
+                        v-model:page-size="itemsPerPage"
+                        :total-items="pagination.total"
+                        :page-size-options="[10, 25, 50, 100]"
+                        @fetch-data="handleFetchData"
+                    />
                 </div>
             </Card>
         </div>

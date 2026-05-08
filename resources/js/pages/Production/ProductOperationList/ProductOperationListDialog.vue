@@ -175,9 +175,7 @@ const createEmptyRow = (): ProductOperationDialogRow => ({
     id: null,
     section_id: null,
     operation_id: null,
-    machine_id: null,
     optimal_time: '0.00',
-    quantity: 1,
     factor_operario: 100,
     grupo_preparacion: null,
     row_notes: '',
@@ -272,10 +270,6 @@ watch(
         const op = operationsList.value.find((o) => idsMatch(o.id, opId));
         if (!op) return;
         if (op.section_id) currentRow.value.section_id = Number(op.section_id);
-        // Auto-set machine from operation
-        if (op.machine_id_reference) {
-            currentRow.value.machine_id = Number(op.machine_id_reference);
-        }
         // Auto-set factor_operario from operation (percentage: 85, 100, 120...)
         currentRow.value.factor_operario = Number(op.factor_operario ?? 100);
         // SAM base
@@ -374,9 +368,6 @@ function handleEntityCreated(data: ProductOperationEntityCreatedData) {
         if (data.section_id != null || data.section?.id != null) {
             currentRow.value.section_id = data.section_id ?? data.section?.id ?? null;
         }
-        if (data.machine_id_reference != null) {
-            currentRow.value.machine_id = Number(data.machine_id_reference);
-        }
         const samTotal = Number(data.sam_base ?? 0);
         currentRow.value.sam_total_base = Number.isFinite(samTotal) ? samTotal : 0;
         currentRow.value.optimal_time = currentRow.value.sam_total_base.toFixed(2);
@@ -390,7 +381,6 @@ function handleEntityCreated(data: ProductOperationEntityCreatedData) {
             name: data.name ?? '',
             supplement_factor: machineData.supplement_factor ?? 1.0,
         });
-        currentRow.value.machine_id = data.id;
     }
     addNewDialogOpen.value = false;
 }
@@ -418,7 +408,8 @@ function saveEditRow(i: number) {
 }
 
 function getSupplementForRow(row: ProductOperationDialogRow): number {
-    const m = machinesList.value.find((m) => idsMatch(m.id, row.machine_id));
+    const op = operationsList.value.find((o) => idsMatch(o.id, row.operation_id));
+    const m = machinesList.value.find((m) => idsMatch(m.id, op?.machine_id_reference));
     const f = m?.supplement_factor ?? 1;
     return typeof f === 'number' && f >= 1 ? f : 1;
 }
@@ -445,8 +436,14 @@ function getSamUnitario(row: ProductOperationDialogRow): number {
     return Number((getSamConSuplemento(row) * selectedSheetFabricFactor.value).toFixed(2));
 }
 
+function getOperationQuantity(row: ProductOperationDialogRow): number {
+    const operation = operationsList.value.find((o) => idsMatch(o.id, row.operation_id));
+    const quantity = Number(operation?.quantity ?? 1);
+    return Number.isFinite(quantity) && quantity > 0 ? Math.floor(quantity) : 1;
+}
+
 function getSamOperacion(row: ProductOperationDialogRow): number {
-    return Number((getSamUnitario(row) * (row.quantity ?? 1)).toFixed(2));
+    return Number((getSamUnitario(row) * getOperationQuantity(row)).toFixed(2));
 }
 
 function getOpsPerHour(row: ProductOperationDialogRow): number {
@@ -489,7 +486,8 @@ function getMachineName(id: string | number | null): string {
 }
 
 function getMachineDisplayWithSupplement(row: ProductOperationDialogRow): string {
-    const name = getMachineName(row.machine_id);
+    const op = operationsList.value.find((o) => idsMatch(o.id, row.operation_id));
+    const name = getMachineName(op?.machine_id_reference ?? null);
     const sup = getSupplementForRow(row);
     return sup !== 1 ? `${name} (×${sup.toFixed(2)})` : name;
 }
@@ -499,11 +497,6 @@ function addOperation() {
 
     if (!currentRow.value.operation_id) {
         setValidationError('Selecciona una operación.');
-        return;
-    }
-    if (!currentRow.value.machine_id) {
-        const msg = 'La operación no tiene máquina asignada. Asígnala en el catálogo de operaciones.';
-        setValidationError(msg);
         return;
     }
     if (samBase <= 0) {
@@ -525,8 +518,7 @@ function addOperation() {
         return;
     }
 
-    const qty = Math.max(1, Math.floor(Number(currentRow.value.quantity)) || 1);
-    operationList.value.push({ ...currentRow.value, quantity: qty });
+    operationList.value.push({ ...currentRow.value });
     currentRow.value = createEmptyRow();
     clearValidationError();
 }
@@ -562,9 +554,7 @@ function initializeForm() {
             id: row.id ?? null,
             section_id: row.section_id,
             operation_id: row.operation_id,
-            machine_id: row.machine_id,
             optimal_time: row.optimal_time,
-            quantity: row.quantity ?? 1,
             factor_operario: row.factor_operario ?? 100,
             grupo_preparacion: row.grupo_preparacion ?? null,
             row_notes: row.row_notes ?? '',
@@ -610,23 +600,18 @@ function saveOperations() {
         return Number.isFinite(n) ? n : null;
     };
     const sheetIdNumeric = toNumOrNull(productSheetId.value);
-    const sheetFabricId = toNumOrNull(selectedSheetFabricBaseId.value);
     const payload: ProductOperationPayload[] = operationList.value.map((row, i) => {
         const factorOp = Number(row.factor_operario ?? 100);
         return {
             id: row.id ?? null,
             product_sheet_id: sheetIdNumeric,
-            section_id: row.section_id,
             operation_id: row.operation_id,
-            machine_id: row.machine_id,
             sequence: (i + 1) * 10,
             optimal_time: row.optimal_time,
             operator_efficiency_factor: factorOp > 0 ? 100 / factorOp : 1,
             machine_supplement_factor: getSupplementForRow(row),
             grupo_preparacion: row.grupo_preparacion || undefined,
             notes: row.row_notes || undefined,
-            quantity: row.quantity ?? 1,
-            fabric_base_id: sheetFabricId,
         };
     });
 
@@ -749,9 +734,9 @@ function resetForm() {
                         <div class="col-span-2">
                             <div
                                 class="flex h-9 items-center truncate rounded-md bg-muted/30 px-2 text-xs text-muted-foreground"
-                                :title="currentRow.machine_id ? getMachineDisplayWithSupplement(currentRow) : 'Se auto-rellena al elegir operación'"
+                                            :title="currentRow.operation_id ? getMachineDisplayWithSupplement(currentRow) : 'Se auto-rellena al elegir operación'"
                             >
-                                {{ currentRow.machine_id ? getMachineDisplayWithSupplement(currentRow) : '—' }}
+                                            {{ currentRow.operation_id ? getMachineDisplayWithSupplement(currentRow) : '—' }}
                             </div>
                         </div>
                         <div class="col-span-1">

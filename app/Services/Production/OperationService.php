@@ -3,7 +3,7 @@
 namespace App\Services\Production;
 
 use App\Models\Production\Operation;
-use App\Models\Production\OperationAuditLog;
+use App\Models\Settings\AuditLog;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -115,6 +115,30 @@ class OperationService
         }
     }
 
+    private function logOperationFieldChange(Operation $operation, string $field, mixed $oldValue, mixed $newValue, ?string $motivo = null): void
+    {
+        $user = auth()->user();
+
+        $description = 'Cambio de operación en campo ' . $field . '.';
+        if (!empty($motivo)) {
+            $description .= ' Motivo: ' . $motivo;
+        }
+
+        AuditLog::create([
+            'user_id' => $user?->id,
+            'user_name' => $user?->name,
+            'action' => 'updated',
+            'auditable_type' => Operation::class,
+            'auditable_id' => $operation->id,
+            'module' => 'Production',
+            'description' => $description,
+            'old_values' => [$field => $oldValue],
+            'new_values' => [$field => $newValue],
+            'ip_address' => request()?->ip(),
+            'user_agent' => request()?->userAgent(),
+        ]);
+    }
+
     /**
      * Obtiene opciones de operaciones activas (para selects)
      */
@@ -211,7 +235,7 @@ class OperationService
     /**
      * Actualiza una operación existente.
      * Si cambia action o garment_part se valida unicidad.
-     * Los campos auditables se registran en operation_audit_logs.
+     * Los campos auditables se registran en audit_logs.
      */
     public function update(Operation $operation, array $data, ?string $motivo = null): Operation
     {
@@ -297,18 +321,18 @@ class OperationService
 
             foreach ($auditableFields as $field) {
                 if (array_key_exists($field, $data) && (string) $operation->$field !== (string) $data[$field]) {
-                    OperationAuditLog::create([
-                        'operation_id' => $operation->id,
-                        'field_changed' => $field,
-                        'old_value' => $operation->$field,
-                        'new_value' => $data[$field],
-                        'motivo' => $motivo,
-                        'changed_by' => auth()->id(),
-                    ]);
+                    $this->logOperationFieldChange(
+                        $operation,
+                        $field,
+                        $operation->$field,
+                        $data[$field],
+                        $motivo,
+                    );
                 }
             }
 
-            $operation->update($data);
+            $operation->fill($data);
+            $operation->saveQuietly();
 
             return $operation->fresh();
         });
@@ -332,17 +356,17 @@ class OperationService
             $oldSam = $operation->sam_base;
 
             if ((float) $oldSam !== $newSamBase) {
-                OperationAuditLog::create([
-                    'operation_id' => $operation->id,
-                    'field_changed' => 'sam_base',
-                    'old_value' => $oldSam,
-                    'new_value' => $newSamBase,
-                    'motivo' => $motivo ?? 'Actualización de SAM base',
-                    'changed_by' => auth()->id(),
-                ]);
+                $this->logOperationFieldChange(
+                    $operation,
+                    'sam_base',
+                    $oldSam,
+                    $newSamBase,
+                    $motivo ?? 'Actualización de SAM base',
+                );
             }
 
-            $operation->update(['sam_base' => $newSamBase]);
+            $operation->fill(['sam_base' => $newSamBase]);
+            $operation->saveQuietly();
 
             $operation->productOperationLists()->update([
                 'optimal_time' => $newSamBase,

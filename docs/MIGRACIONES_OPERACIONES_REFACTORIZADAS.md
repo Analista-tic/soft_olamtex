@@ -142,13 +142,11 @@ Mejoras:
 
 ### 🧹 Consolidación de Auditoría (Nueva Migración)
 
-**Archivo:** `2026_02_25_000000_consolidate_audit_logs.php`
+**Archivo:** `2026_05_05_120000_consolidate_operation_audit_logs_into_audit_logs.php`
 
 **Acción:**
 1. Copia datos de `operation_audit_logs` → `audit_logs` (auditable_type='Operation')
-2. Copia datos de `product_sheet_operation_history` → `audit_logs` (auditable_type='ProductSheetOperation')
-3. ✅ DROP `operation_audit_logs`
-4. ✅ DROP `product_sheet_operation_history`
+2. ✅ DROP `operation_audit_logs`
 
 **Resultado:** Sistema centralizado único de auditoría
 
@@ -181,7 +179,7 @@ app/Models/ProductSheet/ProductSheetOperation.php
 5. 2026_02_10_000005_create_production_order_operations_table.php (MEJORADA)
 6. (Existentes: 2026_02_10_000004 product_sheet_operation_history - DEPRECADA)
 7. (Existentes: 2026_02_19_093350 operation_audit_logs - DEPRECADA)
-8. 2026_02_25_000000_consolidate_audit_logs.php
+8. 2026_05_05_120000_consolidate_operation_audit_logs_into_audit_logs.php
 9. 2026_03_01_000000_rename_product_operation_lists_table.php
 ```
 

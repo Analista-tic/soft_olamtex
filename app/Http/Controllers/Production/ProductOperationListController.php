@@ -49,7 +49,7 @@ class ProductOperationListController extends Controller
             'sections' => $this->sectionService->options(),
             'operations' => $this->operationService->options(),
             'machines' => $this->machineService->options(),
-            'productSheets' => $this->sheetService->recentOptions(50),
+            'productSheets' => $this->sheetService->optionsForOperationalList(50),
             'fabric_bases' => $this->settingService->getFabricBasesWithFactor()->values()->all(),
             'actions' => $this->actionOptions(),
             'garmentParts' => $this->garmentPartOptions(),
@@ -66,7 +66,7 @@ class ProductOperationListController extends Controller
             'sections' => $this->sectionService->options(),
             'operations' => $this->operationService->options(),
             'machines' => $this->machineService->options(),
-            'productSheets' => $this->sheetService->recentOptions(50),
+            'productSheets' => $this->sheetService->optionsForOperationalList(50),
             'fabric_bases' => $this->settingService->getFabricBasesWithFactor()->values()->all(),
             'preparation_groups' => $this->settingService->getCatalogOptions('preparation_groups')->pluck('name')->values()->all(),
             'actions' => $this->actionOptions(),
@@ -221,15 +221,11 @@ class ProductOperationListController extends Controller
             'operations' => ['required', 'array', 'min:1'],
             'operations.*.product_sheet_id' => ['required', 'integer', 'exists:product_sheets,id'],
             'operations.*.operation_id' => ['required', 'integer', 'exists:operations,id'],
-            'operations.*.machine_id' => ['nullable', 'integer', 'exists:machines,id'],
-            'operations.*.operation_section_id' => ['required', 'integer', 'exists:operation_sections,id'],
             'operations.*.grupo_preparacion' => ['nullable', 'string', 'max:100'],
             'operations.*.sequence' => ['required', 'integer', 'min:1'],
             'operations.*.optimal_time' => ['required', 'numeric', 'min:0'],
             'operations.*.operator_efficiency_factor' => ['required', 'numeric', 'between:0.5,2'],
             'operations.*.machine_supplement_factor' => ['required', 'numeric', 'min:1'],
-            'operations.*.fabric_base_id' => ['nullable', 'integer'],
-            'operations.*.quantity' => ['nullable', 'integer', 'min:1'],
             'operations.*.actual_time' => ['nullable', 'numeric', 'min:0'],
             'operations.*.notes' => ['nullable', 'string', 'max:1000'],
         ]);
@@ -265,15 +261,11 @@ class ProductOperationListController extends Controller
             'operations.*.id' => ['nullable', 'integer', 'exists:product_sheet_operations,id'],
             'operations.*.product_sheet_id' => ['nullable', 'integer', 'exists:product_sheets,id'],
             'operations.*.operation_id' => ['required', 'integer', 'exists:operations,id'],
-            'operations.*.machine_id' => ['nullable', 'integer', 'exists:machines,id'],
-            'operations.*.operation_section_id' => ['required', 'integer', 'exists:operation_sections,id'],
             'operations.*.grupo_preparacion' => ['nullable', 'string', 'max:100'],
             'operations.*.sequence' => ['required', 'integer', 'min:1'],
             'operations.*.optimal_time' => ['required', 'numeric', 'min:0'],
             'operations.*.operator_efficiency_factor' => ['required', 'numeric', 'between:0.5,2'],
             'operations.*.machine_supplement_factor' => ['required', 'numeric', 'min:1'],
-            'operations.*.fabric_base_id' => ['nullable', 'integer'],
-            'operations.*.quantity' => ['nullable', 'integer', 'min:1'],
             'operations.*.actual_time' => ['nullable', 'numeric', 'min:0'],
             'operations.*.notes' => ['nullable', 'string', 'max:1000'],
         ]);
@@ -312,9 +304,9 @@ class ProductOperationListController extends Controller
 
         try {
             // Validar que grupo_preparacion sea requerido para PREPARACION
-            if (isset($validated['operation_section_id']) || isset($validated['grupo_preparacion'])) {
-                $sectionId = $validated['operation_section_id'] ?? $listItem->operation_section_id;
-                $grupoData = ['operation_section_id' => $sectionId, 'grupo_preparacion' => $validated['grupo_preparacion'] ?? $listItem->grupo_preparacion];
+            if (isset($validated['operation_id']) || isset($validated['grupo_preparacion'])) {
+                $operationId = $validated['operation_id'] ?? $listItem->operation_id;
+                $grupoData = ['operation_id' => $operationId, 'grupo_preparacion' => $validated['grupo_preparacion'] ?? $listItem->grupo_preparacion];
                 $this->service->validateGrupoPreparacionRequired($grupoData);
             }
             $item = $this->service->update($listItem, $validated, $motivo);
