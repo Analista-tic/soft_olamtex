@@ -881,7 +881,9 @@ class FabricRollController extends Controller
         }
 
         $rollQtyValue = (float) $fabricRoll->quantity;
+        $partialOutputValue = (float) $fabricRoll->partial_output;
         $exitQuantityValue = (float) $fabricRoll->actual_output;
+        $partialAvailabilityValue = max(0.0, $rollQtyValue - $exitQuantityValue - $partialOutputValue);
         $realAvailabilityValue = $rollQtyValue - $exitQuantityValue;
 
         return response()->json([
@@ -889,6 +891,8 @@ class FabricRollController extends Controller
                 ? 'Descargue de rollo registrado correctamente.'
                 : 'Entrada de rollo registrada correctamente.',
             'real_availability_value' => $realAvailabilityValue,
+            'partial_output_value' => $partialOutputValue,
+            'partial_availability_value' => $partialAvailabilityValue,
             'roll_qty_value' => $rollQtyValue,
             'exit_quantity_value' => $exitQuantityValue,
         ]);

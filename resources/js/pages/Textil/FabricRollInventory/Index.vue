@@ -207,6 +207,8 @@ function toggleDownloadedFilter() {
 
 function handleDischargeSuccess(payload: {
     roll: FabricRollView | null;
+    partialOutputValue: number;
+    partialAvailabilityValue: number;
     realAvailabilityValue: number;
     rollQtyValue: number;
     exitQuantityValue: number;
@@ -215,7 +217,6 @@ function handleDischargeSuccess(payload: {
         return;
     }
 
-    const formatMetersInline = (v: number) => `${v % 1 === 0 ? v : v.toFixed(2).replace(/\.?0+$/, '')} m`;
     const index = rolls.value.findIndex((roll) => roll.id === payload.roll?.id);
 
     if (index !== -1) {
@@ -223,11 +224,15 @@ function handleDischargeSuccess(payload: {
         rolls.value[index] = {
             ...currentRoll,
             roll_qty_value: payload.rollQtyValue,
-            roll_qty: formatMetersInline(payload.rollQtyValue),
+            roll_qty: formatMeters(payload.rollQtyValue),
+            partial_output_value: payload.partialOutputValue,
+            partial_output: formatMeters(payload.partialOutputValue),
+            partial_availability_value: payload.partialAvailabilityValue,
+            partial_availability: formatMeters(payload.partialAvailabilityValue),
             exit_quantity_value: payload.exitQuantityValue,
-            exit_quantity: formatMetersInline(payload.exitQuantityValue),
+            exit_quantity: formatMeters(payload.exitQuantityValue),
             real_availability_value: payload.realAvailabilityValue,
-            real_availability: formatMetersInline(payload.realAvailabilityValue),
+            real_availability: formatMeters(payload.realAvailabilityValue),
             status: payload.realAvailabilityValue <= 0 ? 'depleted' : 'available',
         };
     }
