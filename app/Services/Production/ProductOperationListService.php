@@ -25,6 +25,7 @@ class ProductOperationListService
     public function __construct(
         protected ProductOperationList $model,
         protected SettingService $settingService,
+        protected ProductSheetStatusService $productSheetStatusService,
     ) {
     }
 
@@ -331,6 +332,7 @@ class ProductOperationListService
 
             $item = $this->model->create($data);
             $this->syncOperationBase($item);
+            $this->productSheetStatusService->syncForSheet((int) $item->product_sheet_id);
 
             return $item;
         });
@@ -343,6 +345,7 @@ class ProductOperationListService
     {
         return DB::transaction(function () use ($operations) {
             $created = collect();
+            $touchedSheetIds = [];
 
             $seenInPayload = [];
             $seenSequences = [];
@@ -396,7 +399,10 @@ class ProductOperationListService
                 $item = $this->model->create($data);
                 $this->syncOperationBase($item);
                 $created->push($item);
+                $touchedSheetIds[] = (int) $item->product_sheet_id;
             }
+
+            $this->productSheetStatusService->syncForSheets($touchedSheetIds);
 
             return $created;
         });
@@ -490,6 +496,8 @@ class ProductOperationListService
                     });
             }
 
+            $this->productSheetStatusService->syncForSheet($productSheetId);
+
             return $this->listBySheet($productSheetId);
         });
     }
@@ -502,6 +510,7 @@ class ProductOperationListService
     public function update(ProductOperationList $item, array $data, string $motivo = ''): ProductOperationList
     {
         return DB::transaction(function () use ($item, $data, $motivo) {
+            $originalSheetId = (int) $item->product_sheet_id;
             $before = $item->getAttributes();
 
             $targetSheetId = (int) ($data['product_sheet_id'] ?? $item->product_sheet_id);
@@ -535,6 +544,11 @@ class ProductOperationListService
 
             $this->recordChangeIfNeeded($item, $before, $motivo);
             $this->syncOperationBase($item);
+
+            $this->productSheetStatusService->syncForSheets([
+                $originalSheetId,
+                (int) $item->product_sheet_id,
+            ]);
 
             return $item->fresh(['productSheet:id,fabric_base_id', 'operation.machineReference', 'operation.section']);
         });
@@ -595,7 +609,9 @@ class ProductOperationListService
      */
     public function delete(ProductOperationList $item): void
     {
+        $sheetId = (int) $item->product_sheet_id;
         $item->forceDelete();
+        $this->productSheetStatusService->syncForSheet($sheetId);
     }
 
     /**
@@ -609,8 +625,17 @@ class ProductOperationListService
             ->where('product_sheet_id', $productSheetId)
             ->get();
 
+        $sheetIds = $rows
+            ->pluck('product_sheet_id')
+            ->map(static fn ($id): int => (int) $id)
+            ->push($productSheetId)
+            ->unique()
+            ->values()
+            ->all();
+
         $count = $rows->count();
         $rows->each(fn (ProductOperationList $item) => $item->forceDelete());
+        $this->productSheetStatusService->syncForSheets($sheetIds);
 
         return $count;
     }
@@ -624,7 +649,7 @@ class ProductOperationListService
         $source = $this->listBySheet($sourceSheetId);
 
         return DB::transaction(function () use ($source, $targetSheetId, $overrides) {
-            return collect($source)->map(function (ProductOperationList $operation, $index) use ($targetSheetId, $overrides) {
+            $created = collect($source)->map(function (ProductOperationList $operation, $index) use ($targetSheetId, $overrides) {
                 $attributes = $operation->replicate([
                     'product_sheet_id',
                     'sequence',
@@ -639,6 +664,10 @@ class ProductOperationListService
 
                 return $this->model->create($attributes);
             });
+
+            $this->productSheetStatusService->syncForSheet($targetSheetId);
+
+            return $created;
         });
     }
 
