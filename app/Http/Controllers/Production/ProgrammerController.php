@@ -153,8 +153,8 @@ class ProgrammerController extends Controller
             ],
         ]);
 
-        $orders = DB::transaction(function () use ($validatedData, $request) {
-            return collect($validatedData['lots'])->map(function (array $lot) use ($request) {
+        $orders = DB::transaction(function () use ($validatedData, $request, $userId) {
+            return collect($validatedData['lots'])->map(function (array $lot) use ($request, $userId) {
                     $productSheet = ProductSheet::findOrFail($lot['product_sheet_id']);
                     $ecommerceUnits = $this->normalizeEcommerceUnits($lot['ecommerce_units'] ?? null);
                     $units = isset($lot['units']) ? (int) $lot['units'] : null;

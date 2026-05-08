@@ -1,39 +1,28 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
-import HelpTooltip from '@/components/HelpTooltip.vue';
-import SelectField from '@/components/SelectField.vue';
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import Button from '@/components/ui/button/Button.vue';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Textarea } from '@/components/ui/textarea';
-import type { CuttingPiece, Grain, Side, SizeUnit } from '@/domain/Production';
+import type { CuttingPiece, SizeUnit } from '@/domain/Production';
 import type { Option } from '@/domain/shared';
-import { Check, Pencil, Plus, Trash, X } from 'lucide-vue-next';
+import CuttingBreakdown from '@/pages/Production/ProductSheets/components/CuttingBreakdown.vue';
 import { computed, ref, watch } from 'vue';
 
+// Define la estructura de datos principal que maneja el formulario de "Corte"
 type CuttingData = {
     params: { cutCostCop: number | null };
-    sizes: SizeUnit[];
+    sizes: SizeUnit[]; // Lista de tallas (curvas y unidades)
     espigaLength?: number | null;
     espigaCurve?: string | null;
     liqLength?: number | null;
     liqCurve?: string | null;
-    pieces: CuttingPiece[];
+    pieces: CuttingPiece[]; // Aquí vive el despiece que le pasaremos al nuevo componente
     generalNotes?: string | null;
 };
 
+// Define la estructura de las telas disponibles (viene de la pestaña de materias primas)
 type RawMaterialsInfoRow = {
     uid: string;
     tela: string;
@@ -47,13 +36,7 @@ type RawMaterialsInfoRow = {
     programmedColors?: string[];
 };
 
-type InlinePieceForm = {
-    pieceId: string;
-    fabricId: string;
-    leftUnits: string;
-    rightUnits: string;
-    grainId: string;
-};
+// Estructura temporal para editar una talla en la interfaz
 type InlineSizeForm = {
     uid: string | null;
     size: string;
@@ -61,10 +44,13 @@ type InlineSizeForm = {
     units: string;
 };
 
-const DEFAULT_PIECE_TYPE = 'PRINCIPAL' as const;
-const FABRIC_NOTE_PREFIX = '@fabric:';
-const PIECE_META_NOTE_PREFIX = '@piece_meta:';
+/**
+ * ----------------------------------------------------------------------------
+ * FUNCIONES AUXILIARES
+ * ----------------------------------------------------------------------------
+ */
 
+// Genera un ID único. Útil para identificar filas nuevas en las tablas antes de enviarlas al servidor.
 function makeId(): string {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID();
@@ -72,28 +58,14 @@ function makeId(): string {
     return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+// Limpia el texto de espacios extra. Si queda vacío, devuelve null.
 function normalizeText(value: string | null | undefined): string | null {
     if (!value) return null;
     const clean = value.trim();
     return clean === '' ? null : clean;
 }
 
-function normalizeUpperText(value: string | null | undefined): string {
-    return String(value ?? '')
-        .trim()
-        .toLocaleUpperCase('es-CO');
-}
-
-function createEmptyInlinePieceForm(): InlinePieceForm {
-    return {
-        pieceId: '',
-        fabricId: '',
-        leftUnits: '0',
-        rightUnits: '0',
-        grainId: '',
-    };
-}
-
+// Retorna un formulario vacío para cuando el usuario quiera agregar o reiniciar la edición de una talla.
 function createEmptyInlineSizeForm(): InlineSizeForm {
     return {
         uid: null,
@@ -103,113 +75,71 @@ function createEmptyInlineSizeForm(): InlineSizeForm {
     };
 }
 
-function normalizeGrainValue(value: string | null | undefined): Grain | null {
-    const normalized = String(value ?? '')
-        .trim()
-        .toUpperCase();
-    if (['90', '180', 'SESGO'].includes(normalized)) {
-        return normalized as Grain;
-    }
-    return null;
-}
-
-function quantityFromSide(side: Side | null): number {
-    if (side === 'AMBOS') return 2;
-    if (side === 'IZQUIERDA' || side === 'DERECHA') return 1;
-    return 0;
-}
-
-function parseFabricFromNotes(notes: string | null | undefined): { fabricId: string | null; fabricName: string | null } {
-    const raw = String(notes ?? '');
-    if (raw.startsWith(PIECE_META_NOTE_PREFIX)) {
-        try {
-            const parsed = JSON.parse(raw.slice(PIECE_META_NOTE_PREFIX.length)) as { fabricId?: unknown; fabricName?: unknown };
-            const fabricId = String(parsed.fabricId ?? '').trim();
-            const fabricName = String(parsed.fabricName ?? '').trim();
-            return {
-                fabricId: fabricId || null,
-                fabricName: fabricName || null,
-            };
-        } catch {
-            return { fabricId: null, fabricName: null };
-        }
-    }
-    if (!raw.startsWith(FABRIC_NOTE_PREFIX)) return { fabricId: null, fabricName: null };
-    const payload = raw.slice(FABRIC_NOTE_PREFIX.length);
-    const separatorIndex = payload.indexOf('|');
-    if (separatorIndex < 0) return { fabricId: null, fabricName: null };
-    const fabricId = payload.slice(0, separatorIndex).trim();
-    const fabricName = payload.slice(separatorIndex + 1).trim();
-    return {
-        fabricId: fabricId || null,
-        fabricName: fabricName || null,
-    };
-}
-
-function buildNotesFromPieceMeta(fabricId: string, fabricName: string, quantity: number): string | null {
-    const normalizedId = String(fabricId).trim();
-    const normalizedName = String(fabricName).trim();
-    const normalizedQuantity = Number(quantity);
-    if (!normalizedId || !normalizedName || !Number.isFinite(normalizedQuantity) || normalizedQuantity <= 0) return null;
-    // TODO backend: agregar campo propio de tela en CuttingPiece para no depender de notes.
-    return `${PIECE_META_NOTE_PREFIX}${JSON.stringify({
-        fabricId: normalizedId,
-        fabricName: normalizedName,
-        quantity: normalizedQuantity,
-    })}`;
-}
-
+/**
+ * ----------------------------------------------------------------------------
+ * PROPS Y EMITS (COMUNICACIÓN CON EL COMPONENTE PADRE)
+ * ----------------------------------------------------------------------------
+ */
+// Los "props" son los datos que recibe este Diálogo desde fuera (la vista principal).
 const props = defineProps<{
-    open: boolean;
-    data: CuttingData;
-    sizes: string[] | null;
+    open: boolean; // ¿El modal está abierto?
+    data: CuttingData; // Los datos actuales del corte
+    sizes: string[] | null; // Nombres de tallas disponibles
     unitsBySize?: Record<string, number> | null;
     totalUnits?: number | null;
-    savingSection: string | null;
-    rawMaterialsInfo: RawMaterialsInfoRow[];
+    savingSection: string | null; // Controla si se está guardando y bloquea el botón
+    rawMaterialsInfo: RawMaterialsInfoRow[]; // Lista de telas
     drawingUrl?: string | null;
 }>();
 
+// Los "emits" son eventos que este componente dispara hacia su padre para avisarle que algo cambió.
 const emit = defineEmits<{
-    (e: 'close'): void;
-    (e: 'update:data', value: CuttingData): void;
-    (e: 'save', section: 'cutting'): void;
+    (e: 'close'): void; // El usuario quiere cerrar el modal
+    (e: 'update:data', value: CuttingData): void; // Actualizar la data principal
+    (e: 'save', section: 'cutting'): void; // El usuario presionó "Guardar"
 }>();
 
-const isDeletePieceDialogOpen = ref(false);
+/**
+ * ----------------------------------------------------------------------------
+ * ESTADO LOCAL (VARIABLES REACTIVAS)
+ * ----------------------------------------------------------------------------
+ */
+// Controles de interfaz (mensajes de éxito/error, modos de edición)
 const inlineSizeMode = ref<'create' | 'edit' | null>(null);
-const inlinePieceMode = ref<'create' | 'edit' | null>(null);
-const inlinePieceTargetId = ref<string | null>(null);
-const pieceToDeleteId = ref<string | null>(null);
 const inlineSizeForm = ref<InlineSizeForm>(createEmptyInlineSizeForm());
-const inlinePieceForm = ref<InlinePieceForm>(createEmptyInlinePieceForm());
-const grainOptions = ref<Option[]>([]);
-const loadingPieceOptions = ref(false);
 const infoMessage = ref<string | null>(null);
 const successMessage = ref<string | null>(null);
 const attemptedSectionSave = ref(false);
 const attemptedInlineSizeSave = ref(false);
-const attemptedInlinePieceSave = ref(false);
 
+// "Computed": Variable dinámica que intercepta la lectura y escritura de 'props.data'
+// Esto permite que cuando editemos localData, en realidad disparemos un emit 'update:data'.
 const localData = computed({
     get: () => props.data,
     set: (value: CuttingData) => emit('update:data', value),
 });
 
+// Cálculos matemáticos totales basados en las tallas registradas en la columna izquierda.
 const totalUnitsBySize = computed(() => localData.value.sizes.reduce((acc, row) => acc + Number(row.units || 0), 0));
 const totalCurvesBySize = computed(() => localData.value.sizes.reduce((acc, row) => acc + Math.max(0, Number(row.curve || 0)), 0));
+
+// Cálculo de unidades totales requeridas por el despiece.
 const totalUnitsByPieces = computed(() =>
     localData.value.pieces.reduce((acc, piece) => {
-        const quantity = Number(piece.quantity ?? quantityFromSide(piece.side ?? null));
+        const quantity = Number(piece.quantity ?? 0);
         return acc + (Number.isFinite(quantity) ? Math.max(0, quantity) : 0);
     }, 0),
 );
 
-const effectiveTotalUnits = computed(() => (typeof props.totalUnits === 'number' ? props.totalUnits : totalUnitsBySize.value));
+function updateCuttingPieces(pieces: CuttingPiece[]): void {
+    localData.value = {
+        ...localData.value,
+        pieces,
+    };
+}
 
-const unitsUnavailable = computed(() => effectiveTotalUnits.value <= 0);
-const hasInlineSizeEditor = computed(() => inlineSizeMode.value !== null);
-const hasInlinePieceEditor = computed(() => inlinePieceMode.value !== null);
+// Mapeo: Transforma la lista cruda de "rawMaterialsInfo" a un formato estándar de {id, name}
+// para que el componente <CuttingBreakdown> pueda renderizar el select (desplegable) de telas.
 const fabricOptions = computed<Option[]>(() => {
     const seen = new Set<string>();
     return props.rawMaterialsInfo
@@ -223,38 +153,14 @@ const fabricOptions = computed<Option[]>(() => {
         .filter((row): row is Option => row !== null);
 });
 
-const fabricOptionsForEditor = computed<Option[]>(() => {
-    if (!inlinePieceForm.value.fabricId) return fabricOptions.value;
-    const exists = fabricOptions.value.some((option) => String(option.id) === inlinePieceForm.value.fabricId);
-    if (exists) return fabricOptions.value;
-    const fallbackName = parseFabricFromNotes(`${FABRIC_NOTE_PREFIX}${inlinePieceForm.value.fabricId}|`).fabricName ?? inlinePieceForm.value.fabricId;
-    return [{ id: inlinePieceForm.value.fabricId, name: fallbackName }, ...fabricOptions.value];
-});
-const selectedFabricOption = computed(
-    () => fabricOptionsForEditor.value.find((option) => String(option.id) === inlinePieceForm.value.fabricId) ?? null,
-);
+/**
+ * ----------------------------------------------------------------------------
+ * LÓGICA DE NEGOCIO (TALLAS Y FORMULARIO)
+ * ----------------------------------------------------------------------------
+ */
+const hasInlineSizeEditor = computed(() => inlineSizeMode.value !== null);
 
-const sizeOptions = computed<Option[]>(() => {
-    const source = Array.isArray(props.sizes) ? props.sizes : [];
-    return source.map((size) => ({ id: String(size), name: String(size) }));
-});
-
-const sizeOptionsForCreate = computed<Option[]>(() => {
-    const used = new Set(localData.value.sizes.map((row) => String(row.size ?? '').trim()).filter((value) => value !== ''));
-    return sizeOptions.value.filter((option) => !used.has(String(option.id)));
-});
-
-const canAddMoreSizes = computed(() => {
-    if (!Array.isArray(props.sizes) || props.sizes.length === 0) return true;
-    return sizeOptionsForCreate.value.length > 0;
-});
-
-function normalizeCount(value: string | number | null | undefined): number {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return 0;
-    return Math.max(0, Math.floor(parsed));
-}
-
+// Sincroniza la estructura base para las tallas.
 function buildSizesFromOp(): SizeUnit[] {
     const source = Array.isArray(props.sizes) ? props.sizes : [];
     const existingMap = new Map(localData.value.sizes.map((row) => [row.size, row]));
@@ -266,6 +172,7 @@ function buildSizesFromOp(): SizeUnit[] {
     }));
 }
 
+// Inicializa las tallas cuando el modal se abre por primera vez.
 function initializeSizesFromOpOnOpen(): void {
     if (localData.value.sizes.length > 0) return;
     const source = Array.isArray(props.sizes) ? props.sizes : [];
@@ -273,36 +180,7 @@ function initializeSizesFromOpOnOpen(): void {
     emit('update:data', { ...localData.value, sizes: buildSizesFromOp() });
 }
 
-const inlineTotalQuantity = computed(() => normalizeCount(inlinePieceForm.value.leftUnits) + normalizeCount(inlinePieceForm.value.rightUnits));
-
-function getPieceHandCounts(piece: CuttingPiece): { left: number; right: number } {
-    const quantity = Math.max(0, Number(piece.quantity ?? quantityFromSide(piece.side ?? null) ?? 0));
-    if (piece.side === 'IZQUIERDA') return { left: quantity, right: 0 };
-    if (piece.side === 'DERECHA') return { left: 0, right: quantity };
-    if (piece.side === 'AMBOS') {
-        const left = Math.floor(quantity / 2);
-        const right = quantity - left;
-        return { left, right };
-    }
-    return { left: 0, right: 0 };
-}
-
-function resolveSideFromHands(left: number, right: number): Side {
-    if (left > 0 && right > 0) return 'AMBOS';
-    if (left > 0) return 'IZQUIERDA';
-    if (right > 0) return 'DERECHA';
-    return 'NO_APLICA';
-}
-
-const canSaveInlinePiece = computed(() => {
-    return (
-        inlinePieceForm.value.pieceId !== '' &&
-        inlinePieceForm.value.fabricId !== '' &&
-        inlinePieceForm.value.grainId !== '' &&
-        inlineTotalQuantity.value > 0 &&
-        fabricOptions.value.length > 0
-    );
-});
+// Validador: Revisa que la talla que el usuario edita tenga nombre y unidades válidas.
 const canSaveInlineSize = computed(() => {
     const size = String(inlineSizeForm.value.size ?? '').trim();
     const units = Number(inlineSizeForm.value.units);
@@ -311,6 +189,8 @@ const canSaveInlineSize = computed(() => {
     const isCurveValid = curveRaw === '' || (Number.isFinite(curve) && curve >= 0);
     return size !== '' && Number.isFinite(units) && units > 0 && isCurveValid;
 });
+
+// Chequeo de seguridad: Evita guardar si una fila de talla quedó a la mitad (unidades = 0).
 const hasIncompleteSizes = computed(() => {
     return localData.value.sizes.some((row) => {
         const size = String(row.size ?? '').trim();
@@ -325,6 +205,7 @@ function clearLocalMessages(): void {
     successMessage.value = null;
 }
 
+// Mantenimiento interno: Asegura que todas las filas tengan un ID.
 function ensureSizesHaveUid(): void {
     let changed = false;
 
@@ -339,84 +220,18 @@ function ensureSizesHaveUid(): void {
     emit('update:data', { ...localData.value, sizes: normalized });
 }
 
-function openCreateSizeInline(): void {
-    clearLocalMessages();
-    attemptedInlineSizeSave.value = false;
-    inlineSizeMode.value = 'create';
-    inlineSizeForm.value = createEmptyInlineSizeForm();
-}
-
-function handleAddSizeClick(): void {
-    clearLocalMessages();
-    if (hasInlineSizeEditor.value) {
-        infoMessage.value = 'Completa la talla actual para continuar.';
-        return;
-    }
-
-    if (!canAddMoreSizes.value) {
-        infoMessage.value = 'Todas las tallas de la OP ya están registradas.';
-        return;
-    }
-
-    openCreateSizeInline();
-}
-
 function sizeStableId(row: SizeUnit): string {
     return String(row.uid ?? '').trim();
 }
 
-function isEditingSize(row: SizeUnit): boolean {
-    if (inlineSizeMode.value !== 'edit') return false;
-    const stableId = sizeStableId(row);
-    return stableId !== '' && stableId === String(inlineSizeForm.value.uid ?? '').trim();
-}
-
-function openEditSizeInline(row: SizeUnit): void {
-    clearLocalMessages();
-    if (hasInlineSizeEditor.value) {
-        infoMessage.value = 'Completa la talla actual para continuar.';
-        return;
-    }
-
-    const currentId = String(row.uid ?? '').trim();
-    if (!currentId) {
-        ensureSizesHaveUid();
-        const refreshed = localData.value.sizes.find((item) => item.size === row.size && Number(item.units) === Number(row.units));
-        if (refreshed) {
-            row = refreshed;
-        }
-    }
-
-    attemptedInlineSizeSave.value = false;
-    inlineSizeMode.value = 'edit';
-    inlineSizeForm.value = {
-        uid: sizeStableId(row) || makeId(),
-        size: String(row.size ?? '').trim(),
-        curve: row.curve === null || row.curve === undefined ? '' : String(row.curve),
-        units: String(row.units ?? 0),
-    };
-}
-
+// Descarta los cambios en la edición en línea de la talla.
 function cancelInlineSizeEditor(): void {
     inlineSizeMode.value = null;
     inlineSizeForm.value = createEmptyInlineSizeForm();
     attemptedInlineSizeSave.value = false;
 }
 
-function isInlineSizeFieldInvalid(field: 'size' | 'curve' | 'units'): boolean {
-    if (!attemptedInlineSizeSave.value) return false;
-    if (field === 'size') return String(inlineSizeForm.value.size ?? '').trim() === '';
-    if (field === 'curve') {
-        const curveRaw = String(inlineSizeForm.value.curve ?? '').trim();
-        if (curveRaw === '') return false;
-        const curve = Number(curveRaw);
-        return !Number.isFinite(curve) || curve < 0;
-    }
-
-    const units = Number(inlineSizeForm.value.units);
-    return !Number.isFinite(units) || units <= 0;
-}
-
+// Aplica el guardado de la talla en la variable principal.
 function saveInlineSize(): void {
     attemptedInlineSizeSave.value = true;
     if (!canSaveInlineSize.value) return;
@@ -448,6 +263,7 @@ function saveInlineSize(): void {
     cancelInlineSizeEditor();
 }
 
+// Disparador cuando el usuario cambia el input de "Unidades" en la columna de Tallas.
 function updateSizeUnits(row: SizeUnit, value: string | number | boolean | Array<string | number | boolean> | null | undefined): void {
     const raw = Array.isArray(value) ? value[0] : value;
     const parsed = Number(raw);
@@ -462,6 +278,7 @@ function updateSizeUnits(row: SizeUnit, value: string | number | boolean | Array
     emit('update:data', { ...localData.value, sizes: updatedSizes });
 }
 
+// Disparador cuando el usuario cambia el input de "Curvas" en la columna de Tallas.
 function updateSizeCurve(row: SizeUnit, value: string | number | boolean | Array<string | number | boolean> | null | undefined): void {
     const raw = Array.isArray(value) ? value[0] : value;
     const rawText = String(raw ?? '').trim();
@@ -476,196 +293,40 @@ function updateSizeCurve(row: SizeUnit, value: string | number | boolean | Array
     emit('update:data', { ...localData.value, sizes: updatedSizes });
 }
 
-function loadPieceFieldOptions(): void {
-    if (loadingPieceOptions.value) return;
-    grainOptions.value = (['90', '180', 'SESGO'] as const).map((grain) => ({ id: grain, name: grain }));
-}
-
-function pieceFabricLabel(piece: CuttingPiece): string {
-    // Usar fabricUid (campo propio, source of truth desde BD)
-    if (piece.fabricUid) {
-        const opt = fabricOptions.value.find((option) => String(option.id) === piece.fabricUid);
-        if (opt) return opt.name;
-    }
-    // Backward compat: legacy notes hack
-    const parsed = parseFabricFromNotes(piece.notes);
-    if (parsed.fabricName) return parsed.fabricName;
-    if (parsed.fabricId) {
-        return fabricOptions.value.find((option) => String(option.id) === parsed.fabricId)?.name ?? '-';
-    }
-    return '-';
-}
-
-function openCreatePieceInline(): void {
-    clearLocalMessages();
-    attemptedInlinePieceSave.value = false;
-    inlinePieceMode.value = 'create';
-    inlinePieceTargetId.value = null;
-    inlinePieceForm.value = createEmptyInlinePieceForm();
-}
-
-function handleAddPieceClick(): void {
-    clearLocalMessages();
-    if (hasInlinePieceEditor.value) {
-        infoMessage.value = 'Completa la pieza actual para continuar.';
-        return;
-    }
-    openCreatePieceInline();
-}
-
-function pieceStableId(piece: CuttingPiece): string {
-    return String(piece.id ?? '').trim() || String(piece.uid ?? '').trim();
-}
-
-function isEditingPiece(piece: CuttingPiece): boolean {
-    if (inlinePieceMode.value !== 'edit') return false;
-    const stableId = pieceStableId(piece);
-    return stableId !== '' && stableId === inlinePieceTargetId.value;
-}
-
-function openEditPieceInline(piece: CuttingPiece): void {
-    clearLocalMessages();
-    if (hasInlinePieceEditor.value) {
-        infoMessage.value = 'Completa la pieza actual para continuar.';
-        return;
-    }
-    attemptedInlinePieceSave.value = false;
-    const stableId = pieceStableId(piece) || makeId();
-
-    // Resolver fabricId desde fabricUid (campo propio) o legacy notes hack
-    let resolvedFabricId = String(piece.fabricUid ?? '').trim();
-    if (!resolvedFabricId) {
-        const parsed = parseFabricFromNotes(piece.notes);
-        resolvedFabricId = parsed.fabricId ?? '';
-    }
-
-    inlinePieceMode.value = 'edit';
-    inlinePieceTargetId.value = stableId;
-    const handCounts = getPieceHandCounts(piece);
-    inlinePieceForm.value = {
-        pieceId: normalizeUpperText(String(piece.name ?? '')),
-        fabricId: resolvedFabricId,
-        leftUnits: String(handCounts.left),
-        rightUnits: String(handCounts.right),
-        grainId: piece.grain ?? '',
-    };
-}
-
-function onPieceInputChange(value: string | number | boolean | Array<string | number | boolean> | null | undefined): void {
-    const raw = Array.isArray(value) ? value[0] : value;
-    inlinePieceForm.value.pieceId = normalizeUpperText(String(raw ?? ''));
-}
-
-function cancelInlinePieceEditor(): void {
-    inlinePieceMode.value = null;
-    inlinePieceTargetId.value = null;
-    inlinePieceForm.value = createEmptyInlinePieceForm();
-    attemptedInlinePieceSave.value = false;
-}
-
-function isInlineFieldInvalid(field: keyof InlinePieceForm): boolean {
-    if (!attemptedInlinePieceSave.value) return false;
-    if (field === 'fabricId' && fabricOptions.value.length === 0) {
-        return String(inlinePieceForm.value.fabricId ?? '').trim() === '';
-    }
-    return String(inlinePieceForm.value[field] ?? '').trim() === '';
-}
-
-function saveInlinePiece(): void {
-    attemptedInlinePieceSave.value = true;
-    if (!canSaveInlinePiece.value) return;
-
-    const stableId = inlinePieceTargetId.value ?? makeId();
-    const selectedFabricName = selectedFabricOption.value?.name ?? '';
-    const leftUnits = normalizeCount(inlinePieceForm.value.leftUnits);
-    const rightUnits = normalizeCount(inlinePieceForm.value.rightUnits);
-    const quantity = leftUnits + rightUnits;
-    const side = resolveSideFromHands(leftUnits, rightUnits);
-    const grain = normalizeGrainValue(inlinePieceForm.value.grainId);
-    const normalizedPieceName = normalizeUpperText(inlinePieceForm.value.pieceId);
-    if (!grain || !normalizedPieceName || !Number.isFinite(quantity) || quantity <= 0) return;
-
-    const fabricUid = String(selectedFabricOption.value?.id ?? '').trim() || null;
-
-    const piece: CuttingPiece = {
-        id: stableId,
-        uid: stableId,
-        name: normalizedPieceName,
-        type: DEFAULT_PIECE_TYPE,
-        fabricUid,
-        side,
-        grain,
-        quantity,
-        // Backward compat: mantener notes con el legado sólo si no hay fabricUid propio
-        notes: fabricUid ? null : buildNotesFromPieceMeta(String(selectedFabricOption.value?.id ?? ''), selectedFabricName, quantity),
-    };
-
-    const existingIndex = localData.value.pieces.findIndex((row) => {
-        const rowId = String(row.id ?? '').trim() || String(row.uid ?? '').trim();
-        return rowId === stableId;
-    });
-
-    const updatedPieces = [...localData.value.pieces];
-    if (existingIndex >= 0) {
-        updatedPieces[existingIndex] = piece;
-    } else {
-        updatedPieces.push(piece);
-    }
-
-    emit('update:data', { ...localData.value, pieces: updatedPieces });
-    cancelInlinePieceEditor();
-}
-
-function requestRemovePiece(pieceId: string): void {
-    pieceToDeleteId.value = pieceId;
-    isDeletePieceDialogOpen.value = true;
-}
-
-function closeDeletePieceDialog(): void {
-    pieceToDeleteId.value = null;
-    isDeletePieceDialogOpen.value = false;
-}
-
-function confirmRemovePiece(): void {
-    const targetId = pieceToDeleteId.value;
-    if (!targetId) return;
-
-    const updatedPieces = localData.value.pieces.filter((piece) => {
-        const pieceId = String(piece.id ?? '').trim() || String(piece.uid ?? '').trim();
-        return pieceId !== targetId;
-    });
-
-    emit('update:data', { ...localData.value, pieces: updatedPieces });
-    closeDeletePieceDialog();
-    if (updatedPieces.length === 0) {
-        openCreatePieceInline();
-    }
-}
-
+// Sincroniza las notas generales hacia la variable principal.
 function updateGeneralNotes(value: string): void {
     emit('update:data', { ...localData.value, generalNotes: normalizeText(value) || value });
 }
 
+/**
+ * ----------------------------------------------------------------------------
+ * ACCIONES FINALES (GUARDAR / CERRAR)
+ * ----------------------------------------------------------------------------
+ */
+
+// Se ejecuta al hacer click en el botón "Guardar"
 function handleSave(): void {
     attemptedSectionSave.value = true;
+
+    // Si el usuario dejó la edición de talla a medias, intentamos cerrarla guardando.
     if (hasInlineSizeEditor.value) {
         attemptedInlineSizeSave.value = true;
         if (!canSaveInlineSize.value) return;
         saveInlineSize();
     }
-    if (hasInlinePieceEditor.value) {
-        attemptedInlinePieceSave.value = true;
-        if (!canSaveInlinePiece.value) return;
-        saveInlinePiece();
-    }
+
+    // Evita enviar data si la columna de tallas no se rellenó de forma correcta.
     if (hasIncompleteSizes.value) {
         infoMessage.value = 'Completa las filas de talla/unidades antes de guardar.';
         successMessage.value = null;
         return;
     }
+
+    // Le decimos al componente padre (quien renderiza este modal): "Manda estos datos al backend".
     emit('save', 'cutting');
 }
 
+// Limpieza para cuando se cierra la ventana
 function handleClose(): void {
     clearLocalMessages();
     attemptedSectionSave.value = false;
@@ -673,24 +334,27 @@ function handleClose(): void {
     emit('close');
 }
 
+// Hook que ocurre si el componente Dialog nativo detecta cierre (como hacer clic fuera del recuadro)
 function handleDialogOpenChange(value: boolean): void {
     if (!value) handleClose();
 }
 
+/**
+ * ----------------------------------------------------------------------------
+ * WATCHERS (OBSERVADORES)
+ * ----------------------------------------------------------------------------
+ * 'watch' permite ejecutar código cada vez que la variable monitoreada cambia.
+ * Aquí "escuchamos" el prop.open para inicializar datos frescos cada vez que el modal se abre.
+ */
 watch(
     () => props.open,
     (isOpen) => {
         if (isOpen) {
-            void loadPieceFieldOptions();
             initializeSizesFromOpOnOpen();
             ensureSizesHaveUid();
             clearLocalMessages();
             attemptedSectionSave.value = false;
             cancelInlineSizeEditor();
-            cancelInlinePieceEditor();
-            if (localData.value.pieces.length === 0) {
-                openCreatePieceInline();
-            }
         }
     },
 );
@@ -716,230 +380,87 @@ watch(
             />
 
             <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-                <div
-                    class="grid grid-cols-[0.98fr_1.6fr] gap-6 items-start"
-                    style="grid-template-columns: minmax(260px,38%) minmax(340px,62%);"
-                >
+                <div class="grid grid-cols-[0.98fr_1.6fr] items-start gap-6" style="grid-template-columns: minmax(260px, 38%) minmax(340px, 62%)">
+                    <div class="rounded-lg border border-border bg-background px-3 py-3 shadow-sm">
+                        <h3 class="mb-2 text-sm font-semibold text-foreground">Tallas</h3>
 
-                <!-- ── TALLAS (columna izquierda 38%) ────────────────── -->
-                <div class="bg-background rounded-lg border border-border px-3 py-3 shadow-sm">
-                <h3 class="mb-2 text-sm font-semibold text-foreground">Tallas</h3>
-                <div v-if="localData.sizes.length === 0 && inlineSizeMode !== 'create'"
-                    class="rounded-md border border-dashed border-border px-3 py-5 text-sm text-muted-foreground"
-                >
-                    Sin informacion registrada por talla.
-                </div>
+                        <div
+                            v-if="localData.sizes.length === 0 && inlineSizeMode !== 'create'"
+                            class="rounded-md border border-dashed border-border px-3 py-5 text-sm text-muted-foreground"
+                        >
+                            Sin informacion registrada por talla.
+                        </div>
 
-                <div v-else class="rounded-md border border-border bg-background p-2">
-                    <Table>
-                        <TableHeader>
-                            <TableRow class="text-center">
-                                <TableHead>Talla</TableHead>
-                                <TableHead>Curva</TableHead>
-                                <TableHead>Unidades</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody class="text-center">
-                            <TableRow v-for="row in localData.sizes" :key="row.uid ?? row.size">
-                                <TableCell class="font-medium text-foreground">{{ row.size }}</TableCell>
-                                <TableCell>
-                                    <Input
-                                        :model-value="row.curve ?? ''"
-                                        type="number"
-                                        min="0"
-                                        step="1"
-                                        placeholder="Curva"
-                                        class="mx-auto h-8 w-24 text-center"
-                                        @update:model-value="(value) => updateSizeCurve(row, value)"
-                                    />
-                                </TableCell>
-                                <TableCell>
-                                    <Input
-                                        :model-value="String(row.units ?? 0)"
-                                        type="number"
-                                        min="0"
-                                        step="1"
-                                        placeholder="Unidades"
-                                        class="mx-auto h-8 w-24 text-center"
-                                        @update:model-value="(value) => updateSizeUnits(row, value)"
-                                    />
-                                </TableCell>
-                            </TableRow>
-                        </TableBody>
-                    </Table>
-                </div>
+                        <div v-else class="rounded-md border border-border bg-background p-2">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow class="text-center">
+                                        <TableHead>Talla</TableHead>
+                                        <TableHead>Curva</TableHead>
+                                        <TableHead>Unidades</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody class="text-center">
+                                    <TableRow v-for="row in localData.sizes" :key="row.uid ?? row.size">
+                                        <TableCell class="font-medium text-foreground">{{ row.size }}</TableCell>
 
-                <!-- Totales tallas -->
-                <div v-if="localData.sizes.length > 0" class="mt-3 flex items-center gap-6 text-xs text-muted-foreground">
-                    <span>Total unidades: <strong class="text-foreground">{{ totalUnitsBySize }}</strong></span>
-                    <span v-if="totalCurvesBySize > 0">Total curvas: <strong class="text-foreground">{{ totalCurvesBySize }}</strong></span>
-                </div>
+                                        <TableCell>
+                                            <Input
+                                                :model-value="row.curve ?? ''"
+                                                type="number"
+                                                min="0"
+                                                step="1"
+                                                placeholder="Curva"
+                                                class="mx-auto h-8 w-24 text-center"
+                                                @update:model-value="(value) => updateSizeCurve(row, value)"
+                                            />
+                                        </TableCell>
 
-                </div><!-- /col-izquierda -->
+                                        <TableCell>
+                                            <Input
+                                                :model-value="String(row.units ?? 0)"
+                                                type="number"
+                                                min="0"
+                                                step="1"
+                                                placeholder="Unidades"
+                                                class="mx-auto h-8 w-24 text-center"
+                                                @update:model-value="(value) => updateSizeUnits(row, value)"
+                                            />
+                                        </TableCell>
+                                    </TableRow>
+                                </TableBody>
+                            </Table>
+                        </div>
 
-                <!-- ── DESPIECE + NOTAS (columna derecha 62%) ─────────── -->
-                <div class="bg-background rounded-lg border border-border px-4 py-4 shadow-sm">
-
-                <!-- ── DESPIECE ── -->
-                <div>
-                    <h3 class="mb-2 text-sm font-semibold text-foreground">Despiece de trazo</h3>
-
-                    <div
-                        v-if="fabricOptions.length === 0"
-                        class="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
-                    >
-                        Agrega la información de materia prima (telas) para poder vincular piezas a telas.
+                        <div v-if="localData.sizes.length > 0" class="mt-3 flex items-center gap-6 text-xs text-muted-foreground">
+                            <span
+                                >Total unidades: <strong class="text-foreground">{{ totalUnitsBySize }}</strong></span
+                            >
+                            <span v-if="totalCurvesBySize > 0"
+                                >Total curvas: <strong class="text-foreground">{{ totalCurvesBySize }}</strong></span
+                            >
+                        </div>
                     </div>
+                    <div class="rounded-lg border border-border bg-background px-4 py-4 shadow-sm">
+                        <div>
+                            <CuttingBreakdown
+                                :model-value="localData.pieces"
+                                @update:model-value="updateCuttingPieces"
+                                :fabricsOptions="fabricOptions"
+                                :readonly="true"
+                            />
 
-                    <div v-if="localData.pieces.length > 0 || hasInlinePieceEditor" class="rounded-md border border-border bg-background p-2">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead class="w-[30%]">Pieza</TableHead>
-                                    <TableHead class="w-[24%]">Tela</TableHead>
-                                    <TableHead>Hilo</TableHead>
-                                    <TableHead class="text-center">Izq.</TableHead>
-                                    <TableHead class="text-center">Der.</TableHead>
-                                    <TableHead class="w-[84px] text-center">Accion</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                <!-- Fila inline de creación -->
-                                <TableRow v-if="inlinePieceMode === 'create'">
-                                    <TableCell class="align-top">
-                                        <Input
-                                            :model-value="inlinePieceForm.pieceId"
-                                            placeholder="Pieza"
-                                            :invalid="isInlineFieldInvalid('pieceId')"
-                                            @update:model-value="onPieceInputChange"
-                                        />
-                                        <p v-if="isInlineFieldInvalid('pieceId')" class="mt-0.5 text-xs text-destructive">Requerido</p>
-                                    </TableCell>
-                                    <TableCell class="align-top">
-                                        <SelectField
-                                            v-model="inlinePieceForm.fabricId"
-                                            :options="fabricOptionsForEditor"
-                                            :searchable="false"
-                                            placeholder="Tela"
-                                            :invalid="isInlineFieldInvalid('fabricId')"
-                                            :disabled="fabricOptions.length === 0"
-                                            @update:model-value="(v) => (inlinePieceForm.fabricId = String(v ?? ''))"
-                                        />
-                                        <p v-if="isInlineFieldInvalid('fabricId')" class="mt-0.5 text-xs text-destructive">Requerido</p>
-                                    </TableCell>
-                                    <TableCell class="align-top">
-                                        <SelectField
-                                            v-model="inlinePieceForm.grainId"
-                                            :options="grainOptions"
-                                            :searchable="false"
-                                            placeholder="Hilo"
-                                            :invalid="isInlineFieldInvalid('grainId')"
-                                            :loading="loadingPieceOptions"
-                                            @update:model-value="(v) => (inlinePieceForm.grainId = String(v ?? ''))"
-                                        />
-                                        <p v-if="isInlineFieldInvalid('grainId')" class="mt-0.5 text-xs text-destructive">Requerido</p>
-                                    </TableCell>
-                                    <TableCell class="align-top">
-                                        <Input
-                                            :model-value="inlinePieceForm.leftUnits"
-                                            type="number" min="0" step="1"
-                                            class="w-16 text-center"
-                                            @update:model-value="(v) => (inlinePieceForm.leftUnits = String(v))"
-                                        />
-                                    </TableCell>
-                                    <TableCell class="align-top">
-                                        <Input
-                                            :model-value="inlinePieceForm.rightUnits"
-                                            type="number" min="0" step="1"
-                                            class="w-16 text-center"
-                                            @update:model-value="(v) => (inlinePieceForm.rightUnits = String(v))"
-                                        />
-                                    </TableCell>
-                                    <TableCell class="w-[84px] text-center align-top">
-                                        <div class="flex items-center justify-center gap-2">
-                                            <button type="button" class="inline-flex h-8 w-8 items-center justify-center text-foreground hover:text-emerald-600" aria-label="Guardar pieza" @click="saveInlinePiece">
-                                                <Check class="h-4 w-4" />
-                                            </button>
-                                            <button type="button" class="inline-flex h-8 w-8 items-center justify-center text-foreground hover:text-muted-foreground" aria-label="Cancelar" @click="cancelInlinePieceEditor">
-                                                <X class="h-4 w-4" />
-                                            </button>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-
-                                <!-- Filas existentes -->
-                                <TableRow v-for="piece in localData.pieces" :key="pieceStableId(piece)">
-                                    <template v-if="isEditingPiece(piece)">
-                                        <TableCell class="align-top">
-                                            <Input :model-value="inlinePieceForm.pieceId" placeholder="Pieza" :invalid="isInlineFieldInvalid('pieceId')" @update:model-value="onPieceInputChange" />
-                                        </TableCell>
-                                        <TableCell class="align-top">
-                                            <SelectField v-model="inlinePieceForm.fabricId" :options="fabricOptionsForEditor" :searchable="false" placeholder="Tela" :invalid="isInlineFieldInvalid('fabricId')" :disabled="fabricOptions.length === 0" @update:model-value="(v) => (inlinePieceForm.fabricId = String(v ?? ''))" />
-                                        </TableCell>
-                                        <TableCell class="align-top">
-                                            <SelectField v-model="inlinePieceForm.grainId" :options="grainOptions" :searchable="false" placeholder="Hilo" :invalid="isInlineFieldInvalid('grainId')" :loading="loadingPieceOptions" @update:model-value="(v) => (inlinePieceForm.grainId = String(v ?? ''))" />
-                                        </TableCell>
-                                        <TableCell class="align-top">
-                                            <Input :model-value="inlinePieceForm.leftUnits" type="number" min="0" step="1" class="w-16 text-center" @update:model-value="(v) => (inlinePieceForm.leftUnits = String(v))" />
-                                        </TableCell>
-                                        <TableCell class="align-top">
-                                            <Input :model-value="inlinePieceForm.rightUnits" type="number" min="0" step="1" class="w-16 text-center" @update:model-value="(v) => (inlinePieceForm.rightUnits = String(v))" />
-                                        </TableCell>
-                                        <TableCell class="w-[84px] text-center align-top">
-                                            <div class="flex items-center justify-center gap-2">
-                                                <button type="button" class="inline-flex h-8 w-8 items-center justify-center text-foreground hover:text-emerald-600" aria-label="Guardar" @click="saveInlinePiece"><Check class="h-4 w-4" /></button>
-                                                <button type="button" class="inline-flex h-8 w-8 items-center justify-center text-foreground hover:text-muted-foreground" aria-label="Cancelar" @click="cancelInlinePieceEditor"><X class="h-4 w-4" /></button>
-                                            </div>
-                                        </TableCell>
-                                    </template>
-                                    <template v-else>
-                                        <TableCell class="font-medium text-foreground">{{ piece.name }}</TableCell>
-                                        <TableCell>{{ pieceFabricLabel(piece) }}</TableCell>
-                                        <TableCell>{{ piece.grain }}</TableCell>
-                                        <TableCell class="text-center tabular-nums">{{ getPieceHandCounts(piece).left }}</TableCell>
-                                        <TableCell class="text-center tabular-nums">{{ getPieceHandCounts(piece).right }}</TableCell>
-                                        <TableCell class="w-[84px] text-center">
-                                            <div class="flex items-center justify-center gap-1">
-                                                <button type="button" class="inline-flex h-8 w-8 items-center justify-center text-foreground hover:text-primary" aria-label="Editar" @click="openEditPieceInline(piece)"><Pencil class="h-4 w-4" /></button>
-                                                <button type="button" class="inline-flex h-8 w-8 items-center justify-center text-foreground hover:text-destructive" aria-label="Eliminar" @click="requestRemovePiece(pieceStableId(piece))"><Trash class="h-4 w-4" /></button>
-                                            </div>
-                                        </TableCell>
-                                    </template>
-                                </TableRow>
-                            </TableBody>
-                        </Table>
-                    </div>
-
-                    <div v-else class="rounded-md border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-                        Sin piezas registradas.
-                    </div>
-
-                    <div v-if="localData.pieces.length > 0" class="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-                        <span>Piezas: <strong class="text-foreground">{{ localData.pieces.length }}</strong></span>
-                        <span>Uds. por pieza: <strong class="text-foreground">{{ totalUnitsByPieces }}</strong></span>
-                    </div>
-
-                    <div class="mt-3">
-                        <Button type="button" variant="outline" size="sm" class="rounded-full" @click="handleAddPieceClick">
-                            <Plus class="mr-1 h-3.5 w-3.5" />
-                            Agregar pieza
-                        </Button>
+                            <div v-if="localData.pieces.length > 0" class="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+                                <span
+                                    >Piezas: <strong class="text-foreground">{{ localData.pieces.length }}</strong></span
+                                >
+                                <span
+                                    >Uds. por pieza: <strong class="text-foreground">{{ totalUnitsByPieces }}</strong></span
+                                >
+                            </div>
+                        </div>
                     </div>
                 </div>
-
-                <!-- ── NOTAS GENERALES ── -->
-                <div class="mt-6 border-t border-border pt-4">
-                    <h3 class="mb-2 text-sm font-semibold text-foreground">Notas generales de corte</h3>
-                    <Textarea
-                        :model-value="localData.generalNotes ?? ''"
-                        placeholder="Instrucciones especiales, observaciones de trazo, etc."
-                        class="min-h-[80px]"
-                        @update:model-value="(v) => updateGeneralNotes(String(v))"
-                    />
-                </div>
-
-                </div><!-- /col-derecha -->
-                </div><!-- /grid -->
             </div>
 
             <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
@@ -950,27 +471,4 @@ watch(
             </DialogFooter>
         </FormDialogContent>
     </Dialog>
-
-    <AlertDialog v-model:open="isDeletePieceDialogOpen">
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>Eliminar pieza</AlertDialogTitle>
-                <AlertDialogDescription>Esta accion eliminara la pieza del despiece inmediatamente.</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogCancel as-child>
-                    <Button variant="outline" @click="closeDeletePieceDialog"> Cancelar </Button>
-                </AlertDialogCancel>
-                <AlertDialogAction as-child>
-                    <button
-                        type="button"
-                        class="inline-flex h-9 items-center justify-center rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90"
-                        @click.prevent.stop="confirmRemovePiece"
-                    >
-                        Eliminar
-                    </button>
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
 </template>

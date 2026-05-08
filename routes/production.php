@@ -16,6 +16,7 @@ use App\Http\Controllers\Production\TechnicalDataSheetController;
 use App\Http\Controllers\Production\TechnicalDataSheetRollsController;
 use App\Http\Controllers\Production\TechnicalDataSheetSuppliesController;
 use App\Http\Controllers\Production\TechnicalDataSheetThreadsController;
+use App\Http\Controllers\Production\ProductSheetCuttingPieceController;
 use App\Http\Controllers\Textil\FabricRollController;
 use Illuminate\Support\Facades\Route;
 
@@ -128,6 +129,14 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
     Route::delete('sabana-productos/{sabana}', [ProductSheetController::class, 'destroy'])
         ->middleware('permission:eliminar sabana productos')
         ->name('sabana-productos.destroy');
+
+    // Despiece de corte (ProductSheetCuttingPiece)
+    Route::get('sabana-productos/{productSheet}/despiece-corte', [ProductSheetCuttingPieceController::class, 'show'])
+        ->middleware('permission:ver sabana productos')
+        ->name('sabana-productos.despiece-corte.show');
+    Route::put('sabana-productos/{productSheet}/despiece-corte', [ProductSheetCuttingPieceController::class, 'update'])
+        ->middleware('permission:editar sabana productos')
+        ->name('sabana-productos.despiece-corte.update');
 
     // Colecciones
     Route::prefix('colecciones')->name('colecciones.')->group(function () {

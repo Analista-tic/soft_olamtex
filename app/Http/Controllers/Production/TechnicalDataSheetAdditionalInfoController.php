@@ -4,10 +4,11 @@ namespace App\Http\Controllers\Production;
 
 use App\Http\Controllers\Controller;
 use App\Models\Production\ProductionOrder;
+use App\Models\Production\ProductSheet;
 use App\Models\Production\TechnicalSheet;
-use App\Models\Production\TechnicalSheetCuttingPiece;
 use App\Models\Production\TechnicalSheetStampingImage;
 use App\Services\Production\TechnicalDataSheetAdditionalInfoStore;
+use App\Services\Production\ProductSheetCuttingPieceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,12 +17,13 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
 {
     public function __construct(
         private TechnicalDataSheetAdditionalInfoStore $store,
+        private ProductSheetCuttingPieceService $cuttingPieceService,
     ) {
     }
 
     public function show(int $opId): JsonResponse
     {
-        ProductionOrder::query()->findOrFail($opId);
+        $productionOrder = ProductionOrder::query()->findOrFail($opId);
 
         $data = $this->store->read($opId);
         $data['cutting'] = $this->emptyCuttingPayload();
@@ -30,17 +32,23 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
 
         if ($sheet) {
             $data['cutting']['params']['cutCostCop'] = $sheet->cut_cost !== null ? (float) $sheet->cut_cost : null;
+        }
 
-            // Piezas de corte: BD toma precedencia.
-            if ($sheet->cuttingPieces()->exists()) {
-                $data['cutting']['pieces'] = $sheet->cuttingPieces()
+        // Piezas de corte: Leer desde ProductSheet (source of truth en BD)
+        if ($productionOrder->productSheet) {
+            $productSheet = $productionOrder->productSheet;
+            if ($productSheet->cuttingPieces()->exists()) {
+                $data['cutting']['pieces'] = $productSheet->cuttingPieces()
+                    ->orderBy('sequence')
                     ->get()
-                    ->map(fn (TechnicalSheetCuttingPiece $p) => $this->mapPiece($p))
+                    ->map(fn ($p) => $this->mapPiece($p))
                     ->values()
                     ->all();
             }
+        }
 
-            // Tallas/unidades/curva: leer desde la tabla relacional (technical_sheet_sizes)
+        // Tallas/unidades/curva: leer desde la tabla relacional (technical_sheet_sizes)
+        if ($sheet) {
             $dbSizes = $sheet->sizes()->get()->map(fn ($s) => [
                 'size'  => $s->size,
                 'units' => (int) $s->units,
@@ -67,7 +75,7 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
 
     public function store(int $opId, Request $request): JsonResponse
     {
-        ProductionOrder::query()->findOrFail($opId);
+        $productionOrder = ProductionOrder::query()->findOrFail($opId);
 
         $validated = $request->validate([
             'cutting'                        => ['required', 'array'],
@@ -108,9 +116,11 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
 
         $this->syncCuttingMetaToDb($opId, $validated['cutting'] ?? []);
 
-        // 2. Sincronizar piezas en BD (source of truth para el despiece de corte)
-        $pieces = is_array($validated['cutting']['pieces'] ?? null) ? $validated['cutting']['pieces'] : [];
-        $this->syncCuttingPiecesToDb($opId, $pieces);
+        // 2. Sincronizar piezas en BD usando ProductSheet (source of truth para el despiece de corte)
+        if ($productionOrder->productSheet) {
+            $pieces = is_array($validated['cutting']['pieces'] ?? null) ? $validated['cutting']['pieces'] : [];
+            $this->syncCuttingPiecesToProductSheet($opId, $productionOrder->productSheet, $pieces);
+        }
 
         // 2b. Sincronizar tallas/unidades/curva a nivel de ficha (tabla technical_sheet_sizes)
         $sizes = is_array($validated['cutting']['sizes'] ?? null) ? $validated['cutting']['sizes'] : [];
@@ -118,7 +128,6 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
 
         // 3. Sincronizar imágenes de estampado en BD (source of truth para imágenes del diálogo)
         $this->syncStampingImagesToDB($opId, $validated['stamping'] ?? []);
-
 
         // 4. Responder con datos frescos: JSON + datos normalizados desde BD
         $responseData = $this->store->read($opId);
@@ -128,11 +137,18 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
         if ($sheet) {
             $responseData['cutting']['params']['cutCostCop'] = $sheet->cut_cost !== null ? (float) $sheet->cut_cost : null;
 
-            $responseData['cutting']['pieces'] = $sheet->cuttingPieces()
-                ->get()
-                ->map(fn (TechnicalSheetCuttingPiece $p) => $this->mapPiece($p))
-                ->values()
-                ->all();
+            // Piezas desde ProductSheet
+            if ($productionOrder->productSheet) {
+                $productSheet = $productionOrder->productSheet;
+                if ($productSheet->cuttingPieces()->exists()) {
+                    $responseData['cutting']['pieces'] = $productSheet->cuttingPieces()
+                        ->orderBy('sequence')
+                        ->get()
+                        ->map(fn ($p) => $this->mapPiece($p))
+                        ->values()
+                        ->all();
+                }
+            }
 
             // Agregar tallas/unidades/curva desde la tabla relacional
             $dbSizes = $sheet->sizes()->get()->map(fn ($s) => [
@@ -220,49 +236,35 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
     // ─── Helpers privados ──────────────────────────────────────────────────────
 
     /**
-     * Sincroniza el array de piezas del payload con la tabla technical_sheet_cutting_pieces.
+     * Sincroniza piezas de corte al ProductSheet usando ProductSheetCuttingPieceService.
      */
-    private function syncCuttingPiecesToDb(int $opId, array $pieces): void
+    private function syncCuttingPiecesToProductSheet(int $opId, ProductSheet $productSheet, array $pieces): void
     {
-        $sheet = TechnicalSheet::firstOrCreate(
-            ['production_order_id' => $opId],
-            ['status'              => TechnicalSheet::STATUS_DRAFT],
-        );
-
-        DB::transaction(function () use ($sheet, $pieces) {
-            $incomingUids = collect($pieces)
-                ->pluck('id')
-                ->filter()
-                ->unique()
-                ->values();
-
-            // Eliminar piezas que ya no están en el payload
-            $sheet->cuttingPieces()
-                ->whereNotIn('piece_uid', $incomingUids)
-                ->delete();
-
-            foreach ($pieces as $index => $item) {
-                $uid  = $item['id'];
-                $side = $item['side'] ?? 'AMBOS';
-
-                $sheet->cuttingPieces()->updateOrCreate(
-                    ['piece_uid' => $uid],
-                    [
-                        'sequence'       => $index,
-                        'name'           => $item['name'],
-                        'piece_type'     => $item['type'] ?? 'PRINCIPAL',
-                        'fabric_uid'     => $item['fabricUid'] ?? null,
-                        'side'           => $side,
-                        'grain'          => $item['grain'] ?? '90',
-                        'quantity'       => $this->quantityFromSide($side),
-                        'notes'          => $item['notes'] ?? null,
-                    ],
-                );
-            }
-        });
+        $piecesPayload = [];
+        
+        foreach ($pieces as $index => $item) {
+            $uid = $item['id'];
+            $side = $item['side'] ?? 'AMBOS';
+            
+            $piecesPayload[] = [
+                'piece_uid' => $uid,
+                'sequence' => $index,
+                'name' => $item['name'],
+                'piece_type' => $item['type'] ?? 'PRINCIPAL',
+                'fabric_type' => 'PRINCIPAL',
+                'fabric_uid' => $item['fabricUid'] ?? null,
+                'trace_location' => null,
+                'side' => $side,
+                'grain' => $item['grain'] ?? '90',
+                'quantity' => $this->quantityFromSide($side),
+                'notes' => $item['notes'] ?? null,
+            ];
+        }
+        
+        $this->cuttingPieceService->syncCuttingPieces($productSheet->id, $piecesPayload);
     }
 
-    private function mapPiece(TechnicalSheetCuttingPiece $p): array
+    private function mapPiece($p): array
     {
         return [
             'id'            => (string) ($p->piece_uid ?? $p->id),

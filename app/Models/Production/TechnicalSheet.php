@@ -123,14 +123,6 @@ class TechnicalSheet extends Model
     }
 
     /**
-     * Piezas de despiece de trazo de corte (tabla relacional, source of truth).
-     */
-    public function cuttingPieces()
-    {
-        return $this->hasMany(TechnicalSheetCuttingPiece::class)->orderBy('sequence');
-    }
-
-    /**
      * Tallas/unidades/curva de la ficha (source of truth para el desglose de corte).
      */
     public function sizes()

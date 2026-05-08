@@ -99,6 +99,14 @@ class ProductSheet extends Model
     }
 
     /**
+     * Piezas de corte (despiece) relacionadas a esta sábana.
+     */
+    public function cuttingPieces()
+    {
+        return $this->hasMany(ProductSheetCuttingPiece::class, 'product_sheet_id');
+    }
+
+    /**
      * Indica si la ficha tiene órdenes de producción asociadas.
      */
     public function hasProductionOrders(): bool

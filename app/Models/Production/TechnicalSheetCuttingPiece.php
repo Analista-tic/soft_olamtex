@@ -4,7 +4,28 @@ namespace App\Models\Production;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Pieza de despiece de trazo de corte vinculada a la ficha técnica.
+ * ⚠️  DEPRECATED - Eliminada del flujo de negocio en Phase 5
+ * 
+ * Esta clase se reemplazó con ProductSheetCuttingPiece que se relaciona
+ * con ProductSheet en lugar de TechnicalSheet (Phase 3-4).
+ * 
+ * Migraciones legacy:
+ * - 2026_03_19_000001_create_technical_sheet_cutting_pieces_table.php
+ * - 2026_03_25_000001_create_technical_sheet_cutting_piece_sizes_table.php
+ * 
+ * Drop migration creada (Phase 5):
+ * - 2026_05_08_000001_drop_technical_sheet_cutting_tables.php
+ * 
+ * Relaciones removidas:
+ * - TechnicalSheet::cuttingPieces() (eliminada en Phase 5)
+ * - TechnicalDataSheetAdditionalInfoController::syncCuttingPiecesToDb() (eliminada en Phase 5)
+ * 
+ * Reemplazos activos:
+ * - ProductSheetCuttingPiece ← nueva source of truth
+ * - ProductSheetCuttingPieceService ← sincronización
+ * - ProductSheetCuttingPieceController ← endpoints REST
+ * 
+ * Pieza de despiece de trazo de corte vinculada a la ficha técnica (LEGACY).
  *
  * @property int         $id
  * @property int         $technical_sheet_id

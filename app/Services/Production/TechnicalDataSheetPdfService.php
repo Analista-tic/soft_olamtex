@@ -180,27 +180,33 @@ class TechnicalDataSheetPdfService
     {
         $data = $this->additionalInfoStore->read($opId);
 
+        $order = ProductionOrder::find($opId);
         $sheet = TechnicalSheet::where('production_order_id', $opId)->first();
+
         if (!$sheet) {
             return $data;
         }
 
-        // Piezas de corte desde BD
-        if ($sheet->cuttingPieces()->exists()) {
-            $data['cutting']['pieces'] = $sheet->cuttingPieces()
-                ->get()
-                ->map(fn(TechnicalSheetCuttingPiece $p) => [
-                    'id'        => (string) ($p->piece_uid ?? $p->id),
-                    'name'      => $p->name,
-                    'type'      => $p->piece_type,
-                    'fabricUid' => $p->fabric_uid,
-                    'side'      => $p->side,
-                    'grain'     => $p->grain,
-                    'quantity'  => $p->quantity,
-                    'notes'     => $p->notes,
-                ])
-                ->values()
-                ->all();
+        // Piezas de corte desde ProductSheet (nueva source of truth)
+        if ($order && $order->productSheet) {
+            $productSheet = $order->productSheet;
+            if ($productSheet->cuttingPieces()->exists()) {
+                $data['cutting']['pieces'] = $productSheet->cuttingPieces()
+                    ->orderBy('sequence')
+                    ->get()
+                    ->map(fn($p) => [
+                        'id'        => (string) ($p->piece_uid ?? $p->id),
+                        'name'      => $p->name,
+                        'type'      => $p->piece_type,
+                        'fabricUid' => $p->fabric_uid,
+                        'side'      => $p->side,
+                        'grain'     => $p->grain,
+                        'quantity'  => $p->quantity,
+                        'notes'     => $p->notes,
+                    ])
+                    ->values()
+                    ->all();
+            }
         }
 
         // Tallas/unidades/curva desde BD

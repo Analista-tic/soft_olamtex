@@ -3,7 +3,6 @@ import axios from 'axios';
 import { PlusCircle } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
-import CreateProductSheetDialog from '../ProductSheets/ProductSheetDialog.vue';
 import EcommerceSizesDialog from './EcommerceSizesDialog.vue';
 
 import AlertStack from '@/components/common/AlertStack.vue';
@@ -345,36 +344,56 @@ function monthToNumber(month: string | number | null | undefined): number | null
     return null;
 }
 
-function getPriorityDays(priority: string | null | undefined): number | null {
-    if (!priority) return null;
+// function getPriorityDays(priority: string | null | undefined): number | null {
+//     if (!priority) return null;
 
-    const upper = (normalizeOptionToName(priority, priorityOptions.value) ?? String(priority)).toUpperCase().trim();
-    const mapping: Record<string, number> = {
-        A: 45,
-        B: 30,
-        C: 15,
-        D: 10,
-    };
-    return mapping[upper] || null;
-}
+//     const upper = (normalizeOptionToName(priority, priorityOptions.value) ?? String(priority)).toUpperCase().trim();
+//     const mapping: Record<string, number> = {
+//         A: 45,
+//         B: 30,
+//         C: 15,
+//         D: 10,
+//     };
+//     return mapping[upper] || null;
+// }
 
+//Cálculo de fecha estimada de entrega del programador basado en temporada y prioridad, según reglas definidas (A: -1 mes y 20 días, B: -1 mes y 27 días, C: 0 meses y 3 días, D: 0 meses y 10 días)
 function calculateEstimatedDeliveryDate(season: string | number | null | undefined, priority: string | null | undefined): string | null {
     const monthNum = monthToNumber(season);
-    const days = getPriorityDays(priority);
 
-    if (monthNum === null || days === null) return null;
+    if (monthNum === null || !priority) return null;
+
+    // 🔥 SOLUCIÓN: Traducimos el ID interno a la letra real de la prioridad (A, B, C, D)
+    const priorityName = normalizeOptionToName(priority, priorityOptions.value) ?? String(priority);
+    const upperPriority = priorityName.toUpperCase().trim();
+
+    const rules: Record<string, { monthOffset: number; day: number }> = {
+        A: { monthOffset: -1, day: 20 },
+        B: { monthOffset: -1, day: 27 },
+        C: { monthOffset: 0, day: 3 },
+        D: { monthOffset: 0, day: 10 },
+    };
+
+    const rule = rules[upperPriority];
+    if (!rule) return null; // Si no es A, B, C o D, no hace nada
 
     const now = new Date();
-    let year = now.getFullYear();
+    let targetYear = now.getFullYear();
 
+    // Lógica para saber si la temporada es para el próximo año
     if (monthNum < now.getMonth() + 1) {
-        year += 1;
+        targetYear += 1;
     }
 
-    const baseDate = new Date(year, monthNum - 1, 1);
-    baseDate.setDate(baseDate.getDate() + days);
+    // Calculamos la fecha final
+    const finalDate = new Date(targetYear, monthNum - 1 + rule.monthOffset, rule.day);
 
-    return baseDate.toISOString().split('T')[0];
+    // Formateamos la fecha a YYYY-MM-DD (Es más seguro que toISOString para evitar cambios de zona horaria)
+    const yyyy = finalDate.getFullYear();
+    const mm = String(finalDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(finalDate.getDate()).padStart(2, '0');
+
+    return `${yyyy}-${mm}-${dd}`;
 }
 
 function updateEstimatedDeliveryDate(lotIndex: number) {
@@ -732,32 +751,6 @@ watch(
                                     @update:modelValue="generateLots"
                                 />
                             </div>
-
-                            <!-- Acción -->
-                            <div class="flex flex-col gap-1.5">
-                                <span class="text-sm font-medium leading-tight text-foreground">Accion</span>
-                                <Button
-                                    variant="outline"
-                                    class="h-10 rounded-full px-4 text-sm font-semibold"
-                                    type="button"
-                                    @click="productSheetDialogOpen = true"
-                                >
-                                    Crear Sabana de Productos
-                                </Button>
-
-                                <CreateProductSheetDialog
-                                    mode="create"
-                                    :sections="props.sections"
-                                    :groups="props.groups"
-                                    :brands="props.brands"
-                                    :worlds="props.worlds"
-                                    :fabricBases="props.fabricBases"
-                                    :yarnBases="props.yarnBases"
-                                    :open="productSheetDialogOpen"
-                                    @update:open="(value) => (productSheetDialogOpen = value)"
-                                    @productSheetSaved="addProductSheet"
-                                />
-                            </div>
                         </div>
 
                         <!-- Detalles product sheet -->
@@ -882,6 +875,9 @@ watch(
                                                 v-model="lot.priority"
                                                 :options="priorityOptions"
                                                 label=""
+                                                placeholder="Selecciona..."
+                                                :clearable="true"
+                                                :invalid="!lot.priority"
                                                 :aria-label="`Prioridad para lote ${index + 1}`"
                                                 @update:modelValue="
                                                     (value) => {
