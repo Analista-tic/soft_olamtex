@@ -6,19 +6,24 @@ use App\Helpers\MonthLabel;
 use App\Http\Controllers\Controller;
 use App\Models\Production\ProductionOrder;
 use App\Models\Production\ProductOperationList;
+use App\Models\Textil\FabricRoll;
 use App\Services\Production\OperationSectionService;
 use App\Services\Production\ProductionOrderService;
 use App\Services\Production\TechnicalDataSheetPdfService;
 use App\Services\Production\TechnicalDataSheetProcessesStore;
 use App\Services\Production\TechnicalDataSheetRawMaterialsStore;
+use App\Services\Production\TechnicalDataSheetRollsStore;
 use App\Services\Production\TechnicalSheetService;
 use App\Services\Settings\SettingService;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection as SupportCollection;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -42,6 +47,7 @@ class TechnicalDataSheetController extends Controller
         private TechnicalSheetService $technicalSheetService,
         private TechnicalDataSheetProcessesStore $processesStore,
         private TechnicalDataSheetRawMaterialsStore $rawMaterialsStore,
+        private TechnicalDataSheetRollsStore $rollsStore,
         private TechnicalDataSheetPdfService $pdfService,
     ) {}
 
@@ -523,7 +529,57 @@ class TechnicalDataSheetController extends Controller
     public function rawMaterialsSummary(int $opId): JsonResponse
     {
         ProductionOrder::query()->findOrFail($opId);
-        return response()->json(['rows' => $this->rawMaterialsStore->read($opId)]);
+
+        $fabricTypeOptions = $this->settingService
+            ->getCatalogOptions('type_of_fabric')
+            ->keyBy(fn(array $option) => (string) ($option['id'] ?? ''));
+
+        $normalizeFabricType = function (mixed $value) use ($fabricTypeOptions): array {
+            $fabricTypeParameterId = $value;
+            if ($fabricTypeParameterId === '') {
+                $fabricTypeParameterId = null;
+            }
+
+            if (is_numeric($fabricTypeParameterId)) {
+                $fabricTypeParameterId = (int) $fabricTypeParameterId;
+            }
+
+            $fabricTypeOption = $fabricTypeParameterId !== null
+                ? $fabricTypeOptions->get((string) $fabricTypeParameterId)
+                : null;
+
+            return [
+                'id' => $fabricTypeParameterId,
+                'name' => is_array($fabricTypeOption) ? ($fabricTypeOption['name'] ?? null) : null,
+            ];
+        };
+
+        $rows = array_map(function (array $row) use ($normalizeFabricType) {
+            $fabricType = $normalizeFabricType($row['fabric_type_parameter_id'] ?? $row['fabricTypeParameterId'] ?? null);
+
+            $row['fabricTypeParameterId'] = $fabricType['id'];
+            $row['fabricTypeParameterName'] = $fabricType['name'];
+
+            unset($row['fabric_type_parameter_id']);
+
+            return $row;
+        }, $this->rawMaterialsStore->read($opId));
+
+        $traces = array_map(function (array $trace) use ($normalizeFabricType) {
+            $fabricType = $normalizeFabricType($trace['fabric_type_parameter_id'] ?? $trace['fabricTypeParameterId'] ?? null);
+
+            return [
+                'uid' => isset($trace['uid']) ? (string) $trace['uid'] : null,
+                'trazo' => isset($trace['trazo']) ? (string) $trace['trazo'] : null,
+                'promTrazo' => $trace['promTrazo'] ?? null,
+                'largoTrazo' => $trace['largoTrazo'] ?? null,
+                'largoLiq' => $trace['largoLiq'] ?? null,
+                'fabricTypeParameterId' => $fabricType['id'],
+                'fabricTypeParameterName' => $fabricType['name'],
+            ];
+        }, $this->rawMaterialsStore->readTraces($opId));
+
+        return response()->json(['rows' => $rows, 'traces' => $traces]);
     }
 
     /**
@@ -532,9 +588,15 @@ class TechnicalDataSheetController extends Controller
     public function saveRawMaterials(Request $request, int $opId): JsonResponse
     {
         ProductionOrder::query()->findOrFail($opId);
+
+        $fabricTypeOptions = $this->settingService
+            ->getCatalogOptions('type_of_fabric')
+            ->keyBy(fn(array $option) => (string) ($option['id'] ?? ''));
+
         $validated = $request->validate([
             'rows' => ['required', 'array'],
             'rows.*.uid' => ['nullable', 'string', 'max:100'],
+            'rows.*.traceUid' => ['nullable', 'string', 'max:100'],
             'rows.*.telaItemId' => ['nullable', 'integer'],
             'rows.*.tela' => ['nullable', 'string', 'max:255'],
             'rows.*.trazo' => ['nullable', 'string', 'max:100'],
@@ -547,9 +609,135 @@ class TechnicalDataSheetController extends Controller
             'rows.*.largoTrazo' => ['nullable', 'numeric', 'min:0'],
             'rows.*.largoLiq' => ['nullable', 'numeric', 'min:0'],
             'rows.*.consumo' => ['nullable', 'numeric', 'min:0'],
+            'rows.*.fabricTypeParameterId' => [
+                'nullable',
+                function (string $attribute, mixed $value, \Closure $fail) use ($fabricTypeOptions) {
+                    if ($value === null || $value === '') {
+                        return;
+                    }
+
+                    if (!$fabricTypeOptions->has((string) $value)) {
+                        $fail("El valor seleccionado en {$attribute} no existe en el catálogo de tipo de tela.");
+                    }
+                },
+            ],
+            'traces' => ['sometimes', 'array'],
+            'traces.*.uid' => ['nullable', 'string', 'max:100'],
+            'traces.*.trazo' => ['nullable', 'string', 'max:100'],
+            'traces.*.promTrazo' => ['nullable', 'numeric', 'min:0'],
+            'traces.*.largoTrazo' => ['nullable', 'numeric', 'min:0'],
+            'traces.*.largoLiq' => ['nullable', 'numeric', 'min:0'],
+            'traces.*.fabricTypeParameterId' => [
+                'nullable',
+                function (string $attribute, mixed $value, \Closure $fail) use ($fabricTypeOptions) {
+                    if ($value === null || $value === '') {
+                        return;
+                    }
+
+                    if (!$fabricTypeOptions->has((string) $value)) {
+                        $fail("El valor seleccionado en {$attribute} no existe en el catÃ¡logo de tipo de tela.");
+                    }
+                },
+            ],
+            'rollState' => ['sometimes', 'array'],
+            'rollState.rolls' => ['required_with:rollState', 'array'],
+            'rollState.rolls.*.id' => ['nullable', 'string', 'max:100'],
+            'rollState.rolls.*.consecutive' => ['nullable', 'string', 'max:120'],
+            'rollState.rolls.*.type' => ['required_with:rollState.rolls', 'in:PRINCIPAL,SECUNDARIA'],
+            'rollState.rolls.*.fabricName' => ['required_with:rollState.rolls', 'string', 'max:200'],
+            'rollState.rolls.*.averageTrace' => ['nullable', 'numeric', 'min:0'],
+            'rollState.rolls.*.factor' => ['nullable', 'numeric', 'min:0'],
+            'rollState.rolls.*.consumptionBase' => ['required_with:rollState.rolls', 'numeric', 'min:0'],
+            'rollState.rolls.*.pricePerMeter' => ['required_with:rollState.rolls', 'numeric', 'min:0'],
+            'rollState.rolls.*.programmedMeters' => ['nullable', 'numeric', 'min:0'],
+            'rollState.rolls.*.colors' => ['nullable', 'string', 'max:200'],
+            'rollState.rolls.*.availableMeters' => ['nullable', 'numeric', 'min:0'],
+            'rollState.rolls.*.balanceMeters' => ['nullable', 'numeric'],
+            'rollState.rolls.*.color' => ['nullable', 'string', 'max:120'],
+            'rollState.rolls.*.colorCode' => ['nullable', 'string', 'max:120'],
+            'rollState.rolls.*.widthCm' => ['nullable', 'numeric', 'min:0'],
+            'rollState.rolls.*.supplier' => ['nullable', 'string', 'max:200'],
+            'rollState.rolls.*.notes' => ['nullable', 'string', 'max:1000'],
+            'rollState.rolls.*.rawMaterialUid' => ['nullable', 'string', 'max:100'],
+            'rollState.rolls.*.fabricItemId' => ['nullable'],
+            'rollState.rolls.*.rollId' => ['nullable'],
+            'rollState.rolls.*.location' => ['nullable', 'string', 'max:100'],
+            'rollState.deletedIds' => ['nullable', 'array'],
+            'rollState.deletedIds.*' => ['string', 'max:100'],
         ]);
-        $this->rawMaterialsStore->write($opId, $validated['rows']);
-        return response()->json(['rows' => $this->rawMaterialsStore->read($opId)]);
+
+        $rowsToPersist = array_map(function (array $row) {
+            $fabricTypeParameterId = $row['fabricTypeParameterId'] ?? null;
+            if ($fabricTypeParameterId === '') {
+                $fabricTypeParameterId = null;
+            }
+
+            if (is_numeric($fabricTypeParameterId)) {
+                $fabricTypeParameterId = (int) $fabricTypeParameterId;
+            }
+
+            unset($row['fabricTypeParameterId'], $row['fabricTypeParameterName']);
+            $row['fabric_type_parameter_id'] = $fabricTypeParameterId;
+
+            return $row;
+        }, $validated['rows']);
+
+        $tracesSource = $validated['traces'] ?? null;
+        if ($tracesSource === null) {
+            $traceMap = [];
+            foreach ($rowsToPersist as $row) {
+                $traceUid = isset($row['traceUid']) && trim((string) $row['traceUid']) !== ''
+                    ? trim((string) $row['traceUid'])
+                    : null;
+                $trazo = isset($row['trazo']) ? trim((string) $row['trazo']) : '';
+                $groupKey = $traceUid ?? ($trazo !== '' ? "trazo:{$trazo}" : null);
+
+                if ($groupKey === null || isset($traceMap[$groupKey])) {
+                    continue;
+                }
+
+                $traceMap[$groupKey] = [
+                    'uid' => $traceUid,
+                    'trazo' => $row['trazo'] ?? null,
+                    'promTrazo' => $row['promTrazo'] ?? null,
+                    'largoTrazo' => $row['largoTrazo'] ?? null,
+                    'largoLiq' => $row['largoLiq'] ?? null,
+                    'fabric_type_parameter_id' => $row['fabric_type_parameter_id'] ?? null,
+                ];
+            }
+
+            $tracesSource = array_values($traceMap);
+        }
+
+        $tracesToPersist = array_map(function (array $trace) {
+            $fabricTypeParameterId = $trace['fabricTypeParameterId'] ?? $trace['fabric_type_parameter_id'] ?? null;
+            if ($fabricTypeParameterId === '') {
+                $fabricTypeParameterId = null;
+            }
+
+            if (is_numeric($fabricTypeParameterId)) {
+                $fabricTypeParameterId = (int) $fabricTypeParameterId;
+            }
+
+            return [
+                'uid' => isset($trace['uid']) ? trim((string) $trace['uid']) : null,
+                'trazo' => isset($trace['trazo']) ? trim((string) $trace['trazo']) : null,
+                'promTrazo' => $trace['promTrazo'] ?? null,
+                'largoTrazo' => $trace['largoTrazo'] ?? null,
+                'largoLiq' => $trace['largoLiq'] ?? null,
+                'fabric_type_parameter_id' => $fabricTypeParameterId,
+            ];
+        }, is_array($tracesSource) ? $tracesSource : []);
+
+        DB::transaction(function () use ($opId, $rowsToPersist, $tracesToPersist, $validated) {
+            $this->rawMaterialsStore->write($opId, $rowsToPersist, $tracesToPersist);
+
+            if (is_array($validated['rollState'] ?? null)) {
+                $this->persistRollState($opId, $validated['rollState']);
+            }
+        });
+
+        return $this->rawMaterialsSummary($opId);
     }
 
     /**
@@ -641,6 +829,141 @@ class TechnicalDataSheetController extends Controller
         return route('storage.file.show', ['path' => $path]);
     }
 
+    private function persistRollState(int $opId, array $state): void
+    {
+        $payload = $this->rollsStore->read($opId);
+        $existing = is_array($payload['lines'] ?? null) ? $payload['lines'] : [];
+        $existingById = [];
+
+        foreach ($existing as $line) {
+            $lineId = trim((string) ($line['id'] ?? ''));
+            if ($lineId === '') {
+                continue;
+            }
+
+            $existingById[$lineId] = $line;
+        }
+
+        $deletedIds = collect($state['deletedIds'] ?? [])
+            ->map(fn($id) => trim((string) $id))
+            ->filter(fn($id) => $id !== '')
+            ->values()
+            ->all();
+        $deletedLookup = array_fill_keys($deletedIds, true);
+
+        $now = Carbon::now()->toISOString();
+        $nextLines = [];
+
+        foreach (($state['rolls'] ?? []) as $row) {
+            $rawId = trim((string) ($row['id'] ?? ''));
+            $lineId = $rawId !== '' ? $rawId : (string) Str::uuid();
+            if (isset($deletedLookup[$lineId])) {
+                continue;
+            }
+
+            $previous = $existingById[$lineId] ?? null;
+            $nextLines[] = [
+                'id' => $lineId,
+                'consecutive' => $this->nullableText($row['consecutive'] ?? null),
+                'type' => (string) $row['type'],
+                'fabricName' => trim((string) $row['fabricName']),
+                'averageTrace' => $this->nullableNumber($row['averageTrace'] ?? null),
+                'factor' => $this->nullableNumber($row['factor'] ?? null),
+                'consumptionBase' => (float) $row['consumptionBase'],
+                'pricePerMeter' => (float) $row['pricePerMeter'],
+                'programmedMeters' => $this->nullableNumber($row['programmedMeters'] ?? null),
+                'colors' => $this->nullableText($row['colors'] ?? null),
+                'availableMeters' => $this->nullableNumber($row['availableMeters'] ?? null),
+                'balanceMeters' => $this->nullableNumber($row['balanceMeters'] ?? null),
+                'color' => $this->nullableText($row['color'] ?? null),
+                'colorCode' => $this->nullableText($row['colorCode'] ?? null),
+                'widthCm' => $this->nullableNumber($row['widthCm'] ?? null),
+                'supplier' => $this->nullableText($row['supplier'] ?? null),
+                'extraMeters' => is_numeric($row['extraMeters'] ?? null) ? (float) $row['extraMeters'] : 0.0,
+                'notes' => $this->nullableText($row['notes'] ?? null),
+                'rawMaterialUid' => $this->nullableText($row['rawMaterialUid'] ?? null),
+                'fabricItemId' => $row['fabricItemId'] ?? null,
+                'rollId' => $row['rollId'] ?? null,
+                'location' => $this->nullableText($row['location'] ?? null),
+                'updatedAt' => $now,
+                'createdAt' => $previous['createdAt'] ?? $now,
+            ];
+        }
+
+        $existingByRollId = [];
+        foreach ($existing as $line) {
+            $rollId = isset($line['rollId']) ? trim((string) $line['rollId']) : '';
+            if ($rollId === '' || !is_numeric($rollId)) {
+                continue;
+            }
+
+            $meters = is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : 0.0;
+            $existingByRollId[$rollId] = ($existingByRollId[$rollId] ?? 0.0) + $meters;
+        }
+
+        $newByRollId = [];
+        foreach ($nextLines as $line) {
+            $rollId = isset($line['rollId']) ? trim((string) $line['rollId']) : '';
+            if ($rollId === '' || !is_numeric($rollId)) {
+                continue;
+            }
+
+            $meters = is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : 0.0;
+            $newByRollId[$rollId] = ($newByRollId[$rollId] ?? 0.0) + $meters;
+        }
+
+        $numericRollIds = array_values(array_filter(
+            array_map(
+                fn(string $rollId) => is_numeric($rollId) ? (int) $rollId : null,
+                array_unique(array_merge(array_keys($existingByRollId), array_keys($newByRollId))),
+            ),
+            fn($value) => $value !== null,
+        ));
+
+        if ($numericRollIds !== []) {
+            $rolls = FabricRoll::lockForUpdate()
+                ->whereIn('id', $numericRollIds)
+                ->get()
+                ->keyBy('id');
+
+            foreach ($numericRollIds as $numericRollId) {
+                $rollId = (string) $numericRollId;
+                /** @var FabricRoll|null $roll */
+                $roll = $rolls->get($numericRollId);
+                if (!$roll) {
+                    continue;
+                }
+
+                $oldMeters = $existingByRollId[$rollId] ?? 0.0;
+                $newMeters = $newByRollId[$rollId] ?? 0.0;
+                $delta = $newMeters - $oldMeters;
+
+                if (abs($delta) < 0.001) {
+                    continue;
+                }
+
+                $currentPartial = (float) $roll->partial_output;
+                $newPartial = round(max(0.0, $currentPartial + $delta), 2);
+
+                if ($newPartial > (float) $roll->quantity + 0.001) {
+                    $available = round(max(0.0, (float) $roll->quantity - $currentPartial), 2);
+                    throw ValidationException::withMessages([
+                        'rolls' => [
+                            "Rollo {$roll->roll_number}: disponibilidad parcial insuficiente "
+                            . "({$available} m disponibles, se intentan asignar {$newMeters} m).",
+                        ],
+                    ]);
+                }
+
+                $roll->partial_output = $newPartial;
+                $roll->save();
+            }
+        }
+
+        $payload['lines'] = array_values($nextLines);
+        $this->rollsStore->write($opId, $payload);
+    }
+
     private function nullableText(mixed $value): ?string
     {
         if (!is_string($value)) {
@@ -649,6 +972,15 @@ class TechnicalDataSheetController extends Controller
         $text = trim($value);
 
         return $text !== '' ? $text : null;
+    }
+
+    private function nullableNumber(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return is_numeric($value) ? (float) $value : null;
     }
 
     private function normalizeSizes(mixed $sizes): array

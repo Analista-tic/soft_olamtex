@@ -56,6 +56,7 @@ class UpdateProgrammerRequest extends FormRequest
         return [
             'product_sheet_id' => ['sometimes', 'exists:product_sheets,id'],
             'season' => ['sometimes', 'string', 'max:255'],
+            'dispatch_month' => ['sometimes', 'nullable', 'string', 'max:255'],
             'destination_id' => ['sometimes', 'integer', 'min:1'],
             'priority' => [
                 'sometimes',
@@ -66,6 +67,8 @@ class UpdateProgrammerRequest extends FormRequest
             ],
             'units' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'estimated_delivery_date' => ['sometimes', 'nullable', 'date'],
+            'is_advance' => ['sometimes', 'boolean'],
+            'notes' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'ecommerce_units' => ['sometimes', 'nullable'],
             'status' => ['sometimes', 'string', Rule::in(self::STATUSES)],
         ];

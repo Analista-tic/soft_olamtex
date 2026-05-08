@@ -361,8 +361,11 @@ class BatchControlController extends Controller
                     'delivered_by' => $request->user()?->id,
                 ]);
 
+                $isFlowCompleted = $this->hasCompletedFlow($order, $fromProcess, $toProcess);
+
                 $order->update([
                     'current_process' => $toProcess,
+                    'status' => $isFlowCompleted ? 'complete' : 'incomplete',
                 ]);
 
                 if ($this->shouldCreateFinishedProductCatalogItem($fromProcess, $toProcess)) {
@@ -380,6 +383,7 @@ class BatchControlController extends Controller
             'data' => [
                 'id' => $order->id,
                 'current_process' => $toProcess,
+                'status' => $order->fresh()?->status,
             ],
         ]);
     }
@@ -388,6 +392,54 @@ class BatchControlController extends Controller
     {
         return $fromProcess !== $toProcess
             && $toProcess === 'Bodega';
+    }
+
+    /**
+     * Marca completa solo cuando la orden ya pasó por todos los procesos de su flujo real.
+     */
+    private function hasCompletedFlow(ProductionOrder $order, string $fromProcess, string $toProcess): bool
+    {
+        $processes = config('product-sheet.batch_control_processes', []);
+        $aliases = config('product-sheet.batch_control_process_aliases', []);
+
+        $productSheet = $order->productSheet;
+        $rawProcesses = $productSheet?->processes ?? [];
+        if (is_string($rawProcesses)) {
+            $decoded = json_decode($rawProcesses, true);
+            $rawProcesses = is_array($decoded) ? $decoded : [];
+        }
+
+        $flow = $this->productSheetProcessesForFlow(
+            is_array($rawProcesses) ? $rawProcesses : [],
+            is_array($processes) ? $processes : [],
+            is_array($aliases) ? $aliases : [],
+            $productSheet?->type ?? 'producto',
+        );
+
+        if (empty($flow)) {
+            return false;
+        }
+
+        $visited = BatchControlDelivery::query()
+            ->where('production_order_id', $order->id)
+            ->pluck('to_process')
+            ->map(fn ($process) => $this->normalizeBatchProcessName(is_string($process) ? $process : null))
+            ->filter()
+            ->values()
+            ->all();
+
+        $visited[] = $this->normalizeBatchProcessName($fromProcess);
+        $visited[] = $this->normalizeBatchProcessName($toProcess);
+
+        $visitedSet = array_flip(array_values(array_unique(array_filter($visited, fn ($p) => is_string($p) && $p !== ''))));
+
+        foreach ($flow as $flowProcess) {
+            if (!isset($visitedSet[$flowProcess])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

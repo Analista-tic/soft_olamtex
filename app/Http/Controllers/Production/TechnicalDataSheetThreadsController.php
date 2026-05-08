@@ -12,14 +12,6 @@ use Illuminate\Support\Str;
 
 class TechnicalDataSheetThreadsController extends Controller
 {
-    private const DEFAULT_THREAD_NAMES = [
-        'Pespunte / Amarre',
-        'Filetes',
-        'Ojales',
-        'Presilla',
-        'Puntada Seguridad',
-    ];
-
     public function __construct(
         private TechnicalDataSheetThreadsStore $store,
     ) {
@@ -30,7 +22,7 @@ class TechnicalDataSheetThreadsController extends Controller
         ProductionOrder::query()->findOrFail($opId);
 
         $payload = $this->store->read($opId);
-        $lines = $this->ensureDefaultLines(is_array($payload['lines'] ?? null) ? $payload['lines'] : []);
+        $lines = is_array($payload['lines'] ?? null) ? $payload['lines'] : [];
 
         return response()->json([
             'lines' => array_values(array_map(fn(array $line) => $this->normalizeLine($line), $lines)),
@@ -44,7 +36,7 @@ class TechnicalDataSheetThreadsController extends Controller
         $validated = $request->validate([
             'threads' => ['required', 'array'],
             'threads.*.id' => ['nullable', 'string', 'max:100'],
-            'threads.*.threadName' => ['required', 'string', 'max:200'],
+            'threads.*.threadName' => ['nullable', 'string', 'max:200'],
             'threads.*.gauge' => ['nullable', 'numeric', 'min:0'],
             'threads.*.brand' => ['nullable', 'string', 'max:200'],
             'threads.*.color' => ['nullable', 'string', 'max:120'],
@@ -97,7 +89,7 @@ class TechnicalDataSheetThreadsController extends Controller
             ];
         }
 
-        $payload['lines'] = $this->ensureDefaultLines(array_values($nextLines));
+        $payload['lines'] = array_values($nextLines);
         $this->store->write($opId, $payload);
 
         return response()->json([
@@ -236,30 +228,5 @@ class TechnicalDataSheetThreadsController extends Controller
             'createdAt' => $line['createdAt'] ?? null,
             'updatedAt' => $line['updatedAt'] ?? null,
         ];
-    }
-
-    private function ensureDefaultLines(array $lines): array
-    {
-        $validLines = array_values(array_filter($lines, fn ($line) => is_array($line)));
-        if (!empty($validLines)) {
-            return $validLines;
-        }
-
-        $now = Carbon::now()->toISOString();
-
-        return array_map(function (string $threadName) use ($now) {
-            return [
-                'id' => (string) Str::uuid(),
-                'threadName' => $threadName,
-                'gauge' => null,
-                'brand' => null,
-                'color' => null,
-                'colorCode' => null,
-                'stitchesPerInch' => null,
-                'defaultThreadCost' => null,
-                'createdAt' => $now,
-                'updatedAt' => $now,
-            ];
-        }, self::DEFAULT_THREAD_NAMES);
     }
 }

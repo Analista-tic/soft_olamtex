@@ -52,7 +52,7 @@ const isLoadingOrderId = ref(false);
 const isSendingMail = ref(false);
 const { successMessage, errorMessage, errorType, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const originalFormSnapshot = ref<string>('');
-const itemsTableRef = ref<{ addItem: () => void; openItemDialog: () => void; validateFabricFields: () => string | null } | null>(null);
+const itemsTableRef = ref<{ addItem: () => void; openItemDialog: () => void; validateFabricFields: () => string | null; itemTypedNames: Record<number, string> } | null>(null);
 const { isBootstrapping, isHydrating, isBlockingLoading, canRenderForm, startLoadingRun, isCurrentLoadingRun, cancelLoadingRun } =
     useDialogLoadingState(dialogOpen);
 
@@ -520,7 +520,7 @@ function resolvePurchaseOrderSaveErrorMessage(error: unknown): string {
     if (validationErrors) {
         const hasInvalidItemError = Object.keys(validationErrors).some((key) => /^items\.\d+\.item_id$/.test(key));
         if (hasInvalidItemError) {
-            return 'El ítem seleccionado no existe o ya no está disponible. Selecciona un ítem válido.';
+            return 'El ítem seleccionado no existe en el catálogo. Créalo primero o selecciona un ítem existente de la lista.';
         }
     }
 
@@ -640,19 +640,38 @@ function validateForm(): boolean {
         return false;
     }
 
-    const invalidItem = items.find((item) => {
+    function isValidItemId(id: any): boolean {
+        if (id == null) return false;
+        const n = Number(id);
+        return Number.isInteger(n) && n > 0;
+    }
+
+    const invalidItemIndex = items.findIndex((item) => {
         const priceInvalid = !item.price || Number(item.price) <= 0;
         const quantityInvalid = !item.quantity || Number(item.quantity) <= 0;
-        const itemInvalid = !item.item_id;
+        const itemInvalid = !isValidItemId(item.item_id);
         return priceInvalid || quantityInvalid || itemInvalid;
     });
 
-    if (invalidItem) {
+    if (invalidItemIndex !== -1) {
+        const invalidItem = items[invalidItemIndex];
+        const itemIdInvalid = !isValidItemId(invalidItem.item_id);
+
+        if (itemIdInvalid) {
+            const typedName =
+                (typeof (invalidItem.item_id as any) === 'string' && (invalidItem.item_id as any).trim()) ||
+                (itemsTableRef.value?.itemTypedNames?.[invalidItemIndex] || '').trim();
+
+            const msg = typedName
+                ? `El ítem '${typedName}' no existe en el catálogo. Créalo primero o selecciona un ítem existente de la lista.`
+                : 'El ítem seleccionado no existe en el catálogo. Créalo primero o selecciona un ítem existente de la lista.';
+            setErrorMessage(msg, 'error');
+            return false;
+        }
+
         const missingItemFields: string[] = [];
-        if (!invalidItem.item_id) missingItemFields.push('Item');
         if (!invalidItem.price || Number(invalidItem.price) <= 0) missingItemFields.push('Precio SIN Impuesto');
         if (!invalidItem.quantity || Number(invalidItem.quantity) <= 0) missingItemFields.push('Cantidad');
-
         setErrorMessage(formatRequiredFieldsMessage('Cada ítem debe tener los siguientes campos', missingItemFields), 'warning');
         return false;
     }

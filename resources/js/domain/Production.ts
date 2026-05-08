@@ -202,12 +202,13 @@ export type {
     SupplyRequestPayload,
 } from './Production/types';
 export { normalizeSizes, sizesToLabel } from './Production/sizes';
-export type { AvailableFabricRoll, RawMaterialItemMeta } from './Production/service';
+export type { AvailableFabricRoll, RawMaterialItemMeta, RawMaterialTraceDto } from './Production/service';
 export {
     fetchOpBasicInfo,
     fetchOpOptions,
     fetchOpProcesses,
     fetchOpRawMaterials,
+    fetchOpRawMaterialsState,
     fetchOpRolls,
     fetchOpAdditionalInfo,
     saveOpAdditionalInfo,
@@ -216,6 +217,7 @@ export {
     fetchRawMaterialCatalogOptions,
     fetchRawMaterialItemMeta,
     saveOpRawMaterials,
+    saveOpRawMaterialsState,
     saveOpRolls,
     fetchOpOperationalListDetail,
     saveOpProcesses,

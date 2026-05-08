@@ -527,9 +527,26 @@ class SettingsFieldParametersSeeder extends Seeder
                 'data' => [
                     'label' => 'Hilo',
                     'value' => $this->mapNames([
-                        '90',
-                        '180',
-                        'SESGO',
+                        'Pespunte / Amarre',
+                        'Filetes',
+                        'Ojales',
+                        'Presilla',
+                        'Puntada Seguridad',
+                    ]),
+                    'status' => true,
+                ],
+            ],
+            [
+                'kind' => 'parameter',
+                'key' => 'type_of_fabric',
+                'data' => [
+                    'label' => 'Tipo de tela',
+                    'value' => $this->mapNames([
+                        'Tela principal',
+                        'Tela secundaria 1',
+                        'Tela secundaria 2',
+                        'Tela secundaria 3',
+                        'Tela secundaria 4',
                     ]),
                     'status' => true,
                 ],

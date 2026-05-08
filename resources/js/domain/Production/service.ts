@@ -521,10 +521,20 @@ export async function fetchRawMaterialItemMeta(itemId: number): Promise<RawMater
 }
 
 /** Respuesta GET materia prima por OP (ficha técnica). */
-export type RawMaterialsResponse = { rows: RawMaterialRowDto[] };
+export type RawMaterialsResponse = {
+    rows: RawMaterialRowDto[];
+    traces?: RawMaterialTraceDto[];
+};
+
+export type RawMaterialsSavePayload = {
+    rows: RawMaterialRowDto[];
+    traces: RawMaterialTraceDto[];
+    rollState?: RollSavePayload;
+};
 
 export type RawMaterialRowDto = {
     uid?: string;
+    traceUid?: string | null;
     telaItemId?: number | null;
     tela?: string;
     trazo?: string | null;
@@ -537,6 +547,18 @@ export type RawMaterialRowDto = {
     largoTrazo?: number;
     largoLiq?: number;
     consumo?: number;
+    fabricTypeParameterId?: string | number | boolean | null;
+    fabricTypeParameterName?: string | null;
+};
+
+export type RawMaterialTraceDto = {
+    uid?: string | null;
+    trazo?: string | null;
+    promTrazo?: number | null;
+    largoTrazo?: number | null;
+    largoLiq?: number | null;
+    fabricTypeParameterId?: string | number | boolean | null;
+    fabricTypeParameterName?: string | null;
 };
 
 export async function fetchOpRawMaterials(opId: string | number): Promise<RawMaterialRowDto[]> {
@@ -549,6 +571,27 @@ export async function saveOpRawMaterials(opId: string | number, rows: RawMateria
     const url = ENDPOINTS.OP_RAW_MATERIALS.replace(':id', String(opId));
     const response = await axios.put<RawMaterialsResponse>(url, { rows });
     return Array.isArray(response.data?.rows) ? response.data.rows : [];
+}
+
+export async function fetchOpRawMaterialsState(opId: string | number): Promise<RawMaterialsResponse> {
+    const url = ENDPOINTS.OP_RAW_MATERIALS.replace(':id', String(opId));
+    const response = await axios.get<RawMaterialsResponse>(url);
+    return {
+        rows: Array.isArray(response.data?.rows) ? response.data.rows : [],
+        traces: Array.isArray(response.data?.traces) ? response.data.traces : [],
+    };
+}
+
+export async function saveOpRawMaterialsState(
+    opId: string | number,
+    payload: RawMaterialsSavePayload,
+): Promise<RawMaterialsResponse> {
+    const url = ENDPOINTS.OP_RAW_MATERIALS.replace(':id', String(opId));
+    const response = await axios.put<RawMaterialsResponse>(url, payload);
+    return {
+        rows: Array.isArray(response.data?.rows) ? response.data.rows : [],
+        traces: Array.isArray(response.data?.traces) ? response.data.traces : [],
+    };
 }
 
 export async function upsertOpSupply(opId: string | number, payload: SupplyItem): Promise<SupplyItem[]> {
