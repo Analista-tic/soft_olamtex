@@ -10,15 +10,17 @@ use Illuminate\Database\Eloquent\Model;
  * @property int $id
  * @property int $technical_sheet_id
  * @property array|null $rows
+ * @property array|null $traces
  */
 class TechnicalSheetRawMaterial extends Model
 {
     protected $table = 'technical_sheet_raw_materials';
 
-    protected $fillable = ['technical_sheet_id', 'rows'];
+    protected $fillable = ['technical_sheet_id', 'rows', 'traces'];
 
     protected $casts = [
         'rows' => 'array',
+        'traces' => 'array',
     ];
 
     public function technicalSheet()

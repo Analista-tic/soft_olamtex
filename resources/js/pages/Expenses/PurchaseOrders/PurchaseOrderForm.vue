@@ -283,15 +283,28 @@ function validateForm(): boolean {
         return false;
     }
 
-    const invalidItemIndex = localForm.value.items.findIndex((item: any) =>
-        !item.item_id ||
-        Number(item.item_id) <= 0 ||
-        Number(item.price) <= 0 ||
-        Number(item.quantity) <= 0
-    );
+    const invalidItemIndex = localForm.value.items.findIndex((item: any) => {
+        const validId = item.item_id != null && Number.isInteger(Number(item.item_id)) && Number(item.item_id) > 0;
+        return !validId || Number(item.price) <= 0 || Number(item.quantity) <= 0;
+    });
 
     if (invalidItemIndex !== -1) {
-        showError(`El ítem ${invalidItemIndex + 1} debe tener producto, precio mayor a cero y cantidad mayor a cero.`);
+        const invalidItem = localForm.value.items[invalidItemIndex] as any;
+        const validId = invalidItem.item_id != null && Number.isInteger(Number(invalidItem.item_id)) && Number(invalidItem.item_id) > 0;
+
+        if (!validId) {
+            const typedName =
+                (typeof invalidItem.item_id === 'string' && invalidItem.item_id.trim()) ||
+                (itemsTableRef.value?.itemTypedNames?.[invalidItemIndex] || '').trim();
+
+            const msg = typedName
+                ? `El ítem '${typedName}' no existe en el catálogo. Créalo primero o selecciona un ítem existente de la lista.`
+                : 'El ítem seleccionado no existe en el catálogo. Créalo primero o selecciona un ítem existente de la lista.';
+            showError(msg);
+            return false;
+        }
+
+        showError(`El ítem ${invalidItemIndex + 1} debe tener precio mayor a cero y cantidad mayor a cero.`);
         return false;
     }
 

@@ -7,17 +7,17 @@ import Input from '@/components/ui/input/Input.vue';
 import type { AvailableFabricRoll, RawMaterialItemMeta, RollLine } from '@/domain/Production';
 import {
     fetchAvailableFabricRolls,
-    fetchOpRawMaterials,
+    fetchOpRawMaterialsState,
     fetchOpRolls,
+    fetchSettingsParameters,
     fetchRawMaterialCatalogOptions,
     fetchRawMaterialItemMeta,
-    saveOpRawMaterials,
-    saveOpRolls,
+    saveOpRawMaterialsState,
 } from '@/domain/Production';
 import type { Option } from '@/domain/shared';
 import { formatMeters } from '@/domain/Textil';
 import axios from 'axios';
-import { ChevronDown, ChevronRight, Plus, Save, Trash } from 'lucide-vue-next';
+import { ChevronDown, ChevronRight, Plus, Save, Trash, X } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
 const props = defineProps<{
@@ -70,6 +70,7 @@ type TrazoGroup = {
     promTrazo: number;
     largoTrazo: number;
     largoLiq: number;
+    fabricTypeParameterId: Option['id'] | null;
     lines: FabricLine[];
     open: boolean;
 };
@@ -81,6 +82,7 @@ const itemOptions = ref<Option[]>([]);
 const isLoading = ref(false);
 const isSaving = ref(false);
 const isLoadingItems = ref(false);
+const fabricTypeOptions = ref<Option[]>([]);
 const { successMessage, errorMessage, errorType, showSuccess, showError, showWarning, clearSuccess, clearError } = useAlertStack();
 const snapshot = ref('');
 const deletedRollLineIds = ref<string[]>([]);
@@ -136,6 +138,9 @@ function formatWidth(ancho: number | null, anchoUnit: 'm' | 'cm' | null): string
 }
 
 function formatSaveError(err: unknown): string {
+    if (axios.isAxiosError(err) && err.response?.status === 419) {
+        return 'La sesion expiro. Recarga la pagina e intenta nuevamente.';
+    }
     if (!axios.isAxiosError(err) || !err.response?.data) return 'No se pudieron guardar los cambios.';
     const data = err.response.data as { message?: string; errors?: Record<string, string[]> };
     if (err.response.status === 422 && data.errors) {
@@ -176,7 +181,7 @@ function createEmptyLine(): FabricLine {
 }
 
 function createEmptyTrazo(): TrazoGroup {
-    return { uid: generateUid(), trazo: '', promTrazo: 0, largoTrazo: 0, largoLiq: 0, lines: [createEmptyLine()], open: true };
+    return { uid: generateUid(), trazo: '', promTrazo: 0, largoTrazo: 0, largoLiq: 0, fabricTypeParameterId: null, lines: [createEmptyLine()], open: true };
 }
 
 function addTrazo(): void {
@@ -217,6 +222,12 @@ function removeLineFromTrazo(trazoUid: string, lineUid: string): void {
 function updateTrazoMetric(trazoUid: string, field: 'promTrazo' | 'largoTrazo' | 'largoLiq', value: unknown): void {
     const trazo = trazos.value.find((t) => t.uid === trazoUid);
     if (trazo) trazo[field] = toNumber(value);
+}
+
+function updateTrazoFabricType(trazoUid: string, value: Option['id'] | Option['id'][] | null | undefined): void {
+    const trazo = trazos.value.find((t) => t.uid === trazoUid);
+    if (!trazo) return;
+    trazo.fabricTypeParameterId = Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
 }
 
 function clearLineMeta(line: FabricLine): void {
@@ -541,6 +552,7 @@ function serializeState(): string {
             promTrazo: t.promTrazo,
             largoTrazo: t.largoTrazo,
             largoLiq: t.largoLiq,
+            fabricTypeParameterId: t.fabricTypeParameterId,
             lines: t.lines.map((l) => ({
                 uid: l.uid,
                 telaItemId: l.telaItemId,
@@ -575,13 +587,24 @@ async function loadAll(): Promise<void> {
     snapshot.value = '';
 
     try {
-        const [, rawMaterials, rollState] = await Promise.all([
-            loadItemOptions(),
-            fetchOpRawMaterials(props.opId),
+        await loadItemOptions();
+
+        try {
+            const parameterData = await fetchSettingsParameters(['type_of_fabric']);
+            fabricTypeOptions.value = parameterData.type_of_fabric ?? [];
+        } catch {
+            fabricTypeOptions.value = [];
+        }
+
+        const [rawMaterialsState, rollState] = await Promise.all([
+            fetchOpRawMaterialsState(props.opId),
             fetchOpRolls(props.opId),
         ]);
 
-        if (!Array.isArray(rawMaterials) || rawMaterials.length === 0) {
+        const rawMaterials = Array.isArray(rawMaterialsState.rows) ? rawMaterialsState.rows : [];
+        const savedTraces = Array.isArray(rawMaterialsState.traces) ? rawMaterialsState.traces : [];
+
+        if (rawMaterials.length === 0 && savedTraces.length === 0) {
             trazos.value = [createEmptyTrazo()];
             resetSnapshot();
             return;
@@ -658,21 +681,43 @@ async function loadAll(): Promise<void> {
 
         const trazoMap = new Map<string, TrazoGroup>();
 
+        for (const trace of savedTraces) {
+            const traceUid = String(trace.uid ?? '').trim() || generateUid();
+            trazoMap.set(traceUid, {
+                uid: traceUid,
+                trazo: String(trace.trazo ?? '').trim(),
+                promTrazo: toNumber(trace.promTrazo),
+                largoTrazo: toNumber(trace.largoTrazo),
+                largoLiq: toNumber(trace.largoLiq),
+                fabricTypeParameterId: trace.fabricTypeParameterId ?? null,
+                lines: [],
+                open: true,
+            });
+        }
+
         for (const rm of rawMaterials) {
-            const trazoKey = String(rm.trazo ?? '').trim();
+            const traceUid = String(rm.traceUid ?? '').trim();
+            const trazoKey = traceUid !== ''
+                ? traceUid
+                : (String(rm.trazo ?? '').trim() !== '' ? `legacy:${String(rm.trazo ?? '').trim()}` : `row:${String(rm.uid ?? generateUid())}`);
+
             if (!trazoMap.has(trazoKey)) {
                 trazoMap.set(trazoKey, {
-                    uid: generateUid(),
-                    trazo: trazoKey,
+                    uid: traceUid || generateUid(),
+                    trazo: String(rm.trazo ?? '').trim(),
                     promTrazo: toNumber(rm.promTrazo),
                     largoTrazo: toNumber(rm.largoTrazo),
                     largoLiq: toNumber(rm.largoLiq),
+                    fabricTypeParameterId: rm.fabricTypeParameterId ?? null,
                     lines: [],
                     open: true,
                 });
             }
 
             const trazo = trazoMap.get(trazoKey)!;
+            if (trazo.fabricTypeParameterId == null && rm.fabricTypeParameterId != null) {
+                trazo.fabricTypeParameterId = rm.fabricTypeParameterId;
+            }
             const lineUid = String(rm.uid ?? '').trim() || generateUid();
             const itemId = toNullableNumber(rm.telaItemId);
 
@@ -769,27 +814,6 @@ async function handleSave(): Promise<void> {
     clearSuccess();
 
     try {
-        await saveOpRawMaterials(
-            props.opId,
-            trazos.value.flatMap((t) =>
-                t.lines.map((l) => ({
-                    uid: l.uid,
-                    telaItemId: l.telaItemId,
-                    tela: l.tela,
-                    trazo: t.trazo,
-                    supplierId: l.supplierId,
-                    lastSupplierName: l.lastSupplierName,
-                    lastUnitPriceCop: l.lastUnitPriceCop,
-                    ancho: l.ancho,
-                    anchoUnit: l.anchoUnit,
-                    promTrazo: t.promTrazo,
-                    largoTrazo: t.largoTrazo,
-                    largoLiq: t.largoLiq,
-                    consumo: trazoProgrammedMeters(t),
-                })),
-            ),
-        );
-
         const rollLines: RollLine[] = [];
         const currentDeletedIds = [...deletedRollLineIds.value];
 
@@ -828,7 +852,41 @@ async function handleSave(): Promise<void> {
             }
         }
 
-        const rollState = await saveOpRolls(props.opId, { rolls: rollLines, deletedIds: currentDeletedIds });
+        await saveOpRawMaterialsState(props.opId, {
+            rows: trazos.value.flatMap((t) =>
+                t.lines.map((l) => ({
+                    uid: l.uid,
+                    traceUid: t.uid,
+                    telaItemId: l.telaItemId,
+                    tela: l.tela,
+                    fabricTypeParameterId: t.fabricTypeParameterId,
+                    trazo: t.trazo,
+                    supplierId: l.supplierId,
+                    lastSupplierName: l.lastSupplierName,
+                    lastUnitPriceCop: l.lastUnitPriceCop,
+                    ancho: l.ancho,
+                    anchoUnit: l.anchoUnit,
+                    promTrazo: t.promTrazo,
+                    largoTrazo: t.largoTrazo,
+                    largoLiq: t.largoLiq,
+                    consumo: trazoProgrammedMeters(t),
+                })),
+            ),
+            traces: trazos.value.map((t) => ({
+                uid: t.uid,
+                trazo: t.trazo,
+                promTrazo: t.promTrazo,
+                largoTrazo: t.largoTrazo,
+                largoLiq: t.largoLiq,
+                fabricTypeParameterId: t.fabricTypeParameterId,
+            })),
+            rollState: {
+                rolls: rollLines,
+                deletedIds: currentDeletedIds,
+            },
+        });
+
+        const rollState = await fetchOpRolls(props.opId);
 
         const savedLines = rollState.lines ?? [];
         for (const trazo of trazos.value) {
@@ -952,6 +1010,18 @@ watch(
                             <span class="font-semibold">Liq.:</span>
                             <Input :model-value="trazo.largoLiq === 0 ? '' : String(trazo.largoLiq)" type="number" min="0" step="0.01" placeholder="0" class="h-7 w-24 text-xs" :disabled="isSaving" @update:model-value="(v) => updateTrazoMetric(trazo.uid, 'largoLiq', v)" />
                         </label>
+                        <label class="flex items-center gap-1.5 text-xs text-muted-foreground min-w-[16rem]" @click.stop>
+                            <span class="font-semibold whitespace-nowrap">Tipo de tela:</span>
+                            <SelectField
+                                :model-value="trazo.fabricTypeParameterId"
+                                :options="fabricTypeOptions"
+                                placeholder="Selecciona tipo de tela"
+                                :searchable="false"
+                                class="w-full"
+                                :disabled="isSaving || isLoading"
+                                @update:model-value="(v) => updateTrazoFabricType(trazo.uid, v)"
+                            />
+                        </label>
                     </div>
 
                     <div class="ml-auto flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-4">
@@ -975,31 +1045,52 @@ watch(
                     <div v-for="line in trazo.lines" :key="line.uid">
 
                         <!-- Fila de tela -->
-                        <div class="flex flex-wrap items-center gap-2 px-3 py-2.5">
-                            <div class="flex min-w-0 shrink-0 items-center gap-2">
-                                <button v-if="line.telaItemId" type="button" class="shrink-0 text-muted-foreground hover:text-foreground" @click="line.rollsOpen = !line.rollsOpen">
+                        <div class="space-y-2 px-3 py-2.5">
+                            <div class="grid grid-cols-1 items-end gap-2 md:grid-cols-[auto_minmax(320px,1fr)_220px_auto]">
+                                <button v-if="line.telaItemId" type="button" class="hidden shrink-0 text-muted-foreground hover:text-foreground md:inline-flex md:h-9 md:w-9 md:items-center md:justify-center" @click="line.rollsOpen = !line.rollsOpen">
                                     <component :is="line.rollsOpen ? ChevronDown : ChevronRight" class="h-3.5 w-3.5" />
                                 </button>
-                                <span v-else class="h-3.5 w-3.5 shrink-0" />
+                                <span v-else class="hidden h-9 w-9 shrink-0 md:block" />
 
-                                <SelectField
-                                    :model-value="line.telaItemId"
-                                    :options="getItemOptions(line)"
-                                    placeholder="Seleccionar tela..."
-                                    :searchable="true"
-                                    search-placeholder="Buscar por nombre..."
-                                    class="w-[30rem]"
-                                    :disabled="isSaving || isLoading"
-                                    @search="onItemSearch"
-                                    @update:model-value="(v) => onItemSelected(trazo.uid, line.uid, v)"
-                                />
+                                <div class="min-w-0">
+                                    <div class="flex items-center gap-2 md:hidden">
+                                        <button v-if="line.telaItemId" type="button" class="shrink-0 text-muted-foreground hover:text-foreground" @click="line.rollsOpen = !line.rollsOpen">
+                                            <component :is="line.rollsOpen ? ChevronDown : ChevronRight" class="h-3.5 w-3.5" />
+                                        </button>
+                                        <span v-else class="h-3.5 w-3.5 shrink-0" />
+                                        <div class="min-w-0 flex-1">
+                                            <SelectField
+                                                :model-value="line.telaItemId"
+                                                :options="getItemOptions(line)"
+                                                placeholder="Seleccionar tela..."
+                                                :searchable="true"
+                                                search-placeholder="Buscar por nombre..."
+                                                class="w-full"
+                                                :disabled="isSaving || isLoading"
+                                                @search="onItemSearch"
+                                                @update:model-value="(v) => onItemSelected(trazo.uid, line.uid, v)"
+                                            />
+                                        </div>
+                                    </div>
+                                    <SelectField
+                                        :model-value="line.telaItemId"
+                                        :options="getItemOptions(line)"
+                                        placeholder="Seleccionar tela..."
+                                        :searchable="true"
+                                        search-placeholder="Buscar por nombre..."
+                                        class="hidden w-full md:block"
+                                        :disabled="isSaving || isLoading"
+                                        @search="onItemSearch"
+                                        @update:model-value="(v) => onItemSelected(trazo.uid, line.uid, v)"
+                                    />
+                                </div>
 
                                 <div v-if="line.telaItemId && line.availableRolls.length > 0" class="relative">
                                     <Input
                                         :model-value="line.rollSearch"
                                         type="text"
                                         placeholder="Buscar rollo..."
-                                        class="h-7 w-56 text-xs pr-7"
+                                        class="h-9 w-full text-xs pr-7"
                                         @update:model-value="(v) => (line.rollSearch = String(v ?? ''))"
                                     />
                                     <button
@@ -1011,25 +1102,27 @@ watch(
                                         <X class="h-3.5 w-3.5" />
                                     </button>
                                 </div>
-                            </div>
+                                <div v-else class="hidden md:block" />
 
-                            <template v-if="line.telaItemId">
-                                <span v-if="line.loadingMeta" class="text-xs text-muted-foreground">cargando...</span>
-                                <template v-else>
-                                    <span v-if="line.lastSupplierName" class="inline-flex items-center rounded-full border border-border bg-muted/30 px-2 py-0.5 text-xs text-muted-foreground">{{ line.lastSupplierName }}</span>
-                                    <span v-if="line.ancho !== null" class="text-xs text-muted-foreground">{{ formatWidth(line.ancho, line.anchoUnit) }}</span>
-                                    <span v-if="line.lastUnitPriceCop !== null" class="text-xs text-muted-foreground">ref. {{ formatCOP(line.lastUnitPriceCop) }}/m</span>
-                                </template>
-                                <span v-if="line.assignedRolls.length > 0" class="inline-flex items-center rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary">
-                                    {{ line.assignedRolls.length }} rollo{{ line.assignedRolls.length !== 1 ? 's' : '' }}
-                                </span>
-                            </template>
-
-                            <div class="ml-auto flex items-center gap-2">
-                                <span v-if="lineCost(line) > 0" class="text-xs font-semibold tabular-nums text-foreground">{{ formatCOP(lineCost(line)) }}</span>
-                                <button type="button" class="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition hover:bg-muted hover:text-destructive disabled:pointer-events-none disabled:opacity-40" :disabled="isSaving" @click="removeLineFromTrazo(trazo.uid, line.uid)">
+                                <button type="button" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-muted-foreground transition hover:bg-muted hover:text-destructive disabled:pointer-events-none disabled:opacity-40 md:self-end" :disabled="isSaving" @click="removeLineFromTrazo(trazo.uid, line.uid)">
                                     <Trash class="h-3.5 w-3.5" />
                                 </button>
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-2">
+                                <template v-if="line.telaItemId">
+                                    <span v-if="line.loadingMeta" class="text-xs text-muted-foreground">cargando...</span>
+                                    <template v-else>
+                                        <span v-if="line.lastSupplierName" class="inline-flex items-center rounded-full border border-border bg-muted/30 px-2 py-0.5 text-xs text-muted-foreground">{{ line.lastSupplierName }}</span>
+                                        <span v-if="line.ancho !== null" class="text-xs text-muted-foreground">{{ formatWidth(line.ancho, line.anchoUnit) }}</span>
+                                        <span v-if="line.lastUnitPriceCop !== null" class="text-xs text-muted-foreground">ref. {{ formatCOP(line.lastUnitPriceCop) }}/m</span>
+                                    </template>
+                                    <span v-if="line.assignedRolls.length > 0" class="inline-flex items-center rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary">
+                                        {{ line.assignedRolls.length }} rollo{{ line.assignedRolls.length !== 1 ? 's' : '' }}
+                                    </span>
+                                </template>
+
+                                <span v-if="lineCost(line) > 0" class="text-xs font-semibold tabular-nums text-foreground sm:ml-auto">{{ formatCOP(lineCost(line)) }}</span>
                             </div>
                         </div>
 

@@ -42,7 +42,6 @@ class DatabaseSeeder extends Seeder
         if (app()->environment('local')) {
             $this->call([
                 ProductionDemoSeeder::class,
-                OperationDemoSeeder::class,
             ]);
         }
     }

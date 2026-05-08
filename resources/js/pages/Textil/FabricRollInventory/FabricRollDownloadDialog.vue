@@ -43,6 +43,8 @@ const emit = defineEmits<{
         event: 'discharge-success',
         payload: {
             roll: FabricRollView | null;
+            partialOutputValue: number;
+            partialAvailabilityValue: number;
             realAvailabilityValue: number;
             rollQtyValue: number;
             exitQuantityValue: number;
@@ -158,6 +160,8 @@ async function submitDischarge() {
 
         emit('discharge-success', {
             roll: props.roll,
+            partialOutputValue: Number(response.data.partial_output_value ?? 0),
+            partialAvailabilityValue: Number(response.data.partial_availability_value ?? 0),
             realAvailabilityValue: Number(response.data.real_availability_value ?? 0),
             rollQtyValue: Number(response.data.roll_qty_value ?? 0),
             exitQuantityValue: Number(response.data.exit_quantity_value ?? 0),
