@@ -388,7 +388,7 @@ class OperationController extends Controller
         $exists = \App\Models\Production\ProductOperationList::where('product_sheet_id', $productSheetId)
             ->where('operation_id', $operation->id)
             ->where('machine_id', $machineId)
-            ->where('operation_section_id', $sectionId)
+            ->whereHas('operation', fn($q) => $q->where('section_id', $sectionId))
             ->withTrashed()
             ->exists();
 

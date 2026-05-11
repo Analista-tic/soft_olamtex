@@ -107,6 +107,11 @@ watch(activeType, () => {
     if (!visibleProcesses.value.includes(activeProcess.value)) {
         activeProcess.value = visibleProcesses.value[0] ?? '';
     }
+    currentPage.value = 1;
+});
+
+watch(activeProcess, () => {
+    currentPage.value = 1;
 });
 
 // Dialog: entregar al siguiente estado
@@ -244,12 +249,12 @@ function compareRows(a: BatchControlRow, b: BatchControlRow, col: string, dir: '
 }
 
 const filteredRows = computed(() => {
-    // Solo mostrar órdenes del tipo activo cuyo flujo incluye el proceso activo.
-    // Las que no están en ese proceso se muestran deshabilitadas (ya en otro proceso del flujo).
     const filtered = allRows.value.filter((r) => {
         const typeMatch = (r.product_sheet_type ?? 'producto') === activeType.value;
         if (!typeMatch) return false;
-        return getFlowForRow(r).includes(activeProcess.value);
+        // Mostrar si está actualmente en este proceso (aunque el flujo configurado no lo incluya)
+        // o si el flujo configurado incluye este proceso.
+        return r.current_process === activeProcess.value || getFlowForRow(r).includes(activeProcess.value);
     });
 
     return [...filtered].sort((a, b) => {
@@ -259,6 +264,16 @@ const filteredRows = computed(() => {
         }
         return cmp;
     });
+});
+
+watch(filteredRows, (rows) => {
+    totalItems.value = rows.length;
+    currentPage.value = 1;
+}, { immediate: true });
+
+const paginatedRows = computed(() => {
+    const start = (currentPage.value - 1) * itemsPerPage.value;
+    return filteredRows.value.slice(start, start + itemsPerPage.value);
 });
 
 function setSort(column: string) {
@@ -1099,7 +1114,7 @@ onMounted(() => {
                                 <TabsContent v-for="process in visibleProcesses" :key="process" :value="process" class="mt-2">
                                     <div class="min-w-0 overflow-x-auto rounded-lg border border-border/60">
                                         <BatchControlTable
-                                            :rows="filteredRows"
+                                            :rows="paginatedRows"
                                             :is-loading="isLoading"
                                             :empty-text="emptyStateText"
                                             :sort-column="sortColumn"
@@ -1131,7 +1146,6 @@ onMounted(() => {
                                                 v-model:current-page="currentPage"
                                                 v-model:page-size="itemsPerPage"
                                                 :total-items="totalItems"
-                                                @fetch-data="fetchData"
                                             />
                                         </div>
                                     </div>

@@ -186,7 +186,7 @@ class ProductionOrderService
         }
 
         return TechnicalSheetOperation::byTechnicalSheet($technicalSheet->id)
-            ->with(['operation.section', 'machine', 'productSheetOperation.operationSection'])
+            ->with(['operation.section', 'machine', 'productSheetOperation'])
             ->get();
     }
 
