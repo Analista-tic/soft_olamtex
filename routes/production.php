@@ -58,6 +58,12 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
         ->name('ficha-tecnica.supplies.index');
     Route::get('ficha-tecnica/insumos/opciones', [TechnicalDataSheetSuppliesController::class, 'itemOptions'])
         ->name('ficha-tecnica.supplies.item-options');
+    Route::get('ficha-tecnica/insumos/subgrupos', [TechnicalDataSheetSuppliesController::class, 'supplySubGroups'])
+        ->name('ficha-tecnica.supplies.sub-groups');
+    Route::get('ficha-tecnica/insumos/grupos', [TechnicalDataSheetSuppliesController::class, 'supplyGroups'])
+        ->name('ficha-tecnica.supplies.groups');
+    Route::post('ficha-tecnica/{opId}/solicitar-insumo', [TechnicalDataSheetSuppliesController::class, 'requestSupply'])
+        ->name('ficha-tecnica.supplies.request');
     Route::get('insumos/items/{itemId}/last-purchase', [TechnicalDataSheetSuppliesController::class, 'lastPurchaseForItem'])
         ->middleware('permission:ver gastos|ver sabana productos|ver programador')
         ->name('ficha-tecnica.supplies.last-purchase');

@@ -24,6 +24,7 @@ import type {
     RollSavePayload,
     RollState,
     SupplyCatalogItem,
+    SupplyGroup,
     SupplyItem,
     SupplyRequestPayload,
     SupplyRequestResult,
@@ -49,6 +50,7 @@ const ENDPOINTS = {
     OP_SUPPLY_DELETE: '/produccion/ficha-tecnica/:id/insumos/:supplyId',
     OP_SUPPLY_REQUEST: '/produccion/ficha-tecnica/:id/solicitar-insumo',
     OP_SUPPLY_SUB_GROUPS: '/produccion/ficha-tecnica/insumos/subgrupos',
+    OP_SUPPLY_GROUPS: '/produccion/ficha-tecnica/insumos/grupos',
     OP_ROLLS: '/produccion/ficha-tecnica/:id/rollos',
     OP_ROLLS_PARAMS: '/produccion/ficha-tecnica/:id/rollos/params',
     OP_ROLLS_LINES: '/produccion/ficha-tecnica/:id/rollos/lines',
@@ -642,6 +644,11 @@ export async function requestSupplyItem(
 
 export async function fetchSupplySubGroups(): Promise<SupplySubGroup[]> {
     const response = await axios.get<SupplySubGroup[]>(ENDPOINTS.OP_SUPPLY_SUB_GROUPS);
+    return Array.isArray(response.data) ? response.data : [];
+}
+
+export async function fetchSupplyGroups(): Promise<SupplyGroup[]> {
+    const response = await axios.get<SupplyGroup[]>(ENDPOINTS.OP_SUPPLY_GROUPS);
     return Array.isArray(response.data) ? response.data : [];
 }
 

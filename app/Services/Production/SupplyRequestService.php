@@ -363,10 +363,27 @@ class SupplyRequestService
     public function getSupplySubGroups(): array
     {
         return CategorySubGroup::query()
-            ->whereHas('categoryGroup', fn ($q) => $q->whereRaw('LOWER(name) LIKE ?', ['%insumo%']))
             ->orderBy('name')
             ->get(['id', 'name'])
             ->map(fn ($sg) => ['id' => (int) $sg->id, 'name' => trim((string) $sg->name)])
+            ->values()
+            ->all();
+    }
+
+    public function getSupplyGroups(): array
+    {
+        return \App\Models\MasterData\CategoryGroup::query()
+            ->with(['subGroups' => fn ($q) => $q->orderBy('name')])
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn ($g) => [
+                'id'         => (int) $g->id,
+                'name'       => trim((string) $g->name),
+                'sub_groups' => $g->subGroups->map(fn ($sg) => [
+                    'id'   => (int) $sg->id,
+                    'name' => trim((string) $sg->name),
+                ])->values()->all(),
+            ])
             ->values()
             ->all();
     }
