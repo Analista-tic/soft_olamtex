@@ -53,17 +53,6 @@ axios.interceptors.request.use((config) => {
         delete config.headers['Content-Type'];
     }
 
-    const method = config.method?.toLowerCase();
-    if (method === 'post' || method === 'put' || method === 'patch' || method === 'delete') {
-        const csrfToken = document
-            .querySelector<HTMLMetaElement>('meta[name="csrf-token"]')
-            ?.getAttribute('content');
-
-        if (csrfToken && !config.headers['X-CSRF-TOKEN']) {
-            config.headers['X-CSRF-TOKEN'] = csrfToken;
-        }
-    }
-
     return config;
 });
 
