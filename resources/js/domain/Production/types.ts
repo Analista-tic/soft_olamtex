@@ -303,6 +303,12 @@ export type SupplySubGroup = {
     name: string;
 };
 
+export type SupplyGroup = {
+    id: number;
+    name: string;
+    sub_groups: SupplySubGroup[];
+};
+
 export type SupplyRequestPayload = {
     name: string;
     description?: string | null;

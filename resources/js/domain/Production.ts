@@ -199,6 +199,7 @@ export type {
     ThreadLine,
     ThreadState,
     SupplySubGroup,
+    SupplyGroup,
     SupplyRequestPayload,
 } from './Production/types';
 export { normalizeSizes, sizesToLabel } from './Production/sizes';
@@ -222,6 +223,7 @@ export {
     fetchOpOperationalListDetail,
     saveOpProcesses,
     fetchSupplySubGroups,
+    fetchSupplyGroups,
     requestSupplyItem,
     fetchOpThreads,
     saveOpThreads,

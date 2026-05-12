@@ -128,7 +128,7 @@ class TechnicalDataSheetPdfService
         }
 
         $rows = \App\Models\Production\ProductOperationList::query()
-            ->with(['operation:id,action,garment_part', 'operationSection:id,name,type'])
+            ->with(['operation:id,action,garment_part,section_id', 'operation.section:id,name,type'])
             ->where('product_sheet_id', $productSheet->id)
             ->orderBy('sequence')
             ->get();
@@ -142,8 +142,8 @@ class TechnicalDataSheetPdfService
                     $action       = trim((string) ($row->operation?->action ?? ''));
                     $garmentPart  = trim((string) ($row->operation?->garment_part ?? ''));
                     $operationName = trim("{$action} {$garmentPart}");
-                    $sectionType  = $row->operationSection?->type;
-                    $sectionName  = $row->operationSection?->name;
+                    $sectionType  = $row->operation?->section?->type;
+                    $sectionName  = $row->operation?->section?->name;
 
                     return [
                         'order'       => $row->sequence_order,

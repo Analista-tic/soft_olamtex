@@ -631,7 +631,7 @@ class TechnicalSheetService
             $samOp  = (float) ($op->sam_total_operacion ?? 0);
             $costOp = $samOp * $operationCost;
 
-            $section = $op->productSheetOperation?->operationSection ?? $op->operation?->section;
+            $section = $op->operation?->section;
             $bucket  = $this->resolveProcessBucket($section?->type, $section?->name);
 
             if ($bucket === 'confection') {
@@ -656,7 +656,7 @@ class TechnicalSheetService
         }
 
         $rows = ProductOperationList::query()
-            ->with(['operationSection:id,name,type'])
+            ->with(['operation.section:id,name,type'])
             ->where('product_sheet_id', $productSheetId)
             ->get();
 
@@ -666,7 +666,7 @@ class TechnicalSheetService
                 continue;
             }
 
-            $bucket = $this->resolveProcessBucket($row->operationSection?->type, $row->operationSection?->name);
+            $bucket = $this->resolveProcessBucket($row->operation?->section?->type, $row->operation?->section?->name);
             if ($bucket === 'confection') {
                 $minutesConfeccion += $minutes;
             } elseif ($bucket === 'finishing') {

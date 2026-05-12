@@ -166,6 +166,11 @@ class TechnicalDataSheetSuppliesController extends Controller
         return response()->json($this->supplyRequestService->getSupplySubGroups());
     }
 
+    public function supplyGroups(): JsonResponse
+    {
+        return response()->json($this->supplyRequestService->getSupplyGroups());
+    }
+
     // ── Privado ──────────────────────────────────────────────────────
 
     private function singleItemRules(): array

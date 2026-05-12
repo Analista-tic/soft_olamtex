@@ -229,7 +229,7 @@ class TechnicalDataSheetController extends Controller
         $yarnCost           = $this->settingService->getNumericParameter('yarn_cost', 0);
 
         $data = $operations->map(function ($op) {
-            $section = $op->productSheetOperation?->operationSection ?? $op->operation?->section;
+            $section = $op->operation?->section;
 
             return [
                 'id'                         => $op->id,
@@ -288,7 +288,7 @@ class TechnicalDataSheetController extends Controller
         $assignedList = $this->findCatalogById($catalogs, $productSheet->operational_list_id);
 
         $rows = ProductOperationList::query()
-            ->with(['operation:id,action,garment_part', 'operationSection:id,name,type'])
+            ->with(['operation:id,action,garment_part,section_id', 'operation.section:id,name,type'])
             ->where('product_sheet_id', $productSheet->id)
             ->orderBy('sequence')
             ->get();
@@ -303,8 +303,8 @@ class TechnicalDataSheetController extends Controller
                     $action       = trim((string) ($row->operation?->action ?? ''));
                     $garmentPart  = trim((string) ($row->operation?->garment_part ?? ''));
                     $operationName = trim("{$action} {$garmentPart}");
-                    $sectionType  = $row->operationSection?->type;
-                    $sectionName  = $row->operationSection?->name;
+                    $sectionType  = $row->operation?->section?->type;
+                    $sectionName  = $row->operation?->section?->name;
 
                     return [
                         'order'       => $row->sequence_order,

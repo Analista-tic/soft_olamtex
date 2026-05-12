@@ -11,8 +11,8 @@ import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
 import Textarea from '@/components/ui/textarea/Textarea.vue';
 import unitMeasureData from '@/data/unitMeasures.json';
-import type { SupplyRequestPayload, SupplyRequestResult, SupplySubGroup } from '@/domain/Production';
-import { fetchSettingsParameters, fetchSupplySubGroups, requestSupplyItem } from '@/domain/Production';
+import type { SupplyGroup, SupplyRequestPayload, SupplyRequestResult } from '@/domain/Production';
+import { fetchSettingsParameters, fetchSupplyGroups, requestSupplyItem } from '@/domain/Production';
 import type { Option } from '@/domain/shared';
 import { FileText, ImageIcon, Loader2, Send, Upload, X } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
@@ -52,8 +52,8 @@ const isSubmitting = ref(false);
 const errorMessage = ref('');
 const errorType = ref<'error' | 'warning' | 'info'>('error');
 
-const subGroups = ref<SupplySubGroup[]>([]);
-const isLoadingSubGroups = ref(false);
+const groups = ref<SupplyGroup[]>([]);
+const isLoadingGroups = ref(false);
 const unitMeasureOptions = ref<Option[]>([...fallbackUnitMeasures]);
 const isLoadingUnitMeasures = ref(false);
 const isHydrating = ref(false);
@@ -62,6 +62,7 @@ const isHydrating = ref(false);
 const form = ref({
     name: '',
     description: '',
+    category_group_id: null as number | null,
     category_sub_group_id: null as number | null,
     unit_measure: DEFAULT_UNIT_MEASURE,
     quantity: 1,
@@ -77,15 +78,22 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 
 /* ── Computed ────────────────────────────────────────────────── */
 
-const subGroupOptions = computed<Option[]>(() => subGroups.value.map((sg) => ({ id: sg.id, name: sg.name })));
+const groupOptions = computed<Option[]>(() => groups.value.map((g) => ({ id: g.id, name: g.name })));
 
-const isBootstrapping = computed(() => dialogOpen.value && (isLoadingSubGroups.value || isLoadingUnitMeasures.value));
+const subGroupOptions = computed<Option[]>(() => {
+    const selectedGroup = groups.value.find((g) => g.id === form.value.category_group_id);
+    return (selectedGroup?.sub_groups ?? groups.value.flatMap((g) => g.sub_groups)).map((sg) => ({ id: sg.id, name: sg.name }));
+});
+
+const isBootstrapping = computed(() => dialogOpen.value && (isLoadingGroups.value || isLoadingUnitMeasures.value));
 const canRenderForm = computed(() => !isBootstrapping.value && !isHydrating.value);
 
 const canSubmit = computed(() => {
     if (!canRenderForm.value) return false;
     if (isSubmitting.value) return false;
     if (!form.value.name.trim()) return false;
+    if (!form.value.category_group_id) return false;
+    if (!form.value.category_sub_group_id) return false;
     if (!String(form.value.unit_measure ?? '').trim()) return false;
     if (form.value.quantity <= 0) return false;
     return true;
@@ -111,7 +119,7 @@ watch(
         if (open) {
             resetForm();
             form.value.name = props.prefillName?.trim() ?? '';
-            await Promise.all([loadSubGroups(), loadUnitMeasures()]);
+            await Promise.all([loadGroups(), loadUnitMeasures()]);
         }
     },
 );
@@ -126,6 +134,7 @@ function resetForm(): void {
     form.value = {
         name: '',
         description: '',
+        category_group_id: null,
         category_sub_group_id: null,
         unit_measure: DEFAULT_UNIT_MEASURE,
         quantity: 1,
@@ -142,15 +151,15 @@ function resetForm(): void {
 
 /* ── Data ────────────────────────────────────────────────────── */
 
-async function loadSubGroups(): Promise<void> {
-    if (subGroups.value.length > 0) return;
-    isLoadingSubGroups.value = true;
+async function loadGroups(): Promise<void> {
+    if (groups.value.length > 0) return;
+    isLoadingGroups.value = true;
     try {
-        subGroups.value = await fetchSupplySubGroups();
+        groups.value = await fetchSupplyGroups();
     } catch {
-        console.error('Error al cargar subgrupos de insumos');
+        console.error('Error al cargar grupos de insumos');
     } finally {
-        isLoadingSubGroups.value = false;
+        isLoadingGroups.value = false;
     }
 }
 
@@ -273,6 +282,11 @@ async function handleSubmit(): Promise<void> {
     }
 }
 
+function onGroupChange(value: string | number | boolean | Array<string | number | boolean> | null | undefined): void {
+    form.value.category_group_id = (value === null || value === undefined || value === '') ? null : Number(value) || null;
+    form.value.category_sub_group_id = null;
+}
+
 function onSubGroupChange(value: string | number | boolean | Array<string | number | boolean> | null | undefined): void {
     if (value === null || value === undefined || value === '') {
         form.value.category_sub_group_id = null;
@@ -325,8 +339,8 @@ function formatCurrency(value: number): string {
                                 <p class="text-xs text-muted-foreground">Define el artículo solicitado y clasifícalo dentro del catálogo.</p>
                             </div>
 
-                            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                <div class="grid gap-1.5 md:col-span-2">
+                            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                <div class="grid gap-1.5 md:col-span-3">
                                     <Label for="supply-name">Nombre del insumo *</Label>
                                     <Input
                                         id="supply-name"
@@ -337,14 +351,27 @@ function formatCurrency(value: number): string {
                                 </div>
 
                                 <div class="grid gap-1.5">
-                                    <Label>Categoría</Label>
+                                    <Label>Grupo *</Label>
+                                    <SelectField
+                                        :model-value="form.category_group_id"
+                                        :options="groupOptions"
+                                        :searchable="true"
+                                        :disabled="isSubmitting || isLoadingGroups"
+                                        placeholder="Seleccionar grupo..."
+                                        search-placeholder="Buscar grupo..."
+                                        @update:model-value="onGroupChange"
+                                    />
+                                </div>
+
+                                <div class="grid gap-1.5">
+                                    <Label>Subgrupo *</Label>
                                     <SelectField
                                         :model-value="form.category_sub_group_id"
                                         :options="subGroupOptions"
                                         :searchable="true"
-                                        :disabled="isSubmitting || isLoadingSubGroups"
-                                        placeholder="Seleccionar categoría..."
-                                        search-placeholder="Buscar categoría..."
+                                        :disabled="isSubmitting || isLoadingGroups"
+                                        placeholder="Seleccionar subgrupo..."
+                                        search-placeholder="Buscar subgrupo..."
                                         @update:model-value="onSubGroupChange"
                                     />
                                 </div>
@@ -359,7 +386,7 @@ function formatCurrency(value: number): string {
                                     />
                                 </div>
 
-                                <div class="grid gap-1.5 md:col-span-2">
+                                <div class="grid gap-1.5 md:col-span-3">
                                     <Label for="supply-description">Descripción técnica</Label>
                                     <Textarea
                                         id="supply-description"
