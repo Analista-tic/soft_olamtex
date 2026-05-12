@@ -41,7 +41,11 @@ class ProductionOrder extends Model
         'product_sheet_id',
         'op_code',
         'season',
+        'season_month',
+        'season_year',
         'dispatch_month',
+        'dispatch_month_num',
+        'dispatch_year',
         'destination_id',
         'priority',
         'units',
@@ -59,13 +63,18 @@ class ProductionOrder extends Model
     ];
 
     protected $casts = [
-        'ecommerce_units' => 'array',
-        'estimated_delivery_date' => 'date',
-        'is_advance' => 'boolean',
-        'process_estimated_dates' => 'array',
-        'cut_fabric_consumption' => 'array',
-        'batch_priority' => 'integer',
-        'created_by_user_id' => 'integer',
+        'ecommerce_units'          => 'array',
+        'estimated_delivery_date'  => 'date',
+        'is_advance'               => 'boolean',
+        'process_estimated_dates'  => 'array',
+        'cut_fabric_consumption'   => 'array',
+        'batch_priority'           => 'integer',
+        'created_by_user_id'       => 'integer',
+        // Columnas canónicas Fase A
+        'season_month'             => 'integer',
+        'season_year'              => 'integer',
+        'dispatch_month_num'       => 'integer',
+        'dispatch_year'            => 'integer',
     ];
 
     protected $appends = [

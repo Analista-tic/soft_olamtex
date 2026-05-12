@@ -338,7 +338,7 @@ class ProductionOrderService
             ->filter()
             ->max();
 
-        if ($max === null && $prefix === 'MF') {
+        if ($max === null && in_array($prefix, ['MF', 'MFT'], true)) {
             return 5000;
         }
 

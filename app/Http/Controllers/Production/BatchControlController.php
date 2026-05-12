@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Production;
 
 use App\Enums\EstatusOperacionOrden;
 use App\Helpers\MonthLabel;
+use App\Helpers\SeasonParser;
 use App\Helpers\ScopeHelper;
 use App\Http\Controllers\Controller;
 use App\Models\Production\BatchControlDelivery;
@@ -179,6 +180,9 @@ class BatchControlController extends Controller
      */
     public function getData(Request $request): JsonResponse
     {
+        $seasonFilterRaw = trim((string) $request->input('season', ''));
+        $legacyTemporalFallbackEnabled = (bool) config('product-sheet.temporal_legacy_fallback_enabled', true);
+
         $query = ProductionOrder::with([
             'productSheet:id,type,processes,description,sample_reference,product_reference,section_id,group_id',
             'lastDelivery',
@@ -186,6 +190,44 @@ class BatchControlController extends Controller
         ->withCount(['pendingNovelties'])
         ->orderBy('batch_priority')
         ->orderByDesc('id');
+
+        if ($seasonFilterRaw !== '' && strtolower($seasonFilterRaw) !== 'all') {
+            $parsedSeason = SeasonParser::parse($seasonFilterRaw);
+
+            if ($parsedSeason['month'] !== null) {
+                $month = (int) $parsedSeason['month'];
+                $year = $parsedSeason['year'] !== null ? (int) $parsedSeason['year'] : null;
+                $legacyMonthName = SeasonParser::monthName($month);
+
+                $query->where(function ($q) use ($month, $year, $legacyMonthName, $legacyTemporalFallbackEnabled) {
+                    if ($year !== null) {
+                        $q->where(function ($canonical) use ($month, $year) {
+                            $canonical->where('season_month', $month)
+                                ->where('season_year', $year);
+                        });
+                    } else {
+                        $q->where('season_month', $month);
+                    }
+
+                    if ($legacyTemporalFallbackEnabled && $legacyMonthName !== null) {
+                        $q->orWhere(function ($legacy) use ($legacyMonthName, $year) {
+                            if ($year !== null) {
+                                $legacy->whereRaw('UPPER(TRIM(season)) = ?', ["{$legacyMonthName} {$year}"]);
+                            } else {
+                                $legacy->whereRaw('UPPER(TRIM(season)) = ?', [$legacyMonthName])
+                                    ->orWhereRaw('UPPER(TRIM(season)) LIKE ?', [$legacyMonthName . ' %']);
+                            }
+                        });
+                    }
+                });
+            } elseif ($legacyTemporalFallbackEnabled) {
+                $normalizedLegacy = strtoupper($seasonFilterRaw);
+                $query->where(function ($q) use ($normalizedLegacy) {
+                    $q->whereRaw('UPPER(TRIM(season)) = ?', [$normalizedLegacy])
+                        ->orWhereRaw('UPPER(TRIM(season)) LIKE ?', [$normalizedLegacy . ' %']);
+                });
+            }
+        }
 
         $user = $request->user();
         $scopePermissions = [
@@ -220,7 +262,7 @@ class BatchControlController extends Controller
         $processes = config('product-sheet.batch_control_processes', []);
         $aliases = config('product-sheet.batch_control_process_aliases', []);
 
-        $rows = $orders->map(function (ProductionOrder $p) use ($destinations, $sections, $groups, $today, $processes, $aliases) {
+        $rows = $orders->map(function (ProductionOrder $p) use ($destinations, $sections, $groups, $today, $processes, $aliases, $legacyTemporalFallbackEnabled) {
             $ps = $p->productSheet;
 
             // Flujo real según ProductSheet: procesos activos normalizados al orden de batch_control
@@ -286,11 +328,17 @@ class BatchControlController extends Controller
             return [
                 'id' => $p->id,
                 'op_code' => $p->op_code,
+                'season_month' => $p->season_month,
+                'season_year' => $p->season_year,
                 'current_process' => $currentProcess,
                 'referencia' => $displayRef ?: 'Sin referencia',
-                'temporada' => is_numeric($p->season)
-                    ? MonthLabel::fromNumber((int) $p->season)
-                    : (string) $p->season,
+                'temporada' => $p->season_month !== null
+                    ? ($p->season_year !== null
+                        ? sprintf('%s %d', SeasonParser::monthName((int) $p->season_month) ?? MonthLabel::fromNumber((int) $p->season_month), (int) $p->season_year)
+                        : (SeasonParser::monthName((int) $p->season_month) ?? MonthLabel::fromNumber((int) $p->season_month)))
+                    : ($legacyTemporalFallbackEnabled && is_numeric($p->season)
+                        ? MonthLabel::fromNumber((int) $p->season)
+                        : ($legacyTemporalFallbackEnabled ? (string) $p->season : '-')),
                 'prioridad' => $p->priority ?? '-',
                 'cant_programadas' => $p->units ?? 0,
                 'destino' => $destinations->get($p->destination_id, ['name' => 'N/A'])['name'] ?? 'N/A',

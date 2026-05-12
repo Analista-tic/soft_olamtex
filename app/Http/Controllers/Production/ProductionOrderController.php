@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Production;
 
 use App\Helpers\MonthLabel;
+use App\Helpers\SeasonParser;
 use App\Http\Controllers\Controller;
 use App\Models\Production\ProductionOrder;
 use App\Services\Production\ProductionOrderService;
@@ -37,6 +38,8 @@ class ProductionOrderController extends Controller
 
     public function show(ProductionOrder $order): JsonResponse
     {
+        $legacyTemporalFallbackEnabled = (bool) config('product-sheet.temporal_legacy_fallback_enabled', true);
+
         $order->load([
             'productSheet:id,type,sample_reference,product_reference,section_id,group_id,world_id,brand_id,fabric_base_id,yarn_base_id,billing_price,selling_price,sizes,description,status,flat_sketch_path',
         ]);
@@ -77,9 +80,17 @@ class ProductionOrderController extends Controller
         }
 
         $season = $order->season;
-        $seasonDisplay = is_numeric($season)
-            ? MonthLabel::fromNumber((int) $season)
-            : $season;
+        if ($order->season_month !== null) {
+            $monthName = SeasonParser::monthName((int) $order->season_month)
+                ?? MonthLabel::fromNumber((int) $order->season_month);
+            $seasonDisplay = $order->season_year !== null
+                ? sprintf('%s %d', $monthName, (int) $order->season_year)
+                : $monthName;
+        } else {
+            $seasonDisplay = $legacyTemporalFallbackEnabled && is_numeric($season)
+                ? MonthLabel::fromNumber((int) $season)
+                : ($legacyTemporalFallbackEnabled ? $season : '-');
+        }
 
         $productionOrder = [
             'id' => $order->id,
@@ -87,6 +98,11 @@ class ProductionOrderController extends Controller
             'status' => $order->status,
             'source' => $order->source,
             'season' => $order->season,
+            'season_month' => $order->season_month,
+            'season_year' => $order->season_year,
+            'dispatch_month' => $order->dispatch_month,
+            'dispatch_month_num' => $order->dispatch_month_num,
+            'dispatch_year' => $order->dispatch_year,
             'season_display' => $seasonDisplay,
             'destination_id' => $order->destination_id,
             'destination' => $destination,

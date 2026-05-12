@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Production;
 
 use App\Helpers\MonthLabel;
+use App\Helpers\SeasonParser;
 use App\Http\Controllers\Controller;
 use App\Models\Production\ProductionOrder;
 use App\Models\Production\ProductOperationList;
@@ -146,6 +147,8 @@ class TechnicalDataSheetController extends Controller
      */
     public function basicInfo(int $opId): JsonResponse
     {
+        $legacyTemporalFallbackEnabled = (bool) config('product-sheet.temporal_legacy_fallback_enabled', true);
+
         $order = ProductionOrder::with([
             'productSheet:id,type,sample_reference,product_reference,section_id,group_id,world_id,brand_id,fabric_base_id,yarn_base_id,billing_price,selling_price,sizes,description,status,flat_sketch_path,created_at',
         ])->findOrFail($opId);
@@ -172,8 +175,18 @@ class TechnicalDataSheetController extends Controller
             $baseYarn = $productSheet->yarn_base_id ? $yarnBases->get($productSheet->yarn_base_id)     : null;
         }
 
-        $season        = $order->season;
-        $seasonDisplay = is_numeric($season) ? MonthLabel::fromNumber((int) $season) : $season;
+        $season = $order->season;
+        if ($order->season_month !== null) {
+            $monthName = SeasonParser::monthName((int) $order->season_month)
+                ?? MonthLabel::fromNumber((int) $order->season_month);
+            $seasonDisplay = $order->season_year !== null
+                ? sprintf('%s %d', $monthName, (int) $order->season_year)
+                : $monthName;
+        } else {
+            $seasonDisplay = $legacyTemporalFallbackEnabled && is_numeric($season)
+                ? MonthLabel::fromNumber((int) $season)
+                : ($legacyTemporalFallbackEnabled ? $season : '-');
+        }
         $priority      = $this->nullableText($order->priority);
         $rawPath       = $productSheet?->flat_sketch_path;
         $flatDrawingUrl = $this->resolveFlatDrawingUrl($rawPath);
@@ -320,6 +333,7 @@ class TechnicalDataSheetController extends Controller
                 }
 
                 $id   = mb_strtolower((string) ($option['id'] ?? ''));
+
                 $name = mb_strtolower((string) ($option['name'] ?? ''));
                 $term = mb_strtolower($search);
 
@@ -350,7 +364,7 @@ class TechnicalDataSheetController extends Controller
             'list_id' => ['required', 'integer'],
         ]);
 
-        $order        = ProductionOrder::with('productSheet')->findOrFail($opId);
+        $order = ProductionOrder::with('productSheet:id,operational_list_id')->findOrFail($opId);
         $productSheet = $order->productSheet;
 
         if (!$productSheet) {

@@ -297,6 +297,12 @@ Route::prefix('comercial')->name('comercial.')->group(function () {
     Route::patch('programmers/fecha-estimada-masiva', [ProgrammerController::class, 'bulkUpdateEstimatedDate'])
         ->middleware('permission:editar programador')
         ->name('programmers.fecha-estimada-masiva');
+    Route::patch('programmers/temporada-despacho-masiva', [ProgrammerController::class, 'bulkUpdateSeasonDispatch'])
+        ->middleware('permission:editar programador')
+        ->name('programmers.temporada-despacho-masiva');
+    Route::patch('programador/{programador}/revertir-adelanto', [ProgrammerController::class, 'revertAdvance'])
+        ->middleware('permission:editar programador')
+        ->name('programador.revertir-adelanto');
     Route::get('programador', [ProgrammerController::class, 'index'])
         ->middleware('permission:ver programador')
         ->name('programador.index');

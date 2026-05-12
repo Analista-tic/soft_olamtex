@@ -96,4 +96,16 @@ return [
         'producto' => ['Desarrollo de muestras', 'Confección', 'Terminación', 'Bodega'],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Fase E - Fallback legacy temporal (temporada/despacho)
+    |--------------------------------------------------------------------------
+    |
+    | true  => mantiene compatibilidad con season/dispatch_month string
+    | false => usa únicamente columnas canónicas season_month/year y
+    |          dispatch_month_num/year
+    |
+    */
+    'temporal_legacy_fallback_enabled' => env('TEMPORAL_LEGACY_FALLBACK_ENABLED', true),
+
 ];

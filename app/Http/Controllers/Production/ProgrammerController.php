@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Production;
 
 use App\Helpers\MonthLabel;
+use App\Helpers\SeasonParser;
 use App\Helpers\ScopeHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Production\StoreProgrammerRequest;
@@ -59,14 +60,11 @@ class ProgrammerController extends Controller
         $yarnBases = $catalogs['yarn_bases']->keyBy('id');
         $destinations = $catalogs['destinations'];
 
-        $displayReferenceSql = "CASE
-            WHEN type = 'muestra' THEN sample_reference
-            WHEN type = 'producto' THEN product_reference
-            ELSE NULL
-        END";
+        $displayReferenceSql = 'product_reference';
 
         $productSheets = ProductSheet::query()
             ->whereNull('deleted_at')
+            ->where('type', 'producto')
             ->whereRaw("NULLIF(TRIM({$displayReferenceSql}), '') IS NOT NULL")
             ->select([
                 'id',
@@ -111,8 +109,7 @@ class ProgrammerController extends Controller
 
         $productSheetsForCreate = $productSheets
             ->filter(function ($product) {
-                $hasReference = trim((string) ($product->sample_reference ?? '')) !== ''
-                    || trim((string) ($product->product_reference ?? '')) !== '';
+                $hasReference = trim((string) ($product->product_reference ?? '')) !== '';
                 $isComplete = ($product->status ?? '') === 'complete';
                 $isEnabled = (bool) ($product->is_enabled ?? true);
                 return $hasReference && $isComplete && $isEnabled;
@@ -170,11 +167,11 @@ class ProgrammerController extends Controller
                     $dispatchMonth = $dispatchMonthRaw !== null && $dispatchMonthRaw !== ''
                         ? $dispatchMonthRaw
                         : $season;
-                    $seasonToken = $this->normalizeMonthToken($season);
-                    $dispatchMonthToken = $this->normalizeMonthToken($dispatchMonth);
+                    $seasonToken = $this->normalizeTemporalComparisonToken($season);
+                    $dispatchMonthToken = $this->normalizeTemporalComparisonToken($dispatchMonth);
                     $isCrossSeasonAdvance = $seasonToken !== '' && $dispatchMonthToken !== '' && $seasonToken !== $dispatchMonthToken;
-                    $isManualAdvance = (bool) ($lot['is_advance'] ?? false);
-                    $isAdvance = $isManualAdvance || $isCrossSeasonAdvance;
+                    // Si hay cruce de temporadas, SIEMPRE es adelanto (sin opción a deshabilitar)
+                    $isAdvance = $isCrossSeasonAdvance ? true : (bool) ($lot['is_advance'] ?? false);
                     $inputPriority = isset($lot['priority']) ? (string) $lot['priority'] : null;
                     $notes = isset($lot['notes']) ? trim((string) $lot['notes']) : null;
 
@@ -218,23 +215,31 @@ class ProgrammerController extends Controller
                         $estimatedDeliveryDate = $this->schedulingService->resolveStandardDate($season, $priority);
                     }
 
-                    $status = $units !== null && $units > 0 && filled($estimatedDeliveryDate) ? 'complete' : 'incomplete';
+                    $status = 'incomplete';
+
+                    // Fase C — escritura dual canónica
+                    $seasonParsed   = SeasonParser::parse($season);
+                    $dispatchParsed = SeasonParser::parse($dispatchMonth);
 
                     $order = ProductionOrder::create([
-                        'product_sheet_id' => $lot['product_sheet_id'],
-                        'season' => $season,
-                        'dispatch_month' => $dispatchMonth,
-                        'destination_id' => $lot['destination_id'],
-                        'priority' => $priority,
-                        'units' => $units,
+                        'product_sheet_id'    => $lot['product_sheet_id'],
+                        'season'              => $season,
+                        'season_month'        => $seasonParsed['month'],
+                        'season_year'         => $seasonParsed['year'],
+                        'dispatch_month'      => $dispatchMonth,
+                        'dispatch_month_num'  => $dispatchParsed['month'],
+                        'dispatch_year'       => $dispatchParsed['year'],
+                        'destination_id'      => $lot['destination_id'],
+                        'priority'            => $priority,
+                        'units'               => $units,
                         'estimated_delivery_date' => $estimatedDeliveryDate,
-                        'is_advance' => $isAdvance,
-                        'notes' => $notes,
-                        'ecommerce_units' => $ecommerceUnits,
-                        'status' => $status,
-                        'current_process' => config('product-sheet.batch_control_processes.0', 'I&D'),
-                        'source' => 'manual',
-                        'created_by_user_id' => $userId,
+                        'is_advance'          => $isAdvance,
+                        'notes'               => $notes,
+                        'ecommerce_units'     => $ecommerceUnits,
+                        'status'              => $status,
+                        'current_process'     => config('product-sheet.batch_control_processes.0', 'I&D'),
+                        'source'              => 'manual',
+                        'created_by_user_id'  => $userId,
                     ]);
 
                     $order->op_code = $this->productionOrderService->nextOpCode(
@@ -338,13 +343,13 @@ class ProgrammerController extends Controller
             ? trim((string) ($validatedData['dispatch_month'] ?? ''))
             : trim((string) ($programador->dispatch_month ?? ''));
         $dispatchMonth = $dispatchMonthRaw !== '' ? $dispatchMonthRaw : $season;
-        $seasonToken = $this->normalizeMonthToken($season);
-        $dispatchMonthToken = $this->normalizeMonthToken($dispatchMonth);
+        $seasonToken = $this->normalizeTemporalComparisonToken($season);
+        $dispatchMonthToken = $this->normalizeTemporalComparisonToken($dispatchMonth);
         $isCrossSeasonAdvance = $seasonToken !== '' && $dispatchMonthToken !== '' && $seasonToken !== $dispatchMonthToken;
-        $isAdvance = array_key_exists('is_advance', $validatedData)
+        // Si hay cruce de temporadas, SIEMPRE es adelanto (sin opción a deshabilitar)
+        $isAdvance = $isCrossSeasonAdvance ? true : (array_key_exists('is_advance', $validatedData)
             ? (bool) $validatedData['is_advance']
-            : (bool) $programador->is_advance;
-        $isAdvance = $isAdvance || $isCrossSeasonAdvance;
+            : (bool) $programador->is_advance);
 
         $priority = (string) ($validatedData['priority'] ?? $programador->priority ?? '');
 
@@ -393,23 +398,26 @@ class ProgrammerController extends Controller
         $validatedData['dispatch_month'] = $dispatchMonth;
         $validatedData['is_advance'] = $isAdvance;
 
-        if ($isAutoGenerated) {
-            $estimatedDeliveryDate = array_key_exists('estimated_delivery_date', $validatedData)
-                ? $validatedData['estimated_delivery_date']
-                : ($programador->estimated_delivery_date ? $programador->estimated_delivery_date->toDateString() : null);
-            $validatedData['status'] = $this->productionOrderService->resolveStatus($units, $estimatedDeliveryDate);
-        } else {
-            $validatedData['status'] = $units !== null && $units > 0 && filled($validatedData['estimated_delivery_date'] ?? null)
-                ? 'complete'
-                : 'incomplete';
-        }
+        // Fase C — escritura dual canónica (update)
+        $seasonParsedU   = SeasonParser::parse($season);
+        $dispatchParsedU = SeasonParser::parse($dispatchMonth);
+        $validatedData['season_month']       = $seasonParsedU['month'];
+        $validatedData['season_year']        = $seasonParsedU['year'];
+        $validatedData['dispatch_month_num'] = $dispatchParsedU['month'];
+        $validatedData['dispatch_year']      = $dispatchParsedU['year'];
+
+        $validatedData['status'] = $programador->status === 'complete' ? 'complete' : 'incomplete';
 
         // Aplicar explÃƒÆ’Ã‚Â­citamente los campos validados para evitar dependencias
             // en el comportamiento de mass-assignment en entornos de test.
             $updatable = [
                 'product_sheet_id',
                 'season',
+                'season_month',
+                'season_year',
                 'dispatch_month',
+                'dispatch_month_num',
+                'dispatch_year',
                 'destination_id',
                 'priority',
                 'units',
@@ -511,7 +519,11 @@ class ProgrammerController extends Controller
                 'op_code',
                 'product_sheet_id',
                 'season',
+                'season_month',
+                'season_year',
                 'dispatch_month',
+                'dispatch_month_num',
+                'dispatch_year',
                 'destination_id',
                 'priority',
                 'ecommerce_units',
@@ -525,8 +537,12 @@ class ProgrammerController extends Controller
                 'updated_at',
             ])
             ->with([
-                'productSheet:id,type,sample_reference,product_reference,section_id,group_id',
+                'productSheet:id,type,sample_reference,product_reference,section_id,group_id,billing_price,selling_price',
             ]);
+
+        $query->whereHas('productSheet', function ($q) {
+            $q->where('type', 'producto');
+        });
 
         $user = $request->user();
         $scopePermissions = [
@@ -550,8 +566,69 @@ class ProgrammerController extends Controller
             ScopeHelper::apply($query, $user, 'ver propios programacion produccion', 'ver area programacion produccion', 'ver todos programacion produccion');
         }
 
+        $legacyTemporalFallbackEnabled = (bool) config('product-sheet.temporal_legacy_fallback_enabled', true);
+
         if (!empty($filters['season']) && $filters['season'] !== 'all') {
-            $query->where('season', $filters['season']);
+            $seasonFilter = trim((string) $filters['season']);
+
+            if ($seasonFilter === '__EMPTY_SEASON__') {
+                $query->where(function ($q) use ($legacyTemporalFallbackEnabled) {
+                    $q->whereNull('season_month')
+                        ->orWhereNull('season_year');
+
+                    if ($legacyTemporalFallbackEnabled) {
+                        $q->orWhereNull('season')
+                            ->orWhereRaw("TRIM(COALESCE(season, '')) = ''");
+                    }
+                });
+            } elseif ($seasonFilter === '__EMPTY_DISPATCH__') {
+                $query->where(function ($q) use ($legacyTemporalFallbackEnabled) {
+                    $q->whereNull('dispatch_month_num')
+                        ->orWhereNull('dispatch_year');
+
+                    if ($legacyTemporalFallbackEnabled) {
+                        $q->orWhereNull('dispatch_month')
+                            ->orWhereRaw("TRIM(COALESCE(dispatch_month, '')) = ''");
+                    }
+                });
+            } else {
+                $parsedSeason = SeasonParser::parse($seasonFilter);
+                if ($parsedSeason['month'] !== null) {
+                    $month = (int) $parsedSeason['month'];
+                    $year = $parsedSeason['year'] !== null ? (int) $parsedSeason['year'] : null;
+                    $legacyMonthName = SeasonParser::monthName($month);
+
+                    $query->where(function ($q) use ($month, $year, $legacyMonthName, $legacyTemporalFallbackEnabled) {
+                        if ($year !== null) {
+                            $q->where(function ($canonical) use ($month, $year) {
+                                $canonical->where('season_month', $month)
+                                    ->where('season_year', $year);
+                            });
+                        } else {
+                            $q->where('season_month', $month);
+                        }
+
+                        if ($legacyTemporalFallbackEnabled && $legacyMonthName !== null) {
+                            $q->orWhere(function ($legacy) use ($legacyMonthName, $year) {
+                                if ($year !== null) {
+                                    $legacy->whereRaw('UPPER(TRIM(season)) = ?', ["{$legacyMonthName} {$year}"]);
+                                } else {
+                                    $legacy->whereRaw('UPPER(TRIM(season)) = ?', [$legacyMonthName])
+                                        ->orWhereRaw('UPPER(TRIM(season)) LIKE ?', [$legacyMonthName . ' %']);
+                                }
+                            });
+                        }
+                    });
+                } elseif ($legacyTemporalFallbackEnabled) {
+                    $normalizedSeason = $this->resolveMonthFilter($seasonFilter);
+                    if ($normalizedSeason !== '') {
+                        $query->where(function ($q) use ($normalizedSeason) {
+                            $q->whereRaw('UPPER(TRIM(season)) = ?', [$normalizedSeason])
+                                ->orWhereRaw('UPPER(TRIM(season)) LIKE ?', [$normalizedSeason . ' %']);
+                        });
+                    }
+                }
+            }
         }
 
         if (!empty($filters['priority']) && $filters['priority'] !== 'all') {
@@ -560,12 +637,6 @@ class ProgrammerController extends Controller
 
         if (!empty($filters['status']) && $filters['status'] !== 'all') {
             $query->where('status', $filters['status']);
-        }
-
-        if (!empty($filters['type']) && $filters['type'] !== 'all' && in_array($filters['type'], ['muestra', 'producto'], true)) {
-            $query->whereHas('productSheet', function ($q) use ($filters) {
-                $q->where('type', $filters['type']);
-            });
         }
 
         if (!empty($filters['destination_id']) && $filters['destination_id'] !== 'all') {
@@ -612,7 +683,7 @@ class ProgrammerController extends Controller
         $sections = $catalogs['sections']->keyBy('id');
         $groups = $catalogs['groups']->keyBy('id');
 
-        $items = $orders->getCollection()->map(function (ProductionOrder $order) use ($destinations, $sections, $groups) {
+        $items = $orders->getCollection()->map(function (ProductionOrder $order) use ($destinations, $sections, $groups, $legacyTemporalFallbackEnabled) {
             $isAuto = $order->isAutoGenerated();
 
             $destination = $destinations->get($order->destination_id, ['id' => $order->destination_id, 'name' => 'N/A']);
@@ -632,11 +703,20 @@ class ProgrammerController extends Controller
 
             $season = $order->season;
             $seasonDisplay = $season;
-            if (is_numeric($season)) {
+
+            if ($order->season_month !== null) {
+                $monthName = SeasonParser::monthName((int) $order->season_month)
+                    ?? $this->productionOrderService->getMonthName((int) $order->season_month);
+                $seasonDisplay = $order->season_year !== null
+                    ? sprintf('%s %d', $monthName, (int) $order->season_year)
+                    : $monthName;
+            } elseif ($legacyTemporalFallbackEnabled && is_numeric($season)) {
                 $seasonDisplay = $this->productionOrderService->getMonthName((int) $season);
             }
 
-            $temporadaLabel = MonthLabel::fromNumber($order->season);
+            $temporadaLabel = $order->season_month !== null
+                ? SeasonParser::monthName((int) $order->season_month)
+                : ($legacyTemporalFallbackEnabled ? MonthLabel::fromNumber($order->season) : null);
 
             $productSheet = null;
 
@@ -653,6 +733,8 @@ class ProgrammerController extends Controller
                     'type' => $order->productSheet->type,
                     'sample_reference' => $order->productSheet->sample_reference,
                     'product_reference' => $order->productSheet->product_reference,
+                    'billing_price' => $order->productSheet->billing_price,
+                    'selling_price' => $order->productSheet->selling_price,
                     'display_reference' => $displayReference,
                     'reference' => $displayReference,
                     'section_id' => $sectionId,
@@ -672,7 +754,11 @@ class ProgrammerController extends Controller
                 'product_sheet_id' => $order->product_sheet_id,
                 'product_sheet' => $productSheet,
                 'season' => $order->season,
+                'season_month' => $order->season_month,
+                'season_year' => $order->season_year,
                 'dispatch_month' => $order->dispatch_month,
+                'dispatch_month_num' => $order->dispatch_month_num,
+                'dispatch_year' => $order->dispatch_year,
                 'season_display' => $seasonDisplay,
                 'temporada_label' => $temporadaLabel,
                 'destination_id' => $order->destination_id,
@@ -732,13 +818,88 @@ class ProgrammerController extends Controller
         $estimatedDeliveryDateFilter = trim((string) $request->input('estimated_delivery_date', ''));
 
         $query = ProductionOrder::query()
-            ->select(['id', 'priority', 'units', 'estimated_delivery_date', 'season', 'destination_id', 'status'])
+            ->select([
+                'id',
+                'priority',
+                'units',
+                'estimated_delivery_date',
+                'season',
+                'season_month',
+                'season_year',
+                'dispatch_month',
+                'dispatch_month_num',
+                'dispatch_year',
+                'destination_id',
+                'status',
+            ])
             ->with(['productSheet:id,type,sample_reference,product_reference']);
 
+        $query->whereHas('productSheet', function ($q) {
+            $q->where('type', 'producto');
+        });
+
+        $legacyTemporalFallbackEnabled = (bool) config('product-sheet.temporal_legacy_fallback_enabled', true);
+
         if (!empty($filters['season']) && $filters['season'] !== 'all') {
-            $seasonFilter = $this->resolveMonthFilter((string) $filters['season']);
-            if ($seasonFilter !== '') {
-                $query->whereRaw('UPPER(TRIM(season)) = ?', [$seasonFilter]);
+            $seasonFilterRaw = trim((string) $filters['season']);
+
+            if ($seasonFilterRaw === '__EMPTY_SEASON__') {
+                $query->where(function ($q) use ($legacyTemporalFallbackEnabled) {
+                    $q->whereNull('season_month')
+                        ->orWhereNull('season_year');
+
+                    if ($legacyTemporalFallbackEnabled) {
+                        $q->orWhereNull('season')
+                            ->orWhereRaw("TRIM(COALESCE(season, '')) = ''");
+                    }
+                });
+            } elseif ($seasonFilterRaw === '__EMPTY_DISPATCH__') {
+                $query->where(function ($q) use ($legacyTemporalFallbackEnabled) {
+                    $q->whereNull('dispatch_month_num')
+                        ->orWhereNull('dispatch_year');
+
+                    if ($legacyTemporalFallbackEnabled) {
+                        $q->orWhereNull('dispatch_month')
+                            ->orWhereRaw("TRIM(COALESCE(dispatch_month, '')) = ''");
+                    }
+                });
+            } else {
+                $parsedSeason = SeasonParser::parse($seasonFilterRaw);
+                if ($parsedSeason['month'] !== null) {
+                    $month = (int) $parsedSeason['month'];
+                    $year = $parsedSeason['year'] !== null ? (int) $parsedSeason['year'] : null;
+                    $legacyMonthName = SeasonParser::monthName($month);
+
+                    $query->where(function ($q) use ($month, $year, $legacyMonthName, $legacyTemporalFallbackEnabled) {
+                        if ($year !== null) {
+                            $q->where(function ($canonical) use ($month, $year) {
+                                $canonical->where('season_month', $month)
+                                    ->where('season_year', $year);
+                            });
+                        } else {
+                            $q->where('season_month', $month);
+                        }
+
+                        if ($legacyTemporalFallbackEnabled && $legacyMonthName !== null) {
+                            $q->orWhere(function ($legacy) use ($legacyMonthName, $year) {
+                                if ($year !== null) {
+                                    $legacy->whereRaw('UPPER(TRIM(season)) = ?', ["{$legacyMonthName} {$year}"]);
+                                } else {
+                                    $legacy->whereRaw('UPPER(TRIM(season)) = ?', [$legacyMonthName])
+                                        ->orWhereRaw('UPPER(TRIM(season)) LIKE ?', [$legacyMonthName . ' %']);
+                                }
+                            });
+                        }
+                    });
+                } elseif ($legacyTemporalFallbackEnabled) {
+                    $seasonFilter = $this->resolveMonthFilter($seasonFilterRaw);
+                    if ($seasonFilter !== '') {
+                        $query->where(function ($q) use ($seasonFilter) {
+                            $q->whereRaw('UPPER(TRIM(season)) = ?', [$seasonFilter])
+                                ->orWhereRaw('UPPER(TRIM(season)) LIKE ?', [$seasonFilter . ' %']);
+                        });
+                    }
+                }
             }
         }
 
@@ -748,12 +909,6 @@ class ProgrammerController extends Controller
 
         if (!empty($filters['status']) && $filters['status'] !== 'all') {
             $query->where('status', $filters['status']);
-        }
-
-        if (!empty($filters['type']) && $filters['type'] !== 'all' && in_array($filters['type'], ['muestra', 'producto'], true)) {
-            $query->whereHas('productSheet', function ($q) use ($filters) {
-                $q->where('type', $filters['type']);
-            });
         }
 
         if (!empty($filters['destination_id']) && $filters['destination_id'] !== 'all') {
@@ -799,10 +954,7 @@ class ProgrammerController extends Controller
                 /** @var ProductionOrder $order */
                 $order->estimated_delivery_date = $date;
                 $order->is_advance = true;
-                $order->status = $this->productionOrderService->resolveStatus(
-                    $order->units !== null ? (int) $order->units : null,
-                    $date,
-                );
+                $order->status = $order->status === 'complete' ? 'complete' : 'incomplete';
                 $order->save();
                 $updated++;
             }
@@ -844,9 +996,7 @@ class ProgrammerController extends Controller
                     $order->estimated_delivery_date = $this->schedulingService->resolveStandardDate($season, $priority);
                 }
 
-                $order->status = ($order->units !== null && (int) $order->units > 0 && filled($order->estimated_delivery_date))
-                    ? 'complete'
-                    : 'incomplete';
+                $order->status = $order->status === 'complete' ? 'complete' : 'incomplete';
 
                 $order->save();
                 $updated++;
@@ -856,6 +1006,120 @@ class ProgrammerController extends Controller
         return response()->json([
             'message' => "Prioridad actualizada en {$updated} registros.",
             'updated_count' => $updated,
+        ]);
+    }
+
+    public function bulkUpdateSeasonDispatch(Request $request)
+    {
+        $validated = $request->validate([
+            'order_ids' => ['required', 'array', 'min:1'],
+            'order_ids.*' => ['integer', 'exists:production_orders,id'],
+            'season' => ['required', 'string', 'max:60'],
+            'dispatch_month' => ['nullable', 'string', 'max:60'],
+        ]);
+
+        $season = strtoupper(trim((string) $validated['season']));
+        $dispatchMonthRaw = trim((string) ($validated['dispatch_month'] ?? ''));
+        $dispatchMonth = $dispatchMonthRaw !== '' ? strtoupper($dispatchMonthRaw) : $season;
+
+        $orders = ProductionOrder::query()
+            ->whereIn('id', $validated['order_ids'])
+            ->get();
+
+        $updated = 0;
+
+        DB::transaction(function () use ($orders, $season, $dispatchMonth, &$updated) {
+            foreach ($orders as $order) {
+                /** @var ProductionOrder $order */
+                $order->season = $season;
+                $order->dispatch_month = $dispatchMonth;
+
+                // Mantener sincronía canónica (Fase C/D)
+                $seasonParsed = SeasonParser::parse($season);
+                $dispatchParsed = SeasonParser::parse($dispatchMonth);
+                $order->season_month = $seasonParsed['month'];
+                $order->season_year = $seasonParsed['year'];
+                $order->dispatch_month_num = $dispatchParsed['month'];
+                $order->dispatch_year = $dispatchParsed['year'];
+
+                $seasonToken = $this->normalizeTemporalComparisonToken($season);
+                $dispatchToken = $this->normalizeTemporalComparisonToken($dispatchMonth);
+                $isCrossSeasonAdvance = $seasonToken !== '' && $dispatchToken !== '' && $seasonToken !== $dispatchToken;
+
+                $order->is_advance = $isCrossSeasonAdvance ? true : (bool) $order->is_advance;
+
+                $priority = strtoupper(trim((string) ($order->priority ?? '')));
+                if ($priority !== '') {
+                    if ($order->is_advance) {
+                        if ($isCrossSeasonAdvance) {
+                            $order->estimated_delivery_date = $this->schedulingService->resolveStandardDate($dispatchMonth, $priority);
+                        }
+                    } else {
+                        $order->estimated_delivery_date = $this->schedulingService->resolveStandardDate($season, $priority);
+                    }
+                }
+
+                $order->status = $order->status === 'complete' ? 'complete' : 'incomplete';
+                $order->save();
+                $updated++;
+            }
+        });
+
+        return response()->json([
+            'message' => "Temporada y mes de despacho actualizados en {$updated} registros.",
+            'updated_count' => $updated,
+        ]);
+    }
+
+    public function revertAdvance(Request $request, ProductionOrder $programador): JsonResponse
+    {
+        Log::info('[ProgrammerController] revertAdvance', [
+            'order_id' => $programador->id,
+            'op_code'  => $programador->op_code,
+            'user_id'  => $request->user()?->id,
+        ]);
+
+        $season = trim((string) ($programador->season ?? ''));
+        $dispatchMonthRaw = trim((string) ($programador->dispatch_month ?? ''));
+        $dispatchMonth = $dispatchMonthRaw !== '' ? $dispatchMonthRaw : $season;
+        $units = max(1, (int) ($programador->units ?? 1));
+        $priority = trim((string) ($programador->priority ?? ''));
+
+        if ($priority === '' && $programador->product_sheet_id) {
+            $sheet = ProductSheet::find($programador->product_sheet_id);
+            if ($sheet && $season !== '') {
+                $priority = $this->schedulingService->resolvePriorityForNewOrder(
+                    $sheet,
+                    $season,
+                    $units,
+                    $dispatchMonth,
+                    null,
+                );
+            }
+        }
+
+        if ($priority === '' || $season === '') {
+            return response()->json([
+                'message' => 'No se pudo recalcular la lógica de prioridad para revertir el adelanto.',
+            ], 422);
+        }
+
+        $programador->priority = $priority;
+        $programador->is_advance = false;
+        $programador->estimated_delivery_date = $this->schedulingService->resolveStandardDate($season, $priority);
+        $programador->status = $programador->status === 'complete' ? 'complete' : 'incomplete';
+        $programador->save();
+        $programador->refresh();
+
+        return response()->json([
+            'message' => 'La orden "' . $programador->op_code . '" ya no es un adelanto y volvió a la lógica de prioridad.',
+            'data' => [
+                'id' => $programador->id,
+                'priority' => $programador->priority,
+                'estimated_delivery_date' => $programador->estimated_delivery_date?->toDateString(),
+                'is_advance' => (bool) $programador->is_advance,
+                'status' => $programador->status,
+            ],
         ]);
     }
 
@@ -901,6 +1165,66 @@ class ProgrammerController extends Controller
         }
 
         return $raw;
+    }
+
+    /**
+     * Token para comparar temporada/despacho considerando año cuando exista.
+     *
+     * - Si detecta mes + año: YYYY-MM
+     * - Si detecta solo mes: MM-XX
+     * - Si no detecta mes: valor normalizado original
+     */
+    private function normalizeTemporalComparisonToken(string|int|null $value): string
+    {
+        $normalized = $this->normalizeMonthToken($value);
+        if ($normalized === '') {
+            return '';
+        }
+
+        $upper = strtoupper(trim($normalized));
+
+        $monthMap = [
+            'ENERO' => 1,
+            'FEBRERO' => 2,
+            'MARZO' => 3,
+            'ABRIL' => 4,
+            'MAYO' => 5,
+            'JUNIO' => 6,
+            'JULIO' => 7,
+            'AGOSTO' => 8,
+            'SEPTIEMBRE' => 9,
+            'SETIEMBRE' => 9,
+            'OCTUBRE' => 10,
+            'NOVIEMBRE' => 11,
+            'DICIEMBRE' => 12,
+        ];
+
+        $month = null;
+        foreach ($monthMap as $label => $number) {
+            if (preg_match('/\b' . preg_quote($label, '/') . '\b/u', $upper)) {
+                $month = $number;
+                break;
+            }
+        }
+
+        if ($month === null && preg_match('/\b(1[0-2]|0?[1-9])\b/', $upper, $monthMatch) === 1) {
+            $month = (int) $monthMatch[1];
+        }
+
+        if ($month === null) {
+            return $upper;
+        }
+
+        $year = null;
+        if (preg_match('/\b(19|20)\d{2}\b/', $upper, $yearMatch) === 1) {
+            $year = (int) $yearMatch[0];
+        }
+
+        if ($year !== null) {
+            return sprintf('%04d-%02d', $year, $month);
+        }
+
+        return sprintf('MM-%02d', $month);
     }
 
     protected function normalizeEcommerceUnits($value): ?array

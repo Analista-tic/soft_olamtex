@@ -105,6 +105,11 @@ class ProductOperationList extends Model
         return $this->belongsTo(Operation::class);
     }
 
+    public function operationSection()
+    {
+        return $this->belongsTo(OperationSection::class, 'operation_section_id');
+    }
+
     /**
      * Máquina derivada de la operación base (sin columna propia en el listado).
      */

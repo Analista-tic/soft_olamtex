@@ -51,9 +51,15 @@ class ProductionOrderSchedulingService
 
         $month = $this->monthNumber($season);
         $referenceDate = $baseDate ?? now();
-        $year = $referenceDate->year;
-        if ($month < $referenceDate->month) {
-            $year++;
+        $explicitYear = $this->yearNumber($season);
+
+        if ($explicitYear !== null) {
+            $year = $explicitYear;
+        } else {
+            $year = $referenceDate->year;
+            if ($month < $referenceDate->month) {
+                $year++;
+            }
         }
 
         return match ($priority) {
@@ -188,8 +194,21 @@ class ProductionOrderSchedulingService
     {
         $value = strtoupper(trim($season));
 
+        foreach (self::MONTH_MAP as $label => $monthNumber) {
+            if (preg_match('/\b' . preg_quote($label, '/') . '\b/u', $value)) {
+                return $monthNumber;
+            }
+        }
+
         if (isset(self::MONTH_MAP[$value])) {
             return self::MONTH_MAP[$value];
+        }
+
+        if (preg_match('/\b(1[0-2]|0?[1-9])\b/', $value, $match) === 1) {
+            $month = (int) $match[1];
+            if ($month >= 1 && $month <= 12) {
+                return $month;
+            }
         }
 
         if (is_numeric($value)) {
@@ -200,5 +219,16 @@ class ProductionOrderSchedulingService
         }
 
         throw new InvalidArgumentException('Temporada inválida para cálculo de fechas.');
+    }
+
+    private function yearNumber(string $season): ?int
+    {
+        $value = strtoupper(trim($season));
+
+        if (preg_match('/\b(19|20)\d{2}\b/', $value, $match) === 1) {
+            return (int) $match[0];
+        }
+
+        return null;
     }
 }
