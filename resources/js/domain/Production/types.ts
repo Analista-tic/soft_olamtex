@@ -49,7 +49,11 @@ export interface ProductionOrder {
     product_sheet_id: number | null;
     product_sheet?: ProductSheet | null;
     season: string | null;
+    season_month?: number | null;
+    season_year?: number | null;
     dispatch_month?: string | null;
+    dispatch_month_num?: number | null;
+    dispatch_year?: number | null;
     season_display?: string | null;
     destination?: { id: number; name: string } | null;
     destination_id: number | null;

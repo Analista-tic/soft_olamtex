@@ -33,6 +33,7 @@ type ListFilters = {
     status: StatusFilter | null;
     type: TypeFilter | null;
     destination_id: string | null;
+    year: string | null;
 };
 type ScopeOption = {
     value: SectionScope;
@@ -133,6 +134,7 @@ const filters = ref<ListFilters>({
     status: null,
     type: null,
     destination_id: null,
+    year: null,
 });
 
 let fetchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -184,6 +186,104 @@ function getStatusTone(row: Programmer): 'yellow' | 'green' {
     return STATUS_UI[getStatusKey(row)].tone;
 }
 
+/**
+ * Detecta si hay conflicto: temporadas cruzadas pero is_advance = false.
+ */
+function hasAdvanceConflict(row: Programmer): boolean {
+    const s = String(row.season ?? '').trim();
+    const d = String(row.dispatch_month ?? '').trim();
+    if (!s || !d) return false;
+    return s !== d && !row.is_advance;
+}
+
+function extractRecordYear(row: Programmer): string | null {
+    const canonicalSeasonYear = Number(row.season_year ?? 0);
+    if (Number.isFinite(canonicalSeasonYear) && canonicalSeasonYear >= 1900) {
+        return String(canonicalSeasonYear);
+    }
+
+    const canonicalDispatchYear = Number(row.dispatch_year ?? 0);
+    if (Number.isFinite(canonicalDispatchYear) && canonicalDispatchYear >= 1900) {
+        return String(canonicalDispatchYear);
+    }
+
+    const yearRegex = /(19|20)\d{2}/;
+    const candidates = [
+        String(row.dispatch_month ?? '').trim(),
+        String(row.season_display ?? '').trim(),
+        String(row.season ?? '').trim(),
+        String(row.estimated_delivery_date ?? '').trim(),
+    ];
+
+    for (const candidate of candidates) {
+        if (!candidate) continue;
+        const match = candidate.match(yearRegex);
+        if (match) {
+            return match[0];
+        }
+    }
+
+    return null;
+}
+
+function extractYearFromText(value: string | null | undefined): string | null {
+    const text = String(value ?? '').trim();
+    if (!text) return null;
+    const match = text.match(/(19|20)\d{2}/);
+    return match ? match[0] : null;
+}
+
+function formatTemporalWithYear(rawValue: string | null | undefined, row: Programmer): string {
+    const raw = String(rawValue ?? '').trim();
+    if (!raw) return '-';
+
+    const explicitYear = extractYearFromText(raw);
+    if (explicitYear) return raw;
+
+    const inferredYear = extractRecordYear(row);
+    if (!inferredYear) return raw;
+
+    return `${raw} ${inferredYear}`;
+}
+
+function getSeasonDisplay(row: Programmer): string {
+    return formatTemporalWithYear(row.season_display || row.season, row);
+}
+
+function getDispatchDisplay(row: Programmer): string {
+    return formatTemporalWithYear(row.dispatch_month || row.season, row);
+}
+
+function toMoney(value: number): string {
+    return new Intl.NumberFormat('es-CO', {
+        style: 'currency',
+        currency: 'COP',
+        maximumFractionDigits: 0,
+    }).format(value);
+}
+
+function getUnitBillingPrice(row: Programmer): number {
+    const value = row.product_sheet?.billing_price;
+    return Number.isFinite(Number(value)) ? Number(value) : 0;
+}
+
+function getUnitSellingPrice(row: Programmer): number {
+    const value = row.product_sheet?.selling_price;
+    return Number.isFinite(Number(value)) ? Number(value) : 0;
+}
+
+function getRowBillingTotal(row: Programmer): number {
+    const units = Number(row.units ?? 0);
+    return units > 0 ? units * getUnitBillingPrice(row) : 0;
+}
+
+function getRowSellingTotal(row: Programmer): number {
+    const units = Number(row.units ?? 0);
+    return units > 0 ? units * getUnitSellingPrice(row) : 0;
+}
+
+// -----------------------------------------------------------------------------
+// Fetch / debounce / abort
 // -----------------------------------------------------------------------------
 // Fetch / debounce / abort
 // -----------------------------------------------------------------------------
@@ -250,6 +350,7 @@ const isSearchActive = computed(() => filters.value.search.trim().length > 0);
 const isStatusActive = computed(() => filters.value.status !== null);
 const isTypeActive = computed(() => filters.value.type !== null);
 const isDestinationActive = computed(() => filters.value.destination_id !== null);
+const isYearActive = computed(() => filters.value.year !== null);
 const searchQuery = computed<string | undefined>(() => {
     const value = filters.value.search.trim();
     return value === '' ? undefined : value;
@@ -260,6 +361,7 @@ const destinationQuery = computed<string | undefined>(() => filters.value.destin
 const statusButtonClasses = useFilterButtonClasses(isStatusActive);
 const typeButtonClasses = useFilterButtonClasses(isTypeActive);
 const destinationButtonClasses = useFilterButtonClasses(isDestinationActive);
+const yearButtonClasses = useFilterButtonClasses(isYearActive);
 
 const typeOptions = computed<Option[]>(() => {
     if (scope.value === 'samples') {
@@ -282,10 +384,23 @@ const destinationOptions = computed<Option[]>(() => [
     })),
 ]);
 
+const yearOptions = computed<Option[]>(() => {
+    const years = Array.from(
+        new Set(
+            allRows.value
+                .map((row) => extractRecordYear(row))
+                .filter((year): year is string => Boolean(year)),
+        ),
+    ).sort((a, b) => Number(b) - Number(a));
+
+    return years.map((year) => ({ id: year, name: year }));
+});
+
 const filteredRows = computed(() => {
     return allRows.value.filter((row) => {
         if (!matchesScope(row, scope.value)) return false;
         if (filters.value.type && getTypeCode(row) !== filters.value.type) return false;
+        if (filters.value.year && extractRecordYear(row) !== filters.value.year) return false;
 
         return true;
     });
@@ -296,6 +411,19 @@ const totalItems = computed(() => filteredRows.value.length);
 const rows = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage.value;
     return filteredRows.value.slice(start, start + itemsPerPage.value);
+});
+
+const dashboardTotals = computed(() => {
+    return filteredRows.value.reduce(
+        (acc, row) => {
+            const units = Number(row.units ?? 0);
+            acc.units += units > 0 ? units : 0;
+            acc.billing += getRowBillingTotal(row);
+            acc.selling += getRowSellingTotal(row);
+            return acc;
+        },
+        { units: 0, billing: 0, selling: 0 },
+    );
 });
 
 const emptyStateText = computed(() =>
@@ -317,6 +445,13 @@ watch([() => scope.value, () => filters.value.search, () => filters.value.status
 
 watch(
     () => filters.value.type,
+    () => {
+        currentPage.value = 1;
+    },
+);
+
+watch(
+    () => filters.value.year,
     () => {
         currentPage.value = 1;
     },
@@ -440,7 +575,38 @@ onUnmounted(() => {
                                         :clearable="true"
                                     />
                                 </FilterField>
+
+                                <FilterField label="Año" :active="isYearActive" class="min-w-[140px]">
+                                    <SelectField
+                                        v-model="filters.year"
+                                        :options="yearOptions"
+                                        placeholder="Año"
+                                        :button-class="yearButtonClasses"
+                                        :clearable="true"
+                                    />
+                                </FilterField>
                             </FilterBar>
+
+                            <div class="grid gap-3 sm:grid-cols-3">
+                                <Card class="border border-border/60 bg-muted/20 shadow-sm">
+                                    <CardContent class="p-3">
+                                        <p class="text-xs text-muted-foreground">Unidades programadas (filtro actual)</p>
+                                        <p class="text-lg font-semibold">{{ dashboardTotals.units.toLocaleString('es-CO') }}</p>
+                                    </CardContent>
+                                </Card>
+                                <Card class="border border-border/60 bg-muted/20 shadow-sm">
+                                    <CardContent class="p-3">
+                                        <p class="text-xs text-muted-foreground">Total facturación (unidades × precio facturación)</p>
+                                        <p class="text-lg font-semibold">{{ toMoney(dashboardTotals.billing) }}</p>
+                                    </CardContent>
+                                </Card>
+                                <Card class="border border-border/60 bg-muted/20 shadow-sm">
+                                    <CardContent class="p-3">
+                                        <p class="text-xs text-muted-foreground">Total venta (unidades × precio venta)</p>
+                                        <p class="text-lg font-semibold">{{ toMoney(dashboardTotals.selling) }}</p>
+                                    </CardContent>
+                                </Card>
+                            </div>
 
                             <div class="mt-2 overflow-hidden rounded-lg border border-border">
                                 <TooltipProvider>
@@ -451,8 +617,13 @@ onUnmounted(() => {
                                                 <TableHead class="text-center">Tipo</TableHead>
                                                 <TableHead class="text-center">Referencia</TableHead>
                                                 <TableHead class="text-center">Temporada</TableHead>
+                                                <TableHead class="text-center">Despacho</TableHead>
                                                 <TableHead class="text-center">Destino</TableHead>
                                                 <TableHead class="text-center">Unidades</TableHead>
+                                                <TableHead class="text-center">Precio facturación</TableHead>
+                                                <TableHead class="text-center">Total facturación</TableHead>
+                                                <TableHead class="text-center">Precio venta</TableHead>
+                                                <TableHead class="text-center">Total venta</TableHead>
                                                 <TableHead class="text-center">Estado</TableHead>
                                                 <TableHead class="w-[120px] text-center">Acciones</TableHead>
                                             </TableRow>
@@ -461,7 +632,7 @@ onUnmounted(() => {
                                         <TableBody>
                                             <template v-if="isLoading">
                                                 <TableRow v-for="row in 6" :key="`sk-${row}`">
-                                                    <TableCell v-for="col in 8" :key="`sk-${row}-${col}`" class="text-center">
+                                                    <TableCell v-for="col in 13" :key="`sk-${row}-${col}`" class="text-center">
                                                         <Skeleton class="h-4 w-full" />
                                                     </TableCell>
                                                 </TableRow>
@@ -469,7 +640,7 @@ onUnmounted(() => {
 
                                             <template v-else-if="hasLoadError">
                                                 <TableRow>
-                                                    <TableCell colspan="8" class="py-8 text-center text-sm text-muted-foreground">
+                                                    <TableCell colspan="13" class="py-8 text-center text-sm text-muted-foreground">
                                                         No fue posible cargar las Ordenes de producción.
                                                     </TableCell>
                                                 </TableRow>
@@ -477,7 +648,7 @@ onUnmounted(() => {
 
                                             <template v-else-if="rows.length === 0">
                                                 <TableRow>
-                                                    <TableCell colspan="8" class="py-8 text-center text-sm text-muted-foreground">
+                                                    <TableCell colspan="13" class="py-8 text-center text-sm text-muted-foreground">
                                                         {{ emptyStateText }}
                                                     </TableCell>
                                                 </TableRow>
@@ -491,14 +662,29 @@ onUnmounted(() => {
                                                     :class="selectedProgrammerId === row.id ? 'bg-primary/5' : ''"
                                                     @click="selectRow(row)"
                                                 >
-                                                    <TableCell class="text-center font-medium">{{ getOpCode(row) || `MF${row.id}` }}</TableCell>
+                                                    <TableCell class="text-center font-medium">
+                                                        <div class="flex items-center justify-center gap-1">
+                                                            <span>{{ getOpCode(row) || `MF${row.id}` }}</span>
+                                                            <Tooltip v-if="hasAdvanceConflict(row)">
+                                                                <TooltipTrigger as-child>
+                                                                    <span class="inline-flex h-5 items-center justify-center rounded-full bg-red-100 px-1.5 text-[10px] font-bold text-red-700">!</span>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent class="bg-red-900 text-red-50">Conflicto: temporada ≠ despacho pero sin marcar como adelanto</TooltipContent>
+                                                            </Tooltip>
+                                                        </div>
+                                                    </TableCell>
                                                     <TableCell class="text-center">
                                                         <span class="text-sm font-medium">{{ getTypeCode(row) }}</span>
                                                     </TableCell>
                                                     <TableCell class="text-center font-medium">{{ getReference(row) }}</TableCell>
-                                                    <TableCell class="text-center">{{ row.season_display || row.season || '-' }}</TableCell>
+                                                    <TableCell class="text-center">{{ getSeasonDisplay(row) }}</TableCell>
+                                                    <TableCell class="text-center">{{ getDispatchDisplay(row) }}</TableCell>
                                                     <TableCell class="text-center">{{ row.destination?.name || '-' }}</TableCell>
                                                     <TableCell class="text-center">{{ row.units ?? '-' }}</TableCell>
+                                                    <TableCell class="text-center">{{ toMoney(getUnitBillingPrice(row)) }}</TableCell>
+                                                    <TableCell class="text-center font-medium">{{ toMoney(getRowBillingTotal(row)) }}</TableCell>
+                                                    <TableCell class="text-center">{{ toMoney(getUnitSellingPrice(row)) }}</TableCell>
+                                                    <TableCell class="text-center font-medium">{{ toMoney(getRowSellingTotal(row)) }}</TableCell>
                                                     <TableCell class="text-center">
                                                         <TableStatusBadge :label="getStatusText(row)" :tone="getStatusTone(row)" />
                                                     </TableCell>

@@ -107,7 +107,22 @@ const ALERT_TITLES: Record<AlertType, string> = {
     error: 'Error',
 };
 
-const monthOptions = computed<Option[]>(() => (Array.isArray(props.months) && props.months.length > 0 ? props.months : MONTHS_FALLBACK));
+const baseMonthOptions = computed<Option[]>(() => (Array.isArray(props.months) && props.months.length > 0 ? props.months : MONTHS_FALLBACK));
+
+const monthOptions = computed<Option[]>(() => {
+    const currentYear = new Date().getFullYear();
+    const years = [currentYear, currentYear + 1];
+
+    return years.flatMap((year) =>
+        baseMonthOptions.value.map((month) => {
+            const monthName = String(month.name).toUpperCase();
+            return {
+                id: `${monthName} ${year}`,
+                name: `${monthName} ${year}`,
+            } as Option;
+        }),
+    );
+});
 
 const priorityOptions = computed<Option[]>(() =>
     Array.isArray(props.priorities) && props.priorities.length > 0 ? props.priorities : PRIORITIES_FALLBACK,
@@ -221,16 +236,19 @@ function getSheetVersion(sheet: ProductSheet): number {
 }
 
 function buildProductSheetSelectLabel(sheet: ProductSheet): string {
-    const sample = getSampleReference(sheet) || '-';
-    const product = getProductReference(sheet) || '-';
+    const sample = getSampleReference(sheet);
+    const product = getProductReference(sheet);
     const prod2 = getProductReference2(sheet);
-    const version = getSheetVersion(sheet);
+    const rawVersion = (sheet as ProductSheet & { version?: number | string | null }).version;
+    const hasVersion = rawVersion !== null && rawVersion !== undefined && String(rawVersion).trim() !== '';
 
-    let label = `${sample} / ${product}`;
-    if (prod2) label += ` / ${prod2}`;
-    label += ` / v${version}`;
+    const labelParts: string[] = [];
+    if (sample) labelParts.push(sample);
+    if (product) labelParts.push(product);
+    if (prod2) labelParts.push(prod2);
+    if (hasVersion) labelParts.push(`v${String(rawVersion).trim()}`);
 
-    return label;
+    return labelParts.length > 0 ? labelParts.join(' / ') : 'Sin referencia';
 }
 
 function getProductSheetStructuredLabel(sheet: ProductSheet): string {
@@ -337,8 +355,11 @@ function monthToNumber(month: string | number | null | undefined): number | null
     };
 
     const normalized = normalizeOptionToName(month, monthOptions.value) ?? String(month).trim().toUpperCase();
-    const byName = monthMap[normalized];
-    if (byName) return byName;
+    for (const [monthName, monthNumber] of Object.entries(monthMap)) {
+        if (normalized.includes(monthName)) {
+            return monthNumber;
+        }
+    }
 
     const asNum = Number(normalized);
     if (Number.isFinite(asNum) && asNum >= 1 && asNum <= 12) {
@@ -346,6 +367,17 @@ function monthToNumber(month: string | number | null | undefined): number | null
     }
 
     return null;
+}
+
+function extractSeasonYear(season: string | number | null | undefined): number | null {
+    if (!season) return null;
+
+    const normalized = normalizeOptionToName(season, monthOptions.value) ?? String(season).trim().toUpperCase();
+    const match = normalized.match(/(19|20)\d{2}/);
+    if (!match) return null;
+
+    const year = Number(match[0]);
+    return Number.isFinite(year) ? year : null;
 }
 
 // function getPriorityDays(priority: string | null | undefined): number | null {
@@ -382,10 +414,9 @@ function calculateEstimatedDeliveryDate(season: string | number | null | undefin
     if (!rule) return null; // Si no es A, B, C o D, no hace nada
 
     const now = new Date();
-    let targetYear = now.getFullYear();
+    let targetYear = extractSeasonYear(season) ?? now.getFullYear();
 
-    // Lógica para saber si la temporada es para el próximo año
-    if (monthNum < now.getMonth() + 1) {
+    if (!extractSeasonYear(season) && monthNum < now.getMonth() + 1) {
         targetYear += 1;
     }
 
@@ -862,8 +893,8 @@ watch(
                                     <tr class="bg-gray-50">
                                         <th class="border bg-gray-50 px-3 py-2 font-semibold">Lote</th>
                                         <th class="border bg-gray-50 px-3 py-2 font-semibold">Referencia</th>
-                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Temporada</th>
-                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Mes despacho</th>
+                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Temporada (Mes Año)</th>
+                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Mes despacho (Mes Año)</th>
                                         <th class="border bg-gray-50 px-3 py-2 font-semibold">Destino</th>
                                         <th class="border bg-gray-50 px-3 py-2 font-semibold">Nota</th>
                                         <th class="border bg-gray-50 px-3 py-2 font-semibold">E-commerce (opcional)</th>

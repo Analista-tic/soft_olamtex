@@ -48,6 +48,21 @@ const ALERT_TITLES: Record<AlertType, string> = {
 
 const PRIORITY_VALUES = ['A', 'B', 'C', 'D'] as const;
 
+const MONTHS_FALLBACK: Option[] = [
+    { id: 1, name: 'ENERO' },
+    { id: 2, name: 'FEBRERO' },
+    { id: 3, name: 'MARZO' },
+    { id: 4, name: 'ABRIL' },
+    { id: 5, name: 'MAYO' },
+    { id: 6, name: 'JUNIO' },
+    { id: 7, name: 'JULIO' },
+    { id: 8, name: 'AGOSTO' },
+    { id: 9, name: 'SEPTIEMBRE' },
+    { id: 10, name: 'OCTUBRE' },
+    { id: 11, name: 'NOVIEMBRE' },
+    { id: 12, name: 'DICIEMBRE' },
+];
+
 const { successMessage, errorMessage, errorType, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
 
 const errorTitle = computed(() => ALERT_TITLES[errorType.value]);
@@ -175,18 +190,22 @@ const destinationOptions = computed<SelectOption[]>(() =>
         .map((d) => ({ id: d.id as string | number, name: d.name })),
 );
 
-const monthSelectOptions = computed<SelectOption[]>(() =>
-    (props.months ?? [])
-        .filter((m) => typeof m.id === 'number' || typeof m.id === 'string')
-        .map((m) => ({ id: m.id as string | number, name: m.name })),
-);
+const monthSelectOptions = computed<SelectOption[]>(() => {
+    const baseMonths = (props.months ?? []).length > 0 ? props.months : MONTHS_FALLBACK;
+    const currentYear = new Date().getFullYear();
+    const years = [currentYear, currentYear + 1];
 
-const seasonOptions = computed<SelectOption[]>(() =>
-    (props.months ?? []).map((m) => {
-        const name = String(m.name).toUpperCase();
-        return { id: name, name };
-    }),
-);
+    return years.flatMap((year) =>
+        baseMonths
+            .filter((m) => typeof m.id === 'number' || typeof m.id === 'string')
+            .map((m) => {
+                const monthName = String(m.name).toUpperCase();
+                return { id: `${monthName} ${year}`, name: `${monthName} ${year}` };
+            }),
+    );
+});
+
+const seasonOptions = computed<SelectOption[]>(() => monthSelectOptions.value);
 
 const priorityOptions = computed<SelectOption[]>(() => PRIORITY_VALUES.map((v) => ({ id: v, name: v })));
 
@@ -223,6 +242,13 @@ function normalizeSeasonValue(season: string | number | null | undefined): strin
     const upper = raw.toUpperCase();
     const byName = monthSelectOptions.value.find((m) => String(m.name).toUpperCase() === upper);
     if (byName) return String(byName.name).toUpperCase();
+
+    const monthOnlyMatch = upper.match(/(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)/);
+    if (monthOnlyMatch) {
+        const monthName = monthOnlyMatch[1];
+        const inferredYear = new Date().getFullYear();
+        return `${monthName} ${inferredYear}`;
+    }
 
     return upper;
 }
@@ -275,8 +301,11 @@ function monthToNumber(month: string | number | null | undefined): number | null
     };
 
     const normalized = normalizeSeasonForApi(month) ?? String(month).trim().toUpperCase();
-    const byName = monthMap[normalized];
-    if (byName) return byName;
+    for (const [monthName, monthNumber] of Object.entries(monthMap)) {
+        if (normalized.includes(monthName)) {
+            return monthNumber;
+        }
+    }
 
     const asNum = Number(normalized);
     if (Number.isFinite(asNum) && asNum >= 1 && asNum <= 12) {
@@ -284,6 +313,15 @@ function monthToNumber(month: string | number | null | undefined): number | null
     }
 
     return null;
+}
+
+function extractSeasonYear(season: string | number | null | undefined): number | null {
+    if (!season) return null;
+    const normalized = normalizeSeasonForApi(season) ?? String(season).trim().toUpperCase();
+    const match = normalized.match(/(19|20)\d{2}/);
+    if (!match) return null;
+    const year = Number(match[0]);
+    return Number.isFinite(year) ? year : null;
 }
 
 function getPriorityDays(priority: string | number | null | undefined): number | null {
@@ -307,9 +345,9 @@ function calculateEstimatedDeliveryDate(season: string | number | null | undefin
     if (monthNum === null || days === null) return null;
 
     const now = new Date();
-    let year = now.getFullYear();
+    let year = extractSeasonYear(season) ?? now.getFullYear();
 
-    if (monthNum < now.getMonth() + 1) {
+    if (!extractSeasonYear(season) && monthNum < now.getMonth() + 1) {
         year += 1;
     }
 
@@ -589,7 +627,7 @@ watch(
                                 <!-- Temporada -->
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium"> Temporada<span class="text-red-500">*</span> </Label>
+                                        <Label class="text-sm font-medium"> Temporada (Mes Año)<span class="text-red-500">*</span> </Label>
                                         <HelpTooltip
                                             text="Temporada o mes en el que se programara la produccion del lote."
                                             aria-label="Ayuda sobre temporada"
@@ -634,7 +672,7 @@ watch(
 
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium">Mes despacho</Label>
+                                        <Label class="text-sm font-medium">Mes despacho (Mes Año)</Label>
                                     </div>
                                     <SelectField
                                         v-model="programmer.dispatch_month"

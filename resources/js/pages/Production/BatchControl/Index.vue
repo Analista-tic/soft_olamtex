@@ -4,6 +4,7 @@ import ServerPagination from '@/components/common/ServerPagination.vue';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useAlertStack } from '@/composables/useAlert';
 import type { AdditionalInfo } from '@/domain/Production';
@@ -180,11 +181,23 @@ const logisticsOpUnits = ref(0);
 const isLoadingLogisticsSupplies = ref(false);
 const isSavingLogisticsExit = ref(false);
 
+// Filtro de temporada
+const seasonFilter = ref<string>('all');
+
 // Ordenación: por defecto fecha estimada (más urgente primero)
 const sortColumn = ref<string>('process_estimated_date');
 const sortDirection = ref<'asc' | 'desc'>('asc');
 
 /* ── Computed ───────────────────────────────────────────── */
+
+/** Temporadas únicas disponibles en el listado cargado, ordenadas alfanuméricamente */
+const availableSeasons = computed(() => {
+    const set = new Set<string>();
+    for (const r of allRows.value) {
+        if (r.temporada && r.temporada !== '-') set.add(r.temporada);
+    }
+    return Array.from(set).sort();
+});
 
 const tabColor = (index: number) => TAB_COLORS[index % TAB_COLORS.length];
 
@@ -430,7 +443,11 @@ async function fetchData() {
     isLoading.value = true;
     clearError();
     try {
-        const { data } = await axios.get(route('control-de-lotes.data'));
+        const { data } = await axios.get(route('control-de-lotes.data'), {
+            params: {
+                season: seasonFilter.value === 'all' ? undefined : seasonFilter.value,
+            },
+        });
         allRows.value = Array.isArray(data?.data) ? data.data : [];
     } catch {
         allRows.value = [];
@@ -439,6 +456,11 @@ async function fetchData() {
         isLoading.value = false;
     }
 }
+
+watch(seasonFilter, () => {
+    currentPage.value = 1;
+    void fetchData();
+});
 
 /* ── Deliver (entregar) ─────────────────────────────────── */
 
@@ -1044,8 +1066,8 @@ onMounted(() => {
                 <div class="col-span-12">
                     <Card class="border border-border/60 shadow-sm">
                         <CardContent class="space-y-3 px-3 py-4">
-                            <!-- Toggle muestras/productos -->
-                            <div class="flex flex-col gap-1">
+                            <!-- Toggle muestras/productos + filtro temporada -->
+                            <div class="flex flex-wrap items-center gap-3">
                                 <div class="min-w-0 overflow-x-auto">
                                     <ToggleGroup v-model="activeType" type="single" variant="outline" :class="toggleGroupBaseClass">
                                         <ToggleGroupItem
@@ -1059,6 +1081,28 @@ onMounted(() => {
                                             <span>{{ option.label }}</span>
                                         </ToggleGroupItem>
                                     </ToggleGroup>
+                                </div>
+
+                                <!-- Filtro de temporada -->
+                                <div class="flex items-center gap-2">
+                                    <Select v-model="seasonFilter">
+                                        <SelectTrigger class="h-9 w-44 text-sm">
+                                            <SelectValue placeholder="Temporada..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todas las temporadas</SelectItem>
+                                            <SelectItem v-for="season in availableSeasons" :key="season" :value="season">
+                                                {{ season }}
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <button
+                                        v-if="seasonFilter !== 'all'"
+                                        class="text-xs text-muted-foreground underline hover:text-foreground"
+                                        @click="seasonFilter = 'all'"
+                                    >
+                                        Limpiar
+                                    </button>
                                 </div>
                             </div>
 

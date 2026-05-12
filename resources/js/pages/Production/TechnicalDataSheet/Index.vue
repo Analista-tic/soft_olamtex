@@ -467,7 +467,7 @@ onBeforeUnmount(() => {
             </p>
 
             <div class="flex items-end gap-3">
-                <div class="flex-1">
+                <div class="w-full max-w-md">
                     <SelectField
                         v-model="selectedOpId"
                         label="Orden de produccion"
@@ -475,12 +475,11 @@ onBeforeUnmount(() => {
                         :get-option-label="formatOpOptionLabel"
                         placeholder="Selecciona una OP"
                         :searchable="true"
+                        :loading="isLoadingOptions"
                         search-placeholder="Buscar OP..."
                         :allow-custom="true"
                         @search="loadOpOptions"
                     />
-                    <p v-if="isLoadingOptions" class="mt-2 text-sm text-muted-foreground">Cargando opciones...</p>
-                    <p v-else-if="opOptions.length === 0" class="mt-2 text-sm text-muted-foreground">No hay resultados</p>
                 </div>
                 <Button
                     type="button"

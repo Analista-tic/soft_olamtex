@@ -28,11 +28,11 @@ import { monthLabel } from '@/lib/months';
 import { useAuthStore } from '@/stores/auth';
 import { Head } from '@inertiajs/vue3';
 import { getLocalTimeZone, parseDate, type DateValue } from '@internationalized/date';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { format, isValid, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Badge from '@/components/ui/badge/Badge.vue';
-import { Calendar as CalendarIcon, Check, CheckCircle2, Eye, Pencil, Search, Trash, TrendingDown, TrendingUp, X } from 'lucide-vue-next';
+import { Calendar as CalendarIcon, Check, CheckCircle2, Eye, Pencil, SlidersHorizontal, Trash, TrendingDown, TrendingUp, Undo2, X } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import CreateProgrammerDialog from './Create.vue';
 import EditProgrammerDialog from './Edit.vue';
@@ -83,9 +83,12 @@ const programmers = ref<Programmer[]>([]);
 const selectedOrderIds = ref<number[]>([]);
 const bulkPriority = ref<string>('');
 const bulkEstimatedDeliveryDate = ref<string>('');
-const bulkEditMode = ref<'priority' | 'date'>('priority');
+const bulkSeason = ref<string>('');
+const bulkDispatchMonth = ref<string>('');
+const bulkEditMode = ref<'priority' | 'date' | 'season_dispatch'>('priority');
 const quickEstimatedDates = ref<Record<number, string>>({});
 const quickDateSavingIds = ref<number[]>([]);
+const revertAdvanceLoadingIds = ref<number[]>([]);
 const dashboard = ref<{
     total_units: number;
     balanced: boolean;
@@ -136,16 +139,16 @@ function handleProgrammerUpdated(message?: string) {
 
 const editProgrammerDialogRef = ref<InstanceType<typeof EditProgrammerDialog> | null>(null);
 const currentPage = ref(1);
-const itemsPerPage = ref(10);
+const itemsPerPage = ref(25);
 const totalItems = ref(0);
 const isLoading = ref(true);
-const advancedFiltersOpen = ref(false);
 const searchQuery = ref('');
+const FIXED_ORDER_TYPE = 'producto';
 const filters = ref({
     season: 'all',
     priority: 'all',
     status: 'all',
-    type: 'all',
+    type: FIXED_ORDER_TYPE,
     destination_id: 'all',
     estimated_delivery_date: '',
 });
@@ -156,17 +159,65 @@ const DEFAULT_SELECT_VALUE = 'all';
 const actionButtonClass =
     'inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 const actionIconClass = 'h-4 w-4';
-const seasonIsActive = computed(() => Boolean(filters.value.season) && filters.value.season !== DEFAULT_SELECT_VALUE);
-const priorityIsActive = computed(() => Boolean(filters.value.priority) && filters.value.priority !== DEFAULT_SELECT_VALUE);
-const statusIsActive = computed(() => Boolean(filters.value.status) && filters.value.status !== DEFAULT_SELECT_VALUE);
-const typeIsActive = computed(() => Boolean(filters.value.type) && filters.value.type !== DEFAULT_SELECT_VALUE);
-const destinationIsActive = computed(() => Boolean(filters.value.destination_id) && filters.value.destination_id !== DEFAULT_SELECT_VALUE);
+const EMPTY_SEASON_FILTER = '__EMPTY_SEASON__';
+const EMPTY_DISPATCH_FILTER = '__EMPTY_DISPATCH__';
+
+function hasFilterValue(value: unknown): boolean {
+    return value !== null && value !== undefined && String(value).trim() !== '';
+}
+
+const seasonIsActive = computed(() => hasFilterValue(filters.value.season) && filters.value.season !== DEFAULT_SELECT_VALUE);
+const priorityIsActive = computed(() => hasFilterValue(filters.value.priority) && filters.value.priority !== DEFAULT_SELECT_VALUE);
+const statusIsActive = computed(() => hasFilterValue(filters.value.status) && filters.value.status !== DEFAULT_SELECT_VALUE);
+const destinationIsActive = computed(() => hasFilterValue(filters.value.destination_id) && filters.value.destination_id !== DEFAULT_SELECT_VALUE);
 const deliveryDateIsActive = computed(() => filters.value.estimated_delivery_date.trim() !== '');
-const seasonOptions = computed<Option[]>(() => [{ id: 'all', name: 'Todos' }, ...props.months]);
-const priorityOptions = computed<Option[]>(() => [{ id: 'all', name: 'Todos' }, ...props.priorities]);
-const destinationFilterOptions = computed<Option[]>(() => [{ id: 'all', name: 'Todos' }, ...props.destinations]);
+const seasonOptions = computed<Option[]>(() => {
+    const currentYear = new Date().getFullYear();
+    const years = [currentYear, currentYear + 1];
+
+    const monthYearOptions = years.flatMap((year) =>
+        props.months.map((month) => {
+            const monthName = String(month.name).toUpperCase();
+            return {
+                id: `${monthName} ${year}`,
+                name: `${monthName} ${year}`,
+            } as Option;
+        }),
+    );
+
+    return [
+        { id: 'all', name: 'TODAS' },
+        { id: EMPTY_SEASON_FILTER, name: 'SIN TEMPORADA' },
+        { id: EMPTY_DISPATCH_FILTER, name: 'SIN MES DESPACHO' },
+        ...monthYearOptions,
+    ];
+});
+const seasonBulkOptions = computed<Option[]>(() => seasonOptions.value.filter((opt) => String(opt.id) !== DEFAULT_SELECT_VALUE));
+const referenceFilterOptions = computed<Option[]>(() => {
+    const references = new Set<string>();
+
+    for (const sheet of props.productSheets) {
+        const productRef = String(sheet.product_reference ?? '').trim();
+
+        if (productRef !== '') {
+            references.add(productRef);
+        }
+    }
+
+    const sorted = Array.from(references).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+
+    return [{ id: '', name: 'TODAS' }, ...sorted.map((refValue) => ({ id: refValue, name: refValue.toUpperCase() }))];
+});
+const priorityOptions = computed<Option[]>(() => [
+    { id: 'all', name: 'TODAS' },
+    ...props.priorities.map((priority) => ({ ...priority, name: String(priority.name).toUpperCase() })),
+]);
+const destinationFilterOptions = computed<Option[]>(() => [
+    { id: 'all', name: 'TODOS' },
+    ...props.destinations.map((destination) => ({ ...destination, name: String(destination.name).toUpperCase() })),
+]);
 const selectedSeasonFilterLabel = computed(() => {
-    if (filters.value.season === DEFAULT_SELECT_VALUE) return 'Todas';
+    if (!hasFilterValue(filters.value.season) || filters.value.season === DEFAULT_SELECT_VALUE) return 'TODAS';
     const selected = seasonOptions.value.find((option) => String(option.id) === String(filters.value.season));
     return selected ? String(selected.name) : String(filters.value.season);
 });
@@ -174,7 +225,6 @@ const selectedSeasonFilterLabel = computed(() => {
 const seasonButtonClasses = useFilterButtonClasses(seasonIsActive);
 const priorityButtonClasses = useFilterButtonClasses(priorityIsActive);
 const statusButtonClasses = useFilterButtonClasses(statusIsActive);
-const typeButtonClasses = useFilterButtonClasses(typeIsActive);
 const destinationButtonClasses = useFilterButtonClasses(destinationIsActive);
 const deliveryDateButtonClasses = useFilterButtonClasses(deliveryDateIsActive, {
     baseClasses:
@@ -204,12 +254,116 @@ const deliveryDateLabel = computed(() => {
         return 'Seleccionar fecha';
     }
 });
+
+type SortableColumn =
+    | 'op'
+    | 'reference'
+    | 'season'
+    | 'dispatch_month'
+    | 'priority'
+    | 'destination'
+    | 'billing_price'
+    | 'selling_price'
+    | 'units'
+    | 'estimated_delivery_date'
+    | 'notes'
+    | 'status';
+
+const sortColumn = ref<SortableColumn>('op');
+const sortDirection = ref<'asc' | 'desc'>('desc');
+
+function getSortableText(value: unknown): string {
+    if (value === null || value === undefined) return '';
+    return String(value).trim().toUpperCase();
+}
+
+function getSortableNumber(value: unknown): number {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+}
+
+function getSortableDate(value: unknown): number {
+    const iso = normalizeIsoDate(value);
+    if (!iso) return Number.NEGATIVE_INFINITY;
+    const parsed = Date.parse(iso);
+    return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+}
+
+function compareValues(a: number | string, b: number | string): number {
+    if (typeof a === 'number' && typeof b === 'number') return a - b;
+    return String(a).localeCompare(String(b), 'es', { sensitivity: 'base' });
+}
+
+function getProgrammerSortValue(programmer: Programmer, column: SortableColumn): number | string {
+    switch (column) {
+        case 'op':
+            return getSortableText(getOpLabel(programmer));
+        case 'reference':
+            return getSortableText(getRefLabel(programmer));
+        case 'season':
+            return getSortableText(programmer.season_display || programmer.season);
+        case 'dispatch_month':
+            return getSortableText(programmer.dispatch_month || '');
+        case 'priority':
+            return getSortableText(programmer.priority || '');
+        case 'destination':
+            return getSortableText(programmer.destination?.name || '');
+        case 'billing_price':
+            return getSortableNumber(programmer.product_sheet?.billing_price);
+        case 'selling_price':
+            return getSortableNumber(programmer.product_sheet?.selling_price);
+        case 'units':
+            return getSortableNumber(programmer.units);
+        case 'estimated_delivery_date':
+            return getSortableDate(programmer.estimated_delivery_date);
+        case 'notes':
+            return getSortableText(programmer.notes || '');
+        case 'status':
+            return getSortableText((programmer.is_pending_completion ?? false) ? 'PENDIENTE' : 'COMPLETO');
+        default:
+            return '';
+    }
+}
+
+function toggleSort(column: SortableColumn) {
+    if (sortColumn.value === column) {
+        sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
+        return;
+    }
+    sortColumn.value = column;
+    sortDirection.value = 'desc';
+}
+
+function isSortedBy(column: SortableColumn): boolean {
+    return sortColumn.value === column;
+}
+
+const sortedProgrammers = computed<Programmer[]>(() => {
+    const rows = [...programmers.value];
+    const direction = sortDirection.value === 'asc' ? 1 : -1;
+
+    rows.sort((left, right) => {
+        const leftValue = getProgrammerSortValue(left, sortColumn.value);
+        const rightValue = getProgrammerSortValue(right, sortColumn.value);
+        const result = compareValues(leftValue, rightValue);
+        if (result !== 0) return result * direction;
+        return left.id - right.id;
+    });
+
+    return rows;
+});
+
+function tableSortHeadClass(column: SortableColumn): string {
+    return [
+        'cursor-pointer select-none whitespace-nowrap',
+        sortColumn.value === column ? 'text-foreground' : 'text-muted-foreground',
+    ].join(' ');
+}
 const activeFiltersCount = computed(() => {
     let count = 0;
     if (searchQuery.value.trim() !== '') count++;
     if (seasonIsActive.value) count++;
     if (statusIsActive.value) count++;
-    if (typeIsActive.value) count++;
     if (priorityIsActive.value) count++;
     if (destinationIsActive.value) count++;
     if (deliveryDateIsActive.value) count++;
@@ -219,19 +373,25 @@ const activeFiltersCount = computed(() => {
 const bulkCanApply = computed(() => {
     if (selectedOrderIds.value.length === 0) return false;
     if (bulkEditMode.value === 'priority') return bulkPriority.value.trim() !== '';
-    return bulkEstimatedDeliveryDate.value.trim() !== '';
+    if (bulkEditMode.value === 'date') return bulkEstimatedDeliveryDate.value.trim() !== '';
+    return bulkSeason.value.trim() !== '';
 });
 
-function normalizeMonthForApi(value: string): string | undefined {
+function normalizeMonthForApi(value: string | null | undefined): string | undefined {
     if (!value || value === DEFAULT_SELECT_VALUE) return undefined;
+
+    if (value === EMPTY_SEASON_FILTER || value === EMPTY_DISPATCH_FILTER) {
+        return value;
+    }
 
     const matchById = seasonOptions.value.find((opt) => String(opt.id) === String(value));
     if (matchById) {
-        return String(matchById.name).toUpperCase();
+        return String(matchById.name).toUpperCase().trim();
     }
 
     const raw = String(value).trim();
-    return raw === '' ? undefined : raw.toUpperCase();
+    if (raw === '') return undefined;
+    return raw.toUpperCase();
 }
 
 function normalizeIsoDate(raw: unknown): string {
@@ -289,6 +449,27 @@ async function saveQuickEstimatedDate(programmer: Programmer) {
     }
 }
 
+async function revertAdvance(programmer: Programmer) {
+    if (revertAdvanceLoadingIds.value.includes(programmer.id)) return;
+    revertAdvanceLoadingIds.value.push(programmer.id);
+    try {
+        const response = await axios.patch(`/comercial/programador/${programmer.id}/revertir-adelanto`);
+        const updated = response?.data?.data;
+        if (updated) {
+            programmer.priority = updated.priority;
+            programmer.is_advance = updated.is_advance;
+            programmer.estimated_delivery_date = updated.estimated_delivery_date;
+            programmer.status = updated.status;
+        }
+        setAlert(response?.data?.message ?? 'Adelanto revertido correctamente.', 'success');
+    } catch (error) {
+        console.error('Error al revertir adelanto:', error);
+        setAlert('No se pudo revertir el adelanto.', 'error');
+    } finally {
+        revertAdvanceLoadingIds.value = revertAdvanceLoadingIds.value.filter((id) => id !== programmer.id);
+    }
+}
+
 function clearDeliveryDateFilter() {
     filters.value.estimated_delivery_date = '';
 }
@@ -299,7 +480,7 @@ function clearAllFilters() {
         season: 'all',
         priority: 'all',
         status: 'all',
-        type: 'all',
+        type: FIXED_ORDER_TYPE,
         destination_id: 'all',
         estimated_delivery_date: '',
     };
@@ -346,10 +527,12 @@ async function fetchProgrammers(page = 1) {
                 per_page: itemsPerPage.value,
                 search: normalizedSearch === '' ? undefined : normalizedSearch,
                 season: normalizeMonthForApi(filters.value.season),
-                priority: filters.value.priority === DEFAULT_SELECT_VALUE ? undefined : filters.value.priority,
-                status: filters.value.status === DEFAULT_SELECT_VALUE ? undefined : filters.value.status,
-                type: filters.value.type === DEFAULT_SELECT_VALUE ? undefined : filters.value.type,
-                destination_id: filters.value.destination_id === DEFAULT_SELECT_VALUE ? undefined : filters.value.destination_id,
+                priority: !hasFilterValue(filters.value.priority) || filters.value.priority === DEFAULT_SELECT_VALUE ? undefined : filters.value.priority,
+                status: !hasFilterValue(filters.value.status) || filters.value.status === DEFAULT_SELECT_VALUE ? undefined : filters.value.status,
+                destination_id:
+                    !hasFilterValue(filters.value.destination_id) || filters.value.destination_id === DEFAULT_SELECT_VALUE
+                        ? undefined
+                        : filters.value.destination_id,
                 estimated_delivery_date: filters.value.estimated_delivery_date.trim() === '' ? undefined : filters.value.estimated_delivery_date,
             },
             signal: controller.signal,
@@ -382,9 +565,19 @@ async function fetchProgrammers(page = 1) {
 
 async function fetchDistributionDashboard() {
     try {
+        const normalizedSearch = searchQuery.value.trim();
+
         const response = await axios.get('/comercial/programmers/dashboard-distribucion', {
             params: {
                 season: normalizeMonthForApi(filters.value.season),
+                priority: !hasFilterValue(filters.value.priority) || filters.value.priority === DEFAULT_SELECT_VALUE ? undefined : filters.value.priority,
+                status: !hasFilterValue(filters.value.status) || filters.value.status === DEFAULT_SELECT_VALUE ? undefined : filters.value.status,
+                destination_id:
+                    !hasFilterValue(filters.value.destination_id) || filters.value.destination_id === DEFAULT_SELECT_VALUE
+                        ? undefined
+                        : filters.value.destination_id,
+                estimated_delivery_date: filters.value.estimated_delivery_date.trim() === '' ? undefined : filters.value.estimated_delivery_date,
+                search: normalizedSearch === '' ? undefined : normalizedSearch,
             },
         });
 
@@ -439,7 +632,7 @@ async function applyBulkEdit() {
 
             setAlert(response?.data?.message ?? 'Prioridad aplicada correctamente.', 'success');
             bulkPriority.value = '';
-        } else {
+        } else if (bulkEditMode.value === 'date') {
             if (!bulkEstimatedDeliveryDate.value) {
                 setAlert('Selecciona una fecha estimada para aplicar en lote.', 'warning');
                 return;
@@ -452,12 +645,32 @@ async function applyBulkEdit() {
 
             setAlert(response?.data?.message ?? 'Fecha estimada aplicada correctamente.', 'success');
             bulkEstimatedDeliveryDate.value = '';
+        } else {
+            if (!bulkSeason.value) {
+                setAlert('Selecciona la temporada para aplicar en lote.', 'warning');
+                return;
+            }
+
+            const response = await axios.patch('/comercial/programmers/temporada-despacho-masiva', {
+                order_ids: selectedOrderIds.value,
+                season: bulkSeason.value,
+                dispatch_month: bulkDispatchMonth.value || bulkSeason.value,
+            });
+
+            setAlert(response?.data?.message ?? 'Temporada y despacho aplicados correctamente.', 'success');
+            bulkSeason.value = '';
+            bulkDispatchMonth.value = '';
         }
 
         selectedOrderIds.value = [];
         reloadCurrentPage();
     } catch (error) {
         console.error('Error aplicando edición masiva:', error);
+        if (error instanceof AxiosError && error.response?.status === 419) {
+            setAlert('La sesión expiró. Recarga la página e intenta nuevamente.', 'warning');
+            return;
+        }
+
         setAlert('No se pudo aplicar la edición masiva.', 'error');
     }
 }
@@ -465,6 +678,8 @@ async function applyBulkEdit() {
 watch(bulkEditMode, () => {
     bulkPriority.value = '';
     bulkEstimatedDeliveryDate.value = '';
+    bulkSeason.value = '';
+    bulkDispatchMonth.value = '';
 });
 
 function clearFetchDebounce() {
@@ -492,7 +707,6 @@ watch(
         () => filters.value.season,
         () => filters.value.priority,
         () => filters.value.status,
-        () => filters.value.type,
         () => filters.value.destination_id,
         () => filters.value.estimated_delivery_date,
     ],
@@ -661,13 +875,13 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                 </div>
             </div>
 
-            <div class="rounded-lg border bg-card shadow-sm">
+            <div class="rounded-2xl bg-background/40 p-2">
                 <!-- Header -->
-                <div class="flex items-center justify-between gap-3 border-b px-4 py-3">
+                <div class="flex items-center justify-between gap-3 px-3 py-2">
                     <div>
                         <p class="text-sm font-semibold leading-none">Distribución por prioridad</p>
                         <p v-if="dashboard" class="mt-0.5 text-xs text-muted-foreground">
-                            {{ dashboard.total_units.toLocaleString() }} uds. totales
+                            Total unidades programadas según filtro: {{ dashboard.total_units.toLocaleString() }}
                             <Badge :variant="dashboard.balanced ? 'default' : 'destructive'" class="ml-2 text-[10px] px-1.5 py-0">
                                 {{ dashboard.balanced ? 'Balanceada' : 'Desbalanceada' }}
                             </Badge>
@@ -678,11 +892,11 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                 </div>
 
                 <!-- Cards -->
-                <div v-if="dashboard" class="grid grid-cols-2 divide-x divide-y md:grid-cols-4 md:divide-y-0">
+                <div v-if="dashboard" class="grid grid-cols-1 gap-3 p-2 sm:grid-cols-2 xl:grid-cols-4">
                     <div
                         v-for="priority in ['A', 'B', 'C', 'D']"
                         :key="`dash-${priority}`"
-                        class="flex flex-col gap-2 p-4"
+                        class="flex flex-col gap-2 rounded-xl border border-border/60 bg-card px-4 py-3 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
                     >
                         <!-- Title row -->
                         <div class="flex items-center justify-between">
@@ -727,64 +941,14 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                 </div>
             </div>
 
-            <div v-if="selectedOrderIds.length > 0" class="rounded-lg border bg-card p-3">
-                <div class="mb-2 flex flex-wrap items-center gap-2">
-                    <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Edición masiva</span>
-                    <Button
-                        type="button"
-                        size="sm"
-                        :variant="bulkEditMode === 'priority' ? 'default' : 'outline'"
-                        @click="bulkEditMode = 'priority'"
-                    >
-                        Prioridad
-                    </Button>
-                    <Button
-                        type="button"
-                        size="sm"
-                        :variant="bulkEditMode === 'date' ? 'default' : 'outline'"
-                        @click="bulkEditMode = 'date'"
-                    >
-                        Fecha estimada
-                    </Button>
-                </div>
-
-                <div class="flex flex-wrap items-end gap-2">
-                    <div v-if="bulkEditMode === 'priority'" class="min-w-[180px]">
-                        <SelectField
-                            v-model="bulkPriority"
-                            placeholder="Selecciona prioridad"
-                            :options="[
-                                { id: 'A', name: 'A' },
-                                { id: 'B', name: 'B' },
-                                { id: 'C', name: 'C' },
-                                { id: 'D', name: 'D' },
-                            ]"
-                        />
-                    </div>
-
-                    <div v-else class="min-w-[200px]">
-                        <Input
-                            v-model="bulkEstimatedDeliveryDate"
-                            type="date"
-                            class="h-9 w-full"
-                        />
-                    </div>
-
-                    <Button type="button" variant="outline" :disabled="!bulkCanApply" @click="applyBulkEdit">
-                        Aplicar a seleccionados ({{ selectedOrderIds.length }})
-                    </Button>
-                </div>
-            </div>
-            <div class="rounded-lg border bg-card p-3">
-                <div class="mb-2 flex items-center justify-between gap-2">
-                    <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <div class="rounded-xl bg-card/70 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/75">
+                <div class="mb-2 flex items-center justify-between gap-2 pb-1">
+                    <span class="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        <SlidersHorizontal class="h-3.5 w-3.5" />
                         Filtros
                         <span v-if="activeFiltersCount > 0" class="ml-1 normal-case">({{ activeFiltersCount }} activos)</span>
                     </span>
                     <div class="flex items-center gap-2">
-                        <Button type="button" size="sm" variant="outline" @click="advancedFiltersOpen = !advancedFiltersOpen">
-                            {{ advancedFiltersOpen ? 'Ocultar avanzados' : 'Mostrar avanzados' }}
-                        </Button>
                         <Button type="button" size="sm" variant="ghost" :disabled="activeFiltersCount === 0" @click="clearAllFilters">
                             Limpiar
                         </Button>
@@ -792,21 +956,24 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                 </div>
 
                 <div class="flex flex-wrap items-start gap-2">
-                    <FilterField label="Buscar referencia" :active="searchQuery.trim().length > 0" class="min-w-[220px] flex-1 p-0">
-                        <div class="relative w-full">
-                            <Input id="search" v-model="searchQuery" type="text" placeholder="Buscar referencia" class="h-9 w-full pl-9 text-sm" />
-                            <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                                <Search :size="16" class="text-muted-foreground" />
-                            </span>
-                        </div>
+                    <FilterField label="Buscar referencia" :active="searchQuery.trim().length > 0" class="min-w-[180px] max-w-[220px] flex-[0.7] p-0">
+                        <SelectField
+                            v-model="searchQuery"
+                            placeholder="Seleccionar referencia"
+                            :options="referenceFilterOptions"
+                            searchable
+                            clearable
+                            class="w-full"
+                        />
                     </FilterField>
 
-                    <FilterField label="Temporada" :active="seasonIsActive" class="min-w-[180px]">
+                    <FilterField label="Temporada (Mes Año)" :active="seasonIsActive" class="min-w-[220px]">
                         <SelectField
                             v-model="filters.season"
-                            placeholder="Temporada"
+                            placeholder="Temporada (Mes Año)"
                             :options="seasonOptions"
                             :button-class="seasonButtonClasses"
+                            clearable
                         />
                     </FilterField>
 
@@ -815,26 +982,12 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                             v-model="filters.status"
                             placeholder="Estado"
                             :options="[
-                                { id: 'all', name: 'Todos' },
-                                { id: 'complete', name: 'Completo' },
-                                { id: 'incomplete', name: 'Incompleto' },
+                                { id: 'all', name: 'TODOS' },
+                                { id: 'complete', name: 'COMPLETO' },
+                                { id: 'incomplete', name: 'INCOMPLETO' },
                             ]"
                             :button-class="statusButtonClasses"
-                        />
-                    </FilterField>
-                </div>
-
-                <div v-if="advancedFiltersOpen" class="mt-2 flex flex-wrap items-start gap-2 border-t pt-2">
-                    <FilterField label="Tipo" :active="typeIsActive" class="min-w-[160px]">
-                        <SelectField
-                            v-model="filters.type"
-                            placeholder="Tipo"
-                            :options="[
-                                { id: 'all', name: 'Todos' },
-                                { id: 'muestra', name: 'Muestra' },
-                                { id: 'producto', name: 'Producto' },
-                            ]"
-                            :button-class="typeButtonClasses"
+                            clearable
                         />
                     </FilterField>
                     <FilterField label="Prioridad" :active="priorityIsActive" class="min-w-[160px]">
@@ -843,6 +996,7 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                             placeholder="Prioridad"
                             :options="priorityOptions"
                             :button-class="priorityButtonClasses"
+                            clearable
                         />
                     </FilterField>
                     <FilterField label="Destino" :active="destinationIsActive" class="min-w-[180px]">
@@ -851,6 +1005,7 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                             placeholder="Destino"
                             :options="destinationFilterOptions"
                             :button-class="destinationButtonClasses"
+                            clearable
                         />
                     </FilterField>
                     <FilterField label="Fecha entrega" :active="deliveryDateIsActive" class="min-w-[220px]">
@@ -902,6 +1057,88 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                 </div>
             </div>
 
+            <div v-if="selectedOrderIds.length > 0" class="rounded-lg border bg-card p-3 shadow-sm">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Edición masiva</span>
+                        <Badge variant="outline" class="text-[11px]">
+                            {{ selectedOrderIds.length }} seleccionados
+                        </Badge>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <Button
+                            type="button"
+                            size="sm"
+                            :variant="bulkEditMode === 'priority' ? 'default' : 'outline'"
+                            @click="bulkEditMode = 'priority'"
+                        >
+                            Prioridad
+                        </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            :variant="bulkEditMode === 'date' ? 'default' : 'outline'"
+                            @click="bulkEditMode = 'date'"
+                        >
+                            Fecha estimada
+                        </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            :variant="bulkEditMode === 'season_dispatch' ? 'default' : 'outline'"
+                            @click="bulkEditMode = 'season_dispatch'"
+                        >
+                            Temporada / Despacho
+                        </Button>
+                    </div>
+                </div>
+
+                <div class="mt-3 flex flex-wrap items-end gap-2">
+                    <div v-if="bulkEditMode === 'priority'" class="min-w-[180px]">
+                        <SelectField
+                            v-model="bulkPriority"
+                            placeholder="Selecciona prioridad"
+                            :options="[
+                                { id: 'A', name: 'A' },
+                                { id: 'B', name: 'B' },
+                                { id: 'C', name: 'C' },
+                                { id: 'D', name: 'D' },
+                            ]"
+                        />
+                    </div>
+
+                    <div v-else-if="bulkEditMode === 'date'" class="min-w-[220px]">
+                        <Input
+                            v-model="bulkEstimatedDeliveryDate"
+                            type="date"
+                            class="h-9 w-full"
+                        />
+                    </div>
+
+                    <template v-else>
+                        <div class="min-w-[220px]">
+                            <SelectField
+                                v-model="bulkSeason"
+                                placeholder="Temporada (Mes Año)"
+                                :options="seasonBulkOptions"
+                            />
+                        </div>
+                        <div class="min-w-[220px]">
+                            <SelectField
+                                v-model="bulkDispatchMonth"
+                                placeholder="Mes despacho (Mes Año)"
+                                :options="seasonBulkOptions"
+                                clearable
+                            />
+                        </div>
+                    </template>
+
+                    <Button type="button" :disabled="!bulkCanApply" @click="applyBulkEdit">
+                        Aplicar cambios
+                    </Button>
+                </div>
+            </div>
+
             <div class="relative mt-4 min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <TooltipProvider>
                     <Table>
@@ -910,19 +1147,163 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                                 <TableHead class="w-12 text-center">
                                     <input type="checkbox" :checked="allVisibleSelected" @change="toggleSelectAllVisible(($event.target as HTMLInputElement).checked)" />
                                 </TableHead>
-                                <TableHead>OP</TableHead>
-                                <TableHead>Referencia</TableHead>
-                                <TableHead>Temporada</TableHead>
-                                <TableHead>Mes despacho</TableHead>
-                                <TableHead>Prioridad</TableHead>
-                                <TableHead>Destino</TableHead>
-                                <TableHead>Precio Fact</TableHead>
-                                <TableHead>Precio Venta</TableHead>
-                                <TableHead>Total Unidades</TableHead>
-                                <TableHead>Fecha Entrega Est.</TableHead>
-                                <TableHead>Nota</TableHead>
+                                <TableHead :class="tableSortHeadClass('op')" @click="toggleSort('op')">
+                                    <span class="inline-flex items-center gap-1">
+                                        OP
+                                        <span class="text-muted-foreground">
+                                            <template v-if="isSortedBy('op')">
+                                                {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead :class="tableSortHeadClass('reference')" @click="toggleSort('reference')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Referencia
+                                        <span class="text-muted-foreground">
+                                            <template v-if="isSortedBy('reference')">
+                                                {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead :class="tableSortHeadClass('season')" @click="toggleSort('season')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Temporada
+                                        <span class="text-muted-foreground">
+                                            <template v-if="isSortedBy('season')">
+                                                {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead :class="tableSortHeadClass('dispatch_month')" @click="toggleSort('dispatch_month')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Mes despacho
+                                        <span class="text-muted-foreground">
+                                            <template v-if="isSortedBy('dispatch_month')">
+                                                {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead :class="tableSortHeadClass('priority')" @click="toggleSort('priority')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Prioridad
+                                        <span class="text-muted-foreground">
+                                            <template v-if="isSortedBy('priority')">
+                                                {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead :class="tableSortHeadClass('destination')" @click="toggleSort('destination')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Destino
+                                        <span class="text-muted-foreground">
+                                            <template v-if="isSortedBy('destination')">
+                                                {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead :class="tableSortHeadClass('billing_price')" @click="toggleSort('billing_price')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Precio Fact
+                                        <span class="text-muted-foreground">
+                                            <template v-if="isSortedBy('billing_price')">
+                                                {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead :class="tableSortHeadClass('selling_price')" @click="toggleSort('selling_price')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Precio Venta
+                                        <span class="text-muted-foreground">
+                                            <template v-if="isSortedBy('selling_price')">
+                                                {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead :class="tableSortHeadClass('units')" @click="toggleSort('units')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Total Unidades
+                                        <span class="text-muted-foreground">
+                                            <template v-if="isSortedBy('units')">
+                                                {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead :class="tableSortHeadClass('estimated_delivery_date')" @click="toggleSort('estimated_delivery_date')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Fecha Entrega Est.
+                                        <span class="text-muted-foreground">
+                                            <template v-if="isSortedBy('estimated_delivery_date')">
+                                                {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead :class="tableSortHeadClass('notes')" @click="toggleSort('notes')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Nota
+                                        <span class="text-muted-foreground">
+                                            <template v-if="isSortedBy('notes')">
+                                                {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
                                 <TableHead>Adelanto</TableHead>
-                                <TableHead>Estado</TableHead>
+                                <TableHead :class="tableSortHeadClass('status')" @click="toggleSort('status')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Estado
+                                        <span class="text-muted-foreground">
+                                            <template v-if="isSortedBy('status')">
+                                                {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
                                 <TableHead class="text-center">Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -943,7 +1324,7 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                             </template>
                             <template v-else>
                                 <TableRow
-                                    v-for="programmer in programmers"
+                                    v-for="programmer in sortedProgrammers"
                                     :key="programmer.id"
                                     :class="[
                                         'text-center',
@@ -996,7 +1377,26 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                                         </div>
                                     </TableCell>
                                     <TableCell class="max-w-[200px] truncate" :title="programmer.notes || ''">{{ programmer.notes || '-' }}</TableCell>
-                                    <TableCell>{{ programmer.is_advance ? 'Sí' : 'No' }}</TableCell>
+                                    <TableCell>
+                                        <div v-if="programmer.is_advance" class="flex items-center gap-1">
+                                            <Badge variant="secondary" class="text-[11px]">Sí</Badge>
+                                            <Tooltip>
+                                                <TooltipTrigger as-child>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        class="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                                        :disabled="revertAdvanceLoadingIds.includes(programmer.id)"
+                                                        @click="revertAdvance(programmer)"
+                                                    >
+                                                        <Undo2 class="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Revertir adelanto</TooltipContent>
+                                            </Tooltip>
+                                        </div>
+                                        <span v-else class="text-muted-foreground text-xs">No</span>
+                                    </TableCell>
                                     <TableCell>
                                         <TableStatusBadge
                                             :title="(programmer.is_pending_completion ?? false) ? getPendingMessage(programmer) : 'Registro completo.'"
