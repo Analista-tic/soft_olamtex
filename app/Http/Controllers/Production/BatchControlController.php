@@ -9,7 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Production\BatchControlDelivery;
 use App\Models\Production\BatchControlNovelty;
 use App\Models\Production\ProductionOrder;
-use App\Models\Production\TechnicalDataSheetSupply;
+use App\Models\Production\TechnicalSheetSupply;
 use App\Models\Production\TechnicalSheet;
 use App\Models\Production\TechnicalSheetOperation;
 use App\Models\Textil\FabricRoll;
@@ -960,7 +960,7 @@ class BatchControlController extends Controller
     {
         $units = (int) ($order->units ?? 0);
 
-        $supplies = TechnicalDataSheetSupply::query()
+        $supplies = TechnicalSheetSupply::query()
             ->where('production_order_id', $order->id)
             ->whereNotNull('item_id')
             ->orderBy('sequence')
@@ -1009,7 +1009,7 @@ class BatchControlController extends Controller
             }
         }
 
-        $lines = $supplies->map(function (TechnicalDataSheetSupply $s) use ($units, $warehouseStocks, $items) {
+        $lines = $supplies->map(function (TechnicalSheetSupply $s) use ($units, $warehouseStocks, $items) {
             $itemId    = $s->item_id;
             $itemInfo  = $itemId ? ($items[$itemId] ?? null) : null;
             $warehouses = $itemId ? ($warehouseStocks[$itemId] ?? []) : [];

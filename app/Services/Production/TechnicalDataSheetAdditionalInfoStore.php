@@ -62,8 +62,9 @@ class TechnicalDataSheetAdditionalInfoStore
                 'drawingAttachments' => [],
             ],
             'laundry' => [
-                'type' => null,
+                'type'         => null,
                 'instructions' => null,
+                'attachments'  => [],
             ],
         ];
     }
@@ -98,8 +99,9 @@ class TechnicalDataSheetAdditionalInfoStore
                 'drawingAttachments' => is_array($stampingInput['drawingAttachments'] ?? null) ? array_values($stampingInput['drawingAttachments']) : [],
             ],
             'laundry' => [
-                'type' => is_string($laundryInput['type'] ?? null) ? trim((string) $laundryInput['type']) ?: null : null,
+                'type'         => is_string($laundryInput['type'] ?? null) ? trim((string) $laundryInput['type']) ?: null : null,
                 'instructions' => is_string($laundryInput['instructions'] ?? null) ? trim((string) $laundryInput['instructions']) ?: null : null,
+                'attachments'  => is_array($laundryInput['attachments'] ?? null) ? array_values($laundryInput['attachments']) : [],
             ],
         ];
     }

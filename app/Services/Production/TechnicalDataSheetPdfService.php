@@ -40,7 +40,7 @@ class TechnicalDataSheetPdfService
         $rawMaterials    = $this->rawMaterialsStore->read($opId);
         $rolls           = $this->getRollsData($opId);
         $threads         = $this->getThreadsData($opId);
-        $supplies        = $this->suppliesStore->read($opId);
+        $supplies        = $this->resolveSuppliesImages($this->suppliesStore->read($opId));
         $additionalInfo  = $this->getAdditionalInfoData($opId);
         $costs           = $this->technicalSheetService->costsSummary($opId);
 
@@ -86,7 +86,7 @@ class TechnicalDataSheetPdfService
         $rawMaterials    = $this->rawMaterialsStore->read($opId);
         $rolls           = $this->getRollsData($opId);
         $threads         = $this->getThreadsData($opId);
-        $supplies        = $this->suppliesStore->read($opId);
+        $supplies        = $this->resolveSuppliesImages($this->suppliesStore->read($opId));
         $additionalInfo  = $this->getAdditionalInfoData($opId);
         $costs           = $this->technicalSheetService->costsSummary($opId);
         $drawingBase64   = $this->resolveDrawingBase64($basicInfo['flatDrawingUrl'] ?? null);
@@ -228,6 +228,17 @@ class TechnicalDataSheetPdfService
         }
 
         return $data;
+    }
+
+    private function resolveSuppliesImages(array $supplies): array
+    {
+        return array_map(function (array $s): array {
+            if (!empty($s['documentUrl'])) {
+                $base64 = $this->resolveDrawingBase64($s['documentUrl']);
+                $s['documentUrl'] = $base64 ?? null;
+            }
+            return $s;
+        }, $supplies);
     }
 
     /**

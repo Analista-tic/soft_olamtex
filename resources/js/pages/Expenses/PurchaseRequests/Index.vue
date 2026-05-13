@@ -207,7 +207,8 @@ async function handleApprove(request: PurchaseRequest) {
     }
 
     try {
-        await axios.post(`/gastos/solicitudes-compra/${request.id}/approve`);
+        const response = await axios.post(`/gastos/solicitudes-compra/${request.id}/approve`);
+        successMessage.value = response?.data?.message ?? 'Solicitud aprobada y orden de compra generada correctamente.';
         fetchRequests();
     } catch (error: any) {
         const message = error?.response?.data?.message || 'No se pudo aprobar la solicitud.';
@@ -284,10 +285,7 @@ const getStatusTone = (status?: string): 'gray' | 'yellow' | 'green' | 'blue' | 
     return statusBadgeTones[status] ?? 'gray';
 };
 
-const canEditRequest = (request: PurchaseRequest): boolean => {
-    const status = request.status;
-    return status === 'draft' || status === 'pending';
-};
+const canEditRequest = (request: PurchaseRequest): boolean => request.status === 'draft';
 
 const canSendToApproval = (request: PurchaseRequest): boolean => request.status === 'draft';
 const canApprove = (request: PurchaseRequest): boolean => request.status === 'pending';
@@ -478,7 +476,7 @@ onMounted(() => {
                                     </button>
                                     <EditButton v-if="canEditRequest(request)" :onClick="() => editRequest(request)" title="Editar solicitud" />
                                     <DeleteButton
-                                        v-if="canEditRequest(request) || request.status === 'cancelled'"
+                                        v-if="request.status === 'draft'"
                                         @click="confirmDeleteRequest(request)"
                                         title="Eliminar solicitud"
                                     />

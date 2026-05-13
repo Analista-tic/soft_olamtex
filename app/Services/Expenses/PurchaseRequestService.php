@@ -14,9 +14,18 @@ use Illuminate\Support\Facades\Storage;
 
 class PurchaseRequestService
 {
+    public function __construct(private PurchaseDocumentOrderService $orderService) {}
+
     public function paginate(array $filters, int $perPage = 20, ?Request $request = null, ?User $user = null): LengthAwarePaginator
     {
-        $query = PurchaseRequest::with(['requester']);
+        $minimal = !empty($filters['minimal']);
+
+        $query = PurchaseRequest::with($minimal ? [] : ['requester']);
+
+        if ($minimal) {
+            $query->select(['id', 'request_number', 'provider_name', 'date', 'status', 'description', 'estimated_amount', 'requester_user_id']);
+        }
+
         ScopeHelper::apply($query, $user, 'ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra', 'requester_user_id');
 
         if (!empty($filters['search'])) {
@@ -51,6 +60,7 @@ class PurchaseRequestService
         if (!empty($filters['exclude_with_orders']) && $filters['exclude_with_orders']) {
             $query->whereDoesntHave('orders', function ($orderQuery) {
                 $orderQuery->where('document_type', \App\Models\Expenses\PurchaseDocument::TYPE_ORDER)
+                    ->where('status', '!=', 'pending')
                     ->whereNull('deleted_at');
             })->where('status', '!=', \App\Enums\PurchaseRequestStatus::PROCESSED->value);
         }
@@ -69,16 +79,18 @@ class PurchaseRequestService
 
         $paginator = $query->paginate($perPage);
 
-        $paginator->getCollection()->transform(function ($request) {
-            if (is_string($request->items)) {
-                $decoded = json_decode($request->items, true);
-                $request->items = is_array($decoded) ? $decoded : [];
-            } elseif (!is_array($request->items)) {
-                $request->items = [];
-            }
+        if (!$minimal) {
+            $paginator->getCollection()->transform(function ($request) {
+                if (is_string($request->items)) {
+                    $decoded = json_decode($request->items, true);
+                    $request->items = is_array($decoded) ? $decoded : [];
+                } elseif (!is_array($request->items)) {
+                    $request->items = [];
+                }
 
-            return $request;
-        });
+                return $request;
+            });
+        }
 
         return $paginator;
     }
@@ -330,5 +342,34 @@ class PurchaseRequestService
         }
 
         return sprintf('legacy-%s-%s', $purchaseRequestId ?? 'request', $index);
+    }
+
+    public function convertToOrder(PurchaseRequest $purchaseRequest): \App\Models\Expenses\PurchaseDocument
+    {
+        if (!$purchaseRequest->isApproved()) {
+            throw new \RuntimeException('Solo se pueden convertir a orden las solicitudes con estado "Aprobada".');
+        }
+
+        $rawItems = $this->extractItems($purchaseRequest->items);
+
+        $orderItems = array_map(fn($item) => [
+            'item_id'     => $item['item_id'] ?? null,
+            'item_name'   => $item['name'] ?? $item['item_name'] ?? null,
+            'quantity'    => (float) ($item['quantity'] ?? 1),
+            'price'       => (float) ($item['price'] ?? 0),
+            'total'       => (float) ($item['total'] ?? 0),
+            'total_tax'   => (float) ($item['total_tax'] ?? 0),
+            'description' => $item['description'] ?? null,
+        ], $rawItems);
+
+        $data = [
+            'provider_name'       => $purchaseRequest->provider_name,
+            'date'                => $purchaseRequest->date?->toDateString() ?? now()->toDateString(),
+            'description'         => $purchaseRequest->description,
+            'purchase_request_id' => $purchaseRequest->id,
+            'status'              => 'pending',
+        ];
+
+        return $this->orderService->createOrder($data, $orderItems);
     }
 }

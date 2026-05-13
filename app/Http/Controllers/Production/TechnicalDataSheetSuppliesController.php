@@ -11,6 +11,8 @@ use App\Services\Production\TechnicalDataSheetSuppliesStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class TechnicalDataSheetSuppliesController extends Controller
 {
@@ -79,11 +81,24 @@ class TechnicalDataSheetSuppliesController extends Controller
             'items.*.documentUrl'         => ['nullable', 'string', 'max:2000'],
             'items.*.notes'               => ['nullable', 'string', 'max:1000'],
             'items.*.isDraft'             => ['nullable', 'boolean'],
-            'items.*.sizeMeasurements'    => ['nullable', 'array'],
-            'items.*.sizeMeasurements.*'  => ['nullable', 'array'],
+            'items.*.sizeMeasurements'          => ['nullable', 'array'],
+            'items.*.sizeMeasurements.*'        => ['nullable', 'array'],
+            'items.*.sizeMeasurements.*.corte'  => ['nullable', 'numeric', 'min:0'],
+            'items.*.sizeMeasurements.*.termi'  => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        $this->store->write($opId, $validated['items']);
+        // Merge sizeMeasurements from raw input because Laravel's validated()
+        // may strip deeply nested keys not covered by explicit wildcard rules.
+        $rawItems = $request->input('items', []);
+        $items = array_values(array_map(function (array $item, int $index) use ($rawItems): array {
+            $raw = $rawItems[$index] ?? [];
+            $item['sizeMeasurements'] = isset($raw['sizeMeasurements']) && is_array($raw['sizeMeasurements'])
+                ? $raw['sizeMeasurements']
+                : null;
+            return $item;
+        }, $validated['items'], array_keys($validated['items'])));
+
+        $this->store->write($opId, $items);
         return response()->json($this->store->read($opId));
     }
 
@@ -161,6 +176,21 @@ class TechnicalDataSheetSuppliesController extends Controller
         ], 201);
     }
 
+    public function uploadImage(Request $request): JsonResponse
+    {
+        $request->validate([
+            'image' => ['required', 'file', 'image', 'max:2048'],
+        ]);
+
+        $file = $request->file('image');
+        $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+        Storage::disk('public')->putFileAs('supply-images', $file, $filename);
+
+        $url = route('storage.file.show', ['path' => 'supply-images/' . $filename]);
+
+        return response()->json(['url' => $url]);
+    }
+
     public function supplySubGroups(): JsonResponse
     {
         return response()->json($this->supplyRequestService->getSupplySubGroups());
@@ -193,7 +223,11 @@ class TechnicalDataSheetSuppliesController extends Controller
             'purchaseRequestId' => ['nullable', 'integer'],
             'documentUrl'       => ['nullable', 'string', 'max:2000'],
             'notes'             => ['nullable', 'string', 'max:1000'],
-            'isDraft'           => ['nullable', 'boolean'],
+            'isDraft'                  => ['nullable', 'boolean'],
+            'sizeMeasurements'         => ['nullable', 'array'],
+            'sizeMeasurements.*'       => ['nullable', 'array'],
+            'sizeMeasurements.*.corte' => ['nullable', 'numeric', 'min:0'],
+            'sizeMeasurements.*.termi' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 }

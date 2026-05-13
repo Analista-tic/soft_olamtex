@@ -233,7 +233,8 @@ onMounted(() => {
 });
 
 
-function getOrderStatusLabel(status?: string): string {
+function getOrderStatusLabel(status?: string, purchaseRequestId?: number | null): string {
+    if (status === 'approved' && purchaseRequestId) return 'Procesada';
     if (status === 'approved') return 'Aprobada';
     if (status === 'sent') return 'Enviada';
     if (status === 'invoiced') return 'Facturada';
@@ -246,9 +247,10 @@ function confirmDeleteOrder(order: PurchaseOrder) {
     isDeleteDialogOpen.value = true;
 }
 
-function getOrderStatusTone(status?: string): 'green' | 'blue' | 'indigo' | 'red' | 'yellow' {
+function getOrderStatusTone(status?: string, purchaseRequestId?: number | null): 'green' | 'blue' | 'indigo' | 'red' | 'yellow' {
+    if (status === 'approved' && purchaseRequestId) return 'blue';
     if (status === 'approved') return 'green';
-    if (status === 'sent') return 'blue';
+    if (status === 'sent') return 'indigo';
     if (status === 'invoiced') return 'indigo';
     if (status === 'rejected') return 'red';
     return 'yellow';
@@ -309,6 +311,7 @@ function handleDialogError(message?: string) {
                         :options="[
                             { id: 'pending', name: 'Pendiente' },
                             { id: 'approved', name: 'Aprobada' },
+                            { id: 'processed', name: 'Procesada' },
                             { id: 'sent', name: 'Enviada' },
                             { id: 'invoiced', name: 'Facturada' },
                             { id: 'rejected', name: 'Rechazada' },
@@ -417,7 +420,7 @@ function handleDialogError(message?: string) {
                                 <TableCell>{{ formatCurrency(computeOrderTotal(order)) }}</TableCell>
                                 <TableCell class="text-start">{{ order.description || '-' }}</TableCell>
                                 <TableCell>
-                                    <TableStatusBadge :dusk="`estado-orden-${order.id}`" :label="getOrderStatusLabel(order.status)" :tone="getOrderStatusTone(order.status)" />
+                                    <TableStatusBadge :dusk="`estado-orden-${order.id}`" :label="getOrderStatusLabel(order.status, order.purchase_request_id)" :tone="getOrderStatusTone(order.status, order.purchase_request_id)" />
                                 </TableCell>
                                 <TableCell class="flex justify-center gap-1">
                                     <!-- Acción 1: Editar -->

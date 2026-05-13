@@ -23,11 +23,14 @@ class PurchaseRequestController extends Controller
     public function getData(Request $request)
     {
 
-        $filters = $request->only(['search', 'status', 'provider_name', 'date_from', 'date_to', 'exclude_with_orders']);
-
+        $filters = $request->only(['search', 'status', 'provider_name', 'date_from', 'date_to', 'exclude_with_orders', 'minimal']);
 
         if (isset($filters['exclude_with_orders'])) {
             $filters['exclude_with_orders'] = filter_var($filters['exclude_with_orders'], FILTER_VALIDATE_BOOLEAN);
+        }
+
+        if (isset($filters['minimal'])) {
+            $filters['minimal'] = filter_var($filters['minimal'], FILTER_VALIDATE_BOOLEAN);
         }
 
 
@@ -98,9 +101,9 @@ class PurchaseRequestController extends Controller
     {
         $purchaseRequest = $this->service->findAccessibleOrFail($purchaseRequest, request()->user());
 
-        if (!$purchaseRequest->canEdit() && !$purchaseRequest->isCancelled()) {
+        if (!$purchaseRequest->isDraft()) {
             return response()->json([
-                'message' => 'No se puede eliminar una solicitud que no esta en borrador o cancelada.',
+                'message' => 'Solo se pueden eliminar solicitudes en estado borrador.',
             ], 422);
         }
 
@@ -191,6 +194,29 @@ class PurchaseRequestController extends Controller
             return response()->json([
                 'message' => 'Error al rechazar la solicitud: ' . $e->getMessage(),
             ], 500);
+        }
+    }
+
+    public function convertToOrder(PurchaseRequest $purchaseRequest)
+    {
+        $purchaseRequest = $this->service->findAccessibleOrFail($purchaseRequest, request()->user());
+
+        try {
+            $order = $this->service->convertToOrder($purchaseRequest);
+
+            return response()->json([
+                'data' => $order,
+                'message' => 'Orden de compra creada correctamente.',
+            ]);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (\Exception $e) {
+            Log::error('Error convirtiendo solicitud a orden: ' . $e->getMessage(), [
+                'exception' => $e,
+                'request_id' => $purchaseRequest->id,
+            ]);
+
+            return response()->json(['message' => 'Error al crear la orden de compra.'], 500);
         }
     }
 

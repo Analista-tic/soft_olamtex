@@ -858,6 +858,7 @@ function normalizeAdditionalInfo(data: AdditionalInfoDto | null | undefined): Ad
         laundry: {
             type: data?.laundry?.type ?? null,
             instructions: data?.laundry?.instructions ?? null,
+            attachments: Array.isArray(data?.laundry?.attachments) ? data!.laundry.attachments! : [],
         },
     };
 }

@@ -90,24 +90,24 @@ function estimatedDateDeltaLabel(row: BatchControlRow): string {
 }
 
 function estimatedDateStatusBadgeClass(status: 'none' | 'on_time' | 'due_soon' | 'overdue'): string {
-    if (status === 'overdue') return 'border-red-300/80 bg-red-100/80 text-red-700';
-    if (status === 'due_soon') return 'border-amber-300/80 bg-amber-100/80 text-amber-700';
-    if (status === 'on_time') return 'border-emerald-300/70 bg-emerald-100/70 text-emerald-700';
+    if (status === 'overdue') return 'border-red-300/80 bg-red-100/80 dark:bg-red-900/30 dark:border-red-700/60 text-red-700 dark:text-red-400';
+    if (status === 'due_soon') return 'border-amber-300/80 bg-amber-100/80 dark:bg-amber-900/30 dark:border-amber-700/60 text-amber-700 dark:text-amber-400';
+    if (status === 'on_time') return 'border-emerald-300/70 bg-emerald-100/70 dark:bg-emerald-900/30 dark:border-emerald-700/60 text-emerald-700 dark:text-emerald-400';
     return 'border-muted-foreground/20 bg-muted/40 text-muted-foreground';
 }
 
 function estimatedDateCellClass(row: BatchControlRow): string {
     const status = props.getRowDeadlineStatus(row);
-    if (status === 'overdue') return 'bg-red-50/70';
-    if (status === 'due_soon') return 'bg-amber-50/70';
-    if (status === 'on_time') return 'bg-emerald-50/60';
+    if (status === 'overdue') return 'bg-red-50/70 dark:bg-red-900/20';
+    if (status === 'due_soon') return 'bg-amber-50/70 dark:bg-amber-900/20';
+    if (status === 'on_time') return 'bg-emerald-50/60 dark:bg-emerald-900/20';
     return 'bg-muted/20';
 }
 
 function estimatedDatePriorityClass(status: 'none' | 'on_time' | 'due_soon' | 'overdue'): string {
-    if (status === 'overdue') return 'border-red-300/80 bg-red-100/80 text-red-700';
-    if (status === 'due_soon') return 'border-amber-300/80 bg-amber-100/80 text-amber-700';
-    return 'border-emerald-300/70 bg-emerald-100/70 text-emerald-700';
+    if (status === 'overdue') return 'border-red-300/80 bg-red-100/80 dark:bg-red-900/30 dark:border-red-700/60 text-red-700 dark:text-red-400';
+    if (status === 'due_soon') return 'border-amber-300/80 bg-amber-100/80 dark:bg-amber-900/30 dark:border-amber-700/60 text-amber-700 dark:text-amber-400';
+    return 'border-emerald-300/70 bg-emerald-100/70 dark:bg-emerald-900/30 dark:border-emerald-700/60 text-emerald-700 dark:text-emerald-400';
 }
 
 /** Clase de opacidad para celdas que deben atenuarse en filas deshabilitadas */

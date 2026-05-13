@@ -104,14 +104,23 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
             'stamping.attachments'           => ['nullable', 'array'],
             'stamping.drawingAttachments'    => ['nullable', 'array'],
 
-            'laundry'               => ['required', 'array'],
-            'laundry.instructions'  => ['nullable', 'string', 'max:2000'],
+            'laundry'                        => ['required', 'array'],
+            'laundry.instructions'           => ['nullable', 'string', 'max:2000'],
+            'laundry.attachments'            => ['nullable', 'array'],
+            'laundry.attachments.*.id'       => ['required_with:laundry.attachments', 'string', 'max:200'],
+            'laundry.attachments.*.name'     => ['required_with:laundry.attachments', 'string', 'max:200'],
+            'laundry.attachments.*.url'      => ['required_with:laundry.attachments', 'string', 'max:5000000'],
         ]);
 
         // 1. Persistir datos no-pieza en JSON (backward compat: params, espiga, notas, stamping, laundry)
+        // Las piezas se guardan también en JSON como fallback para cuando no hay ProductSheet vinculado
         $this->store->write($opId, [
+            'cutting'  => ['pieces' => $validated['cutting']['pieces'] ?? []],
             'stamping' => $validated['stamping'] ?? [],
-            'laundry' => $validated['laundry'] ?? [],
+            'laundry'  => [
+                'instructions' => $validated['laundry']['instructions'] ?? null,
+                'attachments'  => $validated['laundry']['attachments'] ?? [],
+            ],
         ]);
 
         $this->syncCuttingMetaToDb($opId, $validated['cutting'] ?? []);

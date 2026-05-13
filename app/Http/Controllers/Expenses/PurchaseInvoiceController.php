@@ -3,10 +3,14 @@
 namespace App\Http\Controllers\Expenses;
 
 use App\Http\Controllers\Expenses\Concerns\ValidatesPurchaseInvoiceRequest;
+use App\Mail\PurchaseInvoiceMail;
 use App\Models\Expenses\PurchaseDocument;
 use App\Services\Expenses\PurchaseDocumentInvoiceService;
+use Barryvdh\DomPDF\Facade\Pdf as DomPDF;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 
 class PurchaseInvoiceController extends PurchaseDocumentController
@@ -225,6 +229,31 @@ class PurchaseInvoiceController extends PurchaseDocumentController
         return Inertia::render('Expenses/PurchaseInvoices/PurchaseInvoicePrint', [
             'invoice' => $invoice,
         ]);
+    }
+
+    public function sendInvoiceMail(PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
+
+        try {
+            $invoice = $this->service->loadWithRelations($purchaseDocument);
+            $email = $invoice->supplier?->email;
+
+            if (empty($email)) {
+                throw new \RuntimeException('El proveedor no tiene correo electrónico registrado.');
+            }
+
+            $pdf = DomPDF::loadView('pdf.purchase_invoice', ['invoice' => $invoice]);
+            Mail::to($email)->send(new PurchaseInvoiceMail($invoice, $pdf->output()));
+
+            return response()->json(['message' => 'Correo enviado correctamente.']);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (\Exception $e) {
+            Log::error('Error enviando correo de factura de compra: ' . $e->getMessage());
+            return response()->json(['message' => 'Error enviando el correo: ' . $e->getMessage()], 500);
+        }
     }
 
     public function rejectDifference(Request $request, PurchaseDocument $purchaseDocument)

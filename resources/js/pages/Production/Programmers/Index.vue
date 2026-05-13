@@ -947,7 +947,7 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                                     :key="programmer.id"
                                     :class="[
                                         'text-center',
-                                        shouldHighlightRow(programmer) ? 'border-l-4 border-yellow-400 bg-yellow-50' : '',
+                                        shouldHighlightRow(programmer) ? 'border-l-4 border-yellow-400 bg-yellow-50 dark:bg-yellow-900/30 dark:border-yellow-500' : '',
                                         'text-nowrap',
                                     ]"
                                 >

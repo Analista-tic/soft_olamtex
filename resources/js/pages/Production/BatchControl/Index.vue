@@ -1,6 +1,6 @@
-<script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import ServerPagination from '@/components/common/ServerPagination.vue';
+<script setup lang="ts">
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -403,7 +403,7 @@ function rowBorderClass(row: BatchControlRow): string {
     if (isRowDisabled(row)) return '';
     // Novedades pendientes → alto contraste
     if (row.has_pending_novelties) {
-        return 'border-l-4 border-l-orange-600 bg-orange-100/80 shadow-sm';
+        return 'border-l-4 border-l-orange-600 bg-orange-100/80 dark:bg-orange-900/30 shadow-sm';
     }
     const status = row.deadline_statuses?.[activeProcess.value] ?? 'none';
     if (status === 'overdue') return 'border-l-4 border-l-red-500';
