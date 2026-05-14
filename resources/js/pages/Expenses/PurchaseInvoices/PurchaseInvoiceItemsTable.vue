@@ -519,7 +519,7 @@ defineExpose({ addItem });
                         <TableHead class="min-w-[140px] text-left"
                             >{{ props.telaMode ? 'Longitud (mts)' : 'Cantidad' }} <span class="text-red-600">*</span></TableHead
                         >
-                        <TableHead class="min-w-[160px] text-left">Descripción</TableHead>
+                        <TableHead v-if="!props.telaMode" class="min-w-[160px] text-left">Descripción</TableHead>
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
                             ><span class="inline-flex items-center gap-1"
                                 >Código proveedor <span class="text-red-600">*</span
@@ -666,7 +666,7 @@ defineExpose({ addItem });
                             </div>
                         </TableCell>
                         <!-- Descripción -->
-                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '220px' : '160px' }">
+                        <TableCell v-if="!props.telaMode" class="p-1 text-left align-top" style="width: 160px">
                             <div class="flex flex-col">
                                 <InputField
                                     v-model="item.description"

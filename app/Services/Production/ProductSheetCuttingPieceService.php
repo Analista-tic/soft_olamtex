@@ -4,7 +4,6 @@ namespace App\Services\Production;
 
 use App\Models\Production\ProductSheet;
 use App\Models\Production\ProductSheetCuttingPiece;
-use App\Models\Production\ProductSheetCuttingPieceSize;
 use Illuminate\Support\Collection;
 
 class ProductSheetCuttingPieceService
@@ -24,7 +23,6 @@ class ProductSheetCuttingPieceService
     {
         return ProductSheetCuttingPiece::where('product_sheet_id', $productSheetId)
             ->orderBy('sequence')
-            ->with('sizes')
             ->get();
     }
 
@@ -100,10 +98,6 @@ class ProductSheetCuttingPieceService
                 $piece = ProductSheetCuttingPiece::create($piecePayload);
             }
 
-            // Sincronizar sizes si existen
-            if (!empty($pieceData['sizes'])) {
-                $this->syncPieceSizes($piece->id, $pieceData['sizes']);
-            }
         }
 
         // Eliminar piezas ausentes (que no están en la sincronización)
@@ -116,38 +110,6 @@ class ProductSheetCuttingPieceService
         }
 
         return $this->getCuttingPieces($productSheetId);
-    }
-
-    /**
-     * Sincronizar sizes de una pieza de corte
-     * 
-     * @param int $cuttingPieceId
-     * @param array $sizesData Array de sizes con estructura:
-     *   [
-     *     ['size' => 'S', 'units' => 5, 'curve' => null],
-     *     ['size' => 'M', 'units' => 10, 'curve' => 'C1'],
-     *   ]
-     */
-    public function syncPieceSizes(int $cuttingPieceId, array $sizesData): void
-    {
-        // Validar que la pieza existe
-        $piece = ProductSheetCuttingPiece::find($cuttingPieceId);
-        if (!$piece) {
-            throw new \Exception("ProductSheetCuttingPiece with ID {$cuttingPieceId} not found");
-        }
-
-        // Eliminar sizes existentes
-        ProductSheetCuttingPieceSize::where('cutting_piece_id', $cuttingPieceId)->delete();
-
-        // Crear sizes nuevos
-        foreach ($sizesData as $sizeData) {
-            ProductSheetCuttingPieceSize::create([
-                'cutting_piece_id' => $cuttingPieceId,
-                'size' => $sizeData['size'] ?? '',
-                'units' => $sizeData['units'] ?? 0,
-                'curve' => $sizeData['curve'] ?? null,
-            ]);
-        }
     }
 
     /**
@@ -171,14 +133,7 @@ class ProductSheetCuttingPieceService
                 'grain' => $piece->grain,
                 'quantity' => $piece->quantity,
                 'notes' => $piece->notes,
-                'sizes' => $piece->sizes->map(function (ProductSheetCuttingPieceSize $size) {
-                    return [
-                        'id' => $size->id,
-                        'size' => $size->size,
-                        'units' => $size->units,
-                        'curve' => $size->curve,
-                    ];
-                })->toArray(),
+                'sizes' => [],
             ];
         })->toArray();
     }

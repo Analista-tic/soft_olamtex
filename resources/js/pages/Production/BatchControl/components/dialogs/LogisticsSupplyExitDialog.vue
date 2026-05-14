@@ -8,7 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertTriangle, Expand, ImageOff, Package, PackageCheck, WarehouseIcon } from 'lucide-vue-next';
+import { AlertTriangle, CheckCircle2, Expand, ImageOff, Package, PackageCheck, WarehouseIcon } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import type { BatchControlRow, LogisticsSupplyItem } from '../../types';
 
@@ -39,6 +39,14 @@ function openImageExpand(url: string, alt: string) {
 
 function closeImageExpand() {
     expandedImageUrl.value = null;
+}
+
+function handleDialogOpenChange(val: boolean) {
+    if (!val && expandedImageUrl.value !== null) {
+        expandedImageUrl.value = null;
+        return;
+    }
+    emit('update:open', val);
 }
 
 /* ── Line updates ─────────────────────────────────── */
@@ -78,15 +86,37 @@ function resolveImageUrl(line: LogisticsSupplyItem): string | null {
 
 const includedLines = computed(() => props.lines.filter((l) => l.include));
 
+function isDeliveryComplete(line: LogisticsSupplyItem): boolean {
+    return line.suggested_qty > 0 && line.delivered_qty >= line.suggested_qty;
+}
+
+function isDeliveryPartial(line: LogisticsSupplyItem): boolean {
+    return line.delivered_qty > 0 && line.delivered_qty < line.suggested_qty;
+}
+
+function getSelectedWarehouseStock(line: LogisticsSupplyItem): number | null {
+    if (!line.selected_warehouse_id) return null;
+    return line.warehouses.find((w) => w.id === line.selected_warehouse_id)?.stock ?? null;
+}
+
+function exceedsStock(line: LogisticsSupplyItem): boolean {
+    const stock = getSelectedWarehouseStock(line);
+    return stock !== null && line.exit_qty > stock;
+}
+
 const canSave = computed(() =>
     includedLines.value.length > 0 &&
     includedLines.value.every(
-        (l) => l.item_id && l.selected_warehouse_id && l.exit_qty > 0,
+        (l) => l.item_id && l.selected_warehouse_id && l.exit_qty > 0 && !exceedsStock(l),
     ),
 );
 
 const linesWithNoWarehouse = computed(() =>
     props.lines.filter((l) => l.include && l.item_id && l.warehouses.length === 0),
+);
+
+const linesWithCompleteDelivery = computed(() =>
+    props.lines.filter((l) => isDeliveryComplete(l)),
 );
 </script>
 
@@ -96,13 +126,14 @@ const linesWithNoWarehouse = computed(() =>
         <Transition name="fade">
             <div
                 v-if="expandedImageUrl"
-                class="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 p-4"
+                class="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 p-4 !pointer-events-auto"
+                data-image-lightbox="true"
                 @click.self="closeImageExpand"
             >
                 <div class="relative max-h-[90vh] max-w-[90vw]">
                     <button
                         type="button"
-                        class="absolute -right-3 -top-3 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white text-gray-800 shadow hover:bg-gray-100"
+                        class="absolute -right-3 -top-3 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-white text-gray-800 shadow hover:bg-gray-100 !pointer-events-auto"
                         @click="closeImageExpand"
                     >
                         ×
@@ -118,8 +149,8 @@ const linesWithNoWarehouse = computed(() =>
         </Transition>
     </Teleport>
 
-    <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <FormDialogContent class="flex max-h-[92vh] max-w-4xl flex-col overflow-y-auto px-4 py-3 sm:max-w-[96vw]" :scrollable="true">
+    <Dialog :open="open" @update:open="handleDialogOpenChange">
+        <FormDialogContent class="flex max-h-[92vh] max-w-4xl flex-col overflow-y-auto px-4 py-3 sm:max-w-[96vw]" :scrollable="true" :disable-outside-pointer-events="expandedImageUrl === null">
             <FormHeader
                 title="Salida de insumos — Logística"
                 :description="`Orden ${row?.op_code ?? ''} · ${opUnits} uds programadas`"
@@ -138,6 +169,17 @@ const linesWithNoWarehouse = computed(() =>
 
             <!-- Lines -->
             <div v-else class="space-y-3">
+                <!-- Warning: entregas ya completadas -->
+                <Alert
+                    v-if="linesWithCompleteDelivery.length > 0"
+                    class="border-amber-500/50 bg-amber-50 py-2 text-amber-700 [&>svg]:top-2 [&>svg]:text-amber-700 [&>svg+div]:translate-y-0"
+                >
+                    <AlertTriangle class="h-4 w-4" />
+                    <AlertDescription class="text-xs">
+                        {{ linesWithCompleteDelivery.length === 1 ? '1 insumo ya tiene' : `${linesWithCompleteDelivery.length} insumos ya tienen` }} registrada su entrega total y no puede{{ linesWithCompleteDelivery.length === 1 ? '' : 'n' }} seleccionarse nuevamente.
+                    </AlertDescription>
+                </Alert>
+
                 <!-- Warning: items sin stock en ninguna bodega -->
                 <Alert v-if="linesWithNoWarehouse.length > 0" variant="destructive" class="py-2">
                     <AlertTriangle class="h-4 w-4" />
@@ -167,7 +209,7 @@ const linesWithNoWarehouse = computed(() =>
                             <Checkbox
                                 :id="`inc-${line.uid}`"
                                 :model-value="line.include"
-                                :disabled="isSaving"
+                                :disabled="isSaving || isDeliveryComplete(line)"
                                 @update:model-value="updateLineField(line.uid, 'include', $event)"
                             />
                         </div>
@@ -222,6 +264,26 @@ const linesWithNoWarehouse = computed(() =>
                             <div v-if="line.item_name || line.item_reference" class="text-xs text-muted-foreground">
                                 <span v-if="line.item_name">{{ line.item_name }}</span>
                                 <span v-if="line.item_reference" class="ml-1 text-muted-foreground/70">({{ line.item_reference }})</span>
+                            </div>
+
+                            <!-- Delivery status badge -->
+                            <div v-if="isDeliveryComplete(line) || isDeliveryPartial(line)" class="flex items-center">
+                                <Badge
+                                    v-if="isDeliveryComplete(line)"
+                                    variant="outline"
+                                    class="flex items-center gap-1 bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700"
+                                >
+                                    <CheckCircle2 class="h-3 w-3" />
+                                    Entrega completa · {{ line.delivered_qty }} {{ line.uom || line.item_uom || 'uds' }} ya entregadas
+                                </Badge>
+                                <Badge
+                                    v-else
+                                    variant="outline"
+                                    class="flex items-center gap-1 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700"
+                                >
+                                    <AlertTriangle class="h-3 w-3" />
+                                    Entrega parcial · {{ line.delivered_qty }}/{{ line.suggested_qty }} {{ line.uom || line.item_uom || 'uds' }} entregadas
+                                </Badge>
                             </div>
 
                             <!-- Qty info chip -->
@@ -285,12 +347,16 @@ const linesWithNoWarehouse = computed(() =>
                                         type="number"
                                         min="0.0001"
                                         step="any"
+                                        :max="getSelectedWarehouseStock(line) ?? undefined"
                                         :model-value="line.exit_qty > 0 ? String(line.exit_qty) : ''"
                                         :disabled="!line.include || isSaving"
-                                        class="h-8 text-right text-xs"
+                                        :class="['h-8 text-right text-xs', line.include && exceedsStock(line) ? 'border-destructive focus-visible:ring-destructive' : '']"
                                         placeholder="0"
                                         @change="updateLineField(line.uid, 'exit_qty', parseQty(($event.target as HTMLInputElement).value))"
                                     />
+                                    <p v-if="line.include && exceedsStock(line)" class="text-[10px] text-destructive">
+                                        Excede el stock disponible
+                                    </p>
                                 </div>
                             </div>
                         </div>

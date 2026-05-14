@@ -85,6 +85,7 @@ export type LogisticsSupplyItem = {
     uom: string | null;
     qty_per_unit: number;
     suggested_qty: number;
+    delivered_qty: number;
     document_url: string | null;
     warehouses: LogisticsSupplyWarehouse[];
     // Frontend-only editable fields

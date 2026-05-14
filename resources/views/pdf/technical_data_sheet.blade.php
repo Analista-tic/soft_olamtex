@@ -869,34 +869,6 @@ table.hdr { page-break-after: avoid; }
         {{-- ─ IZQUIERDA 50%: Insumos term + Medidas + Estampado ─ --}}
         <td class="col-data" style="width:50%;">
 
-            {{-- Insumos Terminación --}}
-            @if(!empty($suppliesTerm))
-                <div class="sec-title a-sec">Insumos de Terminación</div>
-                <table class="dt">
-                    <thead><tr>
-                        <th class="a-th">Insumo</th>
-                        <th class="a-th">Descripción</th>
-                        <th class="a-th">Proveedor</th>
-                        <th class="tc a-th">Moda/Línea</th>
-                        <th class="tc a-th">Cant./Ud.</th>
-                        <th class="tr a-th">Precio</th>
-                    </tr></thead>
-                    <tbody>
-                        @foreach($suppliesTerm as $idx => $s)
-                            <tr>
-                                <td class="b">{{ $s['name'] ?? $s['displayLabel'] ?? '-' }}</td>
-                                <td class="sm">{{ $s['description'] ?? '-' }}</td>
-                                <td class="sm">{{ $s['supplier'] ?? '-' }}</td>
-                                <td class="tc sm">{{ $s['modaLinea'] ?? '-' }}</td>
-                                <td class="tc b">{{ ($s['qtyPerUnit']??0)>0 ? num($s['qtyPerUnit'],3) : '-' }}</td>
-                                <td class="tr nw">{{ ($s['unitCost']??0)>0 ? money($s['unitCost']) : '-' }}</td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            @endif
-
-
             {{-- Estampado --}}
             @if(!empty($additionalInfo['stamping']))
                 @php

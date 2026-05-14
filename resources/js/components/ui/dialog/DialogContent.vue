@@ -55,16 +55,21 @@ function isAlertStackTarget(target: EventTarget | null) {
     return Boolean(target.closest('[data-alert-stack-root="true"]'));
 }
 
+function isImageLightboxTarget(target: EventTarget | null) {
+    if (!(target instanceof Element)) return false;
+    return Boolean(target.closest('[data-image-lightbox="true"]'));
+}
+
 function handlePointerDownOutside(event: unknown) {
     const target = (event as { detail?: { originalEvent?: { target?: EventTarget | null } } })?.detail?.originalEvent?.target ?? null;
-    if (isDatepickerPopoverTarget(target) || isAlertStackTarget(target)) {
+    if (isDatepickerPopoverTarget(target) || isAlertStackTarget(target) || isImageLightboxTarget(target)) {
         (event as { preventDefault: () => void }).preventDefault();
     }
 }
 
 function handleInteractOutside(event: unknown) {
     const target = (event as { detail?: { originalEvent?: { target?: EventTarget | null } } })?.detail?.originalEvent?.target ?? null;
-    if (isDatepickerPopoverTarget(target) || isAlertStackTarget(target)) {
+    if (isDatepickerPopoverTarget(target) || isAlertStackTarget(target) || isImageLightboxTarget(target)) {
         (event as { preventDefault: () => void }).preventDefault();
     }
 }

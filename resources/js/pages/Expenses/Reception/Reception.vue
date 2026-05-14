@@ -599,13 +599,6 @@ watch(
 
 function onFabricRollSuccess() {
     const invoiceId = selectedInvoice.value?.id;
-    const itemName = selectedItem.value?.item?.name || selectedItem.value?.article?.name || 'el ítem';
-    if (invoiceId) {
-        setAlert(`Rollo registrado correctamente (${itemName}) en factura #${invoiceId}`, 'success');
-    } else {
-        setAlert(`Rollo registrado correctamente (${itemName})`, 'success');
-    }
-    closeFabricRollDialog();
     // Recargar la factura específica para mostrar los rollos actualizados
     if (typeof invoiceId === 'number') {
         fetchSpecificInvoice(invoiceId);
@@ -791,7 +784,7 @@ function onFabricRollSuccess() {
                                                 <button
                                                     class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-green-600"
                                                     :disabled="getBlockersForInvoiceId(invoice.id).length > 0"
-                                                    :title="getBlockersForInvoiceId(invoice.id).length > 0 ? getBlockersForInvoiceId(invoice.id).join(' ') : 'Aprobar recepci�n'"
+                                                    :title="getBlockersForInvoiceId(invoice.id).length > 0 ? getBlockersForInvoiceId(invoice.id).join(' ') : 'Aprobar recepci�n'"
                                                     @click="
                                                         getBlockersForInvoiceId(invoice.id).length > 0
                                                             ? setAlert(getBlockersForInvoiceId(invoice.id).join(' '), 'warning')

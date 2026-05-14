@@ -993,6 +993,23 @@ class BatchControlController extends Controller
             }
         }
 
+        // Precarga cantidades ya entregadas por ítem para esta orden
+        $deliveredQtys = [];
+        if (!empty($itemIds)) {
+            $deliveredRows = DB::table('inventory_movements')
+                ->whereIn('item_id', $itemIds)
+                ->where('source_type', \App\Models\Production\ProductionOrder::class)
+                ->where('source_id', $order->id)
+                ->where('type', 'salida')
+                ->select('item_id', DB::raw('SUM(quantity) as total_delivered'))
+                ->groupBy('item_id')
+                ->get();
+
+            foreach ($deliveredRows as $row) {
+                $deliveredQtys[$row->item_id] = (float) $row->total_delivered;
+            }
+        }
+
         // Precarga info de ítems (nombre, referencia, unidad, imagen)
         $items = [];
         if (!empty($itemIds)) {
@@ -1009,7 +1026,7 @@ class BatchControlController extends Controller
             }
         }
 
-        $lines = $supplies->map(function (TechnicalSheetSupply $s) use ($units, $warehouseStocks, $items) {
+        $lines = $supplies->map(function (TechnicalSheetSupply $s) use ($units, $warehouseStocks, $items, $deliveredQtys) {
             $itemId    = $s->item_id;
             $itemInfo  = $itemId ? ($items[$itemId] ?? null) : null;
             $warehouses = $itemId ? ($warehouseStocks[$itemId] ?? []) : [];
@@ -1032,6 +1049,7 @@ class BatchControlController extends Controller
                 'uom'              => $s->uom,
                 'qty_per_unit'     => (float) $s->qty_per_unit,
                 'suggested_qty'    => round($suggestedQty, 4),
+                'delivered_qty'    => $itemId ? round((float) ($deliveredQtys[$itemId] ?? 0), 4) : 0.0,
                 'document_url'     => $s->document_url,
                 'warehouses'       => array_values($warehouses),
             ];

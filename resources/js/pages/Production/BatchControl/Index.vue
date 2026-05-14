@@ -933,12 +933,17 @@ async function openLogisticsExitDialog(row: BatchControlRow) {
         const rawLines = Array.isArray(data?.data?.lines) ? data.data.lines : [];
         logisticsOpUnits.value = data?.data?.op_units ?? row.cant_programadas ?? 0;
 
-        logisticsSupplyLines.value = rawLines.map((l: Omit<LogisticsSupplyItem, 'selected_warehouse_id' | 'exit_qty' | 'include'>) => ({
-            ...l,
-            selected_warehouse_id: l.warehouses.length > 0 ? l.warehouses[0].id : null,
-            exit_qty: l.suggested_qty,
-            include: l.warehouses.length > 0,
-        }));
+        logisticsSupplyLines.value = rawLines.map((l: Omit<LogisticsSupplyItem, 'selected_warehouse_id' | 'exit_qty' | 'include'>) => {
+            const deliveredQty = (l as LogisticsSupplyItem).delivered_qty ?? 0;
+            const isComplete = l.suggested_qty > 0 && deliveredQty >= l.suggested_qty;
+            const remaining = Math.max(0, l.suggested_qty - deliveredQty);
+            return {
+                ...l,
+                selected_warehouse_id: l.warehouses.length > 0 ? l.warehouses[0].id : null,
+                exit_qty: isComplete ? 0 : (deliveredQty > 0 ? remaining : l.suggested_qty),
+                include: !isComplete && l.warehouses.length > 0,
+            };
+        });
     } catch {
         logisticsSupplyLines.value = [];
         showError('No se pudieron cargar los insumos de la ficha técnica.');
