@@ -118,12 +118,12 @@ const hasVisibleSections = computed(() => visibleSections.value.length > 0);
 
 const isCuttingComplete = computed(() => {
     const cutting = data.value.cutting;
-    const hasSizesWithUnits = cutting.sizes.some((s) => s.size.trim() !== '' && Number(s.units) > 0);
+    const hasSizesWithUnits = cutting.sizes.some(
+        (s) => s.size.trim() !== '' && (s.trazoPrincipal > 0 || s.liquidacion > 0 || s.espiga > 0 || s.totalUnidades > 0),
+    );
     const hasPieces = cutting.pieces.length > 0;
     const hasNotes = Boolean(cutting.generalNotes?.trim());
-    const hasCurves =
-        cutting.espigaLength != null || cutting.liqLength != null || Boolean(cutting.espigaCurve?.trim()) || Boolean(cutting.liqCurve?.trim());
-    return hasSizesWithUnits || hasPieces || hasNotes || hasCurves;
+    return hasSizesWithUnits || hasPieces || hasNotes;
 });
 
 const isStampingComplete = computed(() => Boolean(data.value.stamping.designNotes?.trim()));
@@ -158,8 +158,8 @@ const cuttingSummary = computed<string[]>(() => {
 
     if (cutting.pieces.length > 0) summary.push(`Piezas: ${cutting.pieces.length}`);
 
-    const totalUnits = cutting.sizes.reduce((acc, row) => acc + Number(row.units || 0), 0);
-    if (totalUnits > 0) summary.push(`Unidades: ${totalUnits}`);
+    const totalUnits = cutting.sizes.reduce((acc, row) => acc + (row.totalUnidades || 0), 0);
+    if (totalUnits > 0) summary.push(`Unidades estimadas: ${totalUnits}`);
 
     if (summary.length === 0) summary.push('Sin datos registrados');
     return summary.slice(0, 3);
@@ -215,10 +215,6 @@ function createDefaultAdditionalInfo(): AdditionalInfo {
         cutting: {
             params: { cutCostCop: null },
             sizes: [],
-            espigaLength: null,
-            espigaCurve: null,
-            liqLength: null,
-            liqCurve: null,
             pieces: [],
             generalNotes: null,
         },
@@ -233,13 +229,16 @@ function clearMessages(): void {
     info.value = null;
 }
 
-function ensureSizesWithUid(payload: AdditionalInfo): AdditionalInfo {
-    payload.cutting.sizes = (payload.cutting.sizes ?? []).map((row) => ({
-        uid: String(row.uid ?? makeId()),
-        size: String(row.size ?? '').trim(),
-        units: Math.max(0, Number(row.units || 0)),
-        curve: normalizeText(row.curve),
-    }));
+function normalizeSizes(payload: AdditionalInfo): AdditionalInfo {
+    payload.cutting.sizes = (payload.cutting.sizes ?? [])
+        .map((row) => ({
+            size: String(row.size ?? '').trim(),
+            trazoPrincipal: Math.max(0, Number(row.trazoPrincipal || 0)),
+            liquidacion: Math.max(0, Number(row.liquidacion || 0)),
+            espiga: Math.max(0, Number(row.espiga || 0)),
+            totalUnidades: Math.max(0, Number(row.totalUnidades || 0)),
+        }))
+        .filter((row) => row.size !== '');
     return payload;
 }
 
@@ -269,22 +268,13 @@ function normalizePayload(payload: AdditionalInfo): AdditionalInfo {
             },
             sizes: (payload.cutting.sizes ?? [])
                 .map((row) => ({
-                    uid: String(row.uid ?? makeId()),
                     size: String(row.size ?? '').trim(),
-                    units: Math.max(0, Number(row.units || 0)),
-                    curve: normalizeText(row.curve),
+                    trazoPrincipal: Math.max(0, Number(row.trazoPrincipal || 0)),
+                    liquidacion: Math.max(0, Number(row.liquidacion || 0)),
+                    espiga: Math.max(0, Number(row.espiga || 0)),
+                    totalUnidades: Math.max(0, Number(row.totalUnidades || 0)),
                 }))
                 .filter((row) => row.size !== ''),
-            espigaLength:
-                payload.cutting.espigaLength === null || payload.cutting.espigaLength === undefined
-                    ? null
-                    : Math.max(0, Number(payload.cutting.espigaLength || 0)),
-            espigaCurve: normalizeText(payload.cutting.espigaCurve),
-            liqLength:
-                payload.cutting.liqLength === null || payload.cutting.liqLength === undefined
-                    ? null
-                    : Math.max(0, Number(payload.cutting.liqLength || 0)),
-            liqCurve: normalizeText(payload.cutting.liqCurve),
             pieces: (payload.cutting.pieces ?? [])
                 .map((piece) => {
                     const stableId = String(piece.id ?? '').trim() || String(piece.uid ?? '').trim() || makeId();
@@ -314,7 +304,7 @@ function normalizePayload(payload: AdditionalInfo): AdditionalInfo {
         },
     };
 
-    return ensurePiecesWithStableId(ensureSizesWithUid(normalized));
+    return ensurePiecesWithStableId(normalizeSizes(normalized));
 }
 
 function applyData(payload: AdditionalInfo): void {
@@ -568,6 +558,7 @@ watch(
 
         <CuttingDialog
             :open="isCuttingDialogOpen"
+            :op-id="opId"
             :data="cuttingData"
             :sizes="sizes"
             :units-by-size="unitsBySize"

@@ -148,7 +148,7 @@ function getCostPerOperation(entry: OperationEntry): number {
 function getOpsPerHour(entry: OperationEntry): number {
     const samOp = getSamValue(entry);
     if (samOp <= 0) return 0;
-    return Number((60 / samOp).toFixed(2));
+    return Math.floor(60 / samOp);
 }
 
 const currencyFormatter = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -304,7 +304,7 @@ watch(
                                         </TableHead>
                                         <TableHead class="text-right">
                                             <span class="inline-flex items-center justify-end gap-1"
-                                                >SAM base <HelpTooltip text="SAM base en minutos."
+                                                >SAM base (min) <HelpTooltip text="SAM base en minutos."
                                             /></span>
                                         </TableHead>
                                         <TableHead class="text-right">
@@ -345,7 +345,7 @@ watch(
                                         <TableCell>{{ entry.operation?.name ?? '-' }}</TableCell>
                                         <TableCell class="text-center text-xs text-muted-foreground">{{ entry.machine?.code ?? '-' }}</TableCell>
                                         <TableCell class="text-right">{{ entry.quantity ?? 1 }}</TableCell>
-                                        <TableCell class="text-right font-mono">{{ fmt(getSamBaseValue(entry)) }}</TableCell>
+                                        <TableCell class="text-right font-mono">{{ fmt(getSamBaseValue(entry)) }} min</TableCell>
                                         <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
                                             entry.machine_supplement_factor != null ? Number(entry.machine_supplement_factor).toFixed(2) : '-'
                                         }}</TableCell>
@@ -423,7 +423,7 @@ watch(
                                             >Cant. <HelpTooltip text="Cantidad de piezas."
                                         /></span>
                                     </TableHead>
-                                    <TableHead class="text-right">SAM base</TableHead>
+                                    <TableHead class="text-right">SAM base (min)</TableHead>
                                     <TableHead class="text-right">Supl.</TableHead>
                                     <TableHead class="text-right">F. tela</TableHead>
                                     <TableHead class="text-right">F. op.</TableHead>
@@ -439,7 +439,7 @@ watch(
                                     <TableCell>{{ entry.operation?.name ?? '-' }}</TableCell>
                                     <TableCell class="text-center text-xs text-muted-foreground">{{ entry.machine?.code ?? '-' }}</TableCell>
                                     <TableCell class="text-right">{{ entry.quantity ?? 1 }}</TableCell>
-                                    <TableCell class="text-right font-mono">{{ fmt(getSamBaseValue(entry)) }}</TableCell>
+                                    <TableCell class="text-right font-mono">{{ fmt(getSamBaseValue(entry)) }} min</TableCell>
                                     <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
                                         entry.machine_supplement_factor != null ? Number(entry.machine_supplement_factor).toFixed(2) : '-'
                                     }}</TableCell>

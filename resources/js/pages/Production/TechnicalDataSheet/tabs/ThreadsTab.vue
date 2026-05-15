@@ -23,6 +23,7 @@ type LocalThreadRow = {
     id: string | null;
     color: string;
     colorCode: string;
+    processType: string;
     threadName: string | number | null;
     gauge: string | number | null;
     brand: string | number | null;
@@ -34,6 +35,8 @@ type PrincipalColor = {
     color: string;
     colorCode: string;
 };
+
+const PROCESS_TYPES = ['Pespunte/Amarre', 'Filetes', 'Ojales', 'Presilla', 'Puntada Seguridad'] as const;
 
 const isLoading = ref(false);
 const isSaving = ref(false);
@@ -98,40 +101,75 @@ function resolveMainFabricTypeId(): string | number | boolean | null {
         return code === 'tela principal' || code === 'tela_principal' || name === 'tela principal';
     });
 
-    return exact?.id ?? null;
+    return exact?.id ?? 'PRINCIPAL';
 }
 
 function isMainFabricRow(row: { fabricTypeParameterId?: string | number | boolean | null; fabricTypeParameterName?: string | null }): boolean {
+    const normalizedId = normalizeText(
+        row.fabricTypeParameterId === null || row.fabricTypeParameterId === undefined
+            ? null
+            : String(row.fabricTypeParameterId),
+    );
+    if (normalizedId === 'principal' || normalizedId === 'tela principal') {
+        return true;
+    }
+
     const expectedId = resolveMainFabricTypeId();
     if (expectedId !== null && row.fabricTypeParameterId !== null && row.fabricTypeParameterId !== undefined) {
         return String(row.fabricTypeParameterId) === String(expectedId);
     }
 
-    return normalizeText(row.fabricTypeParameterName) === 'tela principal';
+    const normalizedName = normalizeText(row.fabricTypeParameterName);
+    return normalizedName === 'tela principal' || normalizedName === 'principal';
 }
 
 function collectPrincipalColors(
-    rawMaterials: Array<{ uid?: string; fabricTypeParameterId?: string | number | boolean | null; fabricTypeParameterName?: string | null }>,
+    rawMaterials: Array<{
+        uid?: string;
+        telaItemId?: string | number | null;
+        tela?: string | null;
+        fabricTypeParameterId?: string | number | boolean | null;
+        fabricTypeParameterName?: string | null;
+    }>,
     rollLines: RollLine[],
 ): PrincipalColor[] {
+    const principalRows = rawMaterials.filter((row) => isMainFabricRow(row));
     const principalRawMaterialUids = new Set(
-        rawMaterials
-            .filter((row) => isMainFabricRow(row))
+        principalRows
             .map((row) => String(row.uid ?? '').trim())
             .filter((uid) => uid !== ''),
     );
+    const principalItemIds = new Set(
+        principalRows
+            .map((row) => Number(row.telaItemId ?? 0))
+            .filter((id) => Number.isFinite(id) && id > 0),
+    );
+    const principalFabricNames = new Set(
+        principalRows
+            .map((row) => normalizeText(row.tela))
+            .filter((name) => name !== ''),
+    );
 
-    if (principalRawMaterialUids.size === 0) {
-        return [];
-    }
+    // Si no hay principal, continuaremos con fallback más abajo
 
     const deduped = new Map<string, PrincipalColor>();
+    const matchedLines: RollLine[] = [];
 
     for (const line of rollLines) {
         const rawMaterialUid = String(line.rawMaterialUid ?? '').trim();
-        if (rawMaterialUid === '' || !principalRawMaterialUids.has(rawMaterialUid)) {
+        const fabricItemId = Number(line.fabricItemId ?? 0);
+        const lineType = normalizeText((line as unknown as { type?: string | null }).type ?? null);
+        const lineFabricName = normalizeText(line.fabricName ?? null);
+        const byUid = rawMaterialUid !== '' && principalRawMaterialUids.has(rawMaterialUid);
+        const byItem = Number.isFinite(fabricItemId) && fabricItemId > 0 && principalItemIds.has(fabricItemId);
+        const byType = lineType === 'principal';
+        const byFabricName = lineFabricName !== '' && principalFabricNames.has(lineFabricName);
+
+        if (!byUid && !byItem && !byType && !byFabricName) {
             continue;
         }
+
+        matchedLines.push(line);
 
         const color = String(line.color ?? line.colors ?? '').trim();
         const colorCode = String(line.colorCode ?? '').trim();
@@ -148,6 +186,55 @@ function collectPrincipalColors(
         }
     }
 
+    if (deduped.size === 0) {
+        const principalRollLines = rollLines.filter((line) => normalizeText((line as unknown as { type?: string | null }).type ?? null) === 'principal');
+        const fallbackLines = principalRollLines.length > 0
+            ? principalRollLines
+            : matchedLines.length > 0
+                ? matchedLines
+                : rollLines;
+
+        for (const line of fallbackLines) {
+            const color = String(line.color ?? line.colors ?? '').trim();
+            const colorCode = String(line.colorCode ?? '').trim();
+            if (color === '' && colorCode === '') {
+                continue;
+            }
+
+            const key = buildColorKey(color, colorCode);
+            if (!deduped.has(key)) {
+                deduped.set(key, {
+                    color: color || colorCode,
+                    colorCode,
+                });
+            }
+        }
+    }
+
+    // Fallback 3: si aún sin colores, usar rollos con programmedMeters > 0
+    if (deduped.size === 0) {
+        const meteredLines = rollLines.filter((line) => {
+            const meters = Number(line.programmedMeters ?? 0);
+            return Number.isFinite(meters) && meters > 0;
+        });
+
+        for (const line of meteredLines) {
+            const color = String(line.color ?? line.colors ?? '').trim();
+            const colorCode = String(line.colorCode ?? '').trim();
+            if (color === '' && colorCode === '') {
+                continue;
+            }
+
+            const key = buildColorKey(color, colorCode);
+            if (!deduped.has(key)) {
+                deduped.set(key, {
+                    color: color || colorCode,
+                    colorCode,
+                });
+            }
+        }
+    }
+
     return [...deduped.values()].sort((a, b) => {
         const byColor = a.color.localeCompare(b.color, 'es-CO', { sensitivity: 'base' });
         if (byColor !== 0) return byColor;
@@ -155,12 +242,13 @@ function collectPrincipalColors(
     });
 }
 
-function mapLineToRow(line: ThreadLine, principalColor: PrincipalColor): LocalThreadRow {
+function mapLineToRow(line: ThreadLine, principalColor: PrincipalColor, processType: string): LocalThreadRow {
     return {
         uid: generateUid(),
         id: String(line.id ?? '').trim() || null,
-        color: principalColor.color,
+        color: String(line.color ?? principalColor.color ?? '').trim(),
         colorCode: String(line.colorCode ?? principalColor.colorCode ?? '').trim(),
+        processType,
         threadName: toNullableText(line.threadName),
         gauge: line.gauge !== null && line.gauge !== undefined ? Number(line.gauge) : null,
         brand: toNullableText(line.brand),
@@ -169,12 +257,13 @@ function mapLineToRow(line: ThreadLine, principalColor: PrincipalColor): LocalTh
     };
 }
 
-function createEmptyRow(principalColor: PrincipalColor): LocalThreadRow {
+function createEmptyRow(principalColor: PrincipalColor, processType: string): LocalThreadRow {
     return {
         uid: generateUid(),
         id: null,
         color: principalColor.color,
         colorCode: principalColor.colorCode,
+        processType,
         threadName: null,
         gauge: null,
         brand: null,
@@ -186,6 +275,7 @@ function createEmptyRow(principalColor: PrincipalColor): LocalThreadRow {
 function normalizeRowsForSave(): ThreadLine[] {
     return rows.value.map((row) => ({
         id: row.id ?? '',
+        processType: row.processType || null,
         threadName: toNullableText(row.threadName) ?? '',
         gauge: toNullableNumber(row.gauge),
         brand: toNullableText(row.brand),
@@ -203,41 +293,35 @@ function serializeState(): string {
 }
 
 function applyRows(sourceLines: ThreadLine[], nextPrincipalColors: PrincipalColor[], resetSnapshotState: boolean): void {
-    const groupedByColor = new Map<string, ThreadLine[]>();
+    // Build map by colorKey::processType for O(1) lookup
+    const grouped = new Map<string, ThreadLine>();
     const parkedLines: ThreadLine[] = [];
 
     for (const line of sourceLines) {
         const color = String(line.color ?? '').trim();
         const colorCode = String(line.colorCode ?? '').trim();
-        if (color === '' && colorCode === '') {
+        const processType = String(line.processType ?? '').trim();
+
+        if (processType === '' || (color === '' && colorCode === '')) {
+            // Líneas legacy sin processType: se aparcan para no perder datos
             parkedLines.push(line);
             continue;
         }
 
-        const key = buildColorKey(color, colorCode);
-        const bucket = groupedByColor.get(key) ?? [];
-        bucket.push(line);
-        groupedByColor.set(key, bucket);
+        const key = buildColorKey(color, colorCode) + '::' + processType.toLowerCase();
+        grouped.set(key, line);
     }
 
-    const nextRows = nextPrincipalColors.map((principalColor) => {
-        const key = buildColorKey(principalColor.color, principalColor.colorCode);
-        const bucket = groupedByColor.get(key) ?? [];
-        const matched = bucket.shift() ?? null;
-        if (matched) {
-            if (bucket.length === 0) {
-                groupedByColor.delete(key);
-            } else {
-                groupedByColor.set(key, bucket);
-            }
-            return mapLineToRow(matched, principalColor);
+    const nextRows: LocalThreadRow[] = [];
+
+    for (const principalColor of nextPrincipalColors) {
+        for (const processType of PROCESS_TYPES) {
+            const key = buildColorKey(principalColor.color, principalColor.colorCode) + '::' + processType.toLowerCase();
+            const matched = grouped.get(key) ?? null;
+            nextRows.push(
+                matched ? mapLineToRow(matched, principalColor, processType) : createEmptyRow(principalColor, processType),
+            );
         }
-
-        return createEmptyRow(principalColor);
-    });
-
-    for (const leftover of groupedByColor.values()) {
-        parkedLines.push(...leftover);
     }
 
     rows.value = nextRows;
@@ -251,7 +335,19 @@ function applyRows(sourceLines: ThreadLine[], nextPrincipalColors: PrincipalColo
 
 const dirty = computed(() => serializeState() !== snapshot.value);
 const canSave = computed(() => !isLoading.value && !isSaving.value && dirty.value);
-const hasPrincipalColors = computed(() => rows.value.length > 0);
+
+// Agrupa las filas por color para mostrar encabezados de color en la tabla
+const colorGroups = computed(() => {
+    const processCount = PROCESS_TYPES.length;
+    const groups: Array<{ color: string; colorCode: string; startIndex: number }> = [];
+    for (let i = 0; i < rows.value.length; i += processCount) {
+        const row = rows.value[i];
+        if (row) {
+            groups.push({ color: row.color, colorCode: row.colorCode, startIndex: i });
+        }
+    }
+    return groups;
+});
 
 async function loadThreadParameterOptions(): Promise<void> {
     if (isLoadingParameterOptions.value) return;
@@ -361,11 +457,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div class="space-y-4">
-        <div class="flex flex-col gap-2 p-2">
-            <h2 class="text-lg font-semibold text-foreground">Hilos</h2>
-            <p class="text-sm text-muted-foreground">
-                Los colores activos se calculan desde los rollos asociados a los trazos marcados como Tela principal en Materia prima.
+    <div class="space-y-2">
+        <div class="flex flex-col gap-1 p-1">
+            <h2 class="text-base font-semibold text-foreground">Hilos</h2>
+            <p class="text-xs text-muted-foreground">
+                Los hilos se crean automáticamente desde los colores de rollos con metros programados. Completa código de hilo, calibre, marca y puntada.
             </p>
         </div>
 
@@ -373,84 +469,105 @@ onBeforeUnmount(() => {
 
         <template v-else>
             <div
-                v-if="!hasPrincipalColors"
-                class="rounded-lg border border-dashed border-border bg-background px-4 py-8 text-center text-sm text-muted-foreground"
+                v-if="rows.length === 0"
+                class="rounded-lg border border-dashed border-border bg-background px-4 py-6 text-center text-sm text-muted-foreground"
             >
-                Selecciona una tela principal en Materia prima para listar los colores disponibles.
+                Selecciona rollos con metros programados en Materia prima para crear registros de hilos.
             </div>
 
-            <div v-else class="space-y-4">
+            <div v-else class="space-y-2">
 
                 <div class="overflow-x-auto rounded-md border border-border">
                     <Table>
-                        <TableHeader class="bg-background">
+                        <TableHeader class="bg-muted/30">
                             <TableRow>
-                                <TableHead class="min-w-[180px] text-left">Color</TableHead>
-                                <TableHead class="min-w-[140px] text-left">Codigo</TableHead>
-                                <TableHead class="min-w-[180px] text-left">Hilo</TableHead>
-                                <TableHead class="min-w-[140px] text-left">Calibre</TableHead>
-                                <TableHead class="min-w-[180px] text-left">Marca</TableHead>
-                                <TableHead class="min-w-[180px] text-left">Puntada por pulgada</TableHead>
+                                <TableHead class="w-[170px] text-left">Proceso</TableHead>
+                                <TableHead class="min-w-[160px] text-left">Hilo</TableHead>
+                                <TableHead class="min-w-[120px] text-left">Calibre</TableHead>
+                                <TableHead class="min-w-[150px] text-left">Marca</TableHead>
+                                <TableHead class="min-w-[160px] text-left">Punt. x Pulgada</TableHead>
+                                <TableHead class="min-w-[150px] text-left">Color</TableHead>
+                                <TableHead class="min-w-[130px] text-left">Código color</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            <TableRow v-for="(row, index) in rows" :key="row.uid" class="transition-colors hover:bg-muted/30">
-                                <TableCell>
-                                    <div class="space-y-1">
-                                        <div class="font-medium text-foreground">{{ row.color }}</div>
-                                        <div v-if="row.colorCode" class="text-xs text-muted-foreground">Referencia rollo: {{ row.colorCode }}</div>
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    <Input v-model="rows[index].colorCode" placeholder="Codigo" :disabled="isSaving" />
-                                </TableCell>
-                                <TableCell>
-                                    <SelectField
-                                        v-model="rows[index].threadName"
-                                        label=""
-                                        placeholder="Selecciona hilo"
-                                        :options="threadOptions"
-                                        :disabled="isSaving || isLoadingParameterOptions"
-                                        :searchable="true"
-                                        :clearable="true"
-                                    />
-                                </TableCell>
-                                <TableCell>
-                                    <SelectField
-                                        v-model="rows[index].gauge"
-                                        label=""
-                                        placeholder="Selecciona calibre"
-                                        :options="gaugeOptions"
-                                        :disabled="isSaving || isLoadingParameterOptions"
-                                        :searchable="true"
-                                        :clearable="true"
-                                    />
-                                </TableCell>
-                                <TableCell>
-                                    <SelectField
-                                        v-model="rows[index].brand"
-                                        label=""
-                                        placeholder="Selecciona marca"
-                                        :options="brandOptions"
-                                        :disabled="isSaving || isLoadingParameterOptions"
-                                        :searchable="true"
-                                        :allow-custom="true"
-                                        :clearable="true"
-                                        custom-option-label='Crear "{value}"'
-                                    />
-                                </TableCell>
-                                <TableCell>
-                                    <SelectField
-                                        v-model="rows[index].stitchesPerInch"
-                                        label=""
-                                        placeholder="Selecciona puntada"
-                                        :options="stitchesPerInchOptions"
-                                        :disabled="isSaving || isLoadingParameterOptions"
-                                        :searchable="true"
-                                        :clearable="true"
-                                    />
-                                </TableCell>
-                            </TableRow>
+                            <template v-for="group in colorGroups" :key="group.color + ':' + group.colorCode">
+                                <!-- Encabezado de color -->
+                                <TableRow class="bg-muted/50 hover:bg-muted/50">
+                                    <TableCell colspan="7" class="py-1.5 pl-3">
+                                        <span class="text-sm font-semibold text-foreground">{{ group.color }}</span>
+                                        <span v-if="group.colorCode" class="ml-2 text-xs text-muted-foreground">Cód. {{ group.colorCode }}</span>
+                                    </TableCell>
+                                </TableRow>
+                                <!-- 5 sub-filas de proceso por color -->
+                                <TableRow
+                                    v-for="(processType, procIdx) in PROCESS_TYPES"
+                                    :key="processType"
+                                    class="transition-colors hover:bg-muted/20"
+                                >
+                                    <TableCell class="py-1.5 pl-6 text-sm text-muted-foreground">{{ processType }}</TableCell>
+                                    <TableCell class="py-1">
+                                        <SelectField
+                                            v-model="rows[group.startIndex + procIdx].threadName"
+                                            label=""
+                                            placeholder="Selecciona hilo"
+                                            :options="threadOptions"
+                                            :disabled="isSaving || isLoadingParameterOptions"
+                                            :searchable="true"
+                                            :clearable="true"
+                                        />
+                                    </TableCell>
+                                    <TableCell class="py-1">
+                                        <SelectField
+                                            v-model="rows[group.startIndex + procIdx].gauge"
+                                            label=""
+                                            placeholder="Calibre"
+                                            :options="gaugeOptions"
+                                            :disabled="isSaving || isLoadingParameterOptions"
+                                            :searchable="true"
+                                            :clearable="true"
+                                        />
+                                    </TableCell>
+                                    <TableCell class="py-1">
+                                        <SelectField
+                                            v-model="rows[group.startIndex + procIdx].brand"
+                                            label=""
+                                            placeholder="Marca"
+                                            :options="brandOptions"
+                                            :disabled="isSaving || isLoadingParameterOptions"
+                                            :searchable="true"
+                                            :allow-custom="true"
+                                            :clearable="true"
+                                            custom-option-label='Crear "{value}"'
+                                        />
+                                    </TableCell>
+                                    <TableCell class="py-1">
+                                        <SelectField
+                                            v-model="rows[group.startIndex + procIdx].stitchesPerInch"
+                                            label=""
+                                            placeholder="Puntada"
+                                            :options="stitchesPerInchOptions"
+                                            :disabled="isSaving || isLoadingParameterOptions"
+                                            :searchable="true"
+                                            :clearable="true"
+                                        />
+                                    </TableCell>
+                                    <TableCell class="py-1">
+                                        <Input
+                                            v-model="rows[group.startIndex + procIdx].color"
+                                            placeholder="Color"
+                                            :disabled="isSaving"
+                                        />
+                                    </TableCell>
+                                    <TableCell class="py-1">
+                                        <Input
+                                            v-model="rows[group.startIndex + procIdx].colorCode"
+                                            placeholder="Código color"
+                                            :disabled="isSaving"
+                                        />
+                                    </TableCell>
+                                </TableRow>
+                            </template>
                         </TableBody>
                     </Table>
                 </div>

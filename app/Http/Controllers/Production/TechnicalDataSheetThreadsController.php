@@ -43,6 +43,7 @@ class TechnicalDataSheetThreadsController extends Controller
             'threads.*.colorCode' => ['nullable', 'string', 'max:120'],
             'threads.*.stitchesPerInch' => ['nullable', 'numeric', 'min:0'],
             'threads.*.defaultThreadCost' => ['nullable', 'numeric', 'min:0'],
+            'threads.*.processType' => ['nullable', 'string', 'max:100'],
             'deletedIds' => ['nullable', 'array'],
             'deletedIds.*' => ['string', 'max:100'],
         ]);
@@ -84,6 +85,7 @@ class TechnicalDataSheetThreadsController extends Controller
                 'colorCode' => $this->nullableText($row['colorCode'] ?? null),
                 'stitchesPerInch' => $this->nullableNumber($row['stitchesPerInch'] ?? null),
                 'defaultThreadCost' => $this->nullableNumber($row['defaultThreadCost'] ?? null),
+                'processType' => $this->nullableText($row['processType'] ?? null),
                 'createdAt' => $previous['createdAt'] ?? $now,
                 'updatedAt' => $now,
             ];
@@ -225,6 +227,7 @@ class TechnicalDataSheetThreadsController extends Controller
             // Compatibilidad con payload historico: costPerGarment -> stitchesPerInch solo para no perder dato.
             'stitchesPerInch' => $this->nullableNumber($line['stitchesPerInch'] ?? $line['costPerGarment'] ?? null),
             'defaultThreadCost' => $this->nullableNumber($line['defaultThreadCost'] ?? null),
+            'processType' => $this->nullableText($line['processType'] ?? null),
             'createdAt' => $line['createdAt'] ?? null,
             'updatedAt' => $line['updatedAt'] ?? null,
         ];

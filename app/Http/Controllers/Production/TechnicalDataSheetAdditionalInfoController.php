@@ -47,12 +47,14 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
             }
         }
 
-        // Tallas/unidades/curva: leer desde la tabla relacional (technical_sheet_sizes)
+        // Tallas: leer desde la tabla relacional (technical_sheet_sizes)
         if ($sheet) {
             $dbSizes = $sheet->sizes()->get()->map(fn ($s) => [
-                'size'  => $s->size,
-                'units' => (int) $s->units,
-                'curve' => $s->curve !== null ? (string) $s->curve : null,
+                'size'           => $s->size,
+                'trazoPrincipal' => (int) $s->trazo_principal,
+                'liquidacion'    => (int) $s->liquidacion,
+                'espiga'         => (int) $s->espiga,
+                'totalUnidades'  => (int) $s->total_unidades,
             ])->values()->all();
 
             if (!empty($dbSizes)) {
@@ -81,14 +83,12 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
             'cutting'                        => ['required', 'array'],
             'cutting.params'                 => ['required', 'array'],
             'cutting.params.cutCostCop'      => ['nullable', 'numeric', 'min:0'],
-            'cutting.sizes'                  => ['nullable', 'array'],
-            'cutting.sizes.*.size'           => ['required_with:cutting.sizes', 'string', 'max:50'],
-            'cutting.sizes.*.units'          => ['required_with:cutting.sizes', 'numeric', 'min:0'],
-            'cutting.sizes.*.curve'          => ['nullable', 'numeric', 'min:0'],
-            'cutting.espigaLength'           => ['nullable', 'numeric', 'min:0'],
-            'cutting.espigaCurve'            => ['nullable', 'string', 'max:100'],
-            'cutting.liqLength'              => ['nullable', 'numeric', 'min:0'],
-            'cutting.liqCurve'              => ['nullable', 'string', 'max:100'],
+            'cutting.sizes'                       => ['nullable', 'array'],
+            'cutting.sizes.*.size'                => ['required_with:cutting.sizes', 'string', 'max:50'],
+            'cutting.sizes.*.trazoPrincipal'      => ['nullable', 'integer', 'min:0'],
+            'cutting.sizes.*.liquidacion'         => ['nullable', 'integer', 'min:0'],
+            'cutting.sizes.*.espiga'              => ['nullable', 'integer', 'min:0'],
+            'cutting.sizes.*.totalUnidades'       => ['nullable', 'integer', 'min:0'],
             'cutting.pieces'                 => ['nullable', 'array'],
             'cutting.pieces.*.id'            => ['required_with:cutting.pieces', 'string', 'max:100'],
             'cutting.pieces.*.name'          => ['required_with:cutting.pieces', 'string', 'max:150'],
@@ -150,11 +150,12 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
                 }
             }
 
-            // Agregar tallas/unidades/curva desde la tabla relacional
             $dbSizes = $sheet->sizes()->get()->map(fn ($s) => [
-                'size'  => $s->size,
-                'units' => (int) $s->units,
-                'curve' => $s->curve !== null ? (string) $s->curve : null,
+                'size'           => $s->size,
+                'trazoPrincipal' => (int) $s->trazo_principal,
+                'liquidacion'    => (int) $s->liquidacion,
+                'espiga'         => (int) $s->espiga,
+                'totalUnidades'  => (int) $s->total_unidades,
             ])->values()->all();
 
             if (!empty($dbSizes)) {
@@ -196,10 +197,10 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
             $sheet->sizes()->updateOrCreate(
                 ['size' => $size],
                 [
-                    'units' => max(0, (int) ($row['units'] ?? 0)),
-                    'curve' => isset($row['curve']) && $row['curve'] !== '' && $row['curve'] !== null
-                               ? (float) $row['curve']
-                               : null,
+                    'trazo_principal' => max(0, (int) ($row['trazoPrincipal'] ?? 0)),
+                    'liquidacion'     => max(0, (int) ($row['liquidacion'] ?? 0)),
+                    'espiga'          => max(0, (int) ($row['espiga'] ?? 0)),
+                    'total_unidades'  => max(0, (int) ($row['totalUnidades'] ?? 0)),
                 ]
             );
         }
@@ -220,15 +221,9 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
     private function emptyCuttingPayload(): array
     {
         return [
-            'params' => [
-                'cutCostCop' => null,
-            ],
-            'sizes' => [],
-            'espigaLength' => null,
-            'espigaCurve' => null,
-            'liqLength' => null,
-            'liqCurve' => null,
-            'pieces' => [],
+            'params'       => ['cutCostCop' => null],
+            'sizes'        => [],
+            'pieces'       => [],
             'generalNotes' => null,
         ];
     }

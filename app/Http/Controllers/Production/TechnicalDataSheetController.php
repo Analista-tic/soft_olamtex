@@ -70,7 +70,7 @@ class TechnicalDataSheetController extends Controller
         $search = $request->query('search', '');
 
         $query = ProductionOrder::query()
-            ->with('productSheet:id,sample_reference,product_reference')
+            ->with('productSheet:id,type,woven_product,sample_reference,product_reference')
             ->whereNotNull('op_code')
             ->orderByDesc('created_at')
             ->limit(50);
@@ -91,8 +91,8 @@ class TechnicalDataSheetController extends Controller
         $options = $orders->map(function (ProductionOrder $order) {
             $opCode     = $order->op_code ?? '';
             $reference  = $this->buildReference($order);
-            $type       = $this->extractOpType($opCode);
-            $groupLabel = in_array($type, ['MU', 'MUT']) ? 'Muestras' : 'Productos';
+            $sheetType  = Str::lower(trim((string) ($order->productSheet?->type ?? '')));
+            $groupLabel = $sheetType === 'muestra' ? 'Muestras' : 'Productos';
             $priority   = $this->nullableText($order->priority);
 
             return [
@@ -150,7 +150,7 @@ class TechnicalDataSheetController extends Controller
         $legacyTemporalFallbackEnabled = (bool) config('product-sheet.temporal_legacy_fallback_enabled', true);
 
         $order = ProductionOrder::with([
-            'productSheet:id,type,sample_reference,product_reference,section_id,group_id,world_id,brand_id,fabric_base_id,yarn_base_id,billing_price,selling_price,sizes,description,status,flat_sketch_path,created_at',
+            'productSheet:id,type,woven_product,sample_reference,product_reference,section_id,group_id,world_id,brand_id,fabric_base_id,yarn_base_id,billing_price,selling_price,sizes,description,status,flat_sketch_path,created_at',
         ])->findOrFail($opId);
 
         $destinations = $this->settingService->getCatalogOptions('destinations')->keyBy('id');
@@ -212,6 +212,8 @@ class TechnicalDataSheetController extends Controller
             'priceBilling'     => $productSheet?->billing_price !== null ? (float) $productSheet->billing_price : null,
             'priceSale'        => $productSheet?->selling_price !== null ? (float) $productSheet->selling_price : null,
             'description'      => $productSheet?->description ?? null,
+            'productType'      => $productSheet?->type ?? null,
+            'isWovenProduct'   => (bool) ($productSheet?->woven_product ?? false),
             'product_sheet_id' => $order->product_sheet_id,
         ]);
     }
@@ -230,6 +232,7 @@ class TechnicalDataSheetController extends Controller
 
         $data = $operations->map(function ($op) {
             $section = $op->operation?->section;
+            $resolvedMachine = $op->machine ?? $op->operation?->machineReference;
 
             return [
                 'id'                         => $op->id,
@@ -247,10 +250,10 @@ class TechnicalDataSheetController extends Controller
                     'action'       => $op->operation->action ?? '',
                     'garment_part' => $op->operation->garment_part ?? '',
                 ] : null,
-                'machine' => $op->machine ? [
-                    'id'   => $op->machine->id,
-                    'code' => $op->machine->code,
-                    'name' => $op->machine->name ?? null,
+                'machine' => $resolvedMachine ? [
+                    'id'   => $resolvedMachine->id,
+                    'code' => $resolvedMachine->code,
+                    'name' => $resolvedMachine->name ?? null,
                 ] : null,
                 'operation_section' => $section ? [
                     'id'   => $section->id,
@@ -607,6 +610,55 @@ class TechnicalDataSheetController extends Controller
             ->getCatalogOptions('type_of_fabric')
             ->keyBy(fn(array $option) => (string) ($option['id'] ?? ''));
 
+        $resolveFabricTypeParameterId = function (mixed $value) use ($fabricTypeOptions): mixed {
+            if ($value === null || $value === '') {
+                return null;
+            }
+
+            $normalizedInput = mb_strtolower(trim((string) $value));
+            if ($normalizedInput === 'principal') {
+                return 'PRINCIPAL';
+            }
+            if ($normalizedInput === 'secundaria' || $normalizedInput === 'secundario') {
+                return 'SECUNDARIA';
+            }
+
+            if ($fabricTypeOptions->has((string) $value)) {
+                return is_numeric($value) ? (int) $value : $value;
+            }
+
+            $normalized = $normalizedInput;
+            if ($normalized === '') {
+                return null;
+            }
+
+            $match = $fabricTypeOptions->first(function (array $option) use ($normalized) {
+                $name = mb_strtolower(trim((string) ($option['name'] ?? '')));
+                if ($name === '') {
+                    return false;
+                }
+
+                if (str_contains($normalized, 'principal')) {
+                    return str_contains($name, 'principal');
+                }
+
+                if (str_contains($normalized, 'secundar')) {
+                    return str_contains($name, 'secundar');
+                }
+
+                return $name === $normalized;
+            });
+
+            if (!is_array($match) || !array_key_exists('id', $match)) {
+                return in_array($normalized, ['principal', 'secundaria', 'secundario'], true)
+                    ? strtoupper($normalized === 'principal' ? 'principal' : 'secundaria')
+                    : '__invalid__';
+            }
+
+            $resolved = $match['id'];
+            return is_numeric($resolved) ? (int) $resolved : $resolved;
+        };
+
         $validated = $request->validate([
             'rows' => ['required', 'array'],
             'rows.*.uid' => ['nullable', 'string', 'max:100'],
@@ -625,12 +677,12 @@ class TechnicalDataSheetController extends Controller
             'rows.*.consumo' => ['nullable', 'numeric', 'min:0'],
             'rows.*.fabricTypeParameterId' => [
                 'nullable',
-                function (string $attribute, mixed $value, \Closure $fail) use ($fabricTypeOptions) {
+                function (string $attribute, mixed $value, \Closure $fail) use ($resolveFabricTypeParameterId) {
                     if ($value === null || $value === '') {
                         return;
                     }
 
-                    if (!$fabricTypeOptions->has((string) $value)) {
+                    if ($resolveFabricTypeParameterId($value) === '__invalid__') {
                         $fail("El valor seleccionado en {$attribute} no existe en el catálogo de tipo de tela.");
                     }
                 },
@@ -643,12 +695,12 @@ class TechnicalDataSheetController extends Controller
             'traces.*.largoLiq' => ['nullable', 'numeric', 'min:0'],
             'traces.*.fabricTypeParameterId' => [
                 'nullable',
-                function (string $attribute, mixed $value, \Closure $fail) use ($fabricTypeOptions) {
+                function (string $attribute, mixed $value, \Closure $fail) use ($resolveFabricTypeParameterId) {
                     if ($value === null || $value === '') {
                         return;
                     }
 
-                    if (!$fabricTypeOptions->has((string) $value)) {
+                    if ($resolveFabricTypeParameterId($value) === '__invalid__') {
                         $fail("El valor seleccionado en {$attribute} no existe en el catÃ¡logo de tipo de tela.");
                     }
                 },
@@ -680,15 +732,9 @@ class TechnicalDataSheetController extends Controller
             'rollState.deletedIds.*' => ['string', 'max:100'],
         ]);
 
-        $rowsToPersist = array_map(function (array $row) {
+        $rowsToPersist = array_map(function (array $row) use ($resolveFabricTypeParameterId) {
             $fabricTypeParameterId = $row['fabricTypeParameterId'] ?? null;
-            if ($fabricTypeParameterId === '') {
-                $fabricTypeParameterId = null;
-            }
-
-            if (is_numeric($fabricTypeParameterId)) {
-                $fabricTypeParameterId = (int) $fabricTypeParameterId;
-            }
+            $fabricTypeParameterId = $resolveFabricTypeParameterId($fabricTypeParameterId);
 
             unset($row['fabricTypeParameterId'], $row['fabricTypeParameterName']);
             $row['fabric_type_parameter_id'] = $fabricTypeParameterId;
@@ -723,15 +769,9 @@ class TechnicalDataSheetController extends Controller
             $tracesSource = array_values($traceMap);
         }
 
-        $tracesToPersist = array_map(function (array $trace) {
+        $tracesToPersist = array_map(function (array $trace) use ($resolveFabricTypeParameterId) {
             $fabricTypeParameterId = $trace['fabricTypeParameterId'] ?? $trace['fabric_type_parameter_id'] ?? null;
-            if ($fabricTypeParameterId === '') {
-                $fabricTypeParameterId = null;
-            }
-
-            if (is_numeric($fabricTypeParameterId)) {
-                $fabricTypeParameterId = (int) $fabricTypeParameterId;
-            }
+            $fabricTypeParameterId = $resolveFabricTypeParameterId($fabricTypeParameterId);
 
             return [
                 'uid' => isset($trace['uid']) ? trim((string) $trace['uid']) : null,
@@ -777,8 +817,17 @@ class TechnicalDataSheetController extends Controller
 
     private function buildReference(ProductionOrder $order): string
     {
+        $sheetType = Str::lower(trim((string) ($order->productSheet?->type ?? '')));
         $sampleRef  = trim($order->productSheet?->sample_reference ?? '');
         $productRef = trim($order->productSheet?->product_reference ?? '');
+
+        if ($sheetType === 'muestra' && $sampleRef !== '') {
+            return $sampleRef;
+        }
+
+        if ($sheetType === 'producto' && $productRef !== '') {
+            return $productRef;
+        }
 
         if ($sampleRef && $productRef) {
             return $sampleRef === $productRef ? $sampleRef : "{$sampleRef} - {$productRef}";
@@ -791,9 +840,9 @@ class TechnicalDataSheetController extends Controller
     {
         $code = strtoupper(trim($opCode));
 
-        if (str_starts_with($code, 'MUT')) return 'MUT';
+        if (str_starts_with($code, 'MUT')) return 'MU';
         if (str_starts_with($code, 'MU'))  return 'MU';
-        if (str_starts_with($code, 'MFT')) return 'MFT';
+        if (str_starts_with($code, 'MFT')) return 'MF';
 
         return 'MF';
     }

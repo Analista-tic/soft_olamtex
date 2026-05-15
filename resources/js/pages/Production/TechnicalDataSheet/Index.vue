@@ -422,6 +422,13 @@ const basicInfoFields = computed(() => {
     // Formatear tallas - el backend ya las normaliza como array de strings
     const sizes = Array.isArray(selectedOp.value.sizes) && selectedOp.value.sizes.length > 0 ? selectedOp.value.sizes.join(', ') : '-';
 
+    const productType = String(selectedOp.value.productType ?? '').toLowerCase();
+    const wovenLabel = productType === 'muestra'
+        ? 'No aplica (Muestra)'
+        : selectedOp.value.isWovenProduct
+            ? 'Sí'
+            : 'No';
+
     return [
         { key: 'temporada', label: 'Temporada', value: selectedOp.value.season ?? '-' },
         { key: 'destino', label: 'Destino', value: selectedOp.value.destination ?? '-' },
@@ -434,6 +441,7 @@ const basicInfoFields = computed(() => {
         { key: 'mundo', label: 'Mundo', value: selectedOp.value.world ?? '-' },
         { key: 'base', label: 'Base', value: selectedOp.value.base ?? '-' },
         { key: 'baseHilaza', label: 'Base hilaza', value: selectedOp.value.baseYarn ?? '-' },
+        { key: 'tejido', label: 'Producto tejido', value: wovenLabel },
         { key: 'precioFacturacion', label: 'Precio facturación', value: formatCurrency(selectedOp.value.priceBilling) },
         { key: 'precioVenta', label: 'Precio venta', value: formatCurrency(selectedOp.value.priceSale) },
         { key: 'tallas', label: 'Tallas', value: sizes },
