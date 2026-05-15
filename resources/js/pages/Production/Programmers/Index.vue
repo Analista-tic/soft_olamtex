@@ -192,7 +192,12 @@ const seasonOptions = computed<Option[]>(() => {
         ...monthYearOptions,
     ];
 });
-const seasonBulkOptions = computed<Option[]>(() => seasonOptions.value.filter((opt) => String(opt.id) !== DEFAULT_SELECT_VALUE));
+const seasonBulkOptions = computed<Option[]>(() =>
+    seasonOptions.value.filter((opt) => {
+        const id = String(opt.id);
+        return id !== DEFAULT_SELECT_VALUE && id !== EMPTY_SEASON_FILTER && id !== EMPTY_DISPATCH_FILTER;
+    }),
+);
 const referenceFilterOptions = computed<Option[]>(() => {
     const references = new Set<string>();
 

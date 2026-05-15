@@ -126,7 +126,9 @@ class ProgrammerController extends Controller
             'worlds' => $worlds->values()->all(),
             'fabricBases' => $fabricBases->values()->all(),
             'yarnBases' => $yarnBases->values()->all(),
-            'months' => $catalogs['months']->values()->all(),
+            'months' => $catalogs['months']->isNotEmpty()
+                ? $catalogs['months']->values()->all()
+                : MonthLabel::options(),
             'priorities' => $catalogs['priorities']->values()->all(),
         ]);
     }
@@ -803,7 +805,7 @@ class ProgrammerController extends Controller
     {
         $prefix = strtoupper(trim((string) $request->input('prefix', 'MF')));
 
-        if (! in_array($prefix, ['MU', 'MUT', 'MF', 'MFT'], true)) {
+        if (! in_array($prefix, ['MU', 'MF'], true)) {
             return response()->json(['error' => 'Prefijo inválido.'], 422);
         }
 
@@ -1021,6 +1023,20 @@ class ProgrammerController extends Controller
         $season = strtoupper(trim((string) $validated['season']));
         $dispatchMonthRaw = trim((string) ($validated['dispatch_month'] ?? ''));
         $dispatchMonth = $dispatchMonthRaw !== '' ? strtoupper($dispatchMonthRaw) : $season;
+
+        $seasonParsed = SeasonParser::parse($season);
+        if ($seasonParsed['month'] === null || $seasonParsed['year'] === null) {
+            throw ValidationException::withMessages([
+                'season' => 'Selecciona una temporada válida con mes y año.',
+            ]);
+        }
+
+        $dispatchParsed = SeasonParser::parse($dispatchMonth);
+        if ($dispatchParsed['month'] === null || $dispatchParsed['year'] === null) {
+            throw ValidationException::withMessages([
+                'dispatch_month' => 'Selecciona un mes de despacho válido con mes y año.',
+            ]);
+        }
 
         $orders = ProductionOrder::query()
             ->whereIn('id', $validated['order_ids'])

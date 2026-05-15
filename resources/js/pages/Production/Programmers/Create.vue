@@ -505,9 +505,8 @@ function generateLots() {
     }));
 
     const sheet = selectedProductSheet.value;
-    const isWoven = Boolean((sheet as any)?.woven_product);
     const isProduct = sheet?.type === 'producto';
-    const prefix = isProduct ? (isWoven ? 'MFT' : 'MF') : (isWoven ? 'MUT' : 'MU');
+    const prefix = isProduct ? 'MF' : 'MU';
     void fetchNextOpCodes(form.value.lotsCount, prefix);
 }
 
