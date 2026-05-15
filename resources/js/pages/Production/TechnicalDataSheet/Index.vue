@@ -167,8 +167,8 @@ async function openEditOpsDialog() {
 }
 
 async function handleSaveOps(payload: ProductOperationPayload[]) {
-    if (!selectedOpId.value || !productSheetId.value) return;
-    await _handleSaveOps(payload, selectedOpId.value, productSheetId.value);
+    if (!productSheetId.value) return;
+    await _handleSaveOps(payload, productSheetId.value);
     refreshKey.value += 1;
 }
 const displayedSecondReference = computed(() => {

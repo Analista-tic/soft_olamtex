@@ -118,17 +118,4 @@ class ProductionOrderController extends Controller
         ]);
     }
 
-    /**
-     * Regenera el snapshot de operaciones de una OP desde el listado operacional actual de su sábana.
-     */
-    public function regenerateSnapshot(ProductionOrder $order): JsonResponse
-    {
-        $operations = $this->productionOrderService->createSnapshotForOrder($order);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Listado operacional sincronizado correctamente.',
-            'operations_count' => $operations->count(),
-        ]);
-    }
 }

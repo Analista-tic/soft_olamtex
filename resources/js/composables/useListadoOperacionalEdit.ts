@@ -110,7 +110,7 @@ export function useListadoOperacionalEdit(options?: { onSaved?: () => void; onEr
         }
     }
 
-    async function handleSaveOps(payload: ProductOperationPayload[], orderId: number | string, productSheetId: number) {
+    async function handleSaveOps(payload: ProductOperationPayload[], productSheetId: number) {
         isSavingOps.value = true;
         try {
             // 1. Obtener IDs existentes
@@ -147,9 +147,6 @@ export function useListadoOperacionalEdit(options?: { onSaved?: () => void; onEr
                     })),
                 });
             }
-
-            // 4. Regenerar snapshot de la OP
-            await axios.post(`/produccion/ordenes-produccion/${orderId}/regenerar-snapshot`);
 
             editOpsOpen.value = false;
             options?.onSaved?.();

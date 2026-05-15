@@ -124,8 +124,8 @@ async function openEditOpsDialog() {
 }
 
 async function handleSaveOps(payload: ProductOperationPayload[]) {
-    if (!props.row?.id || !productSheetId.value) return;
-    await _handleSaveOps(payload, props.row.id, productSheetId.value);
+    if (!productSheetId.value) return;
+    await _handleSaveOps(payload, productSheetId.value);
     refreshKey.value += 1;
 }
 
