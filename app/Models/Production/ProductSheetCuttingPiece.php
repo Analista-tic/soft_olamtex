@@ -4,7 +4,6 @@ namespace App\Models\Production;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProductSheetCuttingPiece extends Model
 {
@@ -36,11 +35,4 @@ class ProductSheetCuttingPiece extends Model
         return $this->belongsTo(ProductSheet::class, 'product_sheet_id');
     }
 
-    /**
-     * Relación: tiene muchas ProductSheetCuttingPieceSize
-     */
-    public function sizes(): HasMany
-    {
-        return $this->hasMany(ProductSheetCuttingPieceSize::class, 'cutting_piece_id');
-    }
 }

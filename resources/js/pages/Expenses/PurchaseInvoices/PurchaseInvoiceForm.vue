@@ -15,7 +15,7 @@ import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable
 import { Button } from '@/components/ui/button';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Plus, X } from 'lucide-vue-next';
+import { Plus } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 
 import { useAlertStack } from '@/composables/useAlert';
@@ -213,7 +213,8 @@ function formatDateForBackend(date: Date): string {
 function parseDateFromBackend(value?: string | null): Date | null {
     if (!value) return null;
 
-    const [year, month, day] = value.split('-').map(Number);
+    const datePart = value.split('T')[0];
+    const [year, month, day] = datePart.split('-').map(Number);
 
     if (!year || !month || !day) return null;
 
@@ -631,12 +632,13 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     localForm.value.items = Array.isArray(order.items)
         ? order.items.map((item: any) => ({
               item_id: item.item_id,
-              price: item.price || '',
-              tax: item.tax || 0,
-              quantity: item.quantity || '',
+              item_name: item.item_name || '',
+              price: item.price != null && item.price !== '' ? Number(item.price) : '',
+              tax: Number(item.tax) || 0,
+              quantity: item.quantity != null && item.quantity !== '' ? Number(item.quantity) : '',
               description: item.description || '',
-              total: item.total || 0,
-              total_tax: item.total_tax || 0,
+              total: Number(item.total) || 0,
+              total_tax: Number(item.total_tax) || 0,
               supplier_code: item.supplier_code || '',
               supplier_color: item.supplier_color || '',
               order_width: item.order_width || '',
@@ -726,32 +728,16 @@ onMounted(async () => {
                 <div v-if="mode === 'create'" class="w-full shrink-0 sm:w-[340px]">
                     <div class="space-y-1">
                         <label class="text-sm font-medium leading-none text-foreground">Cargar desde orden pendiente</label>
-                        <div class="flex items-center gap-2">
-                            <div class="min-w-0 flex-1">
-                                <SelectField
-                                    v-model="selectedPurchaseOrderValue"
-                                    :options="pendingPurchaseOrderOptions"
-                                    label=""
-                                    placeholder="Selecciona una orden existente"
-                                    :searchable="pendingPurchaseOrderOptions.length >= 6"
-                                    search-placeholder="Buscar orden de compra..."
-                                    tooltip-text="Selecciona una orden de compra aprobada para pre-llenar automáticamente los ítems de esta factura."
-                                />
-                            </div>
-                            <button
-                                type="button"
-                                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-background text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
-                                :disabled="!selectedPurchaseOrderId"
-                                title="Limpiar selección"
-                                @click="
-                                    selectedPurchaseOrderId = null;
-                                    selectedPurchaseOrderValue = null;
-                                    resetForm();
-                                "
-                            >
-                                <X class="h-3.5 w-3.5" />
-                            </button>
-                        </div>
+                        <SelectField
+                            v-model="selectedPurchaseOrderValue"
+                            :options="pendingPurchaseOrderOptions"
+                            label=""
+                            placeholder="Selecciona una orden existente"
+                            :searchable="pendingPurchaseOrderOptions.length >= 6"
+                            search-placeholder="Buscar orden de compra..."
+                            tooltip-text="Selecciona una orden de compra aprobada para pre-llenar automáticamente los ítems de esta factura."
+                            :clearable="true"
+                        />
                     </div>
                 </div>
             </div>

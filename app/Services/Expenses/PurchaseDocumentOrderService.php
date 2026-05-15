@@ -38,42 +38,71 @@ class PurchaseDocumentOrderService extends PurchaseDocumentService
                     throw new \RuntimeException('Solo se pueden crear órdenes desde solicitudes aprobadas.');
                 }
                 
-                // Validar que no exista ya una orden para esta solicitud
+                // Buscar si ya existe una orden pendiente para esta solicitud
                 $existingOrder = PurchaseDocument::where('purchase_request_id', $data['purchase_request_id'])
                     ->where('document_type', PurchaseDocument::TYPE_ORDER)
                     ->whereNull('deleted_at')
                     ->lockForUpdate()
                     ->first();
-                
-                if ($existingOrder) {
-                    throw new \RuntimeException('Ya existe una orden de compra para esta solicitud. No se pueden crear múltiples órdenes desde la misma solicitud.');
+
+                if ($existingOrder && $existingOrder->status !== 'pending') {
+                    throw new \RuntimeException('Ya existe una orden de compra activa para esta solicitud.');
                 }
             }
 
-            if (empty($data['document_number'])) {
-                $data['document_number'] = $this->generateOrderNumber();
+            $userId = Auth::id();
+            $status = $data['status'] ?? 'approved';
+            $isUpdatingPending = false;
+
+            // Si existe una orden pendiente, actualizarla en lugar de crear una nueva
+            $existingPendingOrder = null;
+            if (!empty($data['purchase_request_id'])) {
+                $existingPendingOrder = PurchaseDocument::where('purchase_request_id', $data['purchase_request_id'])
+                    ->where('document_type', PurchaseDocument::TYPE_ORDER)
+                    ->where('status', 'pending')
+                    ->whereNull('deleted_at')
+                    ->first();
             }
 
-            $base = $this->buildBaseData($data, PurchaseDocument::TYPE_ORDER);
+            if ($existingPendingOrder) {
+                $isUpdatingPending = true;
+                if (empty($data['document_number'])) {
+                    $data['document_number'] = $existingPendingOrder->document_number;
+                }
+                $base = $this->buildBaseData($data, PurchaseDocument::TYPE_ORDER);
+                $existingPendingOrder->update([
+                    ...$base,
+                    'parent_document_id'    => $data['parent_document_id'] ?? $existingPendingOrder->parent_document_id,
+                    'status'                => $status,
+                    'approval_status'       => $status === 'pending' ? 'pending' : 'approved',
+                    'approved_by_user_id'   => $status === 'pending' ? null : $userId,
+                    'approved_at'           => $status === 'pending' ? null : now(),
+                    'ordered_at'            => $data['ordered_at'] ?? now(),
+                    'supplier_order_number' => $data['supplier_order_number'] ?? $existingPendingOrder->supplier_order_number,
+                ]);
+                $this->syncItems($existingPendingOrder, $items);
+                $order = $existingPendingOrder;
+            } else {
+                if (empty($data['document_number'])) {
+                    $data['document_number'] = $this->generateOrderNumber();
+                }
+                $base = $this->buildBaseData($data, PurchaseDocument::TYPE_ORDER);
+                $order = PurchaseDocument::create([
+                    ...$base,
+                    'parent_document_id'    => $data['parent_document_id'] ?? null,
+                    'purchase_request_id'   => $data['purchase_request_id'] ?? null,
+                    'status'                => $status,
+                    'approval_status'       => $status === 'pending' ? 'pending' : 'approved',
+                    'approved_by_user_id'   => $status === 'pending' ? null : $userId,
+                    'approved_at'           => $status === 'pending' ? null : now(),
+                    'ordered_at'            => $data['ordered_at'] ?? now(),
+                    'supplier_order_number' => $data['supplier_order_number'] ?? null,
+                ]);
+                $this->syncItems($order, $items);
+            }
 
-            // Aprobación automática: estado 'approved', usuario y fecha
-            $userId = Auth::id();
-            $order = PurchaseDocument::create([
-                ...$base,
-                'parent_document_id'    => $data['parent_document_id'] ?? null,
-                'purchase_request_id'   => $data['purchase_request_id'] ?? null,
-                'status'                => 'approved',
-                'approval_status'       => 'approved',
-                'approved_by_user_id'   => $userId,
-                'approved_at'           => now(),
-                'ordered_at'            => $data['ordered_at'] ?? now(),
-                'supplier_order_number' => $data['supplier_order_number'] ?? null,
-            ]);
-
-            $this->syncItems($order, $items);
-
-            // Marcar la solicitud como procesada cuando se crea una orden
-            if ($purchaseRequest) {
+            // Marcar la solicitud como procesada al crear o confirmar la orden
+            if ($purchaseRequest && $status !== 'pending') {
                 $purchaseRequest->markAsProcessed(Auth::id());
             }
 

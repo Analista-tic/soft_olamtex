@@ -889,23 +889,23 @@ watch(
                         <div class="overflow-x-auto overflow-y-hidden rounded-lg border border-gray-300 shadow-sm">
                             <table class="w-full min-w-[1200px] text-center text-sm">
                                 <thead>
-                                    <tr class="bg-gray-50">
-                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Lote</th>
-                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Referencia</th>
-                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Temporada (Mes Año)</th>
-                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Mes despacho (Mes Año)</th>
-                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Destino</th>
-                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Nota</th>
-                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">E-commerce (opcional)</th>
-                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Unidades</th>
-                                        <th v-if="lotsForm.some((lot) => lot.isEcommerce)" class="border bg-gray-50 px-3 py-2 font-semibold">
+                                    <tr class="bg-gray-50 dark:bg-gray-800 dark:text-gray-100">
+                                        <th class="border bg-gray-50 px-3 py-2 font-semibold dark:bg-gray-800">Lote</th>
+                                        <th class="border bg-gray-50 px-3 py-2 font-semibold dark:bg-gray-800">Referencia</th>
+                                        <th class="border bg-gray-50 px-3 py-2 font-semibold dark:bg-gray-800">Temporada (Mes Año)</th>
+                                        <th class="border bg-gray-50 px-3 py-2 font-semibold dark:bg-gray-800">Mes despacho (Mes Año)</th>
+                                        <th class="border bg-gray-50 px-3 py-2 font-semibold dark:bg-gray-800">Destino</th>
+                                        <th class="border bg-gray-50 px-3 py-2 font-semibold dark:bg-gray-800">Nota</th>
+                                        <th class="border bg-gray-50 px-3 py-2 font-semibold dark:bg-gray-800">E-commerce (opcional)</th>
+                                        <th class="border bg-gray-50 px-3 py-2 font-semibold dark:bg-gray-800">Unidades</th>
+                                        <th v-if="lotsForm.some((lot) => lot.isEcommerce)" class="border bg-gray-50 px-3 py-2 font-semibold dark:bg-gray-800">
                                             Cant. E-commerce
                                         </th>
                                     </tr>
                                 </thead>
 
                                 <tbody>
-                                    <tr v-for="(lot, index) in lotsForm" :key="index" class="hover:bg-gray-50">
+                                    <tr v-for="(lot, index) in lotsForm" :key="index" class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                                         <td class="whitespace-nowrap border px-3 py-2 font-mono text-sm text-muted-foreground">
                                             {{ nextOpCodes[index] ?? '—' }}
                                         </td>

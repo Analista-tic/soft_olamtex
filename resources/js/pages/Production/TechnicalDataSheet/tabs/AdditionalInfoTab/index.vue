@@ -82,7 +82,7 @@ const stampingDialogData = computed<AdditionalInfo['stamping']>({
         if (activeStampingDialogSection.value === 'laundry') {
             return {
                 designNotes: data.value.laundry.instructions ?? null,
-                attachments: [],
+                attachments: Array.isArray(data.value.laundry.attachments) ? data.value.laundry.attachments : [],
             };
         }
         return data.value.stamping;
@@ -94,6 +94,7 @@ const stampingDialogData = computed<AdditionalInfo['stamping']>({
                 laundry: {
                     ...data.value.laundry,
                     instructions: normalizeText(value.designNotes),
+                    attachments: Array.isArray(value.attachments) ? value.attachments : [],
                 },
             };
             return;
@@ -219,7 +220,7 @@ function createDefaultAdditionalInfo(): AdditionalInfo {
             generalNotes: null,
         },
         stamping: { designNotes: null, attachments: [], drawingAttachments: [] },
-        laundry: { type: null, instructions: null },
+        laundry: { type: null, instructions: null, attachments: [] },
     };
 }
 
@@ -301,6 +302,7 @@ function normalizePayload(payload: AdditionalInfo): AdditionalInfo {
         laundry: {
             type: normalizeText(payload.laundry.type),
             instructions: normalizeText(payload.laundry.instructions),
+            attachments: Array.isArray(payload.laundry.attachments) ? payload.laundry.attachments : [],
         },
     };
 

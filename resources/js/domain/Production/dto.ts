@@ -358,7 +358,7 @@ export interface AdditionalInfoDto {
         generalNotes?: string | null;
     };
     stamping: { designNotes?: string | null; attachments?: { id: string; name: string; url: string }[] };
-    laundry: { type?: string | null; instructions?: string | null };
+    laundry: { type?: string | null; instructions?: string | null; attachments?: { id: string; name: string; url: string }[] };
 }
 
 export interface FetchProductionOrdersParams {

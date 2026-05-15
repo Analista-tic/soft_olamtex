@@ -773,7 +773,7 @@ table.dt .row-total { font-weight:700; }
     </tr>
 </table>
 
-<div class="pg-footer p-foot">Ficha Técnica · Olamtex S.A.S. · Generada: {{ $printDate }} · Pág. 2 — CONFECCIÓN Y TERMINACIÓN</div>
+
 </div>
 
 </body>

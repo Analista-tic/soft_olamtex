@@ -76,6 +76,8 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
         ->name('ficha-tecnica.supplies.save-all');
     Route::delete('ficha-tecnica/{opId}/insumos/{supplyId}', [TechnicalDataSheetSuppliesController::class, 'destroy'])
         ->name('ficha-tecnica.supplies.destroy');
+    Route::post('ficha-tecnica/insumos/upload-imagen', [TechnicalDataSheetSuppliesController::class, 'uploadImage'])
+        ->name('ficha-tecnica.supplies.upload-image');
     Route::get('ficha-tecnica/{opId}/rollos', [TechnicalDataSheetRollsController::class, 'index'])
         ->name('ficha-tecnica.rolls.index');
     Route::put('ficha-tecnica/{opId}/rollos', [TechnicalDataSheetRollsController::class, 'saveAll'])

@@ -19,6 +19,7 @@ class StorageFileController extends Controller
         'supply-requests/',
         'inventory_requests/',
         'articles/',
+        'supply-images/',
     ];
 
     /**

@@ -2,6 +2,7 @@
 import AlertStack from '@/components/common/AlertStack.vue';
 import InputDate from '@/components/InputDate.vue';
 import InputField from '@/components/InputField.vue';
+import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
@@ -139,6 +140,15 @@ const requiredFieldLabels: Record<string, string> = {
     location: 'Ubicación',
     entry_date: 'Fecha de entrada',
 };
+
+const locationOptions = [
+    'A1','A2','A3',
+    'B1','B2','B3',
+    'C1','C2','C3',
+    'D1','D2','D3',
+    'E1','E2','E3',
+    'F1','F2','F3',
+].map((loc) => ({ id: loc, name: loc }));
 
 function parseNumber(value: number | string | null | undefined): number {
     if (value === null || value === undefined || value === '') return 0;
@@ -361,7 +371,6 @@ async function handleSubmit(): Promise<void> {
         emit('success');
 
         resetForm();
-        activeTab.value = 'list';
     } catch (error: unknown) {
         console.error(error);
         setAlert(getApiErrorMessage(error, 'No fue posible guardar la información del rollo.'), 'error');
@@ -590,7 +599,7 @@ watch(dialogOpen, (value) => {
                                 </div>
                             </div>
 
-                            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                            <div class="grid grid-cols-1 gap-6 sm:grid-cols-3">
                                 <InputField
                                     v-model="form.roll_number"
                                     label="Número de rollo (RL)"
@@ -598,14 +607,15 @@ watch(dialogOpen, (value) => {
                                     readonly
                                 />
                                 <InputDate v-model="form.entry_date" label="Fecha de entrada" required />
+                                <SelectField
+                                    v-model="form.location"
+                                    label="Ubicación"
+                                    :options="locationOptions"
+                                    placeholder="Selecciona una ubicación"
+                                    :disabled="isReadOnly"
+                                    required
+                                />
                             </div>
-
-                            <InputField
-                                v-model="form.location"
-                                label="Ubicación"
-                                placeholder="Ej: Estante A1, Rack 3, Pasillo 2"
-                                required
-                            />
 
                             <TextareaField
                                 v-model="form.description"

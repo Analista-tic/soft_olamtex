@@ -224,7 +224,7 @@ function addItem() {
     const newItem: PurchaseOrderItem = {
         item_id: null,
         price: 0,
-        tax: 0,
+        tax: 19,
         quantity: 1,
         description: '',
         total: 0,
@@ -268,7 +268,6 @@ function setTaxFromItem(item: PurchaseOrderItem) {
     const itemId = Number(item.item_id);
     const article = itemMap.value.get(itemId);
     if (!article) {
-        item.tax = 0;
         return;
     }
 
@@ -280,7 +279,6 @@ function setTaxFromItem(item: PurchaseOrderItem) {
 
     const itemTaxId = article.tax_id;
     if (itemTaxId == null) {
-        item.tax = 0;
         return;
     }
 

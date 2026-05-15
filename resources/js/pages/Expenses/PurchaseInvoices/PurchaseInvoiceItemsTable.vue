@@ -103,45 +103,10 @@ function normalizeOrderWidth(value: string | number | null | undefined) {
 }
 
 function normalizeIncomingItem(item: PurchaseInvoiceItem): PurchaseInvoiceItem {
-    function parseLocaleNumber(value: unknown, allowDecimals = true) {
-        if (value === null || value === undefined) return '';
-        const s = String(value).trim();
-        if (s === '') return '';
-
-        // Assume locale uses '.' as thousand separator and ',' as decimal (es-*).
-        // If both present: remove thousands ('.') and convert decimal ',' -> '.'.
-        // If only ',' present -> treat as decimal separator.
-        // If only '.' present -> treat as thousand separator and remove it.
-        let cleaned = s.replace(/[^0-9.,-]/g, '');
-
-        const hasDot = cleaned.indexOf('.') !== -1;
-        const hasComma = cleaned.indexOf(',') !== -1;
-
-        if (hasDot && hasComma) {
-            cleaned = cleaned.replace(/\./g, '').replace(/,/g, '.');
-        } else if (hasComma && !hasDot) {
-            // treat comma as decimal
-            cleaned = cleaned.replace(/,/g, '.');
-        } else if (hasDot && !hasComma) {
-            // treat dot as thousand separator
-            cleaned = cleaned.replace(/\./g, '');
-        }
-
-        if (!allowDecimals) {
-            // remove decimal part
-            cleaned = cleaned.split(/[,|\.]/)[0];
-        }
-
-        const num = Number(cleaned);
-        return Number.isFinite(num) ? num : '';
-    }
-
     return {
         ...item,
-        price: props.isCreating ? '' : (parseLocaleNumber(item.price, true) === '' ? '' : parseLocaleNumber(item.price, true)),
-        quantity: props.isCreating
-            ? ''
-            : (props.telaMode === true ? (parseLocaleNumber(item.quantity, true) === '' ? '' : parseLocaleNumber(item.quantity, true)) : (parseLocaleNumber(item.quantity, false) === '' ? '' : parseLocaleNumber(item.quantity, false))),
+        price: props.isCreating ? '' : (item.price != null && item.price !== '' ? Number(item.price) || '' : ''),
+        quantity: props.isCreating ? '' : (item.quantity != null && item.quantity !== '' ? Number(item.quantity) || '' : ''),
         tax: Number(item.tax) || 0,
         supplier_code: item.supplier_code || '',
         supplier_color: item.supplier_color || '',
@@ -554,7 +519,7 @@ defineExpose({ addItem });
                         <TableHead class="min-w-[140px] text-left"
                             >{{ props.telaMode ? 'Longitud (mts)' : 'Cantidad' }} <span class="text-red-600">*</span></TableHead
                         >
-                        <TableHead class="min-w-[160px] text-left">Descripción</TableHead>
+                        <TableHead v-if="!props.telaMode" class="min-w-[160px] text-left">Descripción</TableHead>
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
                             ><span class="inline-flex items-center gap-1"
                                 >Código proveedor <span class="text-red-600">*</span
@@ -701,7 +666,7 @@ defineExpose({ addItem });
                             </div>
                         </TableCell>
                         <!-- Descripción -->
-                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '220px' : '160px' }">
+                        <TableCell v-if="!props.telaMode" class="p-1 text-left align-top" style="width: 160px">
                             <div class="flex flex-col">
                                 <InputField
                                     v-model="item.description"

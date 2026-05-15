@@ -2,13 +2,13 @@
 
 namespace App\Services\Production;
 
-use App\Models\Production\TechnicalDataSheetSupply;
+use App\Models\Production\TechnicalSheetSupply;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
  * Persiste insumos de ficha técnica en la tabla relacional
- * `technical_data_sheet_supplies` (un registro por insumo).
+ * `technical_sheet_supplies` (un registro por insumo).
  *
  * El contrato público (read/write/upsertOne/deleteOne) mantiene
  * compatibilidad con el controlador existente.
@@ -23,12 +23,12 @@ class TechnicalDataSheetSuppliesStore
      */
     public function read(int $opId): array
     {
-        return TechnicalDataSheetSupply::query()
+        return TechnicalSheetSupply::query()
             ->where('production_order_id', $opId)
             ->orderBy('sequence')
             ->orderBy('id')
             ->get()
-            ->map(fn (TechnicalDataSheetSupply $s) => $s->toFrontendArray())
+            ->map(fn (TechnicalSheetSupply $s) => $s->toFrontendArray())
             ->values()
             ->all();
     }
@@ -48,7 +48,7 @@ class TechnicalDataSheetSuppliesStore
                 ->all();
 
             // Eliminar (soft-delete) los que ya no están en la lista
-            TechnicalDataSheetSupply::query()
+            TechnicalSheetSupply::query()
                 ->where('production_order_id', $opId)
                 ->when(
                     count($incomingUids) > 0,
@@ -67,7 +67,7 @@ class TechnicalDataSheetSuppliesStore
      *
      * @param  array<string, mixed>  $item  payload camelCase
      */
-    public function upsertOne(int $opId, array $item): TechnicalDataSheetSupply
+    public function upsertOne(int $opId, array $item): TechnicalSheetSupply
     {
         $uid = trim((string) ($item['id'] ?? ''));
         if ($uid === '') {
@@ -83,7 +83,7 @@ class TechnicalDataSheetSuppliesStore
      */
     public function deleteOne(int $opId, string $uid): void
     {
-        TechnicalDataSheetSupply::query()
+        TechnicalSheetSupply::query()
             ->where('production_order_id', $opId)
             ->where('uid', trim($uid))
             ->delete();
@@ -132,12 +132,12 @@ class TechnicalDataSheetSuppliesStore
      *
      * @param  array<string, mixed>  $item
      */
-    private function persistOne(int $opId, array $item, int $index = 0): TechnicalDataSheetSupply
+    private function persistOne(int $opId, array $item, int $index = 0): TechnicalSheetSupply
     {
         $uid = trim((string) ($item['id'] ?? '')) ?: (string) Str::uuid();
 
-        /** @var TechnicalDataSheetSupply $record */
-        $record = TechnicalDataSheetSupply::query()->firstOrNew([
+        /** @var TechnicalSheetSupply $record */
+        $record = TechnicalSheetSupply::query()->firstOrNew([
             'production_order_id' => $opId,
             'uid'                 => $uid,
         ]);

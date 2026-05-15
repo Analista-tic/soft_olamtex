@@ -35,9 +35,7 @@ use App\Models\Production\TechnicalSheetProcess;
 use App\Models\Production\TechnicalSheetRawMaterial;
 use App\Models\Production\TechnicalSheetRoll;
 use App\Models\Production\TechnicalSheetSupply;
-use App\Models\Production\TechnicalDataSheetSupply;
 use App\Models\Production\ProductSheetCuttingPiece;
-use App\Models\Production\ProductSheetCuttingPieceSize;
 use App\Models\Production\TechnicalSheetThread;
 use App\Models\Settings\Area;
 use App\Models\Settings\User;
@@ -153,9 +151,7 @@ class AppServiceProvider extends ServiceProvider
             TechnicalSheetThread::class,
             TechnicalSheetSupply::class,
             TechnicalSheetRawMaterial::class,
-            TechnicalDataSheetSupply::class,
             ProductSheetCuttingPiece::class,
-            ProductSheetCuttingPieceSize::class,
             // Textil
             FabricRoll::class,
         ];

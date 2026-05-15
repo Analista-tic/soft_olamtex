@@ -11,7 +11,7 @@ import Label from '@/components/ui/label/Label.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import PurchaseOrderItemsTable from './PurchaseOrderItemsTable.vue';
 import { Button } from '@/components/ui/button';
-import { Plus, X } from 'lucide-vue-next';
+import { Plus } from 'lucide-vue-next';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -38,6 +38,7 @@ const selectedRequestValue = ref<number | null>(null);
 const selectedPurchaseRequest = ref<any | null>(null);
 const isLoading = ref(false);
 const isSubmitting = ref(false);
+const isLoadingRequest = ref(false);
 const itemsTableRef = ref<any>(null);
 
 const isReadOnly = computed(() => false);
@@ -97,6 +98,7 @@ function createDefaultForm() {
         supplier_order_number: '',
         description: '',
         items: [createEmptyItem()],
+        purchase_request_id: null as number | null,
     };
 }
 
@@ -104,7 +106,7 @@ function createEmptyItem() {
     return {
         item_id: null,
         price: 0,
-        tax: 0,
+        tax: 19,
         quantity: 1,
         description: '',
         total: 0,
@@ -161,10 +163,14 @@ async function fetchContacts() {
 
 async function fetchPendingPurchaseRequests() {
     try {
-        const response = await axios.get('/gastos/solicitudes-compra/data', { params: { per_page: 1000, status: 'approved', exclude_with_orders: true } });
+        const response = await axios.get('/gastos/solicitudes-compra/data', {
+            params: { per_page: 500, status: 'approved', exclude_with_orders: true, minimal: true },
+        });
         let allRequests: any[] = [];
         if (Array.isArray(response.data?.data)) allRequests = response.data.data;
-        purchaseRequests.value = allRequests.filter((req) => req?.status === 'approved');
+        purchaseRequests.value = allRequests
+            .filter((req) => req?.status === 'approved')
+            .sort((a, b) => Number(a.id) - Number(b.id));
     } catch {
         purchaseRequests.value = [];
     }
@@ -236,6 +242,12 @@ async function handleSubmit(sendMail = false) {
     isSubmitting.value = true;
     const payload = { ...localForm.value };
     payload.contact_id = payload.contact_id ? Number(payload.contact_id) : null;
+    if (payload.provider_name == null || payload.provider_name === '') {
+        delete payload.provider_name;
+    }
+    if (payload.purchase_request_id) {
+        payload.status = 'approved';
+    }
     payload.items = (localForm.value.items || []).map((item: any) => ({
         ...item,
         item_id: item.item_id ? Number(item.item_id) : null,
@@ -343,7 +355,6 @@ onMounted(async () => {
         if (mode.value === 'create') {
             await fetchNextDocumentNumber();
         }
-
         if (mode.value === 'edit' && props.form) {
             initializeFromForm();
         }
@@ -357,29 +368,45 @@ watch(() => props.form, (newVal) => {
 });
 
 async function loadRequestToOrder(requestId: number) {
-    const request = purchaseRequests.value.find((r: any) => Number(r.id) === Number(requestId));
-    if (!request) return;
-    if (!contacts.value.length) await fetchContacts();
-    const foundContact = contacts.value.find((c: any) => Number(c.id) === Number(request.contact_id));
-    localForm.value.contact_id = foundContact ? Number(request.contact_id) : null;
-    localForm.value.description = request.description || '';
-    localForm.value.items = Array.isArray(request.items) && request.items.length
-        ? request.items.map((item: any) => ({
-              item_id: item.item_id ?? null,
-              price: item.price || 0,
-              tax: item.tax || 0,
-              quantity: item.quantity || 1,
-              description: item.description || '',
-              total: item.total || 0,
-              total_tax: item.total_tax || 0,
-              supplier_code: '',
-              supplier_color: '',
-              order_width: 0,
-          }))
-        : [createEmptyItem()];
-    selectedRequestId.value = Number(requestId);
-    const fullRequest = purchaseRequests.value.find((r: any) => Number(r.id) === Number(requestId));
-    if (fullRequest) selectedPurchaseRequest.value = fullRequest;
+    isLoadingRequest.value = true;
+    try {
+        if (!contacts.value.length) await fetchContacts();
+
+        const { data } = await axios.get(`/gastos/solicitudes-compra/${requestId}`);
+        const request = data?.data;
+        if (!request) return;
+
+        const providerName = (request.provider_name || '').toLowerCase().trim();
+        const foundContact = providerName
+            ? contacts.value.find((c: any) => (c.name || '').toLowerCase().trim() === providerName)
+            : null;
+
+        localForm.value.contact_id = foundContact ? Number(foundContact.id) : null;
+        localForm.value.description = request.description || '';
+        localForm.value.purchase_request_id = Number(requestId);
+
+        const rawItems = Array.isArray(request.items) ? request.items : [];
+        localForm.value.items = rawItems.length
+            ? rawItems.map((item: any) => ({
+                  item_id: item.item_id ?? null,
+                  price: item.price || 0,
+                  tax: 19,
+                  quantity: item.quantity || 1,
+                  description: item.description || item.name || '',
+                  total: item.total || 0,
+                  total_tax: item.total_tax || 0,
+                  supplier_code: '',
+                  supplier_color: '',
+                  order_width: 0,
+              }))
+            : [createEmptyItem()];
+
+        selectedPurchaseRequest.value = request;
+    } catch {
+        showError('No se pudo cargar la solicitud seleccionada. Intenta de nuevo.');
+    } finally {
+        isLoadingRequest.value = false;
+    }
 }
 
 watch(selectedRequestValue, (val) => {
@@ -414,28 +441,20 @@ watch(selectedRequestId, async (id) => {
                 <div v-if="mode === 'create'" class="w-full sm:w-[340px] shrink-0">
                     <div class="space-y-1">
                         <label class="text-sm font-medium leading-none text-foreground">Cargar desde solicitud aprobada</label>
-                        <div class="flex items-center gap-2">
-                            <div class="flex-1 min-w-0">
-                                <SelectField
-                                    v-model="selectedRequestValue"
-                                    :options="pendingRequestOptions"
-                                    label=""
-                                    placeholder="Selecciona una solicitud"
-                                    :searchable="pendingRequestOptions.length >= 6"
-                                    search-placeholder="Buscar solicitud..."
-                                    tooltip-text="Selecciona una solicitud de compra aprobada para pre-llenar automáticamente los ítems."
-                                />
-                            </div>
-                            <button
-                                type="button"
-                                class="shrink-0 h-7 w-7 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
-                                :disabled="!selectedRequestId"
-                                title="Limpiar selección"
-                                @click="selectedRequestId = null; selectedRequestValue = null; localForm = createDefaultForm()"
-                            >
-                                <X class="h-3.5 w-3.5" />
-                            </button>
-                        </div>
+                        <SelectField
+                            v-model="selectedRequestValue"
+                            :options="pendingRequestOptions"
+                            label=""
+                            placeholder="Selecciona una solicitud"
+                            :searchable="pendingRequestOptions.length >= 6"
+                            search-placeholder="Buscar solicitud..."
+                            tooltip-text="Selecciona una solicitud de compra aprobada para pre-llenar automáticamente los ítems."
+                            :disabled="isLoadingRequest"
+                            :clearable="true"
+                        />
+                        <p v-if="isLoadingRequest" class="text-xs text-muted-foreground animate-pulse">
+                            Cargando datos de la solicitud...
+                        </p>
                     </div>
                 </div>
             </div>

@@ -119,9 +119,13 @@ class PurchaseDocumentService
                         );
                 })
             )
-            ->when($this->shouldApplyFilter($filters['status'] ?? null), fn (Builder $builder) =>
-                $builder->where('status', $filters['status'])
-            )
+            ->when($this->shouldApplyFilter($filters['status'] ?? null), function (Builder $builder) use ($filters) {
+                if ($filters['status'] === 'processed') {
+                    $builder->where('status', 'approved')->whereNotNull('purchase_request_id');
+                } else {
+                    $builder->where('status', $filters['status']);
+                }
+            })
             ->when($this->shouldApplyFilter($filters['approval_status'] ?? null), fn (Builder $builder) =>
                 $builder->where('approval_status', $filters['approval_status'])
             )

@@ -25,7 +25,7 @@ enum PurchaseRequestStatus: string
 
     public function canEdit(): bool
     {
-        return in_array($this, [self::DRAFT, self::PENDING]);
+        return $this === self::DRAFT;
     }
 
     public function canApprove(): bool

@@ -139,7 +139,7 @@ const canEdit = computed(() => {
     }
 
     const status = localForm.value.status;
-    return status === 'draft' || status === 'pending' || !status;
+    return status === 'draft' || !status;
 });
 
 const isReadOnly = computed(() => props.readonly || !canEdit.value);
@@ -352,10 +352,7 @@ async function handleSubmit(sendToApproval: boolean = false) {
 
         const hasNewItemImages = (localForm.value.items || []).some((item) => item.image_file instanceof File);
 
-        if (props.dialogType === 'edit' && stableStringify(localForm.value) === originalFormSnapshot.value && !hasNewItemImages) {
-            if (sendToApproval) {
-                await handleSendToApproval();
-            }
+        if (!sendToApproval && props.dialogType === 'edit' && stableStringify(localForm.value) === originalFormSnapshot.value && !hasNewItemImages) {
             return;
         }
     } catch (error) {
@@ -374,6 +371,7 @@ async function handleSubmit(sendToApproval: boolean = false) {
         const payload: Record<string, unknown> = {
             ...localForm.value,
             date: normalizeIsoDate(localForm.value.date, getTodayDate()) || getTodayDate(),
+            status: sendToApproval ? 'approved' : (localForm.value.status || 'draft'),
         };
 
         delete payload.estimated_amount;
@@ -394,7 +392,7 @@ async function handleSubmit(sendToApproval: boolean = false) {
         }
 
         const url = props.dialogType === 'create' ? PURCHASE_REQUESTS_BASE_URL : `${PURCHASE_REQUESTS_BASE_URL}/${localForm.value.id}`;
-        const response = await axios({
+        await axios({
             method: 'POST',
             url,
             data: formData,
@@ -403,27 +401,15 @@ async function handleSubmit(sendToApproval: boolean = false) {
             },
         });
 
-        if (sendToApproval && response.data?.data?.id) {
-            try {
-                await axios.post(`${PURCHASE_REQUESTS_BASE_URL}/${response.data.data.id}/send-to-approval`);
-                const message =
-                    props.dialogType === 'create'
-                        ? 'Solicitud creada y enviada a aprobacion correctamente.'
-                        : 'Solicitud actualizada y enviada a aprobacion correctamente.';
-                emit('refresh', message);
-                showSuccess(message);
-                dialogOpen.value = false;
-                return;
-            } catch {
-                const message =
-                    props.dialogType === 'create'
-                        ? 'Solicitud creada correctamente, pero no se pudo enviar a aprobacion.'
-                        : 'Solicitud actualizada correctamente, pero no se pudo enviar a aprobacion.';
-                showError(message);
-                emit('refresh', message);
-                dialogOpen.value = false;
-                return;
-            }
+        if (sendToApproval) {
+            const message =
+                props.dialogType === 'create'
+                    ? 'Solicitud creada y aprobada correctamente.'
+                    : 'Solicitud actualizada y aprobada correctamente.';
+            emit('refresh', message);
+            showSuccess(message);
+            dialogOpen.value = false;
+            return;
         }
 
         const message = props.dialogType === 'create' ? 'Solicitud creada correctamente.' : 'Solicitud actualizada correctamente.';
@@ -451,42 +437,6 @@ function handleSubmitSafe(sendToApproval: boolean = false) {
         emit('error', message);
         console.error('Error no controlado al guardar solicitud:', error);
     });
-}
-
-async function handleSendToApproval() {
-    if (!localForm.value.id) {
-        setErrorMessage('Debes guardar la solicitud antes de enviarla a aprobacion.', 'warning');
-        return;
-    }
-
-    const status = localForm.value.status;
-    if (status !== 'draft') {
-        setErrorMessage('Solo las solicitudes en borrador pueden enviarse a aprobacion.', 'warning');
-        return;
-    }
-
-    if (!confirm('¿Estas seguro de enviar esta solicitud a aprobacion?')) {
-        return;
-    }
-
-    isLoading.value = true;
-    isSubmittingDialog.value = true;
-
-    try {
-        await axios.post(`${PURCHASE_REQUESTS_BASE_URL}/${localForm.value.id}/send-to-approval`);
-        const message = 'Solicitud enviada a aprobacion correctamente.';
-        emit('refresh', message);
-        showSuccess(message);
-        dialogOpen.value = false;
-    } catch (error) {
-        const serverMessage = (error as any)?.response?.data?.message || 'Error al enviar la solicitud a aprobacion. Por favor intenta nuevamente.';
-        setErrorMessage(serverMessage);
-        emit('error', serverMessage);
-        console.error('Error enviando a aprobacion:', error);
-    } finally {
-        isLoading.value = false;
-        isSubmittingDialog.value = false;
-    }
 }
 
 watch(

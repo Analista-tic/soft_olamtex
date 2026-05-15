@@ -129,9 +129,9 @@ const estimatedStatusLabel = computed(() => {
 });
 
 const estimatedStatusClass = computed(() => {
-    if (estimatedStatus.value === 'overdue') return 'border-red-200 bg-red-50 text-red-700';
-    if (estimatedStatus.value === 'due_soon') return 'border-amber-200 bg-amber-50 text-amber-700';
-    if (estimatedStatus.value === 'on_time') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+    if (estimatedStatus.value === 'overdue') return 'border-red-200 bg-red-50 dark:bg-red-900/30 dark:border-red-700/60 text-red-700 dark:text-red-400';
+    if (estimatedStatus.value === 'due_soon') return 'border-amber-200 bg-amber-50 dark:bg-amber-900/30 dark:border-amber-700/60 text-amber-700 dark:text-amber-400';
+    if (estimatedStatus.value === 'on_time') return 'border-emerald-200 bg-emerald-50 dark:bg-emerald-900/30 dark:border-emerald-700/60 text-emerald-700 dark:text-emerald-400';
     return 'border-muted-foreground/20 bg-muted/20 text-muted-foreground';
 });
 

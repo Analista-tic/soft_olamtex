@@ -66,6 +66,12 @@ const BASE_STAGE_OPTIONS: Option[] = [
     { id: 'TERMINACION', name: 'Terminación' },
 ];
 
+const MODA_LINEA_OPTIONS: Option[] = [
+    { id: 'MODA', name: 'Moda' },
+    { id: 'LINEA', name: 'Línea' },
+    { id: 'NA', name: 'N/A' },
+];
+
 const stageOptions = ref<Option[]>([...BASE_STAGE_OPTIONS]);
 
 const isLoading = ref(false);
@@ -342,7 +348,9 @@ function applyLoadedRows(items: SupplyItem[]): void {
             purchaseRequestId: item.purchaseRequestId ?? null,
             documentUrl: item.documentUrl ?? null,
             isDraft,
-            sizeMeasurements: (item.sizeMeasurements as Record<string, SizeMeasurement>) ?? {},
+            sizeMeasurements: (!item.sizeMeasurements || Array.isArray(item.sizeMeasurements))
+                ? {}
+                : (item.sizeMeasurements as Record<string, SizeMeasurement>),
         };
     });
 
@@ -534,6 +542,13 @@ function updateStage(rowUuid: string, value: SelectFieldValue): void {
     const next = String(normalized || 'CONFECCION') as SupplyStage;
     row.stage = next;
     row.sequence = nextStageSequence(next);
+}
+
+function updateModaLinea(rowUuid: string, value: SelectFieldValue): void {
+    const row = rows.value.find((item) => item.uuid === rowUuid);
+    if (!row) return;
+    const normalized = toSingleSelectValue(value);
+    row.modaLinea = String(normalized || 'NA') as SupplyModaLinea;
 }
 
 type WarehouseItemRow = {
@@ -819,6 +834,44 @@ function openImagePreview(url: string): void {
     imagePreviewOpen.value = true;
 }
 
+// ── Subida de imagen desde computador ────────────────────────────────────────
+
+const imageInputRefs = new Map<string, HTMLInputElement>();
+const uploadingImageRowId = ref<string | null>(null);
+
+function setImageInputRef(rowId: string, el: unknown): void {
+    if (el instanceof HTMLInputElement) {
+        imageInputRefs.set(rowId, el);
+    }
+}
+
+function triggerImageUpload(row: LocalSupplyRow): void {
+    const key = row.id ?? row.uuid;
+    const input = imageInputRefs.get(key);
+    if (input) input.click();
+}
+
+async function handleImageUpload(event: Event, row: LocalSupplyRow): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    uploadingImageRowId.value = row.id;
+    try {
+        const formData = new FormData();
+        formData.append('image', file);
+        const response = await axios.post('/produccion/ficha-tecnica/insumos/upload-imagen', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        row.documentUrl = response.data.url ?? null;
+    } catch {
+        // silencioso — no interrumpe el flujo del formulario
+    } finally {
+        uploadingImageRowId.value = null;
+        input.value = '';
+    }
+}
+
 // ── Tabla de medidas por talla ────────────────────────────────────────────────
 
 const measurementsModalOpen = ref(false);
@@ -911,6 +964,7 @@ watch(
                             <TableRow>
                                 <TableHead class="w-[180px] min-w-[100px] text-left">Tipo de insumo</TableHead>
                                 <TableHead class="min-w-[300px] text-left">Insumo</TableHead>
+                                <TableHead class="w-[130px] min-w-[110px] text-left">Moda/Línea</TableHead>
                                 <TableHead class="w-[70px] min-w-[70px] text-right">Cantidad</TableHead>
                                 <TableHead class="min-w-[90px] text-center">Disponible</TableHead>
                                 <TableHead class="w-[140px] min-w-[110px] text-right">Precio</TableHead>
@@ -963,6 +1017,15 @@ watch(
                                             </p>
                                         </div>
                                     </div>
+                                </TableCell>
+                                <TableCell>
+                                    <SelectField
+                                        :model-value="meta.row.modaLinea"
+                                        :options="MODA_LINEA_OPTIONS"
+                                        :searchable="false"
+                                        :disabled="isSaving"
+                                        @update:model-value="(value) => updateModaLinea(meta.row.uuid, value)"
+                                    />
                                 </TableCell>
                                 <TableCell>
                                     <div class="flex items-center gap-1.5">
@@ -1090,7 +1153,7 @@ watch(
                                             type="button"
                                             class="group/img relative h-8 w-8 overflow-hidden rounded border border-border bg-muted transition hover:border-primary"
                                             title="Ver imagen"
-                                            @click="openImagePreview(meta.row.documentUrl)"
+                                            @click="openImagePreview(meta.row.documentUrl!)"
                                         >
                                             <img
                                                 :src="meta.row.documentUrl"
@@ -1101,39 +1164,35 @@ watch(
                                         </button>
 
                                         <!-- Botón agregar/cambiar imagen -->
-                                        <Popover>
-                                            <PopoverTrigger as-child>
-                                                <button
-                                                    type="button"
-                                                    :title="meta.row.documentUrl ? 'Cambiar imagen' : 'Agregar imagen'"
-                                                    :class="[
-                                                        'inline-flex h-7 w-7 items-center justify-center rounded-md transition',
-                                                        meta.row.documentUrl
-                                                            ? 'text-muted-foreground hover:bg-muted'
-                                                            : 'text-muted-foreground/50 hover:bg-muted hover:text-muted-foreground',
-                                                    ]"
-                                                >
-                                                    <Camera class="h-3.5 w-3.5" />
-                                                </button>
-                                            </PopoverTrigger>
-                                            <PopoverContent class="w-64 p-3" align="end">
-                                                <p class="mb-2 text-xs font-medium text-foreground">URL de imagen</p>
-                                                <Input
-                                                    :model-value="meta.row.documentUrl ?? ''"
-                                                    placeholder="https://..."
-                                                    class="mb-2 h-8 text-xs"
-                                                    @update:model-value="(v) => (meta.row.documentUrl = String(v).trim() || null)"
-                                                />
-                                                <button
-                                                    v-if="meta.row.documentUrl"
-                                                    type="button"
-                                                    class="text-xs text-destructive hover:underline"
-                                                    @click="meta.row.documentUrl = null"
-                                                >
-                                                    Quitar imagen
-                                                </button>
-                                            </PopoverContent>
-                                        </Popover>
+                                        <button
+                                            type="button"
+                                            :title="meta.row.documentUrl ? 'Cambiar imagen' : 'Agregar imagen'"
+                                            :class="[
+                                                'inline-flex h-7 w-7 items-center justify-center rounded-md transition',
+                                                meta.row.documentUrl
+                                                    ? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100'
+                                                    : 'text-muted-foreground/50 hover:bg-muted hover:text-muted-foreground',
+                                            ]"
+                                            @click="triggerImageUpload(meta.row)"
+                                        >
+                                            <Camera class="h-3.5 w-3.5" />
+                                        </button>
+                                        <button
+                                            v-if="meta.row.documentUrl"
+                                            type="button"
+                                            class="inline-flex h-5 w-5 items-center justify-center rounded text-destructive/60 hover:bg-destructive/10 hover:text-destructive"
+                                            title="Quitar imagen"
+                                            @click="meta.row.documentUrl = null"
+                                        >
+                                            <span class="text-xs leading-none">&times;</span>
+                                        </button>
+                                        <input
+                                            :ref="(el) => setImageInputRef(meta.row.id ?? meta.row.uuid, el)"
+                                            type="file"
+                                            accept="image/*"
+                                            class="hidden"
+                                            @change="(e) => handleImageUpload(e, meta.row)"
+                                        />
 
                                         <!-- Link solicitud de compra (solo draft) -->
                                         <a
@@ -1156,7 +1215,7 @@ watch(
                                             :class="[
                                                 'inline-flex h-8 w-8 items-center justify-center rounded-full transition disabled:pointer-events-none disabled:opacity-40',
                                                 hasMeasurements(meta.row)
-                                                    ? 'bg-primary/10 text-primary hover:bg-primary/20'
+                                                    ? 'bg-green-100 text-green-600 hover:bg-green-200'
                                                     : 'text-muted-foreground opacity-60 hover:bg-muted hover:text-foreground hover:opacity-100',
                                             ]"
                                             :disabled="isSaving"

@@ -108,13 +108,10 @@ const selectedPurchaseRequestValue = computed<Option['id'] | ''>({
     },
 });
 
-const selectedContactData = computed(() => {
-    if (!localForm.value.contact_id) return null;
-    return contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id)) || null;
-});
+const selectedContactDetails = ref<{ id_number?: string; phone?: string } | null>(null);
 
-const contactIdNumber = computed(() => selectedContactData.value?.id_number || '');
-const contactPhone = computed(() => selectedContactData.value?.phone || '');
+const contactIdNumber = computed(() => selectedContactDetails.value?.id_number || '');
+const contactPhone = computed(() => selectedContactDetails.value?.phone || '');
 const { company, logoUrl } = useCompanyInfo();
 
 function getLocalIsoDate() {
@@ -331,15 +328,10 @@ function resetForm(source: Partial<PurchaseOrder> = props.form) {
 
 async function fetchContacts() {
     try {
-        const [res1, res2] = await Promise.all([
-            axios.get<{ data: Contact[] }>('/contactos/data', {
-                params: { contact_type: 'proveedor', per_page: 1000 },
-            }),
-            axios.get<{ data: Contact[] }>('/contactos/data', {
-                params: { contact_type: 'cliente_proveedor', per_page: 1000 },
-            }),
-        ]);
-        contacts.value = [...res1.data.data, ...res2.data.data];
+        const { data } = await axios.get<Contact[]>('/contactos/list', {
+            params: { contact_types: ['proveedor', 'cliente_proveedor'] },
+        });
+        contacts.value = Array.isArray(data) ? data : [];
     } catch (e) {
         contacts.value = [];
         console.error('Error fetching contacts:', e);
@@ -687,13 +679,20 @@ function validateForm(): boolean {
 
 watch(
     () => localForm.value.contact_id,
-    (val) => {
-        // Solo normalizar el tipo de dato, no resetear el formulario
+    async (val) => {
         if (val !== null && val !== undefined && typeof val !== 'number') {
             localForm.value.contact_id = Number(val);
         }
-        // NO resetear el formulario cuando se borra el proveedor
-        // El reset solo debe ocurrir cuando se borra la solicitud de compra
+        if (!val) {
+            selectedContactDetails.value = null;
+            return;
+        }
+        try {
+            const { data } = await axios.get(`/contactos/${val}`);
+            selectedContactDetails.value = data;
+        } catch {
+            selectedContactDetails.value = null;
+        }
     },
 );
 

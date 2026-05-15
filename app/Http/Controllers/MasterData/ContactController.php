@@ -80,13 +80,19 @@ class ContactController extends Controller
 
     public function list(Request $request)
     {
-        $contactType = $request->input('contact_type');
+        $contactType  = $request->input('contact_type');
+        $contactTypes = $request->input('contact_types', []);
 
         $query = Contact::query()
-            ->select('id', 'full_name', 'id_number', 'contact_type')
+            ->select('id', 'full_name', 'contact_type')
             ->orderBy('full_name');
 
-        if (in_array($contactType, Contact::CONTACT_TYPES, true)) {
+        if (!empty($contactTypes) && is_array($contactTypes)) {
+            $valid = array_filter($contactTypes, fn ($t) => in_array($t, Contact::CONTACT_TYPES, true));
+            if (!empty($valid)) {
+                $query->whereIn('contact_type', array_values($valid));
+            }
+        } elseif (in_array($contactType, Contact::CONTACT_TYPES, true)) {
             $query->where('contact_type', $contactType);
         }
 

@@ -1,7 +1,7 @@
-<script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import SelectField from '@/components/SelectField.vue';
 import ServerPagination from '@/components/common/ServerPagination.vue';
+<script setup lang="ts">
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -419,7 +419,7 @@ function rowBorderClass(row: BatchControlRow): string {
     if (isRowDisabled(row)) return '';
     // Novedades pendientes → alto contraste
     if (row.has_pending_novelties) {
-        return 'border-l-4 border-l-orange-600 bg-orange-100/80 shadow-sm';
+        return 'border-l-4 border-l-orange-600 bg-orange-100/80 dark:bg-orange-900/30 shadow-sm';
     }
     const status = row.deadline_statuses?.[activeProcess.value] ?? 'none';
     if (status === 'overdue') return 'border-l-4 border-l-red-500';
@@ -1014,12 +1014,17 @@ async function openLogisticsExitDialog(row: BatchControlRow) {
         const rawLines = Array.isArray(data?.data?.lines) ? data.data.lines : [];
         logisticsOpUnits.value = data?.data?.op_units ?? row.cant_programadas ?? 0;
 
-        logisticsSupplyLines.value = rawLines.map((l: Omit<LogisticsSupplyItem, 'selected_warehouse_id' | 'exit_qty' | 'include'>) => ({
-            ...l,
-            selected_warehouse_id: l.warehouses.length > 0 ? l.warehouses[0].id : null,
-            exit_qty: l.suggested_qty,
-            include: l.warehouses.length > 0,
-        }));
+        logisticsSupplyLines.value = rawLines.map((l: Omit<LogisticsSupplyItem, 'selected_warehouse_id' | 'exit_qty' | 'include'>) => {
+            const deliveredQty = (l as LogisticsSupplyItem).delivered_qty ?? 0;
+            const isComplete = l.suggested_qty > 0 && deliveredQty >= l.suggested_qty;
+            const remaining = Math.max(0, l.suggested_qty - deliveredQty);
+            return {
+                ...l,
+                selected_warehouse_id: l.warehouses.length > 0 ? l.warehouses[0].id : null,
+                exit_qty: isComplete ? 0 : (deliveredQty > 0 ? remaining : l.suggested_qty),
+                include: !isComplete && l.warehouses.length > 0,
+            };
+        });
     } catch {
         logisticsSupplyLines.value = [];
         showError('No se pudieron cargar los insumos de la ficha técnica.');

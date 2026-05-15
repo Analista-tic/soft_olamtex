@@ -31,6 +31,9 @@ Route::prefix('gastos')->name('gastos.')->group(function () {
         Route::post('/{purchaseRequest}/cancel', [PurchaseRequestController::class, 'cancel'])
             ->middleware('permission:cancelar solicitudes compra')
             ->name('cancel');
+        Route::post('/{purchaseRequest}/convertir-a-orden', [PurchaseRequestController::class, 'convertToOrder'])
+            ->middleware('permission:crear ordenes compra')
+            ->name('convert-to-order');
     });
 
     // === ORDENES DE COMPRA ===
@@ -74,6 +77,7 @@ Route::prefix('gastos')->name('gastos.')->group(function () {
         Route::post('/{purchaseDocument}/rechazar-diferencia', [PurchaseInvoiceController::class, 'rejectDifference'])->name('reject-difference')->middleware('permission:gestionar diferencias factura compra');
         Route::patch('/{purchaseDocument}/recibir', [PurchaseInvoiceController::class, 'receive'])->name('receive')->middleware('permission:recibir factura compra');
         Route::patch('/{purchaseDocument}/rechazar', [PurchaseInvoiceController::class, 'reject'])->name('reject')->middleware('permission:anular factura compra');
+        Route::post('/{purchaseDocument}/enviar-correo', [PurchaseInvoiceController::class, 'sendInvoiceMail'])->name('send-mail')->middleware('permission:editar facturas compra');
     });
 
     // === CUENTAS POR PAGAR (LEGACY DESCONTINUADO) ===
