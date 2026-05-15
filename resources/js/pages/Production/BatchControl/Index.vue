@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import SelectField from '@/components/SelectField.vue';
 import ServerPagination from '@/components/common/ServerPagination.vue';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useAlertStack } from '@/composables/useAlert';
 import type { AdditionalInfo } from '@/domain/Production';
@@ -15,7 +15,7 @@ import { uiPatterns } from '@/lib/ui-patterns';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { MessageSquareWarning, PackageCheck, PackageSearch } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import BatchControlTable from './BatchControlTable.vue';
 import {
     CutFabricConsumptionDialog,
@@ -159,6 +159,7 @@ const cutConsumptionDialogOpen = ref(false);
 const cutConsumptionRow = ref<BatchControlRow | null>(null);
 const cutConsumptionLines = ref<CutFabricConsumptionLine[]>([]);
 const cutCurves = ref<CutCurves>(createEmptyCutCurves());
+const cutSheetCurves = ref<CutCurves | null>(null);
 /** Largo espiga (orden): usado para auto-calcular consumo por rollo */
 const cutLargoEspiga = ref<number | null>(null);
 /** true cuando la orden ya no está en Corte y el dialog se abre en modo solo lectura */
@@ -187,7 +188,7 @@ const isLoadingLogisticsSupplies = ref(false);
 const isSavingLogisticsExit = ref(false);
 
 // Filtro de temporada
-const seasonFilter = ref<string>('all');
+const seasonFilter = ref<string | number | boolean | null>(null);
 
 // Ordenación: por defecto fecha estimada (más urgente primero)
 const sortColumn = ref<string>('process_estimated_date');
@@ -203,6 +204,8 @@ const availableSeasons = computed(() => {
     }
     return Array.from(set).sort();
 });
+
+const seasonOptions = computed(() => availableSeasons.value.map((season) => ({ id: season, name: season })));
 
 const tabColor = (index: number) => TAB_COLORS[index % TAB_COLORS.length];
 
@@ -454,22 +457,67 @@ function getPreviousProcessEstimatedDate(row: BatchControlRow): string | null {
 
 /* ── Data fetching ──────────────────────────────────────── */
 
-async function fetchData() {
-    isLoading.value = true;
-    clearError();
+const isAnyDialogOpen = computed(() =>
+    deliverDialogOpen.value ||
+    dateDialogOpen.value ||
+    timelineDialogOpen.value ||
+    noveltyDialogOpen.value ||
+    technicalSheetDialogOpen.value ||
+    basicInfoDialogOpen.value ||
+    cutConsumptionDialogOpen.value ||
+    stampingInfoDialogOpen.value ||
+    laundryInfoDialogOpen.value ||
+    logisticsExitDialogOpen.value,
+);
+
+async function fetchData(silent = false) {
+    if (!silent) isLoading.value = true;
+    if (!silent) clearError();
     try {
         const { data } = await axios.get(route('control-de-lotes.data'), {
-            params: {
-                season: seasonFilter.value === 'all' ? undefined : seasonFilter.value,
-            },
+            params: { season: seasonFilter.value ?? undefined },
         });
         allRows.value = Array.isArray(data?.data) ? data.data : [];
     } catch {
-        allRows.value = [];
-        showError('No se pudo cargar el listado de órdenes.');
+        if (!silent) {
+            allRows.value = [];
+            showError('No se pudo cargar el listado de órdenes.');
+        }
     } finally {
-        isLoading.value = false;
+        if (!silent) isLoading.value = false;
     }
+}
+
+const AWAY_THRESHOLD_MS = 30_000;
+const FALLBACK_INTERVAL_MS = 5 * 60_000; // 5 minutos
+let hiddenAt: number | null = null;
+let fallbackTimer: ReturnType<typeof setInterval> | null = null;
+
+function onVisibilityChange() {
+    if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now();
+        return;
+    }
+    if (hiddenAt === null) return;
+    const awayMs = Date.now() - hiddenAt;
+    hiddenAt = null;
+    if (awayMs >= AWAY_THRESHOLD_MS && !isAnyDialogOpen.value) {
+        void fetchData(true);
+    }
+}
+
+function startSync() {
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    fallbackTimer = setInterval(() => {
+        if (document.visibilityState === 'visible' && !isAnyDialogOpen.value) {
+            void fetchData(true);
+        }
+    }, FALLBACK_INTERVAL_MS);
+}
+
+function stopSync() {
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+    if (fallbackTimer) { clearInterval(fallbackTimer); fallbackTimer = null; }
 }
 
 watch(seasonFilter, () => {
@@ -743,10 +791,15 @@ function inferColorFromText(value: string | null | undefined): string | null {
     return null;
 }
 
-function createEmptyCutConsumptionLine(): CutFabricConsumptionLine {
+function createEmptyCutConsumptionLine(
+    trazoUid: string | null = null,
+    trazoDefaults: { largo_trazo: number | null; largo_liq: number | null; prom_trazo: number | null } = { largo_trazo: null, largo_liq: null, prom_trazo: null },
+): CutFabricConsumptionLine {
     return {
         id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
         technical_roll_id: null,
+        trazo_uid: trazoUid,
+        prom_trazo: trazoDefaults.prom_trazo,
         roll_code: null,
         fabric_reference: '',
         color: null,
@@ -754,9 +807,10 @@ function createEmptyCutConsumptionLine(): CutFabricConsumptionLine {
         fabric_type: null,
         location: null,
         roll_width_m: null,
+        roll_total_meters: null,
         meters_per_roll: null,
-        largo_trazo: null,
-        largo_liq: null,
+        largo_trazo: trazoDefaults.largo_trazo,
+        largo_liq: trazoDefaults.largo_liq,
         layers_fabric: null,
         layers_liquidation: null,
         layers_herringbone: null,
@@ -794,7 +848,10 @@ function normalizeCutLine(raw: Partial<CutFabricConsumptionLine>): CutFabricCons
         fabric_type: raw.fabric_type ?? null,
         location: raw.location ?? null,
         roll_width_m: raw.roll_width_m ?? null,
+        roll_total_meters: raw.roll_total_meters ?? null,
         meters_per_roll: raw.meters_per_roll ?? null,
+        trazo_uid: (raw as any).trazo_uid ?? null,
+        prom_trazo: (raw as any).prom_trazo ?? null,
         largo_trazo: raw.largo_trazo ?? null,
         largo_liq: raw.largo_liq ?? null,
         layers_fabric: raw.layers_fabric ?? null,
@@ -823,8 +880,12 @@ async function openCutConsumptionDialog(row: BatchControlRow) {
         const rawLines = Array.isArray(data?.data?.lines) ? data.data.lines : [];
         const parsed = rawLines.map((line: Partial<CutFabricConsumptionLine>) => normalizeCutLine(line));
         cutConsumptionLines.value = parsed.length > 0 ? parsed : [createEmptyCutConsumptionLine()];
+        const sheetC = data?.data?.sheet_curves ? normalizeCurves(data.data.sheet_curves as Partial<CutCurves>) : null;
+        cutSheetCurves.value = sheetC;
         if (data?.data?.curves) {
             cutCurves.value = normalizeCurves(data.data.curves as Partial<CutCurves>);
+        } else if (sheetC) {
+            cutCurves.value = { ...sheetC };
         }
     } catch {
         cutConsumptionLines.value = [createEmptyCutConsumptionLine()];
@@ -834,9 +895,6 @@ async function openCutConsumptionDialog(row: BatchControlRow) {
     }
 }
 
-function addCutConsumptionCard() {
-    cutConsumptionLines.value = [...cutConsumptionLines.value, createEmptyCutConsumptionLine()];
-}
 
 function resetCutConsumptionLines() {
     cutConsumptionLines.value = [createEmptyCutConsumptionLine()];
@@ -848,6 +906,7 @@ function closeCutConsumptionDialog() {
     cutConsumptionRow.value = null;
     cutConsumptionLines.value = [];
     cutCurves.value = createEmptyCutCurves();
+    cutSheetCurves.value = null;
     cutLargoEspiga.value = null;
     cutConsumptionViewOnly.value = false;
 }
@@ -1054,6 +1113,11 @@ function closeLaundryInfoDialog() {
 
 onMounted(() => {
     void fetchData();
+    startSync();
+});
+
+onUnmounted(() => {
+    stopSync();
 });
 </script>
 
@@ -1100,24 +1164,14 @@ onMounted(() => {
 
                                 <!-- Filtro de temporada -->
                                 <div class="flex items-center gap-2">
-                                    <Select v-model="seasonFilter">
-                                        <SelectTrigger class="h-9 w-44 text-sm">
-                                            <SelectValue placeholder="Temporada..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">Todas las temporadas</SelectItem>
-                                            <SelectItem v-for="season in availableSeasons" :key="season" :value="season">
-                                                {{ season }}
-                                            </SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <button
-                                        v-if="seasonFilter !== 'all'"
-                                        class="text-xs text-muted-foreground underline hover:text-foreground"
-                                        @click="seasonFilter = 'all'"
-                                    >
-                                        Limpiar
-                                    </button>
+                                    <SelectField
+                                        v-model="seasonFilter"
+                                        label=""
+                                        :options="seasonOptions"
+                                        placeholder="Todas las temporadas"
+                                        :clearable="true"
+                                        class="w-56"
+                                    />
                                 </div>
                             </div>
 
@@ -1278,6 +1332,7 @@ onMounted(() => {
             :row="cutConsumptionRow"
             :lines="cutConsumptionLines"
             :curves="cutCurves"
+            :sheet-curves="cutSheetCurves"
             :largo-espiga="cutLargoEspiga"
             :is-loading="isLoadingCutConsumption"
             :is-saving="isSavingCutConsumption"
@@ -1287,7 +1342,6 @@ onMounted(() => {
             @update:curves="cutCurves = $event"
             @update:largo-espiga="cutLargoEspiga = $event"
             @save="saveCutConsumption"
-            @add-card="addCutConsumptionCard"
             @reset="resetCutConsumptionLines"
             @export-csv="exportCutConsumptionCsv"
             @close="closeCutConsumptionDialog"

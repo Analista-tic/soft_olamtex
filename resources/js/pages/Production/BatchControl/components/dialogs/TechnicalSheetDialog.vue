@@ -511,11 +511,11 @@ watch(
             </div>
             </div>
 
-            <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-3">
+            <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-4 py-2">
                 <Button
                     type="button"
-                    size="pill"
-                    class="rounded-full border border-input bg-background px-5 text-sm font-medium text-foreground shadow-sm hover:bg-muted"
+                    size="sm"
+                    class="h-8 rounded-full border border-input bg-background px-3 text-xs font-medium text-foreground shadow-sm hover:bg-muted"
                     @click="emit('close')"
                 >
                     Cerrar

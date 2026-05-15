@@ -26,6 +26,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use App\Notifications\BatchControlNoveltyNotification;
 use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -619,6 +620,26 @@ class BatchControlController extends Controller
             $rollLines = is_array($snapshot?->lines) ? array_values($snapshot->lines) : [];
         }
 
+        // Curvas desde TechnicalSheetSize (trazo_principal, liquidacion, espiga por talla)
+        $sheetCurves = null;
+        if ($sheet) {
+            $sizes = $sheet->sizes()->get();
+            if ($sizes->isNotEmpty()) {
+                $sheetCurves = [
+                    'principal'   => ['S' => null, 'M' => null, 'L' => null, 'XL' => null],
+                    'liquidacion' => ['S' => null, 'M' => null, 'L' => null, 'XL' => null],
+                    'espiga'      => ['S' => null, 'M' => null, 'L' => null, 'XL' => null],
+                ];
+                foreach ($sizes as $sizeRow) {
+                    $s = $sizeRow->size;
+                    if (!in_array($s, ['S', 'M', 'L', 'XL'], true)) continue;
+                    $sheetCurves['principal'][$s]   = $sizeRow->trazo_principal ?: null;
+                    $sheetCurves['liquidacion'][$s] = $sizeRow->liquidacion ?: null;
+                    $sheetCurves['espiga'][$s]      = $sizeRow->espiga ?: null;
+                }
+            }
+        }
+
         // Build technical line id -> rollId mapping from snapshot
         $rollIdByTechnicalLineId = [];
         foreach ($rollLines as $line) {
@@ -635,7 +656,7 @@ class BatchControlController extends Controller
         $rollMetaByNumber = [];
         if (!empty($rollIds)) {
             $rollMetaRows = FabricRoll::query()
-                ->select(['id', 'roll_number', 'location', 'internal_color_name', 'internal_color_code'])
+                ->select(['id', 'roll_number', 'location', 'internal_color_name', 'internal_color_code', 'quantity'])
                 ->whereIn('id', $rollIds)
                 ->get();
 
@@ -645,6 +666,7 @@ class BatchControlController extends Controller
                     'location' => $roll->location !== null ? trim((string) $roll->location) : null,
                     'internal_color_name' => $roll->internal_color_name !== null ? trim((string) $roll->internal_color_name) : null,
                     'internal_color_code' => $roll->internal_color_code !== null ? trim((string) $roll->internal_color_code) : null,
+                    'quantity' => $roll->quantity !== null ? (float) $roll->quantity : null,
                 ];
 
                 $rollMetaById[(int) $roll->id] = $meta;
@@ -685,7 +707,7 @@ class BatchControlController extends Controller
                 $normalizedRollCodes = array_values(array_unique($normalizedRollCodes));
 
                 $rollMetaRowsByNumber = FabricRoll::query()
-                    ->select(['id', 'roll_number', 'location', 'internal_color_name', 'internal_color_code'])
+                    ->select(['id', 'roll_number', 'location', 'internal_color_name', 'internal_color_code', 'quantity'])
                     ->whereIn('roll_number', $normalizedRollCodes)
                     ->get();
 
@@ -695,6 +717,7 @@ class BatchControlController extends Controller
                         'location' => $roll->location !== null ? trim((string) $roll->location) : null,
                         'internal_color_name' => $roll->internal_color_name !== null ? trim((string) $roll->internal_color_name) : null,
                         'internal_color_code' => $roll->internal_color_code !== null ? trim((string) $roll->internal_color_code) : null,
+                        'quantity' => $roll->quantity !== null ? (float) $roll->quantity : null,
                     ];
 
                     $rollMetaById[(int) $roll->id] = $meta;
@@ -750,14 +773,20 @@ class BatchControlController extends Controller
                     $line['roll_code'] = $rollMeta['roll_number'];
                 }
 
+                // Siempre refrescar metros reales del rollo desde FabricRoll
+                if ($rollMeta !== null && isset($rollMeta['quantity'])) {
+                    $line['roll_total_meters'] = $rollMeta['quantity'];
+                }
+
                 return $line;
             }, $storedLines);
 
             return response()->json([
                 'data' => [
-                    'lines'       => $enrichedStoredLines,
-                    'curves'      => $stored['curves'] ?? null,
-                    'largo_espiga'=> $stored['largo_espiga'] ?? null,
+                    'lines'        => $enrichedStoredLines,
+                    'curves'       => $stored['curves'] ?? null,
+                    'largo_espiga' => $stored['largo_espiga'] ?? null,
+                    'sheet_curves' => $sheetCurves,
                 ],
             ]);
         }
@@ -808,6 +837,7 @@ class BatchControlController extends Controller
                 'location'         => $lineLocation ?? ($rollMeta['location'] ?? null),
                 'roll_width_m'     => $widthCm !== null ? round($widthCm / 100, 4) : null,
                 'meters_per_roll'  => is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : null,
+                'roll_total_meters'=> $rollMeta !== null && isset($rollMeta['quantity']) ? $rollMeta['quantity'] : null,
                 'largo_trazo'      => $largos['largo_trazo'],
                 'largo_liq'        => $largos['largo_liq'],
                 'layers_fabric'    => null,
@@ -826,6 +856,7 @@ class BatchControlController extends Controller
             'data' => [
                 'lines'        => $mappedFromTechnicalData,
                 'largo_espiga' => null,
+                'sheet_curves' => $sheetCurves,
             ],
         ]);
     }
@@ -839,6 +870,8 @@ class BatchControlController extends Controller
             'lines' => 'required|array|min:1',
             'lines.*.id' => 'required|string|max:100',
             'lines.*.technical_roll_id' => 'nullable|string|max:100',
+            'lines.*.trazo_uid' => 'nullable|string|max:200',
+            'lines.*.prom_trazo' => 'nullable|numeric|min:0',
             'lines.*.roll_code' => 'nullable|string|max:100',
             'lines.*.fabric_reference' => 'nullable|string|max:200',
             'lines.*.color' => 'nullable|string|max:200',
@@ -847,6 +880,7 @@ class BatchControlController extends Controller
             'lines.*.location' => 'nullable|string|max:200',
             'lines.*.roll_width_m' => 'nullable|numeric|min:0',
             'lines.*.meters_per_roll' => 'nullable|numeric|min:0',
+            'lines.*.roll_total_meters' => 'nullable|numeric|min:0',
             'lines.*.largo_trazo' => 'nullable|numeric|min:0',
             'lines.*.largo_liq' => 'nullable|numeric|min:0',
             'lines.*.layers_fabric' => 'nullable|integer|min:0',
@@ -926,6 +960,8 @@ class BatchControlController extends Controller
         $order->update([
             'current_process' => $toProcess,
         ]);
+
+        $this->notifyNoveltyRoles($novelty, $order, $request->user()?->name ?? 'Usuario');
 
         return response()->json([
             'message' => "Novedad reportada a {$toProcess}. La orden ha sido enviada al proceso anterior.",
@@ -1264,5 +1300,44 @@ class BatchControlController extends Controller
         $value  = is_numeric($factor) ? (float) $factor : 1.0;
 
         return $value > 0 ? $value : 1.0;
+    }
+
+    // ─── Notificaciones de Novedades ──────────────────────
+
+    private function notifyNoveltyRoles(
+        BatchControlNovelty $novelty,
+        ProductionOrder $order,
+        string $reporterName,
+    ): void {
+        /**
+         * IDs de área según settings key=areas:
+         * 1=Gerencia, 2=Producción, 3=Logística, 4=Diseño, 5=Marketing,
+         * 6=Comercial, 7=Tics, 8=RR.HH, 9=Financiero, 10=Desarrollo Organizacional, 11=SST
+         */
+        $areasByProcess = [
+            'I&D'                     => [4],           // Diseño
+            'Tejido'                  => [2, 4],        // Producción, Diseño
+            'Corte'                   => [2, 3],        // Producción, Logística
+            'Logística'               => [2, 3],        // Producción, Logística
+            'Estampado'               => [2, 3],        // Producción, Logística
+            'Desarrollo de muestras'  => [2],           // Producción
+            'Muestras'                => [2],           // Producción
+            'Confección'              => [2],           // Producción
+            'Lavandería'              => [2, 3],        // Producción, Logística
+            'Terminación'             => [2, 6],        // Producción, Comercial
+            'Inspección y aprobación' => [2, 6],        // Producción, Comercial
+            'Bodega'                  => [6],           // Comercial
+        ];
+
+        $areaIds = array_unique(array_merge(
+            $areasByProcess[$novelty->from_process] ?? [],
+            [10], // Desarrollo Organizacional — siempre
+        ));
+
+        $notification = new BatchControlNoveltyNotification($novelty, $order, $reporterName);
+
+        \App\Models\Settings\User::whereIn('area_id', $areaIds)
+            ->get()
+            ->each(fn ($user) => $user->notify($notification));
     }
 }

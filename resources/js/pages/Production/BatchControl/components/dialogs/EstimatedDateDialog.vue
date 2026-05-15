@@ -29,17 +29,64 @@ const emit = defineEmits<{
 
 const editDatePart = computed(() => props.editingDate?.split('T')[0] ?? '');
 
-const isDateAfterFinal = computed(
-    () => !!(editDatePart.value && props.row?.fecha && props.row.fecha !== '-' && editDatePart.value > props.row.fecha),
-);
+function parseComparableDate(value: string | null | undefined): Date | null {
+    const raw = String(value ?? '').trim();
+    if (!raw || raw === '-') return null;
+
+    const normalized = raw.replace(' ', 'T');
+    let parsed = new Date(normalized);
+
+    if (Number.isNaN(parsed.getTime()) && /^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
+        const [day, month, year] = raw.split('/').map((part) => Number(part));
+        parsed = new Date(year, month - 1, day);
+    }
+
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function normalizeToDay(date: Date): Date {
+    const copy = new Date(date);
+    copy.setHours(0, 0, 0, 0);
+    return copy;
+}
+
+const isDateAfterFinal = computed(() => {
+    if (!props.editingDate) return false;
+
+    const editing = parseComparableDate(props.editingDate);
+    const finalDate = parseComparableDate(props.row?.fecha ?? null);
+    if (!editing || !finalDate) return false;
+
+    return normalizeToDay(editing).getTime() > normalizeToDay(finalDate).getTime();
+});
 
 const isDateBeforeArrival = computed(() => {
     if (!props.editingDate || props.isDisabledRow || !props.row?.current_process_arrived_at) return false;
-    const arrivalDate = props.row.current_process_arrived_at.slice(0, 10);
-    return props.editingDate < arrivalDate;
+    const editing = parseComparableDate(props.editingDate);
+    const arrival = parseComparableDate(props.row.current_process_arrived_at);
+    if (!editing || !arrival) return false;
+
+    return normalizeToDay(editing).getTime() < normalizeToDay(arrival).getTime();
 });
 
 const isInvalid = computed(() => isDateAfterFinal.value || isDateBeforeArrival.value);
+
+const blockedByLotDelivery = computed(() => {
+    if (!props.row) return false;
+    return props.row.order_deadline_status === 'overdue' || isDateAfterFinal.value;
+});
+
+const blockedMessage = computed(() => {
+    if (props.row?.order_deadline_status === 'overdue') {
+        return 'El lote está vencido. Primero ajusta la fecha de entrega del lote y luego vuelve a programar este proceso.';
+    }
+
+    if (isDateAfterFinal.value) {
+        return 'La fecha estimada no puede quedar después de la fecha de entrega final del lote. Ajusta la fecha de entrega del lote primero.';
+    }
+
+    return '';
+});
 
 const estimatedStatus = computed<'none' | 'on_time' | 'due_soon' | 'overdue'>(() => {
     if (!props.editingDate) return 'none';
@@ -189,6 +236,16 @@ function applySuggestion() {
                 <div v-if="isDateAfterFinal" class="flex items-center gap-1.5 rounded-md bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
                     <AlertTriangle class="h-3.5 w-3.5 shrink-0" />
                     La fecha no puede ser posterior a la fecha final de entrega.
+                </div>
+
+                <div
+                    v-if="blockedByLotDelivery"
+                    class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
+                >
+                    <div class="flex items-start gap-2">
+                        <AlertTriangle class="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <p class="leading-relaxed">{{ blockedMessage }}</p>
+                    </div>
                 </div>
             </div>
 

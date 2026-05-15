@@ -96,6 +96,10 @@ export type LogisticsSupplyItem = {
 export type CutFabricConsumptionLine = {
     id: string;
     technical_roll_id?: string | null;
+    /** Identificador del grupo de trazo al que pertenece este rollo */
+    trazo_uid: string | null;
+    /** Promedio del trazo (dato informativo de la ficha técnica) */
+    prom_trazo: number | null;
     /** Número de rollo real (roll_number de FabricRoll, e.g. "16332") */
     roll_code: string | null;
     fabric_reference: string;
@@ -107,7 +111,9 @@ export type CutFabricConsumptionLine = {
     /** Ubicación del rollo (solo lectura, proviene del rollo) */
     location: string | null;
     roll_width_m: number | null;
-    /** Metros reales del rollo (cantidad real) */
+    /** Metros totales del rollo (quantity de FabricRoll — fuente: tabla de rollos) */
+    roll_total_meters: number | null;
+    /** Metros programados a utilizar (programmedMeters de la ficha técnica) */
     meters_per_roll: number | null;
     /** Largo trazo en metros (de la ficha técnica - materia prima) */
     largo_trazo: number | null;
