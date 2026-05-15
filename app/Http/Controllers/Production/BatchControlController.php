@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Production\BatchControlDelivery;
 use App\Models\Production\BatchControlNovelty;
 use App\Models\Production\ProductionOrder;
+use App\Models\Production\ProductionRollConsumption;
 use App\Models\Production\TechnicalSheetSupply;
 use App\Models\Production\TechnicalSheet;
 use App\Models\Production\TechnicalSheetOperation;
@@ -897,19 +898,140 @@ class BatchControlController extends Controller
             'curves.principal' => 'nullable|array',
             'curves.liquidacion' => 'nullable|array',
             'curves.espiga' => 'nullable|array',
+            'cut_units'    => 'nullable|integer|min:0',
         ]);
 
         $payload = [
             'lines'        => array_values($validated['lines']),
             'curves'       => $validated['curves'] ?? null,
             'largo_espiga' => $validated['largo_espiga'] ?? null,
+            'cut_units'    => isset($validated['cut_units']) ? (int) $validated['cut_units'] : null,
             'updated_at'   => now()->toISOString(),
             'updated_by'   => $request->user()?->id,
         ];
 
-        $order->update([
-            'cut_fabric_consumption' => $payload,
-        ]);
+        // ── 1. Resolver roll_code → fabric_roll_id ───────────────────────────────
+        $rollCodes = array_values(array_unique(array_filter(
+            array_map(static fn ($l) => trim((string) ($l['roll_code'] ?? '')), $validated['lines']),
+            static fn ($c) => $c !== '',
+        )));
+        $rollIdsByCode = [];
+        if (!empty($rollCodes)) {
+            $rolls = FabricRoll::query()
+                ->select(['id', 'roll_number'])
+                ->whereIn('roll_number', $rollCodes)
+                ->get();
+            foreach ($rolls as $roll) {
+                $rollIdsByCode[trim((string) $roll->roll_number)] = (int) $roll->id;
+            }
+        }
+
+        // ── 2. Construir mapa nuevo: roll_id → metros (suma si hay duplicados) ──
+        $newByRollId = [];
+        foreach ($validated['lines'] as $line) {
+            $rollCode    = trim((string) ($line['roll_code'] ?? ''));
+            $rollId      = $rollCode !== '' ? ($rollIdsByCode[$rollCode] ?? null) : null;
+            $consumption = (float) ($line['total_consumption'] ?? 0);
+            if ($rollId === null || $consumption <= 0) continue;
+            $newByRollId[$rollId] = ($newByRollId[$rollId] ?? 0.0) + $consumption;
+        }
+
+        // ── 3. Leer consumo previo aplicado por esta orden ───────────────────────
+        $prevByRollId = ProductionRollConsumption::where('production_order_id', $order->id)
+            ->get()
+            ->keyBy('fabric_roll_id')
+            ->map(static fn ($r) => (float) $r->meters_consumed);
+
+        // ── 4. Calcular deltas y cargar rollos afectados ─────────────────────────
+        $allRollIds = array_unique(array_merge(
+            array_keys($newByRollId),
+            $prevByRollId->keys()->all(),
+        ));
+
+        $rollModels = [];
+        if (!empty($allRollIds)) {
+            $rollModels = FabricRoll::with(['item.warehouses'])
+                ->whereIn('id', $allRollIds)
+                ->get()
+                ->keyBy('id');
+        }
+
+        $userId = $request->user()?->id;
+
+        DB::transaction(function () use (
+            $order, $payload, $newByRollId, $prevByRollId, $allRollIds, $rollModels, $userId
+        ) {
+            // 4a. Guardar JSON
+            $order->update(['cut_fabric_consumption' => $payload]);
+
+            // 4b. Aplicar deltas a actual_output y crear movimientos de inventario
+            foreach ($allRollIds as $rollId) {
+                $prevMeters = (float) ($prevByRollId[$rollId] ?? 0);
+                $newMeters  = $newByRollId[$rollId] ?? 0.0;
+                $delta      = round($newMeters - $prevMeters, 6);
+
+                if (abs($delta) < 0.000001) continue;
+
+                /** @var FabricRoll|null $roll */
+                $roll = $rollModels[$rollId] ?? null;
+                if (!$roll) continue;
+
+                // Actualizar actual_output del rollo (nunca negativo)
+                $roll->update([
+                    'actual_output' => max(0.0, round((float) $roll->actual_output + $delta, 6)),
+                ]);
+
+                // Movimiento de inventario (solo si el rollo tiene ítem y bodega)
+                $item = $roll->item;
+                if (!$item) continue;
+                $warehouse = $item->warehouses()->first();
+                if (!$warehouse) continue;
+
+                $unitPrice = $this->movementService->getCurrentWeightedPrice($item->id, $warehouse->id);
+                if ($unitPrice <= 0) {
+                    $unitPrice = (float) ($roll->price_per_meter ?? 0);
+                }
+
+                if ($delta > 0) {
+                    $this->movementService->createMovement([
+                        'item_id'            => $item->id,
+                        'warehouse_id'       => $warehouse->id,
+                        'type'               => 'salida',
+                        'quantity'           => $delta,
+                        'unit_price'         => $unitPrice,
+                        'date'               => now()->toDateString(),
+                        'source_type'        => ProductionOrder::class,
+                        'source_id'          => $order->id,
+                        'notes'              => "Consumo corte rollo #{$roll->roll_number} — OP {$order->op_code}",
+                        'created_by_user_id' => $userId,
+                    ]);
+                } else {
+                    // Corrección: reversa del exceso aplicado
+                    $this->movementService->createMovement([
+                        'item_id'            => $item->id,
+                        'warehouse_id'       => $warehouse->id,
+                        'type'               => 'entrada',
+                        'quantity'           => abs($delta),
+                        'unit_price'         => $unitPrice,
+                        'date'               => now()->toDateString(),
+                        'source_type'        => ProductionOrder::class,
+                        'source_id'          => $order->id,
+                        'notes'              => "Corrección corte rollo #{$roll->roll_number} — OP {$order->op_code}",
+                        'created_by_user_id' => $userId,
+                    ]);
+                }
+            }
+
+            // 4c. Re-sincronizar production_roll_consumptions (estado final)
+            ProductionRollConsumption::where('production_order_id', $order->id)->delete();
+            foreach ($newByRollId as $rollId => $meters) {
+                ProductionRollConsumption::create([
+                    'production_order_id' => $order->id,
+                    'fabric_roll_id'      => $rollId,
+                    'meters_consumed'     => $meters,
+                ]);
+            }
+        });
 
         return response()->json([
             'message' => 'Registro de consumo de telas guardado.',
@@ -1042,7 +1164,30 @@ class BatchControlController extends Controller
      */
     public function getLogisticsSupplies(ProductionOrder $order): JsonResponse
     {
-        $units = (int) ($order->units ?? 0);
+        $cutConsumption = is_array($order->cut_fabric_consumption) ? $order->cut_fabric_consumption : [];
+        $cutUnits = isset($cutConsumption['cut_units']) && $cutConsumption['cut_units'] > 0
+            ? (int) $cutConsumption['cut_units']
+            : null;
+
+        // Registros guardados antes de que existiera cut_units: recalcular desde líneas+curvas
+        if ($cutUnits === null && !empty($cutConsumption['lines'])) {
+            $curves = is_array($cutConsumption['curves'] ?? null) ? $cutConsumption['curves'] : null;
+            if ($curves) {
+                $total = 0.0;
+                foreach ($cutConsumption['lines'] as $line) {
+                    if (($line['fabric_type'] ?? null) !== 'PRINCIPAL') continue;
+                    foreach (['S', 'M', 'L', 'XL'] as $s) {
+                        $total += (float)(($curves['principal'][$s] ?? 0) * ($line['layers_fabric'] ?? 0))
+                                + (float)(($curves['liquidacion'][$s] ?? 0) * ($line['layers_liquidation'] ?? 0))
+                                + (float)(($curves['espiga'][$s] ?? 0) * ($line['layers_herringbone'] ?? 0));
+                    }
+                }
+                $cutUnits = $total > 0 ? (int) round($total) : null;
+            }
+        }
+
+        $units = $cutUnits ?? (int) ($order->units ?? 0);
+        $unitsSource = $cutUnits !== null ? 'cut' : 'planned';
 
         $supplies = TechnicalSheetSupply::query()
             ->where('production_order_id', $order->id)
@@ -1141,9 +1286,10 @@ class BatchControlController extends Controller
 
         return response()->json([
             'data' => [
-                'lines'     => $lines,
-                'op_units'  => $units,
-                'op_code'   => $order->op_code,
+                'lines'        => $lines,
+                'op_units'     => $units,
+                'op_code'      => $order->op_code,
+                'units_source' => $unitsSource,
             ],
         ]);
     }

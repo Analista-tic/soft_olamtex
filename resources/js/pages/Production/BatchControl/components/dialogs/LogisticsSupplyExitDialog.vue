@@ -8,7 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertTriangle, CheckCircle2, Expand, ImageOff, Package, PackageCheck, WarehouseIcon } from 'lucide-vue-next';
+import { AlertTriangle, CheckCircle2, Expand, ImageOff, Package, PackageCheck, Scissors, WarehouseIcon } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import type { BatchControlRow, LogisticsSupplyItem } from '../../types';
 
@@ -19,6 +19,8 @@ const props = defineProps<{
     isLoading: boolean;
     isSaving: boolean;
     opUnits: number;
+    opUnitsProgrammed?: number;
+    opUnitsSource?: 'cut' | 'planned';
 }>();
 
 const emit = defineEmits<{
@@ -153,8 +155,39 @@ const linesWithCompleteDelivery = computed(() =>
         <FormDialogContent class="flex max-h-[92vh] max-w-4xl flex-col overflow-y-auto px-4 py-3 sm:max-w-[96vw]" :scrollable="true" :disable-outside-pointer-events="expandedImageUrl === null">
             <FormHeader
                 title="Salida de insumos — Logística"
-                :description="`Orden ${row?.op_code ?? ''} · ${opUnits} uds programadas`"
+                :description="`Orden ${row?.op_code ?? ''}`"
             />
+
+            <!-- Base de cálculo -->
+            <div
+                v-if="!isLoading"
+                :class="[
+                    'flex items-center gap-3 rounded-lg border px-4 py-2.5 text-xs',
+                    opUnitsSource === 'cut'
+                        ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/30'
+                        : 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30',
+                ]"
+            >
+                <Scissors :class="['h-4 w-4 shrink-0', opUnitsSource === 'cut' ? 'text-green-600 dark:text-green-400' : 'text-amber-500']" />
+                <div class="flex-1">
+                    <span v-if="opUnitsSource === 'cut'" class="font-semibold text-green-700 dark:text-green-300">
+                        {{ opUnits }} unidades cortadas
+                    </span>
+                    <span v-else class="font-semibold text-amber-700 dark:text-amber-300">
+                        {{ opUnits }} unidades programadas
+                    </span>
+                    <span class="ml-1 text-muted-foreground">
+                        — base para calcular cantidades sugeridas
+                    </span>
+                    <span
+                        v-if="opUnitsSource === 'cut' && opUnitsProgrammed && opUnitsProgrammed !== opUnits"
+                        class="ml-2 text-muted-foreground/70"
+                    >(programadas: {{ opUnitsProgrammed }})</span>
+                    <span v-if="opUnitsSource !== 'cut'" class="ml-2 text-amber-600/70 dark:text-amber-400/70">
+                        — sin registro de Corte
+                    </span>
+                </div>
+            </div>
 
             <!-- Loading -->
             <div v-if="isLoading" class="flex items-center justify-center py-16 text-sm text-muted-foreground">

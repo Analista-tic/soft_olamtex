@@ -256,8 +256,12 @@ function dimmedCellClass(row: BatchControlRow): string {
                             {{ row.current_process ?? '—' }}
                         </span>
                     </TableCell>
-                    <TableCell :class="['max-w-0 truncate px-1 py-2 text-center text-xs font-medium', dimmedCellClass(row)]" :title="row.referencia">
-                        {{ row.referencia }}
+                    <TableCell :class="['max-w-0 px-1 py-2 text-center text-xs font-medium', dimmedCellClass(row)]" :title="row.referencia">
+                        <div class="truncate">{{ row.referencia }}</div>
+                        <span
+                            v-if="row.product_sheet_processes?.includes('Tejido')"
+                            class="mt-0.5 inline-block rounded-full border border-violet-300/80 bg-violet-100/80 px-1.5 py-0.5 text-[10px] font-medium leading-none text-violet-700 dark:border-violet-700/60 dark:bg-violet-900/30 dark:text-violet-400"
+                        >Tejido</span>
                     </TableCell>
                     <TableCell :class="['truncate px-1 py-2 text-center text-xs', dimmedCellClass(row)]">{{ row.temporada }}</TableCell>
                     <TableCell :class="['px-1 py-2 text-center text-xs', dimmedCellClass(row)]">{{ row.prioridad }}</TableCell>

@@ -30,6 +30,7 @@ import {
     TechnicalSheetDialog,
 } from './components/dialogs';
 import type { BatchControlRow, CutCurves, CutFabricConsumptionLine, CutSizeCurves, LogisticsSupplyItem, TimelineEvent } from './types';
+import { CUT_SIZES } from './types';
 /* ── Types ──────────────────────────────────────────────── */
 
 type ScopeOption = {
@@ -184,6 +185,7 @@ const logisticsExitDialogOpen = ref(false);
 const logisticsExitRow = ref<BatchControlRow | null>(null);
 const logisticsSupplyLines = ref<LogisticsSupplyItem[]>([]);
 const logisticsOpUnits = ref(0);
+const logisticsOpUnitsSource = ref<'cut' | 'planned'>('planned');
 const isLoadingLogisticsSupplies = ref(false);
 const isSavingLogisticsExit = ref(false);
 
@@ -985,13 +987,29 @@ async function saveCutConsumption() {
     isSavingCutConsumption.value = true;
     try {
         const payloadLines = cutConsumptionLines.value.map((line) => recalcCutLine(line));
+
+        // Calcular unidades reales cortadas (telas PRINCIPAL × curvas)
+        let cutUnitsTotal = 0;
+        for (const line of payloadLines) {
+            if (line.fabric_type !== 'PRINCIPAL') continue;
+            for (const s of CUT_SIZES) {
+                cutUnitsTotal +=
+                    (cutCurves.value.principal[s] ?? 0) * (line.layers_fabric ?? 0) +
+                    (cutCurves.value.liquidacion[s] ?? 0) * (line.layers_liquidation ?? 0) +
+                    (cutCurves.value.espiga[s] ?? 0) * (line.layers_herringbone ?? 0);
+            }
+        }
+
         await axios.put(route('control-de-lotes.save-cut-fabric-consumption', { order: cutConsumptionRow.value.id }), {
             lines: payloadLines,
             curves: cutCurves.value,
             largo_espiga: cutLargoEspiga.value,
+            cut_units: Math.round(cutUnitsTotal),
         });
         cutConsumptionLines.value = payloadLines;
-        showSuccess(`Registro de consumo guardado para la orden ${cutConsumptionRow.value.op_code}.`);
+        const savedOp = cutConsumptionRow.value.op_code;
+        closeCutConsumptionDialog();
+        showSuccess(`Registro de consumo guardado para la orden ${savedOp}.`);
     } catch (e: unknown) {
         const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
         showError(msg ?? 'No se pudo guardar el registro de consumo de telas.');
@@ -1013,6 +1031,7 @@ async function openLogisticsExitDialog(row: BatchControlRow) {
         const { data } = await axios.get(route('control-de-lotes.logistics-supplies', { order: row.id }));
         const rawLines = Array.isArray(data?.data?.lines) ? data.data.lines : [];
         logisticsOpUnits.value = data?.data?.op_units ?? row.cant_programadas ?? 0;
+        logisticsOpUnitsSource.value = data?.data?.units_source === 'cut' ? 'cut' : 'planned';
 
         logisticsSupplyLines.value = rawLines.map((l: Omit<LogisticsSupplyItem, 'selected_warehouse_id' | 'exit_qty' | 'include'>) => {
             const deliveredQty = (l as LogisticsSupplyItem).delivered_qty ?? 0;
@@ -1037,6 +1056,7 @@ function closeLogisticsExitDialog() {
     logisticsExitDialogOpen.value = false;
     logisticsExitRow.value = null;
     logisticsSupplyLines.value = [];
+    logisticsOpUnitsSource.value = 'planned';
 }
 
 async function saveLogisticsExit() {
@@ -1357,6 +1377,8 @@ onUnmounted(() => {
             :row="logisticsExitRow"
             :lines="logisticsSupplyLines"
             :op-units="logisticsOpUnits"
+            :op-units-programmed="logisticsExitRow?.cant_programadas ?? 0"
+            :op-units-source="logisticsOpUnitsSource"
             :is-loading="isLoadingLogisticsSupplies"
             :is-saving="isSavingLogisticsExit"
             @update:open="logisticsExitDialogOpen = $event"
