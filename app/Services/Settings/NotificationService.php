@@ -162,6 +162,12 @@ class NotificationService
             'area' => $data['area'] ?? null,
             'user_name' => $data['user_name'] ?? null,
             'entity_id' => $data['entity_id'] ?? null,
+            // Campos específicos para novedades de control de lotes
+            'op_code' => $data['op_code'] ?? null,
+            'from_process' => $data['from_process'] ?? null,
+            'to_process' => $data['to_process'] ?? null,
+            'reporter' => $data['reporter'] ?? null,
+            'reported_at' => $data['reported_at'] ?? null,
             'read_at' => $notification->read_at?->toIso8601String(),
             'archived_at' => $archivedAt ? Carbon::parse($archivedAt)->toIso8601String() : null,
             'created_at' => $notification->created_at->toIso8601String(),

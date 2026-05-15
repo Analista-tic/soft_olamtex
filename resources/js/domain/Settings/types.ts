@@ -57,6 +57,12 @@ export interface NotificationRow {
     area?: string | null;
     /** Nombre del usuario (opcional, viene de data.user_name) */
     user_name?: string | null;
+    // Campos específicos de novedades de control de lotes
+    op_code?: string | null;
+    from_process?: string | null;
+    to_process?: string | null;
+    reporter?: string | null;
+    reported_at?: string | null;
 }
 
 /**

@@ -1,6 +1,13 @@
 import axios from 'axios';
 import { readonly, ref } from 'vue';
 
+let visibilityListenerActive = false;
+let notifFallbackTimer: ReturnType<typeof setInterval> | null = null;
+const NOTIF_AWAY_THRESHOLD_MS = 30_000;
+const NOTIF_FALLBACK_INTERVAL_MS = 5 * 60_000;
+let notifHiddenAt: number | null = null;
+const newNotificationsCount = ref(0);
+
 import type { NotificationRow } from '@/domain/Settings/types';
 
 type NotificationId = NotificationRow['id'];
@@ -49,7 +56,11 @@ export function useNotifications() {
     const fetchUnreadCount = async (): Promise<number> => {
         try {
             const response = await axios.get('/configuracion/notificaciones/unread-count');
-            unreadCount.value = Number(response.data.count ?? 0);
+            const incoming = Number(response.data.count ?? 0);
+            if (incoming > unreadCount.value) {
+                newNotificationsCount.value = incoming - unreadCount.value;
+            }
+            unreadCount.value = incoming;
         } catch {
             unreadCount.value = 0;
         }
@@ -135,9 +146,38 @@ export function useNotifications() {
         }
     };
 
+    function onNotifVisibilityChange() {
+        if (document.visibilityState === 'hidden') {
+            notifHiddenAt = Date.now();
+            return;
+        }
+        if (notifHiddenAt === null) return;
+        const awayMs = Date.now() - notifHiddenAt;
+        notifHiddenAt = null;
+        if (awayMs >= NOTIF_AWAY_THRESHOLD_MS) void fetchUnreadCount();
+    }
+
+    const startPolling = (): void => {
+        if (visibilityListenerActive) return;
+        visibilityListenerActive = true;
+        document.addEventListener('visibilitychange', onNotifVisibilityChange);
+        notifFallbackTimer = setInterval(() => {
+            if (document.visibilityState === 'visible') void fetchUnreadCount();
+        }, NOTIF_FALLBACK_INTERVAL_MS);
+    };
+
+    const stopPolling = (): void => {
+        if (!visibilityListenerActive) return;
+        visibilityListenerActive = false;
+        document.removeEventListener('visibilitychange', onNotifVisibilityChange);
+        if (notifFallbackTimer) { clearInterval(notifFallbackTimer); notifFallbackTimer = null; }
+    };
+
     return {
         notifications: readonly(notifications),
         unreadCount: readonly(unreadCount),
+        newNotificationsCount: readonly(newNotificationsCount),
+        clearNewNotifications: () => { newNotificationsCount.value = 0; },
         loading: readonly(loading),
         fetchUnreadCount,
         fetchNotifications,
@@ -146,5 +186,7 @@ export function useNotifications() {
         archiveNotification,
         deleteNotification,
         formatNotificationDate,
+        startPolling,
+        stopPolling,
     };
 }

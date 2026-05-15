@@ -30,7 +30,7 @@ import { getLocalTimeZone, parseDate, type DateValue } from '@internationalized/
 import axios from 'axios';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Check, CheckCheck, ExternalLink, Inbox, RotateCcw, Search } from 'lucide-vue-next';
+import { AlertTriangle, Calendar as CalendarIcon, Check, CheckCheck, ExternalLink, Inbox, PackageCheck, RotateCcw, Search } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -288,10 +288,22 @@ function clearFilters() {
     fetchNotifications(1);
 }
 
-/**
- * Verifica si hay notificaciones no leídas en la lista actual.
- */
 const hasUnreadNotifications = computed(() => notificationsList.value.some((n) => !n.is_read));
+const pendingCount = computed(() => notificationsList.value.filter((n) => !n.is_read).length);
+
+function getNotificationIcon(notification: NotificationRow) {
+    const type = notification.type ?? notification.data?.type ?? '';
+    if (type === 'batch_control_novelty') return AlertTriangle;
+    if (type === 'inventory_request') return PackageCheck;
+    return null;
+}
+
+function getNotificationIconClass(notification: NotificationRow): string {
+    const type = notification.type ?? notification.data?.type ?? '';
+    if (type === 'batch_control_novelty') return 'text-amber-500';
+    if (type === 'inventory_request') return 'text-blue-500';
+    return '';
+}
 
 // Watchers para actualizar cuando cambian los filtros
 watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
@@ -314,7 +326,12 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
             <!-- Header -->
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Notificaciones</h1>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-lg font-bold">Notificaciones</h1>
+                        <Badge v-if="pendingCount > 0" variant="destructive" class="h-5 px-2 text-[11px]">
+                            {{ pendingCount }} pendiente{{ pendingCount !== 1 ? 's' : '' }}
+                        </Badge>
+                    </div>
                     <p class="text-sm text-muted-foreground">Consulta el historial de notificaciones generadas por el sistema.</p>
                 </div>
                 <Button
@@ -464,8 +481,10 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
                             :key="notification.id"
                             :class="[
                                 'text-center transition-colors',
+                                notification.url ? 'cursor-pointer' : '',
                                 !notification.is_read ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-muted/50',
                             ]"
+                            @click="handleNotificationClick(notification)"
                         >
                             <TableCell class="whitespace-nowrap">
                                 {{ formatDate(notification.created_at) }}
@@ -474,22 +493,52 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
                                 {{ notification.data?.area ?? notification.area ?? '—' }}
                             </TableCell>
                             <TableCell class="whitespace-nowrap">
-                                {{ notification.data?.user_name ?? notification.user_name ?? '—' }}
+                                {{ notification.reporter ?? notification.data?.reporter ?? notification.data?.user_name ?? notification.user_name ?? '—' }}
                             </TableCell>
                             <TableCell class="whitespace-nowrap">
-                                <Badge v-if="notification.module" variant="secondary" class="text-xs">
-                                    {{ notification.module }}
-                                </Badge>
-                                <span v-else class="text-xs text-muted-foreground">—</span>
+                                <div class="flex items-center justify-center gap-1.5">
+                                    <component
+                                        :is="getNotificationIcon(notification)"
+                                        v-if="getNotificationIcon(notification)"
+                                        class="h-3.5 w-3.5 shrink-0"
+                                        :class="getNotificationIconClass(notification)"
+                                    />
+                                    <Badge v-if="notification.module" variant="secondary" class="text-xs">
+                                        {{ notification.module }}
+                                    </Badge>
+                                    <span v-else class="text-xs text-muted-foreground">—</span>
+                                </div>
                             </TableCell>
                             <TableCell class="text-left align-top">
                                 <div class="min-w-0">
-                                    <span class="line-clamp-1 text-sm font-medium" :class="{ 'text-primary': !notification.is_read }">
+                                    <span class="line-clamp-1 text-sm font-semibold" :class="{ 'text-primary': !notification.is_read }">
                                         {{ notification.title ?? 'Sin título' }}
                                     </span>
-                                    <span class="line-clamp-2 break-words text-xs text-muted-foreground">
-                                        {{ notification.body ?? '' }}
-                                    </span>
+
+                                    <!-- Detalle específico: novedad de control de lotes -->
+                                    <template v-if="(notification.type ?? notification.data?.type) === 'batch_control_novelty'">
+                                        <div class="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px]">
+                                            <span class="font-medium text-foreground">
+                                                Lote: {{ notification.op_code ?? notification.data?.op_code ?? '—' }}
+                                            </span>
+                                            <span class="text-muted-foreground">·</span>
+                                            <span class="text-amber-600 dark:text-amber-400">
+                                                {{ notification.from_process ?? notification.data?.from_process ?? '?' }}
+                                                →
+                                                {{ notification.to_process ?? notification.data?.to_process ?? '?' }}
+                                            </span>
+                                        </div>
+                                        <span class="line-clamp-2 break-words text-xs text-muted-foreground">
+                                            {{ notification.data?.description ?? notification.body ?? '' }}
+                                        </span>
+                                    </template>
+
+                                    <!-- Detalle genérico -->
+                                    <template v-else>
+                                        <span class="line-clamp-2 break-words text-xs text-muted-foreground">
+                                            {{ notification.body ?? '' }}
+                                        </span>
+                                    </template>
                                 </div>
                             </TableCell>
                             <TableCell class="whitespace-nowrap">
@@ -498,7 +547,7 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
                                     :tone="notification.is_read ? 'neutral' : 'sky'"
                                 />
                             </TableCell>
-                            <TableCell class="text-right">
+                            <TableCell class="text-right" @click.stop>
                                 <div class="flex items-center justify-end gap-1">
                                     <Button
                                         v-if="notification.url"
@@ -506,7 +555,7 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
                                         variant="ghost"
                                         size="sm"
                                         class="h-8 w-8 p-0"
-                                        title="Ver detalle"
+                                        title="Ir al módulo"
                                     >
                                         <ExternalLink class="h-4 w-4" />
                                     </Button>
