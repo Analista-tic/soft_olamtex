@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('technical_sheet_sizes', function (Blueprint $table) {
-            $table->unsignedInteger('total_unidades')->default(0)->after('espiga');
+            $table->unsignedInteger('total_unidades')->default(0);
         });
     }
 

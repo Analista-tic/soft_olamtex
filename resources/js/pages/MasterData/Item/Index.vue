@@ -384,12 +384,12 @@ onBeforeUnmount(() => {
                                 <FileSpreadsheet class="h-4 w-4" /> Descargar plantilla
                             </DropdownMenuItem>
 
-                            <DropdownMenuItem class="cursor-pointer gap-2" @click="openBulkDialog">
-                                <Upload class="h-4 w-4" /> Importar ítems
-                            </DropdownMenuItem>
-
                             <DropdownMenuItem class="cursor-pointer gap-2" @click="exportItemsCsv">
                                 <Download class="h-4 w-4" /> Exportar ítems
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem class="cursor-pointer gap-2" @click="openBulkDialog">
+                                <Upload class="h-4 w-4" /> Importar ítems
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>

@@ -11,8 +11,10 @@ use App\Models\MasterData\Item;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
+use PhpOffice\PhpSpreadsheet\Comment;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -25,9 +27,16 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  */
 class ItemExcelService
 {
-    // ─── Encabezados oficiales de la plantilla ───────────────
+    // ─── Encabezados ─────────────────────────────────────────
 
+    // Encabezados para exportación (incluye N° ITEM para identificar ítems al reimportar)
     public function templateHeaders(): array
+    {
+        return array_merge(['N° ITEM'], $this->importTemplateHeaders());
+    }
+
+    // Encabezados para plantilla vacía (sin N° ITEM — el ID lo asigna la BD automáticamente)
+    public function importTemplateHeaders(): array
     {
         return [
             'TIPO DE ITEM',
@@ -63,40 +72,14 @@ class ItemExcelService
         $filePath = storage_path('app/public/' . $fileName);
 
         $spreadsheet = new Spreadsheet();
-        $headers = $this->templateHeaders();
+        $headers = $this->importTemplateHeaders();
         $catalogData = $this->loadCatalogData();
 
         // Hoja principal con encabezados + fila de ejemplo
         $mainSheet = $spreadsheet->getActiveSheet();
         $mainSheet->setTitle('items');
 
-        $exampleGroup     = $catalogData['subGroups'][0]['group'] ?? ($catalogData['groups']->first()?->name ?? 'Suministros');
-        $exampleSubGroup  = $catalogData['subGroups'][0]['name'] ?? 'Papel';
-        $exampleWarehouse = $catalogData['warehouses']->first()?->name ?? 'Almacén 008';
-
-        $exampleRow = [
-            'Producto',
-            'Ejemplo articulo',
-            $exampleGroup,
-            $exampleSubGroup,
-            '19',
-            $exampleWarehouse,
-            '',           // PRECIO — viene de warehouse_items.weighted_average_price al importar
-            '100',
-            '10',
-            '200',
-            'Kilogramo',
-            'ART-001',
-            'ART-001',
-            'Descripcion de articulo de prueba',
-            'NO',
-            'BASE TELA',
-            'RIB',
-            'Mocca',
-            'Activo',
-        ];
-
-        $mainSheet->fromArray([$headers, $exampleRow], '', 'A1');
+        $mainSheet->fromArray([$headers], '', 'A1');
 
         // Estilo del encabezado
         $lastCol = $mainSheet->getHighestColumn();
@@ -105,12 +88,22 @@ class ItemExcelService
             $mainSheet->getColumnDimension($col)->setAutoSize(true);
         }
 
+        // Color de fondo compartido para CAMPOS ADICIONALES y VALORES ADICIONALES
+        $this->applyAdditionalFieldsStyle($mainSheet, $headers);
+
+        // Comentarios flotantes en CAMPOS ADICIONALES y VALORES ADICIONALES
+        $this->applyAdditionalFieldsComments($mainSheet, $headers);
+
+        // Hoja de instrucciones
+        $this->buildInstructionsSheet($spreadsheet);
+
         // Construir hojas de referencia y aplicar validaciones
         $sheetData = $this->buildReferenceSheets($spreadsheet, $catalogData);
         $mainSheet = $spreadsheet->setActiveSheetIndex(0);
         $this->applyAllValidations($mainSheet, $headers, $sheetData, 1000);
 
-        $spreadsheet->setActiveSheetIndex(0);
+        // Mover Instrucciones al inicio para que sea la primera hoja visible
+        $this->moveInstructionsToFirst($spreadsheet);
 
         try {
             $this->saveSpreadsheetToPath($spreadsheet, $filePath);
@@ -168,9 +161,18 @@ class ItemExcelService
         $mainSheet = $spreadsheet->setActiveSheetIndex(0);
         $this->applyAllValidations($mainSheet, $headers, $sheetData, max(1000, $rowNum));
 
-        foreach (range('A', $sheet->getHighestColumn()) as $col) {
+        $lastCol = $sheet->getHighestColumn();
+        $sheet->getStyle("A1:{$lastCol}1")->getFont()->setBold(true);
+        foreach (range('A', $lastCol) as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
+
+        $this->applyAdditionalFieldsStyle($sheet, $headers);
+        $this->applyAdditionalFieldsComments($sheet, $headers);
+        $this->buildInstructionsSheet($spreadsheet);
+
+        // Mover Instrucciones al inicio para que sea la primera hoja visible
+        $this->moveInstructionsToFirst($spreadsheet);
 
         $fileName = 'items_exportados.xlsx';
         $tempFile = tempnam(sys_get_temp_dir(), 'items_') . '.xlsx';
@@ -545,6 +547,7 @@ class ItemExcelService
         }
 
         return [
+            $item->id,
             $typeLabel,
             $item->name,
             $groupName,
@@ -617,5 +620,199 @@ class ItemExcelService
             Log::error('Error guardando Excel', ['error' => $e->getMessage(), 'path' => $filePath]);
             throw $e;
         }
+    }
+
+    // ─── Orden de hojas ──────────────────────────────────────
+
+    private function moveInstructionsToFirst(Spreadsheet $spreadsheet): void
+    {
+        $instrSheet = $spreadsheet->getSheetByName('Instrucciones');
+        if ($instrSheet === null) {
+            return;
+        }
+        $spreadsheet->removeSheetByIndex($spreadsheet->getIndex($instrSheet));
+        $spreadsheet->addSheet($instrSheet, 0);
+        $spreadsheet->setActiveSheetIndex(0);
+    }
+
+    // ─── Estilo: CAMPOS y VALORES ADICIONALES ────────────────
+
+    private function applyAdditionalFieldsStyle(Worksheet $sheet, array $headers): void
+    {
+        $colLetters = range('A', 'Z');
+        $camposIdx  = array_search('CAMPOS ADICIONALES', $headers);
+        $valoresIdx = array_search('VALORES ADICIONALES', $headers);
+
+        foreach ([$camposIdx, $valoresIdx] as $idx) {
+            if ($idx === false || !isset($colLetters[$idx])) {
+                continue;
+            }
+            $col = $colLetters[$idx];
+            $sheet->getStyle("{$col}1")->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setRGB('BDD7EE'); // azul claro
+        }
+    }
+
+    private function applyAdditionalFieldsComments(Worksheet $sheet, array $headers): void
+    {
+        $colLetters = range('A', 'Z');
+
+        $camposIdx = array_search('CAMPOS ADICIONALES', $headers);
+        if ($camposIdx !== false && isset($colLetters[$camposIdx])) {
+            $col  = $colLetters[$camposIdx] . '1';
+            $note = $sheet->getComment($col);
+            $note->getText()->createTextRun(
+                "Escribe los nombres de los campos separados por punto y coma (;).\n" .
+                "Ejemplo: BASE TELA;COLOR;TALLA\n\n" .
+                "Debe tener el mismo número de valores que la columna VALORES ADICIONALES."
+            );
+            $note->setWidth('300pt');
+            $note->setHeight('80pt');
+        }
+
+        $valoresIdx = array_search('VALORES ADICIONALES', $headers);
+        if ($valoresIdx !== false && isset($colLetters[$valoresIdx])) {
+            $col  = $colLetters[$valoresIdx] . '1';
+            $note = $sheet->getComment($col);
+            $note->getText()->createTextRun(
+                "Escribe los valores correspondientes a CAMPOS ADICIONALES, separados por punto y coma (;).\n" .
+                "Ejemplo: RIB;Mocca;S\n\n" .
+                "El primer valor corresponde al primer campo, el segundo al segundo, y así."
+            );
+            $note->setWidth('300pt');
+            $note->setHeight('120pt');
+        }
+    }
+
+    private function buildInstructionsSheet(Spreadsheet $spreadsheet): void
+    {
+        $sheet = $spreadsheet->createSheet();
+        $sheet->setTitle('Instrucciones');
+
+        // ── Título principal ──────────────────────────────────
+        $sheet->setCellValue('A1', 'GUÍA PARA DILIGENCIAR EL ARCHIVO DE ÍTEMS');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        $sheet->getStyle('A1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('1F4E79');
+        $sheet->getStyle('A1')->getFont()->getColor()->setRGB('FFFFFF');
+        $sheet->mergeCells('A1:E1');
+        $sheet->getRowDimension(1)->setRowHeight(25);
+
+        // ── Sección 1: Reglas generales ───────────────────────
+        $sheet->setCellValue('A3', 'REGLAS GENERALES');
+        $sheet->getStyle('A3')->getFont()->setBold(true)->setSize(11);
+        $sheet->getStyle('A3')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('2E75B6');
+        $sheet->getStyle('A3')->getFont()->getColor()->setRGB('FFFFFF');
+        $sheet->mergeCells('A3:E3');
+
+        $generalRules = [
+            '1. Escriba todos los datos en LETRA MAYUSCULA.',
+            '2. No modifique los encabezados (fila 1) del archivo.',
+            '3. Las columnas con lista desplegable (▼) solo aceptan los valores de esa lista.',
+            '4. Las columnas marcadas como OBLIGATORIO no pueden quedar vacías.',
+            '5. La columna NOMBRE se genera automáticamente — no es necesario llenarla.',
+            '6. Si exportó ítems existentes, NO modifique la columna N° ITEM.',
+            '7. Para agregar campos adicionales use punto y coma (;) como separador.',
+        ];
+
+        $row = 4;
+        foreach ($generalRules as $rule) {
+            $sheet->setCellValue("A{$row}", $rule);
+            $sheet->mergeCells("A{$row}:E{$row}");
+            $row++;
+        }
+
+        // ── Sección 2: Detalle por columna ────────────────────
+        $row += 1;
+        $sheet->setCellValue('A' . $row, 'DETALLE POR COLUMNA');
+        $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(11);
+        $sheet->getStyle('A' . $row)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('2E75B6');
+        $sheet->getStyle('A' . $row)->getFont()->getColor()->setRGB('FFFFFF');
+        $sheet->mergeCells("A{$row}:E{$row}");
+        $row++;
+
+        // Encabezados de tabla
+        $sheet->setCellValue("A{$row}", 'COLUMNA');
+        $sheet->setCellValue("B{$row}", 'OBLIGATORIO');
+        $sheet->setCellValue("C{$row}", 'VALORES VÁLIDOS');
+        $sheet->setCellValue("D{$row}", 'EJEMPLO');
+        $sheet->setCellValue("E{$row}", 'OBSERVACIÓN');
+        $sheet->getStyle("A{$row}:E{$row}")->getFont()->setBold(true);
+        $sheet->getStyle("A{$row}:E{$row}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('BDD7EE');
+        $headerRow = $row;
+        $row++;
+
+        // Datos por columna
+        $columns = [
+            ['TIPO DE ITEM',          'SÍ',  'Producto / Servicio',                          'Producto',          'Si se deja vacío se asigna Producto por defecto.'],
+            ['NOMBRE',                'NO',  'Se genera automáticamente',                    '—',                 'El sistema lo construye con Subgrupo + campos adicionales + color.'],
+            ['GRUPO',                 'SÍ',  'Debe existir en el sistema (ver lista ▼)',      'Insumos',           'Use exactamente el mismo nombre que aparece en la lista desplegable.'],
+            ['SUBGRUPO',              'SÍ',  'Debe existir en el sistema (ver lista ▼)',      'Tela',              'Use exactamente el mismo nombre que aparece en la lista desplegable.'],
+            ['IMPUESTO (%)',          'NO',  'Porcentaje existente en el sistema (ver lista ▼)', '19',             'Si se deja vacío no se aplica impuesto.'],
+            ['BODEGA',                'NO',  'Debe existir en el sistema (ver lista ▼)',      'Almacén 008',       'Si se deja vacío el ítem no queda asignado a ninguna bodega.'],
+            ['PRECIO',                'NO',  'Número decimal (use punto como separador)',     '15000',             'Precio del ítem en la bodega indicada.'],
+            ['CANTIDAD',              'NO',  'Número entero o decimal',                       '100',               'Stock inicial del ítem en la bodega.'],
+            ['CANTIDAD MIN',          'NO',  'Número entero o decimal',                       '10',                'Cantidad mínima permitida en bodega.'],
+            ['CANTIDAD MAX',          'NO',  'Número entero o decimal',                       '500',               'Cantidad máxima permitida en bodega.'],
+            ['UNIDAD DE MEDIDA',      'NO',  'Ver lista desplegable (▼)',                     'Kilogramo',         'Unidad con la que se mide el ítem.'],
+            ['CODIGO DE BARRAS',      'NO',  'Texto alfanumérico único',                      'ART-001',           'No puede repetirse entre ítems.'],
+            ['REFERENCIA',            'NO',  'Texto alfanumérico',                            'REF-2024-001',      'Código interno de referencia del ítem.'],
+            ['DESCRIPCION',           'NO',  'Texto libre en MAYÚSCULAS',                     'TELA BASE RIB',     'Descripción del ítem.'],
+            ['MOVIMIENTO NEGATIVO',   'NO',  'SI / NO',                                       'NO',                'Indica si el ítem puede tener stock negativo.'],
+            ['CAMPOS ADICIONALES',    'NO',  'Nombres separados por punto y coma (;)',         'BASE TELA;COLOR',   'Debe tener el mismo número de valores que VALORES ADICIONALES.'],
+            ['VALORES ADICIONALES',   'NO',  'Valores separados por punto y coma (;)',         'RIB;Mocca',         'El orden debe coincidir exactamente con CAMPOS ADICIONALES.'],
+            ['COLOR',                 'NO',  'Debe existir en el sistema',                    'Negro',             'Color principal del ítem.'],
+            ['ESTADO',                'NO',  'Activo / Inactivo',                             'Activo',            'Si se deja vacío se asigna Activo por defecto.'],
+        ];
+
+        foreach ($columns as $i => $col) {
+            $bgColor = $i % 2 === 0 ? 'F2F2F2' : 'FFFFFF';
+            $sheet->setCellValue("A{$row}", $col[0]);
+            $sheet->setCellValue("B{$row}", $col[1]);
+            $sheet->setCellValue("C{$row}", $col[2]);
+            $sheet->setCellValue("D{$row}", $col[3]);
+            $sheet->setCellValue("E{$row}", $col[4]);
+            $sheet->getStyle("A{$row}:E{$row}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($bgColor);
+            $row++;
+        }
+
+        // ── Sección 3: Ejemplo CAMPOS/VALORES ADICIONALES ─────
+        $row += 1;
+        $sheet->setCellValue('A' . $row, 'EJEMPLOS: CAMPOS ADICIONALES y VALORES ADICIONALES');
+        $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(11);
+        $sheet->getStyle('A' . $row)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('2E75B6');
+        $sheet->getStyle('A' . $row)->getFont()->getColor()->setRGB('FFFFFF');
+        $sheet->mergeCells("A{$row}:E{$row}");
+        $row++;
+
+        $sheet->setCellValue("A{$row}", 'CAMPOS ADICIONALES');
+        $sheet->setCellValue("B{$row}", 'VALORES ADICIONALES');
+        $sheet->setCellValue("C{$row}", 'Resultado en el sistema');
+        $sheet->getStyle("A{$row}:C{$row}")->getFont()->setBold(true);
+        $sheet->getStyle("A{$row}:C{$row}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('BDD7EE');
+        $row++;
+
+        $examples = [
+            ['BASE TELA;COLOR',       'RIB;Mocca',    'BASE TELA = RIB  |  COLOR = Mocca'],
+            ['TALLA;MEDIDA',          'S;7X2.5',      'TALLA = S  |  MEDIDA = 7X2.5'],
+            ['BASE TELA;COLOR;TALLA', 'RIB;Negro;M',  'BASE TELA = RIB  |  COLOR = Negro  |  TALLA = M'],
+            ['MARCA',                 'Nike',         'MARCA = Nike'],
+        ];
+
+        foreach ($examples as $i => $example) {
+            $bgColor = $i % 2 === 0 ? 'F2F2F2' : 'FFFFFF';
+            $sheet->setCellValue("A{$row}", $example[0]);
+            $sheet->setCellValue("B{$row}", $example[1]);
+            $sheet->setCellValue("C{$row}", $example[2]);
+            $sheet->getStyle("A{$row}:C{$row}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($bgColor);
+            $row++;
+        }
+
+        // ── Anchos de columna ─────────────────────────────────
+        $sheet->getColumnDimension('A')->setWidth(28);
+        $sheet->getColumnDimension('B')->setWidth(18);
+        $sheet->getColumnDimension('C')->setWidth(45);
+        $sheet->getColumnDimension('D')->setWidth(25);
+        $sheet->getColumnDimension('E')->setWidth(55);
     }
 }
