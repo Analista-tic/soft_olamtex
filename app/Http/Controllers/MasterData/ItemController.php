@@ -131,21 +131,7 @@ class ItemController extends Controller
 
     public function downloadTemplate()
     {
-        $fileName = 'plantilla_items.xlsx';
-        $path = storage_path('app/public/' . $fileName);
-
-        if (!file_exists($path)) {
-            return response()->json([
-                'message' => 'No se encontró la plantilla Excel de ítems en storage/app/public.',
-            ], 404);
-        }
-
-        return response()->download($path, $fileName, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'Cache-Control' => 'no-store, no-cache, must-revalidate',
-            'Pragma' => 'public',
-            'Expires' => '0',
-        ]);
+        return $this->excelService->downloadTemplate();
     }
 
     public function bulkUpload(Request $request)
@@ -161,16 +147,24 @@ class ItemController extends Controller
 
         $result = $this->service->processBulkUploadArray($rows);
 
-        if ($result['inserted'] === 0 && !empty($result['errors'])) {
+        $inserted = $result['inserted'] ?? 0;
+        $updated  = $result['updated']  ?? 0;
+
+        if ($inserted === 0 && $updated === 0 && !empty($result['errors'])) {
             return response()->json([
-                'message' => 'No se pudo insertar ningun item. Errores: ' . implode('; ', $result['errors'])
+                'message' => 'No se pudo procesar ningún ítem. Errores: ' . implode('; ', $result['errors'])
             ], 422);
         }
 
+        $parts = [];
+        if ($inserted > 0) $parts[] = "{$inserted} ítem(s) creado(s)";
+        if ($updated  > 0) $parts[] = "{$updated} ítem(s) actualizado(s)";
+
         return response()->json([
-            'message' => "Carga masiva completada. items insertados: {$result['inserted']}",
-            'errors' => $result['errors'] ?? [],
-            'inserted' => $result['inserted'] ?? 0
+            'message' => 'Carga masiva completada. ' . implode(', ', $parts),
+            'errors'   => $result['errors'] ?? [],
+            'inserted' => $inserted,
+            'updated'  => $updated,
         ]);
     }
 

@@ -291,7 +291,13 @@ class ItemService
         // debug logs removed
         unset($rows[1]);
 
+        // Detectar si el archivo viene de exportación (tiene columna N° ITEM) o de plantilla vacía
+        $fileHasItemIdColumn = collect($header)->contains(
+            fn($h) => preg_match('/N[°º]?\s*ITEM/iu', (string) $h)
+        );
+
         $inserted = 0;
+        $updated = 0;
         $errors = [];
         $importedAt = now();
         $importBatchId = 'bulk_' . $importedAt->format('Ymd_His');
@@ -461,6 +467,21 @@ class ItemService
 
                 $warehouses = $this->buildWarehousePayloadFromRow($normalizedRow, $headerMap, $errors, $rowNum);
 
+                if ($fileHasItemIdColumn) {
+                    $itemIdFromExcel = $this->extractItemIdFromRow($rowData);
+                    if ($itemIdFromExcel !== null) {
+                        $existingItem = Item::find($itemIdFromExcel);
+                        if (!$existingItem) {
+                            $errors[] = "Fila $rowNum: No se encontró el ítem con N° $itemIdFromExcel";
+                            continue;
+                        }
+                        $this->update($existingItem, $itemData, $warehouses ?: null);
+                        $updated++;
+                        continue;
+                    }
+                }
+
+                // Sin N° ITEM (plantilla vacía) o N° ITEM vacío en exportación → INSERT nuevo
                 if (!empty($warehouses)) {
                     $this->createImportedItemWithOpeningBalances($itemData, $warehouses, $importBatchId, (int) $rowNum);
                 } else {
@@ -472,7 +493,7 @@ class ItemService
             }
         }
 
-        return ['inserted' => $inserted, 'errors' => $errors];
+        return ['inserted' => $inserted, 'updated' => $updated, 'errors' => $errors];
     }
 
     protected function normalizeRowKeys(array $row): array
@@ -1342,5 +1363,29 @@ class ItemService
         }
 
         return implode(', ', array_slice($reasons, 0, -1)) . ' y ' . end($reasons);
+    }
+
+    protected function extractItemIdFromRow(array $rowData): ?int
+    {
+        foreach ($rowData as $key => $value) {
+            if (preg_match('/N[°º]?\s*ITEM/iu', (string) $key)) {
+                $trimmed = trim((string) ($value ?? ''));
+                if ($trimmed !== '' && ctype_digit($trimmed) && (int) $trimmed > 0) {
+                    return (int) $trimmed;
+                }
+            }
+        }
+        return null;
+    }
+
+    protected function isExampleRow(array $rowData): bool
+    {
+        foreach ($rowData as $key => $value) {
+            if (preg_match('/N[°º]?\s*ITEM/iu', (string) $key)) {
+                $trimmed = trim((string) ($value ?? ''));
+                return $trimmed !== '' && !ctype_digit($trimmed);
+            }
+        }
+        return false;
     }
 }
