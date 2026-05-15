@@ -98,7 +98,7 @@ class InventoryRequestService
     }
 
     /**
-     * Notifica a los usuarios con permiso atender solicitudes insumos o rol admin sobre una nueva solicitud.
+     * Notifica a todos los usuarios (excepto creador) sobre una nueva solicitud.
      */
     protected function notifyInventoryRequestCreated(InventoryRequest $request, User $creator): void
     {
@@ -119,26 +119,15 @@ class InventoryRequestService
 
     /**
      * Resuelve los destinatarios para notificaciones de solicitudes de inventario.
-     * Incluye usuarios con permiso atender solicitudes insumos O rol admin.
+     * Incluye todos los usuarios excepto quien crea la solicitud.
      *
      * @return \Illuminate\Database\Eloquent\Collection<int, User>
      */
     protected function resolveRecipientsForInventoryRequest(User $excludeUser): \Illuminate\Database\Eloquent\Collection
     {
-        // Usuarios con permiso atender solicitudes insumos
-        $byPermission = User::permission('atender solicitudes insumos')
+        return User::query()
             ->where('id', '!=', $excludeUser->id)
-            ->pluck('id');
-
-        // Usuarios con rol admin
-        $byRole = User::role('admin')
-            ->where('id', '!=', $excludeUser->id)
-            ->pluck('id');
-
-        // Combinar y eliminar duplicados
-        $recipientIds = $byPermission->merge($byRole)->unique()->values();
-
-        return User::whereIn('id', $recipientIds)->get();
+            ->get();
     }
 
     /**

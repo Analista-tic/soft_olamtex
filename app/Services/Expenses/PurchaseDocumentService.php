@@ -4,7 +4,6 @@ namespace App\Services\Expenses;
 
 use App\Helpers\ScopeHelper;
 use App\Models\Expenses\PurchaseDocument;
-use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Settings\User;
 use App\Notifications\PurchaseInvoiceDifferenceNotification;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -12,6 +11,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -578,13 +578,14 @@ class PurchaseDocumentService
         $requesterName = $requester?->name;
         $notification = new PurchaseInvoiceDifferenceNotification($invoice, $requesterName);
 
-        $approvers = User::permission('aprobar facturas compra')->get();
-        foreach ($approvers as $approver) {
-            // No notificar al mismo usuario que registró la diferencia
-            if ($approver->id !== $requester?->id) {
-                $approver->notify($notification);
-            }
+        $recipientsQuery = User::query();
+        if ($requester?->id) {
+            $recipientsQuery->where('id', '!=', $requester->id);
         }
+
+        $recipients = $recipientsQuery->get();
+
+        Notification::send($recipients, $notification);
     }
 
     /**
