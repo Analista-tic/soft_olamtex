@@ -148,6 +148,8 @@ export interface OpBasicInfoDto {
     priceSale?: number | null;
     description?: string | null;
     product_sheet_id?: number | null;
+    productType?: string | null;
+    isWovenProduct?: boolean;
 }
 
 export interface OperationalListItemDto {
@@ -276,6 +278,8 @@ export interface RollLineDto {
     type: 'PRINCIPAL' | 'SECUNDARIA';
     fabricName: string;
     averageTrace?: number | null;
+    largoTrazo?: number | null;
+    largoLiq?: number | null;
     factor?: number | null;
     programmedMeters?: number | null;
     colors?: string | null;
@@ -317,6 +321,7 @@ export interface ThreadLineDto {
     colorCode?: string | null;
     stitchesPerInch?: number | null;
     defaultThreadCost?: number | null;
+    processType?: string | null;
     createdAt?: string;
     updatedAt?: string;
 }
@@ -338,20 +343,17 @@ export interface CuttingPieceDto {
 }
 
 export interface SizeUnitDto {
-    uid?: string | null;
     size: string;
-    units: number;
-    curve?: string | null;
+    trazoPrincipal: number;
+    liquidacion: number;
+    espiga: number;
+    totalUnidades: number;
 }
 
 export interface AdditionalInfoDto {
     cutting: {
         params: { cutCostCop?: number | null };
         sizes: SizeUnitDto[];
-        espigaLength?: number | null;
-        espigaCurve?: string | null;
-        liqLength?: number | null;
-        liqCurve?: string | null;
         pieces: CuttingPieceDto[];
         generalNotes?: string | null;
     };

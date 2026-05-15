@@ -270,16 +270,33 @@ export async function fetchSettingsParameters(keys: string[]): Promise<Record<st
 
     Object.entries(source).forEach(([key, options]) => {
         result[key] = Array.isArray(options)
-            ? options.map((option) => {
-                  const base = {
-                      id: option.id,
-                      name: String(option.name ?? ''),
-                  };
-                  if (option && typeof option === 'object' && 'code' in option && option.code != null) {
-                      return { ...base, code: String(option.code) };
-                  }
-                  return base;
-              })
+            ? options
+                  .map((option) => {
+                      if (option === null || option === undefined) return null;
+
+                      if (typeof option !== 'object') {
+                          return {
+                              id: option as Option['id'],
+                              name: String(option),
+                          };
+                      }
+
+                      const raw = option as Record<string, unknown>;
+                      const rawId = raw.id ?? raw.value ?? raw.code ?? raw.name ?? null;
+                      if (rawId === null || rawId === undefined || rawId === '') return null;
+
+                      const base = {
+                          id: rawId as Option['id'],
+                          name: String(raw.name ?? raw.label ?? raw.description ?? rawId),
+                      };
+
+                      if (raw.code != null) {
+                          return { ...base, code: String(raw.code) };
+                      }
+
+                      return base;
+                  })
+                  .filter((option): option is Option => option !== null)
             : [];
     });
 
@@ -665,6 +682,8 @@ function normalizeRollState(data: RollStateDto | null | undefined): RollState {
                   type: line.type,
                   fabricName: line.fabricName,
                   averageTrace: line.averageTrace !== null && line.averageTrace !== undefined ? Number(line.averageTrace) : null,
+                  largoTrazo: line.largoTrazo != null ? Number(line.largoTrazo) : null,
+                  largoLiq: line.largoLiq != null ? Number(line.largoLiq) : null,
                   factor: line.factor !== null && line.factor !== undefined ? Number(line.factor) : null,
                   programmedMeters: line.programmedMeters !== null && line.programmedMeters !== undefined ? Number(line.programmedMeters) : null,
                   colors: line.colors ?? null,
@@ -838,16 +857,13 @@ function normalizeAdditionalInfo(data: AdditionalInfoDto | null | undefined): Ad
             },
             sizes: Array.isArray(data?.cutting?.sizes)
                 ? data!.cutting.sizes.map((sizeRow) => ({
-                      uid: sizeRow.uid ? String(sizeRow.uid) : undefined,
                       size: String(sizeRow.size ?? ''),
-                      units: Number(sizeRow.units ?? 0),
-                      curve: sizeRow.curve !== null && sizeRow.curve !== undefined ? String(sizeRow.curve) : null,
+                      trazoPrincipal: Number(sizeRow.trazoPrincipal ?? 0),
+                      liquidacion: Number(sizeRow.liquidacion ?? 0),
+                      espiga: Number(sizeRow.espiga ?? 0),
+                      totalUnidades: Number(sizeRow.totalUnidades ?? 0),
                   }))
                 : [],
-            espigaLength: data?.cutting?.espigaLength ?? null,
-            espigaCurve: data?.cutting?.espigaCurve ?? null,
-            liqLength: data?.cutting?.liqLength ?? null,
-            liqCurve: data?.cutting?.liqCurve ?? null,
             pieces: parsedPieces,
             generalNotes: data?.cutting?.generalNotes ?? null,
         },

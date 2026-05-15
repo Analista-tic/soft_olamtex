@@ -2,6 +2,7 @@
 
 namespace App\Services\Production;
 
+use App\Helpers\MonthLabel;
 use App\Enums\EstatusOperacionOrden;
 use App\Models\Production\ProductionOrder;
 use App\Models\Production\ProductSheet;
@@ -186,7 +187,7 @@ class ProductionOrderService
         }
 
         return TechnicalSheetOperation::byTechnicalSheet($technicalSheet->id)
-            ->with(['operation.section', 'machine', 'productSheetOperation'])
+            ->with(['operation.section', 'operation.machineReference', 'machine', 'productSheetOperation'])
             ->get();
     }
 
@@ -220,9 +221,10 @@ class ProductionOrderService
     // ─── Op Code ──────────────────────────────────────────────────────
 
     /**
-     * Genera el siguiente op_code según el tipo de ficha y si es tejido.
+     * Genera el siguiente op_code según el tipo de ficha.
      *
-     * Prefijos: MU (muestra), MUT (muestra tejido), MF (producto), MFT (producto tejido).
+     * Prefijos vigentes: MU (muestra), MF (producto).
+     * El atributo woven_product se usa para visualización/flujo, no para prefijo.
      */
     public function nextOpCode(string $type, bool $wovenProduct): string
     {
@@ -253,17 +255,13 @@ class ProductionOrderService
     }
 
     /**
-     * Resuelve el prefijo del op_code basado en tipo y woven_product.
+     * Resuelve el prefijo del op_code basado en tipo.
      */
     public function resolveOpCodePrefix(string $type, bool $wovenProduct): string
     {
         $isProduct = strtolower($type) === 'producto';
 
-        if ($isProduct) {
-            return $wovenProduct ? 'MFT' : 'MF';
-        }
-
-        return $wovenProduct ? 'MUT' : 'MU';
+        return $isProduct ? 'MF' : 'MU';
     }
 
     // ─── Helpers de mes / temporada ───────────────────────────────────
@@ -311,7 +309,7 @@ class ProductionOrderService
             }
         }
 
-        return $this->fallbackSeasonName($monthNumber);
+        return MonthLabel::fromNumber($monthNumber);
     }
 
     private function fallbackSeasonName(int $monthNumber): string
@@ -338,7 +336,7 @@ class ProductionOrderService
             ->filter()
             ->max();
 
-        if ($max === null && in_array($prefix, ['MF', 'MFT'], true)) {
+        if ($max === null && $prefix === 'MF') {
             return 5000;
         }
 

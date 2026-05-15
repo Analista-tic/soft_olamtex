@@ -16,15 +16,16 @@ use Illuminate\Support\Str;
 class ProductionOrderPresenter
 {
     /**
-     * Extrae el tipo de OP (MU, MUT, MF, MFT) de un código OP.
+     * Extrae el tipo de OP canónico (MU|MF) de un código OP.
+     * Compatibilidad legacy: MUT => MU, MFT => MF.
      */
     public function extractOpType(string $opCode): string
     {
         $code = strtoupper(trim($opCode));
 
-        if (str_starts_with($code, 'MUT')) return 'MUT';
+        if (str_starts_with($code, 'MUT')) return 'MU';
         if (str_starts_with($code, 'MU'))  return 'MU';
-        if (str_starts_with($code, 'MFT')) return 'MFT';
+        if (str_starts_with($code, 'MFT')) return 'MF';
 
         return 'MF';
     }

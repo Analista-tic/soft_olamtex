@@ -213,16 +213,9 @@ class SupplyRequestService
     private function notifyLogistics(InventoryRequest $request, User $creator): void
     {
         try {
-            $byPermission = User::permission('atender solicitudes insumos')
+            $recipients = User::query()
                 ->where('id', '!=', $creator->id)
-                ->pluck('id');
-
-            $byRole = User::role('admin')
-                ->where('id', '!=', $creator->id)
-                ->pluck('id');
-
-            $recipientIds = $byPermission->merge($byRole)->unique()->values();
-            $recipients = User::whereIn('id', $recipientIds)->get();
+                ->get();
 
             if ($recipients->isEmpty()) {
                 return;

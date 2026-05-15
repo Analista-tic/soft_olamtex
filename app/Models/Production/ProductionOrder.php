@@ -105,8 +105,17 @@ class ProductionOrder extends Model
      */
     public function getDisplayReference(): string
     {
+        $sheetType = strtolower(trim((string) ($this->productSheet?->type ?? '')));
         $sampleRef  = trim($this->productSheet?->sample_reference ?? '');
         $productRef = trim($this->productSheet?->product_reference ?? '');
+
+        if ($sheetType === 'muestra' && $sampleRef !== '') {
+            return $sampleRef;
+        }
+
+        if ($sheetType === 'producto' && $productRef !== '') {
+            return $productRef;
+        }
 
         if ($sampleRef && $productRef) {
             return $sampleRef === $productRef ? $sampleRef : "{$sampleRef} - {$productRef}";
@@ -116,15 +125,16 @@ class ProductionOrder extends Model
     }
 
     /**
-     * Extrae el tipo de OP (MU, MUT, MF, MFT) del código de la orden.
+     * Extrae el tipo de OP canónico (MU|MF) del código de la orden.
+     * Compatibilidad legacy: MUT => MU, MFT => MF.
      */
     public function getOpType(): string
     {
         $code = strtoupper(trim($this->op_code ?? ''));
 
-        if (str_starts_with($code, 'MUT')) return 'MUT';
+        if (str_starts_with($code, 'MUT')) return 'MU';
         if (str_starts_with($code, 'MU'))  return 'MU';
-        if (str_starts_with($code, 'MFT')) return 'MFT';
+        if (str_starts_with($code, 'MFT')) return 'MF';
 
         return 'MF';
     }

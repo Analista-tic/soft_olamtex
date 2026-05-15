@@ -13,20 +13,20 @@ export function normalizeSearch(text: string): string {
         .replace(/\s+-\s*|\s*-\s+/g, '-');
 }
 
-function extractOpType(opCode: string | null | undefined): 'MU' | 'MF' | 'MUT' | 'MFT' {
+function extractOpType(opCode: string | null | undefined): 'MU' | 'MF' {
     const code = String(opCode ?? '')
         .trim()
         .toUpperCase();
-    if (code.startsWith('MUT')) return 'MUT';
+    if (code.startsWith('MUT')) return 'MU';
     if (code.startsWith('MU')) return 'MU';
-    if (code.startsWith('MFT')) return 'MFT';
+    if (code.startsWith('MFT')) return 'MF';
     if (code.startsWith('MF')) return 'MF';
     return 'MF';
 }
 
-function getGroupLabel(type: 'MU' | 'MF' | 'MUT' | 'MFT'): string {
-    if (type === 'MF' || type === 'MFT') return 'Productos';
-    if (type === 'MU' || type === 'MUT') return 'Muestras';
+function getGroupLabel(type: 'MU' | 'MF'): string {
+    if (type === 'MF') return 'Productos';
+    if (type === 'MU') return 'Muestras';
     return 'Otros';
 }
 
@@ -191,6 +191,8 @@ export function mapOpBasicInfoDtoToOpBasicInfo(dto: OpBasicInfoDto): OpBasicInfo
         priority: toNullableText(dto.priority),
         baseYarn,
         product_sheet_id: dto.product_sheet_id ?? null,
+        productType: toNullableText(dto.productType),
+        isWovenProduct: Boolean(dto.isWovenProduct),
     };
 }
 
@@ -238,6 +240,8 @@ export function mapDetailResponseToBasicInfo(response: ProductionOrderDetailResp
         baseYarn: sheet?.yarn_base?.name ?? null,
         estimatedDeliveryTime: null,
         product_sheet_id: order?.product_sheet_id ?? null,
+        productType: toNullableText(sheet?.type),
+        isWovenProduct: Boolean((sheet as any)?.woven_product ?? false),
     };
 }
 

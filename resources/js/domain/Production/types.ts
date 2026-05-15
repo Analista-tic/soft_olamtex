@@ -145,7 +145,7 @@ export interface ProductOperationPayload {
 }
 
 // Operational / Op types (from TechnicalDataSheet)
-export type OpType = 'MU' | 'MF' | 'MUT' | 'MFT';
+export type OpType = 'MU' | 'MF';
 
 export type OpOption = {
     id: string | number;
@@ -184,6 +184,8 @@ export interface OpBasicInfo {
     baseYarn?: string | null;
     estimatedDeliveryTime?: number | null;
     product_sheet_id?: number | null;
+    productType?: string | null;
+    isWovenProduct?: boolean;
 }
 
 export interface OperationalListItem {
@@ -354,6 +356,8 @@ export type RollLine = {
     type: FabricType;
     fabricName: string;
     averageTrace?: number | null;
+    largoTrazo?: number | null;
+    largoLiq?: number | null;
     factor?: number | null;
     programmedMeters?: number | null;
     colors?: string | null;
@@ -392,6 +396,7 @@ export type ThreadLine = {
     colorCode?: string | null;
     stitchesPerInch?: number | null;
     defaultThreadCost?: number | null;
+    processType?: string | null;
     createdAt?: string;
     updatedAt?: string;
 };
@@ -402,7 +407,7 @@ export type ThreadSavePayload = { threads: ThreadLine[]; deletedIds: string[] };
 
 export type CuttingParams = { cutCostCop: number | null };
 
-export type SizeUnit = { uid?: string; size: string; units: number; curve?: string | null };
+export type SizeUnit = { size: string; trazoPrincipal: number; liquidacion: number; espiga: number; totalUnidades: number };
 
 export type PieceType = 'PRINCIPAL' | 'SECUNDARIO';
 export type Side = 'IZQUIERDA' | 'DERECHA' | 'AMBOS' | 'NO_APLICA';
@@ -426,10 +431,6 @@ export type AdditionalInfo = {
     cutting: {
         params: CuttingParams;
         sizes: SizeUnit[];
-        espigaLength?: number | null;
-        espigaCurve?: string | null;
-        liqLength?: number | null;
-        liqCurve?: string | null;
         pieces: CuttingPiece[];
         generalNotes?: string | null;
     };

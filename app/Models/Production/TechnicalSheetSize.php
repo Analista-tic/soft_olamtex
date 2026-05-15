@@ -5,13 +5,14 @@ namespace App\Models\Production;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Talla/unidades/curva a nivel de ficha técnica (source of truth para el desglose de tallas en corte).
+ * Curva de tallas de la ficha técnica: unidades por talla desglosadas por tipo de trazo.
  *
- * @property int         $id
- * @property int         $technical_sheet_id
- * @property string      $size
- * @property int         $units
- * @property float|null  $curve
+ * @property int    $id
+ * @property int    $technical_sheet_id
+ * @property string $size
+ * @property int    $trazo_principal
+ * @property int    $liquidacion
+ * @property int    $espiga
  */
 class TechnicalSheetSize extends Model
 {
@@ -20,13 +21,17 @@ class TechnicalSheetSize extends Model
     protected $fillable = [
         'technical_sheet_id',
         'size',
-        'units',
-        'curve',
+        'trazo_principal',
+        'liquidacion',
+        'espiga',
+        'total_unidades',
     ];
 
     protected $casts = [
-        'units' => 'integer',
-        'curve' => 'decimal:2',
+        'trazo_principal' => 'integer',
+        'liquidacion'     => 'integer',
+        'espiga'          => 'integer',
+        'total_unidades'  => 'integer',
     ];
 
     public function technicalSheet()

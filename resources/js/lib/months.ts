@@ -44,6 +44,16 @@ export function monthLabel(value: number | string | null | undefined): string {
         if (isMonthName) {
             return upperValue;
         }
+
+        const monthYearMatch = upperValue.match(/^([A-ZÁÉÍÓÚÑ]+)\s+(\d{4})$/);
+        if (monthYearMatch) {
+            const monthName = monthYearMatch[1];
+            const year = monthYearMatch[2];
+            const validMonthName = Object.values(MONTH_LABELS).includes(monthName);
+            if (validMonthName) {
+                return `${monthName} ${year}`;
+            }
+        }
     }
 
     // Convertir a número
