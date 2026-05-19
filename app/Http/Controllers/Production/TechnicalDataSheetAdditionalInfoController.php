@@ -8,6 +8,7 @@ use App\Models\Production\ProductSheet;
 use App\Models\Production\TechnicalSheet;
 use App\Models\Production\TechnicalSheetStampingImage;
 use App\Services\Production\TechnicalDataSheetAdditionalInfoStore;
+use App\Services\Production\TechnicalDataSheetRollsStore;
 use App\Services\Production\ProductSheetCuttingPieceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,6 +19,7 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
     public function __construct(
         private TechnicalDataSheetAdditionalInfoStore $store,
         private ProductSheetCuttingPieceService $cuttingPieceService,
+        private TechnicalDataSheetRollsStore $rollsStore,
     ) {
     }
 
@@ -72,7 +74,35 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
             }
         }
 
+        // Inyectar colores únicos de los rollos consumidos en la orden
+        $data['stamping']['colorCodes'] = $this->resolveRollColors($productionOrder);
+
         return response()->json($data);
+    }
+
+    private function resolveRollColors(ProductionOrder $order): array
+    {
+        $payload = $this->rollsStore->read($order->id);
+        $lines = is_array($payload['lines'] ?? null) ? $payload['lines'] : [];
+
+        $seen = [];
+        $colors = [];
+
+        foreach ($lines as $line) {
+            $colorName = trim((string) ($line['color'] ?? $line['colors'] ?? ''));
+            if ($colorName === '') continue;
+
+            $key = strtoupper($colorName);
+            if (isset($seen[$key])) continue;
+            $seen[$key] = true;
+
+            $colors[] = [
+                'name' => $key,
+                'hex'  => $line['colorCode'] ?? null,
+            ];
+        }
+
+        return $colors;
     }
 
     public function store(int $opId, Request $request): JsonResponse

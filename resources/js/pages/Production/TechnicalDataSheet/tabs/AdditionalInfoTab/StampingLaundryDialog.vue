@@ -205,8 +205,9 @@ const colorSlots = computed<ColorSlot[]>(() => {
     const candidateLists = [source.colorCodes, source.colors, source.colours];
     const list = candidateLists.find((entry) => Array.isArray(entry)) as Array<Record<string, unknown>> | undefined;
 
-    return Array.from({ length: 6 }, (_, index) => {
-        const item = list?.[index] ?? {};
+    if (!list || list.length === 0) return [];
+
+    return list.map((item, index) => {
         const name = String(item.name ?? item.code ?? item.label ?? '').trim();
         const hex = sanitizeHex(item.hex ?? item.color ?? item.value);
         return {
@@ -530,7 +531,7 @@ function handleDialogOpenChange(value: boolean): void {
                                     <p class="text-sm font-semibold text-foreground">Colores - códigos</p>
                                     <p class="text-xs text-muted-foreground">Referencia visual</p>
                                 </div>
-                                <div class="grid grid-cols-2 gap-2">
+                                <div v-if="colorSlots.length > 0" class="grid grid-cols-2 gap-2">
                                     <div
                                         v-for="slot in colorSlots"
                                         :key="slot.label"
@@ -544,6 +545,13 @@ function handleDialogOpenChange(value: boolean): void {
                                             <p class="text-xs font-medium text-muted-foreground">{{ slot.label }}</p>
                                             <p class="truncate text-sm font-medium text-foreground">{{ slot.name }}</p>
                                         </div>
+                                    </div>
+                                </div>
+                                <div v-else class="flex items-center gap-2 rounded-md border border-border bg-background px-2 py-2">
+                                    <div class="h-10 w-10 shrink-0 rounded-md border border-border bg-muted" />
+                                    <div class="min-w-0">
+                                        <p class="text-xs font-medium text-muted-foreground">Color 1</p>
+                                        <p class="text-sm font-medium text-foreground">Sin registro</p>
                                     </div>
                                 </div>
                             </div>

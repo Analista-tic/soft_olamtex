@@ -804,6 +804,8 @@ class BatchControlController extends Controller
                         $rawMaterialMap[$uid] = [
                             'largo_trazo' => is_numeric($row['largoTrazo'] ?? null) ? (float) $row['largoTrazo'] : null,
                             'largo_liq'   => is_numeric($row['largoLiq'] ?? null) ? (float) $row['largoLiq'] : null,
+                            'trace_uid'   => isset($row['traceUid']) && $row['traceUid'] !== '' ? (string) $row['traceUid'] : null,
+                            'prom_trazo'  => is_numeric($row['promTrazo'] ?? null) ? (float) $row['promTrazo'] : null,
                         ];
                     }
                 }
@@ -815,7 +817,7 @@ class BatchControlController extends Controller
             $rawType       = strtoupper(trim((string) ($line['type'] ?? '')));
             $rollId        = isset($line['rollId']) ? (int) $line['rollId'] : null;
             $rawMaterialUid = (string) ($line['rawMaterialUid'] ?? '');
-            $largos        = $rawMaterialMap[$rawMaterialUid] ?? ['largo_trazo' => null, 'largo_liq' => null];
+            $largos        = $rawMaterialMap[$rawMaterialUid] ?? ['largo_trazo' => null, 'largo_liq' => null, 'trace_uid' => null, 'prom_trazo' => null];
             $rollMeta      = $rollId ? ($rollMetaById[$rollId] ?? null) : null;
 
             $fabricReference = trim((string) ($line['fabricName'] ?? ''));
@@ -840,6 +842,8 @@ class BatchControlController extends Controller
                 'roll_width_m'     => $widthCm !== null ? round($widthCm / 100, 4) : null,
                 'meters_per_roll'  => is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : null,
                 'roll_total_meters'=> $rollMeta !== null && isset($rollMeta['quantity']) ? $rollMeta['quantity'] : null,
+                'trazo_uid'        => $largos['trace_uid'],
+                'prom_trazo'       => $largos['prom_trazo'],
                 'largo_trazo'      => $largos['largo_trazo'],
                 'largo_liq'        => $largos['largo_liq'],
                 'layers_fabric'    => null,

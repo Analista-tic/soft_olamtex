@@ -806,6 +806,7 @@ function normalizeThreadState(data: ThreadStateDto | null | undefined): ThreadSt
             colorCode: line.colorCode ?? null,
             stitchesPerInch: line.stitchesPerInch !== null && line.stitchesPerInch !== undefined ? Number(line.stitchesPerInch) : null,
             defaultThreadCost: line.defaultThreadCost != null ? Number(line.defaultThreadCost) : null,
+            processType: line.processType ?? null,
             createdAt: line.createdAt,
             updatedAt: line.updatedAt,
         })),

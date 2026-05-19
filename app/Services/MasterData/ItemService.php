@@ -25,6 +25,7 @@ class ItemService
     protected array $warehouseNameMapCache = [];
     protected array $additionalFieldNameMap = [];
     protected array $unitMeasureNameMap = [];
+    protected array $unitMeasureLabelMap = [];
 
     public function __construct(
         protected AdditionalFieldService $fieldService,
@@ -1017,7 +1018,8 @@ class ItemService
         $payload['name'] = $this->buildName(
             $payload['category_sub_group_id'],
             $extraFields,
-            $payload['color_id'] ?? null
+            $payload['color_id'] ?? null,
+            $payload['unit_measure'] ?? null
         );
 
         // debug logs removed
@@ -1092,7 +1094,8 @@ class ItemService
 
         $subGroupId = $data['category_sub_group_id'] ?? $item->category_sub_group_id;
         $resolvedColorId = $payload['color_id'] ?? $item->color_id ?? null;
-        $payload['name'] = $this->buildName($subGroupId, $extraFields, $resolvedColorId);
+        $resolvedUnitMeasure = $payload['unit_measure'] ?? $item->unit_measure ?? null;
+        $payload['name'] = $this->buildName($subGroupId, $extraFields, $resolvedColorId, $resolvedUnitMeasure);
 
         if (array_key_exists('tax_id', $data)) {
             $payload['tax_id'] = $this->ensureTaxId($data['tax_id']);
@@ -1171,11 +1174,44 @@ class ItemService
         return $tax->id;
     }
 
-    protected function buildName(?int $subGroupId, array $extraFields, ?int $colorId = null): string
+    protected function ensureUnitMeasureLabelMap(): void
+    {
+        if ($this->unitMeasureLabelMap !== []) {
+            return;
+        }
+        $path = resource_path('js/data/unitMeasures.json');
+        if (!file_exists($path)) {
+            return;
+        }
+        $payload = json_decode(file_get_contents($path), true);
+        foreach ($payload['unitMeasureGroups'] ?? [] as $group) {
+            foreach ($group['options'] ?? [] as $option) {
+                $id = (string) ($option['id'] ?? '');
+                if ($id !== '') {
+                    $this->unitMeasureLabelMap[$id] = (string) ($option['name'] ?? '');
+                }
+            }
+        }
+    }
+
+    protected function lookupUnitMeasureLabel(?string $unitMeasureId): string
+    {
+        if (!$unitMeasureId) {
+            return '';
+        }
+        $this->ensureUnitMeasureLabelMap();
+        return $this->unitMeasureLabelMap[$unitMeasureId] ?? '';
+    }
+
+    protected function buildName(?int $subGroupId, array $extraFields, ?int $colorId = null, ?string $unitMeasure = null): string
     {
         $subGroupName = optional(CategorySubGroup::find($subGroupId))->name ?? '';
         $extrasString = $this->buildExtraFieldsNameSegment($extraFields);
+        $unitLabel = $this->lookupUnitMeasureLabel($unitMeasure);
         $name = trim("{$subGroupName} {$extrasString}");
+        if ($unitLabel !== '' && !str_contains(mb_strtolower($name), mb_strtolower($unitLabel))) {
+            $name = trim($name . ' ' . $unitLabel);
+        }
         if (!empty($colorId)) {
             $color = Color::find($colorId);
             $colorName = $color ? trim((string) $color->name) : '';
@@ -1186,9 +1222,9 @@ class ItemService
         return $name;
     }
 
-    public function computeName(?int $subGroupId, array $extraFields, ?int $colorId = null): string
+    public function computeName(?int $subGroupId, array $extraFields, ?int $colorId = null, ?string $unitMeasure = null): string
     {
-        return $this->buildName($subGroupId, $extraFields, $colorId);
+        return $this->buildName($subGroupId, $extraFields, $colorId, $unitMeasure);
     }
 
     public function existsByReference(string $reference, ?int $excludeId = null): bool

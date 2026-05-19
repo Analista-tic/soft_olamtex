@@ -116,12 +116,14 @@ class ItemController extends Controller
             'color_id' => 'nullable|integer|exists:colors,id',
             'extra_fields' => 'nullable',
             'item_id' => 'nullable|integer',
+            'unit_measure' => 'nullable|string',
         ]);
 
         $extraFields = $this->service->normalizeExtraFields($request->input('extra_fields') ?? []);
         $subGroupId = (int) $data['category_sub_group_id'];
         $colorId = !empty($data['color_id']) ? (int) $data['color_id'] : null;
-        $name = $this->service->computeName($subGroupId, $extraFields, $colorId);
+        $unitMeasure = $data['unit_measure'] ?? null;
+        $name = $this->service->computeName($subGroupId, $extraFields, $colorId, $unitMeasure);
         $excludeId = $data['item_id'] ?? null;
 
         $status = $this->service->duplicateStatus($data['reference'], $name, $excludeId);

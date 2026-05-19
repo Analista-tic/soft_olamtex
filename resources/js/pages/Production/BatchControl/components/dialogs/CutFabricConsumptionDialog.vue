@@ -370,13 +370,13 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
                                 <!-- Totales del trazo -->
                                 <div class="ml-auto flex items-center gap-3 text-xs shrink-0" @click.stop>
                                     <span class="text-muted-foreground">
-                                        Capa P <span class="font-semibold text-foreground tabular-nums">{{ trazoTotals(group).cap_p }}</span>
+                                        Capa Principal <span class="font-semibold text-foreground tabular-nums">{{ trazoTotals(group).cap_p }}</span>
                                     </span>
                                     <span class="text-muted-foreground">
-                                        Capa L <span class="font-semibold text-foreground tabular-nums">{{ trazoTotals(group).cap_l }}</span>
+                                        Capa Liquidación <span class="font-semibold text-foreground tabular-nums">{{ trazoTotals(group).cap_l }}</span>
                                     </span>
                                     <span class="text-muted-foreground">
-                                        Capa E <span class="font-semibold text-foreground tabular-nums">{{ trazoTotals(group).cap_e }}</span>
+                                        Capa Espiga <span class="font-semibold text-foreground tabular-nums">{{ trazoTotals(group).cap_e }}</span>
                                     </span>
                                     <Badge variant="outline" class="tabular-nums text-xs font-semibold text-primary border-primary/30 bg-primary/5">
                                         {{ fmt(trazoTotals(group).total_consumption) }} m

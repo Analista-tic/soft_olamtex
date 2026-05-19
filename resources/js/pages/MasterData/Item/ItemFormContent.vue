@@ -484,7 +484,8 @@ function updateNameField(orderedFields?: Record<string, string>): void {
         );
 
     const extras = Object.values(extrasObj).join(' ');
-    const baseName = [subGroup?.name ?? '', extras].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+    const unitLabel = unitMeasures.find((u) => u.id === unitMeasure.value)?.name ?? '';
+    const baseName = [subGroup?.name ?? '', extras, unitLabel].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
     nameField.value = selectedColorName.value && !baseName.includes(selectedColorName.value)
         ? [baseName, selectedColorName.value].filter(Boolean).join(' ').trim()
         : baseName;
@@ -1032,6 +1033,7 @@ async function checkDuplicateName(): Promise<string | null> {
                 color_id: localForm.value.color_id ?? null,
                 extra_fields: JSON.stringify(extraFields.value ?? {}),
                 item_id: localForm.value.id ?? props.form.id ?? null,
+                unit_measure: unitMeasure.value,
             },
         });
 
@@ -1345,7 +1347,7 @@ watch(
 );
 
 watch(
-    [() => localForm.value.category_sub_group_id, () => localForm.value.color_id, () => extraFieldNames.value.map((key) => extraFields.value[key]).join('|')],
+    [() => localForm.value.category_sub_group_id, () => localForm.value.color_id, () => extraFieldNames.value.map((key) => extraFields.value[key]).join('|'), unitMeasure],
     () => updateNameField(),
     { immediate: true },
 );

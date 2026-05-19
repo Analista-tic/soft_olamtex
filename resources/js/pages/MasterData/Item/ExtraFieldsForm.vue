@@ -137,7 +137,7 @@ function initializeRequiredFields() {
 
     requiredFields.forEach((field) => {
         if (!updated[field.name]) {
-            // Agregar campo con valor por defecto o vacÃ­o
+            // Agregar campo con valor por defecto o vacío
             updated[field.name] = field.default_value !== undefined && field.default_value !== null ? String(field.default_value) : '';
             hasChanges = true;
         }
@@ -311,7 +311,7 @@ function isAddDisabled() {
                 :disabled="isAddDisabled()"
                 @click="addExtraField"
             >
-                AÃ±adir
+                Añadir
             </Button>
         </div>
 

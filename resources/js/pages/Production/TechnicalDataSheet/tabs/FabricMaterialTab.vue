@@ -26,6 +26,7 @@ const props = defineProps<{
 
 type DisplayRoll = {
     rollId: string;
+    rollCode: string | null;
     label: string;
     fabricName: string;
     location: string | null;
@@ -655,6 +656,7 @@ async function loadRollsForLine(line: FabricLine): Promise<void> {
             .filter((r) => r.fabricItemId === line.telaItemId)
             .map((r) => ({
                 rollId: r.id,
+                rollCode: r.roll,
                 label: r.label,
                 fabricName: r.fabricName,
                 location: r.location,
@@ -805,7 +807,7 @@ async function loadAll(): Promise<void> {
                 const itemId = roll.fabricItemId;
                 if (!itemId) continue;
                 const list = availableByItem.get(itemId) ?? [];
-                list.push({ rollId: roll.id, label: roll.label, fabricName: roll.fabricName, location: roll.location, widthCm: roll.widthCm, availableMeters: roll.availableMeters, pricePerMeter: resolvePricePerMeter(null, roll.pricePerMeter), color: roll.color, colorCode: roll.colorCode, supplier: roll.supplier });
+                list.push({ rollId: roll.id, rollCode: roll.roll, label: roll.label, fabricName: roll.fabricName, location: roll.location, widthCm: roll.widthCm, availableMeters: roll.availableMeters, pricePerMeter: resolvePricePerMeter(null, roll.pricePerMeter), color: roll.color, colorCode: roll.colorCode, supplier: roll.supplier });
                 availableByItem.set(itemId, list);
             }
             for (const [itemId, list] of availableByItem.entries()) {
@@ -846,11 +848,11 @@ async function loadAll(): Promise<void> {
                         uid: generateUid(),
                         lineId: sl.id ?? null,
                         metersProgrammed: sl.programmedMeters != null ? String(sl.programmedMeters) : '',
-                        roll: { rollId: String(sl.rollId), label: avail?.label ?? catalog?.label ?? String(sl.rollId), fabricName: avail?.fabricName ?? catalog?.fabricName ?? sl.fabricName ?? String(rm.tela ?? ''), location: avail?.location ?? catalog?.location ?? null, widthCm: avail?.widthCm ?? catalog?.widthCm ?? sl.widthCm ?? null, availableMeters: avail?.availableMeters ?? catalog?.availableMeters ?? sl.availableMeters ?? null, pricePerMeter: resolvePricePerMeter(sl.pricePerMeter, avail?.pricePerMeter ?? catalog?.pricePerMeter), color: avail?.color ?? catalog?.color ?? sl.color ?? null, colorCode: avail?.colorCode ?? catalog?.colorCode ?? sl.colorCode ?? null, supplier: avail?.supplier ?? catalog?.supplier ?? sl.supplier ?? null },
+                        roll: { rollId: String(sl.rollId), rollCode: avail?.roll ?? catalog?.roll ?? sl.consecutive ?? null, label: avail?.label ?? catalog?.label ?? String(sl.rollId), fabricName: avail?.fabricName ?? catalog?.fabricName ?? sl.fabricName ?? String(rm.tela ?? ''), location: avail?.location ?? catalog?.location ?? null, widthCm: avail?.widthCm ?? catalog?.widthCm ?? sl.widthCm ?? null, availableMeters: avail?.availableMeters ?? catalog?.availableMeters ?? sl.availableMeters ?? null, pricePerMeter: resolvePricePerMeter(sl.pricePerMeter, avail?.pricePerMeter ?? catalog?.pricePerMeter), color: avail?.color ?? catalog?.color ?? sl.color ?? null, colorCode: avail?.colorCode ?? catalog?.colorCode ?? sl.colorCode ?? null, supplier: avail?.supplier ?? catalog?.supplier ?? sl.supplier ?? null },
                     };
                 });
             const itemRolls: DisplayRoll[] = itemId
-                ? availableRolls.filter((r) => r.fabricItemId === itemId).map((r) => ({ rollId: r.id, label: r.label, fabricName: r.fabricName, location: r.location, widthCm: r.widthCm, availableMeters: r.availableMeters, pricePerMeter: resolvePricePerMeter(null, r.pricePerMeter), color: r.color, colorCode: r.colorCode, supplier: r.supplier })).sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }))
+                ? availableRolls.filter((r) => r.fabricItemId === itemId).map((r) => ({ rollId: r.id, rollCode: r.roll, label: r.label, fabricName: r.fabricName, location: r.location, widthCm: r.widthCm, availableMeters: r.availableMeters, pricePerMeter: resolvePricePerMeter(null, r.pricePerMeter), color: r.color, colorCode: r.colorCode, supplier: r.supplier })).sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }))
                 : [];
             trazo.lines.push({ uid: lineUid, telaItemId: itemId, tela: String(rm.tela ?? '').trim(), supplierId: toNullableNumber(rm.supplierId), lastSupplierName: rm.lastSupplierName ? String(rm.lastSupplierName).trim() : null, lastUnitPriceCop: toNullableNumber(rm.lastUnitPriceCop), lastPurchaseDate: null, lastInvoiceNumber: null, ancho: toNullableNumber(rm.ancho), anchoUnit: rm.anchoUnit === 'cm' || rm.anchoUnit === 'm' ? rm.anchoUnit : null, loadingMeta: false, loadingRolls: false, rollSearch: '', rollsOpen: true, availableRolls: itemRolls, assignedRolls });
         }
@@ -890,7 +892,7 @@ async function handleSave(): Promise<void> {
                 for (const a of line.assignedRolls) {
                     const meters = toNumber(a.metersProgrammed);
                     if (meters > 0) {
-                        rollLines.push({ id: a.lineId ?? '', consecutive: null, type: rollType, fabricName: a.roll.fabricName || 'Tela', averageTrace: trazo.promTrazo > 0 ? trazo.promTrazo : null, largoTrazo: trazo.largoTrazo > 0 ? trazo.largoTrazo : null, largoLiq: trazo.largoLiq > 0 ? trazo.largoLiq : null, factor: null, consumptionBase: 0, extraMeters: 0, pricePerMeter: toNumber(a.roll.pricePerMeter), programmedMeters: meters, colors: a.roll.color, availableMeters: a.roll.availableMeters, balanceMeters: a.roll.availableMeters != null ? a.roll.availableMeters - meters : null, color: a.roll.color, colorCode: a.roll.colorCode, widthCm: a.roll.widthCm, supplier: a.roll.supplier, notes: null, rawMaterialUid: line.uid, fabricItemId: line.telaItemId, rollId: a.roll.rollId });
+                        rollLines.push({ id: a.lineId ?? '', consecutive: a.roll.rollCode ?? null, type: rollType, fabricName: a.roll.fabricName || 'Tela', averageTrace: trazo.promTrazo > 0 ? trazo.promTrazo : null, largoTrazo: trazo.largoTrazo > 0 ? trazo.largoTrazo : null, largoLiq: trazo.largoLiq > 0 ? trazo.largoLiq : null, factor: null, consumptionBase: 0, extraMeters: 0, pricePerMeter: toNumber(a.roll.pricePerMeter), programmedMeters: meters, colors: a.roll.color, availableMeters: a.roll.availableMeters, balanceMeters: a.roll.availableMeters != null ? a.roll.availableMeters - meters : null, color: a.roll.color, colorCode: a.roll.colorCode, widthCm: a.roll.widthCm, supplier: a.roll.supplier, notes: null, rawMaterialUid: line.uid, fabricItemId: line.telaItemId, rollId: a.roll.rollId });
                     } else if (a.lineId && !currentDeletedIds.includes(a.lineId)) {
                         currentDeletedIds.push(a.lineId);
                     }
@@ -943,7 +945,12 @@ watch(activeTrazoUid, (newUid) => {
 });
 
 watch(activeLineUid, () => {
-    selectedRollIds.value = new Set();
+    const preSelected = new Set(
+        (activeLine.value?.assignedRolls ?? [])
+            .filter((a) => Number(a.metersProgrammed) > 0)
+            .map((a) => a.roll.rollId),
+    );
+    selectedRollIds.value = preSelected;
     rollTableSearch.value = '';
     distributeTotal.value = '';
 });
@@ -1144,17 +1151,19 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
 
                     <!-- ── Tela pills ──────────────────────────────────────── -->
                     <div class="flex flex-wrap items-center gap-1.5 border-b border-border bg-background px-3 py-2">
-                        <button
+                        <div
                             v-for="line in activeTrazo.lines"
                             :key="line.uid"
-                            type="button"
+                            role="button"
+                            tabindex="0"
                             :class="[
-                                'group inline-flex min-w-[170px] items-center justify-between gap-2 rounded-full border px-3.5 py-1.5 text-xs font-medium transition',
+                                'group inline-flex min-w-[170px] cursor-pointer items-center justify-between gap-2 rounded-full border px-3.5 py-1.5 text-xs font-medium transition',
                                 activeLineUid === line.uid
                                     ? 'border-[#d23f3f] bg-[#d23f3f] text-white'
                                     : 'border-border text-foreground hover:border-[#d23f3f] hover:text-[#d23f3f]',
                             ]"
                             @click="activeLineUid = line.uid"
+                            @keydown.enter.space.prevent="activeLineUid = line.uid"
                         >
                             <span class="max-w-[135px] truncate">{{ line.tela || 'Sin tela' }}</span>
                             <span
@@ -1174,7 +1183,7 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                             >
                                 <X class="h-2.5 w-2.5" />
                             </button>
-                        </button>
+                        </div>
 
                         <!-- Add tela -->
                         <button
