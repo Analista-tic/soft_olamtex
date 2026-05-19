@@ -115,6 +115,14 @@ class TechnicalSheetOperation extends Model
         return $this->belongsTo(ProductOperationList::class, 'product_sheet_operation_id');
     }
 
+    /**
+     * Historial de cambios de esta operación en la ficha técnica.
+     */
+    public function history()
+    {
+        return $this->hasMany(TechnicalSheetOperationHistory::class, 'technical_sheet_operation_id');
+    }
+
     // ─── Scopes ───────────────────────────────────────────
 
     /**

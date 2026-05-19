@@ -8,6 +8,7 @@ use App\Models\Production\ProductionOrder;
 use App\Models\Production\ProductSheet;
 use App\Models\Production\TechnicalSheet;
 use App\Models\Production\TechnicalSheetOperation;
+use App\Models\Production\TechnicalSheetOperationHistory;
 use App\Models\Production\TechnicalSheetThread;
 use App\Services\Production\ProductOperationListService;
 use App\Services\Settings\SettingService;
@@ -199,8 +200,27 @@ class ProductionOrderService
         int $quantityProgressed,
         string $motivo,
     ): TechnicalSheetOperation {
-        $operation->updateProgressOnly($quantityProgressed);
-        return $operation->fresh();
+        $before = [
+            'quantity_progressed' => (int) ($operation->quantity_progressed ?? 0),
+            'status' => (string) ($operation->status?->value ?? $operation->status ?? ''),
+        ];
+
+        $operation->updateProgressOnly($quantityProgressed, $motivo);
+        $updated = $operation->fresh();
+
+        TechnicalSheetOperationHistory::create([
+            'technical_sheet_id' => (int) $updated->technical_sheet_id,
+            'technical_sheet_operation_id' => (int) $updated->id,
+            'event_type' => 'PROGRESS_UPDATED',
+            'changed_by_user_id' => auth()->id(),
+            'reason' => $motivo,
+            'before_quantity_progressed' => $before['quantity_progressed'],
+            'before_status' => $before['status'],
+            'after_quantity_progressed' => (int) ($updated->quantity_progressed ?? 0),
+            'after_status' => (string) ($updated->status?->value ?? $updated->status ?? ''),
+        ]);
+
+        return $updated;
     }
 
     /**

@@ -18,7 +18,13 @@ export type ProductSheetOption = {
     product_reference_2?: string | null;
     version?: number | null;
 };
-export type MachineOption = { id: number | string; name: string; code?: string | null };
+export type MachineOption = {
+    id: number | string;
+    name: string;
+    code?: string | null;
+    supplement_factor?: number | null;
+    factor_suplemento?: number | null;
+};
 
 export interface OperationFormData {
     action: string;
@@ -193,10 +199,23 @@ const productSheetOptions = computed(() =>
     }),
 );
 
+function buildMachineOptionLabel(machine: MachineOption): string {
+    const code = String(machine.code ?? '').trim();
+    const name = String(machine.name ?? '').trim();
+    const supplement = Number(machine.supplement_factor ?? machine.factor_suplemento ?? null);
+    const baseLabel = code && name ? `${code} · ${name}` : code || name || `#${machine.id}`;
+
+    if (Number.isFinite(supplement) && supplement > 0) {
+        return `${baseLabel} (Supl. ×${supplement.toFixed(2)})`;
+    }
+
+    return baseLabel;
+}
+
 const machineOptions = computed(() =>
     (props.machines || []).map((m) => ({
         id: m.id,
-        name: m.code ? `${m.name}  [${m.code}]` : m.name,
+        name: buildMachineOptionLabel(m),
     })),
 );
 
@@ -341,7 +360,7 @@ defineExpose({ submit, validate });
         <!-- ── Bloque 3: Tiempos base (obligatorios) ────────────────────── -->
         <div class="space-y-3 rounded-lg border border-primary/20 bg-card p-3">
             <p class="text-[10px] font-semibold uppercase tracking-widest text-primary/70">Tiempos base <span class="text-destructive">*</span></p>
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
                 <div class="space-y-1">
                     <Label class="text-sm">SAM base (min) <span class="text-destructive">*</span></Label>
                     <InputField
@@ -360,9 +379,14 @@ defineExpose({ submit, validate });
                     <InputField v-model.number="form.factor_operario" label="" type="number" step="0.01" min="0.01" placeholder="100" />
                     <p class="text-[10px] text-muted-foreground">100 = eficiencia normal del operario</p>
                 </div>
-                <div class="space-y-1">
+                <div class="space-y-1 md:col-span-2">
                     <Label class="text-sm">Máquina <span class="text-destructive">*</span></Label>
-                    <SelectField v-model="form.machine_id_reference" placeholder="Selecciona máquina" :options="machineOptions" />
+                    <SelectField
+                        v-model="form.machine_id_reference"
+                        placeholder="Selecciona máquina"
+                        :options="machineOptions"
+                        button-class="h-10"
+                    />
                     <p class="text-[10px] text-muted-foreground">El suplemento de máquina se aplica en listados operacionales</p>
                 </div>
             </div>

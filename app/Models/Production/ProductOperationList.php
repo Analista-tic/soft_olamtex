@@ -40,9 +40,6 @@ class ProductOperationList extends Model
     protected $fillable = [
         'product_sheet_id',
         'operation_id',
-        'operation_section_id',
-        'machine_id',
-        'quantity',
         'grupo_preparacion',
         'sequence',
         'sam_base',
@@ -65,9 +62,6 @@ class ProductOperationList extends Model
     protected $casts = [
         'product_sheet_id' => 'integer',
         'operation_id' => 'integer',
-        'operation_section_id' => 'integer',
-        'machine_id' => 'integer',
-        'quantity' => 'integer',
         'sequence' => 'integer',
         'is_active' => 'boolean',
         'optimal_time' => 'float',
@@ -105,11 +99,6 @@ class ProductOperationList extends Model
         return $this->belongsTo(Operation::class);
     }
 
-    public function operationSection()
-    {
-        return $this->belongsTo(OperationSection::class, 'operation_section_id');
-    }
-
     /**
      * Máquina derivada de la operación base (sin columna propia en el listado).
      */
@@ -135,10 +124,8 @@ class ProductOperationList extends Model
 
     public function calculateSamTotalOperacion(): float
     {
-        $operationQuantity = (int) ($this->operation?->quantity ?? 1);
-        $quantity = $operationQuantity > 0 ? $operationQuantity : 1;
-
-        return $this->calculateSamTotalUnitario() * $quantity;
+        // quantity es solo informativo, no multiplica el SAM
+        return $this->calculateSamTotalUnitario();
     }
 
     /**

@@ -41,29 +41,16 @@ class ProductSheetService
 
     /**
      * Obtiene fichas para el selector del listado operacional:
-     * - Incluye SIEMPRE las fichas que ya tienen operaciones en product_sheet_operations.
-     * - Complementa con las $limit más recientes (sin duplicar).
+     * - Incluye todas las fichas disponibles para permitir crear listados
+     *   operacionales en referencias antiguas o sin operaciones previas.
      */
     public function optionsForOperationalList(int $recentLimit = 50): Collection
     {
-        $sheetIdsWithOps = \Illuminate\Support\Facades\DB::table('product_sheet_operations')
-            ->whereNull('deleted_at')
-            ->distinct()
-            ->pluck('product_sheet_id')
-            ->toArray();
-
-        $recentIds = $this->model
-            ->orderBy('created_at', 'desc')
-            ->take($recentLimit)
-            ->pluck('id')
-            ->toArray();
-
-        $allIds = array_unique(array_merge($sheetIdsWithOps, $recentIds));
-
         return $this->model
-            ->whereIn('id', $allIds)
             ->select(['id', 'type', 'sample_reference', 'product_reference', 'product_reference_2', 'version', 'garment_type', 'fabric_base_id'])
             ->orderBy('product_reference')
+            ->orderBy('sample_reference')
+            ->orderBy('version')
             ->get()
             ->map(function ($sheet) {
                 $type = $sheet->type === 'producto' ? 'producto' : 'muestra';

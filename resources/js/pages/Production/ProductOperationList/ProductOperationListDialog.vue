@@ -121,6 +121,7 @@ const machinesList = ref<MachineOption[]>([]);
 const fabricBasesList = ref<FabricBaseOption[]>([]);
 const preparationGroupsList = ref<string[]>([]);
 const preparationGroupSearchTerm = ref('');
+const pendingAutoAddOperation = ref(false);
 let rowKeySequence = 0;
 
 const NONE_FABRIC_BASE_LABEL = 'NS / NINGUNA';
@@ -279,6 +280,15 @@ watch(
         // Reset grupo_preparacion if section is not PREPARACION
         if (!isSectionPreparacion(currentRow.value.section_id)) {
             currentRow.value.grupo_preparacion = null;
+        }
+
+        if (pendingAutoAddOperation.value) {
+            pendingAutoAddOperation.value = false;
+            void Promise.resolve().then(() => {
+                if (currentRow.value.operation_id === opId) {
+                    addOperation();
+                }
+            });
         }
     },
 );
@@ -472,8 +482,19 @@ function getOperationOptionLabel(operation: OperationOption): string {
     const detailParts: string[] = [];
     if (operation.measure != null && Number(operation.measure) > 0) detailParts.push(`${Number(operation.measure)}CM`);
     if (operation.quantity != null && Number(operation.quantity) > 0) detailParts.push(`X${Number(operation.quantity)}`);
+    const samBase = Number(operation.sam_base ?? 0);
+    if (Number.isFinite(samBase) && samBase > 0) detailParts.push(`SAM ${samBase.toFixed(2)}`);
 
     return detailParts.length ? `${code}${baseName} ${detailParts.join(', ')}` : `${code}${baseName}`;
+}
+
+function handleEnterAddOperation(): void {
+    if (readonly) return;
+    if (!currentRow.value.operation_id) {
+        pendingAutoAddOperation.value = true;
+        return;
+    }
+    addOperation();
 }
 
 function getMachineName(id: string | number | null): string {
@@ -493,6 +514,7 @@ function getMachineDisplayWithSupplement(row: ProductOperationDialogRow): string
 }
 
 function addOperation() {
+    pendingAutoAddOperation.value = false;
     const samBase = Number.parseFloat(currentRow.value.optimal_time);
 
     if (!currentRow.value.operation_id) {
@@ -520,6 +542,7 @@ function addOperation() {
 
     operationList.value.push({ ...currentRow.value });
     currentRow.value = createEmptyRow();
+    pendingAutoAddOperation.value = false;
     clearValidationError();
 }
 
@@ -626,6 +649,7 @@ function resetForm() {
     operationList.value = [];
     productSheetId.value = availableProductSheets.value[0]?.id ?? null;
     currentRow.value = createEmptyRow();
+    pendingAutoAddOperation.value = false;
 }
 </script>
 
@@ -728,6 +752,7 @@ function resetForm() {
                                 :options="availableOperationOptions.map((o) => ({ id: o.id, name: getOperationOptionLabel(o) }))"
                                 placeholder="Buscar operación"
                                 class="h-9 w-full"
+                                @keydown.enter.prevent="handleEnterAddOperation"
                             >
                             </SelectField>
                         </div>
@@ -794,6 +819,7 @@ function resetForm() {
                                 type="text"
                                 placeholder="Nota de la operación (opcional)"
                                 class="h-7 w-full rounded-md border border-input bg-transparent px-2 text-xs text-muted-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+                                @keydown.enter.prevent="handleEnterAddOperation"
                             />
                         </div>
                     </div>

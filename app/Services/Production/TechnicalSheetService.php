@@ -169,6 +169,8 @@ class TechnicalSheetService
      */
     public function buildProcessesPayload(int $opId, ?int $productSheetId): array
     {
+        $this->syncConfectionProcessCostFromOperationalList($opId, $productSheetId);
+
         [$costConfeccion, $costTerminacion, $hasOperationalList] = $this->resolveCostsFromOperationalList($opId, $productSheetId);
 
         $params = [
@@ -614,11 +616,10 @@ class TechnicalSheetService
     {
         $operations    = $this->productionOrderService->getOperationsByOrder($opId);
         $operationCost = $this->settingService->getNumericParameter('operation_cost', 406.0);
-        $yarnCost      = $this->settingService->getNumericParameter('yarn_cost', 0);
 
         if ($operations->isEmpty()) {
             [$minsConf, $minsTerm] = $this->resolveOperationalMinutes($productSheetId, (bool) $productSheetId);
-            $costConf = $minsConf * $operationCost + $yarnCost;
+            $costConf = $minsConf * $operationCost;
             $costTerm = $minsTerm * $operationCost;
 
             return [max(0, $costConf), max(0, $costTerm), (bool) $productSheetId];
@@ -641,9 +642,42 @@ class TechnicalSheetService
             }
         }
 
-        $costConfeccion += $yarnCost;
-
         return [max(0, $costConfeccion), max(0, $costTerminacion), true];
+    }
+
+    /**
+     * Garantiza que el proceso CONFECCION almacenado en BD refleje
+     * el costo de operaciones de confección del listado operacional.
+     */
+    private function syncConfectionProcessCostFromOperationalList(int $opId, ?int $productSheetId): void
+    {
+        $sheet = TechnicalSheet::where('production_order_id', $opId)->first();
+        if (!$sheet) {
+            return;
+        }
+
+        $confectionProcess = $sheet->processes()
+            ->where('type', 'CONFECCION')
+            ->first();
+
+        if (!$confectionProcess) {
+            return;
+        }
+
+        [$costConfeccion, , $hasOperationalList] = $this->resolveCostsFromOperationalList($opId, $productSheetId);
+        if (!$hasOperationalList) {
+            return;
+        }
+
+        $expected = round(max(0, $costConfeccion), 4);
+        $current = (float) ($confectionProcess->fixed_cost ?? 0);
+
+        if (abs($current - $expected) <= 0.0001) {
+            return;
+        }
+
+        $confectionProcess->fixed_cost = $expected;
+        $confectionProcess->save();
     }
 
     private function resolveOperationalMinutes(?int $productSheetId, bool $hasOperationalList): array
@@ -683,7 +717,12 @@ class TechnicalSheetService
         $name  = $this->normalizeText($sectionName ?? '');
         $value = trim("{$type} {$name}");
 
-        if (str_contains($value, 'confeccion')) {
+        if (
+            str_contains($value, 'confeccion')
+            || str_contains($value, 'preparacion')
+            || str_contains($value, 'ensamble')
+            || str_contains($value, 'emsamble')
+        ) {
             return 'confection';
         }
         if (str_contains($value, 'terminacion') || str_contains($value, 'presentacion')) {

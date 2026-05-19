@@ -34,33 +34,34 @@ class OperationService
 
     /**
      * Firma de unicidad para operación:
-     * descripción funcional + variables que la diferencian.
+     * sección + acción + parte + medida + cantidad + SAM base.
      */
     private function buildOperationSignatureFromPayload(array $data): string
     {
+        $sectionId = $this->normalizeInt($data['section_id'] ?? null);
+        $measure = $this->normalizeFloat($data['measure'] ?? 0, 4) ?? '0.0000';
+        $samBase = $this->normalizeFloat($data['sam_base'] ?? 0, 4) ?? '0.0000';
+        $quantity = $this->normalizeInt($data['quantity'] ?? 1) ?? 1;
+
         return implode('|', [
+            (string) ($sectionId ?? ''),
             $this->normalizeText($data['action'] ?? null),
             $this->normalizeText($data['garment_part'] ?? null),
-            (string) ($this->normalizeInt($data['quantity'] ?? null) ?? ''),
-            (string) ($this->normalizeInt($data['machine_id_reference'] ?? null) ?? ''),
-            (string) ($this->normalizeFloat($data['measure'] ?? null) ?? ''),
-            (string) ($this->normalizeFloat($data['sam_base'] ?? null) ?? ''),
-            (string) ($this->normalizeFloat($data['factor_operario'] ?? null) ?? ''),
+            $measure,
+            (string) $quantity,
+            $samBase,
         ]);
     }
 
     private function buildOperationSignatureFromModel(Operation $operation): string
     {
         return $this->buildOperationSignatureFromPayload([
+            'section_id' => $operation->section_id,
             'action' => $operation->action,
             'garment_part' => $operation->garment_part,
-            'anexo' => $operation->anexo,
-            'quantity' => $operation->quantity,
-            'machine_id_reference' => $operation->machine_id_reference,
-            'product_sheet_id_reference' => $operation->product_sheet_id_reference,
             'measure' => $operation->measure,
+            'quantity' => $operation->quantity,
             'sam_base' => $operation->sam_base,
-            'factor_operario' => $operation->factor_operario,
         ]);
     }
 
@@ -184,7 +185,7 @@ class OperationService
 
     /**
      * Crea una nueva operación con validación de duplicados.
-     * Unicidad basada en: action + garment_part (normalizado a mayúsculas)
+        * Unicidad basada en: sección + acción + parte + medida + cantidad + SAM base.
      */
     public function create(array $data): Operation
     {
@@ -212,7 +213,7 @@ class OperationService
         if ($existing) {
             $operationName = "{$action} {$garmentPart}";
             throw new \InvalidArgumentException(
-                "La operación '{$operationName}' ya existe con la misma descripción y variables."
+                "La operación '{$operationName}' ya existe con la misma combinación de sección, medida, cantidad y SAM base."
             );
         }
 
@@ -299,7 +300,7 @@ class OperationService
 
         if ($existing) {
             throw new \InvalidArgumentException(
-                "Ya existe otra operación '{$newAction} {$newPart}' con la misma descripción y variables."
+                "Ya existe otra operación '{$newAction} {$newPart}' con la misma combinación de sección, medida, cantidad y SAM base."
             );
         }
 

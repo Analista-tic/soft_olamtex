@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import AddItemButton from '@/components/common/AddItemButton.vue';
+import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { GripVertical, PlusCircle, Trash2 } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
@@ -35,9 +35,32 @@ const props = withDefaults(
 const emit = defineEmits(['update:modelValue']);
 
 // 3. OPCIONES PARA SELECTORES
-const pieceTypeOptions = ['PRINCIPAL', 'SECUNDARIO'];
-const sideOptions = ['IZQUIERDA', 'DERECHA', 'IZQ/DER', 'NO_APLICA'];
-const grainOptions = ['90', '180', 'SESGO'];
+// 3. OPCIONES PARA SELECTORES (formato Option[] compatible con SelectField)
+const pieceTypeOptions = [
+    { id: 'PRINCIPAL', name: 'PRINCIPAL' },
+    { id: 'SECUNDARIO', name: 'SECUNDARIO' },
+];
+
+const sideOptions = [
+    { id: 'IZQUIERDA', name: 'IZQUIERDA' },
+    { id: 'DERECHA', name: 'DERECHA' },
+    { id: 'IZQ/DER', name: 'IZQ/DER (par: 1 izq + 1 der)' },
+    { id: 'NO_APLICA', name: 'NO APLICA' },
+];
+
+const grainOptions = [
+    { id: '90', name: '90°' },
+    { id: '180', name: '180°' },
+    { id: 'SESGO', name: 'SESGO' },
+];
+
+/** Etiqueta legible para mostrar el lado en modo lectura */
+const sideLabel = (side: CuttingPiece['side']) =>
+    sideOptions.find((o) => o.id === side)?.name ?? side;
+
+/** Piezas físicas reales: IZQ/DER multiplica por 2 */
+const effectivePieces = (piece: CuttingPiece): number =>
+    piece.side === 'IZQ/DER' ? piece.quantity * 2 : piece.quantity;
 
 const generateUID = () => (typeof crypto?.randomUUID === 'function' ? crypto.randomUUID() : Date.now().toString(36));
 
@@ -107,7 +130,7 @@ const addPiece = () => {
         name: '',
         piece_type: 'PRINCIPAL',
         side: 'NO_APLICA',
-        grain: '90',
+        grain: '180',
         quantity: 1,
         notes: null,
     });
@@ -145,7 +168,10 @@ const updateData = () => {
                         <TableHead class="min-w-[140px] px-4 py-1.5 text-left text-sm font-semibold text-muted-foreground">Tela</TableHead>
                         <TableHead class="min-w-[140px] px-4 py-1.5 text-left text-sm font-semibold text-muted-foreground">Lado</TableHead>
                         <TableHead class="min-w-[120px] px-4 py-1.5 text-left text-sm font-semibold text-muted-foreground">Hilo</TableHead>
-                        <TableHead class="w-24 px-4 py-3 text-left text-sm font-semibold text-muted-foreground">Cant.</TableHead>
+                        <TableHead class="w-24 px-4 py-3 text-left text-sm font-semibold text-muted-foreground">
+                            Cant.
+                            <span class="block text-xs font-normal text-muted-foreground/70">por lado</span>
+                        </TableHead>
                         <TableHead class="min-w-[200px] px-4 py-1.5 text-left text-sm font-semibold text-muted-foreground">Notas</TableHead>
                         <TableHead v-if="!readonly" class="w-16 px-4 py-1.5 text-center text-sm font-semibold text-muted-foreground"
                             >Acción</TableHead
@@ -197,88 +223,73 @@ const updateData = () => {
 
                         <TableCell class="px-4 py-1.5">
                             <span v-if="readonly" class="text-foreground">{{ piece.piece_type }}</span>
-                            <Select
+                            <SelectField
                                 v-else
+                                :options="pieceTypeOptions"
                                 :model-value="piece.piece_type"
-                                @update:model-value="
-                                    (v) => {
-                                        piece.piece_type = v as any;
-                                        updateData();
-                                    }
-                                "
-                            >
-                                <SelectTrigger class="h-9 w-full bg-background">
-                                    <SelectValue placeholder="Tipo" />
-                                </SelectTrigger>
-                                <SelectContent class="z-[99999]">
-                                    <SelectGroup>
-                                        <SelectItem v-for="opt in pieceTypeOptions" :key="opt" :value="opt">{{ opt }}</SelectItem>
-                                    </SelectGroup>
-                                </SelectContent>
-                            </Select>
+                                placeholder="Tipo"
+                                :show-placeholder-option="false"
+                                button-class="h-9"
+                                @update:model-value="(v) => { piece.piece_type = v as CuttingPiece['piece_type']; updateData(); }"
+                            />
                         </TableCell>
 
                         <TableCell class="px-4 py-1.5">
-                            <span v-if="readonly" class="text-foreground">{{ piece.side }}</span>
-                            <Select
+                            <span v-if="readonly" class="text-foreground">{{ sideLabel(piece.side) }}</span>
+                            <SelectField
                                 v-else
+                                :options="sideOptions"
                                 :model-value="piece.side"
-                                @update:model-value="
-                                    (v) => {
-                                        piece.side = v as any;
-                                        updateData();
-                                    }
-                                "
-                            >
-                                <SelectTrigger class="h-9 w-full bg-background">
-                                    <SelectValue placeholder="Lado" />
-                                </SelectTrigger>
-                                <SelectContent class="z-[99999]">
-                                    <SelectGroup>
-                                        <SelectItem v-for="opt in sideOptions" :key="opt" :value="opt">{{ opt }}</SelectItem>
-                                    </SelectGroup>
-                                </SelectContent>
-                            </Select>
+                                placeholder="Lado"
+                                :show-placeholder-option="false"
+                                button-class="h-9"
+                                @update:model-value="(v) => { piece.side = v as CuttingPiece['side']; updateData(); }"
+                            />
                         </TableCell>
 
                         <TableCell class="px-4 py-1.5">
                             <span v-if="readonly" class="text-foreground">{{ piece.grain }}</span>
-                            <Select
+                            <SelectField
                                 v-else
+                                :options="grainOptions"
                                 :model-value="piece.grain"
-                                @update:model-value="
-                                    (v) => {
-                                        piece.grain = v as any;
-                                        updateData();
-                                    }
-                                "
-                            >
-                                <SelectTrigger class="h-9 w-full bg-background">
-                                    <SelectValue placeholder="Hilo" />
-                                </SelectTrigger>
-                                <SelectContent class="z-[99999]">
-                                    <SelectGroup>
-                                        <SelectItem v-for="opt in grainOptions" :key="opt" :value="opt">{{ opt }}</SelectItem>
-                                    </SelectGroup>
-                                </SelectContent>
-                            </Select>
+                                placeholder="Hilo"
+                                :show-placeholder-option="false"
+                                button-class="h-9"
+                                @update:model-value="(v) => { piece.grain = v as CuttingPiece['grain']; updateData(); }"
+                            />
                         </TableCell>
 
                         <TableCell class="px-4 py-1.5">
-                            <span v-if="readonly" class="block text-center text-foreground">{{ piece.quantity }}</span>
-                            <Input
-                                v-else
-                                :model-value="piece.quantity"
-                                @update:model-value="
-                                    (v) => {
-                                        piece.quantity = Number(v) || 0;
-                                        updateData();
-                                    }
-                                "
-                                type="number"
-                                min="1"
-                                class="h-9 w-full bg-background text-center"
-                            />
+                            <!-- Modo lectura -->
+                            <div v-if="readonly" class="flex flex-col items-center gap-0.5">
+                                <span class="text-foreground">{{ piece.quantity }}</span>
+                                <span v-if="piece.side === 'IZQ/DER'" class="text-[10px] font-semibold text-primary">
+                                    = {{ effectivePieces(piece) }} piezas
+                                </span>
+                            </div>
+                            <!-- Modo edición -->
+                            <div v-else class="flex flex-col gap-1">
+                                <Input
+                                    :model-value="piece.quantity"
+                                    @update:model-value="
+                                        (v) => {
+                                            piece.quantity = Number(v) || 1;
+                                            updateData();
+                                        }
+                                    "
+                                    type="number"
+                                    min="1"
+                                    class="h-9 w-full bg-background text-center"
+                                />
+                                <span
+                                    v-if="piece.side === 'IZQ/DER'"
+                                    class="text-center text-[10px] font-semibold leading-none text-primary"
+                                >
+                                    = {{ effectivePieces(piece) }} piezas
+                                    <span class="block font-normal text-muted-foreground">({{ piece.quantity }} izq + {{ piece.quantity }} der)</span>
+                                </span>
+                            </div>
                         </TableCell>
 
                         <TableCell class="px-4 py-1.5">

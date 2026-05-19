@@ -91,11 +91,6 @@ class ProductOperationListService
             throw new \InvalidArgumentException('La operación seleccionada no existe.');
         }
 
-        // Asignar operation_section_id desde la operación si no viene en el payload
-        if (empty($data['operation_section_id'])) {
-            $data['operation_section_id'] = $operation->section_id ?? $currentItem?->operation_section_id ?? null;
-        }
-
         // La máquina es siempre la de la operación; no se permite override a nivel de listado.
         $baseMachineId = (int) ($operation->machine_id_reference ?? 0);
         $baseSam = (float) ($operation->sam_base ?? 0);
@@ -125,18 +120,12 @@ class ProductOperationListService
             throw new \InvalidArgumentException('La sábana seleccionada no existe.');
         }
 
-        $quantity = (int) ($operation->quantity ?? 1);
-        if ($quantity <= 0) {
-            $quantity = 1;
-        }
-
         $data['sam_base'] = $samBase;
         $data['optimal_time'] = (float) ($data['optimal_time'] ?? $samBase);
         $data['sam'] = $data['optimal_time'];
         $data['operator_efficiency_factor'] = $operatorEfficiencyFactor;
         $data['machine_supplement_factor'] = $machineSupplementFactor;
         $data['fabric_base_factor'] = $this->resolveFabricBaseFactor($sheet->fabric_base_id);
-        $data['quantity'] = $quantity;
     }
 
     /**
@@ -309,13 +298,13 @@ class ProductOperationListService
             $data['sequence'] = $sequence;
 
             $samBase = (float) ($data['sam_base'] ?? $data['optimal_time'] ?? 0);
-            $quantity = (int) ($data['quantity'] ?? 1);
 
             $data['sam_total_unitario'] = round(
                 $samBase * $data['machine_supplement_factor'] * $data['fabric_base_factor'] * $data['operator_efficiency_factor'],
                 4
             );
-            $data['sam_total_operacion'] = round($data['sam_total_unitario'] * $quantity, 4);
+            // quantity es solo informativo, no multiplica el SAM
+            $data['sam_total_operacion'] = $data['sam_total_unitario'];
 
             $data['production_time'] = $this->calculateProductionTime(
                 (float) ($data['optimal_time'] ?? $samBase),
@@ -375,13 +364,13 @@ class ProductOperationListService
                 $data['sequence'] = $sequence;
 
                 $samBase = (float) ($data['sam_base'] ?? $data['optimal_time'] ?? 0);
-                $quantity = (int) ($data['quantity'] ?? 1);
 
                 $data['sam_total_unitario'] = round(
                     $samBase * $data['machine_supplement_factor'] * $data['fabric_base_factor'] * $data['operator_efficiency_factor'],
                     4
                 );
-                $data['sam_total_operacion'] = round($data['sam_total_unitario'] * $quantity, 4);
+                // quantity es solo informativo, no multiplica el SAM
+                $data['sam_total_operacion'] = $data['sam_total_unitario'];
 
                 $data['production_time'] = $this->calculateProductionTime(
                     (float) ($data['optimal_time'] ?? $samBase),

@@ -14,6 +14,7 @@ use App\Models\Production\ProductionRollConsumption;
 use App\Models\Production\TechnicalSheetSupply;
 use App\Models\Production\TechnicalSheet;
 use App\Models\Production\TechnicalSheetOperation;
+use App\Models\Production\TechnicalSheetOperationHistory;
 use App\Models\Textil\FabricRoll;
 use App\Services\Inventory\InventoryMovementService;
 use App\Services\Production\FinishedProductCatalogItemService;
@@ -1413,6 +1414,31 @@ class BatchControlController extends Controller
                 ['status' => TechnicalSheet::STATUS_DRAFT],
             );
 
+            $existingOperations = TechnicalSheetOperation::where('technical_sheet_id', $technicalSheet->id)->get();
+
+            foreach ($existingOperations as $existing) {
+                TechnicalSheetOperationHistory::create([
+                    'technical_sheet_id' => (int) $technicalSheet->id,
+                    'technical_sheet_operation_id' => (int) $existing->id,
+                    'event_type' => 'DELETED_BY_SYNC',
+                    'changed_by_user_id' => auth()->id(),
+                    'reason' => 'Sincronización manual de operaciones en ficha técnica.',
+                    'before_sequence' => $existing->sequence,
+                    'before_operation_id' => $existing->operation_id,
+                    'before_machine_id' => $existing->machine_id,
+                    'before_quantity' => $existing->quantity,
+                    'before_sam_base' => $existing->sam_base,
+                    'before_machine_supplement_factor' => $existing->machine_supplement_factor,
+                    'before_fabric_base_factor' => $existing->fabric_base_factor,
+                    'before_operator_efficiency_factor' => $existing->operator_efficiency_factor,
+                    'before_sam_total_unitario' => $existing->sam_total_unitario,
+                    'before_sam_total_operacion' => $existing->sam_total_operacion,
+                    'before_sam_total_lote' => $existing->sam_total_lote,
+                    'before_quantity_progressed' => $existing->quantity_progressed,
+                    'before_status' => (string) ($existing->status?->value ?? $existing->status ?? ''),
+                ]);
+            }
+
             TechnicalSheetOperation::where('technical_sheet_id', $technicalSheet->id)->forceDelete();
 
             foreach ($validated['operations'] as $op) {
@@ -1426,7 +1452,7 @@ class BatchControlController extends Controller
                 $samTotalOperacion = round($samTotalUnitario * $quantity, 4);
                 $samTotalLote      = round($samTotalOperacion * $quantityLote, 4);
 
-                TechnicalSheetOperation::create([
+                $created = TechnicalSheetOperation::create([
                     'technical_sheet_id'         => $technicalSheet->id,
                     'product_sheet_operation_id' => null,
                     'sequence'                   => $op['sequence'],
@@ -1442,6 +1468,27 @@ class BatchControlController extends Controller
                     'sam_total_lote'             => $samTotalLote,
                     'quantity_progressed'        => 0,
                     'status'                     => EstatusOperacionOrden::PENDIENTE,
+                ]);
+
+                TechnicalSheetOperationHistory::create([
+                    'technical_sheet_id' => (int) $technicalSheet->id,
+                    'technical_sheet_operation_id' => (int) $created->id,
+                    'event_type' => 'CREATED_BY_SYNC',
+                    'changed_by_user_id' => auth()->id(),
+                    'reason' => 'Sincronización manual de operaciones en ficha técnica.',
+                    'after_sequence' => $created->sequence,
+                    'after_operation_id' => $created->operation_id,
+                    'after_machine_id' => $created->machine_id,
+                    'after_quantity' => $created->quantity,
+                    'after_sam_base' => $created->sam_base,
+                    'after_machine_supplement_factor' => $created->machine_supplement_factor,
+                    'after_fabric_base_factor' => $created->fabric_base_factor,
+                    'after_operator_efficiency_factor' => $created->operator_efficiency_factor,
+                    'after_sam_total_unitario' => $created->sam_total_unitario,
+                    'after_sam_total_operacion' => $created->sam_total_operacion,
+                    'after_sam_total_lote' => $created->sam_total_lote,
+                    'after_quantity_progressed' => $created->quantity_progressed,
+                    'after_status' => (string) ($created->status?->value ?? $created->status ?? ''),
                 ]);
             }
         });

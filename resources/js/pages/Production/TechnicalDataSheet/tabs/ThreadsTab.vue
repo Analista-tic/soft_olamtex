@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import AlertStack from '@/components/common/AlertStack.vue';
 import SelectField from '@/components/SelectField.vue';
+import { useGlobalAlert } from '@/composables/useGlobalAlert';
 import Button from '@/components/ui/button/Button.vue';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -42,7 +44,6 @@ const isLoading = ref(false);
 const isSaving = ref(false);
 const isLoadingParameterOptions = ref(false);
 const error = ref<string | null>(null);
-const saveMessage = ref<string | null>(null);
 const rows = ref<LocalThreadRow[]>([]);
 const hiddenLines = ref<ThreadLine[]>([]);
 const snapshot = ref('');
@@ -52,6 +53,7 @@ const brandOptions = ref<Option[]>([]);
 const stitchesPerInchOptions = ref<Option[]>([]);
 const fabricTypeOptions = ref<Option[]>([]);
 const principalColors = ref<PrincipalColor[]>([]);
+const { successMessage, errorMessage, errorType, success, error: showError, clear } = useGlobalAlert();
 
 function generateUid(): string {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -375,7 +377,6 @@ async function loadThreadParameterOptions(): Promise<void> {
 async function loadThreads(): Promise<void> {
     isLoading.value = true;
     error.value = null;
-    saveMessage.value = null;
 
     try {
         await loadThreadParameterOptions();
@@ -409,8 +410,6 @@ async function handleSave(): Promise<void> {
     if (!canSave.value) return;
 
     isSaving.value = true;
-    error.value = null;
-    saveMessage.value = null;
 
     try {
         const state: ThreadState = await saveOpThreads(props.opId, {
@@ -418,10 +417,10 @@ async function handleSave(): Promise<void> {
             deletedIds: [],
         });
         applyRows(Array.isArray(state.lines) ? state.lines : [], principalColors.value, true);
-        saveMessage.value = 'Hilos guardados.';
+        success('Hilos guardados correctamente.');
     } catch (err) {
         console.error('Error al guardar hilos:', err);
-        error.value = 'No se pudieron guardar los hilos.';
+        showError('No se pudieron guardar los hilos.');
     } finally {
         isSaving.value = false;
     }
@@ -458,6 +457,14 @@ onBeforeUnmount(() => {
 
 <template>
     <div class="space-y-2">
+        <AlertStack
+            :success-message="successMessage"
+            :error-message="errorMessage"
+            :error-type="errorType"
+            @close-success="clear"
+            @close-error="clear"
+        />
+
         <div class="flex flex-col gap-1 p-1">
             <h2 class="text-base font-semibold text-foreground">Hilos</h2>
             <p class="text-xs text-muted-foreground">
@@ -578,8 +585,6 @@ onBeforeUnmount(() => {
                         {{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
                     </Button>
                 </div>
-
-                <p v-if="saveMessage" class="text-sm text-emerald-700">{{ saveMessage }}</p>
             </div>
         </template>
 
