@@ -6,13 +6,13 @@ use App\Models\Finance\Tax;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Inventory\InventoryAdjustmentLine;
-use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\Warehouse;
 use App\Models\Inventory\WarehouseItem;
 use App\Models\MasterData\CategorySubGroup;
 use App\Models\MasterData\Color;
 use App\Models\MasterData\Item;
 use App\Models\Settings\Setting;
+use App\Services\Inventory\InventoryMovementService;
 use App\Support\TextNormalizer;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
@@ -26,7 +26,10 @@ class ItemService
     protected array $additionalFieldNameMap = [];
     protected array $unitMeasureNameMap = [];
 
-    public function __construct(protected AdditionalFieldService $fieldService) {}
+    public function __construct(
+        protected AdditionalFieldService $fieldService,
+        protected InventoryMovementService $inventoryMovementService
+    ) {}
 
     public function paginate(array $filters, int $perPage = 10): LengthAwarePaginator
     {
@@ -789,7 +792,20 @@ class ItemService
         $quantity = $this->parseDecimalValue($this->getRowValueFromAlternatives($normalizedRow, ['CANTIDAD', 'TOTAL CANTIDAD'], 0));
         $stockMin = $this->parseDecimalValue($this->getRowValueFromAlternatives($normalizedRow, ['CANTIDAD MIN', 'CANTIDAD MINIMA'], 0));
         $stockMax = $this->parseDecimalValue($this->getRowValueFromAlternatives($normalizedRow, ['CANTIDAD MAX', 'CANTIDAD MAXIMA'], 0));
-        $unitPrice = $this->parseDecimalOrNull($this->getRowValueFromAlternatives($normalizedRow, ['PRECIO'], null));
+        $unitPrice = $this->parseDecimalOrNull($this->getRowValueFromAlternatives(
+            $normalizedRow,
+            [
+                'PRECIO',
+                'PRECIO UNITARIO',
+                'PRECIO INICIAL',
+                'PRECIO UNITARIO INICIAL',
+                'COSTO UNITARIO',
+                'COSTO UNITARIO INICIAL',
+                'UNIT PRICE',
+                'UNIT COST',
+            ],
+            null
+        ));
 
         return [[
             'warehouse_id' => $warehouseId,
@@ -1287,18 +1303,24 @@ class ItemService
                     ? (float) $warehouse['unit_price']
                     : null;
 
+                if ($quantity > 0 && ($unitPrice === null || $unitPrice <= 0)) {
+                    throw new \InvalidArgumentException(
+                        "Fila {$rowNum}: El saldo inicial requiere costo unitario mayor a 0 para la bodega #{$warehouse['warehouse_id']}."
+                    );
+                }
+
                 WarehouseItem::updateOrCreate(
                     [
                         'item_id' => $item->id,
                         'warehouse_id' => $warehouse['warehouse_id'],
                     ],
                     [
-                        'quantity' => $quantity,
+                        'quantity' => 0,
                         'stock_min' => $warehouse['stock_min'] ?? 0,
                         'stock_max' => $warehouse['stock_max'] ?? 0,
-                        'weighted_average_price' => $quantity > 0 && $unitPrice !== null ? $unitPrice : null,
+                        'weighted_average_price' => null,
                         'last_unit_cost' => $unitPrice,
-                        'total_cost' => round($quantity * (float) ($unitPrice ?? 0), 4),
+                        'total_cost' => 0,
                         'source_type' => 'item_excel_import',
                         'source_reference' => $importBatchId,
                     ]
@@ -1308,25 +1330,23 @@ class ItemService
                     continue;
                 }
 
-                InventoryMovement::create([
-                    'document_number' => mb_substr("BI-{$importBatchId}-{$rowNum}-{$index}", 0, 50),
+                $this->inventoryMovementService->createInitialBalanceMovement([
                     'item_id' => $item->id,
                     'warehouse_id' => $warehouse['warehouse_id'],
-                    'source_type' => 'item_excel_import',
-                    'source_id' => null,
-                    'source_reference' => $importBatchId,
-                    'type' => 'entrada',
-                    'date' => now()->toDateString(),
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
-                    'total_cost' => $unitPrice !== null ? round($quantity * $unitPrice, 4) : null,
-                    'previous_stock' => 0,
-                    'previous_weighted_price' => 0,
-                    'new_stock' => $quantity,
-                    'new_weighted_price' => $unitPrice ?? 0,
+                    'date' => now()->toDateString(),
+                    'source_reference' => $importBatchId,
                     'notes' => 'Saldo inicial importado desde plantilla de items',
-                    'created_by_user_id' => null,
                 ]);
+
+                // Reaplicar límites de stock después del movimiento para conservar valores de importación.
+                WarehouseItem::where('item_id', $item->id)
+                    ->where('warehouse_id', $warehouse['warehouse_id'])
+                    ->update([
+                        'stock_min' => $warehouse['stock_min'] ?? 0,
+                        'stock_max' => $warehouse['stock_max'] ?? 0,
+                    ]);
             }
 
             return $item;

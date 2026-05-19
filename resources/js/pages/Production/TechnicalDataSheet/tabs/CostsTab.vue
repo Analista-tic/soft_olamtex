@@ -31,6 +31,7 @@ type CostVisualCard = {
     value: string;
     cardClass: string;
     headline: string;
+    percentagePill?: PercentagePill | null;
 };
 
 type PercentagePill = {
@@ -103,7 +104,7 @@ const costVisualCards = computed<CostVisualCard[]>(() => {
             label: 'Costo materia prima',
             value: formatCOP(summary.value.costs.rawMaterial),
             cardClass: 'bg-card',
-            headline: 'Valor ponderado de telas (COP/m)',
+            headline: 'Costo por prenda (prom. trazo + 3 cm)',
         },
         {
             key: 'supplies',
@@ -125,6 +126,16 @@ const costVisualCards = computed<CostVisualCard[]>(() => {
             value: formatCOP(summary.value.costs.total),
             cardClass: 'bg-blue-50 ring-blue-200',
             headline: 'Consolidado total por prenda',
+            percentagePill: (() => {
+                const inv = summary.value?.prices.invoicing;
+                if (!inv || inv <= 0) return null;
+                const pct = (summary.value.costs.total / inv) * 100;
+                return {
+                    text: `${pct.toFixed(2)}% de facturación`,
+                    className: 'border-blue-200 bg-blue-100 text-blue-700',
+                    direction: 'neutral' as const,
+                };
+            })(),
         },
     ];
 });
@@ -179,11 +190,19 @@ const profitabilityCards = computed<ProfitabilityCard[]>(() => {
         },
         {
             key: 'rentability',
-            label: 'Rentabilidad',
+            label: 'Rentabilidad operativa',
             value: hasRentabilityData.value ? formatCOP(summary.value.profitability.olamtex.value) : NO_DATA,
             tooltipText: 'Rentabilidad = Precio facturación − Costo total',
             cardClass: rentCardClass,
             percentagePill: rentPill,
+        },
+        {
+            key: 'margen-comercial',
+            label: 'Margen comercial (s/IVA)',
+            value: summary.value.profitability.client.value != null ? formatCOP(summary.value.profitability.client.value) : NO_DATA,
+            tooltipText: 'Margen = (Precio venta s/IVA − Precio facturación) / Precio venta s/IVA',
+            cardClass: 'bg-card',
+            percentagePill: buildPercentagePill(summary.value.profitability.client.percent),
         },
     ];
 });
@@ -252,6 +271,13 @@ watch(
                     >
                         <div class="flex items-start justify-between gap-3">
                             <p class="text-xs font-medium text-muted-foreground">{{ card.label }}</p>
+                            <span
+                                v-if="card.percentagePill"
+                                :class="['inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium', card.percentagePill.className]"
+                            >
+                                <Minus class="h-3 w-3" />
+                                {{ card.percentagePill.text }}
+                            </span>
                         </div>
                         <p class="mt-2 text-4xl font-semibold leading-tight tracking-tight text-foreground">{{ card.value }}</p>
                         <p class="mt-4 text-base font-semibold leading-tight text-foreground">{{ card.headline }}</p>
@@ -261,33 +287,102 @@ watch(
 
             <section class="space-y-2">
                 <p class="text-sm font-semibold text-foreground">Rentabilidad</p>
-                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <!-- Tarjeta Costo Fijo -->
                     <article
-                        v-for="card in profitabilityCards"
-                        :key="card.key"
-                        :class="['rounded-xl p-4 ring-1 ring-border/70 transition-colors', card.cardClass]"
+                        v-if="profitabilityCards[0]"
+                        :key="profitabilityCards[0].key"
+                        :class="['rounded-xl p-4 ring-1 ring-border/70 transition-colors', profitabilityCards[0].cardClass]"
                     >
                         <div class="flex items-start justify-between gap-3">
                             <div class="flex items-center gap-1.5">
-                                <p class="text-xs font-medium text-muted-foreground">{{ card.label }}</p>
-                                <HelpTooltip v-if="card.tooltipText" :text="card.tooltipText" :aria-label="`Ayuda sobre ${card.label}`" />
+                                <p class="text-xs font-medium text-muted-foreground">{{ profitabilityCards[0].label }}</p>
+                                <HelpTooltip v-if="profitabilityCards[0].tooltipText" :text="profitabilityCards[0].tooltipText" :aria-label="`Ayuda sobre ${profitabilityCards[0].label}`" />
                             </div>
                             <div class="flex items-center gap-2">
                                 <span
-                                    v-if="card.percentagePill"
+                                    v-if="profitabilityCards[0].percentagePill"
                                     :class="[
                                         'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium',
-                                        card.percentagePill.className,
+                                        profitabilityCards[0].percentagePill.className,
                                     ]"
                                 >
-                                    <TrendingUp v-if="card.percentagePill.direction === 'up'" class="h-3.5 w-3.5" />
-                                    <TrendingDown v-else-if="card.percentagePill.direction === 'down'" class="h-3.5 w-3.5" />
+                                    <TrendingUp v-if="profitabilityCards[0].percentagePill.direction === 'up'" class="h-3.5 w-3.5" />
+                                    <TrendingDown v-else-if="profitabilityCards[0].percentagePill.direction === 'down'" class="h-3.5 w-3.5" />
                                     <Minus v-else class="h-3.5 w-3.5" />
-                                    {{ card.percentagePill.text }}
+                                    {{ profitabilityCards[0].percentagePill.text }}
                                 </span>
                             </div>
                         </div>
-                        <p class="mt-2 text-4xl font-semibold leading-tight tracking-tight text-foreground">{{ card.value }}</p>
+                        <p class="mt-2 text-4xl font-semibold leading-tight tracking-tight text-foreground">{{ profitabilityCards[0].value }}</p>
+                    </article>
+
+                    <!-- Tarjeta Rentabilidad (CON PORCENTAJE MÁS VISIBLE) -->
+                    <article
+                        v-if="profitabilityCards[1]"
+                        :key="profitabilityCards[1].key"
+                        :class="['rounded-xl p-4 ring-1 ring-border/70 transition-colors', profitabilityCards[1].cardClass]"
+                    >
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="flex items-center gap-1.5">
+                                <p class="text-xs font-medium text-muted-foreground">{{ profitabilityCards[1].label }}</p>
+                                <HelpTooltip v-if="profitabilityCards[1].tooltipText" :text="profitabilityCards[1].tooltipText" :aria-label="`Ayuda sobre ${profitabilityCards[1].label}`" />
+                            </div>
+                        </div>
+                        <div class="mt-3 flex items-center justify-between gap-2">
+                            <div class="flex flex-col">
+                                <p class="text-xs text-muted-foreground mb-1">Valor</p>
+                                <p class="text-3xl font-semibold leading-tight tracking-tight text-foreground">{{ profitabilityCards[1].value }}</p>
+                            </div>
+                            <div v-if="profitabilityCards[1].percentagePill" class="flex flex-col items-end">
+                                <p class="text-xs text-muted-foreground mb-1">Porcentaje</p>
+                                <span
+                                    :class="[
+                                        'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-lg font-bold',
+                                        profitabilityCards[1].percentagePill.className,
+                                    ]"
+                                >
+                                    <TrendingUp v-if="profitabilityCards[1].percentagePill.direction === 'up'" class="h-5 w-5" />
+                                    <TrendingDown v-else-if="profitabilityCards[1].percentagePill.direction === 'down'" class="h-5 w-5" />
+                                    <Minus v-else class="h-5 w-5" />
+                                    {{ profitabilityCards[1].percentagePill.text }}
+                                </span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <!-- Tarjeta Margen Comercial -->
+                    <article
+                        v-if="profitabilityCards[2]"
+                        :key="profitabilityCards[2].key"
+                        :class="['rounded-xl p-4 ring-1 ring-border/70 transition-colors', profitabilityCards[2].cardClass]"
+                    >
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="flex items-center gap-1.5">
+                                <p class="text-xs font-medium text-muted-foreground">{{ profitabilityCards[2].label }}</p>
+                                <HelpTooltip v-if="profitabilityCards[2].tooltipText" :text="profitabilityCards[2].tooltipText" :aria-label="`Ayuda sobre ${profitabilityCards[2].label}`" />
+                            </div>
+                        </div>
+                        <div class="mt-3 flex items-center justify-between gap-2">
+                            <div class="flex flex-col">
+                                <p class="text-xs text-muted-foreground mb-1">Valor</p>
+                                <p class="text-3xl font-semibold leading-tight tracking-tight text-foreground">{{ profitabilityCards[2].value }}</p>
+                            </div>
+                            <div v-if="profitabilityCards[2].percentagePill" class="flex flex-col items-end">
+                                <p class="text-xs text-muted-foreground mb-1">Porcentaje</p>
+                                <span
+                                    :class="[
+                                        'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-lg font-bold',
+                                        profitabilityCards[2].percentagePill.className,
+                                    ]"
+                                >
+                                    <TrendingUp v-if="profitabilityCards[2].percentagePill.direction === 'up'" class="h-5 w-5" />
+                                    <TrendingDown v-else-if="profitabilityCards[2].percentagePill.direction === 'down'" class="h-5 w-5" />
+                                    <Minus v-else class="h-5 w-5" />
+                                    {{ profitabilityCards[2].percentagePill.text }}
+                                </span>
+                            </div>
+                        </div>
                     </article>
                 </div>
             </section>

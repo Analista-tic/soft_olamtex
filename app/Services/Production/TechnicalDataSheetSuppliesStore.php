@@ -2,9 +2,13 @@
 
 namespace App\Services\Production;
 
+use App\Enums\PurchaseRequestStatus;
+use App\Models\Expenses\PurchaseRequest;
+use App\Models\Inventory\InventoryRequest;
 use App\Models\Production\TechnicalSheetSupply;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Persiste insumos de ficha técnica en la tabla relacional
@@ -47,14 +51,22 @@ class TechnicalDataSheetSuppliesStore
                 ->filter(fn (string $uid) => $uid !== '')
                 ->all();
 
-            // Eliminar (soft-delete) los que ya no están en la lista
-            TechnicalSheetSupply::query()
+            $recordsToDeleteQuery = TechnicalSheetSupply::query()
                 ->where('production_order_id', $opId)
                 ->when(
                     count($incomingUids) > 0,
                     fn ($q) => $q->whereNotIn('uid', $incomingUids)
-                )
-                ->delete();
+                );
+
+            /** @var \Illuminate\Support\Collection<int, TechnicalSheetSupply> $recordsToDelete */
+            $recordsToDelete = (clone $recordsToDeleteQuery)->get();
+
+            foreach ($recordsToDelete as $record) {
+                $this->deleteLinkedRequestsForSupply($record);
+            }
+
+            // Eliminar (soft-delete) los que ya no están en la lista
+            $recordsToDeleteQuery->delete();
 
             foreach ($items as $index => $item) {
                 $this->persistOne($opId, $item, $index);
@@ -83,10 +95,54 @@ class TechnicalDataSheetSuppliesStore
      */
     public function deleteOne(int $opId, string $uid): void
     {
-        TechnicalSheetSupply::query()
+        $record = TechnicalSheetSupply::query()
             ->where('production_order_id', $opId)
             ->where('uid', trim($uid))
-            ->delete();
+            ->first();
+
+        if (!$record) {
+            return;
+        }
+
+        $this->deleteLinkedRequestsForSupply($record);
+
+        $record->delete();
+    }
+
+    private function deleteLinkedRequestsForSupply(TechnicalSheetSupply $record): void
+    {
+        if ($record->purchase_request_id !== null) {
+            $purchaseRequest = PurchaseRequest::query()->find($record->purchase_request_id);
+
+            if ($purchaseRequest !== null) {
+                $status = $purchaseRequest->status instanceof PurchaseRequestStatus
+                    ? $purchaseRequest->status
+                    : PurchaseRequestStatus::tryFrom((string) $purchaseRequest->status);
+
+                if ($status !== PurchaseRequestStatus::DRAFT) {
+                    throw ValidationException::withMessages([
+                        'items' => ['Solo puedes eliminar solicitudes de compra en estado borrador al desvincular el insumo.'],
+                    ]);
+                }
+
+                $purchaseRequest->delete();
+            }
+        }
+
+        if ($record->internal_request_id !== null) {
+            $inventoryRequest = InventoryRequest::query()->find($record->internal_request_id);
+
+            if ($inventoryRequest !== null) {
+                if ($inventoryRequest->status !== InventoryRequest::STATUS_REQUESTED) {
+                    throw ValidationException::withMessages([
+                        'items' => ['Solo puedes eliminar solicitudes internas en estado solicitado al desvincular el insumo.'],
+                    ]);
+                }
+
+                $inventoryRequest->items()->delete();
+                $inventoryRequest->delete();
+            }
+        }
     }
 
     // ── Accesos adicionales usados por el controlador ────────────────

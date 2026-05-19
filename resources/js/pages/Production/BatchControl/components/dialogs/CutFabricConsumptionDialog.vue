@@ -264,7 +264,7 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
             </div>
 
             <!-- ══ CUERPO ══════════════════════════════════════════════════ -->
-            <div class="flex-1 overflow-y-auto bg-muted/20">
+            <div class="flex-1 overflow-y-auto overflow-x-hidden bg-muted/20">
 
                 <!-- Resumen de consumo por referencia -->
                 <div class="px-5 pt-4 pb-3">
@@ -385,24 +385,8 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
                             </div>
 
                             <!-- Tabla de rollos -->
-                            <div v-if="!collapsedTrazos.has(group.uid)">
-                                <Table class="w-full table-fixed">
-                                    <colgroup>
-                                        <col class="w-[7%]" />   <!-- Rollo -->
-                                        <col class="w-[12%]" />  <!-- Tela -->
-                                        <col class="w-[9%]" />   <!-- Color -->
-                                        <col class="w-[7%]" />   <!-- Ubicación -->
-                                        <col class="w-[6%]" />   <!-- Ancho -->
-                                        <col class="w-[7%]" />   <!-- Total Metros -->
-                                        <col class="w-[7%]" />   <!-- Metros a Usar -->
-                                        <col class="w-[7%]" />   <!-- Capa Principal -->
-                                        <col class="w-[7%]" />   <!-- Capa Liquidación -->
-                                        <col class="w-[7%]" />   <!-- Capa Espiga -->
-                                        <col class="w-[6%]" />   <!-- Último Descargue -->
-                                        <col class="w-[6%]" />   <!-- Retazo -->
-                                        <col class="w-[8%]" />   <!-- Consumo Total -->
-                                        <col class="w-[8%]" />   <!-- Faltante -->
-                                    </colgroup>
+                            <div v-if="!collapsedTrazos.has(group.uid)" class="overflow-x-auto">
+                                <Table class="w-full min-w-[900px]">
                                     <TableHeader>
                                         <TableRow class="text-xs bg-muted/20 hover:bg-muted/20">
                                             <TableHead class="py-2 pl-4 text-center border-r">Rollo</TableHead>
@@ -452,24 +436,24 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
                                                 <span :class="inputRo">{{ line.meters_per_roll ?? '—' }}</span>
                                             </TableCell>
                                             <TableCell class="py-1.5 text-center">
-                                                <input v-if="!viewOnly" type="number" min="0" step="1"
+                                                <input v-if="!viewOnly" type="number" min="0" step="0.01"
                                                     :value="line.layers_fabric ?? ''"
                                                     :class="inputBase"
-                                                    @input="setField(globalIndex(line), 'layers_fabric', ($event.target as HTMLInputElement).value, toNonNegInt)" />
+                                                    @input="setField(globalIndex(line), 'layers_fabric', ($event.target as HTMLInputElement).value, toNonNeg)" />
                                                 <span v-else :class="inputRo">{{ line.layers_fabric ?? '—' }}</span>
                                             </TableCell>
                                             <TableCell class="py-1.5 text-center">
-                                                <input v-if="!viewOnly" type="number" min="0" step="1"
+                                                <input v-if="!viewOnly" type="number" min="0" step="0.01"
                                                     :value="line.layers_liquidation ?? ''"
                                                     :class="inputBase"
-                                                    @input="setField(globalIndex(line), 'layers_liquidation', ($event.target as HTMLInputElement).value, toNonNegInt)" />
+                                                    @input="setField(globalIndex(line), 'layers_liquidation', ($event.target as HTMLInputElement).value, toNonNeg)" />
                                                 <span v-else :class="inputRo">{{ line.layers_liquidation ?? '—' }}</span>
                                             </TableCell>
                                             <TableCell class="py-1.5 text-center">
-                                                <input v-if="!viewOnly" type="number" min="0" step="1"
+                                                <input v-if="!viewOnly" type="number" min="0" step="0.01"
                                                     :value="line.layers_herringbone ?? ''"
                                                     :class="inputBase"
-                                                    @input="setField(globalIndex(line), 'layers_herringbone', ($event.target as HTMLInputElement).value, toNonNegInt)" />
+                                                    @input="setField(globalIndex(line), 'layers_herringbone', ($event.target as HTMLInputElement).value, toNonNeg)" />
                                                 <span v-else :class="inputRo">{{ line.layers_herringbone ?? '—' }}</span>
                                             </TableCell>
                                             <TableCell class="py-1.5 text-center">
@@ -547,11 +531,7 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
                                 <TableRow v-for="cr in curveRows" :key="cr" class="text-xs">
                                     <TableCell class="py-1.5 pl-4 font-medium text-muted-foreground">{{ CURVE_LABELS[cr] }}</TableCell>
                                     <TableCell v-for="s in CUT_SIZES" :key="s" class="p-1 text-center">
-                                        <input v-if="!viewOnly" type="number" min="0" step="1"
-                                            :value="curves[cr][s] ?? ''"
-                                            :class="inputBase + ' w-16'"
-                                            @input="updateCurve(cr, s, ($event.target as HTMLInputElement).value)" />
-                                        <span v-else :class="inputRo + ' inline-flex w-16 items-center justify-center'">{{ curves[cr][s] ?? '—' }}</span>
+                                        <span :class="inputRo + ' inline-flex w-16 items-center justify-center'">{{ curves[cr][s] ?? '—' }}</span>
                                     </TableCell>
                                 </TableRow>
                             </TableBody>

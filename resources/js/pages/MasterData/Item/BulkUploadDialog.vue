@@ -29,6 +29,7 @@ const recommendations = [
     'Puedes importar hasta 3.000 artículos por archivo y repetir el proceso cuando lo necesites.',
     'Incluye los campos "Grupo" y "Subgrupo" para mantener el registro completo.',
     'Define stock en Excel agregando las columnas "Cantidad", "Cantidad Min" y "Cantidad Max".',
+    'Para saldos iniciales de migración (Cantidad > 0), incluye también "Costo Unitario Inicial" (o "Precio Unitario Inicial") mayor a 0.',
 ];
 
 const selectedFileLabel = computed(() => bulkUploadFile.value?.name ?? 'Ningún archivo seleccionado');

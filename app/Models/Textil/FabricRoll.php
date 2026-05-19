@@ -15,6 +15,10 @@ class FabricRoll extends Model
     public const APPROVAL_PENDING = 'pending_approval';
     public const APPROVAL_NOT_APPROVED = 'not_approved';
 
+    /**
+     * price_per_meter persiste desde el precio unitario de PurchaseDocumentItem.
+     * Se puede actualizar después también para rollos sin compra vinculada.
+     */
     protected $fillable = [
         'legacy_id',
         'roll_number',

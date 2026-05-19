@@ -25,6 +25,7 @@ class TechnicalSheetService
     private const COST_CUT_KEY        = 'cutting_cost';
     private const COST_MINUTE_KEY     = 'minute_cost';
     private const FIXED_COST_RATE     = 0.1458; // 14,58 %
+    private const IVA_RATE             = 1.19;   // IVA estándar 19 %
     private const FIXED_PROCESS_TYPES = ['CORTE', 'CONFECCION', 'TERMINACION'];
     private const PROCESS_TYPE_ALIASES = [
         'BORDADO' => 'ESTAMPADO',
@@ -62,11 +63,11 @@ class TechnicalSheetService
 
         $processes       = $this->calculateProcessesForSheet($opId, $productSheet?->id);
 
-        $rawMaterialTotal          = $this->calculateRollsTotal($opId, $units ?? 0.0)
-                                   + $this->calculateThreadsTotal($opId, $units ?? 0.0);
-        $rawMaterialPerUnit        = ($units !== null && $units > 0)
-            ? ($rawMaterialTotal / $units)
-            : 0.0;
+        // calculateRollsTotal y calculateThreadsTotal ya devuelven costo POR PRENDA.
+        $rawMaterialTotal   = $this->calculateRollsTotal($opId, $units ?? 0.0)
+                            + $this->calculateThreadsTotal($opId, $units ?? 0.0);
+        // rawMaterialPerUnit es igual al costo por prenda (son la misma cifra ahora).
+        $rawMaterialPerUnit = $rawMaterialTotal;
         $rawMaterialWeightedFabric = $this->calculateRollsWeightedPrice($opId, $units ?? 0.0);
         $supplies        = $this->calculateSuppliesTotal($opId);
         $processesTotal  = $processes['total'];
@@ -89,11 +90,14 @@ class TechnicalSheetService
                 : 0.0;
         }
 
+        // Margen comercial: se calcula sobre el precio de venta sin IVA
+        // Fórmula: (priceSale/IVA − priceInvoicing) / (priceSale/IVA)  → 35,13 %
         $clientValue   = null;
         $clientPercent = null;
         if ($priceSale !== null && $priceSale > 0 && $priceInvoicing !== null) {
-            $clientValue   = $priceSale - $priceInvoicing;
-            $clientPercent = ($clientValue / $priceSale) * 100;
+            $saleSinIva    = $priceSale / self::IVA_RATE;
+            $clientValue   = $saleSinIva - $priceInvoicing;
+            $clientPercent = ($clientValue / $saleSinIva) * 100;
         }
 
         return [
@@ -496,51 +500,73 @@ class TechnicalSheetService
         ];
     }
 
+    /**
+     * Calcula el costo de materia prima (rollos) POR PRENDA.
+     *
+     * Fórmula por trazo:
+     *   consumo_prenda = promTrazo + 0.03
+     *   precio_ponderado = Σ(metros × precio) / Σ(metros)  → promedio de todos los rollos del trazo
+     *   costo_prenda_trazo = consumo_prenda × precio_ponderado
+     *
+     * Total = Σ(costo_prenda_trazo) para todos los trazos.
+     */
     public function calculateRollsTotal(int $opId, float $units): float
     {
-        $state  = $this->rollsStore->read($opId);
-        $params = is_array($state['params'] ?? null) ? $state['params'] : [];
-        $trazo  = is_numeric($params['trazo'] ?? null) ? (float) $params['trazo'] : 0.8;
-        if ($trazo <= 0.01) {
-            $trazo = 0.8;
-        }
-
+        $state = $this->rollsStore->read($opId);
         $lines = is_array($state['lines'] ?? null) ? $state['lines'] : [];
-        if (empty($lines) || $units <= 0) {
+        if (empty($lines)) {
             return 0.0;
         }
 
-        $total = 0.0;
+        // Agrupar líneas por promTrazo (campo averageTrace guardado en cada línea)
+        $groups = [];
         foreach ($lines as $line) {
-            $base  = is_numeric($line['consumptionBase'] ?? null) ? (float) $line['consumptionBase'] : 0.0;
-            $extra = is_numeric($line['extraMeters'] ?? null) ? (float) $line['extraMeters'] : 0.0;
-            $price = is_numeric($line['pricePerMeter'] ?? null) ? (float) $line['pricePerMeter'] : 0.0;
-            $programmedMeters = is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : null;
+            $averageTrace     = is_numeric($line['averageTrace'] ?? null) ? (float) $line['averageTrace'] : null;
+            $programmedMeters = is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : 0.0;
+            $price            = is_numeric($line['pricePerMeter'] ?? null) ? (float) $line['pricePerMeter'] : 0.0;
 
-            if ($programmedMeters !== null) {
-                $total += $programmedMeters * $price;
+            if ($averageTrace === null || $averageTrace <= 0 || $programmedMeters <= 0 || $price <= 0) {
                 continue;
             }
 
-            $consumoAjustado = ($base / $trazo) + $extra;
-            $total += $consumoAjustado * $units * $price;
+            // Clave estable por valor de promTrazo (redondeado a 8 decimales)
+            $key = number_format($averageTrace, 8, '.', '');
+            if (!isset($groups[$key])) {
+                $groups[$key] = ['promTrazo' => $averageTrace, 'totalMeters' => 0.0, 'totalCost' => 0.0];
+            }
+            $groups[$key]['totalMeters'] += $programmedMeters;
+            $groups[$key]['totalCost']   += $programmedMeters * $price;
         }
 
-        return $total;
+        $costPerGarment = 0.0;
+        foreach ($groups as $group) {
+            if ($group['totalMeters'] <= 0) {
+                continue;
+            }
+            $weightedPrice    = $group['totalCost'] / $group['totalMeters'];
+            $consumoPorPrenda = $group['promTrazo'] + 0.03; // factor 0,03 m sobre promedio de trazo
+            $costPerGarment  += $consumoPorPrenda * $weightedPrice;
+        }
+
+        return $costPerGarment;
     }
 
+    /**
+     * Calcula el costo de hilos/threads POR PRENDA.
+     * Cada línea ya tiene costPerGarment; se suman directamente.
+     */
     public function calculateThreadsTotal(int $opId, float $units): float
     {
         $state = $this->threadsStore->read($opId);
         $lines = is_array($state['lines'] ?? null) ? $state['lines'] : [];
-        if (empty($lines) || $units <= 0) {
+        if (empty($lines)) {
             return 0.0;
         }
 
         $total = 0.0;
         foreach ($lines as $line) {
-            $costPerGarment = is_numeric($line['costPerGarment'] ?? null) ? (float) $line['costPerGarment'] : 0.0;
-            $total += $costPerGarment * $units;
+            $garmentCost = is_numeric($line['costPerGarment'] ?? null) ? (float) $line['costPerGarment'] : 0.0;
+            $total += $garmentCost;
         }
 
         return $total;

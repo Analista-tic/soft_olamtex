@@ -50,3 +50,9 @@ export interface FabricRollReceptionForm {
     width: number;
     quantity: number;
 }
+
+export interface FabricItemOption {
+    id: number;
+    name: string;
+    reference: string | null;
+}

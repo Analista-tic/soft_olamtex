@@ -18,6 +18,7 @@ use App\Models\Production\TechnicalSheetRoll;
 use App\Models\Textil\FabricRoll;
 use App\Services\Expenses\PurchaseDocumentInvoiceService;
 use App\Services\Textil\FabricRollService;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,7 +30,6 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class FabricRollController extends Controller
 {
@@ -835,6 +835,8 @@ class FabricRollController extends Controller
 
     public function updateOutput(UpdateFabricRollOutputRequest $request, FabricRoll $fabricRoll)
     {
+        $this->ensureSuperadminForInventoryChanges($request);
+
         $data = $request->validated();
         $actualOutput = array_key_exists('actual_output', $data) ? (float) $data['actual_output'] : $fabricRoll->actual_output;
 
@@ -853,6 +855,8 @@ class FabricRollController extends Controller
 
     public function discharge(DischargeFabricRollRequest $request, FabricRoll $fabricRoll): JsonResponse
     {
+        $this->ensureSuperadminForInventoryChanges($request);
+
         $data = $request->validated();
         $type = (string) $data['type'];
         $quantity = (float) $data['quantity'];
@@ -976,6 +980,39 @@ class FabricRollController extends Controller
                 'message' => 'Error al crear el rollo: ' . $e->getMessage(),
                 'errors' => ['general' => ['Error interno del servidor']]
             ], 500);
+        }
+    }
+
+    public function relinkMainFabric(Request $request, FabricRoll $fabricRoll): JsonResponse
+    {
+        $this->ensureSuperadminForInventoryChanges($request);
+
+        $validated = $request->validate([
+            'item_id' => ['required', 'integer', 'exists:items,id'],
+        ]);
+
+        $updatedRoll = $this->service->relinkMainFabric($fabricRoll, (int) $validated['item_id']);
+        $updatedItem = $updatedRoll->item;
+
+        return response()->json([
+            'message' => 'Tela principal del rollo actualizada correctamente.',
+            'data' => [
+                'roll_id' => $updatedRoll->id,
+                'fabric_item_id' => $updatedItem?->id,
+                'fabric_name' => $updatedItem?->name,
+            ],
+        ]);
+    }
+
+    /**
+     * @throws AuthorizationException
+     */
+    private function ensureSuperadminForInventoryChanges(Request $request): void
+    {
+        $user = $request->user();
+
+        if (!$user || !$user->hasRole('superadmin')) {
+            throw new AuthorizationException('Solo superadmin puede realizar cambios en el inventario de rollos.');
         }
     }
 

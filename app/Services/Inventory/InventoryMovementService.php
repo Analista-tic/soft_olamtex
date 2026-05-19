@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\DB;
 
 class InventoryMovementService
 {
+    private const MIGRATION_SOURCE_TYPE = 'item_excel_import';
+
     /**
      * Crear un nuevo movimiento de inventario y calcular precio ponderado automáticamente.
      *
@@ -78,7 +80,10 @@ class InventoryMovementService
             }
             $notes = $data['notes'] === null ? '' : (string) $data['notes'];
 
-            $userId = $data['created_by_user_id'] ?? Auth::id();
+            $userId = $this->resolveResponsibleUserId(
+                isset($data['created_by_user_id']) ? (int) $data['created_by_user_id'] : null,
+                false
+            );
             if (empty($userId)) {
                 throw new \InvalidArgumentException('El usuario responsable (created_by_user_id) es obligatorio. Debe haber un usuario autenticado o enviar created_by_user_id.');
             }
@@ -183,6 +188,73 @@ class InventoryMovementService
 
             return $movement->load(['item', 'warehouse', 'createdBy']);
         });
+    }
+
+    /**
+     * Crea un movimiento de saldo inicial para migración/importación de items.
+     *
+     * Reglas:
+     * - quantity > 0
+     * - unit_price > 0
+     * - deja trazabilidad con source_type item_excel_import
+     */
+    public function createInitialBalanceMovement(array $data): InventoryMovement
+    {
+        $itemId = (int) ($data['item_id'] ?? 0);
+        $warehouseId = (int) ($data['warehouse_id'] ?? 0);
+        $quantity = abs((float) ($data['quantity'] ?? 0));
+        $unitPrice = isset($data['unit_price']) ? (float) $data['unit_price'] : 0.0;
+
+        if ($itemId <= 0 || $warehouseId <= 0) {
+            throw new \InvalidArgumentException('item_id y warehouse_id son requeridos para saldo inicial.');
+        }
+        if ($quantity <= 0) {
+            throw new \InvalidArgumentException('El saldo inicial requiere quantity mayor a 0.');
+        }
+        if ($unitPrice <= 0) {
+            throw new \InvalidArgumentException('El saldo inicial requiere un costo unitario mayor a 0.');
+        }
+
+        $userId = $this->resolveResponsibleUserId(
+            isset($data['created_by_user_id']) ? (int) $data['created_by_user_id'] : null,
+            true
+        );
+        if (empty($userId)) {
+            throw new \InvalidArgumentException('No se encontró un usuario responsable para registrar el saldo inicial de inventario.');
+        }
+
+        return $this->createMovement([
+            'item_id' => $itemId,
+            'warehouse_id' => $warehouseId,
+            'type' => 'entrada',
+            'quantity' => $quantity,
+            'unit_price' => $unitPrice,
+            'date' => $data['date'] ?? now()->toDateString(),
+            'source_type' => self::MIGRATION_SOURCE_TYPE,
+            'source_id' => null,
+            'source_reference' => $data['source_reference'] ?? null,
+            'notes' => $data['notes'] ?? 'Saldo inicial importado desde plantilla de items',
+            'created_by_user_id' => $userId,
+        ]);
+    }
+
+    private function resolveResponsibleUserId(?int $providedUserId, bool $allowSystemFallback): ?int
+    {
+        if ($providedUserId !== null && $providedUserId > 0) {
+            return $providedUserId;
+        }
+
+        $authId = Auth::id();
+        if (!empty($authId)) {
+            return (int) $authId;
+        }
+
+        if (!$allowSystemFallback) {
+            return null;
+        }
+
+        $systemUserId = User::query()->orderBy('id')->value('id');
+        return $systemUserId ? (int) $systemUserId : null;
     }
 
     /**

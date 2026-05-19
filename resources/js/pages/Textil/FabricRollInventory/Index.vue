@@ -99,12 +99,14 @@ const rollToDownload = ref<FabricRollView | null>(null);
 const isDeleteDialogOpen = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
+const errorType = ref<'error' | 'warning' | 'info'>('error');
 const isLoadingRolls = ref(false);
 const isAdjustDialogOpen = ref(false);
 const rollToAdjust = ref<FabricRollView | null>(null);
 const isImportDialogOpen = ref(false);
 
-const canImportRolls = computed(() => authStore.can('fabric_rolls.import'));
+const canSuperadminManageChanges = computed(() => authStore.hasRole('superadmin'));
+const canImportRolls = computed(() => canSuperadminManageChanges.value && authStore.can('fabric_rolls.import'));
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -132,6 +134,7 @@ async function fetchFabricRolls(page = 1) {
         totalRolls.value = payload?.meta?.total ?? rolls.value.length;
     } catch {
         rolls.value = [];
+        errorType.value = 'error';
         errorMessage.value = 'No se pudo cargar el inventario de rollos.';
     } finally {
         isLoadingRolls.value = false;
@@ -158,6 +161,12 @@ function selectRoll(roll: FabricRollView) {
 }
 
 function confirmDeleteRoll(roll: FabricRollView) {
+    if (!canSuperadminManageChanges.value) {
+        errorType.value = 'warning';
+        errorMessage.value = 'Solo superadmin puede eliminar rollos del inventario.';
+        return;
+    }
+
     rollToDelete.value = roll;
     isDeleteDialogOpen.value = true;
 }
@@ -183,17 +192,35 @@ function exportTemplate() {
 }
 
 function openImportDialog() {
+    if (!canSuperadminManageChanges.value) {
+        errorType.value = 'warning';
+        errorMessage.value = 'Solo superadmin puede importar rollos al inventario.';
+        return;
+    }
+
     isImportDialogOpen.value = true;
 }
 
 function openDownloadDialog(roll: FabricRollView) {
+    if (!canSuperadminManageChanges.value) {
+        errorType.value = 'warning';
+        errorMessage.value = 'Solo superadmin puede registrar descargues de rollos.';
+        return;
+    }
+
     rollToDownload.value = roll;
     isDownloadDialogOpen.value = true;
 }
 
 function openAdjustDialog(roll?: FabricRollView | null) {
+    if (!canSuperadminManageChanges.value) {
+        errorType.value = 'warning';
+        errorMessage.value = 'Solo superadmin puede ajustar salidas de rollos.';
+        return;
+    }
     const target = roll ?? selectedRoll.value ?? null;
     if (!target) {
+        errorType.value = 'warning';
         errorMessage.value = 'Selecciona un rollo antes de ajustar la salida.';
         return;
     }
@@ -243,12 +270,14 @@ function handleDischargeSuccess(payload: {
 }
 
 function handleDischargeError(payload: { message: string }) {
+    errorType.value = 'error';
     errorMessage.value = payload.message;
 }
 
 async function handleAdjustRequest(payload: { roll: FabricRollView | null; data: Record<string, string> }) {
     const roll = payload.roll;
     if (!roll) {
+        errorType.value = 'error';
         errorMessage.value = 'No se encontró el rollo seleccionado.';
         return;
     }
@@ -265,6 +294,7 @@ async function handleAdjustRequest(payload: { roll: FabricRollView | null; data:
         errorMessage.value = '';
         await fetchFabricRolls(currentPage.value);
     } catch (error: any) {
+        errorType.value = 'error';
         errorMessage.value = error?.response?.data?.message || 'No se pudo actualizar la salida del rollo.';
     } finally {
         isAdjustDialogOpen.value = false;
@@ -279,13 +309,33 @@ function setDownloadDialogOpen(value: boolean) {
 
 async function handleImportCompleted(payload: { message: string; inserted: number; skipped: number; errors: string[] }) {
     successMessage.value = `Importación completada. Insertados: ${payload.inserted}. Omitidos: ${payload.skipped}.`;
+    errorType.value = payload.errors.length > 0 ? 'warning' : 'error';
     errorMessage.value = payload.errors.length > 0 ? payload.errors.slice(0, 3).join(' | ') : '';
 
     await fetchFabricRolls(1);
 }
 
 function handleImportError(payload: { message: string }) {
+    errorType.value = 'error';
     errorMessage.value = payload.message;
+}
+
+async function handleMainFabricUpdated(payload: { rollId: number; itemId: number; itemName: string; message: string }) {
+    const rollIndex = rolls.value.findIndex((roll) => roll.id === payload.rollId);
+
+    if (rollIndex !== -1) {
+        rolls.value[rollIndex] = {
+            ...rolls.value[rollIndex],
+            fabric_item_id: payload.itemId,
+            fabric: payload.itemName,
+        };
+    }
+
+    successMessage.value = payload.message;
+    errorMessage.value = '';
+    errorType.value = 'error';
+
+    await fetchFabricRolls(currentPage.value);
 }
 </script>
 
@@ -296,6 +346,7 @@ function handleImportError(payload: { message: string }) {
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
+                :error-type="errorType"
                 success-title="Éxito"
                 error-title="Error"
                 @close-success="successMessage = ''"
@@ -524,11 +575,13 @@ function handleImportError(payload: { message: string }) {
                                         >
                                             <Eye class="h-4 w-4" />
                                         </button>
-                                        <DeleteButton @click="confirmDeleteRoll(roll)" />
+                                        <DeleteButton v-if="canSuperadminManageChanges" @click="confirmDeleteRoll(roll)" />
                                         <button
                                             class="inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                             title="Descargar rollo"
                                             type="button"
+                                            :disabled="!canSuperadminManageChanges"
+                                            :class="{ 'cursor-not-allowed opacity-50': !canSuperadminManageChanges }"
                                             @click="openDownloadDialog(roll)"
                                         >
                                             <ArrowDownToLine class="h-4 w-4" />
@@ -537,6 +590,8 @@ function handleImportError(payload: { message: string }) {
                                             class="inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                             title="Ajustar salida"
                                             type="button"
+                                            :disabled="!canSuperadminManageChanges"
+                                            :class="{ 'cursor-not-allowed opacity-50': !canSuperadminManageChanges }"
                                             @click="openAdjustDialog(roll)"
                                         >
                                             <SlidersHorizontal class="h-4 w-4" />
@@ -560,7 +615,13 @@ function handleImportError(payload: { message: string }) {
             </div>
         </div>
 
-        <FabricRollInventoryDialog :modelValue="isDialogOpen" :roll="selectedRoll" @update:modelValue="(value) => (isDialogOpen = value)" />
+        <FabricRollInventoryDialog
+            :modelValue="isDialogOpen"
+            :roll="selectedRoll"
+            :can-edit-main-fabric="canSuperadminManageChanges"
+            @update:modelValue="(value) => (isDialogOpen = value)"
+            @main-fabric-updated="handleMainFabricUpdated"
+        />
 
         <FabricRollAdjustDialog
             :modelValue="isAdjustDialogOpen"

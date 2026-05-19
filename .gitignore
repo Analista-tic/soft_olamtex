@@ -32,3 +32,4 @@ yarn-error.log
 /db/
 seed_output.log
 .codex_tmp/
+/PsySH/

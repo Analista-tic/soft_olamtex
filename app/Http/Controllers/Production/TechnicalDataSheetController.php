@@ -249,6 +249,8 @@ class TechnicalDataSheetController extends Controller
                     'name'         => $op->operation->name,
                     'action'       => $op->operation->action ?? '',
                     'garment_part' => $op->operation->garment_part ?? '',
+                    'measure'      => $op->operation->measure ?? null,
+                    'op_quantity'  => $op->operation->quantity ?? null,
                 ] : null,
                 'machine' => $resolvedMachine ? [
                     'id'   => $resolvedMachine->id,

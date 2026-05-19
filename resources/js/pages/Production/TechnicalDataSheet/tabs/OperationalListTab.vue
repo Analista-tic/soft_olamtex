@@ -21,7 +21,7 @@ type OperationEntry = {
     operation_section_id?: number | null;
     operation_section?: { name?: string; type?: string };
     operationSection?: { name?: string; type?: string };
-    operation?: { name?: string };
+    operation?: { name?: string; action?: string; garment_part?: string; measure?: number | string | null; op_quantity?: number | null };
     machine?: { code?: string; name?: string };
     sam_base?: number | string;
     sam_total_unitario?: number | string;
@@ -123,13 +123,28 @@ function getSamBaseValue(entry: OperationEntry): number {
     return Number.isFinite(Number(v)) ? Number(v) : 0;
 }
 
+function getOperationLabel(entry: OperationEntry): string {
+    const base = entry.operation?.name ?? '-';
+    if (base === '-') return '-';
+    const parts: string[] = [base];
+    const m = entry.operation?.measure;
+    if (m !== null && m !== undefined && m !== '' && Number(m) > 0) {
+        parts.push(`${Number(m).toFixed(0)} CM`);
+    }
+    const q = entry.operation?.op_quantity;
+    if (q !== null && q !== undefined && Number(q) > 1) {
+        parts.push(`X${Number(q)}`);
+    }
+    return parts.join(' ');
+}
+
 function fmt(v: number): string {
     return v.toFixed(2);
 }
 
 function fmtOperationTime(v: number): string {
     const safe = Number.isFinite(v) ? v : 0;
-    return String(Math.floor(safe));
+    return safe.toFixed(2);
 }
 
 function toggleSection(name: string) {
@@ -379,7 +394,7 @@ watch(
                                             <TableRow v-for="entry in subGroup.items" :key="entry.id" class="text-sm">
                                                 <TableCell class="pl-4 font-mono text-xs text-muted-foreground">{{ entry.sequence ?? '-' }}</TableCell>
                                                 <TableCell>
-                                                    {{ entry.operation?.name ?? '-' }}
+                                                    {{ getOperationLabel(entry) }}
                                                     <span v-if="entry.notes" class="mt-0.5 block text-[10px] italic text-muted-foreground/60">{{ entry.notes }}</span>
                                                 </TableCell>
                                                 <TableCell class="text-center text-xs text-muted-foreground">{{ entry.machine?.code ?? '-' }}</TableCell>
@@ -398,7 +413,7 @@ watch(
                                         <TableRow v-for="entry in group.items" :key="entry.id" class="text-sm">
                                             <TableCell class="pl-4 font-mono text-xs text-muted-foreground">{{ entry.sequence ?? '-' }}</TableCell>
                                             <TableCell>
-                                                {{ entry.operation?.name ?? '-' }}
+                                                {{ getOperationLabel(entry) }}
                                                 <span v-if="entry.notes" class="mt-0.5 block text-[10px] italic text-muted-foreground/60">{{ entry.notes }}</span>
                                             </TableCell>
                                             <TableCell class="text-center text-xs text-muted-foreground">{{ entry.machine?.code ?? '-' }}</TableCell>
@@ -472,7 +487,7 @@ watch(
                                     <TableCell class="pl-4 font-mono text-xs text-muted-foreground">{{ entry.sequence ?? '-' }}</TableCell>
                                     <TableCell class="text-xs">{{ resolveSectionName(entry) || '-' }}</TableCell>
                                     <TableCell>
-                                        {{ entry.operation?.name ?? '-' }}
+                                        {{ getOperationLabel(entry) }}
                                         <span v-if="entry.notes" class="mt-0.5 block text-[10px] italic text-muted-foreground/60">{{ entry.notes }}</span>
                                     </TableCell>
                                     <TableCell class="text-center text-xs text-muted-foreground">{{ entry.machine?.code ?? '-' }}</TableCell>

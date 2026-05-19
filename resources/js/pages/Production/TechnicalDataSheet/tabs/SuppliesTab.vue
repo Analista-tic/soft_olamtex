@@ -773,6 +773,19 @@ async function handleSaveRows(): Promise<void> {
         successMsg.value = 'Insumos guardados.';
     } catch (err) {
         console.error('Error al guardar insumos:', err);
+        const backendMessage =
+            axios.isAxiosError(err)
+            && (typeof err.response?.data?.message === 'string' || Array.isArray(err.response?.data?.errors?.items));
+
+        if (backendMessage) {
+            const validationMessage = Array.isArray(err.response?.data?.errors?.items)
+                ? String(err.response?.data?.errors?.items[0] ?? '').trim()
+                : '';
+            const message = validationMessage || String(err.response?.data?.message || '').trim();
+            setError(message || 'No se pudieron guardar los insumos.');
+            return;
+        }
+
         setError('No se pudieron guardar los insumos.');
     } finally {
         isSaving.value = false;

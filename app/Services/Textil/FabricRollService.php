@@ -113,6 +113,11 @@ class FabricRollService
         ])->findOrFail($id);
     }
 
+    /**
+     * Actualiza el rollo.
+     * Permite editar price_per_meter incluso para rollos sin compra vinculada.
+     * @throws ValidationException si la factura ya está recepcionada
+     */
     public function update(FabricRoll $fabricRoll, array $data): FabricRoll
     {
         $this->ensureInvoiceNotYetReceptionApprovedForRoll($fabricRoll);
@@ -186,6 +191,24 @@ class FabricRollService
         return $fabricRoll;
     }
 
+    public function relinkMainFabric(FabricRoll $fabricRoll, int $itemId): FabricRoll
+    {
+        return DB::transaction(function () use ($fabricRoll, $itemId) {
+            $fabricRoll->update([
+                'item_id' => $itemId,
+            ]);
+
+            $fabricRoll->load([
+                'item',
+                'purchaseDocumentItem.item',
+                'purchaseDocumentItem.document.supplier',
+                'purchaseDocumentItem.document.creator',
+            ]);
+
+            return $fabricRoll;
+        });
+    }
+
     /**
      * Registra consumo de rollo y crea movimiento de inventario (salida).
      * No llama a syncItemWarehouseLength: el movimiento actualiza warehouse_items.
@@ -226,6 +249,11 @@ class FabricRollService
         ]);
     }
 
+    /**
+     * Crea un rollo desde recepción de factura.
+     * Persiste el precio unitario ($pdi->price) en price_per_meter para seguimiento y análisis de costos.
+     * Este precio se puede actualizar después si el rollo necesita corrección o si no tiene compra vinculada.
+     */
     public function storeFromReception(array $data): FabricRoll
     {
         $this->ensureInvoiceNotYetReceptionApproved((int) $data['purchase_document_item_id']);
@@ -241,8 +269,8 @@ class FabricRollService
             }
         }
 
-        // Resolver price_per_meter desde la factura
-        // si no viene en el payload
+        // Guardar price_per_meter desde el precio unitario de la factura de compra
+        // si no viene en el payload. Este precio persiste en BD para auditoría y análisis.
         if (empty($data['price_per_meter']) && $pdi->price) {
             $data['price_per_meter'] = (float) $pdi->price;
         }

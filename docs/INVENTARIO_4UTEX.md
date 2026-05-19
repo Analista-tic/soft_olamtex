@@ -46,6 +46,59 @@ Documento maestro único que consolida el análisis, las mejoras, la arquitectur
 | Traslado entre bodegas | ✓ | createTransfer |
 | Consumo producción | ✓ | FabricRollService + production_roll_consumptions; pasar production_order_id desde OP |
 | FabricRoll / ItemService | ✓ | syncWarehouseLengthForItem eliminado; stock solo vía movimientos |
+| Importación items con saldo inicial | ✓ | ItemService + InventoryMovementService::createInitialBalanceMovement |
+
+### Regla de migración de saldos iniciales (obligatoria)
+
+- Si `quantity > 0`, el costo unitario inicial debe ser `> 0`.
+- El saldo inicial se registra como movimiento de `entrada` para dejar trazabilidad y calcular PP por bodega.
+- No se permite dejar items con stock positivo y sin costo inicial en migración.
+
+### Saneamiento de históricos (comando)
+
+Para reparar registros existentes con stock positivo y PP nulo/cero:
+
+```bash
+php artisan inventory:repair-opening-balances
+```
+
+- Por defecto corre en **DRY-RUN** (simulación).
+- Para aplicar cambios:
+
+```bash
+php artisan inventory:repair-opening-balances --apply
+```
+
+- Filtros opcionales:
+   - `--item_id=`
+   - `--warehouse_id=`
+   - `--date=`
+   - `--source_reference=`
+
+Regla de seguridad del comando: solo repara automáticamente casos **sin movimientos previos** para ese `item+bodega`; si ya hay movimientos, reporta `SKIP` para revisión manual.
+
+### Precarga de costos base faltantes (nuevo)
+
+Cuando el DRY-RUN reporte muchos `Skip (sin costo)`, primero precarga `last_unit_cost` con CSV:
+
+```bash
+php artisan inventory:seed-opening-balance-costs
+```
+
+- Exporta plantilla CSV con candidatos (sin movimientos y sin costo base).
+- Completar la columna `unit_price` (> 0) en el archivo generado.
+- Cargar el CSV:
+
+```bash
+php artisan inventory:seed-opening-balance-costs --apply-from="RUTA_ARCHIVO.csv"
+```
+
+Luego ejecutar el saneamiento:
+
+```bash
+php artisan inventory:repair-opening-balances
+php artisan inventory:repair-opening-balances --apply
+```
 
 **Regla central:** Todo cambio de stock pasa por `InventoryMovementService::createMovement`. No manipular `warehouse_items` fuera del servicio.
 

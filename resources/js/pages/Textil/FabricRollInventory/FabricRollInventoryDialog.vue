@@ -1,25 +1,164 @@
 <script setup lang="ts">
+import AlertBox from '@/components/AlertBox.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { FabricRollView } from '@/domain/Textil';
-import { computed } from 'vue';
+import Input from '@/components/ui/input/Input.vue';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { FabricItemOption, FabricRollView } from '@/domain/Textil';
+import axios from 'axios';
+import { computed, ref, watch } from 'vue';
 
 const props = withDefaults(
     defineProps<{
         modelValue?: boolean;
         roll?: FabricRollView | null;
+        canEditMainFabric?: boolean;
     }>(),
-    { modelValue: false, roll: null },
+    { modelValue: false, roll: null, canEditMainFabric: false },
 );
 
 const emit = defineEmits<{
     (event: 'update:modelValue', value: boolean): void;
+    (event: 'main-fabric-updated', payload: { rollId: number; itemId: number; itemName: string; message: string }): void;
 }>();
+
+const fabricSearch = ref('');
+const fabricOptions = ref<FabricItemOption[]>([]);
+const selectedFabricItemId = ref<string>('');
+const isLoadingFabricOptions = ref(false);
+const isSavingMainFabric = ref(false);
+const alertMessage = ref('');
+const alertType = ref<'success' | 'error' | 'warning' | 'info'>('error');
+
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 function handleOpenChange(open: boolean) {
     emit('update:modelValue', open);
+}
+
+function showAlert(message: string, type: 'success' | 'error' | 'warning' | 'info' = 'error') {
+    alertMessage.value = message;
+    alertType.value = type;
+}
+
+watch(
+    () => props.roll,
+    (roll) => {
+        selectedFabricItemId.value = roll?.fabric_item_id != null ? String(roll.fabric_item_id) : '';
+        if (roll?.fabric_item_id && roll.fabric) {
+            fabricOptions.value = [
+                {
+                    id: roll.fabric_item_id,
+                    name: roll.fabric,
+                    reference: null,
+                },
+            ];
+        } else {
+            fabricOptions.value = [];
+        }
+    },
+    { immediate: true },
+);
+
+watch(
+    () => props.modelValue,
+    (open) => {
+        if (open && props.canEditMainFabric) {
+            fetchFabricOptions();
+        }
+    },
+);
+
+watch(fabricSearch, () => {
+    if (!props.canEditMainFabric || !props.modelValue) {
+        return;
+    }
+
+    if (searchDebounceTimer) {
+        clearTimeout(searchDebounceTimer);
+    }
+
+    searchDebounceTimer = setTimeout(() => {
+        fetchFabricOptions();
+    }, 300);
+});
+
+async function fetchFabricOptions() {
+    if (!props.canEditMainFabric) {
+        return;
+    }
+
+    isLoadingFabricOptions.value = true;
+
+    try {
+        const response = await axios.get('/item/data', {
+            params: {
+                search: fabricSearch.value.trim() || undefined,
+                per_page: 20,
+                status: 1,
+                item_type: 'product',
+            },
+        });
+
+        const rawOptions = Array.isArray(response?.data?.data) ? response.data.data : [];
+        fabricOptions.value = rawOptions.map((item: { id: number; name: string; reference?: string | null }) => ({
+            id: item.id,
+            name: item.name,
+            reference: item.reference ?? null,
+        }));
+
+        if (
+            props.roll?.fabric_item_id &&
+            !fabricOptions.value.some((option) => option.id === props.roll?.fabric_item_id)
+        ) {
+            fabricOptions.value.unshift({
+                id: props.roll.fabric_item_id,
+                name: props.roll.fabric || 'Tela actual',
+                reference: null,
+            });
+        }
+    } catch {
+        showAlert('No se pudieron cargar las telas para relink.', 'error');
+    } finally {
+        isLoadingFabricOptions.value = false;
+    }
+}
+
+async function saveMainFabricRelation() {
+    if (!props.canEditMainFabric || !props.roll?.id) {
+        showAlert('Solo superadmin puede modificar la tela principal.', 'warning');
+        return;
+    }
+
+    if (!selectedFabricItemId.value) {
+        showAlert('Selecciona una tela principal válida.', 'warning');
+        return;
+    }
+
+    isSavingMainFabric.value = true;
+
+    try {
+        const response = await axios.patch(`/kardex-telas/inventario-rollos/${props.roll.id}/vincular-tela-principal`, {
+            item_id: Number(selectedFabricItemId.value),
+        });
+
+        const selectedOption = fabricOptions.value.find((option) => String(option.id) === selectedFabricItemId.value);
+        const message = response?.data?.message || 'Tela principal actualizada correctamente.';
+        emit('main-fabric-updated', {
+            rollId: props.roll.id,
+            itemId: Number(selectedFabricItemId.value),
+            itemName: selectedOption?.name || props.roll.fabric,
+            message,
+        });
+
+        showAlert(message, 'success');
+    } catch (error: any) {
+        showAlert(error?.response?.data?.message || 'No se pudo actualizar la tela principal del rollo.', 'error');
+    } finally {
+        isSavingMainFabric.value = false;
+    }
 }
 
 const avatarInitials = computed(() => {
@@ -89,6 +228,20 @@ const metricCards = computed(() => {
 
             <!-- Cuerpo scrollable -->
             <div class="flex-1 overflow-y-auto scroll-smooth px-5 py-5" style="scrollbar-width: thin">
+                <div
+                    v-if="alertMessage"
+                    class="pointer-events-none fixed left-1/2 top-6 z-[99999] flex -translate-x-1/2 justify-center px-4 sm:px-0"
+                >
+                    <AlertBox
+                        :type="alertType"
+                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : 'Error'"
+                        :message="alertMessage"
+                        :auto-close-ms="alertType === 'error' ? 0 : 4000"
+                        class="pointer-events-auto"
+                        @close="alertMessage = ''"
+                    />
+                </div>
+
                 <div v-if="props.roll" class="space-y-5">
                     <!-- Información general -->
                     <section>
@@ -130,6 +283,56 @@ const metricCards = computed(() => {
                                     {{ card.value }}
                                 </span>
                             </div>
+                        </div>
+                    </section>
+
+                    <section>
+                        <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tela principal del rollo</p>
+                        <div class="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
+                            <div class="flex items-center justify-between gap-3">
+                                <p class="text-sm text-muted-foreground">Tela actual</p>
+                                <p class="max-w-[60%] truncate text-right text-sm font-semibold text-foreground">
+                                    {{ props.roll.fabric || 'Sin tela asignada' }}
+                                </p>
+                            </div>
+
+                            <div v-if="props.canEditMainFabric" class="space-y-3">
+                                <div class="space-y-1">
+                                    <p class="text-xs font-semibold text-muted-foreground">Buscar tela</p>
+                                    <Input v-model="fabricSearch" placeholder="Referencia o nombre" class="h-9" />
+                                </div>
+
+                                <div class="space-y-1">
+                                    <p class="text-xs font-semibold text-muted-foreground">Nueva tela principal</p>
+                                    <Select v-model="selectedFabricItemId">
+                                        <SelectTrigger class="h-9">
+                                            <SelectValue
+                                                :placeholder="isLoadingFabricOptions ? 'Cargando telas...' : 'Selecciona una tela'"
+                                            />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem v-for="option in fabricOptions" :key="option.id" :value="String(option.id)">
+                                                {{ option.reference ? `${option.reference} · ${option.name}` : option.name }}
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div class="flex justify-end">
+                                    <Button
+                                        type="button"
+                                        size="pill"
+                                        :disabled="isSavingMainFabric || !selectedFabricItemId"
+                                        @click="saveMainFabricRelation"
+                                    >
+                                        {{ isSavingMainFabric ? 'Guardando...' : 'Guardar tela principal' }}
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <p v-else class="text-xs text-muted-foreground">
+                                Solo superadmin puede actualizar la relación del rollo con su tela principal.
+                            </p>
                         </div>
                     </section>
                 </div>

@@ -229,10 +229,10 @@ const producedFabricColors = computed<ProducedColorSummary[]>(() => {
 const tabs = [
     { value: 'lista_operacional', label: 'Lista operacional', icon: ClipboardList },
     { value: 'procesos', label: 'Procesos', icon: Workflow },
+    { value: 'informacion_adicional', label: 'Informacion adicional', icon: FilePlus2 },
     { value: 'materia_prima', label: 'Materia prima', icon: Box },
     { value: 'hilos', label: 'Hilos', icon: Volleyball },
     { value: 'insumos', label: 'Insumos', icon: Package },
-    { value: 'informacion_adicional', label: 'Informacion adicional', icon: FilePlus2 },
     { value: 'costos', label: 'Costos', icon: DollarSign },
 ];
 
@@ -670,6 +670,18 @@ onBeforeUnmount(() => {
                             <ProcessesTab :op-id="selectedOpId" :selected-op="selectedOp" @go-to-operational-list="activeTab = 'lista_operacional'" />
                         </TabsContent>
 
+                        <TabsContent value="informacion_adicional" class="mt-0">
+                            <AdditionalInfoTab
+                                v-if="selectedOpId"
+                                :op-id="selectedOpId"
+                                :sizes="selectedOp?.sizes ?? null"
+                                :total-units="selectedOp?.units ?? null"
+                                :raw-materials-info="rawMaterialsInfo"
+                                :drawing-url="drawingUrl"
+                                :op-basic-info="selectedOp"
+                            />
+                        </TabsContent>
+
                         <TabsContent value="materia_prima" class="mt-0">
                             <FabricMaterialTab v-if="selectedOpId" :op-id="selectedOpId" :units="selectedOp?.units ?? null" />
                         </TabsContent>
@@ -692,18 +704,6 @@ onBeforeUnmount(() => {
                                 :op-code="selectedOp?.opCode ?? null"
                                 :op-group="selectedOp?.group ?? null"
                                 :sizes="selectedOp?.sizes ?? []"
-                            />
-                        </TabsContent>
-
-                        <TabsContent value="informacion_adicional" class="mt-0">
-                            <AdditionalInfoTab
-                                v-if="selectedOpId"
-                                :op-id="selectedOpId"
-                                :sizes="selectedOp?.sizes ?? null"
-                                :total-units="selectedOp?.units ?? null"
-                                :raw-materials-info="rawMaterialsInfo"
-                                :drawing-url="drawingUrl"
-                                :op-basic-info="selectedOp"
                             />
                         </TabsContent>
 
