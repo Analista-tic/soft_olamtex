@@ -46,6 +46,7 @@ const purchaseRequests = ref<any[]>([]);
 const selectedPurchaseRequestId = ref<number | null>(null);
 const selectedPurchaseRequest = ref<any | null>(null); // Solicitud completa seleccionada para mostrar sugerencia
 const isLoading = ref(false);
+const isLoadingPurchaseRequests = ref(false);
 const isSubmittingDialog = ref(false);
 const nextOrderId = ref<number | null>(null);
 const isLoadingOrderId = ref(false);
@@ -390,14 +391,14 @@ async function fetchNextOrderId() {
     }
 }
 
-async function fetchPendingPurchaseRequests() {
+async function fetchPendingPurchaseRequests(search = '') {
+    isLoadingPurchaseRequests.value = true;
     try {
-        // Obtener solo las solicitudes aprobadas que NO tienen órdenes generadas y NO están procesadas
         const response = await axios.get('/gastos/solicitudes-compra/data', {
             params: {
-                per_page: 1000,
-                status: 'approved', // Filtrar solo solicitudes aprobadas
-                exclude_with_orders: true, // Excluir solicitudes que ya tienen órdenes (backend también filtra processed)
+                fast_select: true,
+                limit: 200,
+                search: search.trim(),
             },
         });
 
@@ -409,23 +410,20 @@ async function fetchPendingPurchaseRequests() {
             allRequests = response.data;
         }
 
-        // Filtrar solo las que están aprobadas y NO procesadas
-        // Solo solicitudes aprobadas (no procesadas) pueden usarse para crear órdenes
-        purchaseRequests.value = allRequests.filter((req: any) => {
-            const status = req?.status || '';
-            // Asegurar que solo sean 'approved' y no 'processed'
-            return status === 'approved' && status !== 'processed';
-        });
-
-        console.log('Total solicitudes recibidas:', allRequests.length);
-        console.log('Solicitudes filtradas (approved, no processed):', purchaseRequests.value.length);
+        purchaseRequests.value = allRequests;
     } catch (e) {
         purchaseRequests.value = [];
         console.error('Error fetching purchase requests:', e);
         if ((e as any)?.response) {
             console.error('Response error:', (e as any).response.data);
         }
+    } finally {
+        isLoadingPurchaseRequests.value = false;
     }
+}
+
+function handlePurchaseRequestSearch(term: string) {
+    void fetchPendingPurchaseRequests(term);
 }
 
 async function loadRequestToOrder(requestId: number) {
@@ -749,9 +747,11 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                         :options="pendingPurchaseRequestOptions"
                                         label=""
                                         placeholder="Selecciona una solicitud aprobada para autocompletar"
-                                        :disabled="isReadOnly || !pendingPurchaseRequestOptions.length || dialogType === 'edit'"
-                                        :searchable="pendingPurchaseRequestOptions.length >= 6"
+                                        :disabled="isReadOnly || dialogType === 'edit'"
+                                        :searchable="true"
+                                        :loading="isLoadingPurchaseRequests"
                                         search-placeholder="Buscar solicitud..."
+                                        @search="handlePurchaseRequestSearch"
                                     />
                                 </div>
                                 <button

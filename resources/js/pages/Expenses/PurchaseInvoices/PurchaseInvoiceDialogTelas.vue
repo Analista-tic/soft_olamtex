@@ -110,10 +110,9 @@ const pendingPurchaseOrderOptions = computed<Option[]>(() =>
         const numericId = Number(rawId);
         const optionId = Number.isNaN(numericId) ? rawId : numericId;
         const orderNumber = order?.document_number || String(order?.id ?? '');
-        const providerLabel = order?.supplier?.full_name || 'Sin proveedor';
         return {
             id: optionId,
-            name: `${orderNumber} - ${providerLabel}`,
+            name: `${orderNumber}`,
         };
     }),
 );
@@ -264,6 +263,21 @@ async function fetchContacts() {
     }
 }
 
+async function fetchContactById(contactId: number) {
+    if (!Number.isFinite(contactId) || contactId <= 0) return;
+    try {
+        const response = await axios.get(`/contactos/${contactId}`);
+        const contact = response.data;
+        if (!contact || !contact.id) return;
+        const exists = contacts.value.some((c) => Number(c.id) === Number(contact.id));
+        if (!exists) {
+            contacts.value.push(contact);
+        }
+    } catch {
+        // silently fail if contact is not found
+    }
+}
+
 async function fetchNextInvoiceId() {
     isLoadingInvoiceId.value = true;
     try {
@@ -309,7 +323,15 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     if (!order) return;
     if (!contacts.value.length) await fetchContacts();
     const foundContact = contacts.value.find((c) => Number(c.id) === Number(order.contact_id));
-    localForm.value.contact_id = foundContact ? Number(order.contact_id) : null;
+    if (foundContact) {
+        localForm.value.contact_id = Number(order.contact_id);
+    } else if (Number(order.contact_id) > 0) {
+        // Si el contacto no está en la lista, cargarlo por ID
+        await fetchContactById(Number(order.contact_id));
+        localForm.value.contact_id = Number(order.contact_id);
+    } else {
+        localForm.value.contact_id = null;
+    }
     localForm.value.supplier_invoice_number = '';
     localForm.value.date = normalizeIsoDate(order.date, toIsoDateString(new Date()));
     localForm.value.delivery_date = normalizeIsoDate(order.delivery_date, '');

@@ -4,7 +4,6 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
-import ContactDialog from '@/pages/MasterData/Contact/ContactDialog.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import Label from '@/components/ui/label/Label.vue';
@@ -14,12 +13,13 @@ import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-vue-next';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue';
 import { useAlertStack } from '@/composables/useAlert';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 
 const { successMessage, errorMessage, errorType, showError, clearError, clearSuccess } = useAlertStack();
 const { company, logoUrl } = useCompanyInfo();
+const ContactDialog = defineAsyncComponent(() => import('@/pages/MasterData/Contact/ContactDialog.vue'));
 
 const props = withDefaults(defineProps<{ mode?: 'create' | 'edit'; form?: any }>(), { mode: 'create', form: null });
 
@@ -39,14 +39,13 @@ const selectedPurchaseRequest = ref<any | null>(null);
 const isLoading = ref(false);
 const isSubmitting = ref(false);
 const isLoadingRequest = ref(false);
+const isLoadingPurchaseRequests = ref(false);
+const isLoadingContacts = ref(false);
 const itemsTableRef = ref<any>(null);
 
 const isReadOnly = computed(() => false);
 
-const selectedContactData = computed(() => {
-    if (!localForm.value.contact_id) return null;
-    return contacts.value.find((c: any) => Number(c.id) === Number(localForm.value.contact_id)) || null;
-});
+const selectedContactData = ref<any | null>(null);
 const contactIdNumber = computed(() => selectedContactData.value?.id_number || '');
 const contactPhone = computed(() => selectedContactData.value?.phone || '');
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc: number, item: any) => acc + Math.max(Number(item.total) || 0, 0), 0));
@@ -149,31 +148,51 @@ const requestItemsForTable = computed(() => {
 });
 
 async function fetchContacts() {
+    isLoadingContacts.value = true;
     try {
-        const [res1, res2] = await Promise.all([
-            axios.get('/contactos/data', { params: { contact_type: 'proveedor', per_page: 1000 } }),
-            axios.get('/contactos/data', { params: { contact_type: 'cliente_proveedor', per_page: 1000 } }),
-        ]);
-        contacts.value = [...(res1.data?.data || []), ...(res2.data?.data || [])];
+        const { data } = await axios.get('/contactos/list', {
+            params: { contact_types: ['proveedor', 'cliente_proveedor'] },
+        });
+        contacts.value = Array.isArray(data) ? data : [];
     } catch (e) {
         contacts.value = [];
         console.error(e);
+    } finally {
+        isLoadingContacts.value = false;
     }
 }
 
-async function fetchPendingPurchaseRequests() {
+async function fetchContactDetail(contactId: number | null) {
+    if (!contactId) {
+        selectedContactData.value = null;
+        return;
+    }
+    try {
+        const { data } = await axios.get(`/contactos/${contactId}`);
+        selectedContactData.value = data ?? null;
+    } catch {
+        selectedContactData.value = null;
+    }
+}
+
+async function fetchPendingPurchaseRequests(search = '') {
+    isLoadingPurchaseRequests.value = true;
     try {
         const response = await axios.get('/gastos/solicitudes-compra/data', {
-            params: { per_page: 500, status: 'approved', exclude_with_orders: true, minimal: true },
+            params: { fast_select: true, limit: 200, search: search.trim() },
         });
         let allRequests: any[] = [];
         if (Array.isArray(response.data?.data)) allRequests = response.data.data;
-        purchaseRequests.value = allRequests
-            .filter((req) => req?.status === 'approved')
-            .sort((a, b) => Number(a.id) - Number(b.id));
+        purchaseRequests.value = allRequests;
     } catch {
         purchaseRequests.value = [];
+    } finally {
+        isLoadingPurchaseRequests.value = false;
     }
+}
+
+function handlePurchaseRequestSearch(term: string) {
+    void fetchPendingPurchaseRequests(term);
 }
 
 async function fetchNextDocumentNumber() {
@@ -358,6 +377,9 @@ onMounted(async () => {
         if (mode.value === 'edit' && props.form) {
             initializeFromForm();
         }
+        if (localForm.value.contact_id) {
+            await fetchContactDetail(Number(localForm.value.contact_id));
+        }
     } finally {
         isLoading.value = false;
     }
@@ -366,6 +388,14 @@ onMounted(async () => {
 watch(() => props.form, (newVal) => {
     if (mode.value === 'edit' && newVal) initializeFromForm();
 });
+
+watch(
+    () => localForm.value.contact_id,
+    (id) => {
+        const normalized = id ? Number(id) : null;
+        void fetchContactDetail(Number.isFinite(normalized as number) ? (normalized as number) : null);
+    },
+);
 
 async function loadRequestToOrder(requestId: number) {
     isLoadingRequest.value = true;
@@ -378,7 +408,7 @@ async function loadRequestToOrder(requestId: number) {
 
         const providerName = (request.provider_name || '').toLowerCase().trim();
         const foundContact = providerName
-            ? contacts.value.find((c: any) => (c.name || '').toLowerCase().trim() === providerName)
+            ? contacts.value.find((c: any) => (c.full_name || '').toLowerCase().trim() === providerName)
             : null;
 
         localForm.value.contact_id = foundContact ? Number(foundContact.id) : null;
@@ -440,17 +470,19 @@ watch(selectedRequestId, async (id) => {
                 </div>
                 <div v-if="mode === 'create'" class="w-full sm:w-[340px] shrink-0">
                     <div class="space-y-1">
-                        <label class="text-sm font-medium leading-none text-foreground">Cargar desde solicitud aprobada</label>
+                        <label class="text-sm font-medium leading-none text-foreground">Cargar desde orden pendiente</label>
                         <SelectField
                             v-model="selectedRequestValue"
                             :options="pendingRequestOptions"
                             label=""
                             placeholder="Selecciona una solicitud"
-                            :searchable="pendingRequestOptions.length >= 6"
+                            :searchable="true"
                             search-placeholder="Buscar solicitud..."
                             tooltip-text="Selecciona una solicitud de compra aprobada para pre-llenar automáticamente los ítems."
                             :disabled="isLoadingRequest"
+                            :loading="isLoadingPurchaseRequests"
                             :clearable="true"
+                            @search="handlePurchaseRequestSearch"
                         />
                         <p v-if="isLoadingRequest" class="text-xs text-muted-foreground animate-pulse">
                             Cargando datos de la solicitud...
@@ -528,8 +560,10 @@ watch(selectedRequestId, async (id) => {
                                 label="Proveedor"
                                 :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
                                 :searchable="true"
+                                :loading="isLoadingContacts"
                                 :action-label="'Nuevo contacto'"
                                 :action-disabled="false"
+                                :clearable="true"
                                 @action="openContactDialog"
                                 required
                             />

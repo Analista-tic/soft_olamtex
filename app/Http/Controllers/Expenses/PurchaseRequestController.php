@@ -23,6 +23,18 @@ class PurchaseRequestController extends Controller
     public function getData(Request $request)
     {
 
+        if ($request->boolean('fast_select')) {
+            $limit = (int) $request->input('limit', 1000);
+            $search = trim((string) $request->input('search', ''));
+            $options = $this->service->getApprovedOptionsForOrderSelect($request->user(), $limit, $search);
+
+            return response()->json([
+                'data' => $options,
+                'total' => count($options),
+                'current_page' => 1,
+            ]);
+        }
+
         $filters = $request->only(['search', 'status', 'provider_name', 'date_from', 'date_to', 'exclude_with_orders', 'minimal']);
 
         if (isset($filters['exclude_with_orders'])) {

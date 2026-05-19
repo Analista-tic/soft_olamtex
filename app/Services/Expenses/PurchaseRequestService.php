@@ -3,18 +3,65 @@
 namespace App\Services\Expenses;
 
 use App\Helpers\ScopeHelper;
+use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseRequest;
 use App\Models\Settings\User;
+use App\Enums\PurchaseRequestStatus;
+use Illuminate\Support\Collection;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
 class PurchaseRequestService
 {
     public function __construct(private PurchaseDocumentOrderService $orderService) {}
+
+    public function getApprovedOptionsForOrderSelect(?User $user, int $limit = 200, string $search = ''): array
+    {
+        $safeLimit = max(1, min($limit, 500));
+        $normalizedSearch = trim($search);
+
+        $query = PurchaseRequest::query()
+            ->select(['id', 'request_number', 'provider_name'])
+            ->where('status', PurchaseRequestStatus::APPROVED->value)
+            ->whereNotExists(function ($subQuery) {
+                $subQuery->selectRaw('1')
+                    ->from('purchase_documents as pd')
+                    ->whereColumn('pd.purchase_request_id', 'purchase_requests.id')
+                    ->where('pd.document_type', PurchaseDocument::TYPE_ORDER)
+                    ->where('pd.status', '!=', 'pending')
+                    ->whereNull('pd.deleted_at');
+            });
+
+        ScopeHelper::apply($query, $user, 'ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra', 'requester_user_id');
+
+        if ($normalizedSearch !== '') {
+            $query->where(function (Builder $subQuery) use ($normalizedSearch) {
+                $subQuery->where('request_number', 'like', "%{$normalizedSearch}%")
+                    ->orWhere('provider_name', 'like', "%{$normalizedSearch}%");
+            });
+        }
+
+        /** @var Collection<int, PurchaseRequest> $rows */
+        $rows = $query
+            ->orderByDesc('id')
+            ->limit($safeLimit)
+            ->get();
+
+        return $rows->map(static function (PurchaseRequest $request): array {
+            return [
+                'id' => $request->id,
+                'request_number' => $request->request_number,
+                'provider_name' => $request->provider_name,
+                'status' => PurchaseRequestStatus::APPROVED->value,
+            ];
+        })->all();
+    }
 
     public function paginate(array $filters, int $perPage = 20, ?Request $request = null, ?User $user = null): LengthAwarePaginator
     {
@@ -364,7 +411,7 @@ class PurchaseRequestService
 
         $data = [
             'provider_name'       => $purchaseRequest->provider_name,
-            'date'                => $purchaseRequest->date?->toDateString() ?? now()->toDateString(),
+            'date'                => $purchaseRequest->date ? Carbon::parse((string) $purchaseRequest->date)->toDateString() : now()->toDateString(),
             'description'         => $purchaseRequest->description,
             'purchase_request_id' => $purchaseRequest->id,
             'status'              => 'pending',

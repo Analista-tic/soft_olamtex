@@ -86,6 +86,10 @@ const mode = computed<FormMode>(() => props.mode ?? 'create');
 
 const localForm = ref<PurchaseInvoiceForm>(createDefaultForm());
 const contacts = ref<Contact[]>([]);
+const isLoadingContacts = ref(false);
+const isLoadingPurchaseOrders = ref(false);
+let contactsRequestSequence = 0;
+let purchaseOrdersRequestSequence = 0;
 
 const purchaseOrders = ref<any[]>([]);
 const selectedPurchaseOrderId = ref<number | null>(null);
@@ -138,7 +142,7 @@ const total = computed(() => subtotal.value + iva.value);
 const pendingPurchaseOrderOptions = computed(() =>
     purchaseOrders.value.map((o: any) => ({
         id: o.id,
-        name: o.document_number ? `${o.document_number} — ${o.contact?.full_name || ''}` : `Orden #${o.id}`,
+        name: o.document_number ? `${o.document_number}` : `Orden #${o.id}`,
     })),
 );
 
@@ -297,19 +301,24 @@ function resetForm(): void {
     syncDateRefsFromForm();
 }
 
-async function fetchContacts(): Promise<void> {
+async function fetchContacts(search = ''): Promise<void> {
+    const currentSequence = ++contactsRequestSequence;
+    isLoadingContacts.value = true;
+
     try {
         const contactRequests = [
             axios.get('/contactos/data', {
                 params: {
                     contact_type: 'proveedor',
-                    per_page: 1000,
+                    per_page: 80,
+                    search: search.trim(),
                 },
             }),
             axios.get('/contactos/data', {
                 params: {
                     contact_type: 'cliente_proveedor',
-                    per_page: 1000,
+                    per_page: 80,
+                    search: search.trim(),
                 },
             }),
         ];
@@ -320,10 +329,56 @@ async function fetchContacts(): Promise<void> {
 
         const providerClients = Array.isArray(providerClientResponse.data?.data) ? providerClientResponse.data.data : [];
 
+        if (currentSequence !== contactsRequestSequence) {
+            return;
+        }
+
         contacts.value = removeDuplicatedContacts([...providers, ...providerClients]);
+
+        const selectedContactId = Number(localForm.value.contact_id ?? 0);
+        if (selectedContactId > 0 && !contacts.value.some((contact) => Number(contact.id) === selectedContactId)) {
+            void fetchContactById(selectedContactId);
+        }
     } catch {
+        if (currentSequence !== contactsRequestSequence) {
+            return;
+        }
+
         contacts.value = [];
         showError('No fue posible cargar los proveedores.');
+    } finally {
+        if (currentSequence === contactsRequestSequence) {
+            isLoadingContacts.value = false;
+        }
+    }
+}
+
+function handleContactSearch(term: string): void {
+    void fetchContacts(term);
+}
+
+async function fetchContactById(contactId: number): Promise<void> {
+    if (!Number.isFinite(contactId) || contactId <= 0) {
+        return;
+    }
+
+    try {
+        const response = await axios.get(`/contactos/${contactId}`);
+        const contact = response.data;
+
+        if (!contact || !contact.id) {
+            return;
+        }
+
+        const normalized: Contact = {
+            id: Number(contact.id),
+            full_name: String(contact.full_name ?? '').trim(),
+            id_number: contact.id_number ?? null,
+            phone: contact.phone ?? null,
+        };
+
+        contacts.value = removeDuplicatedContacts([...contacts.value, normalized]);
+    } catch {
     }
 }
 
@@ -396,13 +451,14 @@ function sanitizeWithholdings(withholdings: PurchaseInvoiceWithholding[]): Purch
 
 function buildPayload(): PurchaseInvoiceForm {
     const selectedContact = contacts.value.find((contact) => Number(contact.id) === Number(localForm.value.contact_id));
+    const normalizedProviderName = String(selectedContact?.full_name ?? localForm.value.provider_name ?? '').trim();
     const orderId = selectedPurchaseOrderId.value ?? localForm.value.purchase_order_id ?? localForm.value.parent_document_id ?? null;
     const normalizedReason = differenceReason.value.trim() || String(localForm.value.reason || '').trim() || null;
     const normalizedEvidence = differenceEvidenceData.value ?? localForm.value.evidence_path ?? null;
 
     return {
         ...localForm.value,
-        provider_name: selectedContact?.full_name ?? localForm.value.provider_name ?? null,
+        provider_name: normalizedProviderName,
         date: invoiceDate.value ? formatDateForBackend(invoiceDate.value) : localForm.value.date,
         delivery_date: deliveryDate.value ? formatDateForBackend(deliveryDate.value) : localForm.value.delivery_date,
         parent_document_id: orderId ? Number(orderId) : null,
@@ -559,23 +615,40 @@ function getAxiosValidationMessage(error: unknown, fallbackMessage: string): str
     return responseData?.message || fallbackMessage;
 }
 
-async function fetchPendingPurchaseOrders(): Promise<void> {
-    purchaseOrders.value = [];
+async function fetchPendingPurchaseOrders(search = ''): Promise<void> {
+    const currentSequence = ++purchaseOrdersRequestSequence;
+    isLoadingPurchaseOrders.value = true;
+
     try {
         const { data } = await axios.get('/gastos/ordenes-compra/data', {
-            params: { status: 'approved', per_page: 1000, exclude_fabric: true },
+            params: {
+                status: 'approved',
+                per_page: 80,
+                exclude_fabric: true,
+                search: search.trim(),
+            },
         });
-        const orders = Array.isArray(data.data) ? data.data : [];
 
-        const invoiceRes = await axios.get('/gastos/facturas-compra/data', {
-            params: { per_page: 1000 },
-        });
-        const invoices = Array.isArray(invoiceRes.data?.data) ? invoiceRes.data.data : [];
-        const invoicedOrderIds = new Set(invoices.map((inv: any) => inv.parent_document_id).filter(Boolean));
-        purchaseOrders.value = orders.filter((order: any) => !invoicedOrderIds.has(order.id));
+        if (currentSequence !== purchaseOrdersRequestSequence) {
+            return;
+        }
+
+        purchaseOrders.value = Array.isArray(data.data) ? data.data : [];
     } catch {
+        if (currentSequence !== purchaseOrdersRequestSequence) {
+            return;
+        }
+
         purchaseOrders.value = [];
+    } finally {
+        if (currentSequence === purchaseOrdersRequestSequence) {
+            isLoadingPurchaseOrders.value = false;
+        }
     }
+}
+
+function handlePurchaseOrderSearch(term: string): void {
+    void fetchPendingPurchaseOrders(term);
 }
 
 async function fetchPurchaseOrderById(orderId: number): Promise<any | null> {
@@ -621,7 +694,15 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     if (!order) return;
     if (!contacts.value.length) await fetchContacts();
     const foundContact = contacts.value.find((c: any) => Number(c.id) === Number(order.contact_id));
-    localForm.value.contact_id = foundContact ? Number(order.contact_id) : null;
+    if (foundContact) {
+        localForm.value.contact_id = Number(order.contact_id);
+    } else if (Number(order.contact_id) > 0) {
+        // Si el contacto no está en la lista, cargarlo por ID
+        await fetchContactById(Number(order.contact_id));
+        localForm.value.contact_id = Number(order.contact_id);
+    } else {
+        localForm.value.contact_id = null;
+    }
     localForm.value.supplier_invoice_number = '';
     localForm.value.delivery_date = order.delivery_date || '';
     localForm.value.description = order.description || '';
@@ -673,14 +754,32 @@ watch(selectedPurchaseOrderValue, (val) => {
     selectedPurchaseOrderId.value = val ? Number(val) : null;
 });
 
+watch(
+    () => localForm.value.contact_id,
+    (contactId) => {
+        const numericId = Number(contactId ?? 0);
+        if (numericId > 0 && !contacts.value.some((contact) => Number(contact.id) === numericId)) {
+            void fetchContactById(numericId);
+        }
+    },
+);
+
 onMounted(async () => {
     resetForm();
-    await Promise.all([fetchContacts(), fetchPendingPurchaseOrders()]);
+    void fetchContacts();
+
+    if (mode.value === 'create') {
+        void fetchPendingPurchaseOrders();
+    }
 
     const parentOrderId = localForm.value.parent_document_id ?? localForm.value.purchase_order_id ?? null;
     if (parentOrderId) {
         const order = await fetchPurchaseOrderById(Number(parentOrderId));
         attachOriginalOrderItemsFromOrder(order);
+
+        if (order && !purchaseOrders.value.some((existingOrder: any) => Number(existingOrder.id) === Number(order.id))) {
+            purchaseOrders.value = [order, ...purchaseOrders.value];
+        }
     }
 
     if (mode.value === 'create') {
@@ -734,9 +833,11 @@ onMounted(async () => {
                             label=""
                             placeholder="Selecciona una orden existente"
                             :searchable="pendingPurchaseOrderOptions.length >= 6"
+                            :loading="isLoadingPurchaseOrders"
                             search-placeholder="Buscar orden de compra..."
                             tooltip-text="Selecciona una orden de compra aprobada para pre-llenar automáticamente los ítems de esta factura."
                             :clearable="true"
+                            @search="handlePurchaseOrderSearch"
                         />
                     </div>
                 </div>
@@ -803,9 +904,12 @@ onMounted(async () => {
                                 label="Proveedor"
                                 :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
                                 :searchable="true"
+                                :loading="isLoadingContacts"
                                 :action-label="'Nuevo contacto'"
                                 :action-disabled="false"
+                                :clearable="true"
                                 @action="openContactDialog"
+                                @search="handleContactSearch"
                                 required
                             />
                         </div>

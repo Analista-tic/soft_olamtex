@@ -8,12 +8,13 @@ import type { Tax } from '@/domain/Finance';
 import type { Item } from '@/domain/MasterData';
 
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
-import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
-import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
-import ItemDialog from '@/pages/MasterData/Item/ItemDialog.vue';
 import axios from 'axios';
 import { ImagePlus, Lightbulb, PlusCircle, X as XIcon } from 'lucide-vue-next';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+
+const ImagePreviewDialog = defineAsyncComponent(() => import('@/components/ImagePreviewDialog.vue'));
+const TaxDialog = defineAsyncComponent(() => import('@/pages/Finance/Taxes/TaxDialog.vue'));
+const ItemDialog = defineAsyncComponent(() => import('@/pages/MasterData/Item/ItemDialog.vue'));
 
 const props = defineProps<{
     items: PurchaseOrderItem[];
@@ -24,8 +25,18 @@ const props = defineProps<{
 const emit = defineEmits(['update:items']);
 
 const localItems = ref<PurchaseOrderItem[]>([]);
-const catalogItems = ref<Item[]>([]);
+
+// Catálogo base: carga inicial compartida (sin search)
+const baseCatalogItems = ref<Item[]>([]);
+// Catálogo por fila: cada fila tiene su propia lista cuando hace búsqueda remota
+const rowCatalogItems = ref<Map<number, Item[]>>(new Map());
+// Estado de carga por fila
+const rowLoadingItems = ref<Map<number, boolean>>(new Map());
+// Caché de label para ítems ya seleccionados (id → nombre)
+const selectedItemOptionsCache = ref<Record<number, string>>({});
+
 const taxes = ref<Tax[]>([]);
+const isLoadingTaxes = ref(false);
 const isTaxDialogOpen = ref(false);
 const taxDialogLoading = ref(false);
 type TaxDialogForm = Pick<Tax, 'name' | 'percentage' | 'status'> & { id?: number };
@@ -35,8 +46,37 @@ const fileInputRefs = ref<Record<string, HTMLInputElement | null>>({});
 const persistedImageUrls = ref<Record<string, string | null>>({});
 const itemTypedNames = ref<Record<number, string>>({});
 
+// Catálogo unificado de todos los ítems conocidos (base + por fila) para lookups (isTela, etc.)
+const allKnownItemsMap = computed<Map<number, Item>>(() => {
+    const map = new Map<number, Item>(baseCatalogItems.value.map((i) => [Number(i.id), i]));
+    rowCatalogItems.value.forEach((items) => {
+        items.forEach((i) => map.set(Number(i.id), i));
+    });
+    return map;
+});
+
+function isLoadingItemsForRow(rowIdx: number): boolean {
+    return rowLoadingItems.value.get(rowIdx) === true;
+}
+
+function itemOptionsForRow(rowIdx: number): { id: number; name: string }[] {
+    // Los ítems para este select son: los de la fila si buscó, si no los base
+    const rowItems = rowCatalogItems.value.get(rowIdx);
+    const sourceItems = rowItems ?? baseCatalogItems.value;
+    const optionsFromSource = sourceItems.map((item) => ({ id: Number(item.id), name: item.name }));
+    const existingIds = new Set(optionsFromSource.map((o) => o.id));
+
+    // Añadir opciones cacheadas (ítems ya seleccionados que no estén en la búsqueda actual)
+    const persistedOptions = Object.entries(selectedItemOptionsCache.value)
+        .map(([id, name]) => ({ id: Number(id), name: String(name || '').trim() }))
+        .filter((o) => Number.isFinite(o.id) && o.id > 0 && o.name && !existingIds.has(o.id));
+
+    return [...persistedOptions, ...optionsFromSource];
+}
+
 function onItemSearch(rowIdx: number, term: string) {
     itemTypedNames.value[rowIdx] = term;
+    void fetchItemsForRow(rowIdx, term);
 }
 const showLightbox = ref(false);
 const lightboxUrl = ref<string | null>(null);
@@ -57,8 +97,7 @@ const itemDialogForm = ref<Partial<Item>>({
 
 const isReadOnly = computed(() => !!props.readonly);
 const hasPurchaseRequestContext = computed(() => props.purchaseRequestId != null);
-const itemMap = computed(() => new Map<number, Item>(catalogItems.value.map((item) => [item.id, item])));
-const itemOptions = computed(() => catalogItems.value.map((item) => ({ id: item.id, name: item.name })));
+const itemMap = computed(() => allKnownItemsMap.value);
 const taxById = computed(() => new Map<number, Tax>(taxes.value.map((tax) => [Number(tax.id), tax])));
 const taxOptions = computed(() => [
     { id: 0, name: DEFAULT_TAX_LABEL },
@@ -83,6 +122,62 @@ const totalColumns = computed(() => {
     return cols;
 });
 
+function resolveLocalItemLabel(item: PurchaseOrderItem, rowIdx: number): string {
+    const fromMap = itemMap.value.get(Number(item.item_id))?.name;
+    if (fromMap) return fromMap;
+
+    const fromNestedItem = typeof item?.item?.name === 'string' ? item.item.name.trim() : '';
+    if (fromNestedItem) return fromNestedItem;
+
+    const fromItemName = typeof item?.item_name === 'string' ? item.item_name.trim() : '';
+    if (fromItemName) return fromItemName;
+
+    const fromTypedName = typeof itemTypedNames.value[rowIdx] === 'string' ? itemTypedNames.value[rowIdx].trim() : '';
+    if (fromTypedName) return fromTypedName;
+
+    return typeof item?.description === 'string' ? item.description.trim() : '';
+}
+
+function persistLabelForItems(items: Item[]) {
+    const nextCache = { ...selectedItemOptionsCache.value };
+    items.forEach((catalogItem) => {
+        const id = Number(catalogItem.id);
+        if (!Number.isFinite(id) || id <= 0) return;
+        const name = typeof catalogItem.name === 'string' ? catalogItem.name.trim() : '';
+        if (name) nextCache[id] = name;
+    });
+    selectedItemOptionsCache.value = nextCache;
+}
+
+function persistSelectedItemOptions() {
+    const nextCache = { ...selectedItemOptionsCache.value };
+
+    baseCatalogItems.value.forEach((catalogItem) => {
+        const id = Number(catalogItem.id);
+        if (!Number.isFinite(id) || id <= 0) return;
+        const name = typeof catalogItem.name === 'string' ? catalogItem.name.trim() : '';
+        if (name) nextCache[id] = name;
+    });
+
+    rowCatalogItems.value.forEach((items) => {
+        items.forEach((catalogItem) => {
+            const id = Number(catalogItem.id);
+            if (!Number.isFinite(id) || id <= 0) return;
+            const name = typeof catalogItem.name === 'string' ? catalogItem.name.trim() : '';
+            if (name) nextCache[id] = name;
+        });
+    });
+
+    localItems.value.forEach((item, rowIdx) => {
+        const id = Number(item.item_id);
+        if (!Number.isFinite(id) || id <= 0) return;
+        const fallbackName = resolveLocalItemLabel(item, rowIdx);
+        if (fallbackName) nextCache[id] = fallbackName;
+    });
+
+    selectedItemOptionsCache.value = nextCache;
+}
+
 watch(
     () => props.items,
     (val) => {
@@ -101,23 +196,74 @@ watch(
                       _delete_image: false,
                   }))
                 : [];
+
+            persistSelectedItemOptions();
         }
     },
     { immediate: true },
 );
 
-async function fetchItems() {
-    const res = await axios.get('/item/data', { params: { per_page: 1000 } });
-    catalogItems.value = res.data.data;
+async function fetchBaseCatalog() {
+    try {
+        const res = await axios.get('/item/data', {
+            params: { per_page: 200, status: true },
+        });
+        baseCatalogItems.value = Array.isArray(res.data?.data) ? res.data.data : [];
+        persistLabelForItems(baseCatalogItems.value);
+        persistSelectedItemOptions();
+    } catch {
+        baseCatalogItems.value = [];
+    }
+}
+
+async function fetchItemsForRow(rowIdx: number, search = '') {
+    const normalizedSearch = search.trim();
+
+    // Si no hay búsqueda real, limpiar la lista por fila para volver a los base
+    if (!normalizedSearch) {
+        const updated = new Map(rowCatalogItems.value);
+        updated.delete(rowIdx);
+        rowCatalogItems.value = updated;
+        const loadingMap = new Map(rowLoadingItems.value);
+        loadingMap.delete(rowIdx);
+        rowLoadingItems.value = loadingMap;
+        return;
+    }
+
+    const loadingMap = new Map(rowLoadingItems.value);
+    loadingMap.set(rowIdx, true);
+    rowLoadingItems.value = loadingMap;
+
+    try {
+        const res = await axios.get('/item/data', {
+            params: { per_page: 120, search: normalizedSearch, status: true },
+        });
+        const items: Item[] = Array.isArray(res.data?.data) ? res.data.data : [];
+        const updated = new Map(rowCatalogItems.value);
+        updated.set(rowIdx, items);
+        rowCatalogItems.value = updated;
+        persistLabelForItems(items);
+    } catch {
+        // mantener base catalog para esta fila en fallo
+    } finally {
+        const loadingMap2 = new Map(rowLoadingItems.value);
+        loadingMap2.delete(rowIdx);
+        rowLoadingItems.value = loadingMap2;
+    }
 }
 
 async function fetchTaxes() {
-    const res = await axios.get('/impuestos/data', { params: { per_page: 1000, status: true } });
-    taxes.value = Array.isArray(res.data?.data) ? res.data.data.filter((tax: any) => tax.status) : [];
+    isLoadingTaxes.value = true;
+    try {
+        const res = await axios.get('/impuestos/data', { params: { per_page: 100, status: true } });
+        taxes.value = Array.isArray(res.data?.data) ? res.data.data.filter((tax: any) => tax.status) : [];
+    } finally {
+        isLoadingTaxes.value = false;
+    }
 }
 
 onMounted(async () => {
-    await Promise.all([fetchItems(), fetchTaxes()]);
+    await Promise.all([fetchBaseCatalog(), fetchTaxes()]);
 });
 
 function openTaxDialog() {
@@ -173,7 +319,7 @@ function detectCreatedItemId(previousIds: number[], items: Item[]): number | nul
 function openItemDialog(targetRowIdx: number | null = null, prefillFromRequest = false) {
     // Prepare quick-create dialog for item
     itemDialogTargetRowIndex.value = targetRowIdx;
-    itemCatalogSnapshotBeforeCreate.value = catalogItems.value.map((i) => Number(i.id)).filter((id) => Number.isFinite(id));
+    itemCatalogSnapshotBeforeCreate.value = baseCatalogItems.value.map((i) => Number(i.id)).filter((id) => Number.isFinite(id));
     createdItemCandidateId.value = null;
 
     // Prefill form when requested (from purchase request)
@@ -460,6 +606,7 @@ watch(
                             const rowIdx = localItems.value.indexOf(item);
                             if (rowIdx >= 0) itemTypedNames.value[rowIdx] = '';
                         }
+                        persistSelectedItemOptions();
                         setTaxFromItem(item);
                         setDescriptionFromItem(item);
                         calcTotals(item);
@@ -508,7 +655,7 @@ function selectSuggestedItemInRow(rowIdx: number) {
     const suggestedItemId = suggestedItem.item_id != null ? Number(suggestedItem.item_id) : null;
 
     if (suggestedItemId && Number.isFinite(suggestedItemId)) {
-        const matchedCatalogItem = catalogItems.value.find((c) => Number(c.id) === suggestedItemId);
+        const matchedCatalogItem = allKnownItemsMap.value.get(suggestedItemId);
         if (matchedCatalogItem) {
             localItems.value = localItems.value.map((item, i) => {
                 if (i !== rowIdx) return item;
@@ -528,7 +675,7 @@ function selectSuggestedItemInRow(rowIdx: number) {
         return;
     }
 
-    const matchedByName = catalogItems.value.find((c) => c.name?.trim().toLowerCase() === suggestedLabel);
+    const matchedByName = baseCatalogItems.value.find((c) => c.name?.trim().toLowerCase() === suggestedLabel);
 
     if (matchedByName) {
         localItems.value = localItems.value.map((item, i) => {
@@ -561,8 +708,8 @@ function openCreateItemDialogForRow(rowIdx: number) {
 async function handleItemDialogRefresh() {
     const previousIds = [...itemCatalogSnapshotBeforeCreate.value];
     pendingItemDialogRefresh.value = (async () => {
-        await fetchItems();
-        const detected = detectCreatedItemId(previousIds, catalogItems.value);
+        await fetchBaseCatalog();
+        const detected = detectCreatedItemId(previousIds, baseCatalogItems.value);
         createdItemCandidateId.value = detected ?? null;
     })();
     await pendingItemDialogRefresh.value;
@@ -605,23 +752,23 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
             >
                 <TableHeader>
                     <TableRow class="border-b border-border/60 text-center">
-                        <TableHead class="w-14"></TableHead>
-                        <TableHead class="min-w-[150px] text-left">Item <span class="text-destructive">*</span></TableHead>
-                        <TableHead class="min-w-[120px] text-left">Precio SIN Impuesto <span class="text-destructive">*</span></TableHead>
-                        <TableHead class="min-w-[160px] text-left">Impuesto <span class="text-destructive">*</span></TableHead>
-                        <TableHead class="min-w-[110px] text-left">{{ allItemsAreTela ? 'Longitud (mts)' : 'Cantidad' }} <span class="text-destructive">*</span></TableHead>
-                        <TableHead class="min-w-[160px] text-left">Descripción</TableHead>
-                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">Código proveedor</TableHead>
-                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">Color proveedor</TableHead>
-                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">Ancho pedido</TableHead>
-                        <TableHead class="min-w-[90px] text-left">Total</TableHead>
+                        <TableHead class="w-[52px]"></TableHead>
+                        <TableHead class="w-[320px] text-left">Item <span class="text-destructive">*</span></TableHead>
+                        <TableHead class="w-[120px] text-left">Precio SIN Impuesto <span class="text-destructive">*</span></TableHead>
+                        <TableHead class="w-[140px] text-left">Impuesto <span class="text-destructive">*</span></TableHead>
+                        <TableHead class="w-[96px] text-left">{{ allItemsAreTela ? 'Longitud (mts)' : 'Cantidad' }} <span class="text-destructive">*</span></TableHead>
+                        <TableHead class="w-[160px] text-left">Descripción</TableHead>
+                        <TableHead v-if="shouldShowFabricColumns" class="w-[120px] text-left">Código proveedor</TableHead>
+                        <TableHead v-if="shouldShowFabricColumns" class="w-[120px] text-left">Color proveedor</TableHead>
+                        <TableHead v-if="shouldShowFabricColumns" class="w-[110px] text-left">Ancho pedido</TableHead>
+                        <TableHead class="w-[110px] text-left">Total</TableHead>
                         <TableHead v-if="showActionsColumn" class="w-[60px]"></TableHead>
                     </TableRow>
                 </TableHeader>
 
                 <TableBody>
                     <TableRow v-for="(item, idx) in localItems" :key="idx">
-                        <TableCell class="w-14 p-1 text-center align-middle">
+                        <TableCell class="w-[52px] p-1 text-center align-middle">
                             <div class="flex items-center justify-center">
                                 <input
                                     :ref="(el) => registerFileInput(getItemUid(item, idx), el as HTMLInputElement | null)"
@@ -672,18 +819,20 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                                 </span>
                             </div>
                         </TableCell>
-                        <TableCell class="min-w-[150px] p-1 text-left align-top">
+                        <TableCell class="w-[320px] p-1 text-left align-top">
                             <div class="min-w-0">
                                 <div class="flex items-center gap-1.5">
                                     <div class="min-w-0 flex-1">
                                 <SelectField
                                     :dusk="`orden-item-${idx}-item`"
                                     v-model="item.item_id"
-                                    :options="itemOptions"
+                                    :options="itemOptionsForRow(idx)"
                                     label=""
+                                            :searchable="true"
                                             placeholder="Selecciona item"
                                             class="w-full"
                                             :disabled="isReadOnly"
+                                            :loading="isLoadingItemsForRow(idx)"
                                             :action-label="!getSuggestedItemForRow(idx) && !isReadOnly ? 'Nuevo ítem' : undefined"
                                             :action-disabled="isReadOnly"
                                             @action="openItemDialog(idx, false)"
@@ -693,11 +842,13 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                                         <SelectField
                                             v-else
                                             v-model="item.item_id"
-                                            :options="itemOptions"
+                                            :options="itemOptionsForRow(idx)"
                                             label=""
+                                            :searchable="true"
                                             placeholder="Selecciona item"
                                             class="w-full"
                                             :disabled="isReadOnly"
+                                            :loading="isLoadingItemsForRow(idx)"
                                         />
                                     </div>
                                 </div>
@@ -726,7 +877,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                                 </div>
                             </div>
                         </TableCell>
-                        <TableCell class="p-1 text-left align-top" style="width: 120px">
+                        <TableCell class="w-[120px] p-1 text-left align-top">
                             <InputField
                                 :dusk="`orden-item-${idx}-precio`"
                                 v-model="item.price"
@@ -739,13 +890,14 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                                 @input="calcTotals(item)"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left align-top" style="width: 160px">
+                        <TableCell class="w-[140px] p-1 text-left align-top">
                             <SelectField
                                 v-model="item.tax"
                                 :options="taxOptions"
                                 label=""
                                 class="w-full"
                                 :disabled="isReadOnly"
+                                :loading="isLoadingTaxes"
                                 :action-label="!isReadOnly ? 'Nuevo impuesto' : undefined"
                                 @action="!isReadOnly && openTaxDialog()"
                                 @update:modelValue="
@@ -756,7 +908,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                                 "
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left align-top" style="width: 110px">
+                        <TableCell class="w-[96px] p-1 text-left align-top">
                             <InputField
                                 :dusk="`orden-item-${idx}-cantidad`"
                                 v-model="item.quantity"
@@ -769,10 +921,10 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                                 @input="calcTotals(item)"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left align-top" style="width: 160px">
+                        <TableCell class="w-[160px] p-1 text-left align-top">
                             <InputField :dusk="`orden-item-${idx}-descripcion`" v-model="item.description" label="" class="h-10 w-full" :disabled="isReadOnly" />
                         </TableCell>
-                        <TableCell v-if="isTela(item)" class="p-1 text-left align-top" style="width: 150px">
+                        <TableCell v-if="isTela(item)" class="w-[120px] p-1 text-left align-top">
                             <InputField
                                 v-model="item.supplier_code"
                                 label=""
@@ -781,7 +933,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                                 :disabled="isReadOnly"
                             />
                         </TableCell>
-                        <TableCell v-if="isTela(item)" class="p-1 text-left align-top" style="width: 150px">
+                        <TableCell v-if="isTela(item)" class="w-[120px] p-1 text-left align-top">
                             <InputField
                                 v-model="item.supplier_color"
                                 label=""
@@ -790,7 +942,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                                 :disabled="isReadOnly"
                             />
                         </TableCell>
-                        <TableCell v-if="isTela(item)" class="p-1 text-left align-top" style="width: 150px">
+                        <TableCell v-if="isTela(item)" class="w-[110px] p-1 text-left align-top">
                             <InputField
                                 :dusk="`orden-item-${idx}-ancho`"
                                 v-model="item.order_width"
@@ -803,7 +955,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                                 :required="true"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left align-top" style="width: 90px">
+                        <TableCell class="w-[110px] p-1 text-left align-top">
                             {{
                                 Number(item.total || 0).toLocaleString('es-CO', {
                                     style: 'currency',

@@ -17,7 +17,7 @@ import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useAlertStack } from '@/composables/useAlert';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
-import { Plus, X } from 'lucide-vue-next';
+import { Plus } from 'lucide-vue-next';
 
 const { company, logoUrl } = useCompanyInfo();
 const { successMessage, errorMessage, errorType, showError, clearError, clearSuccess } = useAlertStack();
@@ -29,6 +29,10 @@ const localForm = ref<any>({});
 const nextDocumentNumber = ref<string>('');
 const isLoadingDocumentNumber = ref(false);
 const contacts = ref<any[]>([]);
+const isLoadingContacts = ref(false);
+const isLoadingPurchaseOrders = ref(false);
+let contactsRequestSequence = 0;
+let purchaseOrdersRequestSequence = 0;
 const isContactDialogOpen = ref(false);
 const contactDialogError = ref('');
 const contactDialogForm = ref<any>({ groups: [] });
@@ -69,9 +73,7 @@ const total = computed(() => Number(subtotal.value) + Number(iva.value));
 const pendingPurchaseOrderOptions = computed(() =>
     purchaseOrders.value.map((o: any) => ({
         id: o.id,
-        name: o.document_number
-            ? `${o.document_number} — ${o.contact?.full_name || ''}`
-            : `Orden #${o.id}`,
+        name: o.document_number ? `${o.document_number}` : `Orden #${o.id}`,
     }))
 );
 
@@ -116,37 +118,95 @@ function resetForm() {
     deliveryDate.value = localForm.value.delivery_date ? new Date(localForm.value.delivery_date) : null;
 }
 
-async function fetchContacts() {
+async function fetchContacts(search = '') {
+    const currentSequence = ++contactsRequestSequence;
+    isLoadingContacts.value = true;
+
     try {
         const [res1, res2] = await Promise.all([
-            axios.get('/contactos/data', { params: { contact_type: 'proveedor', per_page: 1000 } }),
-            axios.get('/contactos/data', { params: { contact_type: 'cliente_proveedor', per_page: 1000 } }),
+            axios.get('/contactos/data', { params: { contact_type: 'proveedor', per_page: 80, search: search.trim() } }),
+            axios.get('/contactos/data', { params: { contact_type: 'cliente_proveedor', per_page: 80, search: search.trim() } }),
         ]);
+
+        if (currentSequence !== contactsRequestSequence) {
+            return;
+        }
+
         contacts.value = [...(res1.data?.data || []), ...(res2.data?.data || [])];
+
+        const selectedContactId = Number(localForm.value.contact_id ?? 0);
+        if (selectedContactId > 0 && !contacts.value.some((contact: any) => Number(contact.id) === selectedContactId)) {
+            void fetchContactById(selectedContactId);
+        }
     } catch {
+        if (currentSequence !== contactsRequestSequence) {
+            return;
+        }
+
         contacts.value = [];
+    } finally {
+        if (currentSequence === contactsRequestSequence) {
+            isLoadingContacts.value = false;
+        }
     }
 }
 
-async function fetchPendingPurchaseOrders() {
-    purchaseOrders.value = [];
+function handleContactSearch(term: string) {
+    void fetchContacts(term);
+}
+
+async function fetchContactById(contactId: number) {
+    if (!Number.isFinite(contactId) || contactId <= 0) {
+        return;
+    }
+
+    try {
+        const response = await axios.get(`/contactos/${contactId}`);
+        const contact = response.data;
+        if (!contact || !contact.id) {
+            return;
+        }
+
+        contacts.value = [...contacts.value, contact].reduce((acc: any[], current: any) => {
+            if (!current?.id) return acc;
+            if (!acc.some((existing) => Number(existing.id) === Number(current.id))) {
+                acc.push(current);
+            }
+            return acc;
+        }, []);
+    } catch {
+    }
+}
+
+async function fetchPendingPurchaseOrders(search = '') {
+    const currentSequence = ++purchaseOrdersRequestSequence;
+    isLoadingPurchaseOrders.value = true;
+
     try {
         const { data } = await axios.get('/gastos/ordenes-compra/data', {
-            params: { status: 'approved', per_page: 1000, fabric_only: true },
+            params: { status: 'approved', per_page: 80, fabric_only: true, search: search.trim() },
         });
-        const orders = Array.isArray(data.data) ? data.data : [];
 
-        const invoicesRes = await axios.get('/gastos/facturas-compra-tela/data', {
-            params: { per_page: 1000 },
-        });
-        const invoices = Array.isArray(invoicesRes.data?.data) ? invoicesRes.data.data : [];
-        const orderIdsWithInvoice = new Set(
-            invoices.map((inv: any) => inv.parent_document_id).filter(Boolean),
-        );
-        purchaseOrders.value = orders.filter((order: any) => !orderIdsWithInvoice.has(order.id));
+        if (currentSequence !== purchaseOrdersRequestSequence) {
+            return;
+        }
+
+        purchaseOrders.value = Array.isArray(data.data) ? data.data : [];
     } catch {
+        if (currentSequence !== purchaseOrdersRequestSequence) {
+            return;
+        }
+
         purchaseOrders.value = [];
+    } finally {
+        if (currentSequence === purchaseOrdersRequestSequence) {
+            isLoadingPurchaseOrders.value = false;
+        }
     }
+}
+
+function handlePurchaseOrderSearch(term: string) {
+    void fetchPendingPurchaseOrders(term);
 }
 
 function handleContactFormUpdate(updatedContact: Partial<any>) { contactDialogForm.value = updatedContact; }
@@ -171,7 +231,12 @@ async function handleContactDialogSubmit(contactData: Partial<any>) {
 
 onMounted(async () => {
     resetForm();
-    await Promise.all([fetchContacts(), fetchPendingPurchaseOrders()]);
+    void fetchContacts();
+
+    if (mode.value === 'create') {
+        void fetchPendingPurchaseOrders();
+    }
+
     if (mode.value === 'create') {
         await fetchNextDocumentNumber();
     }
@@ -205,7 +270,15 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     if (!order) return;
     if (!contacts.value.length) await fetchContacts();
     const foundContact = contacts.value.find((c: any) => Number(c.id) === Number(order.contact_id));
-    localForm.value.contact_id = foundContact ? Number(order.contact_id) : null;
+    if (foundContact) {
+        localForm.value.contact_id = Number(order.contact_id);
+    } else if (Number(order.contact_id) > 0) {
+        // Si el contacto no está en la lista, cargarlo por ID
+        await fetchContactById(Number(order.contact_id));
+        localForm.value.contact_id = Number(order.contact_id);
+    } else {
+        localForm.value.contact_id = null;
+    }
     localForm.value.supplier_invoice_number = '';
     localForm.value.delivery_date = order.delivery_date || '';
     localForm.value.description = order.description || '';
@@ -245,6 +318,16 @@ watch(selectedPurchaseOrderId, async (id, oldVal) => {
         resetForm();
     }
 });
+
+watch(
+    () => localForm.value.contact_id,
+    (contactId) => {
+        const numericId = Number(contactId ?? 0);
+        if (numericId > 0 && !contacts.value.some((contact: any) => Number(contact.id) === numericId)) {
+            void fetchContactById(numericId);
+        }
+    },
+);
 
 function cancel() { router.visit('/gastos/facturas-compra-tela'); }
 
@@ -307,8 +390,10 @@ async function handleSubmit(sendMail = false, options: { skipDifferenceCheck?: b
 
     isSubmitting.value = true;
     const formToSend = { ...localForm.value };
+    const selectedContact = contacts.value.find((contact: any) => Number(contact.id) === Number(localForm.value.contact_id));
     formToSend.date = invoiceDate.value ? invoiceDate.value.toISOString().slice(0, 10) : localForm.value.date;
     formToSend.delivery_date = deliveryDate.value ? deliveryDate.value.toISOString().slice(0, 10) : localForm.value.delivery_date;
+    formToSend.provider_name = String(selectedContact?.full_name ?? localForm.value.provider_name ?? '').trim();
     formToSend.reason = differenceReason.value.trim() || localForm.value.reason || null;
     formToSend.evidence_path = differenceEvidenceData.value ?? localForm.value.evidence_path ?? null;
     try {
@@ -388,19 +473,13 @@ function handleDifferenceDialogOpenChange(isOpen: boolean): void {
                                     label=""
                                     placeholder="Selecciona una orden de tela"
                                     :searchable="pendingPurchaseOrderOptions.length >= 6"
+                                    :loading="isLoadingPurchaseOrders"
                                     search-placeholder="Buscar orden..."
                                     tooltip-text="Selecciona una orden de compra de tela aprobada para pre-llenar automáticamente los ítems de esta factura."
+                                    :clearable="true"
+                                    @search="handlePurchaseOrderSearch"
                                 />
                             </div>
-                            <button
-                                type="button"
-                                class="shrink-0 h-7 w-7 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
-                                :disabled="!selectedPurchaseOrderId"
-                                title="Limpiar selección"
-                                @click="selectedPurchaseOrderId = null; selectedPurchaseOrderValue = null; resetForm()"
-                            >
-                                <X class="h-3.5 w-3.5" />
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -465,9 +544,12 @@ function handleDifferenceDialogOpenChange(isOpen: boolean): void {
                                 label="Proveedor"
                                 :options="contacts.map(c => ({ id: c.id, name: c.full_name }))"
                                 :searchable="true"
+                                :loading="isLoadingContacts"
                                 :action-label="'Nuevo contacto'"
                                 :action-disabled="false"
+                                :clearable="true"
                                 @action="() => isContactDialogOpen = true"
+                                @search="handleContactSearch"
                                 required
                             />
                         </div>

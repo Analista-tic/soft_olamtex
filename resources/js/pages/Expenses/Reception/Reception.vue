@@ -9,6 +9,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import Input from '@/components/ui/input/Input.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
@@ -19,7 +20,7 @@ import { useContactsStore } from '@/stores/masterData/contacts';
 import type { PageProps as InertiaPageProps } from '@inertiajs/core';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { AlertTriangle, ArrowLeft, Check, Eye, Package2, Search, X } from 'lucide-vue-next';
+import { AlertTriangle, ArrowLeft, Check, Eye, Layers, Package2, Search, X } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import FabricRollDialog from './FabricRollDialog.vue';
 import ServerPagination from '@/components/common/ServerPagination.vue';
@@ -597,12 +598,95 @@ watch(
     { immediate: true },
 );
 
+// ── Tabs del detalle ────────────────────────────────────────────────────
+const detailTab = ref<'items' | 'rolls'>('items');
+
+type RollEntry = {
+    id: number;
+    roll_number: string;
+    quantity: number | string;
+    roll_width: number | string;
+    location?: string | null;
+    entry_date: string;
+};
+
+const rollsByItemId = ref<Record<number, RollEntry[]>>({});
+const rollsDetailLoading = ref(false);
+
+async function fetchRollsForInvoiceDetail() {
+    const inv = selectedInvoice.value;
+    if (!inv || !Array.isArray(inv.items)) {
+        rollsByItemId.value = {};
+        return;
+    }
+    const fabricItems = inv.items.filter((item: any) => isFabricItem(item));
+    if (fabricItems.length === 0) {
+        rollsByItemId.value = {};
+        return;
+    }
+
+    rollsDetailLoading.value = true;
+    const result: Record<number, RollEntry[]> = {};
+    await Promise.allSettled(
+        fabricItems.map(async (item: any) => {
+            const itemId = item.id;
+            if (!itemId) return;
+            try {
+                const res = await axios.get(`/kardex-telas/rollos/item/${itemId}`);
+                const rows: unknown[] = Array.isArray(res.data)
+                    ? res.data
+                    : Array.isArray(res.data?.data)
+                      ? res.data.data
+                      : [];
+                result[itemId] = rows
+                    .filter((r): r is Record<string, unknown> => typeof r === 'object' && r !== null)
+                    .map((r) => ({
+                        id: Number(r.id),
+                        roll_number: String(r.roll_number ?? ''),
+                        quantity: r.quantity as number | string,
+                        roll_width: r.roll_width as number | string,
+                        location: typeof r.location === 'string' ? r.location : null,
+                        entry_date: String(r.entry_date ?? ''),
+                    }));
+            } catch {
+                result[itemId] = [];
+            }
+        })
+    );
+    rollsByItemId.value = result;
+    rollsDetailLoading.value = false;
+}
+
+function rollCoverageBadge(ordered: number, received: number): { label: string; cls: string } {
+    if (ordered <= 0) return { label: `${received.toFixed(2)} mts`, cls: 'bg-muted text-muted-foreground' };
+    const pct = (received / ordered) * 100;
+    const label = `${received.toFixed(2)} / ${ordered.toFixed(2)} mts (${Math.round(pct)}%)`;
+    if (pct === 0) return { label, cls: 'bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400' };
+    if (Math.abs(pct - 100) <= 30) return { label, cls: 'bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400' };
+    return { label, cls: 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400' };
+}
+
+watch(
+    selectedInvoice,
+    (inv) => {
+        detailTab.value = 'items';
+        if (inv) void fetchRollsForInvoiceDetail();
+        else rollsByItemId.value = {};
+    },
+    { immediate: false },
+);
+
+const totalRollsCount = computed(() =>
+    Object.values(rollsByItemId.value).reduce((acc, arr) => acc + arr.length, 0)
+);
+
 function onFabricRollSuccess() {
     const invoiceId = selectedInvoice.value?.id;
     // Recargar la factura específica para mostrar los rollos actualizados
     if (typeof invoiceId === 'number') {
         fetchSpecificInvoice(invoiceId);
     }
+    void fetchRollsForInvoiceDetail();
 }
 </script>
 
@@ -896,79 +980,189 @@ function onFabricRollSuccess() {
                         <p class="text-sm">{{ selectedInvoice.description }}</p>
                     </div>
 
-                    <!-- Items -->
-                    <div>
-                        <h3 class="mb-2 text-sm font-medium">Items de la Factura</h3>
-                        <div class="overflow-hidden rounded-xl border border-border bg-card">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow class="text-xs text-muted-foreground">
-                                        <TableHead class="py-2">Item</TableHead>
-                                        <TableHead class="py-2">Código</TableHead>
-                                        <TableHead class="py-2">Descripción</TableHead>
-                                        <TableHead class="py-2">Proveedor</TableHead>
-                                        <TableHead class="py-2">{{ isTelasList ? 'Longitud' : 'Cantidad' }}</TableHead>
-                                        <TableHead class="py-2">Precio</TableHead>
-                                        <TableHead class="py-2">IVA</TableHead>
-                                        <TableHead class="py-2">Total</TableHead>
-                                        <TableHead v-if="isTelasList" class="w-24 py-2 text-center">Acciones</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    <TableRow v-for="item in selectedInvoice.items" :key="item.id" class="text-center text-xs">
-                                        <TableCell class="py-2">{{ item.item?.name || 'N/A' }}</TableCell>
-                                        <TableCell class="py-2">{{ item.item?.code || 'N/A' }}</TableCell>
-                                        <TableCell class="py-2">{{ item.description || '-' }}</TableCell>
-                                        <TableCell class="py-2">{{ item.supplier_code || '-' }}</TableCell>
-                                        <TableCell class="py-2">{{
-                                            `${Number(item.quantity).toFixed(2)} ${item.item && 'unit' in item.item ? item.item.unit : 'mts'}`
-                                        }}</TableCell>
-                                        <TableCell class="py-2">
-                                            {{
-                                                Number(item.price || 0).toLocaleString('es-CO', {
-                                                    style: 'currency',
-                                                    currency: 'COP',
-                                                    minimumFractionDigits: 0,
-                                                    maximumFractionDigits: 0,
-                                                })
-                                            }}
-                                        </TableCell>
-                                        <TableCell class="py-2">
-                                            {{
-                                                Number(item.total_tax || 0).toLocaleString('es-CO', {
-                                                    style: 'currency',
-                                                    currency: 'COP',
-                                                    minimumFractionDigits: 0,
-                                                    maximumFractionDigits: 0,
-                                                })
-                                            }}
-                                        </TableCell>
-                                        <TableCell class="py-2">
-                                            {{
-                                                Number(item.total || 0).toLocaleString('es-CO', {
-                                                    style: 'currency',
-                                                    currency: 'COP',
-                                                    minimumFractionDigits: 0,
-                                                    maximumFractionDigits: 0,
-                                                })
-                                            }}
-                                        </TableCell>
-                                        <TableCell v-if="isTelasList" class="py-2 text-center">
-                                            <template v-if="isFabricItem(item)">
-                                                <button
-                                                    class="mx-auto flex h-full items-center justify-center text-muted-foreground transition-colors duration-200 hover:text-primary"
-                                                    :title="isInvoiceReceptionApproved(selectedInvoice) ? 'Ver rollos de esta factura' : 'Registrar rollo'"
-                                                    @click="openFabricRollDialog(item)"
-                                                >
-                                                    <Package2 class="h-4 w-4" />
-                                                </button>
-                                            </template>
-                                        </TableCell>
-                                    </TableRow>
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </div>
+                    <!-- Ítems + Rollos con Tabs -->
+                    <Tabs v-model="detailTab" class="w-full">
+                        <TabsList class="mb-2 h-9 w-full justify-start rounded-lg border border-border bg-muted/40 p-1">
+                            <TabsTrigger value="items" class="gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium">
+                                <Package2 class="h-3.5 w-3.5" />
+                                Ítems de la factura
+                            </TabsTrigger>
+                            <TabsTrigger v-if="isTelasList" value="rolls" class="gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium">
+                                <Layers class="h-3.5 w-3.5" />
+                                Rollos recepcionados
+                                <span
+                                    v-if="totalRollsCount > 0"
+                                    class="ml-1 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground"
+                                >
+                                    {{ totalRollsCount }}
+                                </span>
+                            </TabsTrigger>
+                        </TabsList>
+
+                        <!-- TAB 1: Tabla de ítems (igual que antes) -->
+                        <TabsContent value="items" class="mt-0">
+                            <div class="overflow-hidden rounded-xl border border-border bg-card">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow class="text-xs text-muted-foreground">
+                                            <TableHead class="py-2">Item</TableHead>
+                                            <TableHead class="py-2">Código</TableHead>
+                                            <TableHead class="py-2">Descripción</TableHead>
+                                            <TableHead class="py-2">Proveedor</TableHead>
+                                            <TableHead class="py-2">{{ isTelasList ? 'Longitud' : 'Cantidad' }}</TableHead>
+                                            <TableHead class="py-2">Precio</TableHead>
+                                            <TableHead class="py-2">IVA</TableHead>
+                                            <TableHead class="py-2">Total</TableHead>
+                                            <TableHead v-if="isTelasList" class="w-24 py-2 text-center">Acciones</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        <TableRow v-for="item in selectedInvoice.items" :key="item.id" class="text-center text-xs">
+                                            <TableCell class="py-2">{{ item.item?.name || 'N/A' }}</TableCell>
+                                            <TableCell class="py-2">{{ item.item?.code || 'N/A' }}</TableCell>
+                                            <TableCell class="py-2">{{ item.description || '-' }}</TableCell>
+                                            <TableCell class="py-2">{{ item.supplier_code || '-' }}</TableCell>
+                                            <TableCell class="py-2">{{
+                                                `${Number(item.quantity).toFixed(2)} ${item.item && 'unit' in item.item ? item.item.unit : 'mts'}`
+                                            }}</TableCell>
+                                            <TableCell class="py-2">
+                                                {{
+                                                    Number(item.price || 0).toLocaleString('es-CO', {
+                                                        style: 'currency',
+                                                        currency: 'COP',
+                                                        minimumFractionDigits: 0,
+                                                        maximumFractionDigits: 0,
+                                                    })
+                                                }}
+                                            </TableCell>
+                                            <TableCell class="py-2">
+                                                {{
+                                                    Number(item.total_tax || 0).toLocaleString('es-CO', {
+                                                        style: 'currency',
+                                                        currency: 'COP',
+                                                        minimumFractionDigits: 0,
+                                                        maximumFractionDigits: 0,
+                                                    })
+                                                }}
+                                            </TableCell>
+                                            <TableCell class="py-2">
+                                                {{
+                                                    Number(item.total || 0).toLocaleString('es-CO', {
+                                                        style: 'currency',
+                                                        currency: 'COP',
+                                                        minimumFractionDigits: 0,
+                                                        maximumFractionDigits: 0,
+                                                    })
+                                                }}
+                                            </TableCell>
+                                            <TableCell v-if="isTelasList" class="py-2 text-center">
+                                                <template v-if="isFabricItem(item)">
+                                                    <button
+                                                        class="mx-auto flex h-full items-center justify-center text-muted-foreground transition-colors duration-200 hover:text-primary"
+                                                        :title="isInvoiceReceptionApproved(selectedInvoice) ? 'Ver rollos de esta factura' : 'Registrar rollo'"
+                                                        @click="openFabricRollDialog(item)"
+                                                    >
+                                                        <Package2 class="h-4 w-4" />
+                                                    </button>
+                                                </template>
+                                            </TableCell>
+                                        </TableRow>
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </TabsContent>
+
+                        <!-- TAB 2: Rollos recepcionados por tela -->
+                        <TabsContent v-if="isTelasList" value="rolls" class="mt-0">
+                            <div class="space-y-3">
+                                <!-- Loading -->
+                                <div v-if="rollsDetailLoading" class="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+                                    <span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                    Cargando rollos...
+                                </div>
+
+                                <!-- Sin ítems de tela -->
+                                <div
+                                    v-else-if="(selectedInvoice.items || []).filter((i: any) => isFabricItem(i)).length === 0"
+                                    class="rounded-xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground"
+                                >
+                                    Esta factura no tiene ítems de tela.
+                                </div>
+
+                                <!-- Un bloque por cada ítem de tela -->
+                                <template v-else>
+                                    <div
+                                        v-for="item in (selectedInvoice.items || []).filter((i: any) => isFabricItem(i))"
+                                        :key="item.id"
+                                        class="overflow-hidden rounded-xl border border-border bg-card"
+                                    >
+                                        <!-- Cabecera del ítem -->
+                                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/40 px-4 py-2.5">
+                                            <div class="flex items-center gap-2">
+                                                <Layers class="h-4 w-4 shrink-0 text-muted-foreground" />
+                                                <span class="text-sm font-semibold">{{ item.item?.name || 'Tela sin nombre' }}</span>
+                                                <span v-if="item.supplier_code" class="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                                    {{ item.supplier_code }}
+                                                </span>
+                                            </div>
+                                            <!-- Badge de cobertura -->
+                                            <span
+                                                v-if="item.id != null"
+                                                :class="['rounded-full px-2.5 py-1 text-xs font-semibold', rollCoverageBadge(Number(item.quantity), (rollsByItemId[item.id] ?? []).reduce((s: number, r: RollEntry) => s + Number(r.quantity), 0)).cls]"
+                                            >
+                                                {{
+                                                    rollCoverageBadge(
+                                                        Number(item.quantity),
+                                                        (rollsByItemId[item.id] ?? []).reduce((s: number, r: RollEntry) => s + Number(r.quantity), 0)
+                                                    ).label
+                                                }}
+                                            </span>
+                                        </div>
+
+                                        <!-- Lista de rollos -->
+                                        <div v-if="item.id != null && (rollsByItemId[item.id] ?? []).length > 0">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow class="text-[11px] text-muted-foreground">
+                                                        <TableHead class="py-1.5 pl-4">N° Rollo</TableHead>
+                                                        <TableHead class="py-1.5">Longitud (mts)</TableHead>
+                                                        <TableHead class="py-1.5">Ancho (m)</TableHead>
+                                                        <TableHead class="py-1.5">Ubicación</TableHead>
+                                                        <TableHead class="py-1.5">Fecha entrada</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    <TableRow
+                                                        v-for="roll in rollsByItemId[item.id]"
+                                                        :key="roll.id"
+                                                        class="text-xs hover:bg-muted/30"
+                                                    >
+                                                        <TableCell class="py-1.5 pl-4 font-mono font-medium">{{ roll.roll_number }}</TableCell>
+                                                        <TableCell class="py-1.5">{{ Number(roll.quantity).toFixed(2) }}</TableCell>
+                                                        <TableCell class="py-1.5">{{ Number(roll.roll_width).toFixed(2) }}</TableCell>
+                                                        <TableCell class="py-1.5">
+                                                            <span class="rounded bg-muted px-1.5 py-0.5 text-[10px]">
+                                                                {{ roll.location || '-' }}
+                                                            </span>
+                                                        </TableCell>
+                                                        <TableCell class="py-1.5 text-muted-foreground">{{ roll.entry_date || '-' }}</TableCell>
+                                                    </TableRow>
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+
+                                        <!-- Sin rollos aún -->
+                                        <div v-else class="flex items-center gap-2 px-4 py-3 text-xs text-muted-foreground">
+                                            <AlertTriangle class="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                                            Sin rollos registrados — usa el botón
+                                            <Package2 class="inline h-3.5 w-3.5 text-primary" />
+                                            en la pestaña Ítems para registrar.
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </TabsContent>
+                    </Tabs>
 
                     <!-- Retenciones y Totales detallados -->
                     <div class="grid grid-cols-1 items-start gap-6 pt-4 md:grid-cols-2">
