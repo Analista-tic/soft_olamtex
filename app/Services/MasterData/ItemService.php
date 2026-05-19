@@ -52,6 +52,7 @@ class ItemService
             'color:id,name,rgb',
         ]);
 
+        $search = '';
         if (!empty($filters['search'])) {
             $search = trim($filters['search']);
             $query->where(function ($q) use ($search) {
@@ -99,6 +100,25 @@ class ItemService
             ? (string) $filters['sort_by']
             : 'id';
         $sortDir = ($filters['sort_dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
+
+        if ($search !== '') {
+            $searchLower = mb_strtolower($search);
+            $prefix = $searchLower . '%';
+            $contains = '%' . $searchLower . '%';
+
+            return $query
+                ->orderByRaw(
+                    "CASE
+                        WHEN LOWER(name) = ? OR LOWER(reference) = ? THEN 0
+                        WHEN LOWER(name) LIKE ? OR LOWER(reference) LIKE ? THEN 1
+                        WHEN LOWER(name) LIKE ? OR LOWER(reference) LIKE ? THEN 2
+                        ELSE 3
+                    END",
+                    [$searchLower, $searchLower, $prefix, $prefix, $contains, $contains]
+                )
+                ->orderBy('name', 'asc')
+                ->paginate($perPage);
+        }
 
         return $query
             ->orderBy($sortBy, $sortDir)

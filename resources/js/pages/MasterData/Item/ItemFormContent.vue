@@ -37,7 +37,7 @@ import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
 import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
 
 import type { Tax } from '@/domain/Finance';
-import type { Warehouse } from '@/domain/Inventory';
+import type { Warehouse } from '@/domain/inventory';
 import type {
     AdditionalField,
     AdditionalFieldPayload,
@@ -162,8 +162,7 @@ function mapItemToFormState(source: ItemFormSource): ItemForm {
             source.category_sub_group_id !== undefined && source.category_sub_group_id !== null && String(source.category_sub_group_id).trim() !== ''
                 ? String(source.category_sub_group_id)
                 : undefined,
-        color_id:
-            source.color_id !== undefined && source.color_id !== null && String(source.color_id).trim() !== ''
+        color_id: source.color_id !== undefined && source.color_id !== null && String(source.color_id).trim() !== ''
                 ? Number(source.color_id)
                 : null,
         color: source.color ?? null,
@@ -264,6 +263,18 @@ const unitMeasure = ref(getInitialUnitMeasure(props.form));
 
 const isViewMode = computed(() => props.dialogType === 'view');
 const currentItemType = computed<ItemType>(() => normalizeItemType(localForm.value.item_type));
+const colorModel = computed<number | null>({
+    get: () => {
+        const raw = localForm.value.color_id;
+        if (raw === undefined || raw === null || String(raw).trim() === '') return null;
+
+        const parsed = Number(raw);
+        return Number.isFinite(parsed) ? parsed : null;
+    },
+    set: (value) => {
+        localForm.value.color_id = value ?? null;
+    },
+});
 const canCreateCategories = computed(() => authStore.can('crear categorias'));
 const canCreateTaxes = computed(() => authStore.can('crear impuestos'));
 const canCreateAdditionalFields = computed(() => authStore.can('crear campos adicionales'));
@@ -1383,6 +1394,7 @@ watch(
     () => props.isOpen,
     async (value) => {
         if (value) {
+            await fetchAdditionalFields(true);
             await hydrateOpenForm();
         } else {
             isItemHydrationLoading.value = false;
@@ -1787,7 +1799,7 @@ onBeforeUnmount(() => {
 
                         <div class="md:col-span-1">
                             <ColorPickerSelect
-                                v-model="localForm.color_id"
+                                v-model="colorModel"
                                 label="Color"
                                 :disabled="isViewMode"
                                 @selected-color="handleSelectedColor"
