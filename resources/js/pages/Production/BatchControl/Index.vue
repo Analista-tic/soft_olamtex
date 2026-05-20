@@ -167,6 +167,7 @@ const cutLargoEspiga = ref<number | null>(null);
 const cutConsumptionViewOnly = ref(false);
 const isLoadingCutConsumption = ref(false);
 const isSavingCutConsumption = ref(false);
+const cutConsumptionSaveError = ref<string | null>(null);
 
 // Dialog: información de estampado
 const stampingInfoDialogOpen = ref(false);
@@ -911,6 +912,7 @@ function closeCutConsumptionDialog() {
     cutSheetCurves.value = null;
     cutLargoEspiga.value = null;
     cutConsumptionViewOnly.value = false;
+    cutConsumptionSaveError.value = null;
 }
 
 function exportCutConsumptionCsv() {
@@ -985,6 +987,7 @@ async function saveCutConsumption() {
     if (!cutConsumptionRow.value || cutConsumptionViewOnly.value) return;
 
     isSavingCutConsumption.value = true;
+    cutConsumptionSaveError.value = null;
     try {
         const payloadLines = cutConsumptionLines.value.map((line) => recalcCutLine(line));
 
@@ -1012,7 +1015,9 @@ async function saveCutConsumption() {
         showSuccess(`Registro de consumo guardado para la orden ${savedOp}.`);
     } catch (e: unknown) {
         const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
-        showError(msg ?? 'No se pudo guardar el registro de consumo de telas.');
+        const errorMessage = msg ?? 'No se pudo guardar el registro de consumo de telas.';
+        cutConsumptionSaveError.value = errorMessage;
+        showError(errorMessage);
     } finally {
         isSavingCutConsumption.value = false;
     }
@@ -1362,6 +1367,7 @@ onUnmounted(() => {
             :is-loading="isLoadingCutConsumption"
             :is-saving="isSavingCutConsumption"
             :view-only="cutConsumptionViewOnly"
+            :save-error="cutConsumptionSaveError"
             @update:open="cutConsumptionDialogOpen = $event"
             @update:lines="cutConsumptionLines = $event"
             @update:curves="cutCurves = $event"
@@ -1370,6 +1376,7 @@ onUnmounted(() => {
             @reset="resetCutConsumptionLines"
             @export-csv="exportCutConsumptionCsv"
             @close="closeCutConsumptionDialog"
+            @clear-error="cutConsumptionSaveError = null"
         />
 
         <LogisticsSupplyExitDialog

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AlertBox from '@/components/AlertBox.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,7 @@ import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Eye, Check, ChevronDown, ChevronRight, Layers, Ruler } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import type { BatchControlRow, CutCurves, CutFabricConsumptionLine, CutSize, CutUnitsReportRow } from '../../types';
 import { CUT_SIZES } from '../../types';
 
@@ -20,6 +21,7 @@ const props = defineProps<{
     isLoading: boolean;
     isSaving: boolean;
     viewOnly?: boolean;
+    saveError?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -31,13 +33,23 @@ const emit = defineEmits<{
     (e: 'reset'): void;
     (e: 'export-csv'): void;
     (e: 'close'): void;
+    (e: 'clear-error'): void;
 }>();
 
 const collapsedTrazos = ref<Set<string>>(new Set());
+const showError = ref(false);
+
 function toggleTrazo(uid: string) {
     if (collapsedTrazos.value.has(uid)) collapsedTrazos.value.delete(uid);
     else collapsedTrazos.value.add(uid);
 }
+
+watch(
+    () => props.saveError,
+    (error) => {
+        showError.value = !!error;
+    },
+);
 
 function recalcLine(line: CutFabricConsumptionLine): CutFabricConsumptionLine {
     const lt = line.largo_trazo ?? 0;
@@ -265,6 +277,21 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
 
             <!-- ══ CUERPO ══════════════════════════════════════════════════ -->
             <div class="flex-1 overflow-y-auto overflow-x-hidden bg-muted/20">
+
+                <!-- Alerta de error de guardado -->
+                <div v-if="showError && saveError" class="pointer-events-none fixed left-1/2 top-6 z-[99999] flex -translate-x-1/2 justify-center px-4 sm:px-0">
+                    <AlertBox
+                        type="error"
+                        title="Error al guardar"
+                        :message="saveError"
+                        :auto-close-ms="0"
+                        class="pointer-events-auto"
+                        @close="() => {
+                            showError = false;
+                            emit('clear-error');
+                        }"
+                    />
+                </div>
 
                 <!-- Resumen de consumo por referencia -->
                 <div class="px-5 pt-4 pb-3">
