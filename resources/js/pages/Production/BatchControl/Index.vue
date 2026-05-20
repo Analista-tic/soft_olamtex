@@ -667,18 +667,20 @@ async function openTimelineDialog(row: BatchControlRow) {
 /** Procesos anteriores al actual (para reportar novedad hacia atrás) */
 const previousProcesses = computed(() => {
     if (!noveltyRow.value) return [];
-    const currentIdx = props.processes.indexOf(noveltyRow.value.current_process ?? '');
+    const flow = getFlowForRow(noveltyRow.value);
+    const currentIdx = flow.indexOf(noveltyRow.value.current_process ?? '');
     if (currentIdx <= 0) return [];
-    return props.processes.slice(0, currentIdx);
+    return flow.slice(0, currentIdx);
 });
 
 function openNoveltyDialog(row: BatchControlRow) {
     noveltyRow.value = row;
     noveltyDescription.value = '';
-    // Auto-seleccionar el proceso anterior inmediato
-    const currentIdx = props.processes.indexOf(row.current_process ?? '');
+    // Auto-seleccionar el proceso anterior inmediato del flujo específico
+    const flow = getFlowForRow(row);
+    const currentIdx = flow.indexOf(row.current_process ?? '');
     if (currentIdx > 0) {
-        noveltyToProcess.value = props.processes[currentIdx - 1];
+        noveltyToProcess.value = flow[currentIdx - 1];
     } else {
         noveltyToProcess.value = '';
     }
