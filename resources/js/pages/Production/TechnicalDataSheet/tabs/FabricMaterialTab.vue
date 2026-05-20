@@ -1165,7 +1165,7 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                             @click="activeLineUid = line.uid"
                             @keydown.enter.space.prevent="activeLineUid = line.uid"
                         >
-                            <span class="max-w-[135px] truncate">{{ line.tela || 'Sin tela' }}</span>
+                            <span class="text-nowrap">{{ line.tela || 'Sin tela' }}</span>
                             <span
                                 :class="[
                                     'shrink-0 text-[10px]',
