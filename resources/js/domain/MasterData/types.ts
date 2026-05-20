@@ -101,6 +101,7 @@ export interface Item extends Timestamps {
     stock_min: number;
     stock_max: number;
     bar_code?: string;
+    location?: string | null;
     negative_movement: boolean | number;
     description: string;
     extra_fields?: ExtraFields | string;

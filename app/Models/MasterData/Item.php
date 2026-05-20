@@ -40,6 +40,7 @@ class Item extends Model implements \App\Contracts\HasAuditLabel
         'inventory_account_id',
         'cost_of_sale_account_id',
         'color_id',
+        'location',
     ];
 
     protected $casts = [

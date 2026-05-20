@@ -338,6 +338,7 @@ class ItemController extends Controller
             'item_type' => 'required|string|in:product,service,draft',
             'tracks_inventory' => 'sometimes|boolean',
             'unit_measure' => 'nullable|string',
+            'location' => 'nullable|string|max:100',
             'income_account_id' => 'nullable|integer|exists:accounting_accounts,id',
             'inventory_account_id' => 'nullable|integer|exists:accounting_accounts,id',
             'cost_of_sale_account_id' => 'nullable|integer|exists:accounting_accounts,id',

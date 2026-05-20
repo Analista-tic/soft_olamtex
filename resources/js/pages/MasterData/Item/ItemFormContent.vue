@@ -1063,6 +1063,7 @@ function mapFormStateToPayload(orderedExtraFields: Record<string, string>): Reco
         tax: Number.isFinite(selectedTaxPercentage) ? selectedTaxPercentage : 0,
         negative_movement: localForm.value.negative_movement,
         bar_code: localForm.value.bar_code || '',
+        location: localForm.value.location || '',
         description: (localForm.value.description || '').trim() || 'N/A',
         reference: localForm.value.reference || '',
         extra_fields: JSON.stringify(orderedExtraFields),
@@ -1810,6 +1811,10 @@ onBeforeUnmount(() => {
 
                         <div class="md:col-span-1">
                             <InputField v-model="localForm.bar_code" label="Código de Barras" />
+                        </div>
+
+                        <div class="md:col-span-1">
+                            <InputField v-model="localForm.location" label="Ubicación" placeholder="Ej: Estante A3, Bodega 2" />
                         </div>
 
                         <div class="md:col-span-1">
