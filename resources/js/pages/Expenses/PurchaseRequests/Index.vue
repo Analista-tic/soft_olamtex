@@ -100,6 +100,8 @@ const isDeleteDialogOpen = ref(false);
 const requestToDelete = ref<PurchaseRequest | null>(null);
 const isRejectDialogOpen = ref(false);
 const requestToReject = ref<PurchaseRequest | null>(null);
+const isCancelDialogOpen = ref(false);
+const requestToCancel = ref<PurchaseRequest | null>(null);
 
 const formatCurrency = (value?: number) => currencyFormatter.format(value ?? 0);
 
@@ -247,23 +249,32 @@ async function handleReject(reason: string) {
     }
 }
 
-async function handleCancel(request: PurchaseRequest) {
+function handleCancel(request: PurchaseRequest) {
     if (!request.id) {
         return;
     }
 
-    if (!confirm('¿Estás seguro de cancelar esta solicitud?')) {
+    requestToCancel.value = request;
+    isCancelDialogOpen.value = true;
+}
+
+async function handleCancelConfirmed() {
+    if (!requestToCancel.value?.id) {
+        isCancelDialogOpen.value = false;
         return;
     }
 
     try {
-        await axios.post(`/gastos/solicitudes-compra/${request.id}/cancel`);
+        await axios.post(`/gastos/solicitudes-compra/${requestToCancel.value.id}/cancel`);
         successMessage.value = 'Solicitud cancelada correctamente.';
         fetchRequests();
     } catch (error: any) {
         const message = error?.response?.data?.message || 'No se pudo cancelar la solicitud.';
         showError(message);
         console.error('Error cancelando solicitud', error);
+    } finally {
+        isCancelDialogOpen.value = false;
+        requestToCancel.value = null;
     }
 }
 
@@ -556,6 +567,16 @@ onMounted(() => {
         cancel-text="Cancelar"
         :destructive="true"
         @confirm="handleDeleteRequest"
+    />
+
+    <ConfirmDialog
+        v-model:open="isCancelDialogOpen"
+        title="Cancelar solicitud"
+        description="¿Estás seguro de cancelar esta solicitud? Esta acción cambiará el estado a cancelado."
+        confirm-text="Cancelar solicitud"
+        cancel-text="Volver"
+        :destructive="false"
+        @confirm="handleCancelConfirmed"
     />
 
     <ConfirmWithInputDialog

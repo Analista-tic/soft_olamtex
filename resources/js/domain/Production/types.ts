@@ -438,6 +438,7 @@ export type AdditionalInfo = {
         designNotes?: string | null;
         attachments?: { id: string; name: string; url: string }[];
         drawingAttachments?: { id: string; name: string; url: string }[];
+        colorCodes?: Array<{ name?: string; hex?: string | null }> | null;
     };
     laundry: {
         type?: string | null;

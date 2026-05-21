@@ -207,15 +207,17 @@ const colorSlots = computed<ColorSlot[]>(() => {
 
     if (!list || list.length === 0) return [];
 
-    return list.map((item, index) => {
-        const name = String(item.name ?? item.code ?? item.label ?? '').trim();
-        const hex = sanitizeHex(item.hex ?? item.color ?? item.value);
-        return {
-            label: `Color ${index + 1}`,
-            name: name || 'Sin registro',
-            hex,
-        };
-    });
+    return list
+        .filter((item) => String(item.name ?? item.code ?? item.label ?? '').trim() !== '')
+        .map((item, index) => {
+            const name = String(item.name ?? item.code ?? item.label ?? '').trim();
+            const hex = sanitizeHex(item.hex ?? item.color ?? item.value);
+            return {
+                label: `Color ${index + 1}`,
+                name,
+                hex,
+            };
+        });
 });
 const orderedBasicInfoItems = computed(() => {
     const items = basicInfoItemsResolved.value;

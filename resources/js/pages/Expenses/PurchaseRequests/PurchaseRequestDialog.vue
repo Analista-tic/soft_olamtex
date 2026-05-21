@@ -371,7 +371,7 @@ async function handleSubmit(sendToApproval: boolean = false) {
         const payload: Record<string, unknown> = {
             ...localForm.value,
             date: normalizeIsoDate(localForm.value.date, getTodayDate()) || getTodayDate(),
-            status: sendToApproval ? 'approved' : (localForm.value.status || 'draft'),
+            status: sendToApproval ? 'pending' : (localForm.value.status || 'draft'),
         };
 
         delete payload.estimated_amount;
@@ -404,8 +404,8 @@ async function handleSubmit(sendToApproval: boolean = false) {
         if (sendToApproval) {
             const message =
                 props.dialogType === 'create'
-                    ? 'Solicitud creada y aprobada correctamente.'
-                    : 'Solicitud actualizada y aprobada correctamente.';
+                    ? 'Solicitud creada y enviada a aprobacion correctamente.'
+                    : 'Solicitud actualizada y enviada a aprobacion correctamente.';
             emit('refresh', message);
             showSuccess(message);
             dialogOpen.value = false;

@@ -871,6 +871,8 @@ function normalizeAdditionalInfo(data: AdditionalInfoDto | null | undefined): Ad
         stamping: {
             designNotes: data?.stamping?.designNotes ?? null,
             attachments: Array.isArray(data?.stamping?.attachments) ? data!.stamping.attachments : [],
+            drawingAttachments: Array.isArray(data?.stamping?.drawingAttachments) ? data!.stamping.drawingAttachments : [],
+            colorCodes: Array.isArray(data?.stamping?.colorCodes) ? data!.stamping.colorCodes : null,
         },
         laundry: {
             type: data?.laundry?.type ?? null,

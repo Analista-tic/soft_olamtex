@@ -257,7 +257,7 @@ const serviceUnitId = 'servicio';
 const defaultProductUnitValue = String(unitMeasures[0]?.id ?? 'unidad');
 
 const getInitialUnitMeasure = (form: Partial<Item>): string =>
-    form.unit_measure ?? (normalizeItemType(form.item_type) === 'service' ? serviceUnitId : defaultProductUnitValue);
+    form.unit_measure ?? (normalizeItemType(form.item_type) === 'service' ? serviceUnitId : (props.dialogType === 'create' ? '' : defaultProductUnitValue));
 
 const unitMeasure = ref(getInitialUnitMeasure(props.form));
 
@@ -608,7 +608,7 @@ async function fetchAccountingAccounts() {
 }
 
 function applyAdditionalFields(normalizedFields: AdditionalField[]) {
-    const fields = [...normalizedFields];
+    const fields = normalizedFields.filter((f) => f.name?.toLowerCase() !== 'color');
     extraFieldNames.value = fields.map((f) => f.name);
     additionalFieldsMeta.value = fields;
 
