@@ -79,12 +79,13 @@ const resolvedDrawingUrl = computed(() => {
 
 const colorSlots = computed<ColorSlot[]>(() => {
     const list = props.colorCodes ?? [];
-    return Array.from({ length: 6 }, (_, index) => {
-        const item = list[index] ?? {};
-        const name = String(item.name ?? '').trim();
-        const hex = sanitizeHex(item.hex);
-        return { label: `Color ${index + 1}`, name: name || 'Sin registro', hex };
-    });
+    return list
+        .filter((item) => String(item.name ?? '').trim() !== '')
+        .map((item, index) => {
+            const name = String(item.name ?? '').trim();
+            const hex = sanitizeHex(item.hex);
+            return { label: `Color ${index + 1}`, name, hex };
+        });
 });
 </script>
 

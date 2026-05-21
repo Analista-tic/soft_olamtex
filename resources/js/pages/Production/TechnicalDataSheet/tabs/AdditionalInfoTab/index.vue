@@ -83,6 +83,7 @@ const stampingDialogData = computed<AdditionalInfo['stamping']>({
             return {
                 designNotes: data.value.laundry.instructions ?? null,
                 attachments: Array.isArray(data.value.laundry.attachments) ? data.value.laundry.attachments : [],
+                colorCodes: data.value.stamping.colorCodes ?? null,
             };
         }
         return data.value.stamping;
@@ -298,6 +299,7 @@ function normalizePayload(payload: AdditionalInfo): AdditionalInfo {
             designNotes: normalizeText(payload.stamping.designNotes),
             attachments: Array.isArray(payload.stamping.attachments) ? payload.stamping.attachments : [],
             drawingAttachments: Array.isArray(payload.stamping.drawingAttachments) ? payload.stamping.drawingAttachments : [],
+            colorCodes: Array.isArray(payload.stamping.colorCodes) ? payload.stamping.colorCodes : null,
         },
         laundry: {
             type: normalizeText(payload.laundry.type),

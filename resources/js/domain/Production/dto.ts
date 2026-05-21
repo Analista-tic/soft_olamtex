@@ -357,7 +357,7 @@ export interface AdditionalInfoDto {
         pieces: CuttingPieceDto[];
         generalNotes?: string | null;
     };
-    stamping: { designNotes?: string | null; attachments?: { id: string; name: string; url: string }[] };
+    stamping: { designNotes?: string | null; attachments?: { id: string; name: string; url: string }[]; drawingAttachments?: { id: string; name: string; url: string }[]; colorCodes?: Array<{ name?: string; hex?: string | null }> | null };
     laundry: { type?: string | null; instructions?: string | null; attachments?: { id: string; name: string; url: string }[] };
 }
 

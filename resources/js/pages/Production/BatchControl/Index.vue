@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useAlertStack } from '@/composables/useAlert';
 import type { AdditionalInfo } from '@/domain/Production';
-import { fetchOpAdditionalInfo } from '@/domain/Production';
+import { fetchOpAdditionalInfo, fetchOpBasicInfo } from '@/domain/Production';
 import type { BreadcrumbItem } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
@@ -173,6 +173,7 @@ const cutConsumptionSaveError = ref<string | null>(null);
 const stampingInfoDialogOpen = ref(false);
 const stampingInfoRow = ref<BatchControlRow | null>(null);
 const stampingInfoData = ref<AdditionalInfo['stamping']>({ designNotes: null, attachments: [] });
+const stampingInfoDrawingUrl = ref<string | null>(null);
 const isLoadingStampingInfo = ref(false);
 
 // Dialog: información de lavandería
@@ -1102,11 +1103,13 @@ async function saveLogisticsExit() {
 async function openStampingInfoDialog(row: BatchControlRow) {
     stampingInfoRow.value = row;
     stampingInfoData.value = { designNotes: null, attachments: [] };
+    stampingInfoDrawingUrl.value = null;
     stampingInfoDialogOpen.value = true;
     isLoadingStampingInfo.value = true;
     try {
-        const info = await fetchOpAdditionalInfo(row.id);
+        const [info, basicInfo] = await Promise.all([fetchOpAdditionalInfo(row.id), fetchOpBasicInfo(row.id)]);
         stampingInfoData.value = info.stamping;
+        stampingInfoDrawingUrl.value = basicInfo.flatDrawingUrl ?? basicInfo.flat_sketch_path ?? null;
     } catch {
         showError('No se pudo cargar la información de estampado.');
     } finally {
@@ -1118,6 +1121,7 @@ function closeStampingInfoDialog() {
     stampingInfoDialogOpen.value = false;
     stampingInfoRow.value = null;
     stampingInfoData.value = { designNotes: null, attachments: [] };
+    stampingInfoDrawingUrl.value = null;
 }
 
 /* ── Lavandería: info dialog ────────────────────────── */
@@ -1400,6 +1404,8 @@ onUnmounted(() => {
             :open="stampingInfoDialogOpen"
             :data="stampingInfoData"
             :display-name="isLoadingStampingInfo ? 'Cargando...' : 'Estampado'"
+            :color-codes="stampingInfoData.colorCodes ?? null"
+            :drawing-url="stampingInfoDrawingUrl"
             @close="closeStampingInfoDialog"
         />
 
