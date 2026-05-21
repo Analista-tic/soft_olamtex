@@ -437,6 +437,21 @@ class TechnicalDataSheetPdfService
             }
         }
 
+        // Mapa rollId (inventario) → location desde BD para snapshots sin location guardada
+        $rollIds = array_filter(array_map(
+            fn($rl) => is_numeric($rl['rollId'] ?? null) ? (int) $rl['rollId'] : null,
+            $rollLines
+        ));
+        $locationByRollId = [];
+        if (!empty($rollIds)) {
+            \App\Models\Textil\FabricRoll::whereIn('id', array_values($rollIds))
+                ->select(['id', 'location'])
+                ->get()
+                ->each(function ($r) use (&$locationByRollId) {
+                    $locationByRollId[$r->id] = $r->location;
+                });
+        }
+
         // 3. Construir líneas desde rollsSnapshot enriquecidas con datos de consumo
         $lines = [];
         foreach ($rollLines as $rl) {
@@ -445,11 +460,13 @@ class TechnicalDataSheetPdfService
                 continue;
             }
 
-            $rollLineId = trim((string) ($rl['id'] ?? ''));
-            $rawUid     = trim((string) ($rl['rawMaterialUid'] ?? ''));
-            $rawInfo    = $rawUidMap[$rawUid] ?? ['trace_uid' => null, 'prom_trazo' => null, 'largo_trazo' => null, 'largo_liq' => null];
-            $consump    = $rollLineId !== '' ? ($consumptionByTechId[$rollLineId] ?? null) : null;
-            $widthCm    = is_numeric($rl['widthCm'] ?? null) ? (float) $rl['widthCm'] : null;
+            $rollLineId   = trim((string) ($rl['id'] ?? ''));
+            $rawUid       = trim((string) ($rl['rawMaterialUid'] ?? ''));
+            $rawInfo      = $rawUidMap[$rawUid] ?? ['trace_uid' => null, 'prom_trazo' => null, 'largo_trazo' => null, 'largo_liq' => null];
+            $consump      = $rollLineId !== '' ? ($consumptionByTechId[$rollLineId] ?? null) : null;
+            $widthCm      = is_numeric($rl['widthCm'] ?? null) ? (float) $rl['widthCm'] : null;
+            $dbRollId     = is_numeric($rl['rollId'] ?? null) ? (int) $rl['rollId'] : null;
+            $dbLocation   = $dbRollId ? ($locationByRollId[$dbRollId] ?? null) : null;
 
             $lines[] = [
                 'technical_roll_id'  => $rollLineId ?: null,
@@ -461,7 +478,7 @@ class TechnicalDataSheetPdfService
                 'color'              => $consump['color']      ?? (trim((string) ($rl['color']      ?? $rl['colors'] ?? '')) ?: null),
                 'color_code'         => $consump['color_code'] ?? (trim((string) ($rl['colorCode']  ?? '')) ?: null),
                 'fabric_type'        => strtoupper(trim((string) ($rl['type'] ?? ''))) ?: null,
-                'location'           => $consump['location']   ?? (trim((string) ($rl['location']   ?? '')) ?: null),
+                'location'           => $consump['location']   ?? (trim((string) ($rl['location']   ?? '')) ?: null) ?? $dbLocation,
                 'roll_code'          => $consump['roll_code']  ?? (trim((string) ($rl['consecutive'] ?? '')) ?: null),
                 'roll_width_m'       => $widthCm !== null ? round($widthCm / 100, 4) : null,
                 'roll_total_meters'  => $consump['roll_total_meters']  ?? null,
