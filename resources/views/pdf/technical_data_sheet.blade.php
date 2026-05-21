@@ -142,7 +142,7 @@ html, body {
     page-break-before:avoid; page-break-after:avoid;
 }
 .sec-divider {
-    height:8mm; border-bottom:1.5px solid #c5d3e8; margin:42px 0 0 0;
+    height:8mm; border-bottom:1.5px solid #c5d3e8; margin:15px 0 0 0;
     page-break-after:avoid;
 }
 .sec-sub {
@@ -571,10 +571,10 @@ table.hdr { page-break-after: avoid; }
                                 <td>{{ $row['tela'] ?? '-' }}</td>
                                 <td class="sm">{{ $row['lastSupplierName'] ?? '-' }}</td>
                                 <td class="tc">{{ isset($row['ancho']) ? num($row['ancho']).' '.($row['anchoUnit']??'') : '-' }}</td>
-                                <td class="tc">{{ isset($row['promTrazo']) ? num($row['promTrazo'],3) : '-' }}</td>
-                                <td class="tc">{{ isset($row['largoTrazo']) ? num($row['largoTrazo'],3) : '-' }}</td>
-                                <td class="tc">{{ isset($row['largoLiq']) ? num($row['largoLiq'],3) : '-' }}</td>
-                                <td class="tc b">{{ isset($row['consumo']) ? num($row['consumo'],3) : '-' }}</td>
+                                <td class="tc">{{ isset($row['promTrazo']) ? num($row['promTrazo'],1) : '-' }}</td>
+                                <td class="tc">{{ isset($row['largoTrazo']) ? num($row['largoTrazo'],1) : '-' }}</td>
+                                <td class="tc">{{ isset($row['largoLiq']) ? num($row['largoLiq'],1) : '-' }}</td>
+                                <td class="tc b">{{ isset($row['consumo']) ? num($row['consumo'],1) : '-' }}</td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -613,7 +613,8 @@ table.hdr { page-break-after: avoid; }
                         $sumConsumo= array_sum(array_map(fn($l) => (float)($l['total_consumption'] ?? 0), $tLines));
                         $sumFalt   = array_sum(array_map(fn($l) => (float)($l['restante'] ?? 0), $tLines));
                     @endphp
-                    <div style="display:table;width:100%;font-size:8pt;font-weight:700;margin:4px 0 1px;color:#1a3a5c;">
+                    <div style="page-break-inside: avoid; padding-top: 40px;">
+                    <div style="display:table;width:100%;font-size:8pt;font-weight:700;margin:0 0 3px;color:#1a3a5c;">
                         <div style="display:table-cell;">
                             Trazo {{ $loop->iteration }}
                             @if($tGroup['fabric_type']) &nbsp;|&nbsp; <span style="font-weight:400;">{{ $tGroup['fabric_type'] }}</span> @endif
@@ -629,18 +630,17 @@ table.hdr { page-break-after: avoid; }
                             &nbsp;|&nbsp; <span style="color:#c0392b;">{{ num($sumFalt,2) }} m</span>
                         </div>
                     </div>
-                    <table class="dt" style="margin-bottom:4px;font-size:6pt;">
+                    <table class="dt" style="margin-bottom:0;font-size:6pt;">
                         <thead><tr>
                             <th class="g-th nw">Rollo</th>
                             <th class="g-th">Tela</th>
-                            <th class="g-th">Color</th>
                             <th class="tc g-th">Ubic.</th>
-                            <th class="tc g-th">Ancho(m)</th>
-                            <th class="tr g-th">Tot.Metros</th>
-                            <th class="tr g-th">M.Usar</th>
-                            <th class="tc g-th">Capa Principal</th>
-                            <th class="tc g-th">Capa Liquidación</th>
-                            <th class="tc g-th">Capa Espiga</th>
+                            <th class="tc g-th" style="white-space:normal;">Ancho<br>(m)</th>
+                            <th class="tr g-th" style="white-space:normal;">Total<br>Metros</th>
+                            <th class="tr g-th" style="white-space:normal;">Metros a<br>Usar</th>
+                            <th class="tc g-th" style="white-space:normal;">Capa<br>Principal</th>
+                            <th class="tc g-th" style="white-space:normal;">Capa<br>Liquidación</th>
+                            <th class="tc g-th" style="white-space:normal;">Capa<br>Espiga</th>
                             <th class="tr g-th">Retazo</th>
                             <th class="tr g-th">Consumo</th>
                             <th class="tr g-th">Faltante</th>
@@ -650,7 +650,6 @@ table.hdr { page-break-after: avoid; }
                                 <tr>
                                     <td class="b nw">{{ $cl['roll_code'] ?? '-' }}</td>
                                     <td class="sm">{{ $cl['fabric_reference'] ?? '-' }}</td>
-                                    <td>{{ $cl['color'] ?? '-' }}</td>
                                     <td class="tc sm">{{ $cl['location'] ?? '-' }}</td>
                                     <td class="tc">{{ isset($cl['roll_width_m']) ? num($cl['roll_width_m'],2) : '-' }}</td>
                                     <td class="tr">{{ isset($cl['roll_total_meters']) ? num($cl['roll_total_meters'],2) : '-' }}</td>
@@ -677,6 +676,7 @@ table.hdr { page-break-after: avoid; }
                             </tr>
                         </tfoot>
                     </table>
+                    </div>{{-- fin page-break-inside wrapper --}}
                 @endforeach
             @endif
 
