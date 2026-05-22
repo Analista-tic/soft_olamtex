@@ -145,10 +145,10 @@ class ProductSheetController extends Controller
     /**
      * Obtiene un registro específico con datos enriquecidos.
      */
-    public function show(string $id)
+    public function show(ProductSheet $sabana)
     {
         try {
-            $productSheet = ProductSheet::findOrFail($id);
+            $productSheet = $sabana;
 
             $catalogs = $this->gatherCatalogs();
             $sections = $catalogs['sections']->keyBy('id');
@@ -201,10 +201,9 @@ class ProductSheetController extends Controller
     /**
      * Elimina un registro por su ID.
      */
-    public function destroy(string $id)
+    public function destroy(ProductSheet $sabana)
     {
-        $productSheet = ProductSheet::findOrFail($id); // Busca el registro.
-        $productSheet->delete(); // Elimina el registro.
+        $sabana->delete(); // Elimina el registro.
 
         return response()->json(['message' => 'ProductSheet deleted successfully'], 200);
     }
