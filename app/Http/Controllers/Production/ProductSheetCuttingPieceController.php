@@ -34,14 +34,6 @@ class ProductSheetCuttingPieceController extends Controller
                     'grain' => $piece->grain,
                     'quantity' => $piece->quantity,
                     'notes' => $piece->notes,
-                    'sizes' => $piece->sizes->map(function ($size) {
-                        return [
-                            'id' => $size->id,
-                            'size' => $size->size,
-                            'units' => $size->units,
-                            'curve' => $size->curve,
-                        ];
-                    })->toArray(),
                 ];
             })->toArray(),
         ]);
@@ -64,10 +56,6 @@ class ProductSheetCuttingPieceController extends Controller
             'pieces.*.grain' => 'required|string|max:10',
             'pieces.*.quantity' => 'required|integer',
             'pieces.*.notes' => 'nullable|string',
-            'pieces.*.sizes' => 'nullable|array',
-            'pieces.*.sizes.*.size' => 'required|string|max:30',
-            'pieces.*.sizes.*.units' => 'required|integer',
-            'pieces.*.sizes.*.curve' => 'nullable|string|max:30',
         ]);
 
         try {
@@ -86,14 +74,6 @@ class ProductSheetCuttingPieceController extends Controller
                         'grain' => $piece->grain,
                         'quantity' => $piece->quantity,
                         'notes' => $piece->notes,
-                        'sizes' => $piece->sizes->map(function ($size) {
-                            return [
-                                'id' => $size->id,
-                                'size' => $size->size,
-                                'units' => $size->units,
-                                'curve' => $size->curve,
-                            ];
-                        })->toArray(),
                     ];
                 })->toArray(),
             ]);

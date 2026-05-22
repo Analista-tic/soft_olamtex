@@ -50,6 +50,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 use App\Models\Settings\CompanySetting;
+use App\Support\ModelUppercaseNormalizer;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -91,9 +92,15 @@ class AppServiceProvider extends ServiceProvider
         Route::model('listItem', ProductOperationList::class);
         Route::model('operation', Operation::class);
         Route::model('collection', Collection::class);
+        Route::model('productSheet', ProductSheet::class);
+        Route::model('sabana', ProductSheet::class);
 
         $this->registerAuditObservers();
         FabricRoll::observe(FabricRollObserver::class);
+
+        Model::saving(function (Model $model): void {
+            ModelUppercaseNormalizer::apply($model);
+        });
 
         Model::preventLazyLoading(! app()->isProduction());
         Model::handleLazyLoadingViolationUsing(function ($model, $relation) {

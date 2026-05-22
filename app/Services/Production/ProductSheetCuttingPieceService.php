@@ -126,14 +126,11 @@ class ProductSheetCuttingPieceService
                 'sequence' => $piece->sequence,
                 'name' => $piece->name,
                 'piece_type' => $piece->piece_type,
-                'fabric_type' => $piece->fabric_type,
-                'fabric_uid' => $piece->fabric_uid,
                 'trace_location' => $piece->trace_location,
                 'side' => $piece->side,
                 'grain' => $piece->grain,
                 'quantity' => $piece->quantity,
                 'notes' => $piece->notes,
-                'sizes' => [],
             ];
         })->toArray();
     }
