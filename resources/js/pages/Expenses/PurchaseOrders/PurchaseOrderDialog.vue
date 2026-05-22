@@ -39,6 +39,11 @@ const emit = defineEmits<{
 const dialogOpen = ref(props.isOpen);
 const localForm = ref<Partial<PurchaseOrder>>(createDefaultForm());
 const contacts = ref<Contact[]>([]);
+const contactsPage = ref(1);
+const contactsHasMore = ref(false);
+const isLoadingContacts = ref(false);
+const isLoadingMoreContacts = ref(false);
+const CONTACTS_PER_PAGE = 30;
 const isContactDialogOpen = ref(false);
 const contactDialogError = ref('');
 const contactDialogForm = ref<Partial<Contact>>({ groups: [] });
@@ -327,16 +332,45 @@ function resetForm(source: Partial<PurchaseOrder> = props.form) {
     originalFormSnapshot.value = stableStringify(localForm.value);
 }
 
-async function fetchContacts() {
-    try {
-        const { data } = await axios.get<Contact[]>('/contactos/list', {
-            params: { contact_types: ['proveedor', 'cliente_proveedor'] },
-        });
-        contacts.value = Array.isArray(data) ? data : [];
-    } catch (e) {
+async function fetchContacts(page = 1) {
+    if (page === 1) {
+        isLoadingContacts.value = true;
         contacts.value = [];
-        console.error('Error fetching contacts:', e);
+        contactsPage.value = 1;
+    } else {
+        isLoadingMoreContacts.value = true;
     }
+    try {
+        const [res1, res2] = await Promise.all([
+            axios.get('/contactos/data', { params: { contact_type: 'proveedor', per_page: CONTACTS_PER_PAGE, page } }),
+            axios.get('/contactos/data', { params: { contact_type: 'cliente_proveedor', per_page: CONTACTS_PER_PAGE, page } }),
+        ]);
+        const p1: any[] = res1.data?.data ?? [];
+        const p2: any[] = res2.data?.data ?? [];
+        const newItems = [...p1, ...p2];
+        if (page === 1) {
+            contacts.value = newItems as Contact[];
+        } else {
+            const seen = new Set(contacts.value.map((c) => c.id));
+            contacts.value = [...contacts.value, ...(newItems.filter((c: any) => !seen.has(c.id)) as Contact[])];
+        }
+        const total1: number = res1.data?.total ?? 0;
+        const total2: number = res2.data?.total ?? 0;
+        contactsHasMore.value = page * CONTACTS_PER_PAGE < total1 || page * CONTACTS_PER_PAGE < total2;
+    } catch (e) {
+        if (page === 1) contacts.value = [];
+        contactsHasMore.value = false;
+        console.error('Error fetching contacts:', e);
+    } finally {
+        isLoadingContacts.value = false;
+        isLoadingMoreContacts.value = false;
+    }
+}
+
+async function loadMoreContacts() {
+    if (!contactsHasMore.value || isLoadingMoreContacts.value) return;
+    contactsPage.value++;
+    await fetchContacts(contactsPage.value);
 }
 
 function openContactDialog() {
@@ -868,10 +902,14 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                             :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
                                             :disabled="isReadOnly || !canEdit"
                                             :searchable="true"
+                                            :loading="isLoadingContacts"
+                                            :has-more="contactsHasMore"
+                                            :loading-more="isLoadingMoreContacts"
                                             :action-label="(!isReadOnly && canEdit) ? 'Nuevo contacto' : undefined"
                                             :action-disabled="isReadOnly || !canEdit"
                                             required
                                             @action="openContactDialog"
+                                            @load-more="loadMoreContacts"
                                         />
                                     </div>
                                     <InputField

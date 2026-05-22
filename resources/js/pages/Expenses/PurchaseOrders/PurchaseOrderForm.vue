@@ -27,6 +27,10 @@ const mode = computed(() => props.mode || 'create');
 
 const localForm = ref<any>(createDefaultForm());
 const contacts = ref<any[]>([]);
+const contactsPage = ref(1);
+const contactsHasMore = ref(false);
+const isLoadingMoreContacts = ref(false);
+const CONTACTS_PER_PAGE = 30;
 const nextDocumentNumber = ref<string>('');
 const isLoadingDocumentNumber = ref(false);
 const isContactDialogOpen = ref(false);
@@ -147,19 +151,49 @@ const requestItemsForTable = computed(() => {
     return normalizeRequestItems((localForm.value as any)?.purchase_request?.items);
 });
 
-async function fetchContacts() {
-    isLoadingContacts.value = true;
-    try {
-        const { data } = await axios.get('/contactos/list', {
-            params: { contact_types: ['proveedor', 'cliente_proveedor'] },
-        });
-        contacts.value = Array.isArray(data) ? data : [];
-    } catch (e) {
+async function fetchContacts(page = 1) {
+    if (page === 1) {
+        isLoadingContacts.value = true;
         contacts.value = [];
+        contactsPage.value = 1;
+    } else {
+        isLoadingMoreContacts.value = true;
+    }
+    try {
+        const [res1, res2] = await Promise.all([
+            axios.get('/contactos/data', { params: { contact_type: 'proveedor', per_page: CONTACTS_PER_PAGE, page } }),
+            axios.get('/contactos/data', { params: { contact_type: 'cliente_proveedor', per_page: CONTACTS_PER_PAGE, page } }),
+        ]);
+        const p1: any[] = res1.data?.data ?? [];
+        const p2: any[] = res2.data?.data ?? [];
+        const newItems = [...p1, ...p2];
+        if (page === 1) {
+            contacts.value = newItems;
+        } else {
+            const seen = new Set(contacts.value.map((c: any) => c.id));
+            contacts.value = [...contacts.value, ...newItems.filter((c: any) => !seen.has(c.id))];
+        }
+        const total1: number = res1.data?.total ?? 0;
+        const total2: number = res2.data?.total ?? 0;
+        contactsHasMore.value = page * CONTACTS_PER_PAGE < total1 || page * CONTACTS_PER_PAGE < total2;
+        const contactId = Number(localForm.value.contact_id ?? 0);
+        if (page === 1 && contactId > 0 && !contacts.value.some((c: any) => Number(c.id) === contactId)) {
+            void fetchContactDetail(contactId);
+        }
+    } catch (e) {
+        if (page === 1) contacts.value = [];
+        contactsHasMore.value = false;
         console.error(e);
     } finally {
         isLoadingContacts.value = false;
+        isLoadingMoreContacts.value = false;
     }
+}
+
+async function loadMoreContacts() {
+    if (!contactsHasMore.value || isLoadingMoreContacts.value) return;
+    contactsPage.value++;
+    await fetchContacts(contactsPage.value);
 }
 
 async function fetchContactDetail(contactId: number | null) {
@@ -561,10 +595,13 @@ watch(selectedRequestId, async (id) => {
                                 :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
                                 :searchable="true"
                                 :loading="isLoadingContacts"
+                                :has-more="contactsHasMore"
+                                :loading-more="isLoadingMoreContacts"
                                 :action-label="'Nuevo contacto'"
                                 :action-disabled="false"
                                 :clearable="true"
                                 @action="openContactDialog"
+                                @load-more="loadMoreContacts"
                                 required
                             />
                         </div>

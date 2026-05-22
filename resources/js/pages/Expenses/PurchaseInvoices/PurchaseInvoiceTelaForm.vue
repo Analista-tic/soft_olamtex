@@ -30,8 +30,11 @@ const nextDocumentNumber = ref<string>('');
 const isLoadingDocumentNumber = ref(false);
 const contacts = ref<any[]>([]);
 const isLoadingContacts = ref(false);
+const contactsPage = ref(1);
+const contactsHasMore = ref(false);
+const isLoadingMoreContacts = ref(false);
+const CONTACTS_PER_PAGE = 30;
 const isLoadingPurchaseOrders = ref(false);
-let contactsRequestSequence = 0;
 let purchaseOrdersRequestSequence = 0;
 const isContactDialogOpen = ref(false);
 const contactDialogError = ref('');
@@ -118,41 +121,48 @@ function resetForm() {
     deliveryDate.value = localForm.value.delivery_date ? new Date(localForm.value.delivery_date) : null;
 }
 
-async function fetchContacts(search = '') {
-    const currentSequence = ++contactsRequestSequence;
-    isLoadingContacts.value = true;
-
+async function fetchContacts(page = 1) {
+    if (page === 1) {
+        isLoadingContacts.value = true;
+        contacts.value = [];
+        contactsPage.value = 1;
+    } else {
+        isLoadingMoreContacts.value = true;
+    }
     try {
         const [res1, res2] = await Promise.all([
-            axios.get('/contactos/data', { params: { contact_type: 'proveedor', per_page: 80, search: search.trim() } }),
-            axios.get('/contactos/data', { params: { contact_type: 'cliente_proveedor', per_page: 80, search: search.trim() } }),
+            axios.get('/contactos/data', { params: { contact_type: 'proveedor', per_page: CONTACTS_PER_PAGE, page } }),
+            axios.get('/contactos/data', { params: { contact_type: 'cliente_proveedor', per_page: CONTACTS_PER_PAGE, page } }),
         ]);
-
-        if (currentSequence !== contactsRequestSequence) {
-            return;
+        const p1: any[] = res1.data?.data ?? [];
+        const p2: any[] = res2.data?.data ?? [];
+        const newItems = [...p1, ...p2];
+        if (page === 1) {
+            contacts.value = newItems;
+        } else {
+            const seen = new Set(contacts.value.map((c: any) => c.id));
+            contacts.value = [...contacts.value, ...newItems.filter((c: any) => !seen.has(c.id))];
         }
-
-        contacts.value = [...(res1.data?.data || []), ...(res2.data?.data || [])];
-
-        const selectedContactId = Number(localForm.value.contact_id ?? 0);
-        if (selectedContactId > 0 && !contacts.value.some((contact: any) => Number(contact.id) === selectedContactId)) {
-            void fetchContactById(selectedContactId);
+        const total1: number = res1.data?.total ?? 0;
+        const total2: number = res2.data?.total ?? 0;
+        contactsHasMore.value = page * CONTACTS_PER_PAGE < total1 || page * CONTACTS_PER_PAGE < total2;
+        const contactId = Number(localForm.value.contact_id ?? 0);
+        if (page === 1 && contactId > 0 && !contacts.value.some((c: any) => Number(c.id) === contactId)) {
+            void fetchContactById(contactId);
         }
     } catch {
-        if (currentSequence !== contactsRequestSequence) {
-            return;
-        }
-
-        contacts.value = [];
+        if (page === 1) contacts.value = [];
+        contactsHasMore.value = false;
     } finally {
-        if (currentSequence === contactsRequestSequence) {
-            isLoadingContacts.value = false;
-        }
+        isLoadingContacts.value = false;
+        isLoadingMoreContacts.value = false;
     }
 }
 
-function handleContactSearch(term: string) {
-    void fetchContacts(term);
+async function loadMoreContacts() {
+    if (!contactsHasMore.value || isLoadingMoreContacts.value) return;
+    contactsPage.value++;
+    await fetchContacts(contactsPage.value);
 }
 
 async function fetchContactById(contactId: number) {
@@ -545,11 +555,13 @@ function handleDifferenceDialogOpenChange(isOpen: boolean): void {
                                 :options="contacts.map(c => ({ id: c.id, name: c.full_name }))"
                                 :searchable="true"
                                 :loading="isLoadingContacts"
+                                :has-more="contactsHasMore"
+                                :loading-more="isLoadingMoreContacts"
                                 :action-label="'Nuevo contacto'"
                                 :action-disabled="false"
                                 :clearable="true"
                                 @action="() => isContactDialogOpen = true"
-                                @search="handleContactSearch"
+                                @load-more="loadMoreContacts"
                                 required
                             />
                         </div>

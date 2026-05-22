@@ -88,7 +88,10 @@ const localForm = ref<PurchaseInvoiceForm>(createDefaultForm());
 const contacts = ref<Contact[]>([]);
 const isLoadingContacts = ref(false);
 const isLoadingPurchaseOrders = ref(false);
-let contactsRequestSequence = 0;
+const contactsPage = ref(1);
+const contactsHasMore = ref(false);
+const isLoadingMoreContacts = ref(false);
+const CONTACTS_PER_PAGE = 30;
 let purchaseOrdersRequestSequence = 0;
 
 const purchaseOrders = ref<any[]>([]);
@@ -301,60 +304,51 @@ function resetForm(): void {
     syncDateRefsFromForm();
 }
 
-async function fetchContacts(search = ''): Promise<void> {
-    const currentSequence = ++contactsRequestSequence;
-    isLoadingContacts.value = true;
-
+async function fetchContacts(page = 1): Promise<void> {
+    if (page === 1) {
+        isLoadingContacts.value = true;
+        contacts.value = [];
+        contactsPage.value = 1;
+    } else {
+        isLoadingMoreContacts.value = true;
+    }
     try {
-        const contactRequests = [
-            axios.get('/contactos/data', {
-                params: {
-                    contact_type: 'proveedor',
-                    per_page: 80,
-                    search: search.trim(),
-                },
-            }),
-            axios.get('/contactos/data', {
-                params: {
-                    contact_type: 'cliente_proveedor',
-                    per_page: 80,
-                    search: search.trim(),
-                },
-            }),
-        ];
-
-        const [providerResponse, providerClientResponse] = await Promise.all(contactRequests);
-
-        const providers = Array.isArray(providerResponse.data?.data) ? providerResponse.data.data : [];
-
-        const providerClients = Array.isArray(providerClientResponse.data?.data) ? providerClientResponse.data.data : [];
-
-        if (currentSequence !== contactsRequestSequence) {
-            return;
+        const [res1, res2] = await Promise.all([
+            axios.get('/contactos/data', { params: { contact_type: 'proveedor', per_page: CONTACTS_PER_PAGE, page } }),
+            axios.get('/contactos/data', { params: { contact_type: 'cliente_proveedor', per_page: CONTACTS_PER_PAGE, page } }),
+        ]);
+        const p1: Contact[] = Array.isArray(res1.data?.data) ? res1.data.data : [];
+        const p2: Contact[] = Array.isArray(res2.data?.data) ? res2.data.data : [];
+        const newItems = removeDuplicatedContacts([...p1, ...p2]);
+        if (page === 1) {
+            contacts.value = newItems;
+        } else {
+            const seen = new Set(contacts.value.map((c) => c.id));
+            contacts.value = [...contacts.value, ...newItems.filter((c) => !seen.has(c.id))];
         }
-
-        contacts.value = removeDuplicatedContacts([...providers, ...providerClients]);
-
-        const selectedContactId = Number(localForm.value.contact_id ?? 0);
-        if (selectedContactId > 0 && !contacts.value.some((contact) => Number(contact.id) === selectedContactId)) {
-            void fetchContactById(selectedContactId);
+        const total1: number = res1.data?.total ?? 0;
+        const total2: number = res2.data?.total ?? 0;
+        contactsHasMore.value = page * CONTACTS_PER_PAGE < total1 || page * CONTACTS_PER_PAGE < total2;
+        const contactId = Number(localForm.value.contact_id ?? 0);
+        if (page === 1 && contactId > 0 && !contacts.value.some((c) => Number(c.id) === contactId)) {
+            void fetchContactById(contactId);
         }
     } catch {
-        if (currentSequence !== contactsRequestSequence) {
-            return;
+        if (page === 1) {
+            contacts.value = [];
+            showError('No fue posible cargar los proveedores.');
         }
-
-        contacts.value = [];
-        showError('No fue posible cargar los proveedores.');
+        contactsHasMore.value = false;
     } finally {
-        if (currentSequence === contactsRequestSequence) {
-            isLoadingContacts.value = false;
-        }
+        isLoadingContacts.value = false;
+        isLoadingMoreContacts.value = false;
     }
 }
 
-function handleContactSearch(term: string): void {
-    void fetchContacts(term);
+async function loadMoreContacts(): Promise<void> {
+    if (!contactsHasMore.value || isLoadingMoreContacts.value) return;
+    contactsPage.value++;
+    await fetchContacts(contactsPage.value);
 }
 
 async function fetchContactById(contactId: number): Promise<void> {
@@ -905,11 +899,13 @@ onMounted(async () => {
                                 :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
                                 :searchable="true"
                                 :loading="isLoadingContacts"
+                                :has-more="contactsHasMore"
+                                :loading-more="isLoadingMoreContacts"
                                 :action-label="'Nuevo contacto'"
                                 :action-disabled="false"
                                 :clearable="true"
                                 @action="openContactDialog"
-                                @search="handleContactSearch"
+                                @load-more="loadMoreContacts"
                                 required
                             />
                         </div>
