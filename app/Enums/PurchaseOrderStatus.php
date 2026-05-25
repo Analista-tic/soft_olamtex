@@ -8,6 +8,7 @@ enum PurchaseOrderStatus: string
     case APPROVED = 'approved';
     case SENT = 'sent';
     case INVOICED = 'invoiced';
+    case PARTIALLY_INVOICED = 'partially_invoiced';
     case REJECTED = 'rejected';
 
     public function label(): string
@@ -17,6 +18,7 @@ enum PurchaseOrderStatus: string
             self::APPROVED => 'Aprobada',
             self::SENT => 'Enviada',
             self::INVOICED => 'Facturada',
+            self::PARTIALLY_INVOICED => 'Parcialmente facturada',
             self::REJECTED => 'Rechazada',
         };
     }
@@ -43,7 +45,7 @@ enum PurchaseOrderStatus: string
 
     public function isFinal(): bool
     {
-        return in_array($this, [self::INVOICED, self::REJECTED]);
+        return in_array($this, [self::INVOICED, self::PARTIALLY_INVOICED, self::REJECTED]);
     }
 
     public static function values(): array

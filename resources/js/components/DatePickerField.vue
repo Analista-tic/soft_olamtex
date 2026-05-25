@@ -22,6 +22,7 @@ const props = withDefaults(
         clearable?: boolean;
         showToday?: boolean;
         align?: 'start' | 'center' | 'end';
+        error?: boolean;
     }>(),
     {
         placeholderText: 'Selecciona una fecha',
@@ -31,6 +32,7 @@ const props = withDefaults(
         clearable: false,
         showToday: false,
         align: 'start',
+        error: false,
     },
 );
 
@@ -132,7 +134,10 @@ const calendarPlaceholderValue = computed(() => calendarPlaceholder.value as Dat
                 <button
                     type="button"
                     :disabled="disabled"
-                    class="flex h-10 w-full items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    :class="[
+                        'flex h-10 w-full items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm ring-offset-background transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+                        error ? 'border-destructive text-destructive' : 'border-input'
+                    ]"
                 >
                     <CalendarIcon class="h-4 w-4 flex-shrink-0" />
                     <span class="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left">

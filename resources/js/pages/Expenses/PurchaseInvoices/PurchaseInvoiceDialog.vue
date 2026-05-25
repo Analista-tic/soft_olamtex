@@ -392,21 +392,10 @@ async function fetchPendingPurchaseOrders() {
     purchaseOrders.value = [];
     selectedPurchaseOrderId.value = null;
     try {
-        // Solo órdenes aprobadas pueden facturarse y que no hayan sido facturadas
         const { data } = await axios.get('/gastos/ordenes-compra/data', {
-            params: { status: 'approved', per_page: 1000, exclude_fabric: true },
+            params: { status: 'approved,partially_invoiced', per_page: 1000, exclude_fabric: true },
         });
-        const orders = data.data || [];
-        // Filtrar órdenes que NO tengan una factura asociada
-        // Una orden está facturada si existe una factura con parent_document_id igual al id de la orden
-        const invoiceRes = await axios.get('/gastos/facturas-compra/data', {
-            params: { per_page: 1000 },
-        });
-        const invoices: Array<{ parent_document_id?: number | string | null }> = invoiceRes.data.data || [];
-        const invoicedOrderIds = new Set(
-            invoices.map((inv: { parent_document_id?: number | string | null }) => inv.parent_document_id).filter(Boolean),
-        );
-        purchaseOrders.value = orders.filter((order: { id: number | string }) => !invoicedOrderIds.has(order.id));
+        purchaseOrders.value = data.data || [];
     } catch {
         purchaseOrders.value = [];
     }

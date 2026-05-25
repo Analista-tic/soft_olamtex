@@ -16,6 +16,7 @@ export interface PurchaseOrderItem {
     image_url?: string | null;
     _image_file?: File | null;
     _delete_image?: boolean;
+    already_invoiced_qty?: number;
 }
 export interface PurchaseOrder {
     id?: number;

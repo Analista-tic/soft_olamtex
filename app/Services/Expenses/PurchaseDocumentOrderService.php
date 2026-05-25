@@ -38,16 +38,7 @@ class PurchaseDocumentOrderService extends PurchaseDocumentService
                     throw new \RuntimeException('Solo se pueden crear órdenes desde solicitudes aprobadas.');
                 }
                 
-                // Buscar si ya existe una orden pendiente para esta solicitud
-                $existingOrder = PurchaseDocument::where('purchase_request_id', $data['purchase_request_id'])
-                    ->where('document_type', PurchaseDocument::TYPE_ORDER)
-                    ->whereNull('deleted_at')
-                    ->lockForUpdate()
-                    ->first();
-
-                if ($existingOrder && $existingOrder->status !== 'pending') {
-                    throw new \RuntimeException('Ya existe una orden de compra activa para esta solicitud.');
-                }
+                // Permitir múltiples órdenes por solicitud (entregas parciales)
             }
 
             $userId = Auth::id();
@@ -56,55 +47,36 @@ class PurchaseDocumentOrderService extends PurchaseDocumentService
 
             // Si existe una orden pendiente, actualizarla en lugar de crear una nueva
             $existingPendingOrder = null;
-            if (!empty($data['purchase_request_id'])) {
-                $existingPendingOrder = PurchaseDocument::where('purchase_request_id', $data['purchase_request_id'])
-                    ->where('document_type', PurchaseDocument::TYPE_ORDER)
-                    ->where('status', 'pending')
-                    ->whereNull('deleted_at')
-                    ->first();
+            // Si la orden viene de una solicitud y no trae buyer_user_id, heredarlo de la solicitud
+            if (!empty($data['purchase_request_id']) && empty($data['buyer_user_id'])) {
+                $req = PurchaseRequest::find($data['purchase_request_id']);
+                if ($req && $req->buyer_user_id) {
+                    $data['buyer_user_id'] = $req->buyer_user_id;
+                }
             }
 
-            if ($existingPendingOrder) {
-                $isUpdatingPending = true;
-                if (empty($data['document_number'])) {
-                    $data['document_number'] = $existingPendingOrder->document_number;
-                }
-                $base = $this->buildBaseData($data, PurchaseDocument::TYPE_ORDER);
-                $existingPendingOrder->update([
-                    ...$base,
-                    'parent_document_id'    => $data['parent_document_id'] ?? $existingPendingOrder->parent_document_id,
-                    'status'                => $status,
-                    'approval_status'       => $status === 'pending' ? 'pending' : 'approved',
-                    'approved_by_user_id'   => $status === 'pending' ? null : $userId,
-                    'approved_at'           => $status === 'pending' ? null : now(),
-                    'ordered_at'            => $data['ordered_at'] ?? now(),
-                    'supplier_order_number' => $data['supplier_order_number'] ?? $existingPendingOrder->supplier_order_number,
-                ]);
-                $this->syncItems($existingPendingOrder, $items);
-                $order = $existingPendingOrder;
-            } else {
-                if (empty($data['document_number'])) {
-                    $data['document_number'] = $this->generateOrderNumber();
-                }
-                $base = $this->buildBaseData($data, PurchaseDocument::TYPE_ORDER);
-                $order = PurchaseDocument::create([
-                    ...$base,
-                    'parent_document_id'    => $data['parent_document_id'] ?? null,
-                    'purchase_request_id'   => $data['purchase_request_id'] ?? null,
-                    'status'                => $status,
-                    'approval_status'       => $status === 'pending' ? 'pending' : 'approved',
-                    'approved_by_user_id'   => $status === 'pending' ? null : $userId,
-                    'approved_at'           => $status === 'pending' ? null : now(),
-                    'ordered_at'            => $data['ordered_at'] ?? now(),
-                    'supplier_order_number' => $data['supplier_order_number'] ?? null,
-                ]);
-                $this->syncItems($order, $items);
+            // Para órdenes directas (sin solicitud), asignar buyer_user_id al usuario actual
+            if (empty($data['purchase_request_id']) && empty($data['buyer_user_id'])) {
+                $data['buyer_user_id'] = $userId;
             }
 
-            // Marcar la solicitud como procesada al crear o confirmar la orden
-            if ($purchaseRequest && $status !== 'pending') {
-                $purchaseRequest->markAsProcessed(Auth::id());
+            if (empty($data['document_number'])) {
+                $data['document_number'] = $this->generateOrderNumber();
             }
+            $base = $this->buildBaseData($data, PurchaseDocument::TYPE_ORDER);
+            $order = PurchaseDocument::create([
+                ...$base,
+                'parent_document_id'    => $data['parent_document_id'] ?? null,
+                'purchase_request_id'   => $data['purchase_request_id'] ?? null,
+                'buyer_user_id'         => $data['buyer_user_id'] ?? null,
+                'status'                => $status,
+                'approval_status'       => $status === 'pending' ? 'pending' : 'approved',
+                'approved_by_user_id'   => $status === 'pending' ? null : $userId,
+                'approved_at'           => $status === 'pending' ? null : now(),
+                'ordered_at'            => $data['ordered_at'] ?? now(),
+                'supplier_order_number' => $data['supplier_order_number'] ?? null,
+            ]);
+            $this->syncItems($order, $items);
 
             return $this->loadWithRelations($order);
         });
@@ -141,6 +113,7 @@ class PurchaseDocumentOrderService extends PurchaseDocumentService
                 'document_number'         => $invoiceData['document_number'] ?? null,
                 'invoiced_at'             => $invoiceData['invoiced_at'] ?? now(),
                 'order_status'            => $invoiceData['order_status'] ?? 'approved',
+                'buyer_user_id'           => $order->buyer_user_id,
             ];
 
             $items = $invoiceItems ?? $order->items
@@ -161,5 +134,56 @@ class PurchaseDocumentOrderService extends PurchaseDocumentService
 
             return $this->invoiceService->createInvoice($payload, $items, $withholdings ?? []);
         });
+    }
+
+    /**
+     * Verifica si todas las cantidades de la solicitud están cubiertas por órdenes (no rechazadas/eliminadas).
+     * Devuelve null si todo está cubierto, o un mensaje de error si falta cantidad.
+     */
+    public function checkRequestCoverage(PurchaseDocument $order): ?string
+    {
+        $requestId = $order->purchase_request_id;
+        if (!$requestId) {
+            return null; // Orden directa sin solicitud → sin restricción
+        }
+
+        $purchaseRequest = PurchaseRequest::find($requestId);
+        if (!$purchaseRequest) {
+            return null;
+        }
+
+        $requestItems = is_array($purchaseRequest->items)
+            ? $purchaseRequest->items
+            : (is_string($purchaseRequest->items) ? (json_decode($purchaseRequest->items, true) ?? []) : []);
+
+        if (empty($requestItems)) {
+            return null;
+        }
+
+        // Sumar cantidades ordenadas por item_id en todas las órdenes de esta solicitud (excluidas las rechazadas/eliminadas)
+        $orderIds = PurchaseDocument::where('purchase_request_id', $requestId)
+            ->where('document_type', PurchaseDocument::TYPE_ORDER)
+            ->whereNotIn('status', ['rejected'])
+            ->whereNull('deleted_at')
+            ->pluck('id');
+
+        $orderedQty = PurchaseDocumentItem::whereIn('purchase_document_id', $orderIds)
+            ->get()
+            ->groupBy(fn($i) => $i->item_id ? "id:{$i->item_id}" : "name:" . strtolower(trim((string) $i->item_name)))
+            ->map(fn($group) => $group->sum(fn($i) => (float) $i->quantity));
+
+        foreach ($requestItems as $item) {
+            $key = !empty($item['item_id']) ? "id:{$item['item_id']}" : "name:" . strtolower(trim((string) ($item['name'] ?? $item['item_name'] ?? '')));
+            $requested = (float) ($item['quantity'] ?? 0);
+            $ordered   = (float) ($orderedQty[$key] ?? 0);
+
+            if ($requested > 0 && $ordered < $requested) {
+                $name = $item['name'] ?? $item['item_name'] ?? 'ítem';
+                $pending = $requested - $ordered;
+                return "Faltan {$pending} unidades de \"{$name}\" por ordenar antes de aprobar.";
+            }
+        }
+
+        return null;
     }
 }

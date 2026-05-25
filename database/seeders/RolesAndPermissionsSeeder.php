@@ -158,6 +158,14 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver area facturas compra',
             'ver todos facturas compra',
 
+            // Solicitudes de compra
+            'crear solicitudes compra',
+            'editar solicitudes compra',
+            'eliminar solicitudes compra',
+            'aprobar solicitudes compra',
+            'rechazar solicitudes compra',
+            'cancelar solicitudes compra',
+
             // Visibilidad - Solicitudes de compra
             'ver propios solicitudes compra',
             'ver area solicitudes compra',
@@ -197,6 +205,11 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver personalizacion',
             'editar personalizacion',
             'ver solicitudes insumos',
+            'ver gastos',
+            'ver ordenes compra',
+            'ver propios solicitudes compra',
+            'crear solicitudes compra',
+            'editar solicitudes compra',
         ]);
 
         // Produccion: Producción + Diseño + Comercial
@@ -243,7 +256,11 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver gastos',
             'ver ordenes compra',
             'ver propios solicitudes compra',
+            'crear solicitudes compra',
+            'editar solicitudes compra',
         ]);
+
+
 
         // Contabilidad: financiero + compras
         $contabilidad = Role::firstOrCreate(['name' => 'contabilidad']);
@@ -257,7 +274,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver ingresos',
             'ver gastos',
             'ver financiero',
-            'ver todos solicitudes compra',
+            'ver propios solicitudes compra',
+            'crear solicitudes compra',
+            'editar solicitudes compra',
             'ver todos documentos compra',
             'ver todos solicitudes insumos',
 
@@ -294,6 +313,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'crear ordenes compra',
             'editar ordenes compra',
             'eliminar ordenes compra',
+            'ver todos ordenes compra',
 
             // Facturas de compra
             'ver facturas compra',
@@ -302,6 +322,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'eliminar facturas compra',
             'aprobar facturas compra',
             'gestionar diferencias factura compra',
+            'ver todos facturas compra',
         ]);
 
         // Logística: inventario completo + atender solicitudes + ver compras
@@ -342,8 +363,16 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver todos transferencias bodegas',
 
             'ver ordenes compra',
+            'crear ordenes compra',
+            'editar ordenes compra',
+            'eliminar ordenes compra',
             'ver facturas compra',
+            'crear facturas compra',
+            'editar facturas compra',
             'ver gastos',
+            'ver todos solicitudes compra',
+            'crear solicitudes compra',
+            'editar solicitudes compra',
         ]);
 
         // Obtener catalogo de areas desde settings (kind=parameter, key=areas)

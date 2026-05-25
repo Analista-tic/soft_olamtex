@@ -57,14 +57,52 @@ class PurchaseDocumentService
 
     private function applyScopeForDocumentType(Builder $query, string $documentType, ?User $user): void
     {
-        $typeMap = [
-            PurchaseDocument::TYPE_ORDER   => ['ver propios ordenes compra',   'ver area ordenes compra',   'ver todos ordenes compra'],
-            PurchaseDocument::TYPE_INVOICE => ['ver propios facturas compra',  'ver area facturas compra',  'ver todos facturas compra'],
-        ];
+        if ($documentType === PurchaseDocument::TYPE_ORDER) {
+            if ($user === null) {
+                $query->where('buyer_user_id', -1);
+                return;
+            }
 
-        $permissions = $typeMap[$documentType] ?? null;
-        if ($permissions) {
-            ScopeHelper::apply($query, $user, $permissions[0], $permissions[1], $permissions[2]);
+            try {
+                if ($user->hasPermissionTo('ver todos ordenes compra')) {
+                    return;
+                }
+            } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist) {
+                // no permission defined → restrict
+            }
+
+            $query->where('buyer_user_id', $user->id);
+            return;
+        }
+
+        if ($documentType === PurchaseDocument::TYPE_INVOICE) {
+            if ($user === null) {
+                $query->where('buyer_user_id', -1);
+                return;
+            }
+
+            try {
+                if ($user->hasPermissionTo('ver todos facturas compra')) {
+                    if ($user->hasRole('admin')) {
+                        return; // admin ve todo
+                    }
+
+                    // contabilidad: ve todas excepto las de logística
+                    $logisticaUserIds = User::role('logistica')->pluck('id')->toArray();
+                    if (!empty($logisticaUserIds)) {
+                        $query->where(function (Builder $q) use ($logisticaUserIds) {
+                            $q->whereNull('buyer_user_id')
+                              ->orWhereNotIn('buyer_user_id', $logisticaUserIds);
+                        });
+                    }
+                    return;
+                }
+            } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist) {
+                // no permission defined → restrict
+            }
+
+            $query->where('buyer_user_id', $user->id);
+            return;
         }
     }
 
@@ -122,6 +160,8 @@ class PurchaseDocumentService
             ->when($this->shouldApplyFilter($filters['status'] ?? null), function (Builder $builder) use ($filters) {
                 if ($filters['status'] === 'processed') {
                     $builder->where('status', 'approved')->whereNotNull('purchase_request_id');
+                } elseif (str_contains($filters['status'], ',')) {
+                    $builder->whereIn('status', array_map('trim', explode(',', $filters['status'])));
                 } else {
                     $builder->where('status', $filters['status']);
                 }

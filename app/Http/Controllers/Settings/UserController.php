@@ -75,4 +75,25 @@ class UserController extends Controller
 
         return response()->json($data);
     }
+
+    public function list(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $search = trim((string) $request->input('search', ''));
+
+        $query = \Illuminate\Support\Facades\DB::table('users')
+            ->select('id', 'name')
+            ->orderBy('name');
+
+        if ($search !== '') {
+            $query->where('name', 'like', "%{$search}%");
+        }
+
+        $users = $query->limit(100)->get()->map(fn ($user) => [
+            'id'        => $user->id,
+            'name'      => $user->name,
+            'area_name' => '',
+        ])->values();
+
+        return response()->json(['data' => $users]);
+    }
 }

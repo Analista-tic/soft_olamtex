@@ -16,9 +16,13 @@ import axios from 'axios';
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue';
 import { useAlertStack } from '@/composables/useAlert';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
+import { useAuthStore } from '@/stores/auth';
 
 const { successMessage, errorMessage, errorType, showError, clearError, clearSuccess } = useAlertStack();
 const { company, logoUrl } = useCompanyInfo();
+const authStore = useAuthStore();
+const canSeeAllRequests = computed(() => authStore.can('ver todos ordenes compra'));
+const myRequestsOnly = ref(false);
 const ContactDialog = defineAsyncComponent(() => import('@/pages/MasterData/Contact/ContactDialog.vue'));
 
 const props = withDefaults(defineProps<{ mode?: 'create' | 'edit'; form?: any }>(), { mode: 'create', form: null });
@@ -42,6 +46,7 @@ const selectedRequestValue = ref<number | null>(null);
 const selectedPurchaseRequest = ref<any | null>(null);
 const isLoading = ref(false);
 const isSubmitting = ref(false);
+const deliveryDateError = ref(false);
 const isLoadingRequest = ref(false);
 const isLoadingPurchaseRequests = ref(false);
 const isLoadingContacts = ref(false);
@@ -212,9 +217,11 @@ async function fetchContactDetail(contactId: number | null) {
 async function fetchPendingPurchaseRequests(search = '') {
     isLoadingPurchaseRequests.value = true;
     try {
-        const response = await axios.get('/gastos/solicitudes-compra/data', {
-            params: { fast_select: true, limit: 200, search: search.trim() },
-        });
+        const params: Record<string, any> = { fast_select: true, limit: 200, search: search.trim() };
+        if (canSeeAllRequests.value && myRequestsOnly.value) {
+            params.my_requests = true;
+        }
+        const response = await axios.get('/gastos/solicitudes-compra/data', { params });
         let allRequests: any[] = [];
         if (Array.isArray(response.data?.data)) allRequests = response.data.data;
         purchaseRequests.value = allRequests;
@@ -335,6 +342,7 @@ function validateForm(): boolean {
 
     if (!localForm.value.contact_id) missingFields.push('Proveedor');
     if (!localForm.value.date) missingFields.push('Fecha de creación');
+    deliveryDateError.value = !localForm.value.delivery_date;
     if (!localForm.value.delivery_date) missingFields.push('Fecha de entrega');
     if (!String(localForm.value.supplier_order_number || '').trim()) missingFields.push('N° Orden proveedor');
 
@@ -485,6 +493,11 @@ watch(selectedRequestId, async (id) => {
         await loadRequestToOrder(id);
     }
 });
+
+watch(myRequestsOnly, () => {
+    selectedRequestValue.value = null;
+    void fetchPendingPurchaseRequests();
+});
 </script>
 
 <template>
@@ -504,7 +517,21 @@ watch(selectedRequestId, async (id) => {
                 </div>
                 <div v-if="mode === 'create'" class="w-full sm:w-[340px] shrink-0">
                     <div class="space-y-1">
-                        <label class="text-sm font-medium leading-none text-foreground">Cargar desde orden pendiente</label>
+                        <div class="flex items-center justify-between gap-2">
+                            <label class="text-sm font-medium leading-none text-foreground">Cargar desde orden pendiente</label>
+                            <div v-if="canSeeAllRequests" class="flex rounded-md border border-input overflow-hidden text-xs">
+                                <button
+                                    type="button"
+                                    :class="['px-2 py-1 transition-colors', !myRequestsOnly ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted']"
+                                    @click="myRequestsOnly = false"
+                                >Todas</button>
+                                <button
+                                    type="button"
+                                    :class="['px-2 py-1 transition-colors', myRequestsOnly ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted']"
+                                    @click="myRequestsOnly = true"
+                                >Mis solicitudes</button>
+                            </div>
+                        </div>
                         <SelectField
                             v-model="selectedRequestValue"
                             :options="pendingRequestOptions"
@@ -554,7 +581,9 @@ watch(selectedRequestId, async (id) => {
                                     label=""
                                     :clearable="true"
                                     :show-today="true"
+                                    :error="deliveryDateError"
                                     required
+                                    @update:model-value="deliveryDateError = false"
                                 />
                             </div>
                         </div>

@@ -238,6 +238,7 @@ function getOrderStatusLabel(status?: string, purchaseRequestId?: number | null)
     if (status === 'approved') return 'Aprobada';
     if (status === 'sent') return 'Enviada';
     if (status === 'invoiced') return 'Facturada';
+    if (status === 'partially_invoiced') return 'Parcialmente facturada';
     if (status === 'rejected') return 'Rechazada';
     return 'Pendiente';
 }
@@ -252,6 +253,7 @@ function getOrderStatusTone(status?: string, purchaseRequestId?: number | null):
     if (status === 'approved') return 'green';
     if (status === 'sent') return 'indigo';
     if (status === 'invoiced') return 'indigo';
+    if (status === 'partially_invoiced') return 'yellow';
     if (status === 'rejected') return 'red';
     return 'yellow';
 }

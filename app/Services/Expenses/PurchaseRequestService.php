@@ -21,7 +21,7 @@ class PurchaseRequestService
 {
     public function __construct(private PurchaseDocumentOrderService $orderService) {}
 
-    public function getApprovedOptionsForOrderSelect(?User $user, int $limit = 200, string $search = ''): array
+    public function getApprovedOptionsForOrderSelect(?User $user, int $limit = 200, string $search = '', bool $myRequestsOnly = false): array
     {
         $safeLimit = max(1, min($limit, 500));
         $normalizedSearch = trim($search);
@@ -39,6 +39,11 @@ class PurchaseRequestService
             });
 
         ScopeHelper::apply($query, $user, 'ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra', 'requester_user_id');
+        $this->applySolicitedToFilter($query, $user);
+
+        if ($myRequestsOnly && $user !== null) {
+            $query->where('buyer_user_id', $user->id);
+        }
 
         if ($normalizedSearch !== '') {
             $query->where(function (Builder $subQuery) use ($normalizedSearch) {
@@ -74,6 +79,7 @@ class PurchaseRequestService
         }
 
         ScopeHelper::apply($query, $user, 'ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra', 'requester_user_id');
+        $this->applySolicitedToFilter($query, $user);
 
         if (!empty($filters['search'])) {
             $search = $filters['search'];
@@ -173,6 +179,7 @@ class PurchaseRequestService
     {
         $query = PurchaseRequest::query()->whereKey($purchaseRequest->getKey());
         ScopeHelper::apply($query, $user, 'ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra', 'requester_user_id');
+        $this->applySolicitedToFilter($query, $user);
 
         if (!$query->exists()) {
             throw new AuthorizationException('No tienes permisos para acceder a esta solicitud de compra.');
@@ -414,9 +421,55 @@ class PurchaseRequestService
             'date'                => $purchaseRequest->date ? Carbon::parse((string) $purchaseRequest->date)->toDateString() : now()->toDateString(),
             'description'         => $purchaseRequest->description,
             'purchase_request_id' => $purchaseRequest->id,
+            'buyer_user_id'       => $purchaseRequest->buyer_user_id,
             'status'              => 'pending',
         ];
 
         return $this->orderService->createOrder($data, $orderItems);
+    }
+
+    private function applySolicitedToFilter(Builder $query, ?User $user): void
+    {
+        if ($user === null) {
+            return;
+        }
+
+        try {
+            if (!$user->hasPermissionTo('ver todos solicitudes compra')) {
+                return;
+            }
+        } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist) {
+            return;
+        }
+
+        $userId = $user->id;
+
+        if ($user->hasRole('logistica')) {
+            $query->where(function (Builder $q) use ($userId) {
+                // Siempre ve las propias (cualquier estado)
+                $q->where('requester_user_id', $userId)
+                // O las dirigidas a logistica de otros, solo si no son borrador
+                  ->orWhere(function (Builder $sub) use ($userId) {
+                      $sub->where('requester_user_id', '!=', $userId)
+                          ->where(function (Builder $s) {
+                              $s->where('solicited_to', 'logistica')->orWhereNull('solicited_to');
+                          })
+                          ->where('status', '!=', 'draft');
+                  });
+            });
+        } elseif ($user->hasRole('admin')) {
+            $query->where(function (Builder $q) use ($userId) {
+                // Siempre ve las propias (cualquier estado)
+                $q->where('requester_user_id', $userId)
+                // O las dirigidas a gerencia de otros, solo si no son borrador
+                  ->orWhere(function (Builder $sub) use ($userId) {
+                      $sub->where('requester_user_id', '!=', $userId)
+                          ->where(function (Builder $s) {
+                              $s->where('solicited_to', 'gerencia')->orWhereNull('solicited_to');
+                          })
+                          ->where('status', '!=', 'draft');
+                  });
+            });
+        }
     }
 }

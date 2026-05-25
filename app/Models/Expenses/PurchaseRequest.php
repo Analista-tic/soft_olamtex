@@ -36,6 +36,8 @@ class PurchaseRequest extends Model implements \App\Contracts\HasAuditLabel
         'rejection_reason',
         'processed_at',
         'processed_by_user_id',
+        'solicited_to',
+        'buyer_user_id',
     ];
 
     protected $casts = [
@@ -156,6 +158,11 @@ class PurchaseRequest extends Model implements \App\Contracts\HasAuditLabel
     public function processor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'processed_by_user_id');
+    }
+
+    public function buyer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'buyer_user_id');
     }
 
     public function orders(): \Illuminate\Database\Eloquent\Relations\HasMany

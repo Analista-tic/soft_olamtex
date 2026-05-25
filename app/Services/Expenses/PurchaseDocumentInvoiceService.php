@@ -228,19 +228,13 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
                     throw new \RuntimeException('El documento padre debe ser una orden de compra.');
                 }
 
-                // Verificar si ya existe una factura para esta orden
-                $existingInvoice = PurchaseDocument::where('parent_document_id', $parentId)
-                    ->where('document_type', PurchaseDocument::TYPE_INVOICE)
-                    ->whereNull('deleted_at')
-                    ->first();
-
-                if ($existingInvoice) {
-                    throw new \RuntimeException('Ya existe una factura de compra para esta orden. No se pueden crear múltiples facturas desde la misma orden.');
-                }
-
-                // Validar que la orden esté aprobada
-                if (!$parentOrder->isApproved()) {
-                    throw new \RuntimeException('Solo se pueden crear facturas desde órdenes aprobadas.');
+                // Validar que la orden esté en un estado que permita facturar
+                $invoiceableStatuses = [
+                    \App\Enums\PurchaseOrderStatus::APPROVED->value,
+                    \App\Enums\PurchaseOrderStatus::PARTIALLY_INVOICED->value,
+                ];
+                if (!in_array($parentOrder->status, $invoiceableStatuses)) {
+                    throw new \RuntimeException('Solo se pueden crear facturas desde órdenes aprobadas o parcialmente facturadas.');
                 }
             }
 
@@ -249,9 +243,19 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
             }
             $base = $this->buildBaseData($data, PurchaseDocument::TYPE_INVOICE);
 
+            // Heredar buyer_user_id de la orden padre, o usar el usuario autenticado
+            $buyerUserId = $data['buyer_user_id'] ?? null;
+            if (!$buyerUserId && !empty($parentId)) {
+                $buyerUserId = PurchaseDocument::where('id', $parentId)->value('buyer_user_id');
+            }
+            if (!$buyerUserId) {
+                $buyerUserId = \Illuminate\Support\Facades\Auth::id();
+            }
+
             $invoice = PurchaseDocument::create([
                 ...$base,
                 'parent_document_id'        => $parentId,
+                'buyer_user_id'             => $buyerUserId,
                 'status'                    => $data['status'] ?? 'pending_receipt',
                 'approval_status'           => $data['approval_status'] ?? 'pending',
                 'supplier_invoice_number'   => $data['supplier_invoice_number'] ?? null,
@@ -266,13 +270,17 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
 
             $this->syncItems($invoice, $items);
 
-            // Actualizar el estado de la orden a "invoiced" cuando se crea una factura
+            // Actualizar el estado de la orden según si la factura cubre todas las cantidades
             if (!empty($parentId)) {
-                $parentOrder = PurchaseDocument::find($parentId);
+                $parentOrder = PurchaseDocument::with('items')->find($parentId);
                 if ($parentOrder && $parentOrder->document_type === PurchaseDocument::TYPE_ORDER) {
-                    $parentOrder->update([
-                        'status' => \App\Enums\PurchaseOrderStatus::INVOICED->value,
-                    ]);
+                    $newStatus = $this->resolveOrderStatusAfterInvoice($parentOrder, $items);
+                    $parentOrder->update(['status' => $newStatus]);
+
+                    // Verificar si todas las órdenes de la solicitud están completamente facturadas
+                    if ($newStatus === \App\Enums\PurchaseOrderStatus::INVOICED->value && $parentOrder->purchase_request_id) {
+                        $this->checkAndMarkRequestAsProcessed((int) $parentOrder->purchase_request_id);
+                    }
                 }
             }
 
@@ -623,5 +631,77 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
 
         $enum = PurchaseInvoiceStatus::tryFrom($status);
         return $enum?->label() ?? $status;
+    }
+
+    private function resolveOrderStatusAfterInvoice(PurchaseDocument $order, array $newInvoiceItems): string
+    {
+        $orderItems = $order->items;
+
+        if ($orderItems->isEmpty()) {
+            return \App\Enums\PurchaseOrderStatus::INVOICED->value;
+        }
+
+        // Sumar cantidades de facturas anteriores para esta orden
+        $previousInvoiceIds = PurchaseDocument::where('parent_document_id', $order->id)
+            ->where('document_type', PurchaseDocument::TYPE_INVOICE)
+            ->whereNull('deleted_at')
+            ->pluck('id');
+
+        $invoicedQty = \App\Models\Expenses\PurchaseDocumentItem::whereIn('purchase_document_id', $previousInvoiceIds)
+            ->get()
+            ->reduce(function (array $carry, $item) {
+                $key = $item->item_id
+                    ? 'id:' . $item->item_id
+                    : 'name:' . strtolower(trim((string) ($item->item_name ?? '')));
+                $carry[$key] = ($carry[$key] ?? 0) + (float) $item->quantity;
+                return $carry;
+            }, []);
+
+        // Sumar la factura actual
+        foreach ($newInvoiceItems as $item) {
+            $key = !empty($item['item_id'])
+                ? 'id:' . $item['item_id']
+                : 'name:' . strtolower(trim((string) ($item['item_name'] ?? '')));
+            $invoicedQty[$key] = ($invoicedQty[$key] ?? 0) + (float) ($item['quantity'] ?? 0);
+        }
+
+        foreach ($orderItems as $orderItem) {
+            $key = $orderItem->item_id
+                ? 'id:' . $orderItem->item_id
+                : 'name:' . strtolower(trim((string) ($orderItem->item_name ?? '')));
+            $ordered  = (float) $orderItem->quantity;
+            $invoiced = $invoicedQty[$key] ?? 0;
+
+            if ($ordered > 0 && $invoiced < $ordered) {
+                return \App\Enums\PurchaseOrderStatus::PARTIALLY_INVOICED->value;
+            }
+        }
+
+        return \App\Enums\PurchaseOrderStatus::INVOICED->value;
+    }
+
+    private function checkAndMarkRequestAsProcessed(int $requestId): void
+    {
+        $purchaseRequest = \App\Models\Expenses\PurchaseRequest::find($requestId);
+        if (!$purchaseRequest || !$purchaseRequest->isApproved()) {
+            return;
+        }
+
+        // Verificar que exista al menos una orden y que todas las no-rechazadas/no-eliminadas estén facturadas
+        $orders = PurchaseDocument::where('purchase_request_id', $requestId)
+            ->where('document_type', PurchaseDocument::TYPE_ORDER)
+            ->whereNotIn('status', ['rejected'])
+            ->whereNull('deleted_at')
+            ->get(['id', 'status']);
+
+        if ($orders->isEmpty()) {
+            return;
+        }
+
+        $allInvoiced = $orders->every(fn($o) => $o->status === \App\Enums\PurchaseOrderStatus::INVOICED->value);
+
+        if ($allInvoiced) {
+            $purchaseRequest->markAsProcessed(Auth::id());
+        }
     }
 }

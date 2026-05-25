@@ -35,6 +35,7 @@ class PurchaseDocument extends Model implements HasAuditLabel
         'description',
         'created_by_user_id',
         'executed_by_user_id',
+        'buyer_user_id',
         'status',
         'approval_status',
         'approval_notes',
@@ -134,6 +135,12 @@ class PurchaseDocument extends Model implements HasAuditLabel
     public function executor()
     {
         return $this->belongsTo(User::class, 'executed_by_user_id');
+    }
+
+    // Encargado de compra (buyer asignado desde la solicitud)
+    public function buyer()
+    {
+        return $this->belongsTo(User::class, 'buyer_user_id');
     }
 
     // Usuario que rechazó (si aplica)
@@ -242,7 +249,7 @@ class PurchaseDocument extends Model implements HasAuditLabel
 
     public function canInvoiceOrder(): bool
     {
-        return $this->isOrder() && $this->status === 'approved';
+        return $this->isOrder() && in_array($this->status, ['approved', 'partially_invoiced']);
     }
 
     // Métodos de estado para facturas

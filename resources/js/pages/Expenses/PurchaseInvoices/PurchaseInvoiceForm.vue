@@ -205,8 +205,10 @@ function getSuggestedQuantityForItem(item: PurchaseInvoiceItem): number | null {
         return null;
     }
 
-    const quantity = Number(item.original_order_item.quantity);
-    return Number.isFinite(quantity) ? quantity : null;
+    const orderQty = Number(item.original_order_item.quantity);
+    if (!Number.isFinite(orderQty)) return null;
+    const alreadyInvoiced = Number(item.original_order_item.already_invoiced_qty ?? 0);
+    return alreadyInvoiced > 0 ? Math.max(0, orderQty - alreadyInvoiced) : orderQty;
 }
 
 function formatDateForBackend(date: Date): string {
@@ -616,7 +618,7 @@ async function fetchPendingPurchaseOrders(search = ''): Promise<void> {
     try {
         const { data } = await axios.get('/gastos/ordenes-compra/data', {
             params: {
-                status: 'approved',
+                status: 'approved,partially_invoiced',
                 per_page: 80,
                 exclude_fabric: true,
                 search: search.trim(),
@@ -684,7 +686,8 @@ function attachOriginalOrderItemsFromOrder(order: any): void {
 }
 
 async function loadPurchaseOrderToInvoice(orderId: number) {
-    const order = purchaseOrders.value.find((o: any) => Number(o.id) === Number(orderId));
+    const fullOrder = await fetchPurchaseOrderById(orderId);
+    const order = fullOrder ?? purchaseOrders.value.find((o: any) => Number(o.id) === Number(orderId));
     if (!order) return;
     if (!contacts.value.length) await fetchContacts();
     const foundContact = contacts.value.find((c: any) => Number(c.id) === Number(order.contact_id));
@@ -705,23 +708,28 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     differenceReason.value = '';
     differenceEvidenceData.value = null;
     localForm.value.items = Array.isArray(order.items)
-        ? order.items.map((item: any) => ({
-              item_id: item.item_id,
-              item_name: item.item_name || '',
-              price: item.price != null && item.price !== '' ? Number(item.price) : '',
-              tax: Number(item.tax) || 0,
-              quantity: item.quantity != null && item.quantity !== '' ? Number(item.quantity) : '',
-              description: item.description || '',
-              total: Number(item.total) || 0,
-              total_tax: Number(item.total_tax) || 0,
-              supplier_code: item.supplier_code || '',
-              supplier_color: item.supplier_color || '',
-              order_width: item.order_width || '',
-              id: item.id,
-              created_at: item.created_at || '',
-              updated_at: item.updated_at || '',
-              original_order_item: { ...item },
-          }))
+        ? order.items.map((item: any) => {
+              const orderQty = item.quantity != null && item.quantity !== '' ? Number(item.quantity) : 0;
+              const invoicedQty = Number(item.already_invoiced_qty ?? 0);
+              const pendingQty = Math.max(0, orderQty - invoicedQty);
+              return {
+                  item_id: item.item_id,
+                  item_name: item.item_name || '',
+                  price: item.price != null && item.price !== '' ? Number(item.price) : '',
+                  tax: Number(item.tax) || 0,
+                  quantity: pendingQty > 0 ? pendingQty : (orderQty || ''),
+                  description: item.description || '',
+                  total: Number(item.total) || 0,
+                  total_tax: Number(item.total_tax) || 0,
+                  supplier_code: item.supplier_code || '',
+                  supplier_color: item.supplier_color || '',
+                  order_width: item.order_width || '',
+                  id: item.id,
+                  created_at: item.created_at || '',
+                  updated_at: item.updated_at || '',
+                  original_order_item: { ...item, already_invoiced_qty: invoicedQty },
+              };
+          })
         : [];
     if (!localForm.value.items.length) localForm.value.items = [createEmptyItem()];
     selectedPurchaseOrderId.value = Number(orderId);
