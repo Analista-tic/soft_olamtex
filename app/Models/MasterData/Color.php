@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Color extends Model
 {
-    protected $fillable = ['name', 'rgb', 'hexadecimal', 'description'];
+    protected $fillable = ['code', 'name', 'rgb', 'hexadecimal', 'description'];
 
     public function items(): HasMany
     {

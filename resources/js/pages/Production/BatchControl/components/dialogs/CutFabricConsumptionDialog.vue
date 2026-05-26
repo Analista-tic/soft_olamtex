@@ -237,7 +237,7 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
             :scrollable="false"
         >
             <!-- ══ HEADER ══════════════════════════════════════════════════ -->
-            <div class="flex shrink-0 items-center gap-4 border-b bg-card px-5 py-3 flex-wrap">
+            <div class="flex shrink-0 items-center gap-4 border-b bg-card px-5 py-3 pr-14 flex-wrap">
                 <div class="flex items-center gap-3 min-w-0">
                     <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                         <Layers class="h-4 w-4 text-primary" />

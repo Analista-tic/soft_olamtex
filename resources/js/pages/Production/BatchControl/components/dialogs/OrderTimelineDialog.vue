@@ -58,9 +58,9 @@ watch(
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <FormDialogContent class="!max-w-xl" :scrollable="true">
+        <FormDialogContent class="!max-w-xl overflow-hidden" :scrollable="true">
             <!-- Header -->
-            <DialogHeader class="border-b border-border/50 bg-muted/20 px-6 py-5">
+            <DialogHeader class="shrink-0 border-b border-border/50 bg-muted/20 px-6 py-5 pr-14">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex items-center gap-3">
                         <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted/60">
@@ -89,7 +89,7 @@ watch(
             </DialogHeader>
 
             <!-- Timeline body -->
-            <div class="px-6 py-5">
+            <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
                 <!-- Loading skeletons -->
                 <div v-if="isLoading" class="space-y-4">
                     <div v-for="i in 3" :key="i" class="flex gap-3">
@@ -272,7 +272,7 @@ watch(
             </div>
 
             <!-- Footer -->
-            <DialogFooter class="border-t border-border/50 bg-muted/20 px-6 py-4">
+            <DialogFooter class="shrink-0 border-t border-border/50 bg-muted/20 px-6 py-4">
                 <Button variant="outline" size="sm" @click="emit('close')">Cerrar</Button>
             </DialogFooter>
         </FormDialogContent>

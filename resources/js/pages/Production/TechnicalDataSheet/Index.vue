@@ -236,7 +236,7 @@ const tabs = [
     { value: 'costos', label: 'Costos', icon: DollarSign },
 ];
 
-const defaultTabValue = computed(() => (tabs.some((tab) => tab.value === 'lista_operacional') ? 'lista_operacional' : 'procesos'));
+const defaultTabValue = computed(() => tabs[0]?.value ?? 'lista_operacional');
 const activeTab = ref<string>(defaultTabValue.value);
 
 function formatDate(value: string | null): string {
@@ -643,6 +643,7 @@ onBeforeUnmount(() => {
                                 </TabsTrigger>
                             </TabsList>
                         </div>
+
                         <TabsContent value="lista_operacional" class="mt-0">
                             <div v-if="isSampleOp" class="mb-3 flex justify-end">
                                 <Button

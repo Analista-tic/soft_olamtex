@@ -21,7 +21,7 @@ const emit = defineEmits<{
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
         <DialogContent class="sm:max-w-xl">
-            <DialogHeader>
+            <DialogHeader class="pr-14">
                 <DialogTitle>Historial de entregas</DialogTitle>
                 <DialogDescription>
                     Orden <span class="font-mono font-semibold">{{ row?.op_code }}</span> — {{ row?.referencia }}

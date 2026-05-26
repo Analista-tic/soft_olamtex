@@ -85,7 +85,78 @@ class Operation extends Model
             
             // Generar descripción
             $operation->description = $operation->composeDescription();
+
+            $currentSignature = $operation->buildUniquenessSignature();
+            $originalSignature = $operation->exists
+                ? $operation->buildUniquenessSignatureFromAttributes($operation->getOriginal())
+                : null;
+
+            if (! $operation->exists || $currentSignature !== $originalSignature) {
+                $duplicate = self::query()
+                    ->whereNull('deleted_at')
+                    ->where('id', '!=', $operation->id)
+                    ->where('action', strtoupper(trim((string) $operation->action)))
+                    ->where('garment_part', strtoupper(trim((string) $operation->garment_part)))
+                    ->get()
+                    ->first(fn (self $candidate) => $candidate->buildUniquenessSignature() === $currentSignature);
+
+                if ($duplicate) {
+                    throw new \InvalidArgumentException('Ya existe una operación con la misma firma de unicidad (sección, acción, parte, medida, cantidad y SAM base).');
+                }
+            }
         });
+    }
+
+    private function buildUniquenessSignature(): string
+    {
+        return $this->buildUniquenessSignatureFromAttributes([
+            'section_id' => $this->section_id,
+            'action' => $this->action,
+            'garment_part' => $this->garment_part,
+            'measure' => $this->measure,
+            'quantity' => $this->quantity,
+            'sam_base' => $this->sam_base,
+        ]);
+    }
+
+    private function buildUniquenessSignatureFromAttributes(array $attributes): string
+    {
+        $sectionId = $this->normalizeInt($attributes['section_id'] ?? null);
+        $measure = $this->normalizeFloat($attributes['measure'] ?? 0, 4) ?? '0.0000';
+        $samBase = $this->normalizeFloat($attributes['sam_base'] ?? 0, 4) ?? '0.0000';
+        $quantity = $this->normalizeInt($attributes['quantity'] ?? 1) ?? 1;
+
+        return implode('|', [
+            (string) ($sectionId ?? ''),
+            $this->normalizeText($attributes['action'] ?? null),
+            $this->normalizeText($attributes['garment_part'] ?? null),
+            $measure,
+            (string) $quantity,
+            $samBase,
+        ]);
+    }
+
+    private function normalizeText(?string $value): string
+    {
+        return mb_strtoupper(trim((string) ($value ?? '')));
+    }
+
+    private function normalizeInt(int|string|null $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return (int) $value;
+    }
+
+    private function normalizeFloat(float|int|string|null $value, int $precision = 4): ?string
+    {
+        if ($value === null || $value === '' || !is_numeric((string) $value)) {
+            return null;
+        }
+
+        return number_format((float) $value, $precision, '.', '');
     }
 
     private function composeDescription(): string

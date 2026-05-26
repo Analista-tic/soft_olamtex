@@ -45,6 +45,8 @@ function onPageSizeChange(event: Event) {
     const selectElement = event.target as HTMLSelectElement;
     const newSize = Number(selectElement.value);
 
+    if (newSize === props.pageSize) return;
+
     emit('update:pageSize', newSize);
     emit('update:currentPage', 1);
     emit('fetch-data', 1);
@@ -52,6 +54,8 @@ function onPageSizeChange(event: Event) {
 
 // 5. Lógica para cuando cambia de página
 function handlePageChange(page: number) {
+    if (page === props.currentPage) return;
+
     // Evitar navegar a páginas inexistentes
     const lastPage = Math.ceil(props.totalItems / props.pageSize);
     if (page < 1 || page > lastPage) return;

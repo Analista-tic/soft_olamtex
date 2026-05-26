@@ -897,7 +897,15 @@ export async function saveOpAdditionalInfo(opId: string | number, payload: Addit
 /** Retorna las piezas de despiece almacenadas en BD para la OP dada. */
 export async function fetchOpCuttingPieces(opId: string | number): Promise<CuttingPiece[]> {
     const url = ENDPOINTS.OP_CUTTING_PIECES.replace(':id', String(opId));
-    const response = await axios.get<{ pieces: AdditionalInfoDto['cutting']['pieces'] }>(url);
+    let response;
+    try {
+        response = await axios.get<{ pieces: AdditionalInfoDto['cutting']['pieces'] }>(url);
+    } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+            return [];
+        }
+        throw error;
+    }
     const raw = response.data?.pieces;
     if (!Array.isArray(raw)) return [];
     return raw.map((piece) => {

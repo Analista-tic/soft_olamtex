@@ -27,9 +27,9 @@ const emit = defineEmits<{
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <DialogContent class="gap-0 overflow-hidden p-0 sm:max-w-lg">
+        <DialogContent class="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
             <!-- Header -->
-            <DialogHeader class="border-b border-orange-100 bg-orange-50/60 px-6 py-5">
+            <DialogHeader class="shrink-0 border-b border-orange-100 bg-orange-50/60 px-6 py-5 pr-14">
                 <div class="flex items-center gap-3">
                     <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-100">
                         <Flag class="h-4 w-4 text-orange-600" />
@@ -47,7 +47,7 @@ const emit = defineEmits<{
             </DialogHeader>
 
             <!-- Body -->
-            <div class="space-y-5 px-6 py-5">
+            <div class="min-h-0 flex-1 overflow-y-auto space-y-5 px-6 py-5">
                 <!-- Estado actual -->
                 <div class="flex items-center gap-3 rounded-lg border border-border/50 bg-muted/20 px-4 py-3">
                     <span class="text-xs text-muted-foreground">Proceso actual</span>
@@ -88,7 +88,7 @@ const emit = defineEmits<{
             </div>
 
             <!-- Footer -->
-            <DialogFooter class="border-t border-border/50 px-6 py-4">
+            <DialogFooter class="shrink-0 border-t border-border/50 px-6 py-4">
                 <Button
                     type="button"
                     variant="outline"

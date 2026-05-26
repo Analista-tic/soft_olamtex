@@ -96,10 +96,16 @@ class OperationController extends Controller
         }
 
         $perPage = min((int) $request->input('per_page', 25), 100);
-        $paginated = $query->orderBy('section_id')
-            ->orderBy('action')
-            ->orderBy('garment_part')
-            ->paginate($perPage);
+
+        $allowedSorts = ['codigo', 'action', 'garment_part', 'measure', 'quantity', 'sam_base', 'factor_operario', 'is_active', 'created_at', 'section_id'];
+        $sortBy  = in_array($request->input('sort_by'), $allowedSorts, true) ? $request->input('sort_by') : null;
+        $sortDir = $request->input('sort_dir') === 'asc' ? 'asc' : 'desc';
+
+        if ($sortBy) {
+            $paginated = $query->orderBy($sortBy, $sortDir)->paginate($perPage);
+        } else {
+            $paginated = $query->orderBy('section_id')->orderBy('action')->orderBy('garment_part')->paginate($perPage);
+        }
 
         return response()->json($paginated);
     }

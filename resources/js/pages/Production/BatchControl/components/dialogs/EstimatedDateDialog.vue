@@ -152,7 +152,7 @@ function applySuggestion() {
     <Dialog :open="open" @update:open="emit('update:open', $event)">
         <DialogContent class="gap-0 overflow-hidden p-0 sm:max-w-sm">
             <!-- Header -->
-            <DialogHeader class="border-b border-border/50 bg-muted/20 px-6 py-5">
+            <DialogHeader class="border-b border-border/50 bg-muted/20 px-6 py-5 pr-14">
                 <div class="flex items-center gap-3">
                     <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted/60">
                         <Calendar class="h-4 w-4 text-muted-foreground" />

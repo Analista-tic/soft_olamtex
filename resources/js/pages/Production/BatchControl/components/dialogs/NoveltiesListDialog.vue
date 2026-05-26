@@ -29,7 +29,7 @@ const emit = defineEmits<{
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
         <DialogContent class="sm:max-w-2xl">
-            <DialogHeader>
+            <DialogHeader class="pr-14">
                 <DialogTitle class="flex items-center gap-2">
                     <MessageSquareWarning class="h-5 w-5 text-orange-500" />
                     Novedades

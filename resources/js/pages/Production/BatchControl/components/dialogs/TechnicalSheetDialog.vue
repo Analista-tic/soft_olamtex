@@ -316,7 +316,7 @@ watch(
     <Dialog :open="open" @update:open="emit('update:open', $event)">
         <FormDialogContent class="flex w-[calc(100vw-2rem)] h-[calc(100vh-2rem)] max-w-none max-h-none flex-col overflow-hidden rounded-xl p-0 self-stretch" :scrollable="false">
             <!-- Header sticky -->
-            <div class="flex shrink-0 items-center justify-between border-b border-border/50 bg-muted/20 px-6 py-4">
+            <div class="flex shrink-0 items-center justify-between border-b border-border/50 bg-muted/20 px-6 py-4 pr-14">
                 <div class="min-w-0">
                     <h2 class="text-sm font-semibold leading-tight text-foreground">Ficha técnica</h2>
                     <p class="mt-0.5 truncate text-xs text-muted-foreground">

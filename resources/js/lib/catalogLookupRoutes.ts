@@ -3,6 +3,7 @@ export const catalogLookupRoutes = {
     categorySubGroups: '/catalogos/categorias/subgrupos',
     taxes: '/impuestos/data',
     warehouses: '/bodegas/data',
+    warehouseLocations: '/ubicaciones-bodega',
     additionalFields: '/catalogos/campos-adicionales/options',
     accountingAccounts: '/catalogos/cuentas-contables/options',
 } as const;

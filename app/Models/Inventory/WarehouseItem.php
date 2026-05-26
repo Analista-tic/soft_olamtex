@@ -15,6 +15,7 @@ class WarehouseItem extends Model
         'quantity',
         'stock_min',
         'stock_max',
+        'location_id',
         'weighted_average_price',
         'last_unit_cost',
         'total_cost',
@@ -39,5 +40,10 @@ class WarehouseItem extends Model
     public function warehouse(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Warehouse::class);
+    }
+
+    public function location(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(WarehouseLocation::class, 'location_id');
     }
 }

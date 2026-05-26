@@ -972,11 +972,13 @@ class ItemService
                 continue;
             }
 
+            $locationId = $warehouse['location_id'] ?? null;
             $warehouses[] = [
                 'warehouse_id' => (int) $warehouseId,
                 'quantity' => is_numeric($warehouse['quantity'] ?? null) ? (float) $warehouse['quantity'] : 0.0,
                 'stock_min' => is_numeric($warehouse['stock_min'] ?? null) ? (float) $warehouse['stock_min'] : 0.0,
                 'stock_max' => is_numeric($warehouse['stock_max'] ?? null) ? (float) $warehouse['stock_max'] : 0.0,
+                'location_id' => $locationId !== null && $locationId !== '' ? (int) $locationId : null,
             ];
         }
 
@@ -1316,9 +1318,10 @@ class ItemService
                     'warehouse_id' => $warehouse['warehouse_id'],
                 ],
                 [
-                    'quantity'  => $warehouse['quantity']  ?? 0,
-                    'stock_min' => $warehouse['stock_min'] ?? 0,
-                    'stock_max' => $warehouse['stock_max'] ?? 0,
+                    'quantity'    => $warehouse['quantity']    ?? 0,
+                    'stock_min'   => $warehouse['stock_min']   ?? 0,
+                    'stock_max'   => $warehouse['stock_max']   ?? 0,
+                    'location_id' => $warehouse['location_id'] ?? null,
                 ]
             );
         }

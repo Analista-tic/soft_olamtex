@@ -21,6 +21,7 @@ export type {
     ParameterListQuery,
     ParameterPayload,
     ParameterStatusFilter,
+    WarehouseLocation,
 } from './types';
 
 export type { AdditionalContactDto, CategorySubGroupDto, ContactDto, ContactIdTypeDto, ContactPersonTypeDto, ContactTypeDto, ItemDto } from './dto';

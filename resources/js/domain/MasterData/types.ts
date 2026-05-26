@@ -101,7 +101,6 @@ export interface Item extends Timestamps {
     stock_min: number;
     stock_max: number;
     bar_code?: string;
-    location?: string | null;
     negative_movement: boolean | number;
     description: string;
     extra_fields?: ExtraFields | string;
@@ -126,6 +125,14 @@ export interface Item extends Timestamps {
     export_model?: string | null;
     weighted_average_price?: number | null;
     cost_price?: number | null;
+}
+
+export interface WarehouseLocation extends Timestamps {
+    id: number;
+    name: string;
+    code?: string | null;
+    description?: string | null;
+    status: boolean;
 }
 
 export interface Parameter extends Timestamps {

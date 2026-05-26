@@ -6,6 +6,7 @@ use App\Http\Controllers\Inventory\InventoryRequestController;
 use App\Http\Controllers\Inventory\ItemInventoryController;
 use App\Http\Controllers\Inventory\WarehouseController;
 use App\Http\Controllers\Inventory\WarehouseItemStockController;
+use App\Http\Controllers\Inventory\WarehouseLocationController;
 use App\Http\Controllers\Inventory\WarehouseTransferController;
 use App\Http\Controllers\MasterData\AdditionalFieldController;
 use App\Http\Controllers\MasterData\ItemController;
@@ -14,6 +15,14 @@ use Inertia\Inertia;
 
 // === LOOKUPS DE CATALOGOS PARA REFERENCIA ===
 Route::get('catalogos/campos-adicionales/options', [AdditionalFieldController::class, 'options'])->name('catalogos.additional-fields.options');
+
+// === UBICACIONES DE BODEGA ===
+Route::prefix('ubicaciones-bodega')->name('warehouse-locations.')->group(function () {
+    Route::get('/', [WarehouseLocationController::class, 'index'])->name('index');
+    Route::post('/', [WarehouseLocationController::class, 'store'])->name('store');
+    Route::put('/{warehouseLocation}', [WarehouseLocationController::class, 'update'])->name('update');
+    Route::delete('/{warehouseLocation}', [WarehouseLocationController::class, 'destroy'])->name('destroy');
+});
 
 // === BODEGAS ===
 Route::prefix('bodegas')->name('warehouses.')->group(function () {

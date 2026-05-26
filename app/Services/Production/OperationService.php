@@ -3,6 +3,7 @@
 namespace App\Services\Production;
 
 use App\Models\Production\Operation;
+use App\Models\Production\ProductOperationList;
 use App\Models\Settings\AuditLog;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -63,6 +64,123 @@ class OperationService
             'quantity' => $operation->quantity,
             'sam_base' => $operation->sam_base,
         ]);
+    }
+
+    /**
+     * Depura operaciones duplicadas por firma actual de unicidad.
+     *
+     * Regla de firma: sección + acción + parte + medida + cantidad + SAM base.
+     *
+     * - Conserva una operación canónica por firma (menor id).
+     * - Reasigna product_sheet_operations.operation_id al canónico.
+     * - Si en una sábana ya existe el canónico, elimina el duplicado de listado
+     *   para cumplir unicidad (product_sheet_id + operation_id).
+     * - Elimina (soft delete) operaciones duplicadas huérfanas luego de relink.
+     */
+    public function deduplicateBySignature(bool $apply = false): array
+    {
+        $runner = function () use ($apply): array {
+            $operations = $this->model
+                ->newQuery()
+                ->whereNull('deleted_at')
+                ->get();
+
+            $duplicateGroups = $operations
+                ->groupBy(fn (Operation $operation) => $this->buildOperationSignatureFromModel($operation))
+                ->filter(fn (Collection $group) => $group->count() > 1)
+                ->values();
+
+            $summary = [
+                'groups' => 0,
+                'operations_to_soft_delete' => 0,
+                'list_rows_relinked' => 0,
+                'list_rows_soft_deleted_by_collision' => 0,
+                'details' => [],
+            ];
+
+            foreach ($duplicateGroups as $group) {
+                $ordered = $group->sortBy('id')->values();
+                /** @var Operation $keeper */
+                $keeper = $ordered->first();
+                $duplicates = $ordered->slice(1)->values();
+
+                if ($duplicates->isEmpty()) {
+                    continue;
+                }
+
+                $groupOperationIds = $ordered->pluck('id')->all();
+                $duplicateIds = $duplicates->pluck('id')->all();
+
+                $listRows = ProductOperationList::query()
+                    ->whereNull('deleted_at')
+                    ->whereIn('operation_id', $groupOperationIds)
+                    ->orderBy('id')
+                    ->get(['id', 'product_sheet_id', 'operation_id']);
+
+                $sheetsWithKeeper = $listRows
+                    ->where('operation_id', $keeper->id)
+                    ->pluck('product_sheet_id')
+                    ->map(fn ($sheetId) => (int) $sheetId)
+                    ->flip();
+
+                $groupRelinked = 0;
+                $groupCollisionsDeleted = 0;
+
+                foreach ($listRows as $row) {
+                    if ((int) $row->operation_id === (int) $keeper->id) {
+                        continue;
+                    }
+
+                    $sheetId = (int) $row->product_sheet_id;
+
+                    if ($sheetsWithKeeper->has($sheetId)) {
+                        $groupCollisionsDeleted++;
+                        if ($apply) {
+                            ProductOperationList::query()
+                                ->whereKey($row->id)
+                                ->update(['deleted_at' => now(), 'updated_at' => now()]);
+                        }
+                        continue;
+                    }
+
+                    $groupRelinked++;
+                    if ($apply) {
+                        ProductOperationList::query()
+                            ->whereKey($row->id)
+                            ->update(['operation_id' => $keeper->id, 'updated_at' => now()]);
+                    }
+
+                    $sheetsWithKeeper->put($sheetId, true);
+                }
+
+                if ($apply) {
+                    $this->model
+                        ->newQuery()
+                        ->whereIn('id', $duplicateIds)
+                        ->update(['deleted_at' => now(), 'updated_at' => now()]);
+                }
+
+                $summary['groups']++;
+                $summary['operations_to_soft_delete'] += count($duplicateIds);
+                $summary['list_rows_relinked'] += $groupRelinked;
+                $summary['list_rows_soft_deleted_by_collision'] += $groupCollisionsDeleted;
+                $summary['details'][] = [
+                    'keeper_id' => $keeper->id,
+                    'duplicate_ids' => $duplicateIds,
+                    'description' => $keeper->description,
+                    'relinked_rows' => $groupRelinked,
+                    'collision_rows_deleted' => $groupCollisionsDeleted,
+                ];
+            }
+
+            return $summary;
+        };
+
+        if (! $apply) {
+            return $runner();
+        }
+
+        return DB::transaction($runner);
     }
 
     /**

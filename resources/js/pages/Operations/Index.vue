@@ -105,6 +105,20 @@ const machines = computed(() => localMachines.value.filter((machine) => machine.
 const actionOptions = computed(() => localActions.value.map((a: string) => ({ id: a, name: a })));
 const sectionFilterOptions = computed(() => [{ id: '', name: 'Todas las secciones' }, ...sections.value.map((s) => ({ id: s.id, name: s.name }))]);
 
+const sortBy = ref<string>('');
+const sortDir = ref<'asc' | 'desc'>('asc');
+
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'asc';
+    }
+    clearFetchDebounce();
+    fetchOperations(1, searchQuery.value, filterAction.value || null, filterSectionId.value || null);
+}
+
 const isFetchingRecords = ref(false);
 const isRefreshingRecords = ref(false);
 const records = ref<OperationRecord[]>([]);
@@ -123,6 +137,8 @@ const filterSectionId = ref<number | string>('');
 const fetchDebounceMs = 350;
 let fetchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let activeFetchController: AbortController | null = null;
+let lastRequestedQueryKey = '';
+let lastResolvedQueryKey = '';
 
 const { errorMessage, successMessage, showError, showSuccess, clearSuccess, clearError } = useAlertStack();
 
@@ -153,13 +169,32 @@ async function fetchOperations(
     search = '',
     action: string | null = null,
     sectionId: string | number | null = null,
+    options: { force?: boolean } = {},
 ) {
+    const normalizedSearch = search.trim();
+    const normalizedAction = action || '';
+    const normalizedSection = sectionId || '';
+    const queryKey = JSON.stringify({
+        page: pageNum,
+        per_page: pagination.value.per_page,
+        search: normalizedSearch,
+        action: normalizedAction,
+        section_id: normalizedSection,
+        sort_by: sortBy.value,
+        sort_dir: sortDir.value,
+    });
+
+    if (!options.force && (queryKey === lastRequestedQueryKey || queryKey === lastResolvedQueryKey)) {
+        return;
+    }
+
     if (activeFetchController) {
         activeFetchController.abort();
     }
 
     const controller = new AbortController();
     activeFetchController = controller;
+    lastRequestedQueryKey = queryKey;
     const hasRenderedRows = records.value.length > 0;
     isFetchingRecords.value = !hasRenderedRows;
     isRefreshingRecords.value = hasRenderedRows;
@@ -169,12 +204,19 @@ async function fetchOperations(
             page: pageNum,
             per_page: pagination.value.per_page,
         };
-        const normalizedSearch = search.trim();
         if (normalizedSearch) params.search = normalizedSearch;
         if (action) params.action = action;
         if (sectionId) params.section_id = sectionId;
+        if (sortBy.value) {
+            params.sort_by = sortBy.value;
+            params.sort_dir = sortDir.value;
+        }
 
         const { data } = await axios.get('/produccion/operaciones/paginated', { params, signal: controller.signal });
+        if (activeFetchController !== controller) {
+            return;
+        }
+
         records.value = data.data ?? [];
         pagination.value = {
             current_page: data.current_page,
@@ -184,6 +226,7 @@ async function fetchOperations(
             from: data.from,
             to: data.to,
         };
+        lastResolvedQueryKey = queryKey;
     } catch (e) {
         if (axios.isCancel(e)) {
             return;
@@ -193,9 +236,9 @@ async function fetchOperations(
     } finally {
         if (activeFetchController === controller) {
             activeFetchController = null;
+            isFetchingRecords.value = false;
+            isRefreshingRecords.value = false;
         }
-        isFetchingRecords.value = false;
-        isRefreshingRecords.value = false;
     }
 }
 
@@ -219,9 +262,10 @@ const itemsPerPage = computed({
     },
 });
 
-function handleFetchData() {
+function handleFetchData(pageNum?: number) {
     clearFetchDebounce();
-    fetchOperations(pagination.value.current_page, searchQuery.value, filterAction.value || null, filterSectionId.value || null);
+    const targetPage = typeof pageNum === 'number' ? pageNum : pagination.value.current_page;
+    fetchOperations(targetPage, searchQuery.value, filterAction.value || null, filterSectionId.value || null);
 }
 
 watch([filterAction, filterSectionId], () => scheduleFetch(1));
@@ -258,7 +302,9 @@ async function deleteOperation() {
         showSuccess(`Operación "${operationToDelete.value.name}" eliminada.`);
         isDeleteDialogOpen.value = false;
         operationToDelete.value = null;
-        scheduleFetch(pagination.value.current_page);
+        fetchOperations(pagination.value.current_page, searchQuery.value, filterAction.value || null, filterSectionId.value || null, {
+            force: true,
+        });
     } catch (e: any) {
         const msg = e?.response?.data?.message ?? 'Error al eliminar la operación.';
         showError(msg);
@@ -272,7 +318,9 @@ function handleDialogSaved(payload?: { reused?: boolean; message?: string }) {
     } else {
         showSuccess(payload?.message || 'Operación guardada correctamente.');
     }
-    scheduleFetch(pagination.value.current_page);
+    fetchOperations(pagination.value.current_page, searchQuery.value, filterAction.value || null, filterSectionId.value || null, {
+        force: true,
+    });
 }
 
 function handleCatalogsUpdated(payload: { sections: ManagedSection[]; actions: string[]; garmentParts: string[]; machines: ManagedMachine[] }) {
@@ -365,16 +413,52 @@ onUnmounted(() => {
                         <Table>
                             <TableHeader>
                                 <TableRow class="text-xs">
-                                    <TableHead class="w-24">Código</TableHead>
-                                    <TableHead class="text-center">Sección</TableHead>
-                                    <TableHead>Acción</TableHead>
-                                    <TableHead>Parte</TableHead>
-                                    <TableHead class="w-16 text-right">Medida</TableHead>
-                                    <TableHead class="w-16 text-right">Cant.</TableHead>
-                                    <TableHead class="text-right">SAM base (min)</TableHead>
-                                    <TableHead class="text-right">Factor op. %</TableHead>
+                                    <TableHead class="w-24 cursor-pointer select-none" @click="toggleSort('codigo')">
+                                        <span class="inline-flex items-center gap-1">Código
+                                            <span class="text-muted-foreground"><template v-if="sortBy === 'codigo'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template><template v-else><span class="opacity-30">↕</span></template></span>
+                                        </span>
+                                    </TableHead>
+                                    <TableHead class="cursor-pointer select-none text-center" @click="toggleSort('section_id')">
+                                        <span class="inline-flex items-center justify-center gap-1">Sección
+                                            <span class="text-muted-foreground"><template v-if="sortBy === 'section_id'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template><template v-else><span class="opacity-30">↕</span></template></span>
+                                        </span>
+                                    </TableHead>
+                                    <TableHead class="cursor-pointer select-none" @click="toggleSort('action')">
+                                        <span class="inline-flex items-center gap-1">Acción
+                                            <span class="text-muted-foreground"><template v-if="sortBy === 'action'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template><template v-else><span class="opacity-30">↕</span></template></span>
+                                        </span>
+                                    </TableHead>
+                                    <TableHead class="cursor-pointer select-none" @click="toggleSort('garment_part')">
+                                        <span class="inline-flex items-center gap-1">Parte
+                                            <span class="text-muted-foreground"><template v-if="sortBy === 'garment_part'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template><template v-else><span class="opacity-30">↕</span></template></span>
+                                        </span>
+                                    </TableHead>
+                                    <TableHead class="w-16 cursor-pointer select-none text-right" @click="toggleSort('measure')">
+                                        <span class="inline-flex items-center justify-end gap-1">Medida
+                                            <span class="text-muted-foreground"><template v-if="sortBy === 'measure'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template><template v-else><span class="opacity-30">↕</span></template></span>
+                                        </span>
+                                    </TableHead>
+                                    <TableHead class="w-16 cursor-pointer select-none text-right" @click="toggleSort('quantity')">
+                                        <span class="inline-flex items-center justify-end gap-1">Cant.
+                                            <span class="text-muted-foreground"><template v-if="sortBy === 'quantity'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template><template v-else><span class="opacity-30">↕</span></template></span>
+                                        </span>
+                                    </TableHead>
+                                    <TableHead class="cursor-pointer select-none text-right" @click="toggleSort('sam_base')">
+                                        <span class="inline-flex items-center justify-end gap-1">SAM base (min)
+                                            <span class="text-muted-foreground"><template v-if="sortBy === 'sam_base'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template><template v-else><span class="opacity-30">↕</span></template></span>
+                                        </span>
+                                    </TableHead>
+                                    <TableHead class="cursor-pointer select-none text-right" @click="toggleSort('factor_operario')">
+                                        <span class="inline-flex items-center justify-end gap-1">Factor op. %
+                                            <span class="text-muted-foreground"><template v-if="sortBy === 'factor_operario'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template><template v-else><span class="opacity-30">↕</span></template></span>
+                                        </span>
+                                    </TableHead>
                                     <TableHead>Descripción</TableHead>
-                                    <TableHead class="w-20 text-center">Estado</TableHead>
+                                    <TableHead class="w-20 cursor-pointer select-none text-center" @click="toggleSort('is_active')">
+                                        <span class="inline-flex items-center justify-center gap-1">Estado
+                                            <span class="text-muted-foreground"><template v-if="sortBy === 'is_active'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template><template v-else><span class="opacity-30">↕</span></template></span>
+                                        </span>
+                                    </TableHead>
                                     <TableHead class="w-28 text-center">Acciones</TableHead>
                                 </TableRow>
                             </TableHeader>

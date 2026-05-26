@@ -172,7 +172,7 @@ watch(
             :scrollable="false"
         >
             <!-- Header sticky -->
-            <DialogHeader class="shrink-0 border-b border-border/50 bg-muted/20 px-6 py-4">
+            <DialogHeader class="shrink-0 border-b border-border/50 bg-muted/20 px-6 py-4 pr-14">
                 <DialogTitle class="text-sm font-semibold leading-tight text-foreground">
                     Información básica de la orden
                 </DialogTitle>

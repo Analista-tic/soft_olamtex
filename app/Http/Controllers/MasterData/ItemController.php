@@ -338,7 +338,6 @@ class ItemController extends Controller
             'item_type' => 'required|string|in:product,service,draft',
             'tracks_inventory' => 'sometimes|boolean',
             'unit_measure' => 'nullable|string',
-            'location' => 'nullable|string|max:100',
             'income_account_id' => 'nullable|integer|exists:accounting_accounts,id',
             'inventory_account_id' => 'nullable|integer|exists:accounting_accounts,id',
             'cost_of_sale_account_id' => 'nullable|integer|exists:accounting_accounts,id',
@@ -364,7 +363,7 @@ class ItemController extends Controller
 
     private function normalizeWarehouseStocks(Item $item): Collection
     {
-        $item->loadMissing('warehouseItems.warehouse');
+        $item->loadMissing('warehouseItems.warehouse', 'warehouseItems.location');
 
         return $item->warehouseItems
             ->sortByDesc(fn ($warehouseItem) => (float) ($warehouseItem->quantity ?? 0))
@@ -375,6 +374,8 @@ class ItemController extends Controller
                 'quantity' => (float) ($warehouseItem->quantity ?? 0),
                 'stock_min' => (float) ($warehouseItem->stock_min ?? 0),
                 'stock_max' => (float) ($warehouseItem->stock_max ?? 0),
+                'location_id' => $warehouseItem->location_id,
+                'location_name' => $warehouseItem->location->name ?? null,
                 'weighted_average_price' => $warehouseItem->weighted_average_price !== null
                     ? (float) $warehouseItem->weighted_average_price
                     : null,

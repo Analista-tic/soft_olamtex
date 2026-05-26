@@ -30,7 +30,7 @@ const emit = defineEmits<{
     <Dialog :open="open" @update:open="emit('update:open', $event)">
         <DialogContent class="gap-0 overflow-hidden p-0 sm:max-w-lg">
             <!-- Header -->
-            <DialogHeader class="border-b border-border/50 bg-primary/5 px-6 py-5">
+            <DialogHeader class="border-b border-border/50 bg-primary/5 px-6 py-5 pr-14">
                 <div class="flex items-center gap-3">
                     <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
                         <Send class="h-4 w-4 text-primary" />

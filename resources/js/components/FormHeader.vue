@@ -13,7 +13,7 @@ const computedDescription = computed(() => props.description ?? '');
 </script>
 
 <template>
-    <div :class="['space-y-1', props.headerClass]">
+    <div :class="['space-y-1 pr-12', props.headerClass]">
         <p class="text-lg font-semibold text-foreground">{{ computedTitle }}</p>
         <p v-if="computedDescription" :class="['text-sm text-muted-foreground', props.descriptionClass]">
             {{ computedDescription }}

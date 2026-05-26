@@ -29,7 +29,9 @@ import { Switch } from '@/components/ui/switch';
 
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 import AdditionalFieldDialog from '@/pages/MasterData/AdditionalFields/AdditionalFieldDialog.vue';
+import WarehouseLocationDialog from '@/pages/Inventory/WarehouseLocation/WarehouseLocationDialog.vue';
 import ColorPickerSelect from '@/components/ColorPickerSelect.vue';
+import TextareaField from '@/components/TextareaField.vue';
 import ExtraFieldsForm from '@/pages/MasterData/Item/ExtraFieldsForm.vue';
 import GroupDialog from '@/pages/MasterData/Category/GroupDialog.vue';
 
@@ -110,6 +112,7 @@ type ItemWarehouseStockSource = {
     quantity?: number | string | null;
     stock_min?: number | string | null;
     stock_max?: number | string | null;
+    location_id?: number | string | null;
     weighted_average_price?: number | string | null;
     warehouse?: {
         id?: number | string | null;
@@ -185,6 +188,7 @@ const isTaxIdBlank = (value: unknown): boolean => {
 const localForm = ref<ItemForm>(mapItemToFormState(props.form));
 
 const warehouses = ref<Warehouse[]>([]);
+const warehouseLocations = ref<{ id: number; name: string }[]>([]);
 const categorySubGroups = ref<CategorySubGroup[]>([]);
 const categoryGroups = ref<CategoryGroup[]>([]);
 
@@ -219,6 +223,7 @@ type WarehouseStockEntry = {
     quantity: number;
     stock_min: number;
     stock_max: number;
+    location_id: number | string | null;
 };
 const warehouseStocks = ref<WarehouseStockEntry[]>([]);
 
@@ -233,6 +238,8 @@ const additionalFieldDialogOpen = ref(false);
 const additionalFieldDialogLoading = ref(false);
 
 const isGroupDialogOpen = ref(false);
+const isLocationDialogOpen = ref(false);
+const pendingLocationRowIdx = ref<number | null>(null);
 
 const createAdditionalFieldForm = (): AdditionalField => ({
     id: undefined,
@@ -484,8 +491,7 @@ function updateNameField(orderedFields?: Record<string, string>): void {
         );
 
     const extras = Object.values(extrasObj).join(' ');
-    const unitLabel = unitMeasures.find((u) => u.id === unitMeasure.value)?.name ?? '';
-    const baseName = [subGroup?.name ?? '', extras, unitLabel].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+    const baseName = [subGroup?.name ?? '', extras].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
     nameField.value = selectedColorName.value && !baseName.includes(selectedColorName.value)
         ? [baseName, selectedColorName.value].filter(Boolean).join(' ').trim()
         : baseName;
@@ -542,6 +548,29 @@ async function fetchWarehouses() {
     } catch (error) {
         console.error('Error al obtener las bodegas:', error);
     }
+}
+
+async function fetchWarehouseLocations() {
+    try {
+        const { data } = await axios.get(catalogLookupRoutes.warehouseLocations, { params: { per_page: 1000, status_active: true } });
+        warehouseLocations.value = (data.data ?? []).map((l: any) => ({ id: l.id, name: l.name }));
+    } catch (error) {
+        console.error('Error al obtener las ubicaciones:', error);
+    }
+}
+
+function openLocationDialog(rowIdx: number) {
+    pendingLocationRowIdx.value = rowIdx;
+    isLocationDialogOpen.value = true;
+}
+
+function handleLocationCreated(location: { id: number; name: string }) {
+    warehouseLocations.value = [...warehouseLocations.value, location].sort((a, b) => a.name.localeCompare(b.name));
+    const idx = pendingLocationRowIdx.value;
+    if (idx !== null && warehouseStocks.value[idx]) {
+        warehouseStocks.value[idx].location_id = String(location.id);
+    }
+    pendingLocationRowIdx.value = null;
 }
 
 async function fetchCategorySubGroups(force = false) {
@@ -703,6 +732,7 @@ async function loadSecondaryFormData(itemId?: number): Promise<void> {
     try {
         await Promise.all([
             fetchWarehouses(),
+            fetchWarehouseLocations(),
             ...(props.showAdvancedSections ? [fetchAccountingAccounts()] : []),
         ]);
     } finally {
@@ -753,12 +783,18 @@ function normalizeWarehouseStocksFromSource(source: ItemFormSource | null | unde
                 ? Number(warehouseId)
                 : null;
 
+            const rawLocationId = row.location_id ?? null;
+            const parsedLocationId = rawLocationId !== null && rawLocationId !== undefined && String(rawLocationId).trim() !== ''
+                ? Number(rawLocationId)
+                : null;
+
             return {
                 warehouse_id: Number.isFinite(parsedWarehouseId) ? parsedWarehouseId : null,
                 name: String(row.name ?? row.warehouse_name ?? row.warehouse?.name ?? '').trim(),
                 quantity: toNumericValue(row.quantity),
                 stock_min: toNumericValue(row.stock_min),
                 stock_max: toNumericValue(row.stock_max),
+                location_id: (Number.isFinite(parsedLocationId) ? parsedLocationId : null) as number | null,
             } satisfies WarehouseStockEntry;
         })
         .filter((row) => row.warehouse_id !== null);
@@ -886,6 +922,7 @@ function addWarehouseStock() {
         quantity: 0,
         stock_min: 0,
         stock_max: 0,
+        location_id: null,
     });
 }
 
@@ -1059,7 +1096,6 @@ function mapFormStateToPayload(orderedExtraFields: Record<string, string>): Reco
         tax: Number.isFinite(selectedTaxPercentage) ? selectedTaxPercentage : 0,
         negative_movement: localForm.value.negative_movement,
         bar_code: localForm.value.bar_code || '',
-        location: localForm.value.location || '',
         description: (localForm.value.description || '').trim() || 'N/A',
         reference: localForm.value.reference || '',
         extra_fields: JSON.stringify(orderedExtraFields),
@@ -1189,6 +1225,7 @@ async function handleSubmit() {
             quantity: Number(w.quantity),
             stock_min: Number(w.stock_min),
             stock_max: Number(w.stock_max),
+            location_id: w.location_id !== null && w.location_id !== undefined && String(w.location_id).trim() !== '' ? Number(w.location_id) : null,
         }));
     const url = props.dialogType === 'create' ? '/item' : `/item/${localForm.value.id}`;
     const isEdit = props.dialogType === 'edit';
@@ -1344,7 +1381,7 @@ watch(
 );
 
 watch(
-    [() => localForm.value.category_sub_group_id, () => localForm.value.color_id, () => extraFieldNames.value.map((key) => extraFields.value[key]).join('|'), unitMeasure],
+    [() => localForm.value.category_sub_group_id, () => localForm.value.color_id, () => extraFieldNames.value.map((key) => extraFields.value[key]).join('|')],
     () => updateNameField(),
     { immediate: true },
 );
@@ -1655,7 +1692,7 @@ onBeforeUnmount(() => {
 
                                 <div v-for="(ws, idx) in warehouseStocks" :key="idx" class="mb-2 rounded-md bg-muted/50 p-2">
                                     <div
-                                        class="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(180px,1.2fr)_repeat(3,minmax(90px,1fr))_auto] sm:items-end"
+                                        class="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(160px,1.2fr)_repeat(3,minmax(80px,1fr))_minmax(140px,1fr)_auto] sm:items-end"
                                     >
                                         <div class="space-y-1">
                                             <Label class="text-xs">Bodega</Label>
@@ -1710,6 +1747,34 @@ onBeforeUnmount(() => {
                                         <div class="space-y-1">
                                             <Label class="text-xs">Cantidad Max</Label>
                                             <InputIntegerField v-model="ws.stock_max" label="" type="number" class="w-full" placeholder="Max" :allowDecimal="true" @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }" />
+                                        </div>
+
+                                        <div class="space-y-1">
+                                            <Label class="text-xs">Ubicación</Label>
+                                            <SelectField
+                                                v-model="ws.location_id"
+                                                label=""
+                                                :options="warehouseLocations.map((l) => ({ id: String(l.id), name: l.name }))"
+                                                placeholder="Sin ubicación"
+                                                :searchable="true"
+                                                search-placeholder="Buscar ubicación..."
+                                                :show-placeholder-option="true"
+                                                :disabled="isViewMode"
+                                                class="w-full"
+                                            >
+                                                <template v-if="!isViewMode" #header>
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="outline"
+                                                        class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
+                                                        @click.stop="openLocationDialog(idx)"
+                                                    >
+                                                        <Plus class="h-3 w-3" />
+                                                        Nueva ubicación
+                                                    </Button>
+                                                </template>
+                                            </SelectField>
                                         </div>
 
                                         <div class="flex items-end justify-end">
@@ -1809,9 +1874,7 @@ onBeforeUnmount(() => {
                             <InputField v-model="localForm.bar_code" label="Código de Barras" />
                         </div>
 
-                        <div class="md:col-span-1">
-                            <InputField v-model="localForm.location" label="Ubicación" placeholder="Ej: Estante A3, Bodega 2" />
-                        </div>
+
 
                         <div class="md:col-span-1">
                             <Label class="mb-2 block text-sm font-medium">
@@ -1836,6 +1899,23 @@ onBeforeUnmount(() => {
                                 </span>
                             </div>
                         </div>
+                    </div>
+
+                    <div>
+                        <template v-if="isViewMode">
+                            <Label>Descripción</Label>
+                            <div class="mt-1 min-h-[60px] rounded-md border bg-muted px-3 py-2 text-sm whitespace-pre-wrap">
+                                {{ localForm.description && localForm.description !== 'N/A' ? localForm.description : '-' }}
+                            </div>
+                        </template>
+                        <template v-else>
+                            <TextareaField
+                                v-model="localForm.description"
+                                label="Descripción"
+                                placeholder="Descripción del ítem (opcional)"
+                                :rows="3"
+                            />
+                        </template>
                     </div>
 
                     <div class="border-t border-sidebar-border/70 pt-3">
@@ -1947,6 +2027,12 @@ onBeforeUnmount(() => {
 
     <!-- TODO: eliminar cuando se migre el módulo de Categorías -->
     <GroupDialog v-model:isOpen="isGroupDialogOpen" @created="handleGroupCreated" @close="isGroupDialogOpen = false" />
+
+    <WarehouseLocationDialog
+        :open="isLocationDialogOpen"
+        @update:open="isLocationDialogOpen = $event"
+        @created="handleLocationCreated"
+    />
 
     <TaxDialog
         v-model:open="isTaxDialogOpen"
