@@ -83,6 +83,11 @@ function handleError(message: string) {
 function handleLoadingState(value: boolean) {
     isLoading.value = value;
 }
+
+function goBackToSimpleForm() {
+    localStorage.setItem(ITEM_FORM_DRAFT_KEY, JSON.stringify(form.value));
+    window.location.href = route('listado') + '?open_create_dialog=1';
+}
 </script>
 
 <template>
@@ -93,7 +98,17 @@ function handleLoadingState(value: boolean) {
 
         <section class="flex w-full justify-center p-2">
             <div class="w-full max-w-6xl rounded-2xl border border-sidebar-border/70 bg-card p-6 shadow-sm dark:border-sidebar-border sm:p-8">
-                <h1 class="text-lg font-semibold text-card-foreground">Formulario avanzado</h1>
+                <div class="flex items-center justify-between">
+                    <h1 class="text-lg font-semibold text-card-foreground">Formulario avanzado</h1>
+                    <button
+                        v-if="dialogType === 'create'"
+                        type="button"
+                        class="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground transition hover:bg-muted"
+                        @click="goBackToSimpleForm"
+                    >
+                        ← Volver al formulario simple
+                    </button>
+                </div>
                 <p class="mb-4 text-sm text-muted-foreground">Aqui puedes completar todos los campos del item sin usar el modal.</p>
                 <div class="w-full">
                     <ItemFormContent

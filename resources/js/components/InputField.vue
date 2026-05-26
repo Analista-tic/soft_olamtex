@@ -299,6 +299,7 @@ function togglePasswordVisibility() {
                 @focus="handleFocus"
                 @blur="handleBlur"
                 @beforeinput="handleBeforeInput"
+                :data-no-uppercase="props.type === 'password' ? '' : undefined"
                 :class="[
                     'h-10 w-full rounded-md border border-input bg-background px-3 py-2 pr-5 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50',
                     hasError ? 'border-destructive ring-1 ring-destructive/40 focus-visible:ring-destructive/40' : '',
@@ -330,6 +331,7 @@ function togglePasswordVisibility() {
                 @focus="handleFocus"
                 @blur="handleBlur"
                 @beforeinput="handleBeforeInput"
+                :data-no-uppercase="props.type === 'password' ? '' : undefined"
                 :class="[
                     'h-10 w-full rounded-md border border-input bg-background px-3 py-2 pr-5 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50',
                     hasError ? 'border-destructive ring-1 ring-destructive/40 focus-visible:ring-destructive/40' : '',

@@ -201,7 +201,7 @@ function submitForm() {
                                     aria-label="Ayuda sobre email"
                                 />
                             </div>
-                            <InputField v-model="form.email" label="" placeholder="Correo electrónico" required :readonly="isView" />
+                            <InputField v-model="form.email" type="email" label="" placeholder="Correo electrónico" required :readonly="isView" />
                         </div>
                         <!-- Campo para contraseña en modo "crear" -->
                         <div v-if="dialogType === 'create'" class="flex flex-col gap-1">

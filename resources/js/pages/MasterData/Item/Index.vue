@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
+import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
 import { Ban, CheckCircle, Download, FileSpreadsheet, Pencil, PlusCircle, Search, Trash, Upload } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
@@ -76,6 +77,7 @@ const isStatusDialogOpen = ref(false);
 const itemToToggleStatus = ref<Item | null>(null);
 
 const isBulkDialogOpen = ref(false);
+const defaultTaxId = ref<number | null>(null);
 
 const successMessage = ref('');
 const errorMessage = ref('');
@@ -110,6 +112,7 @@ function getEmptyForm(): Partial<Item> {
         extra_fields: {},
         color_id: null,
         status: true,
+        tax_id: defaultTaxId.value ?? undefined,
     } as Partial<Item>;
 }
 
@@ -305,6 +308,22 @@ watch(originFilter, async () => {
 onMounted(async () => {
     await fetchItems(currentPage.value);
 
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('open_create_dialog') === '1') {
+        const draft = localStorage.getItem(ITEM_FORM_DRAFT_KEY);
+        if (draft) {
+            try {
+                form.value = JSON.parse(draft);
+            } catch {
+                form.value = getEmptyForm();
+            }
+            localStorage.removeItem(ITEM_FORM_DRAFT_KEY);
+        }
+        dialogType.value = 'create';
+        isDialogOpen.value = true;
+        window.history.replaceState({}, '', window.location.pathname);
+    }
+
     // Precargar subgrupos y taxes para que estén listos
     // cuando el usuario abra el dialog de edición
     try {
@@ -314,6 +333,7 @@ onMounted(async () => {
         ]);
         preloadedSubGroups.value = sgRes.data?.data ?? [];
         preloadedTaxes.value = (taxRes.data?.data ?? []).filter((t: any) => t.status);
+        defaultTaxId.value = preloadedTaxes.value.find((t: any) => t.percentage === 19)?.id ?? null;
     } catch {
         // silencioso — el dialog los cargará por su cuenta si falla
     }
