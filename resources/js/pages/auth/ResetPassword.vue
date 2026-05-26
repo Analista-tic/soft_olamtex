@@ -113,6 +113,7 @@ const submit = () => {
                             :class="{ 'has-error': form.errors.password }"
                             placeholder="Mínimo 8 caracteres"
                             autocomplete="new-password"
+                            data-no-uppercase
                             autofocus
                         />
                         <button
@@ -149,6 +150,7 @@ const submit = () => {
                             :class="{ 'has-error': form.errors.password_confirmation }"
                             placeholder="Repite tu contraseña"
                             autocomplete="new-password"
+                            data-no-uppercase
                         />
                         <button
                             type="button"

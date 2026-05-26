@@ -669,7 +669,7 @@ async function fetchAdditionalFields(force = false) {
                     options: Array.isArray(field?.options) ? field.options.map((opt: any) => String(opt)) : [],
                     default_value: field?.default_value ?? null,
                     description: field?.description ?? '',
-                    is_required: Boolean(field?.is_required),
+                    is_required: Boolean(field?.is_required) && String(field?.name ?? '').toUpperCase() !== 'MEDIDA',
                     status: field?.status ?? true,
                     position: typeof field?.position === 'number' ? field.position : null,
                     created_at: field?.created_at,

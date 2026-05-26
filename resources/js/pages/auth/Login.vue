@@ -90,6 +90,7 @@ const submit = () => {
                                 :class="{ 'has-error': form.errors.password }"
                                 placeholder="••••••••"
                                 autocomplete="current-password"
+                                data-no-uppercase
                                 required
                             />
                             <button
