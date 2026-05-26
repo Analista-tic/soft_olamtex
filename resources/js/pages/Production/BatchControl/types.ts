@@ -60,6 +60,7 @@ export type BatchControlRow = {
     last_delivery: LastDelivery | null;
     has_pending_novelties: boolean;
     pending_novelties_count: number;
+    has_warehouse_receipt: boolean;
     /** Fecha en que la orden llegó al proceso actual (entrega to_process = current) */
     current_process_arrived_at?: string | null;
     /** Estado del plazo de la orden completa (fecha final de entrega) */
@@ -160,3 +161,21 @@ export type CutUnitsReportRow = {
     XL: number;
     total: number;
 };
+
+export type InspectionApprovalPayload = {
+    confirmed_curves: CutUnitsReportRow[];
+    matches_cut: boolean;
+    reason: string | null;
+    observations: string | null;
+};
+
+export type WarehouseReceiptPayload = {
+    imperfect_curves: CutUnitsReportRow[];
+    responsible: string;
+    imperfect_observations: string | null;
+    remision_curves: CutUnitsReportRow[];
+    remision_observations: string | null;
+    warehouse_id: number;
+};
+
+export type WarehouseOption = { id: number; name: string };

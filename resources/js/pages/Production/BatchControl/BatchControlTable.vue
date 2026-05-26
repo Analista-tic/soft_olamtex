@@ -32,11 +32,14 @@ const emit = defineEmits<{
     (e: 'open-novelty', row: BatchControlRow): void;
     (e: 'open-deliver', row: BatchControlRow): void;
     (e: 'open-technical-sheet', row: BatchControlRow): void;
+    (e: 'open-technical-data-sheet-summary', row: BatchControlRow): void;
     (e: 'open-basic-info', row: BatchControlRow): void;
     (e: 'open-cut-consumption', row: BatchControlRow): void;
     (e: 'open-logistics-supply-exit', row: BatchControlRow): void;
     (e: 'open-stamping-info', row: BatchControlRow): void;
     (e: 'open-laundry-info', row: BatchControlRow): void;
+    (e: 'open-inspection-approval', row: BatchControlRow): void;
+    (e: 'open-warehouse-receipt', row: BatchControlRow): void;
 }>();
 
 function setSort(column: string) {
@@ -376,11 +379,14 @@ function dimmedCellClass(row: BatchControlRow): string {
                             :is-active-row="!isRowDisabled?.(row)"
                             :can-deliver="canDeliverRow?.(row) ?? true"
                             @technical-sheet="emit('open-technical-sheet', row)"
+                            @technical-data-sheet-summary="emit('open-technical-data-sheet-summary', row)"
                             @view-info="emit('open-basic-info', row)"
                             @cut-consumption="emit('open-cut-consumption', row)"
                             @logistics-supply-exit="emit('open-logistics-supply-exit', row)"
                             @stamping-info="emit('open-stamping-info', row)"
                             @laundry-info="emit('open-laundry-info', row)"
+                            @inspection-approval="emit('open-inspection-approval', row)"
+                            @warehouse-receipt="emit('open-warehouse-receipt', row)"
                             @timeline="emit('open-timeline', row)"
                             @novelty="emit('open-novelty', row)"
                             @deliver="emit('open-deliver', row)"

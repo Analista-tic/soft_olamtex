@@ -349,4 +349,12 @@ Route::prefix('control-de-lotes')->name('control-de-lotes.')->group(function () 
     // Logística: salida de insumos
     Route::get('/{order}/logistica-insumos', [BatchControlController::class, 'getLogisticsSupplies'])->name('logistics-supplies');
     Route::post('/{order}/logistica-salida-insumos', [BatchControlController::class, 'processLogisticsSupplyExit'])->name('logistics-supply-exit');
+
+    // Inspección y aprobación
+    Route::get('/{order}/inspeccion-datos', [BatchControlController::class, 'inspectionData'])->name('inspection-data');
+    Route::post('/{order}/inspeccion-aprobar', [BatchControlController::class, 'saveInspectionApproval'])->name('inspection-approval');
+
+    // Bodega: recepción y remisión
+    Route::get('/{order}/bodega-recepcion-datos', [BatchControlController::class, 'warehouseReceiptData'])->name('warehouse-receipt-data');
+    Route::post('/{order}/bodega-recepcion', [BatchControlController::class, 'saveWarehouseReceipt'])->name('warehouse-receipt');
 });

@@ -1,7 +1,7 @@
+<script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import SelectField from '@/components/SelectField.vue';
 import ServerPagination from '@/components/common/ServerPagination.vue';
-<script setup lang="ts">
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -16,20 +16,22 @@ import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { MessageSquareWarning, PackageCheck, PackageSearch } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import StampingLaundryDialog from '@/pages/Production/TechnicalDataSheet/tabs/AdditionalInfoTab/StampingLaundryDialog.vue';
 import BatchControlTable from './BatchControlTable.vue';
 import {
     CutFabricConsumptionDialog,
     DeliverDialog,
     EstimatedDateDialog,
-    LaundryInfoDialog,
+    InspectionApprovalDialog,
     LogisticsSupplyExitDialog,
     OrderBasicInfoDialog,
     OrderTimelineDialog,
     ReportNoveltyDialog,
-    StampingInfoDialog,
+    TechnicalDataSheetSummaryDialog,
     TechnicalSheetDialog,
+    WarehouseReceiptDialog,
 } from './components/dialogs';
-import type { BatchControlRow, CutCurves, CutFabricConsumptionLine, CutSizeCurves, LogisticsSupplyItem, TimelineEvent } from './types';
+import type { BatchControlRow, CutCurves, CutFabricConsumptionLine, CutSizeCurves, InspectionApprovalPayload, LogisticsSupplyItem, TimelineEvent, WarehouseOption, WarehouseReceiptPayload } from './types';
 import { CUT_SIZES } from './types';
 /* ── Types ──────────────────────────────────────────────── */
 
@@ -151,6 +153,10 @@ const isReportingNovelty = ref(false);
 const technicalSheetDialogOpen = ref(false);
 const technicalSheetRow = ref<BatchControlRow | null>(null);
 
+// Dialog: resumen de ficha técnica (digital, formato imprimible)
+const technicalDataSheetSummaryDialogOpen = ref(false);
+const technicalDataSheetSummaryRow = ref<BatchControlRow | null>(null);
+
 // Dialog: información básica de la orden
 const basicInfoDialogOpen = ref(false);
 const basicInfoRow = ref<BatchControlRow | null>(null);
@@ -174,13 +180,38 @@ const stampingInfoDialogOpen = ref(false);
 const stampingInfoRow = ref<BatchControlRow | null>(null);
 const stampingInfoData = ref<AdditionalInfo['stamping']>({ designNotes: null, attachments: [] });
 const stampingInfoDrawingUrl = ref<string | null>(null);
+const stampingInfoBasicItems = ref<{ label: string; value: string }[]>([]);
 const isLoadingStampingInfo = ref(false);
 
 // Dialog: información de lavandería
 const laundryInfoDialogOpen = ref(false);
 const laundryInfoRow = ref<BatchControlRow | null>(null);
 const laundryInfoData = ref<AdditionalInfo['laundry']>({ type: null, instructions: null });
+const laundryInfoDrawingUrl = ref<string | null>(null);
+const laundryInfoBasicItems = ref<{ label: string; value: string }[]>([]);
 const isLoadingLaundryInfo = ref(false);
+
+// Dialog: inspección y aprobación
+const inspectionDialogOpen = ref(false);
+const inspectionRow = ref<BatchControlRow | null>(null);
+const inspectionCutLines = ref<CutFabricConsumptionLine[]>([]);
+const inspectionCutCurves = ref<CutCurves | null>(null);
+const inspectionSavedData = ref<InspectionApprovalPayload | null>(null);
+const inspectionViewOnly = ref(false);
+const isLoadingInspection = ref(false);
+const isSavingInspection = ref(false);
+const inspectionSaveError = ref<string | null>(null);
+
+// Dialog: recepción bodega
+const warehouseReceiptDialogOpen = ref(false);
+const warehouseReceiptRow = ref<BatchControlRow | null>(null);
+const warehouseReceiptReceivedCurves = ref<WarehouseReceiptPayload['remision_curves']>([]);
+const warehouseReceiptSavedData = ref<WarehouseReceiptPayload | null>(null);
+const warehouseReceiptWarehouses = ref<WarehouseOption[]>([]);
+const warehouseReceiptViewOnly = ref(false);
+const isLoadingWarehouseReceipt = ref(false);
+const isSavingWarehouseReceipt = ref(false);
+const warehouseReceiptSaveError = ref<string | null>(null);
 
 // Dialog: salida de insumos (Logística)
 const logisticsExitDialogOpen = ref(false);
@@ -467,6 +498,7 @@ const isAnyDialogOpen = computed(() =>
     timelineDialogOpen.value ||
     noveltyDialogOpen.value ||
     technicalSheetDialogOpen.value ||
+    technicalDataSheetSummaryDialogOpen.value ||
     basicInfoDialogOpen.value ||
     cutConsumptionDialogOpen.value ||
     stampingInfoDialogOpen.value ||
@@ -750,6 +782,11 @@ function openTechnicalSheetDialog(row: BatchControlRow) {
     technicalSheetDialogOpen.value = true;
 }
 
+function openTechnicalDataSheetSummaryDialog(row: BatchControlRow) {
+    technicalDataSheetSummaryRow.value = row;
+    technicalDataSheetSummaryDialogOpen.value = true;
+}
+
 function openBasicInfoDialog(row: BatchControlRow) {
     basicInfoRow.value = row;
     basicInfoDialogOpen.value = true;
@@ -916,6 +953,133 @@ function closeCutConsumptionDialog() {
     cutLargoEspiga.value = null;
     cutConsumptionViewOnly.value = false;
     cutConsumptionSaveError.value = null;
+}
+
+// ── Inspección y aprobación ───────────────────────────────────────────────
+
+async function openInspectionApprovalDialog(row: BatchControlRow) {
+    inspectionRow.value = row;
+    inspectionViewOnly.value = row.current_process !== 'Inspección y aprobación';
+    inspectionDialogOpen.value = true;
+    isLoadingInspection.value = true;
+    inspectionCutLines.value = [];
+    inspectionCutCurves.value = null;
+    inspectionSavedData.value = null;
+
+    try {
+        const { data } = await axios.get(route('control-de-lotes.inspection-data', { order: row.id }));
+        inspectionCutLines.value = Array.isArray(data?.lines) ? data.lines : [];
+        inspectionCutCurves.value = data?.curves ?? null;
+        if (data?.inspection) {
+            inspectionSavedData.value = {
+                confirmed_curves: data.inspection.confirmed_curves ?? [],
+                matches_cut: data.inspection.matches_cut ?? true,
+                reason: data.inspection.reason ?? null,
+                observations: data.inspection.observations ?? null,
+            };
+        }
+    } catch {
+        showError('No se pudo cargar los datos de corte para inspección.');
+    } finally {
+        isLoadingInspection.value = false;
+    }
+}
+
+function closeInspectionDialog() {
+    inspectionDialogOpen.value = false;
+    inspectionRow.value = null;
+    inspectionCutLines.value = [];
+    inspectionCutCurves.value = null;
+    inspectionSavedData.value = null;
+    inspectionViewOnly.value = false;
+    inspectionSaveError.value = null;
+}
+
+async function saveInspectionApproval(payload: InspectionApprovalPayload) {
+    if (!inspectionRow.value || inspectionViewOnly.value) return;
+    isSavingInspection.value = true;
+    inspectionSaveError.value = null;
+
+    try {
+        const { data } = await axios.post(
+            route('control-de-lotes.inspection-approval', { order: inspectionRow.value.id }),
+            payload,
+        );
+        inspectionSavedData.value = {
+            confirmed_curves: data.inspection?.confirmed_curves ?? payload.confirmed_curves,
+            matches_cut: data.inspection?.matches_cut ?? payload.matches_cut,
+            reason: data.inspection?.reason ?? payload.reason,
+            observations: data.inspection?.observations ?? payload.observations,
+        };
+        showSuccess('Inspección guardada correctamente.');
+        fetchData(true);
+    } catch (err: unknown) {
+        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Error al guardar la inspección.';
+        inspectionSaveError.value = msg;
+    } finally {
+        isSavingInspection.value = false;
+    }
+}
+
+// ── Recepción Bodega ──────────────────────────────────────────────────────
+
+async function openWarehouseReceiptDialog(row: BatchControlRow) {
+    warehouseReceiptRow.value = row;
+    warehouseReceiptViewOnly.value = row.current_process !== 'Bodega';
+    warehouseReceiptDialogOpen.value = true;
+    isLoadingWarehouseReceipt.value = true;
+    warehouseReceiptReceivedCurves.value = [];
+    warehouseReceiptSavedData.value = null;
+
+    try {
+        const { data } = await axios.get(route('control-de-lotes.warehouse-receipt-data', { order: row.id }));
+        warehouseReceiptReceivedCurves.value = data?.inspection?.confirmed_curves ?? [];
+        warehouseReceiptWarehouses.value = data?.warehouses ?? [];
+        if (data?.receipt) {
+            warehouseReceiptSavedData.value = {
+                imperfect_curves: data.receipt.imperfect_curves ?? [],
+                responsible: data.receipt.responsible ?? '',
+                imperfect_observations: data.receipt.imperfect_observations ?? null,
+                remision_curves: data.receipt.remision_curves ?? [],
+                remision_observations: data.receipt.remision_observations ?? null,
+                warehouse_id: data.receipt.warehouse_id,
+            };
+        }
+    } catch {
+        showError('No se pudo cargar los datos de recepción de bodega.');
+    } finally {
+        isLoadingWarehouseReceipt.value = false;
+    }
+}
+
+function closeWarehouseReceiptDialog() {
+    warehouseReceiptDialogOpen.value = false;
+    warehouseReceiptRow.value = null;
+    warehouseReceiptReceivedCurves.value = [];
+    warehouseReceiptSavedData.value = null;
+    warehouseReceiptViewOnly.value = false;
+    warehouseReceiptSaveError.value = null;
+}
+
+async function saveWarehouseReceipt(payload: WarehouseReceiptPayload) {
+    if (!warehouseReceiptRow.value || warehouseReceiptViewOnly.value) return;
+    isSavingWarehouseReceipt.value = true;
+    warehouseReceiptSaveError.value = null;
+
+    try {
+        await axios.post(
+            route('control-de-lotes.warehouse-receipt', { order: warehouseReceiptRow.value.id }),
+            payload,
+        );
+        showSuccess('Remisión registrada en inventario correctamente.');
+        fetchData(true);
+        closeWarehouseReceiptDialog();
+    } catch (err: unknown) {
+        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Error al registrar la remisión.';
+        warehouseReceiptSaveError.value = msg;
+    } finally {
+        isSavingWarehouseReceipt.value = false;
+    }
 }
 
 function exportCutConsumptionCsv() {
@@ -1100,10 +1264,32 @@ async function saveLogisticsExit() {
 
 /* ── Estampado: info dialog ─────────────────────────── */
 
+function buildBasicInfoItems(row: BatchControlRow): { label: string; value: string }[] {
+    return [
+        { label: 'OP', value: row.op_code },
+        { label: 'Referencia', value: row.referencia },
+        { label: 'Temporada', value: row.temporada },
+        { label: 'Cant. programadas', value: String(row.cant_programadas) },
+        { label: 'Destino', value: row.destino },
+        { label: 'Sección', value: row.seccion },
+        { label: 'Grupo', value: row.grupo },
+        { label: 'Prioridad', value: row.prioridad },
+    ].filter((item) => String(item.value ?? '').trim() !== '');
+}
+
+const LAUNDRY_TYPE_LABELS: Record<string, string> = {
+    LAVADO_EN_SECO: 'Lavado en seco',
+    LAVADO_A_MANO: 'Lavado a mano',
+    LAVADO_A_MAQUINA: 'Lavado a máquina',
+    NO_LAVAR: 'No lavar',
+    NO_APLICA: 'No aplica',
+};
+
 async function openStampingInfoDialog(row: BatchControlRow) {
     stampingInfoRow.value = row;
     stampingInfoData.value = { designNotes: null, attachments: [] };
     stampingInfoDrawingUrl.value = null;
+    stampingInfoBasicItems.value = buildBasicInfoItems(row);
     stampingInfoDialogOpen.value = true;
     isLoadingStampingInfo.value = true;
     try {
@@ -1122,6 +1308,7 @@ function closeStampingInfoDialog() {
     stampingInfoRow.value = null;
     stampingInfoData.value = { designNotes: null, attachments: [] };
     stampingInfoDrawingUrl.value = null;
+    stampingInfoBasicItems.value = [];
 }
 
 /* ── Lavandería: info dialog ────────────────────────── */
@@ -1129,11 +1316,19 @@ function closeStampingInfoDialog() {
 async function openLaundryInfoDialog(row: BatchControlRow) {
     laundryInfoRow.value = row;
     laundryInfoData.value = { type: null, instructions: null };
+    laundryInfoDrawingUrl.value = null;
+    laundryInfoBasicItems.value = buildBasicInfoItems(row);
     laundryInfoDialogOpen.value = true;
     isLoadingLaundryInfo.value = true;
     try {
-        const info = await fetchOpAdditionalInfo(row.id);
+        const [info, basicInfo] = await Promise.all([fetchOpAdditionalInfo(row.id), fetchOpBasicInfo(row.id)]);
         laundryInfoData.value = info.laundry;
+        laundryInfoDrawingUrl.value = basicInfo.flatDrawingUrl ?? basicInfo.flat_sketch_path ?? null;
+        const typeRaw = String(info.laundry.type ?? '').trim().toUpperCase();
+        const typeLabel = typeRaw ? (LAUNDRY_TYPE_LABELS[typeRaw] ?? typeRaw.charAt(0) + typeRaw.slice(1).toLowerCase().replace(/_/g, ' ')) : null;
+        if (typeLabel) {
+            laundryInfoBasicItems.value = [...buildBasicInfoItems(row), { label: 'Tipo de lavado', value: typeLabel }];
+        }
     } catch {
         showError('No se pudo cargar la información de lavandería.');
     } finally {
@@ -1145,6 +1340,8 @@ function closeLaundryInfoDialog() {
     laundryInfoDialogOpen.value = false;
     laundryInfoRow.value = null;
     laundryInfoData.value = { type: null, instructions: null };
+    laundryInfoDrawingUrl.value = null;
+    laundryInfoBasicItems.value = [];
 }
 
 onMounted(() => {
@@ -1268,11 +1465,14 @@ onUnmounted(() => {
                                             @open-novelty="openNoveltyDialog"
                                             @open-deliver="openDeliverDialog"
                                             @open-technical-sheet="openTechnicalSheetDialog"
+                            @open-technical-data-sheet-summary="openTechnicalDataSheetSummaryDialog"
                                             @open-basic-info="openBasicInfoDialog"
                                             @open-cut-consumption="openCutConsumptionDialog"
                                             @open-logistics-supply-exit="openLogisticsExitDialog"
                                             @open-stamping-info="openStampingInfoDialog"
                                             @open-laundry-info="openLaundryInfoDialog"
+                                            @open-inspection-approval="openInspectionApprovalDialog"
+                                            @open-warehouse-receipt="openWarehouseReceiptDialog"
                                         />
 
                                         <div class="mt-4 border-t pt-4">
@@ -1356,6 +1556,12 @@ onUnmounted(() => {
             @close="technicalSheetDialogOpen = false"
         />
 
+        <TechnicalDataSheetSummaryDialog
+            :open="technicalDataSheetSummaryDialogOpen"
+            :row="technicalDataSheetSummaryRow"
+            @update:open="technicalDataSheetSummaryDialogOpen = $event"
+        />
+
         <OrderBasicInfoDialog
             :open="basicInfoDialogOpen"
             :row="basicInfoRow"
@@ -1400,21 +1606,64 @@ onUnmounted(() => {
             @close="closeLogisticsExitDialog"
         />
 
-        <StampingInfoDialog
+        <StampingLaundryDialog
             :open="stampingInfoDialogOpen"
             :data="stampingInfoData"
             :display-name="isLoadingStampingInfo ? 'Cargando...' : 'Estampado'"
-            :color-codes="stampingInfoData.colorCodes ?? null"
+            :saving-section="null"
             :drawing-url="stampingInfoDrawingUrl"
+            :basic-info-items="stampingInfoBasicItems"
+            view-only
             @close="closeStampingInfoDialog"
+            @update:data="() => {}"
+            @save="() => {}"
         />
 
-        <LaundryInfoDialog
+        <StampingLaundryDialog
             :open="laundryInfoDialogOpen"
-            :data="laundryInfoData"
-            :op-code="laundryInfoRow?.op_code ?? null"
-            :referencia="laundryInfoRow?.referencia ?? null"
+            :data="{ designNotes: laundryInfoData.instructions ?? null, attachments: laundryInfoData.attachments ?? [] }"
+            display-name="Lavandería"
+            save-section="laundry"
+            hide-processes
+            :saving-section="null"
+            :drawing-url="laundryInfoDrawingUrl"
+            :basic-info-items="laundryInfoBasicItems"
+            view-only
             @close="closeLaundryInfoDialog"
+            @update:data="() => {}"
+            @save="() => {}"
+        />
+
+        <InspectionApprovalDialog
+            :open="inspectionDialogOpen"
+            :row="inspectionRow"
+            :cut-lines="inspectionCutLines"
+            :cut-curves="inspectionCutCurves"
+            :saved-inspection="inspectionSavedData"
+            :is-loading="isLoadingInspection"
+            :is-saving="isSavingInspection"
+            :view-only="inspectionViewOnly"
+            :save-error="inspectionSaveError"
+            @update:open="inspectionDialogOpen = $event"
+            @save="saveInspectionApproval"
+            @close="closeInspectionDialog"
+            @clear-error="inspectionSaveError = null"
+        />
+
+        <WarehouseReceiptDialog
+            :open="warehouseReceiptDialogOpen"
+            :row="warehouseReceiptRow"
+            :received-curves="warehouseReceiptReceivedCurves"
+            :saved-receipt="warehouseReceiptSavedData"
+            :warehouses="warehouseReceiptWarehouses"
+            :is-loading="isLoadingWarehouseReceipt"
+            :is-saving="isSavingWarehouseReceipt"
+            :view-only="warehouseReceiptViewOnly"
+            :save-error="warehouseReceiptSaveError"
+            @update:open="warehouseReceiptDialogOpen = $event"
+            @save="saveWarehouseReceipt"
+            @close="closeWarehouseReceiptDialog"
+            @clear-error="warehouseReceiptSaveError = null"
         />
     </AppLayout>
 </template>

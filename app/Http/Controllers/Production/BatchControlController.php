@@ -191,6 +191,7 @@ class BatchControlController extends Controller
             'lastDelivery',
         ])
         ->withCount(['pendingNovelties'])
+        ->withExists(['warehouseReceipt'])
         ->orderBy('batch_priority')
         ->orderByDesc('id');
 
@@ -365,6 +366,7 @@ class BatchControlController extends Controller
                 ] : null,
                 'has_pending_novelties' => ($p->pending_novelties_count ?? 0) > 0,
                 'pending_novelties_count' => $p->pending_novelties_count ?? 0,
+                'has_warehouse_receipt' => (bool) ($p->warehouse_receipt_exists ?? false),
                 'current_process_arrived_at' => $currentProcessArrivedAt,
                 'order_deadline_status' => $orderDeadlineStatus,
                 'product_sheet_processes' => $productSheetProcesses,
@@ -1554,5 +1556,173 @@ class BatchControlController extends Controller
         \App\Models\Settings\User::whereIn('area_id', $areaIds)
             ->get()
             ->each(fn ($user) => $user->notify($notification));
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // Inspección y Aprobación
+    // ══════════════════════════════════════════════════════════
+
+    public function inspectionData(ProductionOrder $order): JsonResponse
+    {
+        $consumption = $order->cut_fabric_consumption;
+
+        return response()->json([
+            'lines'       => $consumption['lines'] ?? [],
+            'curves'      => $consumption['curves'] ?? null,
+            'largo_espiga'=> $consumption['largo_espiga'] ?? null,
+            'inspection'  => \App\Models\Production\BatchControlInspection::where('production_order_id', $order->id)
+                ->latest()
+                ->first(),
+        ]);
+    }
+
+    public function saveInspectionApproval(Request $request, ProductionOrder $order): JsonResponse
+    {
+        $validated = $request->validate([
+            'confirmed_curves'   => 'required|array|min:1',
+            'confirmed_curves.*.color'       => 'required|string|max:200',
+            'confirmed_curves.*.color_code'  => 'nullable|string|max:100',
+            'confirmed_curves.*.S'           => 'nullable|integer|min:0',
+            'confirmed_curves.*.M'           => 'nullable|integer|min:0',
+            'confirmed_curves.*.L'           => 'nullable|integer|min:0',
+            'confirmed_curves.*.XL'          => 'nullable|integer|min:0',
+            'confirmed_curves.*.total'       => 'nullable|integer|min:0',
+            'matches_cut'   => 'required|boolean',
+            'reason'        => 'nullable|string|max:2000',
+            'observations'  => 'nullable|string|max:2000',
+        ]);
+
+        if (!$validated['matches_cut'] && empty(trim($validated['reason'] ?? ''))) {
+            return response()->json(['message' => 'El motivo es obligatorio cuando las cantidades no coinciden.'], 422);
+        }
+
+        $inspection = \App\Models\Production\BatchControlInspection::updateOrCreate(
+            ['production_order_id' => $order->id],
+            [
+                'confirmed_curves'   => $validated['confirmed_curves'],
+                'matches_cut'        => $validated['matches_cut'],
+                'reason'             => $validated['reason'] ?? null,
+                'observations'       => $validated['observations'] ?? null,
+                'approved_by_user_id'=> $request->user()?->id,
+                'approved_at'        => now(),
+            ],
+        );
+
+        if (!$validated['matches_cut']) {
+            $confirmedTotal = collect($validated['confirmed_curves'])->sum('total');
+            $cutTotal       = (int) ($order->cut_fabric_consumption['cut_units'] ?? 0);
+            $diff           = $cutTotal - $confirmedTotal;
+            $sign           = $diff > 0 ? "-{$diff}" : '+' . abs($diff);
+
+            $processes = config('product-sheet.batch_control_processes', []);
+            $idx        = array_search('Inspección y aprobación', $processes);
+            $prevProcess = $idx > 0 ? $processes[$idx - 1] : 'Proceso anterior';
+
+            BatchControlNovelty::create([
+                'production_order_id' => $order->id,
+                'from_process'        => 'Inspección y aprobación',
+                'to_process'          => $prevProcess,
+                'description'         => "Discrepancia de unidades en inspección ({$sign} uds). Motivo: " . ($validated['reason'] ?? '—'),
+                'status'              => 'resolved',
+                'reported_by'         => $request->user()?->id,
+            ]);
+        }
+
+        return response()->json(['inspection' => $inspection], 200);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // Bodega — Recepción
+    // ══════════════════════════════════════════════════════════
+
+    public function warehouseReceiptData(ProductionOrder $order): JsonResponse
+    {
+        $inspection = \App\Models\Production\BatchControlInspection::where('production_order_id', $order->id)
+            ->latest()
+            ->first();
+
+        $warehouses = \App\Models\Inventory\Warehouse::select(['id', 'name'])->orderBy('name')->get();
+
+        $receipt = \App\Models\Production\BatchControlWarehouseReceipt::where('production_order_id', $order->id)
+            ->latest()
+            ->first();
+
+        return response()->json([
+            'inspection' => $inspection,
+            'warehouses' => $warehouses,
+            'receipt'    => $receipt,
+        ]);
+    }
+
+    public function saveWarehouseReceipt(Request $request, ProductionOrder $order): JsonResponse
+    {
+        $validated = $request->validate([
+            'imperfect_curves'        => 'required|array',
+            'imperfect_curves.*.color'      => 'required|string|max:200',
+            'imperfect_curves.*.color_code' => 'nullable|string|max:100',
+            'imperfect_curves.*.S'          => 'nullable|integer|min:0',
+            'imperfect_curves.*.M'          => 'nullable|integer|min:0',
+            'imperfect_curves.*.L'          => 'nullable|integer|min:0',
+            'imperfect_curves.*.XL'         => 'nullable|integer|min:0',
+            'imperfect_curves.*.total'      => 'nullable|integer|min:0',
+            'responsible'             => 'nullable|string|max:255',
+            'imperfect_observations'  => 'nullable|string|max:2000',
+            'remision_curves'         => 'required|array|min:1',
+            'remision_curves.*.color'       => 'required|string|max:200',
+            'remision_curves.*.color_code'  => 'nullable|string|max:100',
+            'remision_curves.*.S'           => 'nullable|integer|min:0',
+            'remision_curves.*.M'           => 'nullable|integer|min:0',
+            'remision_curves.*.L'           => 'nullable|integer|min:0',
+            'remision_curves.*.XL'          => 'nullable|integer|min:0',
+            'remision_curves.*.total'       => 'nullable|integer|min:0',
+            'remision_observations'   => 'nullable|string|max:2000',
+            'warehouse_id'            => 'required|integer|exists:warehouses,id',
+        ]);
+
+        $inspection = \App\Models\Production\BatchControlInspection::where('production_order_id', $order->id)
+            ->latest()
+            ->first();
+
+        $receivedCurves = $inspection?->confirmed_curves ?? [];
+
+        $receipt = \App\Models\Production\BatchControlWarehouseReceipt::updateOrCreate(
+            ['production_order_id' => $order->id],
+            [
+                'received_curves'        => $receivedCurves,
+                'imperfect_curves'       => $validated['imperfect_curves'],
+                'responsible'            => $validated['responsible'] ?? null,
+                'imperfect_observations' => $validated['imperfect_observations'] ?? null,
+                'remision_curves'        => $validated['remision_curves'],
+                'remision_observations'  => $validated['remision_observations'] ?? null,
+                'warehouse_id'           => $validated['warehouse_id'],
+                'remisionado_at'         => now(),
+            ],
+        );
+
+        // Actualizar inventario con el total remisionado
+        $totalRemision = collect($validated['remision_curves'])->sum('total');
+        if ($totalRemision > 0) {
+            $item = $this->finishedProductCatalogItemService->ensureForProductionOrder($order);
+            \App\Models\Inventory\WarehouseItem::updateOrCreate(
+                ['item_id' => $item->id, 'warehouse_id' => $validated['warehouse_id']],
+                ['quantity' => DB::raw("quantity + {$totalRemision}")]
+            );
+        }
+
+        // Auto-novelty si hay imperfectos
+        $totalImperfect = collect($validated['imperfect_curves'])->sum('total');
+        if ($totalImperfect > 0) {
+            $responsible = $validated['responsible'] ?? 'Sin especificar';
+            BatchControlNovelty::create([
+                'production_order_id' => $order->id,
+                'from_process'        => 'Bodega',
+                'to_process'          => 'Inspección y aprobación',
+                'description'         => "Imperfectos en bodega: {$totalImperfect} uds. Responsable: {$responsible}",
+                'status'              => 'pending',
+                'reported_by'         => $request->user()?->id,
+            ]);
+        }
+
+        return response()->json(['receipt' => $receipt], 200);
     }
 }

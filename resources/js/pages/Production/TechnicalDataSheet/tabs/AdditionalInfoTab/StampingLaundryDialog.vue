@@ -156,6 +156,7 @@ const props = defineProps<{
     basicInfoItems?: BasicInfoItem[] | null;
     stampingProcessGuide?: StampingProcessGuide | null;
     drawingUrl?: string | null;
+    viewOnly?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -423,6 +424,7 @@ function handleDialogOpenChange(value: boolean): void {
                             <div class="mt-4 flex items-center gap-1.5">
                                 <p class="text-sm font-semibold text-foreground">Procesos</p>
                                 <HelpTooltip
+                                    v-if="!viewOnly"
                                     :text="`Describe procesos de ${displayNameLower} (spot color, alto relieve, ubicación, tintas).`"
                                     aria-label="Ayuda sobre Procesos"
                                 />
@@ -431,22 +433,24 @@ function handleDialogOpenChange(value: boolean): void {
                                 :model-value="meta.processes"
                                 rows="4"
                                 placeholder="Ej: Spot color / Alto relieve / Ubicación..."
-                                @update:model-value="(value) => updateProcesses(String(value))"
+                                :disabled="viewOnly"
+                                @update:model-value="(value) => !viewOnly && updateProcesses(String(value))"
                             />
-                            <p class="mt-1 text-right text-xs text-muted-foreground">{{ processesLength }}/{{ PROCESS_CHAR_LIMIT }}</p>
+                            <p v-if="!viewOnly" class="mt-1 text-right text-xs text-muted-foreground">{{ processesLength }}/{{ PROCESS_CHAR_LIMIT }}</p>
                         </template>
 
                         <div class="mt-4 flex items-center gap-1.5">
                             <p class="text-sm font-semibold text-foreground">Observación</p>
-                            <HelpTooltip text="Describe observaciones adicionales, tintas, consideraciones." aria-label="Ayuda sobre Observación" />
+                            <HelpTooltip v-if="!viewOnly" text="Describe observaciones adicionales, tintas, consideraciones." aria-label="Ayuda sobre Observación" />
                         </div>
                         <Textarea
                             :model-value="observationValue"
                             rows="5"
                             placeholder="Indicaciones adicionales, tintas, consideraciones..."
-                            @update:model-value="(value) => updateObservation(String(value))"
+                            :disabled="viewOnly"
+                            @update:model-value="(value) => !viewOnly && updateObservation(String(value))"
                         />
-                        <p class="mt-1 text-right text-xs text-muted-foreground">{{ observationLength }}/{{ OBSERVATION_CHAR_LIMIT }}</p>
+                        <p v-if="!viewOnly" class="mt-1 text-right text-xs text-muted-foreground">{{ observationLength }}/{{ OBSERVATION_CHAR_LIMIT }}</p>
                     </div>
 
                     <div class="space-y-4 pr-1">
@@ -464,9 +468,9 @@ function handleDialogOpenChange(value: boolean): void {
                             <div
                                 :class="[
                                     'group relative flex h-64 w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-muted/20 transition-all duration-200',
-                                    processingImage ? 'cursor-wait opacity-70' : 'cursor-pointer hover:border-primary hover:shadow-lg',
+                                    viewOnly ? 'cursor-default' : processingImage ? 'cursor-wait opacity-70' : 'cursor-pointer hover:border-primary hover:shadow-lg',
                                 ]"
-                                @click="!processingImage && openFilePicker()"
+                                @click="!viewOnly && !processingImage && openFilePicker()"
                             >
                                 <template v-if="imageAttachment">
                                     <div class="relative h-64 w-full">
@@ -488,7 +492,7 @@ function handleDialogOpenChange(value: boolean): void {
                                 </template>
                             </div>
 
-                            <div class="mt-3 flex flex-wrap items-center gap-2">
+                            <div v-if="!viewOnly" class="mt-3 flex flex-wrap items-center gap-2">
                                 <Button type="button" variant="outline" class="rounded-full" :disabled="processingImage" @click="openFilePicker">
                                     <Upload class="mr-2 h-4 w-4" />
                                     {{ imageAttachment ? 'Cambiar imagen' : 'Subir imagen' }}
@@ -564,7 +568,7 @@ function handleDialogOpenChange(value: boolean): void {
 
             <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                 <Button type="button" variant="outline" class="rounded-full px-6" @click="handleClose">Cerrar</Button>
-                <Button type="button" class="rounded-full px-6" :disabled="savingSection === effectiveSaveSection" @click="handleSave">
+                <Button v-if="!viewOnly" type="button" class="rounded-full px-6" :disabled="savingSection === effectiveSaveSection" @click="handleSave">
                     {{ savingSection === effectiveSaveSection ? 'Guardando...' : 'Guardar' }}
                 </Button>
             </DialogFooter>

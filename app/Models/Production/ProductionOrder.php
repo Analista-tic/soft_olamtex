@@ -214,6 +214,11 @@ class ProductionOrder extends Model
         return $this->hasMany(BatchControlNovelty::class)->where('status', 'pending');
     }
 
+    public function warehouseReceipt()
+    {
+        return $this->hasOne(\App\Models\Production\BatchControlWarehouseReceipt::class);
+    }
+
     // ─── Batch Control Setters ──────────────────────────
 
     /**

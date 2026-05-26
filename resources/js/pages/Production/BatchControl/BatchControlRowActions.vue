@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Activity, ClipboardList, Eye, Flag, MessageSquareWarning, MoreVertical, PackageCheck, Scissors, Send, Shirt, Stamp } from 'lucide-vue-next';
+import { Activity, Archive, ClipboardCheck, ClipboardList, Eye, File, Flag, MessageSquareWarning, MoreVertical, PackageCheck, Scissors, Send, Shirt, Stamp } from 'lucide-vue-next';
 import type { BatchControlRow } from './types';
 
 const props = withDefaults(
@@ -22,11 +22,14 @@ const emit = defineEmits<{
     (e: 'novelty'): void;
     (e: 'deliver'): void;
     (e: 'technical-sheet'): void;
+    (e: 'technical-data-sheet-summary'): void;
     (e: 'view-info'): void;
     (e: 'cut-consumption'): void;
     (e: 'logistics-supply-exit'): void;
     (e: 'stamping-info'): void;
     (e: 'laundry-info'): void;
+    (e: 'inspection-approval'): void;
+    (e: 'warehouse-receipt'): void;
 }>();
 
 const actionBtn =
@@ -54,6 +57,20 @@ const iconCls = 'h-4 w-4';
         >
             <ClipboardList :class="iconCls" />
             <span class="sr-only">{{ isActiveRow ? 'Ficha técnica' : 'Ver ficha técnica' }}</span>
+        </Button>
+
+        <!-- Resumen de ficha técnica: en tab Desarrollo de muestras, visible para todos -->
+        <Button
+            v-if="activeProcess === 'Desarrollo de muestras'"
+            variant="ghost"
+            size="icon"
+            :class="[actionBtn, 'text-blue-600 hover:bg-blue-50 hover:text-blue-700']"
+            title="Ver resumen de ficha técnica"
+            @click.stop="emit('technical-data-sheet-summary')"
+            @pointerdown.stop
+        >
+            <File :class="iconCls" />
+            <span class="sr-only">Ver resumen de ficha técnica</span>
         </Button>
 
         <!-- Novedades pendientes: acceso rápido (solo filas activas) -->
@@ -112,6 +129,38 @@ const iconCls = 'h-4 w-4';
             <span class="sr-only">Ver información de estampado</span>
         </Button>
 
+        <!-- Inspección y aprobación: visible en tab Inspección y aprobación para todos -->
+        <Button
+            v-if="activeProcess === 'Inspección y aprobación'"
+            variant="ghost"
+            size="icon"
+            :class="[actionBtn, isActiveRow ? 'text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700' : 'text-muted-foreground/60 hover:bg-muted/40']"
+            :title="isActiveRow ? 'Inspección y aprobación' : 'Ver inspección (solo lectura)'"
+            @click.stop="emit('inspection-approval')"
+            @pointerdown.stop
+        >
+            <ClipboardCheck :class="iconCls" />
+            <span class="sr-only">{{ isActiveRow ? 'Inspección y aprobación' : 'Ver inspección' }}</span>
+        </Button>
+
+        <!-- Recepción bodega: visible en tab Bodega para todos -->
+        <Button
+            v-if="activeProcess === 'Bodega'"
+            variant="ghost"
+            size="icon"
+            :disabled="row.has_warehouse_receipt && isActiveRow"
+            :class="[
+                actionBtn,
+                row.has_warehouse_receipt ? 'text-muted-foreground/40 cursor-not-allowed' : isActiveRow ? 'text-teal-600 hover:bg-teal-50 hover:text-teal-700' : 'text-muted-foreground/60 hover:bg-muted/40',
+            ]"
+            :title="row.has_warehouse_receipt ? 'Ya remisionado a bodega' : isActiveRow ? 'Recepción bodega' : 'Ver recepción bodega (solo lectura)'"
+            @click.stop="!row.has_warehouse_receipt && emit('warehouse-receipt')"
+            @pointerdown.stop
+        >
+            <Archive :class="iconCls" />
+            <span class="sr-only">{{ row.has_warehouse_receipt ? 'Ya remisionado' : isActiveRow ? 'Recepción bodega' : 'Ver recepción bodega' }}</span>
+        </Button>
+
         <!-- Info lavandería (Lavandería): visible para todos -->
         <Button
             v-if="activeProcess === 'Lavandería' || activeProcess === 'Lavanderia'"
@@ -146,6 +195,19 @@ const iconCls = 'h-4 w-4';
                 <DropdownMenuItem v-if="activeProcess === 'Logística'" class="cursor-pointer gap-2 text-emerald-700" @click="emit('logistics-supply-exit')">
                     <PackageCheck class="h-4 w-4" />
                     Salida de insumos
+                </DropdownMenuItem>
+                <DropdownMenuItem v-if="activeProcess === 'Inspección y aprobación'" class="cursor-pointer gap-2 text-indigo-700" @click="emit('inspection-approval')">
+                    <ClipboardCheck class="h-4 w-4" />
+                    Inspección y aprobación
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                    v-if="activeProcess === 'Bodega'"
+                    :class="['gap-2', row.has_warehouse_receipt ? 'cursor-not-allowed opacity-60 text-muted-foreground' : 'cursor-pointer text-teal-700']"
+                    :disabled="row.has_warehouse_receipt"
+                    @click="!row.has_warehouse_receipt && emit('warehouse-receipt')"
+                >
+                    <Archive class="h-4 w-4" />
+                    {{ row.has_warehouse_receipt ? 'Ya remisionado a bodega' : 'Recepción bodega' }}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem class="cursor-pointer gap-2 text-orange-600" @click="emit('novelty')">
