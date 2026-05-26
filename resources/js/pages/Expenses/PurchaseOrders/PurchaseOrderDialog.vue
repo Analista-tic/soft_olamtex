@@ -19,7 +19,7 @@ import type { Contact } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import axios from 'axios';
-import { Plus, X } from 'lucide-vue-next';
+import { LockKeyhole, Plus, X } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import ContactDialog from '@/pages/MasterData/Contact/ContactDialog.vue';
 import PurchaseOrderItemsTable from './PurchaseOrderItemsTable.vue';
@@ -803,6 +803,18 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                 </div>
             </DialogHeader>
 
+            <!-- Motivo de cierre manual — visible siempre, fuera del scroll -->
+            <div
+                v-if="localForm.status === 'invoiced' && localForm.closure_reason"
+                class="flex gap-3 border-b border-amber-200 bg-amber-50 px-5 py-3"
+            >
+                <LockKeyhole class="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <div class="text-sm text-amber-800">
+                    <p class="font-semibold">Orden cerrada manualmente</p>
+                    <p class="mt-0.5">{{ localForm.closure_reason }}</p>
+                </div>
+            </div>
+
             <div class="relative min-h-0 flex-1 overflow-y-auto px-5 py-4" :class="{ 'min-h-[420px]': isBlockingLoading }" style="scrollbar-width: thin">
                 <AlertStack
                     :success-message="successMessage"
@@ -1053,6 +1065,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                 </div>
                             </div>
                         </div>
+
                     </form>
                 </template>
             </div>

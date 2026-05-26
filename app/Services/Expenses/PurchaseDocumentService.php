@@ -123,7 +123,7 @@ class PurchaseDocumentService
 
     public function buildDocumentQuery(string $documentType): Builder
     {
-        return PurchaseDocument::with([
+        $query = PurchaseDocument::with([
             'items.item.categorySubGroup:id,name',
             'supplier:id,full_name,id_number,phone,email',
             'creator:id,name',
@@ -133,6 +133,15 @@ class PurchaseDocumentService
             'children:id,parent_document_id,document_type',
         ])
         ->where('document_type', $documentType);
+
+        if ($documentType === PurchaseDocument::TYPE_ORDER) {
+            $query->withCount(['children as invoices_count' => function ($q) {
+                $q->where('document_type', PurchaseDocument::TYPE_INVOICE)
+                  ->whereNull('deleted_at');
+            }]);
+        }
+
+        return $query;
     }
 
     public function applyDocumentFilters(Builder $query, array $filters): Builder
@@ -355,6 +364,17 @@ class PurchaseDocumentService
             'rejected_by_user_id'     => Auth::id(),
             'rejected_at'             => now(),
         ]);
+
+        // Revertir la orden a "parcialmente facturada" mientras haya diferencia pendiente
+        if ($invoice->parent_document_id) {
+            $parentOrder = PurchaseDocument::find($invoice->parent_document_id);
+            if ($parentOrder
+                && $parentOrder->document_type === PurchaseDocument::TYPE_ORDER
+                && $parentOrder->status === \App\Enums\PurchaseOrderStatus::INVOICED->value
+            ) {
+                $parentOrder->update(['status' => \App\Enums\PurchaseOrderStatus::PARTIALLY_INVOICED->value]);
+            }
+        }
 
         /** @var \App\Models\Settings\User|null $currentUser */
         $currentUser = Auth::user();
@@ -611,6 +631,7 @@ class PurchaseDocumentService
             'invoiced_at',
             'approved_at',
             'approval_notes',
+            'closure_reason',
         ];
     }
 
@@ -622,7 +643,7 @@ class PurchaseDocumentService
         $requesterName = $requester?->name;
         $notification = new PurchaseInvoiceDifferenceNotification($invoice, $requesterName);
 
-        $recipientsQuery = User::query();
+        $recipientsQuery = User::role(['admin', 'contabilidad']);
         if ($requester?->id) {
             $recipientsQuery->where('id', '!=', $requester->id);
         }
@@ -659,6 +680,54 @@ class PurchaseDocumentService
             'approved_by_user_id' => $approverId,
             'approved_at'         => now(),
         ]);
+
+        // Re-evaluar el estado de la orden padre tras aprobar la diferencia
+        if ($invoice->parent_document_id) {
+            $parentOrder = PurchaseDocument::with('items')->find($invoice->parent_document_id);
+            if ($parentOrder
+                && $parentOrder->document_type === PurchaseDocument::TYPE_ORDER
+                && $parentOrder->status === \App\Enums\PurchaseOrderStatus::PARTIALLY_INVOICED->value
+            ) {
+                $hasPendingDiffs = PurchaseDocument::where('parent_document_id', $parentOrder->id)
+                    ->where('document_type', PurchaseDocument::TYPE_INVOICE)
+                    ->whereNull('deleted_at')
+                    ->where('approval_status', PurchaseDocument::APPROVAL_PENDING_DIFFERENCE)
+                    ->exists();
+
+                $allQuantitiesCovered = true;
+                $orderItems = $parentOrder->items;
+                if ($orderItems->isNotEmpty()) {
+                    $invoiceIds = PurchaseDocument::where('parent_document_id', $parentOrder->id)
+                        ->where('document_type', PurchaseDocument::TYPE_INVOICE)
+                        ->whereNull('deleted_at')
+                        ->pluck('id');
+
+                    $invoicedQty = \App\Models\Expenses\PurchaseDocumentItem::whereIn('purchase_document_id', $invoiceIds)
+                        ->get()
+                        ->reduce(function (array $carry, $item) {
+                            $key = $item->item_id
+                                ? 'id:' . $item->item_id
+                                : 'name:' . strtolower(trim((string) ($item->item_name ?? '')));
+                            $carry[$key] = ($carry[$key] ?? 0) + (float) $item->quantity;
+                            return $carry;
+                        }, []);
+
+                    foreach ($orderItems as $orderItem) {
+                        $key = $orderItem->item_id
+                            ? 'id:' . $orderItem->item_id
+                            : 'name:' . strtolower(trim((string) ($orderItem->item_name ?? '')));
+                        if ((float) $orderItem->quantity > 0 && ($invoicedQty[$key] ?? 0) < (float) $orderItem->quantity) {
+                            $allQuantitiesCovered = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (! $hasPendingDiffs && $allQuantitiesCovered) {
+                    $parentOrder->update(['status' => \App\Enums\PurchaseOrderStatus::INVOICED->value]);
+                }
+            }
+        }
 
         return $this->loadWithRelations($invoice);
     }

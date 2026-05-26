@@ -50,6 +50,7 @@ const props = withDefaults(
         loading?: boolean;
         hasMore?: boolean;
         loadingMore?: boolean;
+        serverSearch?: boolean;
     }>(),
     {
         required: false,
@@ -74,6 +75,7 @@ const props = withDefaults(
         loading: false,
         hasMore: false,
         loadingMore: false,
+        serverSearch: false,
     },
 );
 defineOptions({ inheritAttrs: false });
@@ -160,7 +162,7 @@ const customSelection = computed<Option | null>(() => {
 });
 
 const filteredOptions = computed(() => {
-    if (!isSearchEnabled.value) {
+    if (!isSearchEnabled.value || props.serverSearch) {
         return props.options;
     }
     const term = searchTerm.value.trim().toLowerCase();
@@ -520,7 +522,8 @@ watch(
                                                             active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
                                                         ]"
                                                     >
-                                                        <span>
+                                                        <slot v-if="$slots.option" name="option" :option="(option as any)" :active="active" />
+                                                        <span v-else>
                                                             {{ labelOf(option) }}
                                                         </span>
                                                         <span

@@ -75,16 +75,22 @@ const pendingRequestOptions = computed(() => {
             requestNumber = String(request?.id ?? '');
         }
 
-        const providerName = request?.provider_name || '';
-        const labelParts = [requestNumber];
-        if (providerName) labelParts.push(providerName);
-
         return {
             id: optionId,
-            name: labelParts.join(' · '),
+            name: requestNumber,
+            requester_name: request?.requester_name || '',
+            created_at: request?.created_at || null,
         };
     });
 });
+
+function daysAgo(isoDate: string | null): { label: string; urgent: boolean } {
+    if (!isoDate) return { label: '', urgent: false };
+    const diff = Math.floor((Date.now() - new Date(isoDate).getTime()) / 86_400_000);
+    if (diff === 0) return { label: 'hoy', urgent: false };
+    if (diff === 1) return { label: 'hace 1 día', urgent: false };
+    return { label: `hace ${diff} días`, urgent: diff >= 7 };
+}
 
 function formatCurrency(value: number) {
     return Number(value || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
@@ -156,24 +162,36 @@ const requestItemsForTable = computed(() => {
     return normalizeRequestItems((localForm.value as any)?.purchase_request?.items);
 });
 
-async function fetchContacts(page = 1) {
+let contactSearchTerm = '';
+let contactSearchTimer: ReturnType<typeof setTimeout> | undefined;
+
+async function fetchContacts(page = 1, search = '') {
+    // Guardar contacto seleccionado ANTES de limpiar la lista
+    const selectedContactId = Number(localForm.value.contact_id ?? 0);
+    const preservedContact = page === 1 && selectedContactId > 0
+        ? (contacts.value.find((c: any) => Number(c.id) === selectedContactId) ?? null)
+        : null;
+
     if (page === 1) {
         isLoadingContacts.value = true;
-        contacts.value = [];
+        contacts.value = preservedContact ? [preservedContact] : [];
         contactsPage.value = 1;
     } else {
         isLoadingMoreContacts.value = true;
     }
     try {
+        const params = (type: string) => ({ contact_type: type, per_page: CONTACTS_PER_PAGE, page, ...(search ? { search } : {}) });
         const [res1, res2] = await Promise.all([
-            axios.get('/contactos/data', { params: { contact_type: 'proveedor', per_page: CONTACTS_PER_PAGE, page } }),
-            axios.get('/contactos/data', { params: { contact_type: 'cliente_proveedor', per_page: CONTACTS_PER_PAGE, page } }),
+            axios.get('/contactos/data', { params: params('proveedor') }),
+            axios.get('/contactos/data', { params: params('cliente_proveedor') }),
         ]);
         const p1: any[] = res1.data?.data ?? [];
         const p2: any[] = res2.data?.data ?? [];
         const newItems = [...p1, ...p2];
         if (page === 1) {
-            contacts.value = newItems;
+            contacts.value = preservedContact && !newItems.some((c: any) => Number(c.id) === selectedContactId)
+                ? [preservedContact, ...newItems]
+                : newItems;
         } else {
             const seen = new Set(contacts.value.map((c: any) => c.id));
             contacts.value = [...contacts.value, ...newItems.filter((c: any) => !seen.has(c.id))];
@@ -195,10 +213,18 @@ async function fetchContacts(page = 1) {
     }
 }
 
+function handleContactSearch(term: string) {
+    contactSearchTerm = term;
+    if (contactSearchTimer) clearTimeout(contactSearchTimer);
+    contactSearchTimer = setTimeout(() => {
+        void fetchContacts(1, contactSearchTerm);
+    }, 300);
+}
+
 async function loadMoreContacts() {
     if (!contactsHasMore.value || isLoadingMoreContacts.value) return;
     contactsPage.value++;
-    await fetchContacts(contactsPage.value);
+    await fetchContacts(contactsPage.value, contactSearchTerm);
 }
 
 async function fetchContactDetail(contactId: number | null) {
@@ -351,6 +377,12 @@ function validateForm(): boolean {
         return false;
     }
 
+    if (localForm.value.date && localForm.value.delivery_date && localForm.value.delivery_date < localForm.value.date) {
+        deliveryDateError.value = true;
+        showError('La fecha de entrega no puede ser anterior a la fecha de creación.');
+        return false;
+    }
+
     if (!Array.isArray(localForm.value.items) || localForm.value.items.length === 0) {
         showError('La orden debe contener al menos un ítem.');
         return false;
@@ -456,6 +488,7 @@ async function loadRequestToOrder(requestId: number) {
         localForm.value.contact_id = foundContact ? Number(foundContact.id) : null;
         localForm.value.description = request.description || '';
         localForm.value.purchase_request_id = Number(requestId);
+        localForm.value.buyer_user_id = request.buyer_user_id || null;
 
         const rawItems = Array.isArray(request.items) ? request.items : [];
         localForm.value.items = rawItems.length
@@ -515,7 +548,7 @@ watch(myRequestsOnly, () => {
                     <h1 class="text-lg font-bold">{{ mode === 'create' ? 'Nueva Orden de Compra' : 'Editar Orden de Compra' }}</h1>
                     <p class="text-sm text-muted-foreground">Completa los campos y añade los ítems de la orden.</p>
                 </div>
-                <div v-if="mode === 'create'" class="w-full sm:w-[340px] shrink-0">
+                <div v-if="mode === 'create'" class="w-full sm:w-[420px] shrink-0">
                     <div class="space-y-1">
                         <div class="flex items-center justify-between gap-2">
                             <label class="text-sm font-medium leading-none text-foreground">Cargar desde orden pendiente</label>
@@ -544,7 +577,25 @@ watch(myRequestsOnly, () => {
                             :loading="isLoadingPurchaseRequests"
                             :clearable="true"
                             @search="handlePurchaseRequestSearch"
-                        />
+                        >
+                            <template #option="{ option }">
+                                <div class="flex flex-col gap-0.5 py-0.5">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-medium text-sm">{{ option.name }}</span>
+                                        <span
+                                            v-if="option.created_at"
+                                            :class="[
+                                                'text-xs font-normal',
+                                                daysAgo(option.created_at).urgent ? 'text-amber-600' : 'text-muted-foreground',
+                                            ]"
+                                        >· {{ daysAgo(option.created_at).label }}</span>
+                                    </div>
+                                    <span v-if="option.requester_name" class="text-xs text-muted-foreground truncate">
+                                        {{ option.requester_name }}
+                                    </span>
+                                </div>
+                            </template>
+                        </SelectField>
                         <p v-if="isLoadingRequest" class="text-xs text-muted-foreground animate-pulse">
                             Cargando datos de la solicitud...
                         </p>
@@ -623,6 +674,7 @@ watch(myRequestsOnly, () => {
                                 label="Proveedor"
                                 :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
                                 :searchable="true"
+                                :server-search="true"
                                 :loading="isLoadingContacts"
                                 :has-more="contactsHasMore"
                                 :loading-more="isLoadingMoreContacts"
@@ -631,6 +683,7 @@ watch(myRequestsOnly, () => {
                                 :clearable="true"
                                 @action="openContactDialog"
                                 @load-more="loadMoreContacts"
+                                @search="handleContactSearch"
                                 required
                             />
                         </div>

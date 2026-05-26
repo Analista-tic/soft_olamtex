@@ -14,6 +14,24 @@ import { useSmartLoading } from './composables/useSmartLoading';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
+// Convierte a mayúsculas el valor real de inputs de texto y textareas al escribir.
+// Excluye: email, password, search, number, date y campos marcados con data-no-uppercase.
+document.addEventListener('input', (e) => {
+    const el = e.target as HTMLElement;
+    if (!(el instanceof HTMLInputElement) && !(el instanceof HTMLTextAreaElement)) return;
+    if (el.dataset.noUppercase !== undefined) return;
+    if (el instanceof HTMLInputElement) {
+        const excluded = ['email', 'password', 'search', 'number', 'date', 'file', 'checkbox', 'radio', 'hidden'];
+        if (excluded.includes(el.type)) return;
+    }
+    const start = (el as HTMLInputElement).selectionStart;
+    const end = (el as HTMLInputElement).selectionEnd;
+    el.value = el.value.toUpperCase();
+    if (start !== null && end !== null && typeof (el as HTMLInputElement).setSelectionRange === 'function') {
+        (el as HTMLInputElement).setSelectionRange(start, end);
+    }
+}, true);
+
 // Configuracion centralizada de Axios para Laravel + Inertia
 // SOLO usar XSRF-TOKEN cookie (Laravel lo genera automaticamente)
 // NO fijar X-CSRF-TOKEN global - Inertia lo maneja por su cuenta

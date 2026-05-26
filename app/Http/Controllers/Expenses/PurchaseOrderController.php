@@ -196,4 +196,30 @@ class PurchaseOrderController extends PurchaseDocumentController
         ]);
     }
 
+    public function close(Request $request, PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, $request->user());
+
+        if ($purchaseDocument->status !== \App\Enums\PurchaseOrderStatus::PARTIALLY_INVOICED->value) {
+            return response()->json([
+                'message' => 'Solo se pueden cerrar órdenes parcialmente facturadas.',
+            ], 422);
+        }
+
+        $request->validate([
+            'closure_reason' => 'required|string|max:1000',
+        ]);
+
+        $updated = $this->service->updateDocument($purchaseDocument, [
+            'status'         => \App\Enums\PurchaseOrderStatus::INVOICED->value,
+            'closure_reason' => $request->input('closure_reason'),
+        ]);
+
+        return response()->json([
+            'message' => 'Orden cerrada correctamente.',
+            'data' => $updated->toArray(),
+        ]);
+    }
+
 }

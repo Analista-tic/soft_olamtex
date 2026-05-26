@@ -41,7 +41,7 @@ class PurchaseDocument extends Model implements HasAuditLabel
         'approval_notes',
         'has_difference',
         'difference_status',
-        'has_difference',
+        'closure_reason',
         'supplier_order_number',
         'supplier_invoice_number',
         'withholdings',

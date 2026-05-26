@@ -65,6 +65,9 @@ const invoiceForApproval = ref<PurchaseInvoice | null>(null);
 const authStore = useAuthStore();
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError, clearAlerts } = useAlertStack();
 const canApproveDifference = computed(() => authStore.can('gestionar diferencias factura compra'));
+const canEdit = computed(() => authStore.can('editar facturas compra'));
+const canDelete = computed(() => authStore.can('eliminar facturas compra'));
+const canCreateNotes = computed(() => authStore.can('crear notas credito debito'));
 function toggleSort(column: string) {
     if (sortBy.value === column) {
         sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
@@ -704,10 +707,10 @@ async function handleDifferenceDecision() {
                                         </Button>
 
                                         <!-- Editar -->
-                                        <EditButton :onClick="() => router.visit('/gastos/facturas-compra/' + invoice.id + '/editar')" title="Editar factura" />
+                                        <EditButton v-if="canEdit" :onClick="() => router.visit('/gastos/facturas-compra/' + invoice.id + '/editar')" title="Editar factura" />
 
                                         <!-- Eliminar -->
-                                        <DeleteButton @click="confirmDeleteInvoice(invoice)" title="Eliminar factura" />
+                                        <DeleteButton v-if="canDelete" @click="confirmDeleteInvoice(invoice)" title="Eliminar factura" />
 
                                         <!-- Más acciones -->
                                         <DropdownMenu>
@@ -744,15 +747,15 @@ async function handleDifferenceDecision() {
                                                     <Eye class="mr-2 h-4 w-4" />
                                                     Ver notas crédito/débito
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem @select="goToCreditDebitNote(invoice, 'purchase_credit_note', $event)">
+                                                <DropdownMenuItem v-if="canCreateNotes" @select="goToCreditDebitNote(invoice, 'purchase_credit_note', $event)">
                                                     <MinusCircle class="mr-2 h-4 w-4" />
                                                     Crear Nota Crédito
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem @select="goToCreditDebitNote(invoice, 'purchase_debit_note', $event)">
+                                                <DropdownMenuItem v-if="canCreateNotes" @select="goToCreditDebitNote(invoice, 'purchase_debit_note', $event)">
                                                     <PlusCircle class="mr-2 h-4 w-4" />
                                                     Crear Nota Débito
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem :disabled="isSendingMail" @select="handleSendMailAction(invoice, $event)">
+                                                <DropdownMenuItem disabled class="cursor-not-allowed opacity-50" @select="handleSendMailAction(invoice, $event)">
                                                     <Mail class="mr-2 h-4 w-4" />
                                                     Enviar al correo
                                                 </DropdownMenuItem>

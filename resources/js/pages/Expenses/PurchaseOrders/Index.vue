@@ -1,6 +1,18 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogMedia,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { buttonVariants } from '@/components/ui/button';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
@@ -17,7 +29,7 @@ import type { PurchaseOrder } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Eye, PlusCircle, Search, Printer, Mail, MoreVertical } from 'lucide-vue-next';
+import { Eye, PlusCircle, Search, Printer, Mail, MoreVertical, LockKeyhole } from 'lucide-vue-next';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -43,6 +55,9 @@ const isPreparingDialog = ref(false);
 const searchQuery = ref('');
 const orderToDelete = ref<PurchaseOrder | null>(null);
 const isDeleteDialogOpen = ref(false);
+const orderToClose = ref<PurchaseOrder | null>(null);
+const isCloseDialogOpen = ref(false);
+const closeReason = ref('');
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
 const totalItems = ref(0);
@@ -248,6 +263,32 @@ function confirmDeleteOrder(order: PurchaseOrder) {
     isDeleteDialogOpen.value = true;
 }
 
+function confirmCloseOrder(order: PurchaseOrder) {
+    orderToClose.value = order;
+    closeReason.value = '';
+    isCloseDialogOpen.value = true;
+}
+
+async function closeOrder() {
+    if (!orderToClose.value) return;
+    if (!closeReason.value.trim()) {
+        setErrorMessage('El motivo de cierre es obligatorio.');
+        return;
+    }
+    try {
+        await axios.patch(`/gastos/ordenes-compra/${orderToClose.value.id}/cerrar`, {
+            closure_reason: closeReason.value.trim(),
+        });
+        successMessage.value = 'Orden cerrada correctamente.';
+        fetchOrders(currentPage.value, searchQuery.value);
+        isCloseDialogOpen.value = false;
+        orderToClose.value = null;
+    } catch (err: any) {
+        const msg = err?.response?.data?.message || 'Error al cerrar la orden.';
+        setErrorMessage(msg);
+    }
+}
+
 function getOrderStatusTone(status?: string, purchaseRequestId?: number | null): 'green' | 'blue' | 'indigo' | 'red' | 'yellow' {
     if (status === 'approved' && purchaseRequestId) return 'blue';
     if (status === 'approved') return 'green';
@@ -392,6 +433,7 @@ function handleDialogError(message?: string) {
                                 </span>
                             </TableHead>
                             <TableHead>Descripción</TableHead>
+                            <TableHead class="text-center">Facturas</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead class="text-center">Acciones</TableHead>
                         </TableRow>
@@ -399,14 +441,14 @@ function handleDialogError(message?: string) {
                     <TableBody>
                         <template v-if="isLoading">
                             <TableRow v-for="i in 5" :key="`purchase-order-skeleton-${i}`">
-                                <TableCell v-for="col in 8" :key="`purchase-order-skeleton-${i}-${col}`" class="px-4 py-3">
+                                <TableCell v-for="col in 9" :key="`purchase-order-skeleton-${i}-${col}`" class="px-4 py-3">
                                     <Skeleton class="h-4 w-full" />
                                 </TableCell>
                             </TableRow>
                         </template>
                         <template v-else-if="!orders.length">
                             <TableRow>
-                                <TableCell colspan="8">
+                                <TableCell colspan="9">
                                     <div class="py-6 text-center text-sm text-muted-foreground">No se encontraron órdenes.</div>
                                 </TableCell>
                             </TableRow>
@@ -421,6 +463,15 @@ function handleDialogError(message?: string) {
                                 <TableCell>{{ order.supplier?.full_name || order.contact?.full_name || '-' }}</TableCell>
                                 <TableCell>{{ formatCurrency(computeOrderTotal(order)) }}</TableCell>
                                 <TableCell class="text-start">{{ order.description || '-' }}</TableCell>
+                                <TableCell class="text-center">
+                                    <span
+                                        v-if="(order as any).invoices_count > 0"
+                                        class="inline-flex items-center justify-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700"
+                                    >
+                                        {{ (order as any).invoices_count }}
+                                    </span>
+                                    <span v-else class="text-xs text-muted-foreground">0</span>
+                                </TableCell>
                                 <TableCell>
                                     <TableStatusBadge :dusk="`estado-orden-${order.id}`" :label="getOrderStatusLabel(order.status, order.purchase_request_id)" :tone="getOrderStatusTone(order.status, order.purchase_request_id)" />
                                 </TableCell>
@@ -453,6 +504,14 @@ function handleDialogError(message?: string) {
                                             <DropdownMenuItem @click="sendOrderByEmail(order)">
                                                 <Mail class="mr-2 h-4 w-4" />
                                                 Enviar por correo
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                v-if="(order as any).status === 'partially_invoiced'"
+                                                @click="confirmCloseOrder(order)"
+                                                class="text-amber-600 focus:text-amber-600"
+                                            >
+                                                <LockKeyhole class="mr-2 h-4 w-4" />
+                                                Cerrar orden
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
@@ -490,5 +549,45 @@ function handleDialogError(message?: string) {
             :destructive="true"
             @confirm="deleteOrder"
         />
+        <!-- Diálogo cerrar orden con motivo -->
+        <AlertDialog :open="isCloseDialogOpen" @update:open="isCloseDialogOpen = $event">
+            <AlertDialogContent size="sm">
+                <AlertDialogHeader class="items-center text-center">
+                    <AlertDialogMedia class="bg-amber-100 text-amber-600">
+                        <LockKeyhole class="h-5 w-5" />
+                    </AlertDialogMedia>
+                    <AlertDialogTitle class="text-center">Cerrar orden</AlertDialogTitle>
+                    <AlertDialogDescription class="text-center">
+                        La orden se marcará como Facturada aunque no se hayan cubierto todas las cantidades. Esta acción no se puede deshacer.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div class="flex flex-col gap-1.5 px-1">
+                    <label class="text-sm font-medium text-foreground">
+                        Motivo de cierre <span class="text-destructive">*</span>
+                    </label>
+                    <textarea
+                        v-model="closeReason"
+                        rows="3"
+                        placeholder="Ej: el proveedor no tiene más stock, cambio de decisión..."
+                        class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                </div>
+                <AlertDialogFooter class="gap-x-2 sm:justify-center">
+                    <AlertDialogCancel
+                        :class="buttonVariants({ variant: 'outline', size: 'pill' })"
+                        @click="isCloseDialogOpen = false"
+                    >
+                        Cancelar
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                        :class="buttonVariants({ variant: 'default', size: 'pill' })"
+                        :disabled="!closeReason.trim()"
+                        @click="closeOrder"
+                    >
+                        Cerrar orden
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     </AppLayout>
 </template>

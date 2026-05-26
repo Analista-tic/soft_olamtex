@@ -146,6 +146,8 @@ const pendingPurchaseOrderOptions = computed(() =>
     purchaseOrders.value.map((o: any) => ({
         id: o.id,
         name: o.document_number ? `${o.document_number}` : `Orden #${o.id}`,
+        created_at: o.created_at ?? null,
+        provider_name: o.supplier?.full_name ?? o.contact?.full_name ?? o.provider_name ?? null,
     })),
 );
 
@@ -181,6 +183,14 @@ const contactPhone = computed(() => selectedContactData.value?.phone ?? '');
 function toNumber(value: unknown): number {
     const numberValue = Number(value);
     return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function daysAgo(isoDate: string | null): { label: string; urgent: boolean } {
+    if (!isoDate) return { label: '', urgent: false };
+    const diff = Math.floor((Date.now() - new Date(isoDate).getTime()) / 86_400_000);
+    if (diff === 0) return { label: 'hoy', urgent: false };
+    if (diff === 1) return { label: 'hace 1 día', urgent: false };
+    return { label: `hace ${diff} días`, urgent: diff >= 7 };
 }
 
 function formatCurrency(value: number): string {
@@ -826,7 +836,7 @@ onMounted(async () => {
                     <h1 class="text-lg font-bold">{{ mode === 'create' ? 'Nueva Factura de Compra' : 'Editar Factura de Compra' }}</h1>
                     <p class="text-sm text-muted-foreground">Registra una factura de compra para trazabilidad y recepción.</p>
                 </div>
-                <div v-if="mode === 'create'" class="w-full shrink-0 sm:w-[340px]">
+                <div v-if="mode === 'create'" class="w-full shrink-0 sm:w-[420px]">
                     <div class="space-y-1">
                         <label class="text-sm font-medium leading-none text-foreground">Cargar desde orden pendiente</label>
                         <SelectField
@@ -840,7 +850,25 @@ onMounted(async () => {
                             tooltip-text="Selecciona una orden de compra aprobada para pre-llenar automáticamente los ítems de esta factura."
                             :clearable="true"
                             @search="handlePurchaseOrderSearch"
-                        />
+                        >
+                            <template #option="{ option }">
+                                <div class="flex flex-col gap-0.5 py-0.5">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-medium text-sm">{{ option.name }}</span>
+                                        <span
+                                            v-if="option.created_at"
+                                            :class="[
+                                                'text-xs font-normal',
+                                                daysAgo(option.created_at).urgent ? 'text-amber-600' : 'text-muted-foreground',
+                                            ]"
+                                        >· {{ daysAgo(option.created_at).label }}</span>
+                                    </div>
+                                    <span v-if="option.provider_name" class="text-xs text-muted-foreground truncate">
+                                        {{ option.provider_name }}
+                                    </span>
+                                </div>
+                            </template>
+                        </SelectField>
                     </div>
                 </div>
             </div>
@@ -1015,9 +1043,6 @@ onMounted(async () => {
                 <Button variant="default" size="pill" :disabled="isSubmitting" @click.prevent="handleSubmit(false)">{{
                     mode === 'create' ? 'Guardar factura' : 'Actualizar'
                 }}</Button>
-                <Button variant="default" size="pill" :disabled="isSubmitting" @click.prevent="handleSubmit(true)"
-                    >Guardar y enviar por correo</Button
-                >
             </div>
             <ContactDialog
                 v-if="isContactDialogOpen"

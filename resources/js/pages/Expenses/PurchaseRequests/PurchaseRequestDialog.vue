@@ -770,7 +770,7 @@ watch(dialogOpen, (isOpen) => {
                         :disabled="isLoading || isBlockingLoading"
                         @click="handleSubmitSafe(false)"
                     >
-                        {{ isLoading ? 'Guardando...' : 'Guardar' }}
+                        {{ isLoading ? 'Guardando...' : 'Guardar borrador' }}
                     </Button>
                     <Button
                         v-if="!props.readonly && !isReadOnly && canSendToApproval"

@@ -213,7 +213,7 @@ class SupplyRequestService
     private function notifyLogistics(InventoryRequest $request, User $creator): void
     {
         try {
-            $recipients = User::query()
+            $recipients = User::role('logistica')
                 ->where('id', '!=', $creator->id)
                 ->get();
 

@@ -274,7 +274,7 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
             if (!empty($parentId)) {
                 $parentOrder = PurchaseDocument::with('items')->find($parentId);
                 if ($parentOrder && $parentOrder->document_type === PurchaseDocument::TYPE_ORDER) {
-                    $newStatus = $this->resolveOrderStatusAfterInvoice($parentOrder, $items);
+                    $newStatus = $this->resolveOrderStatusAfterInvoice($parentOrder, []);
                     $parentOrder->update(['status' => $newStatus]);
 
                     // Verificar si todas las órdenes de la solicitud están completamente facturadas

@@ -613,23 +613,31 @@ table.hdr { page-break-after: avoid; }
                         $sumConsumo= array_sum(array_map(fn($l) => (float)($l['total_consumption'] ?? 0), $tLines));
                         $sumFalt   = array_sum(array_map(fn($l) => (float)($l['restante'] ?? 0), $tLines));
                     @endphp
-                    <div style="page-break-inside: avoid; padding-top: 40px;">
-                    <div style="display:table;width:100%;font-size:8pt;font-weight:700;margin:0 0 3px;color:#1a3a5c;">
-                        <div style="display:table-cell;">
-                            Trazo {{ $loop->iteration }}
-                            @if($tGroup['fabric_type']) &nbsp;|&nbsp; <span style="font-weight:400;">{{ $tGroup['fabric_type'] }}</span> @endif
-                            &nbsp;|&nbsp; {{ $tCount }} rollo{{ $tCount !== 1 ? 's' : '' }}
-                            @if($tGroup['prom_trazo'] !== null) &nbsp;|&nbsp; Prom. Trazo: <span style="font-weight:400;">{{ num($tGroup['prom_trazo'],3) }} m</span> @endif
-                            @if($tGroup['largo_trazo'] !== null) &nbsp;|&nbsp; Largo de Trazo: <span style="font-weight:400;">{{ num($tGroup['largo_trazo'],3) }} m</span> @endif
-                            @if($tGroup['largo_liq'] !== null) &nbsp;|&nbsp; Largo Liquidación: <span style="font-weight:400;">{{ num($tGroup['largo_liq'],3) }} m</span> @endif
-                        </div>
-                        <div style="display:table-cell;text-align:right;">
-                            Capa Principal <span style="font-weight:400;">{{ $sumCapaP }}</span>
-                            &nbsp;|&nbsp; Capa Liquidación <span style="font-weight:400;">{{ $sumCapaL }}</span>
-                            &nbsp;|&nbsp; Capa Espiga <span style="font-weight:400;">{{ $sumCapaE }}</span>
-                            &nbsp;|&nbsp; <span style="color:#c0392b;">{{ num($sumFalt,2) }} m</span>
-                        </div>
-                    </div>
+                    <div style="page-break-inside: avoid; padding-top: 16px;">
+                    <table style="width:100%;font-size:8pt;font-weight:700;margin:0 0 3px;color:#1a3a5c;border-collapse:collapse;">
+                        <tr>
+                            <td style="vertical-align:bottom;padding-bottom:1px;">
+                                Trazo {{ $loop->iteration }}
+                                @if($tGroup['fabric_type']) &nbsp;|&nbsp; <span style="font-weight:400;">{{ $tGroup['fabric_type'] }}</span> @endif
+                                &nbsp;|&nbsp; {{ $tCount }} rollo{{ $tCount !== 1 ? 's' : '' }}
+                                @if($tGroup['prom_trazo'] !== null) &nbsp;|&nbsp; Prom. Trazo: <span style="font-weight:400;">{{ num($tGroup['prom_trazo'],3) }} m</span> @endif
+                            </td>
+                            <td style="text-align:right;vertical-align:bottom;padding-bottom:1px;">
+                                Capa Principal <span style="font-weight:400;">{{ $sumCapaP }}</span>
+                                &nbsp;|&nbsp; Capa Liquidación <span style="font-weight:400;">{{ $sumCapaL }}</span>
+                                &nbsp;|&nbsp; Capa Espiga <span style="font-weight:400;">{{ $sumCapaE }}</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight:400;padding-top:1px;">
+                                @if($tGroup['largo_trazo'] !== null) Largo de Trazo: <strong>{{ num($tGroup['largo_trazo'],3) }} m</strong> @endif
+                                @if($tGroup['largo_liq'] !== null) &nbsp;|&nbsp; Largo Liquidación: <strong>{{ num($tGroup['largo_liq'],3) }} m</strong> @endif
+                            </td>
+                            <td style="text-align:right;font-weight:400;padding-top:1px;">
+                                Consumo Total: <strong style="color:#c0392b;">{{ num($sumConsumo,2) }} m</strong>
+                            </td>
+                        </tr>
+                    </table>
                     <table class="dt" style="margin-bottom:0;font-size:6pt;">
                         <thead><tr>
                             <th class="g-th nw">Rollo</th>
@@ -642,7 +650,7 @@ table.hdr { page-break-after: avoid; }
                             <th class="tc g-th" style="white-space:normal;">Capa<br>Liquidación</th>
                             <th class="tc g-th" style="white-space:normal;">Capa<br>Espiga</th>
                             <th class="tr g-th">Retazo</th>
-                            <th class="tr g-th">Consumo</th>
+                            <th class="tr g-th" style="white-space:normal;">Consumo<br>Total</th>
                             <th class="tr g-th">Faltante</th>
                         </tr></thead>
                         <tbody>
@@ -665,7 +673,7 @@ table.hdr { page-break-after: avoid; }
                         </tbody>
                         <tfoot>
                             <tr style="font-weight:700;border-top:1px solid #b0b8c8;">
-                                <td colspan="6" class="tr" style="font-size:5.5pt;color:#6278a0;">Subtotal Trazo {{ $loop->iteration }}</td>
+                                <td colspan="5" class="tr" style="font-size:5.5pt;color:#6278a0;">Subtotal Trazo {{ $loop->iteration }}</td>
                                 <td class="tr">{{ num($sumUsar,2) }}</td>
                                 <td class="tc">{{ $sumCapaP }}</td>
                                 <td class="tc">{{ $sumCapaL }}</td>

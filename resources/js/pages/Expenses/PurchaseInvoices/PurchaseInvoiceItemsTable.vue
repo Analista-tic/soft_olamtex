@@ -63,7 +63,7 @@ const taxOptions = computed(() => [
 ]);
 
 const itemOptions = computed(() => {
-    return catalogItems.value
+    const baseOptions = catalogItems.value
         .filter((item) => {
             const isFabric = isTelaItem(item);
             if (props.telaMode === true) return isFabric;
@@ -74,6 +74,21 @@ const itemOptions = computed(() => {
             id: item.id,
             name: item.name,
         }));
+
+    // Mientras el catálogo no cargue, incluir opciones temporales de los ítems ya seleccionados
+    // usando item_name que viene de la orden. Evita mostrar el ID crudo durante el fetch.
+    const catalogIds = new Set(baseOptions.map((o) => Number(o.id)));
+    const seenIds = new Set<number>();
+    const synthetic = localItems.value
+        .filter((item) => item.item_id && item.item_name && !catalogIds.has(Number(item.item_id)))
+        .map((item) => ({ id: Number(item.item_id), name: item.item_name as string }))
+        .filter((o) => {
+            if (seenIds.has(o.id)) return false;
+            seenIds.add(o.id);
+            return true;
+        });
+
+    return [...synthetic, ...baseOptions];
 });
 
 const shouldShowFabricColumns = computed(() => {

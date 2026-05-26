@@ -37,6 +37,7 @@ export interface PurchaseOrder {
     rejected_by_user_id?: number | null;
     rejected_at?: string | null;
     rejection_reason?: string | null;
+    closure_reason?: string | null;
     purchase_request_id?: number | null;
 }
 

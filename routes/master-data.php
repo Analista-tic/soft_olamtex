@@ -40,11 +40,15 @@ Route::prefix('contactos')->name('contactos.')->middleware('permission:ver conta
 });
 
 // === ITEMS ===
+// /data accesible también para roles que gestionan facturas (contabilidad, etc.)
+Route::get('/item/data', [ItemController::class, 'getData'])
+    ->name('item.data')
+    ->middleware('permission:ver inventario telas|ver facturas compra|crear facturas compra');
+
 Route::prefix('item')->name('item.')->middleware('permission:ver inventario telas')->group(function () {
     Route::get('/descargar-plantilla', [ItemController::class, 'downloadTemplate'])->name('descargar-plantilla');
     Route::get('/exportar-excel', [ItemController::class, 'exportExcel'])->name('exportar-excel')->middleware('permission:exportar items');
     Route::get('/', [ItemController::class, 'index'])->name('index');
-    Route::get('/data', [ItemController::class, 'getData'])->name('data');
     Route::post('/carga-masiva', [ItemController::class, 'bulkUpload'])->name('carga-masiva')->middleware('permission:carga masiva items');
     Route::get('/check-duplicate', [ItemController::class, 'checkDuplicate'])->name('check-duplicate');
     Route::get('/search', [ItemController::class, 'search'])->name('search');

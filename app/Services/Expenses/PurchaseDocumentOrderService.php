@@ -5,8 +5,11 @@ namespace App\Services\Expenses;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Expenses\PurchaseRequest;
+use App\Models\Settings\User;
+use App\Notifications\PurchaseOrderCreatedNotification;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 
 class PurchaseDocumentOrderService extends PurchaseDocumentService
 {
@@ -78,8 +81,32 @@ class PurchaseDocumentOrderService extends PurchaseDocumentService
             ]);
             $this->syncItems($order, $items);
 
-            return $this->loadWithRelations($order);
+            $createdOrder = $this->loadWithRelations($order);
+
+            $this->notifyOrderCreated($createdOrder);
+
+            return $createdOrder;
         });
+    }
+
+    protected function notifyOrderCreated(PurchaseDocument $order): void
+    {
+        $recipients = User::role('contabilidad')->get();
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        $creator = Auth::user();
+        // Excluir al creador si tiene rol contabilidad
+        if ($creator) {
+            $recipients = $recipients->filter(fn($u) => $u->id !== $creator->id);
+        }
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        Notification::send($recipients, new PurchaseOrderCreatedNotification($order, $creator?->name));
     }
 
     public function convertOrderToInvoice(

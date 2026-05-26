@@ -151,6 +151,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'editar facturas compra',
             'eliminar facturas compra',
             'aprobar facturas compra',
+            'recibir factura compra',
+            'anular factura compra',
             'gestionar diferencias factura compra',
 
             // Visibilidad - Facturas de compra
@@ -206,7 +208,15 @@ class RolesAndPermissionsSeeder extends Seeder
             'editar personalizacion',
             'ver solicitudes insumos',
             'ver gastos',
+            'ver contactos',
             'ver ordenes compra',
+            'crear ordenes compra',
+            'editar ordenes compra',
+            'eliminar ordenes compra',
+            'ver facturas compra',
+            'recibir factura compra',
+            'aprobar recepcion tela',
+            'rechazar recepcion tela',
             'ver propios solicitudes compra',
             'crear solicitudes compra',
             'editar solicitudes compra',
@@ -254,7 +264,15 @@ class RolesAndPermissionsSeeder extends Seeder
 
             // Solicitudes de compra: solo las propias
             'ver gastos',
+            'ver contactos',
             'ver ordenes compra',
+            'crear ordenes compra',
+            'editar ordenes compra',
+            'eliminar ordenes compra',
+            'ver facturas compra',
+            'recibir factura compra',
+            'aprobar recepcion tela',
+            'rechazar recepcion tela',
             'ver propios solicitudes compra',
             'crear solicitudes compra',
             'editar solicitudes compra',
@@ -385,7 +403,7 @@ class RolesAndPermissionsSeeder extends Seeder
 
         $usuariosEjemplo = [
             // GERENCIA
-            ['name' => 'Luis Felipe Aristizabal Echeverry', 'email' => 'l.aristizabal@olamtex.co',  'password' => Hash::make('admin123'),      'area_id' => $this->resolveAreaId($areas, ['Gerencia']),               'role' => $admin],
+            ['name' => 'Luis Felipe Aristizabal Echeverry', 'email' => 'l.aristizabal@olamtex.co',  'password' => Hash::make('L'),      'area_id' => $this->resolveAreaId($areas, ['Gerencia']),               'role' => $admin],
 
             // TICS
             ['name' => 'Kenier Steven Morales Cardenas',    'email' => 'k.morales@olamtex.co',       'password' => Hash::make('tics123'),       'area_id' => $this->resolveAreaId($areas, ['Tics']),                   'role' => $admin],

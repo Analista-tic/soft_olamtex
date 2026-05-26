@@ -7,6 +7,8 @@ use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseRequest;
 use App\Models\Settings\User;
 use App\Enums\PurchaseRequestStatus;
+use App\Notifications\PurchaseRequestSubmittedNotification;
+use App\Notifications\PurchaseRequestRespondedNotification;
 use Illuminate\Support\Collection;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -15,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 
 class PurchaseRequestService
@@ -27,8 +30,10 @@ class PurchaseRequestService
         $normalizedSearch = trim($search);
 
         $query = PurchaseRequest::query()
-            ->select(['id', 'request_number', 'provider_name'])
-            ->where('status', PurchaseRequestStatus::APPROVED->value)
+            ->select(['purchase_requests.id', 'purchase_requests.request_number', 'purchase_requests.provider_name', 'purchase_requests.created_at', 'purchase_requests.requester_user_id'])
+            ->leftJoin('users', 'users.id', '=', 'purchase_requests.requester_user_id')
+            ->addSelect('users.name as requester_name')
+            ->where('purchase_requests.status', PurchaseRequestStatus::APPROVED->value)
             ->whereNotExists(function ($subQuery) {
                 $subQuery->selectRaw('1')
                     ->from('purchase_documents as pd')
@@ -38,17 +43,18 @@ class PurchaseRequestService
                     ->whereNull('pd.deleted_at');
             });
 
-        ScopeHelper::apply($query, $user, 'ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra', 'requester_user_id');
+        ScopeHelper::apply($query, $user, 'ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra', 'purchase_requests.requester_user_id');
         $this->applySolicitedToFilter($query, $user);
 
         if ($myRequestsOnly && $user !== null) {
-            $query->where('buyer_user_id', $user->id);
+            $query->where('purchase_requests.buyer_user_id', $user->id);
         }
 
         if ($normalizedSearch !== '') {
             $query->where(function (Builder $subQuery) use ($normalizedSearch) {
-                $subQuery->where('request_number', 'like', "%{$normalizedSearch}%")
-                    ->orWhere('provider_name', 'like', "%{$normalizedSearch}%");
+                $subQuery->where('purchase_requests.request_number', 'like', "%{$normalizedSearch}%")
+                    ->orWhere('purchase_requests.provider_name', 'like', "%{$normalizedSearch}%")
+                    ->orWhere('users.name', 'like', "%{$normalizedSearch}%");
             });
         }
 
@@ -63,6 +69,8 @@ class PurchaseRequestService
                 'id' => $request->id,
                 'request_number' => $request->request_number,
                 'provider_name' => $request->provider_name,
+                'requester_name' => $request->requester_name ?? null,
+                'created_at' => $request->created_at?->toISOString(),
                 'status' => PurchaseRequestStatus::APPROVED->value,
             ];
         })->all();
@@ -196,6 +204,8 @@ class PurchaseRequestService
 
         $purchaseRequest->sendToApproval();
 
+        $this->notifySubmitted($purchaseRequest);
+
         return $purchaseRequest->fresh(['requester']);
     }
 
@@ -212,6 +222,8 @@ class PurchaseRequestService
 
         $purchaseRequest->approve($userId, $reason);
 
+        $this->notifyResponded($purchaseRequest, 'approved', Auth::user(), $reason);
+
         return $purchaseRequest->fresh(['requester', 'approvedBy']);
     }
 
@@ -222,6 +234,8 @@ class PurchaseRequestService
         }
 
         $purchaseRequest->reject(Auth::id(), $reason);
+
+        $this->notifyResponded($purchaseRequest, 'rejected', Auth::user(), $reason);
 
         return $purchaseRequest->fresh(['requester', 'rejectedBy']);
     }
@@ -238,6 +252,8 @@ class PurchaseRequestService
         ]);
 
         $purchaseRequest->cancel();
+
+        $this->notifyResponded($purchaseRequest, 'cancelled', Auth::user(), null);
 
         return $purchaseRequest->fresh(['requester']);
     }
@@ -471,5 +487,50 @@ class PurchaseRequestService
                   });
             });
         }
+    }
+
+    protected function notifySubmitted(PurchaseRequest $purchaseRequest): void
+    {
+        $solicitedTo = $purchaseRequest->solicited_to;
+        if (!$solicitedTo) {
+            return;
+        }
+
+        // 'gerencia' no existe como rol Spatie; los gerentes están en 'admin'
+        $roleName = $solicitedTo === 'gerencia' ? 'admin' : $solicitedTo;
+
+        try {
+            $recipients = User::role($roleName)->get();
+        } catch (\Throwable $e) {
+            \Log::warning('notifySubmitted: rol no encontrado', ['role' => $roleName, 'error' => $e->getMessage()]);
+            return;
+        }
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        $requesterName = $purchaseRequest->requester?->name ?? Auth::user()?->name;
+        Notification::send($recipients, new PurchaseRequestSubmittedNotification($purchaseRequest, $requesterName));
+    }
+
+    protected function notifyResponded(PurchaseRequest $purchaseRequest, string $action, ?User $responder, ?string $reason): void
+    {
+        $requesterId = $purchaseRequest->requester_user_id;
+        if (!$requesterId) {
+            return;
+        }
+
+        $requester = User::find($requesterId);
+        if (!$requester) {
+            return;
+        }
+
+        // No notificar si quien responde es el mismo que creó la solicitud
+        if ($responder && $responder->id === $requesterId) {
+            return;
+        }
+
+        $requester->notify(new PurchaseRequestRespondedNotification($purchaseRequest, $action, $responder?->name, $reason));
     }
 }

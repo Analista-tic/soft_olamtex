@@ -5,7 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useNotifications } from '@/composables/useNotifications';
 import type { NotificationRow } from '@/domain/Settings';
 import { router } from '@inertiajs/vue3';
-import { AlertTriangle, Archive, Bell, CheckCheck, Inbox, PackageCheck, Trash2 } from 'lucide-vue-next';
+import { AlertTriangle, Archive, Bell, CheckCheck, ClipboardCheck, ClipboardX, Inbox, PackageCheck, ShoppingCart, Trash2 } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 const isOpen = ref(false);
@@ -51,6 +51,12 @@ function getNotificationIcon(notification: NotificationRow) {
     const type = notification.type ?? notification.data?.type ?? '';
     if (type === 'batch_control_novelty') return AlertTriangle;
     if (type === 'inventory_request') return PackageCheck;
+    if (type === 'purchase_request_submitted') return ClipboardCheck;
+    if (type === 'purchase_request_responded') {
+        const action = notification.data?.action ?? '';
+        return action === 'approved' ? ClipboardCheck : ClipboardX;
+    }
+    if (type === 'purchase_order_created') return ShoppingCart;
     return Bell;
 }
 
@@ -58,6 +64,14 @@ function getNotificationIconClass(notification: NotificationRow): string {
     const type = notification.type ?? notification.data?.type ?? '';
     if (type === 'batch_control_novelty') return 'text-amber-500';
     if (type === 'inventory_request') return 'text-blue-500';
+    if (type === 'purchase_request_submitted') return 'text-blue-500';
+    if (type === 'purchase_request_responded') {
+        const action = notification.data?.action ?? '';
+        if (action === 'approved') return 'text-green-600';
+        if (action === 'rejected' || action === 'cancelled') return 'text-destructive';
+        return 'text-muted-foreground';
+    }
+    if (type === 'purchase_order_created') return 'text-violet-500';
     return 'text-muted-foreground';
 }
 
@@ -91,7 +105,7 @@ function onOpenChange(open: boolean) {
 
 onMounted(() => {
     void fetchUnreadCount();
-    startPolling(30_000);
+    startPolling();
 });
 
 onUnmounted(() => {
