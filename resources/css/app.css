@@ -166,4 +166,14 @@ html {
         -moz-appearance: textfield; /* Firefox */
         appearance: textfield;
     }
+
+    /* Uppercase en todos los campos de texto excepto email, password y búsqueda */
+    input:not([type='email']):not([type='password']):not([type='search']):not([type='number']):not([type='date']),
+    textarea,
+    [data-radix-select-value],
+    .select-trigger,
+    [role='combobox'],
+    [role='option'] {
+        text-transform: uppercase;
+    }
 }

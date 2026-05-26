@@ -157,7 +157,7 @@ async function fetchWarehouses(page = 1, search = '') {
     isLoading.value = true;
     try {
         const response = await axios.get('/bodegas/data', {
-            params: { page, per_page: itemsPerPage, search },
+            params: { page, per_page: itemsPerPage.value, search },
         });
         warehouses.value = response.data.data;
         totalItems.value = response.data.total;

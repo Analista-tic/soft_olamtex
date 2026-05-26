@@ -26,7 +26,8 @@ class PurchaseRequestController extends Controller
         if ($request->boolean('fast_select')) {
             $limit = (int) $request->input('limit', 1000);
             $search = trim((string) $request->input('search', ''));
-            $options = $this->service->getApprovedOptionsForOrderSelect($request->user(), $limit, $search);
+            $myRequestsOnly = $request->boolean('my_requests');
+            $options = $this->service->getApprovedOptionsForOrderSelect($request->user(), $limit, $search, $myRequestsOnly);
 
             return response()->json([
                 'data' => $options,
@@ -267,6 +268,8 @@ class PurchaseRequestController extends Controller
         $rules = [
             'provider_name' => 'nullable|string|max:255',
             'requester_user_id' => 'nullable|exists:users,id',
+            'solicited_to' => 'nullable|in:gerencia,logistica',
+            'buyer_user_id' => 'nullable|exists:users,id',
             'date' => 'required|date',
             'destination' => 'nullable|string|max:255',
             'description' => $isUpdate ? 'sometimes|nullable|string' : 'required|string',

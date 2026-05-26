@@ -371,6 +371,7 @@ export interface PurchaseOrderItem {
     supplier_code?: string;
     supplier_color?: string;
     order_width?: number;
+    already_invoiced_qty?: number;
 }
 
 export interface PurchaseOrder {

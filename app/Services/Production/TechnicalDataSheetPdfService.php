@@ -6,6 +6,7 @@ use App\Models\Production\ProductionOrder;
 use App\Models\Production\TechnicalSheet;
 use App\Models\Production\TechnicalSheetCuttingPiece;
 use App\Models\Production\TechnicalSheetStampingImage;
+use App\Services\Settings\SettingService;
 use Barryvdh\DomPDF\Facade\Pdf as DomPDF;
 use Illuminate\Support\Facades\Storage;
 
@@ -24,6 +25,7 @@ class TechnicalDataSheetPdfService
         private TechnicalDataSheetSuppliesStore $suppliesStore,
         private TechnicalDataSheetAdditionalInfoStore $additionalInfoStore,
         private TechnicalDataSheetRollsStore $rollsStore,
+        private SettingService $settingService,
     ) {}
 
     /**
@@ -166,11 +168,49 @@ class TechnicalDataSheetPdfService
     }
 
     /**
-     * Obtiene datos de hilos normalizados.
+     * Obtiene datos de hilos normalizados, resolviendo IDs de parámetros a sus nombres legibles.
      */
     private function getThreadsData(int $opId): array
     {
-        return $this->threadsStore->read($opId);
+        $data = $this->threadsStore->read($opId);
+
+        $threadMap  = $this->buildOptionMap('hilo');
+        $gaugeMap   = $this->buildOptionMap('calibre');
+        $brandMap   = $this->buildOptionMap('thread_brands');
+        $stitchMap  = $this->buildOptionMap('puntada_por_pulgada');
+
+        $data['lines'] = array_map(function (array $line) use ($threadMap, $gaugeMap, $brandMap, $stitchMap): array {
+            $line['threadName']     = $this->resolveParamName($threadMap, $line['threadName'] ?? null);
+            $line['gauge']          = $this->resolveParamName($gaugeMap,  $line['gauge']      ?? null);
+            $line['brand']          = $this->resolveParamName($brandMap,  $line['brand']      ?? null);
+            $line['stitchesPerInch']= $this->resolveParamName($stitchMap, $line['stitchesPerInch'] ?? null);
+            return $line;
+        }, $data['lines'] ?? []);
+
+        return $data;
+    }
+
+    /** Construye un mapa id→nombre desde un parámetro de configuración. */
+    private function buildOptionMap(string $key): array
+    {
+        $map = [];
+        foreach ($this->settingService->getCatalogOptions($key) as $opt) {
+            $id = trim((string) ($opt['id'] ?? ''));
+            if ($id !== '') {
+                $map[$id] = (string) ($opt['name'] ?? $id);
+            }
+        }
+        return $map;
+    }
+
+    /** Dado un valor guardado (puede ser id o ya el nombre), retorna el nombre legible. */
+    private function resolveParamName(array $map, mixed $value): mixed
+    {
+        if ($value === null || $value === '') {
+            return $value;
+        }
+        $str = trim((string) $value);
+        return $map[$str] ?? $value;
     }
 
     /**
@@ -443,12 +483,14 @@ class TechnicalDataSheetPdfService
             $rollLines
         ));
         $locationByRollId = [];
+        $quantityByRollId = [];
         if (!empty($rollIds)) {
             \App\Models\Textil\FabricRoll::whereIn('id', array_values($rollIds))
-                ->select(['id', 'location'])
+                ->select(['id', 'location', 'quantity'])
                 ->get()
-                ->each(function ($r) use (&$locationByRollId) {
+                ->each(function ($r) use (&$locationByRollId, &$quantityByRollId) {
                     $locationByRollId[$r->id] = $r->location;
+                    $quantityByRollId[$r->id] = $r->quantity;
                 });
         }
 
@@ -467,6 +509,7 @@ class TechnicalDataSheetPdfService
             $widthCm      = is_numeric($rl['widthCm'] ?? null) ? (float) $rl['widthCm'] : null;
             $dbRollId     = is_numeric($rl['rollId'] ?? null) ? (int) $rl['rollId'] : null;
             $dbLocation   = $dbRollId ? ($locationByRollId[$dbRollId] ?? null) : null;
+            $dbQuantity   = $dbRollId ? ($quantityByRollId[$dbRollId] ?? null) : null;
 
             $lines[] = [
                 'technical_roll_id'  => $rollLineId ?: null,
@@ -481,13 +524,13 @@ class TechnicalDataSheetPdfService
                 'location'           => $consump['location']   ?? (trim((string) ($rl['location']   ?? '')) ?: null) ?? $dbLocation,
                 'roll_code'          => $consump['roll_code']  ?? (trim((string) ($rl['consecutive'] ?? '')) ?: null),
                 'roll_width_m'       => $widthCm !== null ? round($widthCm / 100, 4) : null,
-                'roll_total_meters'  => $consump['roll_total_meters']  ?? null,
+                'roll_total_meters'  => $consump['roll_total_meters']  ?? $dbQuantity,
                 'meters_per_roll'    => $consump['meters_per_roll']    ?? $programmedMeters,
                 'layers_fabric'      => $consump['layers_fabric']      ?? null,
                 'layers_liquidation' => $consump['layers_liquidation'] ?? null,
                 'layers_herringbone' => $consump['layers_herringbone'] ?? null,
                 'total_consumption'  => $consump['total_consumption']  ?? null,
-                'restante'           => $consump['restante']           ?? null,
+                'restante'           => $consump['restante']           ?? $programmedMeters,
                 'retazo_1'           => $consump['retazo_1']           ?? null,
             ];
         }

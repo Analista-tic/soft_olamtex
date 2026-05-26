@@ -19,7 +19,7 @@ import type { Contact } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import axios from 'axios';
-import { Plus, X } from 'lucide-vue-next';
+import { LockKeyhole, Plus, X } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import ContactDialog from '@/pages/MasterData/Contact/ContactDialog.vue';
 import PurchaseOrderItemsTable from './PurchaseOrderItemsTable.vue';
@@ -39,6 +39,11 @@ const emit = defineEmits<{
 const dialogOpen = ref(props.isOpen);
 const localForm = ref<Partial<PurchaseOrder>>(createDefaultForm());
 const contacts = ref<Contact[]>([]);
+const contactsPage = ref(1);
+const contactsHasMore = ref(false);
+const isLoadingContacts = ref(false);
+const isLoadingMoreContacts = ref(false);
+const CONTACTS_PER_PAGE = 30;
 const isContactDialogOpen = ref(false);
 const contactDialogError = ref('');
 const contactDialogForm = ref<Partial<Contact>>({ groups: [] });
@@ -327,16 +332,45 @@ function resetForm(source: Partial<PurchaseOrder> = props.form) {
     originalFormSnapshot.value = stableStringify(localForm.value);
 }
 
-async function fetchContacts() {
-    try {
-        const { data } = await axios.get<Contact[]>('/contactos/list', {
-            params: { contact_types: ['proveedor', 'cliente_proveedor'] },
-        });
-        contacts.value = Array.isArray(data) ? data : [];
-    } catch (e) {
+async function fetchContacts(page = 1) {
+    if (page === 1) {
+        isLoadingContacts.value = true;
         contacts.value = [];
-        console.error('Error fetching contacts:', e);
+        contactsPage.value = 1;
+    } else {
+        isLoadingMoreContacts.value = true;
     }
+    try {
+        const [res1, res2] = await Promise.all([
+            axios.get('/contactos/data', { params: { contact_type: 'proveedor', per_page: CONTACTS_PER_PAGE, page } }),
+            axios.get('/contactos/data', { params: { contact_type: 'cliente_proveedor', per_page: CONTACTS_PER_PAGE, page } }),
+        ]);
+        const p1: any[] = res1.data?.data ?? [];
+        const p2: any[] = res2.data?.data ?? [];
+        const newItems = [...p1, ...p2];
+        if (page === 1) {
+            contacts.value = newItems as Contact[];
+        } else {
+            const seen = new Set(contacts.value.map((c) => c.id));
+            contacts.value = [...contacts.value, ...(newItems.filter((c: any) => !seen.has(c.id)) as Contact[])];
+        }
+        const total1: number = res1.data?.total ?? 0;
+        const total2: number = res2.data?.total ?? 0;
+        contactsHasMore.value = page * CONTACTS_PER_PAGE < total1 || page * CONTACTS_PER_PAGE < total2;
+    } catch (e) {
+        if (page === 1) contacts.value = [];
+        contactsHasMore.value = false;
+        console.error('Error fetching contacts:', e);
+    } finally {
+        isLoadingContacts.value = false;
+        isLoadingMoreContacts.value = false;
+    }
+}
+
+async function loadMoreContacts() {
+    if (!contactsHasMore.value || isLoadingMoreContacts.value) return;
+    contactsPage.value++;
+    await fetchContacts(contactsPage.value);
 }
 
 function openContactDialog() {
@@ -769,6 +803,18 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                 </div>
             </DialogHeader>
 
+            <!-- Motivo de cierre manual — visible siempre, fuera del scroll -->
+            <div
+                v-if="localForm.status === 'invoiced' && localForm.closure_reason"
+                class="flex gap-3 border-b border-amber-200 bg-amber-50 px-5 py-3"
+            >
+                <LockKeyhole class="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <div class="text-sm text-amber-800">
+                    <p class="font-semibold">Orden cerrada manualmente</p>
+                    <p class="mt-0.5">{{ localForm.closure_reason }}</p>
+                </div>
+            </div>
+
             <div class="relative min-h-0 flex-1 overflow-y-auto px-5 py-4" :class="{ 'min-h-[420px]': isBlockingLoading }" style="scrollbar-width: thin">
                 <AlertStack
                     :success-message="successMessage"
@@ -868,10 +914,14 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                             :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
                                             :disabled="isReadOnly || !canEdit"
                                             :searchable="true"
+                                            :loading="isLoadingContacts"
+                                            :has-more="contactsHasMore"
+                                            :loading-more="isLoadingMoreContacts"
                                             :action-label="(!isReadOnly && canEdit) ? 'Nuevo contacto' : undefined"
                                             :action-disabled="isReadOnly || !canEdit"
                                             required
                                             @action="openContactDialog"
+                                            @load-more="loadMoreContacts"
                                         />
                                     </div>
                                     <InputField
@@ -1015,6 +1065,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                 </div>
                             </div>
                         </div>
+
                     </form>
                 </template>
             </div>

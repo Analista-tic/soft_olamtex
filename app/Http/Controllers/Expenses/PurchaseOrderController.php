@@ -62,7 +62,23 @@ class PurchaseOrderController extends PurchaseDocumentController
 
     public function show(PurchaseDocument $purchaseDocument)
     {
-        return $this->showGeneric($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+        $order = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
+
+        // Calcular cantidades ya facturadas por ítem
+        $invoicedQtyByItemId = \App\Models\Expenses\PurchaseDocumentItem::whereIn(
+            'purchase_document_id',
+            \App\Models\Expenses\PurchaseDocument::where('parent_document_id', $order->id)
+                ->where('document_type', \App\Models\Expenses\PurchaseDocument::TYPE_INVOICE)
+                ->whereNull('deleted_at')
+                ->pluck('id')
+        )->get()->groupBy('item_id')->map(fn($g) => $g->sum(fn($i) => (float) $i->quantity));
+
+        $order->items->each(function ($item) use ($invoicedQtyByItemId) {
+            $item->already_invoiced_qty = (float) ($invoicedQtyByItemId[$item->item_id] ?? 0);
+        });
+
+        return response()->json(['data' => $order]);
     }
 
     public function update(Request $request, PurchaseDocument $purchaseDocument)
@@ -125,13 +141,6 @@ class PurchaseOrderController extends PurchaseDocumentController
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
         $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
 
-        if ($purchaseDocument->children()
-            ->where('document_type', PurchaseDocument::TYPE_INVOICE)
-            ->exists()
-        ) {
-            throw new \RuntimeException('La orden de compra ya tiene una factura vinculada.');
-        }
-
         try {
             $invoice = $this->service->convertOrderToInvoice($purchaseDocument);
             return response()->json([
@@ -158,6 +167,22 @@ class PurchaseOrderController extends PurchaseDocumentController
             ], 422);
         }
 
+        // Solo admin puede aprobar cualquier orden; los demás solo las propias
+        $user = $request->user();
+        if ($user && !$user->hasRole('admin')) {
+            if ((int) $purchaseDocument->buyer_user_id !== (int) $user->id) {
+                return response()->json([
+                    'message' => 'No tienes permiso para aprobar esta orden.',
+                ], 403);
+            }
+        }
+
+        // Verificar cobertura de cantidades cuando hay solicitud vinculada
+        $coverageError = $this->service->checkRequestCoverage($purchaseDocument);
+        if ($coverageError) {
+            return response()->json(['message' => $coverageError], 422);
+        }
+
         $updated = $this->service->updateDocument($purchaseDocument, [
             'status' => \App\Enums\PurchaseOrderStatus::APPROVED->value,
             'approval_status' => 'approved',
@@ -167,6 +192,32 @@ class PurchaseOrderController extends PurchaseDocumentController
 
         return response()->json([
             'message' => 'Orden de compra aprobada correctamente.',
+            'data' => $updated->toArray(),
+        ]);
+    }
+
+    public function close(Request $request, PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, $request->user());
+
+        if ($purchaseDocument->status !== \App\Enums\PurchaseOrderStatus::PARTIALLY_INVOICED->value) {
+            return response()->json([
+                'message' => 'Solo se pueden cerrar órdenes parcialmente facturadas.',
+            ], 422);
+        }
+
+        $request->validate([
+            'closure_reason' => 'required|string|max:1000',
+        ]);
+
+        $updated = $this->service->updateDocument($purchaseDocument, [
+            'status'         => \App\Enums\PurchaseOrderStatus::INVOICED->value,
+            'closure_reason' => $request->input('closure_reason'),
+        ]);
+
+        return response()->json([
+            'message' => 'Orden cerrada correctamente.',
             'data' => $updated->toArray(),
         ]);
     }

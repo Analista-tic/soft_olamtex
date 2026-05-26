@@ -70,6 +70,7 @@ watch(
 
         await initializeDialog();
     },
+    { immediate: true },
 );
 
 watch(internalIsOpen, (newValue) => {

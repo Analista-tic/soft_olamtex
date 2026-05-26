@@ -40,7 +40,7 @@ export interface NavItem {
     href: string;
     icon?: LucideIcon;
     isActive?: boolean;
-    permission?: string;
+    permission?: string | string[];
 }
 
 export interface NavGroupItem extends NavItem {

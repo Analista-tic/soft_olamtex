@@ -16,9 +16,13 @@ import axios from 'axios';
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue';
 import { useAlertStack } from '@/composables/useAlert';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
+import { useAuthStore } from '@/stores/auth';
 
 const { successMessage, errorMessage, errorType, showError, clearError, clearSuccess } = useAlertStack();
 const { company, logoUrl } = useCompanyInfo();
+const authStore = useAuthStore();
+const canSeeAllRequests = computed(() => authStore.can('ver todos ordenes compra'));
+const myRequestsOnly = ref(false);
 const ContactDialog = defineAsyncComponent(() => import('@/pages/MasterData/Contact/ContactDialog.vue'));
 
 const props = withDefaults(defineProps<{ mode?: 'create' | 'edit'; form?: any }>(), { mode: 'create', form: null });
@@ -27,6 +31,10 @@ const mode = computed(() => props.mode || 'create');
 
 const localForm = ref<any>(createDefaultForm());
 const contacts = ref<any[]>([]);
+const contactsPage = ref(1);
+const contactsHasMore = ref(false);
+const isLoadingMoreContacts = ref(false);
+const CONTACTS_PER_PAGE = 30;
 const nextDocumentNumber = ref<string>('');
 const isLoadingDocumentNumber = ref(false);
 const isContactDialogOpen = ref(false);
@@ -38,6 +46,7 @@ const selectedRequestValue = ref<number | null>(null);
 const selectedPurchaseRequest = ref<any | null>(null);
 const isLoading = ref(false);
 const isSubmitting = ref(false);
+const deliveryDateError = ref(false);
 const isLoadingRequest = ref(false);
 const isLoadingPurchaseRequests = ref(false);
 const isLoadingContacts = ref(false);
@@ -66,16 +75,22 @@ const pendingRequestOptions = computed(() => {
             requestNumber = String(request?.id ?? '');
         }
 
-        const providerName = request?.provider_name || '';
-        const labelParts = [requestNumber];
-        if (providerName) labelParts.push(providerName);
-
         return {
             id: optionId,
-            name: labelParts.join(' · '),
+            name: requestNumber,
+            requester_name: request?.requester_name || '',
+            created_at: request?.created_at || null,
         };
     });
 });
+
+function daysAgo(isoDate: string | null): { label: string; urgent: boolean } {
+    if (!isoDate) return { label: '', urgent: false };
+    const diff = Math.floor((Date.now() - new Date(isoDate).getTime()) / 86_400_000);
+    if (diff === 0) return { label: 'hoy', urgent: false };
+    if (diff === 1) return { label: 'hace 1 día', urgent: false };
+    return { label: `hace ${diff} días`, urgent: diff >= 7 };
+}
 
 function formatCurrency(value: number) {
     return Number(value || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
@@ -147,19 +162,69 @@ const requestItemsForTable = computed(() => {
     return normalizeRequestItems((localForm.value as any)?.purchase_request?.items);
 });
 
-async function fetchContacts() {
-    isLoadingContacts.value = true;
+let contactSearchTerm = '';
+let contactSearchTimer: ReturnType<typeof setTimeout> | undefined;
+
+async function fetchContacts(page = 1, search = '') {
+    // Guardar contacto seleccionado ANTES de limpiar la lista
+    const selectedContactId = Number(localForm.value.contact_id ?? 0);
+    const preservedContact = page === 1 && selectedContactId > 0
+        ? (contacts.value.find((c: any) => Number(c.id) === selectedContactId) ?? null)
+        : null;
+
+    if (page === 1) {
+        isLoadingContacts.value = true;
+        contacts.value = preservedContact ? [preservedContact] : [];
+        contactsPage.value = 1;
+    } else {
+        isLoadingMoreContacts.value = true;
+    }
     try {
-        const { data } = await axios.get('/contactos/list', {
-            params: { contact_types: ['proveedor', 'cliente_proveedor'] },
-        });
-        contacts.value = Array.isArray(data) ? data : [];
+        const params = (type: string) => ({ contact_type: type, per_page: CONTACTS_PER_PAGE, page, ...(search ? { search } : {}) });
+        const [res1, res2] = await Promise.all([
+            axios.get('/contactos/data', { params: params('proveedor') }),
+            axios.get('/contactos/data', { params: params('cliente_proveedor') }),
+        ]);
+        const p1: any[] = res1.data?.data ?? [];
+        const p2: any[] = res2.data?.data ?? [];
+        const newItems = [...p1, ...p2];
+        if (page === 1) {
+            contacts.value = preservedContact && !newItems.some((c: any) => Number(c.id) === selectedContactId)
+                ? [preservedContact, ...newItems]
+                : newItems;
+        } else {
+            const seen = new Set(contacts.value.map((c: any) => c.id));
+            contacts.value = [...contacts.value, ...newItems.filter((c: any) => !seen.has(c.id))];
+        }
+        const total1: number = res1.data?.total ?? 0;
+        const total2: number = res2.data?.total ?? 0;
+        contactsHasMore.value = page * CONTACTS_PER_PAGE < total1 || page * CONTACTS_PER_PAGE < total2;
+        const contactId = Number(localForm.value.contact_id ?? 0);
+        if (page === 1 && contactId > 0 && !contacts.value.some((c: any) => Number(c.id) === contactId)) {
+            void fetchContactDetail(contactId);
+        }
     } catch (e) {
-        contacts.value = [];
+        if (page === 1) contacts.value = [];
+        contactsHasMore.value = false;
         console.error(e);
     } finally {
         isLoadingContacts.value = false;
+        isLoadingMoreContacts.value = false;
     }
+}
+
+function handleContactSearch(term: string) {
+    contactSearchTerm = term;
+    if (contactSearchTimer) clearTimeout(contactSearchTimer);
+    contactSearchTimer = setTimeout(() => {
+        void fetchContacts(1, contactSearchTerm);
+    }, 300);
+}
+
+async function loadMoreContacts() {
+    if (!contactsHasMore.value || isLoadingMoreContacts.value) return;
+    contactsPage.value++;
+    await fetchContacts(contactsPage.value, contactSearchTerm);
 }
 
 async function fetchContactDetail(contactId: number | null) {
@@ -178,9 +243,11 @@ async function fetchContactDetail(contactId: number | null) {
 async function fetchPendingPurchaseRequests(search = '') {
     isLoadingPurchaseRequests.value = true;
     try {
-        const response = await axios.get('/gastos/solicitudes-compra/data', {
-            params: { fast_select: true, limit: 200, search: search.trim() },
-        });
+        const params: Record<string, any> = { fast_select: true, limit: 200, search: search.trim() };
+        if (canSeeAllRequests.value && myRequestsOnly.value) {
+            params.my_requests = true;
+        }
+        const response = await axios.get('/gastos/solicitudes-compra/data', { params });
         let allRequests: any[] = [];
         if (Array.isArray(response.data?.data)) allRequests = response.data.data;
         purchaseRequests.value = allRequests;
@@ -301,11 +368,18 @@ function validateForm(): boolean {
 
     if (!localForm.value.contact_id) missingFields.push('Proveedor');
     if (!localForm.value.date) missingFields.push('Fecha de creación');
+    deliveryDateError.value = !localForm.value.delivery_date;
     if (!localForm.value.delivery_date) missingFields.push('Fecha de entrega');
     if (!String(localForm.value.supplier_order_number || '').trim()) missingFields.push('N° Orden proveedor');
 
     if (missingFields.length > 0) {
         showError(`Completa los campos obligatorios: ${missingFields.join(', ')}.`);
+        return false;
+    }
+
+    if (localForm.value.date && localForm.value.delivery_date && localForm.value.delivery_date < localForm.value.date) {
+        deliveryDateError.value = true;
+        showError('La fecha de entrega no puede ser anterior a la fecha de creación.');
         return false;
     }
 
@@ -414,6 +488,7 @@ async function loadRequestToOrder(requestId: number) {
         localForm.value.contact_id = foundContact ? Number(foundContact.id) : null;
         localForm.value.description = request.description || '';
         localForm.value.purchase_request_id = Number(requestId);
+        localForm.value.buyer_user_id = request.buyer_user_id || null;
 
         const rawItems = Array.isArray(request.items) ? request.items : [];
         localForm.value.items = rawItems.length
@@ -451,6 +526,11 @@ watch(selectedRequestId, async (id) => {
         await loadRequestToOrder(id);
     }
 });
+
+watch(myRequestsOnly, () => {
+    selectedRequestValue.value = null;
+    void fetchPendingPurchaseRequests();
+});
 </script>
 
 <template>
@@ -468,9 +548,23 @@ watch(selectedRequestId, async (id) => {
                     <h1 class="text-lg font-bold">{{ mode === 'create' ? 'Nueva Orden de Compra' : 'Editar Orden de Compra' }}</h1>
                     <p class="text-sm text-muted-foreground">Completa los campos y añade los ítems de la orden.</p>
                 </div>
-                <div v-if="mode === 'create'" class="w-full sm:w-[340px] shrink-0">
+                <div v-if="mode === 'create'" class="w-full sm:w-[420px] shrink-0">
                     <div class="space-y-1">
-                        <label class="text-sm font-medium leading-none text-foreground">Cargar desde orden pendiente</label>
+                        <div class="flex items-center justify-between gap-2">
+                            <label class="text-sm font-medium leading-none text-foreground">Cargar desde orden pendiente</label>
+                            <div v-if="canSeeAllRequests" class="flex rounded-md border border-input overflow-hidden text-xs">
+                                <button
+                                    type="button"
+                                    :class="['px-2 py-1 transition-colors', !myRequestsOnly ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted']"
+                                    @click="myRequestsOnly = false"
+                                >Todas</button>
+                                <button
+                                    type="button"
+                                    :class="['px-2 py-1 transition-colors', myRequestsOnly ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted']"
+                                    @click="myRequestsOnly = true"
+                                >Mis solicitudes</button>
+                            </div>
+                        </div>
                         <SelectField
                             v-model="selectedRequestValue"
                             :options="pendingRequestOptions"
@@ -483,7 +577,25 @@ watch(selectedRequestId, async (id) => {
                             :loading="isLoadingPurchaseRequests"
                             :clearable="true"
                             @search="handlePurchaseRequestSearch"
-                        />
+                        >
+                            <template #option="{ option }">
+                                <div class="flex flex-col gap-0.5 py-0.5">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-medium text-sm">{{ option.name }}</span>
+                                        <span
+                                            v-if="option.created_at"
+                                            :class="[
+                                                'text-xs font-normal',
+                                                daysAgo(option.created_at).urgent ? 'text-amber-600' : 'text-muted-foreground',
+                                            ]"
+                                        >· {{ daysAgo(option.created_at).label }}</span>
+                                    </div>
+                                    <span v-if="option.requester_name" class="text-xs text-muted-foreground truncate">
+                                        {{ option.requester_name }}
+                                    </span>
+                                </div>
+                            </template>
+                        </SelectField>
                         <p v-if="isLoadingRequest" class="text-xs text-muted-foreground animate-pulse">
                             Cargando datos de la solicitud...
                         </p>
@@ -520,7 +632,9 @@ watch(selectedRequestId, async (id) => {
                                     label=""
                                     :clearable="true"
                                     :show-today="true"
+                                    :error="deliveryDateError"
                                     required
+                                    @update:model-value="deliveryDateError = false"
                                 />
                             </div>
                         </div>
@@ -560,11 +674,16 @@ watch(selectedRequestId, async (id) => {
                                 label="Proveedor"
                                 :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
                                 :searchable="true"
+                                :server-search="true"
                                 :loading="isLoadingContacts"
+                                :has-more="contactsHasMore"
+                                :loading-more="isLoadingMoreContacts"
                                 :action-label="'Nuevo contacto'"
                                 :action-disabled="false"
                                 :clearable="true"
                                 @action="openContactDialog"
+                                @load-more="loadMoreContacts"
+                                @search="handleContactSearch"
                                 required
                             />
                         </div>

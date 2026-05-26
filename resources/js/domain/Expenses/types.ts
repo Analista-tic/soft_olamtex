@@ -16,6 +16,7 @@ export interface PurchaseOrderItem {
     image_url?: string | null;
     _image_file?: File | null;
     _delete_image?: boolean;
+    already_invoiced_qty?: number;
 }
 export interface PurchaseOrder {
     id?: number;
@@ -36,6 +37,7 @@ export interface PurchaseOrder {
     rejected_by_user_id?: number | null;
     rejected_at?: string | null;
     rejection_reason?: string | null;
+    closure_reason?: string | null;
     purchase_request_id?: number | null;
 }
 

@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { useAuthStore } from '@/stores/auth';
 import type { PurchaseRequest } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
@@ -57,6 +58,10 @@ const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const { successMessage, errorMessage, errorType, clearSuccess, clearError, showError, showWarning } = useAlertStack();
+const authStore = useAuthStore();
+const hasApprovePermission = computed(() => authStore.can('aprobar solicitudes compra'));
+const hasRejectPermission = computed(() => authStore.can('rechazar solicitudes compra'));
+const hasCancelPermission = computed(() => authStore.can('cancelar solicitudes compra'));
 
 const statusOptions = [
     { id: 'all', name: 'Todos los estados' },
@@ -299,9 +304,9 @@ const getStatusTone = (status?: string): 'gray' | 'yellow' | 'green' | 'blue' | 
 const canEditRequest = (request: PurchaseRequest): boolean => request.status === 'draft';
 
 const canSendToApproval = (request: PurchaseRequest): boolean => request.status === 'draft';
-const canApprove = (request: PurchaseRequest): boolean => request.status === 'pending';
-const canReject = (request: PurchaseRequest): boolean => request.status === 'pending';
-const canCancel = (request: PurchaseRequest): boolean => request.status === 'draft' || request.status === 'pending';
+const canApprove = (request: PurchaseRequest): boolean => request.status === 'pending' && hasApprovePermission.value;
+const canReject = (request: PurchaseRequest): boolean => request.status === 'pending' && hasRejectPermission.value;
+const canCancel = (request: PurchaseRequest): boolean => (request.status === 'draft' || request.status === 'pending') && hasCancelPermission.value;
 
 async function fetchRequests(page = 1) {
     isLoading.value = true;

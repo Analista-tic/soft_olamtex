@@ -63,7 +63,7 @@ const taxOptions = computed(() => [
 ]);
 
 const itemOptions = computed(() => {
-    return catalogItems.value
+    const baseOptions = catalogItems.value
         .filter((item) => {
             const isFabric = isTelaItem(item);
             if (props.telaMode === true) return isFabric;
@@ -74,6 +74,21 @@ const itemOptions = computed(() => {
             id: item.id,
             name: item.name,
         }));
+
+    // Mientras el catálogo no cargue, incluir opciones temporales de los ítems ya seleccionados
+    // usando item_name que viene de la orden. Evita mostrar el ID crudo durante el fetch.
+    const catalogIds = new Set(baseOptions.map((o) => Number(o.id)));
+    const seenIds = new Set<number>();
+    const synthetic = localItems.value
+        .filter((item) => item.item_id && item.item_name && !catalogIds.has(Number(item.item_id)))
+        .map((item) => ({ id: Number(item.item_id), name: item.item_name as string }))
+        .filter((o) => {
+            if (seenIds.has(o.id)) return false;
+            seenIds.add(o.id);
+            return true;
+        });
+
+    return [...synthetic, ...baseOptions];
 });
 
 const shouldShowFabricColumns = computed(() => {
@@ -390,8 +405,10 @@ function getSuggestedQuantity(item: PurchaseInvoiceItem): number | null {
         item.original_order_item &&
         (typeof item.original_order_item.quantity === 'string' || typeof item.original_order_item.quantity === 'number')
     ) {
-        const quantity = Number(item.original_order_item.quantity);
-        return isNaN(quantity) ? null : quantity;
+        const orderQty = Number(item.original_order_item.quantity);
+        if (isNaN(orderQty)) return null;
+        const alreadyInvoiced = Number(item.original_order_item.already_invoiced_qty ?? 0);
+        return alreadyInvoiced > 0 ? Math.max(0, orderQty - alreadyInvoiced) : orderQty;
     }
     return null;
 }
@@ -493,11 +510,13 @@ function getPriceDifferenceTooltip(item: PurchaseInvoiceItem): string {
 
 function getQuantityDifferenceTooltip(item: PurchaseInvoiceItem): string {
     const suggested = getSuggestedQuantity(item);
+    const alreadyInvoiced = Number(item.original_order_item?.already_invoiced_qty ?? 0);
+    const label = alreadyInvoiced > 0 ? 'Pendiente por facturar' : 'Cantidad orden';
     if (suggested === null) {
         return 'La cantidad del ítem difiere de la orden de compra.';
     }
 
-    return `Cantidad orden: ${Number(suggested).toLocaleString('es-CO')}. Cantidad actual: ${Number(item.quantity || 0).toLocaleString('es-CO')}.`;
+    return `${label}: ${Number(suggested).toLocaleString('es-CO')}. Cantidad actual: ${Number(item.quantity || 0).toLocaleString('es-CO')}.`;
 }
 
 defineExpose({ addItem });
@@ -660,7 +679,15 @@ defineExpose({ addItem });
                                 </div>
                                 <div class="mt-1 min-h-[20px] text-xs text-gray-500">
                                     <template v-if="getSuggestedQuantity(item) !== null">
-                                        Cantidad: {{ Number(getSuggestedQuantity(item)).toLocaleString('es-CO') }}
+                                        <template v-if="Number(item.original_order_item?.already_invoiced_qty) > 0">
+                                            <span class="text-amber-600 font-medium">
+                                                Pendiente: {{ Math.max(0, Number(item.original_order_item?.quantity) - Number(item.original_order_item?.already_invoiced_qty)).toLocaleString('es-CO') }} de {{ Number(item.original_order_item?.quantity).toLocaleString('es-CO') }}
+                                            </span>
+                                            <span class="ml-1 text-gray-400">(Facturado: {{ Number(item.original_order_item?.already_invoiced_qty).toLocaleString('es-CO') }})</span>
+                                        </template>
+                                        <template v-else>
+                                            Cantidad: {{ Number(getSuggestedQuantity(item)).toLocaleString('es-CO') }}
+                                        </template>
                                     </template>
                                 </div>
                             </div>

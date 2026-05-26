@@ -134,7 +134,7 @@ class PurchaseDocumentController extends Controller
             'provider_name' => $isUpdate ? 'sometimes|required_without:contact_id|string|max:255' : 'required_without:contact_id|string|max:255',
             'provider_phone' => 'nullable|string|max:50',
             'date' => 'required|date',
-            'delivery_date' => 'required|date',
+            'delivery_date' => 'required|date|after_or_equal:date',
             'supplier_order_number' => 'required|string|max:255',
             'description' => 'nullable|string',
             'status' => 'sometimes|in:pending,approved,sent,received,invoiced,cancelled',

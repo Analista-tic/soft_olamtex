@@ -80,18 +80,18 @@ const moduleSections: ModuleSection[] = [
             {
                 label: 'Compras',
                 items: [
-                    { title: 'Solicitud de compra', href: '/gastos/solicitudes-compra', permission: 'ver gastos' },
-                    { title: 'Orden de compra', href: '/gastos/ordenes-compra', permission: 'ver gastos' },
-                    { title: 'Factura de compra', href: '/gastos/facturas-compra', permission: 'ver gastos' },
-                    { title: 'Factura de compra tela', href: '/gastos/facturas-compra-tela', permission: 'ver gastos' },
-                    { title: 'Recepciones', href: '/kardex-telas/recepcion' },
-                    { title: 'Notas Crédito / Débito', href: '/notas-credito-debito?context=purchase', permission: 'ver gastos' },
+                    { title: 'Solicitud de compra', href: '/gastos/solicitudes-compra', permission: ['ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra'] },
+                    { title: 'Orden de compra', href: '/gastos/ordenes-compra', permission: 'ver ordenes compra' },
+                    { title: 'Factura de compra', href: '/gastos/facturas-compra', permission: 'ver facturas compra' },
+                    { title: 'Factura de compra tela', href: '/gastos/facturas-compra-tela', permission: 'ver facturas compra' },
+                    { title: 'Recepciones', href: '/kardex-telas/recepcion', permission: 'ver recepcion telas' },
+                    { title: 'Notas Crédito / Débito', href: '/notas-credito-debito?context=purchase', permission: 'ver notas credito debito' },
                 ],
             },
             {
                 label: 'Cartera proveedores',
                 items: [
-                    { title: 'Comprobante de egreso', href: '/finanzas/comprobantes-egreso' },
+                    { title: 'Comprobante de egreso', href: '/finanzas/comprobantes-egreso', permission: 'ver comprobantes egreso' },
                     // { title: 'Pagos', href: underConstructionHref('Pagos') },
                 ],
             },
@@ -196,7 +196,7 @@ const moduleSections: ModuleSection[] = [
 
 const sectionPermissions: Partial<Record<ModuleSection['title'], PermissionRequirement>> = {
     Ingresos: 'ver ingresos',
-    Gastos: ['ver todos solicitudes compra', 'ver todos documentos compra', 'ver facturas compra'],
+    Gastos: ['ver todos solicitudes compra', 'ver todos documentos compra', 'ver facturas compra', 'ver propios solicitudes compra', 'crear solicitudes compra'],
     Financiero: 'ver financiero',
     Inventarios: ['ver solicitudes insumos', 'ver inventario telas'],
     Producción: ['ver programador', 'ver sabana productos', 'ver listados operacionales'],

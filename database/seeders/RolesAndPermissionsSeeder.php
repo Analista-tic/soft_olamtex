@@ -151,12 +151,22 @@ class RolesAndPermissionsSeeder extends Seeder
             'editar facturas compra',
             'eliminar facturas compra',
             'aprobar facturas compra',
+            'recibir factura compra',
+            'anular factura compra',
             'gestionar diferencias factura compra',
 
             // Visibilidad - Facturas de compra
             'ver propios facturas compra',
             'ver area facturas compra',
             'ver todos facturas compra',
+
+            // Solicitudes de compra
+            'crear solicitudes compra',
+            'editar solicitudes compra',
+            'eliminar solicitudes compra',
+            'aprobar solicitudes compra',
+            'rechazar solicitudes compra',
+            'cancelar solicitudes compra',
 
             // Visibilidad - Solicitudes de compra
             'ver propios solicitudes compra',
@@ -197,6 +207,19 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver personalizacion',
             'editar personalizacion',
             'ver solicitudes insumos',
+            'ver gastos',
+            'ver contactos',
+            'ver ordenes compra',
+            'crear ordenes compra',
+            'editar ordenes compra',
+            'eliminar ordenes compra',
+            'ver facturas compra',
+            'recibir factura compra',
+            'aprobar recepcion tela',
+            'rechazar recepcion tela',
+            'ver propios solicitudes compra',
+            'crear solicitudes compra',
+            'editar solicitudes compra',
         ]);
 
         // Produccion: Producción + Diseño + Comercial
@@ -241,9 +264,21 @@ class RolesAndPermissionsSeeder extends Seeder
 
             // Solicitudes de compra: solo las propias
             'ver gastos',
+            'ver contactos',
             'ver ordenes compra',
+            'crear ordenes compra',
+            'editar ordenes compra',
+            'eliminar ordenes compra',
+            'ver facturas compra',
+            'recibir factura compra',
+            'aprobar recepcion tela',
+            'rechazar recepcion tela',
             'ver propios solicitudes compra',
+            'crear solicitudes compra',
+            'editar solicitudes compra',
         ]);
+
+
 
         // Contabilidad: financiero + compras
         $contabilidad = Role::firstOrCreate(['name' => 'contabilidad']);
@@ -257,7 +292,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver ingresos',
             'ver gastos',
             'ver financiero',
-            'ver todos solicitudes compra',
+            'ver propios solicitudes compra',
+            'crear solicitudes compra',
+            'editar solicitudes compra',
             'ver todos documentos compra',
             'ver todos solicitudes insumos',
 
@@ -294,6 +331,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'crear ordenes compra',
             'editar ordenes compra',
             'eliminar ordenes compra',
+            'ver todos ordenes compra',
 
             // Facturas de compra
             'ver facturas compra',
@@ -302,6 +340,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'eliminar facturas compra',
             'aprobar facturas compra',
             'gestionar diferencias factura compra',
+            'ver todos facturas compra',
         ]);
 
         // Logística: inventario completo + atender solicitudes + ver compras
@@ -342,8 +381,16 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver todos transferencias bodegas',
 
             'ver ordenes compra',
+            'crear ordenes compra',
+            'editar ordenes compra',
+            'eliminar ordenes compra',
             'ver facturas compra',
+            'crear facturas compra',
+            'editar facturas compra',
             'ver gastos',
+            'ver todos solicitudes compra',
+            'crear solicitudes compra',
+            'editar solicitudes compra',
         ]);
 
         // Obtener catalogo de areas desde settings (kind=parameter, key=areas)
@@ -356,7 +403,7 @@ class RolesAndPermissionsSeeder extends Seeder
 
         $usuariosEjemplo = [
             // GERENCIA
-            ['name' => 'Luis Felipe Aristizabal Echeverry', 'email' => 'l.aristizabal@olamtex.co',  'password' => Hash::make('admin123'),      'area_id' => $this->resolveAreaId($areas, ['Gerencia']),               'role' => $admin],
+            ['name' => 'Luis Felipe Aristizabal Echeverry', 'email' => 'l.aristizabal@olamtex.co',  'password' => Hash::make('L'),      'area_id' => $this->resolveAreaId($areas, ['Gerencia']),               'role' => $admin],
 
             // TICS
             ['name' => 'Kenier Steven Morales Cardenas',    'email' => 'k.morales@olamtex.co',       'password' => Hash::make('tics123'),       'area_id' => $this->resolveAreaId($areas, ['Tics']),                   'role' => $admin],

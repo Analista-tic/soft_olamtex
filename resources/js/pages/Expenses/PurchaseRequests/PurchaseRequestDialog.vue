@@ -5,6 +5,7 @@ import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
+import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -13,6 +14,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
 import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import type { PurchaseRequestForm, PurchaseRequestItem } from '@/domain/Expenses';
+import { useAuthStore } from '@/stores/auth';
 import axios from 'axios';
 import { Plus } from 'lucide-vue-next';
 import { computed, nextTick, ref, watch } from 'vue';
@@ -21,6 +23,9 @@ import PurchaseRequestItemsTable from './PurchaseRequestItemsTable.vue';
 type PurchaseRequestDialogForm = Omit<PurchaseRequestForm, 'items' | 'estimated_amount'> & {
     items?: PurchaseRequestItem[];
     estimated_amount?: number | null;
+    requester?: { name?: string };
+    solicited_to?: 'gerencia' | 'logistica' | null;
+    buyer_user_id?: number | null;
 };
 
 const props = defineProps<{
@@ -38,9 +43,12 @@ const emit = defineEmits<{
 
 const PURCHASE_REQUESTS_BASE_URL = '/gastos/solicitudes-compra';
 
+const authStore = useAuthStore();
 const dialogOpen = ref(props.isOpen);
 const localForm = ref<PurchaseRequestDialogForm>(createDefaultForm());
 const isLoading = ref(false);
+const users = ref<{ id: number; name: string; area_name: string }[]>([]);
+const isLoadingUsers = ref(false);
 const isSubmittingDialog = ref(false);
 const nextRequestId = ref<number | null>(null);
 const isLoadingRequestId = ref(false);
@@ -63,6 +71,8 @@ function createDefaultForm(): PurchaseRequestDialogForm {
         request_number: '',
         provider_name: null,
         requester_user_id: null,
+        solicited_to: null,
+        buyer_user_id: null,
         date: getTodayDate(),
         destination: '',
         estimated_amount: null,
@@ -169,6 +179,43 @@ const canSendToApproval = computed(() => {
     return status === 'draft' || status === undefined || status === null;
 });
 
+const solicitadoAOptions = [
+    { id: 'gerencia', name: 'Gerencia' },
+    { id: 'logistica', name: 'Logística' },
+];
+
+const canSelectRequester = computed(() => authStore.can('ver todos solicitudes compra'));
+
+const currentRequesterName = computed(() => {
+    if (localForm.value.requester?.name) {
+        return localForm.value.requester.name;
+    }
+    const user = authStore.user as any;
+    return user?.name ?? '';
+});
+
+const userOptions = computed(() =>
+    users.value.map((u) => ({
+        id: u.id,
+        name: u.area_name ? `${u.name} — ${u.area_name}` : u.name,
+    })),
+);
+
+async function fetchUsers(search = ''): Promise<void> {
+    isLoadingUsers.value = true;
+    try {
+        const { data } = await axios.get('/usuarios/list', {
+            params: search ? { search } : {},
+        });
+        users.value = Array.isArray(data.data) ? data.data : [];
+    } catch (err) {
+        console.error('Error cargando usuarios:', err);
+        users.value = [];
+    } finally {
+        isLoadingUsers.value = false;
+    }
+}
+
 function scrollToDialogTop() {
     const dialogEl = document.querySelector('[role="dialog"]');
     dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -249,7 +296,10 @@ async function initializeDialog() {
 
     try {
         await nextTick();
+        await authStore.fetchUser();
         resetForm();
+
+        await fetchUsers();
 
         if (props.dialogType === 'edit' && props.form?.id) {
             const { data } = await axios.get(`${PURCHASE_REQUESTS_BASE_URL}/${props.form.id}`);
@@ -259,6 +309,10 @@ async function initializeDialog() {
         }
 
         if (props.dialogType === 'create') {
+            const user = authStore.user as any;
+            if (user?.id && !localForm.value.requester_user_id) {
+                localForm.value.requester_user_id = user.id;
+            }
             nextRequestId.value = null;
             await fetchNextRequestId();
         }
@@ -544,6 +598,79 @@ watch(dialogOpen, (isOpen) => {
                                     </div>
                                 </div>
 
+                                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                    <div class="flex flex-col gap-1.5">
+                                        <div class="flex items-center gap-2">
+                                            <Label class="text-sm font-medium">Solicitante</Label>
+                                            <HelpTooltip
+                                                text="Persona que realiza la solicitud de compra."
+                                                aria-label="Ayuda sobre solicitante"
+                                            />
+                                        </div>
+                                        <SelectField
+                                            v-if="canSelectRequester"
+                                            label=""
+                                            v-model="localForm.requester_user_id"
+                                            :options="userOptions"
+                                            :searchable="true"
+                                            :loading="isLoadingUsers"
+                                            :disabled="isReadOnly"
+                                            option-label="name"
+                                            option-value="id"
+                                            placeholder="Selecciona un usuario"
+                                            @search="(t) => fetchUsers(t)"
+                                        />
+                                        <InputField
+                                            v-else
+                                            label=""
+                                            :model-value="currentRequesterName"
+                                            :readonly="true"
+                                            placeholder="Nombre del solicitante"
+                                        />
+                                    </div>
+
+                                    <div class="flex flex-col gap-1.5">
+                                        <div class="flex items-center gap-2">
+                                            <Label class="text-sm font-medium">Solicitado a</Label>
+                                            <HelpTooltip
+                                                text="Area a quien va dirigida esta solicitud para aprobacion."
+                                                aria-label="Ayuda sobre solicitado a"
+                                            />
+                                        </div>
+                                        <SelectField
+                                            label=""
+                                            v-model="localForm.solicited_to"
+                                            :options="solicitadoAOptions"
+                                            :disabled="isReadOnly"
+                                            option-label="name"
+                                            option-value="id"
+                                            placeholder="Selecciona el area"
+                                        />
+                                    </div>
+
+                                    <div class="flex flex-col gap-1.5">
+                                        <div class="flex items-center gap-2">
+                                            <Label class="text-sm font-medium">Encargado de compra</Label>
+                                            <HelpTooltip
+                                                text="Persona encargada de gestionar esta compra."
+                                                aria-label="Ayuda sobre encargado de compra"
+                                            />
+                                        </div>
+                                        <SelectField
+                                            label=""
+                                            v-model="localForm.buyer_user_id"
+                                            :options="userOptions"
+                                            :searchable="true"
+                                            :loading="isLoadingUsers"
+                                            :disabled="isReadOnly"
+                                            option-label="name"
+                                            option-value="id"
+                                            placeholder="Selecciona un encargado"
+                                            @search="(t) => fetchUsers(t)"
+                                        />
+                                    </div>
+                                </div>
+
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div class="flex flex-col gap-1.5">
                                         <div class="flex items-center gap-2">
@@ -643,7 +770,7 @@ watch(dialogOpen, (isOpen) => {
                         :disabled="isLoading || isBlockingLoading"
                         @click="handleSubmitSafe(false)"
                     >
-                        {{ isLoading ? 'Guardando...' : 'Guardar' }}
+                        {{ isLoading ? 'Guardando...' : 'Guardar borrador' }}
                     </Button>
                     <Button
                         v-if="!props.readonly && !isReadOnly && canSendToApproval"

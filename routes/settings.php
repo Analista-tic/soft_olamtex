@@ -43,6 +43,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('permission:ver usuarios')
         ->name('users.getData');
 
+    Route::get('usuarios/list', [UserController::class, 'list'])
+        ->name('usuarios.list');
+
     Route::get('usuarios', [UserController::class, 'index'])
         ->middleware('permission:ver usuarios')
         ->name('usuarios.index');

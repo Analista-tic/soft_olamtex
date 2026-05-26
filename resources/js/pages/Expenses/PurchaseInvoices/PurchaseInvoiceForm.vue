@@ -88,7 +88,10 @@ const localForm = ref<PurchaseInvoiceForm>(createDefaultForm());
 const contacts = ref<Contact[]>([]);
 const isLoadingContacts = ref(false);
 const isLoadingPurchaseOrders = ref(false);
-let contactsRequestSequence = 0;
+const contactsPage = ref(1);
+const contactsHasMore = ref(false);
+const isLoadingMoreContacts = ref(false);
+const CONTACTS_PER_PAGE = 30;
 let purchaseOrdersRequestSequence = 0;
 
 const purchaseOrders = ref<any[]>([]);
@@ -143,6 +146,8 @@ const pendingPurchaseOrderOptions = computed(() =>
     purchaseOrders.value.map((o: any) => ({
         id: o.id,
         name: o.document_number ? `${o.document_number}` : `Orden #${o.id}`,
+        created_at: o.created_at ?? null,
+        provider_name: o.supplier?.full_name ?? o.contact?.full_name ?? o.provider_name ?? null,
     })),
 );
 
@@ -180,6 +185,14 @@ function toNumber(value: unknown): number {
     return Number.isFinite(numberValue) ? numberValue : 0;
 }
 
+function daysAgo(isoDate: string | null): { label: string; urgent: boolean } {
+    if (!isoDate) return { label: '', urgent: false };
+    const diff = Math.floor((Date.now() - new Date(isoDate).getTime()) / 86_400_000);
+    if (diff === 0) return { label: 'hoy', urgent: false };
+    if (diff === 1) return { label: 'hace 1 día', urgent: false };
+    return { label: `hace ${diff} días`, urgent: diff >= 7 };
+}
+
 function formatCurrency(value: number): string {
     return currencyFormatter.format(value);
 }
@@ -202,8 +215,10 @@ function getSuggestedQuantityForItem(item: PurchaseInvoiceItem): number | null {
         return null;
     }
 
-    const quantity = Number(item.original_order_item.quantity);
-    return Number.isFinite(quantity) ? quantity : null;
+    const orderQty = Number(item.original_order_item.quantity);
+    if (!Number.isFinite(orderQty)) return null;
+    const alreadyInvoiced = Number(item.original_order_item.already_invoiced_qty ?? 0);
+    return alreadyInvoiced > 0 ? Math.max(0, orderQty - alreadyInvoiced) : orderQty;
 }
 
 function formatDateForBackend(date: Date): string {
@@ -301,60 +316,51 @@ function resetForm(): void {
     syncDateRefsFromForm();
 }
 
-async function fetchContacts(search = ''): Promise<void> {
-    const currentSequence = ++contactsRequestSequence;
-    isLoadingContacts.value = true;
-
+async function fetchContacts(page = 1): Promise<void> {
+    if (page === 1) {
+        isLoadingContacts.value = true;
+        contacts.value = [];
+        contactsPage.value = 1;
+    } else {
+        isLoadingMoreContacts.value = true;
+    }
     try {
-        const contactRequests = [
-            axios.get('/contactos/data', {
-                params: {
-                    contact_type: 'proveedor',
-                    per_page: 80,
-                    search: search.trim(),
-                },
-            }),
-            axios.get('/contactos/data', {
-                params: {
-                    contact_type: 'cliente_proveedor',
-                    per_page: 80,
-                    search: search.trim(),
-                },
-            }),
-        ];
-
-        const [providerResponse, providerClientResponse] = await Promise.all(contactRequests);
-
-        const providers = Array.isArray(providerResponse.data?.data) ? providerResponse.data.data : [];
-
-        const providerClients = Array.isArray(providerClientResponse.data?.data) ? providerClientResponse.data.data : [];
-
-        if (currentSequence !== contactsRequestSequence) {
-            return;
+        const [res1, res2] = await Promise.all([
+            axios.get('/contactos/data', { params: { contact_type: 'proveedor', per_page: CONTACTS_PER_PAGE, page } }),
+            axios.get('/contactos/data', { params: { contact_type: 'cliente_proveedor', per_page: CONTACTS_PER_PAGE, page } }),
+        ]);
+        const p1: Contact[] = Array.isArray(res1.data?.data) ? res1.data.data : [];
+        const p2: Contact[] = Array.isArray(res2.data?.data) ? res2.data.data : [];
+        const newItems = removeDuplicatedContacts([...p1, ...p2]);
+        if (page === 1) {
+            contacts.value = newItems;
+        } else {
+            const seen = new Set(contacts.value.map((c) => c.id));
+            contacts.value = [...contacts.value, ...newItems.filter((c) => !seen.has(c.id))];
         }
-
-        contacts.value = removeDuplicatedContacts([...providers, ...providerClients]);
-
-        const selectedContactId = Number(localForm.value.contact_id ?? 0);
-        if (selectedContactId > 0 && !contacts.value.some((contact) => Number(contact.id) === selectedContactId)) {
-            void fetchContactById(selectedContactId);
+        const total1: number = res1.data?.total ?? 0;
+        const total2: number = res2.data?.total ?? 0;
+        contactsHasMore.value = page * CONTACTS_PER_PAGE < total1 || page * CONTACTS_PER_PAGE < total2;
+        const contactId = Number(localForm.value.contact_id ?? 0);
+        if (page === 1 && contactId > 0 && !contacts.value.some((c) => Number(c.id) === contactId)) {
+            void fetchContactById(contactId);
         }
     } catch {
-        if (currentSequence !== contactsRequestSequence) {
-            return;
+        if (page === 1) {
+            contacts.value = [];
+            showError('No fue posible cargar los proveedores.');
         }
-
-        contacts.value = [];
-        showError('No fue posible cargar los proveedores.');
+        contactsHasMore.value = false;
     } finally {
-        if (currentSequence === contactsRequestSequence) {
-            isLoadingContacts.value = false;
-        }
+        isLoadingContacts.value = false;
+        isLoadingMoreContacts.value = false;
     }
 }
 
-function handleContactSearch(term: string): void {
-    void fetchContacts(term);
+async function loadMoreContacts(): Promise<void> {
+    if (!contactsHasMore.value || isLoadingMoreContacts.value) return;
+    contactsPage.value++;
+    await fetchContacts(contactsPage.value);
 }
 
 async function fetchContactById(contactId: number): Promise<void> {
@@ -622,7 +628,7 @@ async function fetchPendingPurchaseOrders(search = ''): Promise<void> {
     try {
         const { data } = await axios.get('/gastos/ordenes-compra/data', {
             params: {
-                status: 'approved',
+                status: 'approved,partially_invoiced',
                 per_page: 80,
                 exclude_fabric: true,
                 search: search.trim(),
@@ -690,7 +696,8 @@ function attachOriginalOrderItemsFromOrder(order: any): void {
 }
 
 async function loadPurchaseOrderToInvoice(orderId: number) {
-    const order = purchaseOrders.value.find((o: any) => Number(o.id) === Number(orderId));
+    const fullOrder = await fetchPurchaseOrderById(orderId);
+    const order = fullOrder ?? purchaseOrders.value.find((o: any) => Number(o.id) === Number(orderId));
     if (!order) return;
     if (!contacts.value.length) await fetchContacts();
     const foundContact = contacts.value.find((c: any) => Number(c.id) === Number(order.contact_id));
@@ -711,23 +718,28 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     differenceReason.value = '';
     differenceEvidenceData.value = null;
     localForm.value.items = Array.isArray(order.items)
-        ? order.items.map((item: any) => ({
-              item_id: item.item_id,
-              item_name: item.item_name || '',
-              price: item.price != null && item.price !== '' ? Number(item.price) : '',
-              tax: Number(item.tax) || 0,
-              quantity: item.quantity != null && item.quantity !== '' ? Number(item.quantity) : '',
-              description: item.description || '',
-              total: Number(item.total) || 0,
-              total_tax: Number(item.total_tax) || 0,
-              supplier_code: item.supplier_code || '',
-              supplier_color: item.supplier_color || '',
-              order_width: item.order_width || '',
-              id: item.id,
-              created_at: item.created_at || '',
-              updated_at: item.updated_at || '',
-              original_order_item: { ...item },
-          }))
+        ? order.items.map((item: any) => {
+              const orderQty = item.quantity != null && item.quantity !== '' ? Number(item.quantity) : 0;
+              const invoicedQty = Number(item.already_invoiced_qty ?? 0);
+              const pendingQty = Math.max(0, orderQty - invoicedQty);
+              return {
+                  item_id: item.item_id,
+                  item_name: item.item_name || '',
+                  price: item.price != null && item.price !== '' ? Number(item.price) : '',
+                  tax: Number(item.tax) || 0,
+                  quantity: pendingQty > 0 ? pendingQty : (orderQty || ''),
+                  description: item.description || '',
+                  total: Number(item.total) || 0,
+                  total_tax: Number(item.total_tax) || 0,
+                  supplier_code: item.supplier_code || '',
+                  supplier_color: item.supplier_color || '',
+                  order_width: item.order_width || '',
+                  id: item.id,
+                  created_at: item.created_at || '',
+                  updated_at: item.updated_at || '',
+                  original_order_item: { ...item, already_invoiced_qty: invoicedQty },
+              };
+          })
         : [];
     if (!localForm.value.items.length) localForm.value.items = [createEmptyItem()];
     selectedPurchaseOrderId.value = Number(orderId);
@@ -824,7 +836,7 @@ onMounted(async () => {
                     <h1 class="text-lg font-bold">{{ mode === 'create' ? 'Nueva Factura de Compra' : 'Editar Factura de Compra' }}</h1>
                     <p class="text-sm text-muted-foreground">Registra una factura de compra para trazabilidad y recepción.</p>
                 </div>
-                <div v-if="mode === 'create'" class="w-full shrink-0 sm:w-[340px]">
+                <div v-if="mode === 'create'" class="w-full shrink-0 sm:w-[420px]">
                     <div class="space-y-1">
                         <label class="text-sm font-medium leading-none text-foreground">Cargar desde orden pendiente</label>
                         <SelectField
@@ -838,7 +850,25 @@ onMounted(async () => {
                             tooltip-text="Selecciona una orden de compra aprobada para pre-llenar automáticamente los ítems de esta factura."
                             :clearable="true"
                             @search="handlePurchaseOrderSearch"
-                        />
+                        >
+                            <template #option="{ option }">
+                                <div class="flex flex-col gap-0.5 py-0.5">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-medium text-sm">{{ option.name }}</span>
+                                        <span
+                                            v-if="option.created_at"
+                                            :class="[
+                                                'text-xs font-normal',
+                                                daysAgo(option.created_at).urgent ? 'text-amber-600' : 'text-muted-foreground',
+                                            ]"
+                                        >· {{ daysAgo(option.created_at).label }}</span>
+                                    </div>
+                                    <span v-if="option.provider_name" class="text-xs text-muted-foreground truncate">
+                                        {{ option.provider_name }}
+                                    </span>
+                                </div>
+                            </template>
+                        </SelectField>
                     </div>
                 </div>
             </div>
@@ -905,11 +935,13 @@ onMounted(async () => {
                                 :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
                                 :searchable="true"
                                 :loading="isLoadingContacts"
+                                :has-more="contactsHasMore"
+                                :loading-more="isLoadingMoreContacts"
                                 :action-label="'Nuevo contacto'"
                                 :action-disabled="false"
                                 :clearable="true"
                                 @action="openContactDialog"
-                                @search="handleContactSearch"
+                                @load-more="loadMoreContacts"
                                 required
                             />
                         </div>
@@ -1011,9 +1043,6 @@ onMounted(async () => {
                 <Button variant="default" size="pill" :disabled="isSubmitting" @click.prevent="handleSubmit(false)">{{
                     mode === 'create' ? 'Guardar factura' : 'Actualizar'
                 }}</Button>
-                <Button variant="default" size="pill" :disabled="isSubmitting" @click.prevent="handleSubmit(true)"
-                    >Guardar y enviar por correo</Button
-                >
             </div>
             <ContactDialog
                 v-if="isContactDialogOpen"

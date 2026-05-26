@@ -48,6 +48,9 @@ const props = withDefaults(
         invalid?: boolean;
         errorMessage?: string;
         loading?: boolean;
+        hasMore?: boolean;
+        loadingMore?: boolean;
+        serverSearch?: boolean;
     }>(),
     {
         required: false,
@@ -70,6 +73,9 @@ const props = withDefaults(
         invalid: false,
         errorMessage: '',
         loading: false,
+        hasMore: false,
+        loadingMore: false,
+        serverSearch: false,
     },
 );
 defineOptions({ inheritAttrs: false });
@@ -78,6 +84,7 @@ const emit = defineEmits<{
     (e: 'update:modelValue', value: Option['id'] | Option['id'][] | undefined | null): void;
     (e: 'search', searchTerm: string): void;
     (e: 'action', searchTerm: string): void;
+    (e: 'load-more'): void;
 }>();
 
 const localModelValue = ref<LocalModelValue>(normalizeModelValue(props.modelValue, props.multiple));
@@ -155,7 +162,7 @@ const customSelection = computed<Option | null>(() => {
 });
 
 const filteredOptions = computed(() => {
-    if (!isSearchEnabled.value) {
+    if (!isSearchEnabled.value || props.serverSearch) {
         return props.options;
     }
     const term = searchTerm.value.trim().toLowerCase();
@@ -282,6 +289,14 @@ function handleActionClick() {
     const currentSearchTerm = searchTerm.value.trim();
     emit('action', currentSearchTerm);
     searchTerm.value = '';
+}
+
+function handleScrollCapture(event: Event) {
+    if (!props.hasMore || props.loadingMore) return;
+    const el = event.target as HTMLElement;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) {
+        emit('load-more');
+    }
 }
 
 const triggerRef = ref<HTMLElement | null>(null);
@@ -432,7 +447,7 @@ watch(
                             <ChevronDown class="h-4 w-4" />
                         </ComboboxButton>
                         <Teleport to="body">
-                            <div v-if="open" ref="floatingRef" :style="floatingStyles" class="z-50" @pointerdown.stop @click.stop>
+                            <div v-if="open" ref="floatingRef" :style="floatingStyles" class="z-50" @pointerdown.stop @click.stop @scroll.capture.passive="handleScrollCapture">
                                 <ComboboxOptions
                                     class="relative max-h-52 overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-2xl focus:outline-none"
                                 >
@@ -507,7 +522,8 @@ watch(
                                                             active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
                                                         ]"
                                                     >
-                                                        <span>
+                                                        <slot v-if="$slots.option" name="option" :option="(option as any)" :active="active" />
+                                                        <span v-else>
                                                             {{ labelOf(option) }}
                                                         </span>
                                                         <span
@@ -528,6 +544,7 @@ watch(
                                     <div v-else-if="filteredOptions.length === 0 && !customOption" class="px-3 py-2 text-sm text-muted-foreground/70">
                                         <slot name="empty" :search-term="normalizedSearchTerm"> No se encontraron opciones. </slot>
                                     </div>
+                                    <div v-if="loadingMore" class="px-3 py-2 text-center text-sm text-muted-foreground/70">Cargando más...</div>
                                     <div v-if="$slots.footer" class="border-t border-border/70 bg-popover px-2 pb-2 pt-2">
                                         <slot name="footer" :searchTerm="normalizedSearchTerm" />
                                     </div>

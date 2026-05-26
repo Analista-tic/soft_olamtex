@@ -96,6 +96,25 @@ function mapOption(option: Option): Option {
     };
 }
 
+// Dado un valor (id o nombre), devuelve el nombre legible de la opción para guardar en backend
+function resolveOptionName(options: Option[], value: unknown): string | null {
+    if (value === null || value === undefined || String(value).trim() === '') return null;
+    const str = String(value).trim();
+    const option = options.find((o) => String(o.id) === str);
+    return option ? option.name : str;
+}
+
+// Dado un valor guardado (id o nombre), devuelve el id numérico/texto de la opción para el SelectField
+function resolveOptionId(options: Option[], value: unknown): string | number | null {
+    if (value === null || value === undefined || String(value).trim() === '') return null;
+    const str = String(value).trim();
+    const byId = options.find((o) => String(o.id) === str);
+    if (byId) return typeof byId.id === 'boolean' ? str : byId.id;
+    const byName = options.find((o) => normalizeText(o.name) === normalizeText(str));
+    if (byName) return typeof byName.id === 'boolean' ? str : byName.id;
+    return value as string | number;
+}
+
 function resolveMainFabricTypeId(): string | number | boolean | null {
     const exact = fabricTypeOptions.value.find((option) => {
         const code = normalizeText((option as Option & { code?: string }).code);
@@ -251,10 +270,10 @@ function mapLineToRow(line: ThreadLine, principalColor: PrincipalColor, processT
         color: String(line.color ?? principalColor.color ?? '').trim(),
         colorCode: String(line.colorCode ?? principalColor.colorCode ?? '').trim(),
         processType,
-        threadName: toNullableText(line.threadName),
-        gauge: line.gauge !== null && line.gauge !== undefined ? Number(line.gauge) : null,
-        brand: toNullableText(line.brand),
-        stitchesPerInch: line.stitchesPerInch !== null && line.stitchesPerInch !== undefined ? Number(line.stitchesPerInch) : null,
+        threadName: resolveOptionId(threadOptions.value, line.threadName),
+        gauge: resolveOptionId(gaugeOptions.value, line.gauge),
+        brand: resolveOptionId(brandOptions.value, line.brand),
+        stitchesPerInch: resolveOptionId(stitchesPerInchOptions.value, line.stitchesPerInch),
         defaultThreadCost: line.defaultThreadCost != null ? Number(line.defaultThreadCost) : null,
     };
 }
@@ -278,12 +297,12 @@ function normalizeRowsForSave(): ThreadLine[] {
     return rows.value.map((row) => ({
         id: row.id ?? '',
         processType: row.processType || null,
-        threadName: toNullableText(row.threadName) ?? '',
-        gauge: toNullableNumber(row.gauge),
-        brand: toNullableText(row.brand),
+        threadName: resolveOptionName(threadOptions.value, row.threadName) ?? '',
+        gauge: toNullableNumber(resolveOptionName(gaugeOptions.value, row.gauge) ?? row.gauge),
+        brand: resolveOptionName(brandOptions.value, row.brand) ?? toNullableText(row.brand),
         color: toNullableText(row.color),
         colorCode: toNullableText(row.colorCode),
-        stitchesPerInch: toNullableNumber(row.stitchesPerInch),
+        stitchesPerInch: toNullableNumber(resolveOptionName(stitchesPerInchOptions.value, row.stitchesPerInch) ?? row.stitchesPerInch),
         defaultThreadCost: toNullableNumber(row.defaultThreadCost),
     }));
 }

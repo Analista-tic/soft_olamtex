@@ -257,7 +257,7 @@ const serviceUnitId = 'servicio';
 const defaultProductUnitValue = String(unitMeasures[0]?.id ?? 'unidad');
 
 const getInitialUnitMeasure = (form: Partial<Item>): string =>
-    form.unit_measure ?? (normalizeItemType(form.item_type) === 'service' ? serviceUnitId : (props.dialogType === 'create' ? '' : defaultProductUnitValue));
+    form.unit_measure ?? (props.dialogType === 'create' ? '' : defaultProductUnitValue);
 
 const unitMeasure = ref(getInitialUnitMeasure(props.form));
 
@@ -942,12 +942,8 @@ watch(
 );
 
 watch(currentItemType, (type, prevType) => {
-    if (type === 'service' && unitMeasure.value !== serviceUnitId) {
-        unitMeasure.value = serviceUnitId;
-        return;
-    }
     if (type === 'product' && prevType === 'service' && unitMeasure.value === serviceUnitId) {
-        unitMeasure.value = defaultProductUnitValue;
+        unitMeasure.value = '';
     }
 });
 

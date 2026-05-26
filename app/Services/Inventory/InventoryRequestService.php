@@ -125,7 +125,7 @@ class InventoryRequestService
      */
     protected function resolveRecipientsForInventoryRequest(User $excludeUser): \Illuminate\Database\Eloquent\Collection
     {
-        return User::query()
+        return User::role('logistica')
             ->where('id', '!=', $excludeUser->id)
             ->get();
     }

@@ -56,6 +56,9 @@ Route::prefix('gastos')->name('gastos.')->group(function () {
         Route::patch('/{purchaseDocument}/approve', [PurchaseOrderController::class, 'approve'])
             ->name('approve')
             ->middleware('permission:aprobar orden compra');
+        Route::patch('/{purchaseDocument}/cerrar', [PurchaseOrderController::class, 'close'])
+            ->name('close')
+            ->middleware('permission:editar ordenes compra');
     });
 
     // === FACTURAS DE COMPRA ===
