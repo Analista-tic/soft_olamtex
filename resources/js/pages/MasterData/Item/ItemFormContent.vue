@@ -442,10 +442,17 @@ const HIDDEN_EXTRA_FIELD_KEYS = new Set([
     'source_reference',
 ]);
 
+const UNIT_MEASURE_EXTRA_FIELD_KEYS = new Set(['medida', 'unidad de medida', 'unit_measure', 'unit measure']);
+
+function isUnitMeasureExtraField(fieldName: string): boolean {
+    return UNIT_MEASURE_EXTRA_FIELD_KEYS.has(String(fieldName ?? '').trim().toLowerCase());
+}
+
 function shouldExposeExtraField(fieldName: string): boolean {
     const normalized = String(fieldName ?? '').trim().toLowerCase();
     if (!normalized) return false;
     if (HIDDEN_EXTRA_FIELD_KEYS.has(normalized)) return false;
+    if (isUnitMeasureExtraField(normalized)) return false;
     return !['legacy_', 'import_', '__'].some((prefix) => normalized.startsWith(prefix));
 }
 
@@ -480,6 +487,7 @@ function updateNameField(orderedFields?: Record<string, string>): void {
         orderedFields ??
         Object.fromEntries(
             extraFieldNames.value
+                .filter((key) => !isUnitMeasureExtraField(key))
                 .filter((key) => extraFields.value[key] && String(extraFields.value[key]).trim() !== '')
                 .sort((a, b) => {
                     const indexA = additionalFieldOrder.value.get(a) ?? Number.MAX_SAFE_INTEGER;
@@ -637,7 +645,10 @@ async function fetchAccountingAccounts() {
 }
 
 function applyAdditionalFields(normalizedFields: AdditionalField[]) {
-    const fields = normalizedFields.filter((f) => f.name?.toLowerCase() !== 'color');
+    const fields = normalizedFields.filter((f) => {
+        const normalizedName = String(f.name ?? '').trim().toLowerCase();
+        return normalizedName !== 'color' && !isUnitMeasureExtraField(normalizedName);
+    });
     extraFieldNames.value = fields.map((f) => f.name);
     additionalFieldsMeta.value = fields;
 

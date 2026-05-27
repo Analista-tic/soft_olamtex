@@ -59,6 +59,7 @@ const props = defineProps<{
     opCode?: string | null;
     opGroup?: string | null;
     sizes?: string[] | null;
+    readonly?: boolean;
 }>();
 
 const BASE_STAGE_OPTIONS: Option[] = [
@@ -223,7 +224,7 @@ const isDirty = computed(() => {
     return current !== snapshot.value;
 });
 
-const canSave = computed(() => !isSaving.value && isDirty.value);
+const canSave = computed(() => !isSaving.value && isDirty.value && !props.readonly);
 
 const itemOptions = computed<Option[]>(() => {
     return catalogItems.value.map((item) => ({

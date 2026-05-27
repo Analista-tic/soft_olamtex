@@ -215,6 +215,7 @@ class TechnicalDataSheetController extends Controller
             'productType'      => $productSheet?->type ?? null,
             'isWovenProduct'   => (bool) ($productSheet?->woven_product ?? false),
             'product_sheet_id' => $order->product_sheet_id,
+            'current_process'  => $order->current_process,
         ]);
     }
 

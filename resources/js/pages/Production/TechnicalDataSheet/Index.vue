@@ -141,6 +141,8 @@ const isSampleOp = computed(() =>
         .startsWith('MU'),
 );
 
+const isEditable = computed(() => selectedOp.value?.current_process === 'I&D');
+
 /* ── Edición de listado operacional (solo muestras) ── */
 const productSheetId = computed(() => selectedOp.value?.product_sheet_id ?? null);
 const refreshKey = ref(0);
@@ -229,8 +231,8 @@ const producedFabricColors = computed<ProducedColorSummary[]>(() => {
 const tabs = [
     { value: 'lista_operacional', label: 'Lista operacional', icon: ClipboardList },
     { value: 'procesos', label: 'Procesos', icon: Workflow },
-    { value: 'informacion_adicional', label: 'Informacion adicional', icon: FilePlus2 },
     { value: 'materia_prima', label: 'Materia prima', icon: Box },
+    { value: 'informacion_adicional', label: 'Informacion adicional', icon: FilePlus2 },
     { value: 'hilos', label: 'Hilos', icon: Volleyball },
     { value: 'insumos', label: 'Insumos', icon: Package },
     { value: 'costos', label: 'Costos', icon: DollarSign },
@@ -649,7 +651,7 @@ onBeforeUnmount(() => {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    :disabled="catalogLoading"
+                                    :disabled="catalogLoading || !isEditable"
                                     @click="openEditOpsDialog"
                                 >
                                     <Pencil class="mr-1.5 h-3.5 w-3.5" />
@@ -668,7 +670,11 @@ onBeforeUnmount(() => {
                         </TabsContent>
 
                         <TabsContent value="procesos" class="mt-0">
-                            <ProcessesTab :op-id="selectedOpId" :selected-op="selectedOp" @go-to-operational-list="activeTab = 'lista_operacional'" />
+                            <ProcessesTab :op-id="selectedOpId" :selected-op="selectedOp" :readonly="!isEditable" @go-to-operational-list="activeTab = 'lista_operacional'" />
+                        </TabsContent>
+
+                        <TabsContent value="materia_prima" class="mt-0">
+                            <FabricMaterialTab v-if="selectedOpId" :op-id="selectedOpId" :units="selectedOp?.units ?? null" :readonly="!isEditable" />
                         </TabsContent>
 
                         <TabsContent value="informacion_adicional" class="mt-0">
@@ -683,16 +689,13 @@ onBeforeUnmount(() => {
                             />
                         </TabsContent>
 
-                        <TabsContent value="materia_prima" class="mt-0">
-                            <FabricMaterialTab v-if="selectedOpId" :op-id="selectedOpId" :units="selectedOp?.units ?? null" />
-                        </TabsContent>
-
                         <TabsContent value="hilos" class="mt-0">
                             <ThreadsTab
                                 v-if="selectedOpId"
                                 :op-id="selectedOpId"
                                 :units="selectedOp?.units ?? null"
                                 :produced-colors="producedFabricColors"
+                                :readonly="!isEditable"
                             />
                         </TabsContent>
 
@@ -705,6 +708,7 @@ onBeforeUnmount(() => {
                                 :op-code="selectedOp?.opCode ?? null"
                                 :op-group="selectedOp?.group ?? null"
                                 :sizes="selectedOp?.sizes ?? []"
+                                :readonly="!isEditable"
                             />
                         </TabsContent>
 

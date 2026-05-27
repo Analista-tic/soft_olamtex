@@ -18,6 +18,7 @@ const props = defineProps<{
         name: string;
         code: string | null;
     }>;
+    readonly?: boolean;
 }>();
 
 type LocalThreadRow = {
@@ -355,7 +356,7 @@ function applyRows(sourceLines: ThreadLine[], nextPrincipalColors: PrincipalColo
 }
 
 const dirty = computed(() => serializeState() !== snapshot.value);
-const canSave = computed(() => !isLoading.value && !isSaving.value && dirty.value);
+const canSave = computed(() => !isLoading.value && !isSaving.value && dirty.value && !props.readonly);
 
 // Agrupa las filas por color para mostrar encabezados de color en la tabla
 const colorGroups = computed(() => {

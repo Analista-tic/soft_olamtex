@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import AlertStack from '@/components/common/AlertStack.vue';
+import { useGlobalAlert } from '@/composables/useGlobalAlert';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import type { AdditionalInfo, Grain, OpBasicInfo, PieceType, Side } from '@/domain/Production';
 import { fetchOpAdditionalInfo, fetchOpProcesses, saveOpAdditionalInfo } from '@/domain/Production';
@@ -51,11 +53,9 @@ const props = defineProps<{
 
 const isLoading = ref(false);
 const savingSection = ref<string | null>(null);
-const error = ref<string | null>(null);
-const success = ref<string | null>(null);
-const info = ref<string | null>(null);
 const data = ref<AdditionalInfo>(createDefaultAdditionalInfo());
 const sectionVisibility = ref<SectionVisibility>(resolveDefaultSectionVisibility());
+const { successMessage, errorMessage, errorType, success, error: showError, clear } = useGlobalAlert();
 
 const isCuttingDialogOpen = ref(false);
 const isStampingDialogOpen = ref(false);
@@ -226,9 +226,7 @@ function createDefaultAdditionalInfo(): AdditionalInfo {
 }
 
 function clearMessages(): void {
-    error.value = null;
-    success.value = null;
-    info.value = null;
+    clear();
 }
 
 function normalizeSizes(payload: AdditionalInfo): AdditionalInfo {
@@ -323,11 +321,11 @@ async function persist(section: SectionKey): Promise<void> {
     try {
         const saved = await saveOpAdditionalInfo(props.opId, payload);
         applyData(saved);
-        success.value = 'Informacion guardada correctamente.';
+        success('Informacion guardada correctamente.');
     } catch (err) {
         console.error('Error al guardar informacion adicional:', err);
         applyData(payload);
-        error.value = 'No se pudo guardar en el servidor.';
+        showError('No se pudo guardar en el servidor.');
     } finally {
         savingSection.value = null;
     }
@@ -348,7 +346,7 @@ async function loadAdditionalInfo(): Promise<void> {
     } catch (err) {
         console.error('Error al cargar informacion adicional:', err);
         applyData(createDefaultAdditionalInfo());
-        error.value = 'No se pudo cargar la informacion adicional.';
+        showError('No se pudo cargar la informacion adicional.');
     } finally {
         isLoading.value = false;
     }
@@ -442,19 +440,17 @@ watch(
 
 <template>
     <div class="space-y-4">
+        <AlertStack
+            :success-message="successMessage"
+            :error-message="errorMessage"
+            :error-type="errorType"
+            @close-success="clear"
+            @close-error="clear"
+        />
+
         <div class="p-2">
             <h2 class="text-lg font-semibold text-foreground">Informacion adicional</h2>
             <p class="text-sm text-muted-foreground">Registro de corte, {{ stampingDisplayNameLower }} y lavanderia.</p>
-        </div>
-
-        <div v-if="error" class="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {{ error }}
-        </div>
-        <div v-if="info" class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-            {{ info }}
-        </div>
-        <div v-if="success" class="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-            {{ success }}
         </div>
 
         <div v-if="isLoading" class="rounded-lg border border-border px-4 py-6 text-sm text-muted-foreground">Cargando informacion adicional...</div>

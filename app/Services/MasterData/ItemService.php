@@ -13,7 +13,6 @@ use App\Models\MasterData\Color;
 use App\Models\MasterData\Item;
 use App\Models\Settings\Setting;
 use App\Services\Inventory\InventoryMovementService;
-use App\Support\TextNormalizer;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +25,12 @@ class ItemService
     protected array $additionalFieldNameMap = [];
     protected array $unitMeasureNameMap = [];
     protected array $unitMeasureLabelMap = [];
+    protected const UNIT_MEASURE_EXTRA_FIELD_NAMES = [
+        'MEDIDA',
+        'UNIDAD DE MEDIDA',
+        'UNIT_MEASURE',
+        'UNIT MEASURE',
+    ];
 
     public function __construct(
         protected AdditionalFieldService $fieldService,
@@ -217,6 +222,9 @@ class ItemService
                 continue;
             }
             $upperKey = mb_strtoupper($normalizedKey);
+            if ($this->isUnitMeasureExtraFieldName($upperKey)) {
+                continue;
+            }
             $trimmedValue = $normalize(is_scalar($value) ? (string) ($value ?? '') : '');
             $extraFieldsList[] = [
                 'upper' => $upperKey,
@@ -234,6 +242,9 @@ class ItemService
                 continue;
             }
             $upperName = mb_strtoupper($normalizedName);
+            if ($this->isUnitMeasureExtraFieldName($upperName)) {
+                continue;
+            }
             $handled[] = $upperName;
             $value = $extraFieldsMap[$upperName] ?? null;
             if ($value !== null && $value !== '') {
@@ -251,6 +262,11 @@ class ItemService
         }
 
         return implode(' ', $segments);
+    }
+
+    protected function isUnitMeasureExtraFieldName(string $fieldName): bool
+    {
+        return in_array(mb_strtoupper(trim($fieldName)), self::UNIT_MEASURE_EXTRA_FIELD_NAMES, true);
     }
 
     public function extractColorNameFromExtraFields(array $extraFields): string
@@ -287,7 +303,7 @@ class ItemService
                 }
 
                 $normalized[$fieldName] = is_string($fieldValue)
-                    ? TextNormalizer::titleCaseWords($fieldValue)
+                    ? mb_strtoupper(trim($fieldValue), 'UTF-8')
                     : $fieldValue;
             }
 
@@ -1209,11 +1225,7 @@ class ItemService
     {
         $subGroupName = optional(CategorySubGroup::find($subGroupId))->name ?? '';
         $extrasString = $this->buildExtraFieldsNameSegment($extraFields);
-        $unitLabel = $this->lookupUnitMeasureLabel($unitMeasure);
         $name = trim("{$subGroupName} {$extrasString}");
-        if ($unitLabel !== '' && !str_contains(mb_strtolower($name), mb_strtolower($unitLabel))) {
-            $name = trim($name . ' ' . $unitLabel);
-        }
         if (!empty($colorId)) {
             $color = Color::find($colorId);
             $colorName = $color ? trim((string) $color->name) : '';

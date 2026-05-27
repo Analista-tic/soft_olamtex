@@ -176,4 +176,9 @@ html {
     [role='option'] {
         text-transform: uppercase;
     }
+
+    input::placeholder,
+    textarea::placeholder {
+        text-transform: none;
+    }
 }

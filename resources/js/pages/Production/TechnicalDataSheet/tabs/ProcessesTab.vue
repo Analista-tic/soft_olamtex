@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import AlertStack from '@/components/common/AlertStack.vue';
 import SelectField from '@/components/SelectField.vue';
+import { useGlobalAlert } from '@/composables/useGlobalAlert';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -24,6 +26,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 const props = defineProps<{
     opId: string | number | null;
     selectedOp?: OpBasicInfo | null;
+    readonly?: boolean;
 }>();
 const emit = defineEmits<{
     (e: 'go-to-operational-list'): void;
@@ -48,12 +51,11 @@ type SelectFieldValue = string | number | boolean | Array<string | number | bool
 
 const isLoading = ref(false);
 const isSaving = ref(false);
-const error = ref<string | null>(null);
-const saveMessage = ref<string | null>(null);
 const data = ref<OpProcessesData | null>(null);
 const processTypeOptions = ref<Option[]>([...DEFAULT_PROCESS_OPTIONS]);
 const rows = ref<LocalProcessRow[]>([]);
 const snapshot = ref<LocalProcessRow[]>([]);
+const { successMessage, errorMessage, errorType, success, error: showError, clear } = useGlobalAlert();
 
 const isDeleteDialogOpen = ref(false);
 const deleteTempId = ref<string | null>(null);
@@ -139,7 +141,7 @@ function isEqualRows(a: LocalProcessRow[], b: LocalProcessRow[]): boolean {
 }
 
 const dirty = computed(() => !isEqualRows(rows.value, snapshot.value));
-const canSave = computed(() => dirty.value && !isSaving.value && !isLoading.value);
+const canSave = computed(() => dirty.value && !isSaving.value && !isLoading.value && !props.readonly);
 
 const costsAreFixed = computed(() => Boolean(data.value?.costsAreFixed));
 
@@ -345,19 +347,17 @@ async function loadProcesses(): Promise<void> {
         data.value = null;
         rows.value = [];
         snapshot.value = [];
-        error.value = null;
         return;
     }
 
     isLoading.value = true;
-    error.value = null;
-    saveMessage.value = null;
+    clear();
     try {
         const response = await fetchOpProcesses(props.opId);
         applyData(response);
     } catch (err) {
         console.error('Error al cargar procesos:', err);
-        error.value = 'No se pudo cargar la informacion de procesos.';
+        showError('No se pudo cargar la informacion de procesos.');
         data.value = null;
         rows.value = [];
         snapshot.value = [];
@@ -372,16 +372,15 @@ async function handleSave(): Promise<void> {
     }
 
     isSaving.value = true;
-    error.value = null;
-    saveMessage.value = null;
+    clear();
     try {
         const payload = { processes: normalizeRowsForSave() };
         const saved = await saveOpProcesses(props.opId, payload);
         applyData(saved);
-        saveMessage.value = 'Procesos guardados.';
+        success('Procesos guardados correctamente.');
     } catch (err) {
         console.error('Error al guardar procesos:', err);
-        error.value = 'No se pudieron guardar los procesos.';
+        showError('No se pudieron guardar los procesos.');
     } finally {
         isSaving.value = false;
     }
@@ -402,6 +401,14 @@ onMounted(() => {
 
 <template>
     <div class="space-y-4">
+        <AlertStack
+            :success-message="successMessage"
+            :error-message="errorMessage"
+            :error-type="errorType"
+            @close-success="clear"
+            @close-error="clear"
+        />
+
         <div v-if="isLoading" class="rounded-lg border-0 px-4 py-6 text-sm text-muted-foreground shadow-none">Cargando procesos...</div>
 
         <template v-else-if="data">
@@ -543,13 +550,7 @@ onMounted(() => {
                     </div>
                 </CardContent>
             </div>
-
-            <p v-if="saveMessage" class="text-sm text-emerald-700">{{ saveMessage }}</p>
         </template>
-
-        <div v-if="error" class="rounded-lg border-0 bg-destructive/10 px-4 py-3 text-sm text-destructive shadow-none">
-            {{ error }}
-        </div>
 
         <AlertDialog v-model:open="isDeleteDialogOpen">
             <AlertDialogContent>

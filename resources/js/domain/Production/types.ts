@@ -186,6 +186,7 @@ export interface OpBasicInfo {
     product_sheet_id?: number | null;
     productType?: string | null;
     isWovenProduct?: boolean;
+    current_process?: string | null;
 }
 
 export interface OperationalListItem {

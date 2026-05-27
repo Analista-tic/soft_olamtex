@@ -29,12 +29,17 @@ class HandleInertiaRequests extends Middleware
     {
         $response = parent::handle($request, $next);
 
-        // Le decimos al navegador que diferencie el caché de Inertia del caché normal (HTML)
         $response->headers->set('Vary', 'X-Inertia');
+
+        // Evita que el navegador cachee respuestas JSON de Inertia.
+        // Sin esto, al duplicar una pestaña Chrome puede servir el JSON desde caché
+        // en lugar de hacer una petición nueva y obtener el HTML completo.
+        if ($request->header('X-Inertia')) {
+            $response->headers->set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        }
 
         return $response;
     }
-    // 🟢 FIN DEL CAMBIO NUEVO
 
     /**
      * Determines the current asset version.

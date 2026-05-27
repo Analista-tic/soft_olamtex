@@ -22,6 +22,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 const props = defineProps<{
     opId: string | number;
     units: number | null;
+    readonly?: boolean;
 }>();
 
 type DisplayRoll = {
@@ -103,6 +104,26 @@ const activeLineUid = ref<string | null>(null);
 const selectedRollIds = ref<Set<string>>(new Set());
 const rollTableSearch = ref('');
 const distributeTotal = ref('');
+const baselineRollProgrammed = ref<Map<string, number>>(new Map());
+
+function buildCurrentProgrammedByRoll(): Map<string, number> {
+    const map = new Map<string, number>();
+    for (const trazo of trazos.value) {
+        for (const line of trazo.lines) {
+            for (const assignment of line.assignedRolls) {
+                const meters = toNumber(assignment.metersProgrammed);
+                if (meters > 0) {
+                    map.set(assignment.roll.rollId, (map.get(assignment.roll.rollId) ?? 0) + meters);
+                }
+            }
+        }
+    }
+    return map;
+}
+
+function syncBaselineRollProgrammed(): void {
+    baselineRollProgrammed.value = buildCurrentProgrammedByRoll();
+}
 
 function getRollCacheKey(itemId: number, opId?: string | number): string {
     return `${String(opId ?? 'catalog')}::${itemId}`;
@@ -337,21 +358,27 @@ const rollOriginalAvailability = computed<Map<string, number>>(() => {
 
 function realAvailableForRoll(rollId: string): number {
     const original = rollOriginalAvailability.value.get(rollId) ?? 0;
-    const programmed = rollTotalProgrammed.value.get(rollId) ?? 0;
-    return Math.max(0, original - programmed);
+    const baseline = baselineRollProgrammed.value.get(rollId) ?? 0;
+    const current = rollTotalProgrammed.value.get(rollId) ?? 0;
+    const delta = current - baseline;
+    return Math.max(0, original - delta);
 }
 
 function isRollOverAllocated(rollId: string, ownMeters: number): boolean {
     const original = rollOriginalAvailability.value.get(rollId);
     if (original === undefined) return false;
-    const total = rollTotalProgrammed.value.get(rollId) ?? 0;
-    return total > original && ownMeters > 0;
+    const baseline = baselineRollProgrammed.value.get(rollId) ?? 0;
+    const current = rollTotalProgrammed.value.get(rollId) ?? 0;
+    const delta = current - baseline;
+    return delta > original && ownMeters > 0;
 }
 
 function availabilityPercent(rollId: string, availableMeters: number | null): number {
     if (!availableMeters || availableMeters <= 0) return 100;
-    const programmed = rollTotalProgrammed.value.get(rollId) ?? 0;
-    return Math.min(100, Math.round((programmed / availableMeters) * 100));
+    const baseline = baselineRollProgrammed.value.get(rollId) ?? 0;
+    const current = rollTotalProgrammed.value.get(rollId) ?? 0;
+    const delta = Math.max(0, current - baseline);
+    return Math.min(100, Math.round((delta / availableMeters) * 100));
 }
 
 const anyOverAllocation = computed(() =>
@@ -450,7 +477,7 @@ function serializeState(): string {
 }
 
 const dirty = computed(() => serializeState() !== snapshot.value);
-const canSave = computed(() => dirty.value && !isSaving.value && !isLoading.value && !anyOverAllocation.value);
+const canSave = computed(() => dirty.value && !isSaving.value && !isLoading.value && !anyOverAllocation.value && !props.readonly);
 
 function resetSnapshot(): void {
     snapshot.value = serializeState();
@@ -772,6 +799,7 @@ async function loadAll(): Promise<void> {
             trazos.value = [createEmptyTrazo()];
             activeTrazoUid.value = trazos.value[0]!.uid;
             activeLineUid.value = trazos.value[0]!.lines[0]?.uid ?? null;
+            syncBaselineRollProgrammed();
             resetSnapshot();
             return;
         }
@@ -866,8 +894,10 @@ async function loadAll(): Promise<void> {
         showError('No se pudo cargar la materia prima.');
         trazos.value = [createEmptyTrazo()];
         activeTrazoUid.value = trazos.value[0]?.uid ?? null;
+        syncBaselineRollProgrammed();
     } finally {
         isLoading.value = false;
+        syncBaselineRollProgrammed();
         resetSnapshot();
     }
 }
@@ -923,6 +953,7 @@ async function handleSave(): Promise<void> {
         }
         deletedRollLineIds.value = [];
         showSuccess('Guardado correctamente.');
+        syncBaselineRollProgrammed();
         resetSnapshot();
         await Promise.all(trazos.value.flatMap((t) => t.lines.filter((l) => l.telaItemId !== null).map((l) => loadRollsForLine(l))));
         if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('tds-raw-material-saved', { detail: { opId: props.opId } }));
