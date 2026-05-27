@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
+import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
 import { Ban, CheckCircle, Download, FileSpreadsheet, Pencil, PlusCircle, Search, Trash, Upload } from 'lucide-vue-next';
@@ -29,6 +29,14 @@ import BulkUploadDialog from './BulkUploadDialog.vue';
 import ItemDialog from './ItemDialog.vue';
 
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+
+type PreloadedColor = {
+    id: number;
+    name: string;
+    rgb: string | null;
+    hexadecimal: string | null;
+    description: string | null;
+};
 
 const breadcrumbs = [{ title: 'Catálogo de ítem', href: '/inventario/item' }];
 
@@ -69,6 +77,8 @@ const form = ref<Partial<Item>>({});
 // Precarga de catálogos para el dialog de ítems
 const preloadedSubGroups = ref<any[]>([]);
 const preloadedTaxes = ref<any[]>([]);
+const page = usePage<{ preloadedColors?: PreloadedColor[] }>();
+const preloadedColors = computed(() => page.props.preloadedColors ?? []);
 
 const isDeleteDialogOpen = ref(false);
 const itemToDelete = ref<Item | null>(null);
@@ -576,6 +586,7 @@ onBeforeUnmount(() => {
             :form="form"
             :preloaded-sub-groups="preloadedSubGroups"
             :preloaded-taxes="preloadedTaxes"
+            :preloaded-colors="preloadedColors"
             @close="closeDialog"
             @refresh="handleDialogRefresh"
         />

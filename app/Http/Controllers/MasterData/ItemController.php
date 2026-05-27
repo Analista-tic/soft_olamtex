@@ -4,6 +4,7 @@ namespace App\Http\Controllers\MasterData;
 
 use App\Http\Controllers\Concerns\HandlesValidationErrors;
 use App\Http\Controllers\Controller;
+use App\Models\MasterData\Color;
 use App\Models\MasterData\Item;
 use App\Services\MasterData\ItemExcelService;
 use App\Services\MasterData\ItemService;
@@ -26,7 +27,11 @@ class ItemController extends Controller
 
     public function index()
     {
-        return Inertia::render('MasterData/Item/Index');
+        return Inertia::render('MasterData/Item/Index', [
+            'preloadedColors' => Color::query()
+                ->orderBy('name')
+                ->get(['id', 'name', 'rgb', 'hexadecimal', 'description']),
+        ]);
     }
 
     public function show($id)

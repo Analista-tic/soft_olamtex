@@ -28,6 +28,7 @@ const props = withDefaults(
         modelValue: number | string | null;
         label?: string;
         disabled?: boolean;
+        preloadedColors?: ColorOption[];
     }>(),
     { label: 'Color', disabled: false },
 );
@@ -222,6 +223,10 @@ const triggerColorStyle = computed(() => ({
 async function fetchColors() {
     isLoading.value = true;
     try {
+        if (props.preloadedColors && props.preloadedColors.length > 0) {
+            colors.value = props.preloadedColors;
+            return;
+        }
         const { data } = await axios.get('/colors');
         colors.value = Array.isArray(data) ? data : [];
     } catch {
@@ -231,7 +236,9 @@ async function fetchColors() {
     }
 }
 
-onMounted(fetchColors);
+onMounted(() => {
+    void fetchColors();
+});
 
 function openInlineCreate() {
     createName.value = '';

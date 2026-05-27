@@ -15,6 +15,7 @@ const props = withDefaults(
         showAdvancedLink?: boolean;
         preloadedSubGroups?: any[];
         preloadedTaxes?: any[];
+        preloadedColors?: any[];
     }>(),
     {
         showAdvancedLink: true,
@@ -65,6 +66,7 @@ function handleFormError(message: string) {
                 :show-advanced-link="props.showAdvancedLink"
                 :preloaded-sub-groups="props.preloadedSubGroups ?? []"
                 :preloaded-taxes="props.preloadedTaxes ?? []"
+                :preloaded-colors="props.preloadedColors ?? []"
                 @close="handleFormClose"
                 @refresh="handleFormRefresh"
                 @saved="handleFormSaved"
