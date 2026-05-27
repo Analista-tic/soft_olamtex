@@ -1233,7 +1233,7 @@ class ItemService
                 $name = trim($name . ' ' . $colorName);
             }
         }
-        return $name;
+        return mb_strtoupper($name, 'UTF-8');
     }
 
     public function computeName(?int $subGroupId, array $extraFields, ?int $colorId = null, ?string $unitMeasure = null): string
