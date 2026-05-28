@@ -71,15 +71,6 @@ class ProductionOrderSchedulingService
         };
     }
 
-    public function validateAdvanceDate(string $date): void
-    {
-        $parsed = Carbon::parse($date);
-        $day = (int) $parsed->day;
-        if ($day < 10 || $day > 20) {
-            throw new InvalidArgumentException('La fecha de adelanto debe estar entre los días 10 y 20.');
-        }
-    }
-
     public function resolvePriorityForNewOrder(
         ProductSheet $productSheet,
         string $season,

@@ -32,7 +32,7 @@ import axios, { AxiosError } from 'axios';
 import { format, isValid, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Badge from '@/components/ui/badge/Badge.vue';
-import { Calendar as CalendarIcon, Check, CheckCircle2, Eye, Pencil, SlidersHorizontal, Trash, TrendingDown, TrendingUp, Undo2, X } from 'lucide-vue-next';
+import { Calendar as CalendarIcon, Check, CheckCircle2, Eye, Pencil, SlidersHorizontal, Trash, TrendingDown, TrendingUp, X } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import CreateProgrammerDialog from './Create.vue';
 import EditProgrammerDialog from './Edit.vue';
@@ -88,7 +88,6 @@ const bulkDispatchMonth = ref<string>('');
 const bulkEditMode = ref<'priority' | 'date' | 'season_dispatch'>('priority');
 const quickEstimatedDates = ref<Record<number, string>>({});
 const quickDateSavingIds = ref<number[]>([]);
-const revertAdvanceLoadingIds = ref<number[]>([]);
 const dashboard = ref<{
     total_units: number;
     balanced: boolean;
@@ -428,12 +427,22 @@ function syncQuickEstimatedDates(rows: Programmer[]) {
     quickEstimatedDates.value = next;
 }
 
+function hasPriorityConfigured(programmer: Programmer): boolean {
+    const value = String(programmer.priority ?? '').trim().toUpperCase();
+    return value !== '' && value !== 'N/A';
+}
+
 function isQuickDateSaving(orderId: number): boolean {
     return quickDateSavingIds.value.includes(orderId);
 }
 
 async function saveQuickEstimatedDate(programmer: Programmer) {
     if (!canEdit.value) return;
+
+    if (hasPriorityConfigured(programmer)) {
+        setAlert('Esta orden tiene prioridad. La fecha estimada debe seguir la lógica de prioridad.', 'warning');
+        return;
+    }
 
     const dateValue = String(quickEstimatedDates.value[programmer.id] ?? '').trim();
     if (dateValue === '') {
@@ -451,34 +460,12 @@ async function saveQuickEstimatedDate(programmer: Programmer) {
         });
 
         programmer.estimated_delivery_date = dateValue;
-        programmer.is_advance = true;
         setAlert(response?.data?.message ?? 'Fecha estimada actualizada.', 'success');
     } catch (error) {
         console.error('Error en edición rápida de fecha estimada:', error);
         setAlert('No se pudo actualizar la fecha estimada.', 'error');
     } finally {
         quickDateSavingIds.value = quickDateSavingIds.value.filter((id) => id !== programmer.id);
-    }
-}
-
-async function revertAdvance(programmer: Programmer) {
-    if (revertAdvanceLoadingIds.value.includes(programmer.id)) return;
-    revertAdvanceLoadingIds.value.push(programmer.id);
-    try {
-        const response = await axios.patch(`/comercial/programador/${programmer.id}/revertir-adelanto`);
-        const updated = response?.data?.data;
-        if (updated) {
-            programmer.priority = updated.priority;
-            programmer.is_advance = updated.is_advance;
-            programmer.estimated_delivery_date = updated.estimated_delivery_date;
-            programmer.status = updated.status;
-        }
-        setAlert(response?.data?.message ?? 'Adelanto revertido correctamente.', 'success');
-    } catch (error) {
-        console.error('Error al revertir adelanto:', error);
-        setAlert('No se pudo revertir el adelanto.', 'error');
-    } finally {
-        revertAdvanceLoadingIds.value = revertAdvanceLoadingIds.value.filter((id) => id !== programmer.id);
     }
 }
 
@@ -652,12 +639,28 @@ async function applyBulkEdit() {
                 return;
             }
 
+            const selectedRows = programmers.value.filter((row) => selectedOrderIds.value.includes(row.id));
+            const editableRows = selectedRows.filter((row) => !hasPriorityConfigured(row));
+            const skippedRows = selectedRows.filter((row) => hasPriorityConfigured(row));
+
+            if (editableRows.length === 0) {
+                setAlert('Todas las órdenes seleccionadas tienen prioridad. La fecha debe seguir la lógica de prioridad.', 'warning');
+                return;
+            }
+
             const response = await axios.patch('/comercial/programmers/fecha-estimada-masiva', {
-                order_ids: selectedOrderIds.value,
+                order_ids: editableRows.map((row) => row.id),
                 estimated_delivery_date: bulkEstimatedDeliveryDate.value,
             });
 
-            setAlert(response?.data?.message ?? 'Fecha estimada aplicada correctamente.', 'success');
+            if (skippedRows.length > 0) {
+                setAlert(
+                    `${response?.data?.message ?? 'Fecha estimada aplicada correctamente.'} Se omitieron ${skippedRows.length} orden(es) con prioridad.`,
+                    'info',
+                );
+            } else {
+                setAlert(response?.data?.message ?? 'Fecha estimada aplicada correctamente.', 'success');
+            }
             bulkEstimatedDeliveryDate.value = '';
         } else {
             if (!bulkSeason.value) {
@@ -1313,7 +1316,6 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                                         </span>
                                     </span>
                                 </TableHead>
-                                <TableHead>Adelanto</TableHead>
                                 <TableHead :class="tableSortHeadClass('status')" @click="toggleSort('status')">
                                     <span class="inline-flex items-center gap-1">
                                         Estado
@@ -1394,7 +1396,7 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                                                 v-model="quickEstimatedDates[programmer.id]"
                                                 type="date"
                                                 class="h-8 w-[140px]"
-                                                :disabled="!canEdit || isQuickDateSaving(programmer.id)"
+                                                :disabled="!canEdit || isQuickDateSaving(programmer.id) || hasPriorityConfigured(programmer)"
                                             />
                                             <Button
                                                 v-if="canEdit"
@@ -1402,7 +1404,7 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                                                 size="icon"
                                                 variant="ghost"
                                                 class="h-8 w-8"
-                                                :disabled="isQuickDateSaving(programmer.id) || !quickEstimatedDates[programmer.id]"
+                                                :disabled="isQuickDateSaving(programmer.id) || !quickEstimatedDates[programmer.id] || hasPriorityConfigured(programmer)"
                                                 @click="saveQuickEstimatedDate(programmer)"
                                             >
                                                 <Check class="h-4 w-4" />
@@ -1410,26 +1412,6 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                                         </div>
                                     </TableCell>
                                     <TableCell class="max-w-[200px] truncate" :title="programmer.notes || ''">{{ programmer.notes || '-' }}</TableCell>
-                                    <TableCell>
-                                        <div v-if="programmer.is_advance" class="flex items-center gap-1">
-                                            <Badge variant="secondary" class="text-[11px]">Sí</Badge>
-                                            <Tooltip>
-                                                <TooltipTrigger as-child>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        class="h-6 w-6 text-muted-foreground hover:text-destructive"
-                                                        :disabled="revertAdvanceLoadingIds.includes(programmer.id)"
-                                                        @click="revertAdvance(programmer)"
-                                                    >
-                                                        <Undo2 class="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>Revertir adelanto</TooltipContent>
-                                            </Tooltip>
-                                        </div>
-                                        <span v-else class="text-muted-foreground text-xs">No</span>
-                                    </TableCell>
                                     <TableCell>
                                         <TableStatusBadge
                                             :title="(programmer.is_pending_completion ?? false) ? getPendingMessage(programmer) : 'Registro completo.'"

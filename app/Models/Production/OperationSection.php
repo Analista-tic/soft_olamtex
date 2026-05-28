@@ -53,7 +53,14 @@ class OperationSection extends Model
     // Relaciones
     public function productOperationLists()
     {
-        return $this->hasMany(ProductOperationList::class);
+        return $this->hasManyThrough(
+            ProductOperationList::class,
+            Operation::class,
+            'section_id',
+            'operation_id',
+            'id',
+            'id'
+        );
     }
 
     public function operations()

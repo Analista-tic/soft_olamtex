@@ -182,6 +182,7 @@ const moduleSections: ModuleSection[] = [
                 label: 'Inventario Textil',
                 items: [
                     { title: 'Inventario tela por rollos', href: route('kardex-telas.inventario-rollos'), permission: 'ver telas rollos' },
+                    { title: 'Movimientos de rollos', href: route('kardex-telas.inventario-rollos.movimientos'), permission: 'ver telas rollos' },
                     { title: 'Descargue de telas por orden', href: route('kardex-telas.descargue-orden'), permission: 'ver descargue telas orden' },
                     {
                         title: 'Salida de telas por orden',

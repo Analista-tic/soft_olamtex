@@ -32,11 +32,29 @@ Route::post('/api/fabric-rolls/import', [App\Http\Controllers\Textil\FabricRollC
 Route::prefix('kardex-telas')->name('kardex-telas.')->middleware('permission:ver telas rollos')->group(function () {
     Route::get('/', [App\Http\Controllers\Textil\FabricRollController::class, 'kardex'])->name('index');
     Route::get('/inventario-rollos', [App\Http\Controllers\Textil\FabricRollController::class, 'inventoryRolls'])->name('inventario-rollos');
+    Route::get('/inventario-rollos/movimientos', [App\Http\Controllers\Textil\FabricRollController::class, 'movementsPage'])
+        ->middleware('permission:ver telas rollos')
+        ->name('inventario-rollos.movimientos');
     Route::get('/inventario-rollos/data', [App\Http\Controllers\Textil\FabricRollController::class, 'inventoryRollsData'])->name('inventario-rollos.data');
     Route::get('/inventario-rollos/filter-options', [App\Http\Controllers\Textil\FabricRollController::class, 'inventoryFilterOptions'])->name('inventario-rollos.filter-options');
     Route::patch('/inventario-rollos/{fabricRoll}/vincular-tela-principal', [App\Http\Controllers\Textil\FabricRollController::class, 'relinkMainFabric'])
         ->middleware('permission:editar telas rollos')
         ->name('inventario-rollos.relink-main-fabric');
+    Route::get('/inventario-rollos/plantilla-cantidades', [App\Http\Controllers\Textil\FabricRollController::class, 'downloadQuantitiesTemplate'])
+        ->middleware('permission:editar telas rollos')
+        ->name('inventario-rollos.plantilla-cantidades');
+    Route::post('/inventario-rollos/importar-cantidades', [App\Http\Controllers\Textil\FabricRollController::class, 'importQuantities'])
+        ->middleware('permission:editar telas rollos')
+        ->name('inventario-rollos.importar-cantidades');
+    Route::post('/inventario-rollos/importar-csv', [App\Http\Controllers\Textil\FabricRollController::class, 'importFromCsv'])
+        ->middleware('permission:editar telas rollos')
+        ->name('inventario-rollos.importar-csv');
+    Route::get('/reportes/sin-relacion', [App\Http\Controllers\Textil\FabricRollController::class, 'reportSinRelacion'])
+        ->middleware('permission:ver telas rollos')
+        ->name('reportes.sin-relacion');
+    Route::get('/reportes/historial-ajustes', [App\Http\Controllers\Textil\FabricRollController::class, 'reportHistorialAjustes'])
+        ->middleware('permission:ver telas rollos')
+        ->name('reportes.historial-ajustes');
     Route::get('/descargue-orden', [App\Http\Controllers\Textil\FabricRollController::class, 'downloadOrders'])
         ->middleware('permission:ver descargue telas orden')
         ->name('descargue-orden');

@@ -67,7 +67,6 @@ class UpdateProgrammerRequest extends FormRequest
             ],
             'units' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'estimated_delivery_date' => ['sometimes', 'nullable', 'date'],
-            'is_advance' => ['sometimes', 'boolean'],
             'notes' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'ecommerce_units' => ['sometimes', 'nullable'],
             'status' => ['sometimes', 'string', Rule::in(self::STATUSES)],

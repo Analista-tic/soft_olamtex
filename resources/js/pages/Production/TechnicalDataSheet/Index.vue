@@ -141,7 +141,7 @@ const isSampleOp = computed(() =>
         .startsWith('MU'),
 );
 
-const isEditable = computed(() => selectedOp.value?.current_process === 'I&D');
+const isEditable = computed(() => String(selectedOp.value?.current_process ?? '').trim().toUpperCase() === 'I&D');
 
 /* ── Edición de listado operacional (solo muestras) ── */
 const productSheetId = computed(() => selectedOp.value?.product_sheet_id ?? null);

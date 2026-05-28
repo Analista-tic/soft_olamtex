@@ -193,6 +193,7 @@ export function mapOpBasicInfoDtoToOpBasicInfo(dto: OpBasicInfoDto): OpBasicInfo
         product_sheet_id: dto.product_sheet_id ?? null,
         productType: toNullableText(dto.productType),
         isWovenProduct: Boolean(dto.isWovenProduct),
+        current_process: toNullableText((dto as { current_process?: unknown }).current_process),
     };
 }
 

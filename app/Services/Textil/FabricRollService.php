@@ -7,6 +7,7 @@ use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\MasterData\Item;
 use App\Models\Production\ProductionRollConsumption;
 use App\Models\Textil\FabricRoll;
+use App\Models\Textil\FabricRollAdjustment;
 use App\Services\Inventory\InventoryMovementService;
 use App\Services\Inventory\WarehouseResolver;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -194,9 +195,9 @@ class FabricRollService
     public function relinkMainFabric(FabricRoll $fabricRoll, int $itemId): FabricRoll
     {
         return DB::transaction(function () use ($fabricRoll, $itemId) {
-            $fabricRoll->update([
-                'item_id' => $itemId,
-            ]);
+            $previousItemId = $fabricRoll->item_id;
+
+            $fabricRoll->update(['item_id' => $itemId]);
 
             $fabricRoll->load([
                 'item',
@@ -205,7 +206,243 @@ class FabricRollService
                 'purchaseDocumentItem.document.creator',
             ]);
 
+            FabricRollAdjustment::create([
+                'fabric_roll_id'  => $fabricRoll->id,
+                'user_id'         => Auth::id(),
+                'type'            => 'correction',
+                'quantity_before' => $fabricRoll->quantity,
+                'quantity_after'  => $fabricRoll->quantity,
+                'reason'          => 'Cambio de ítem vinculado (anterior: ' . ($previousItemId ?? 'ninguno') . ', nuevo: ' . $itemId . ')',
+            ]);
+
+            // Primer vínculo: crear entrada en kardex con la disponibilidad real del rollo
+            if ($previousItemId === null) {
+                $availability = (float) $fabricRoll->quantity - (float) $fabricRoll->actual_output;
+                if ($availability > 0) {
+                    $item = $fabricRoll->item;
+                    $warehouse = $item?->warehouses()->first();
+                    if ($warehouse) {
+                        $unitPrice = (float) ($fabricRoll->price_per_meter ?? $fabricRoll->purchaseDocumentItem?->price ?? 0);
+                        $this->movementService->createMovement([
+                            'item_id'          => $itemId,
+                            'warehouse_id'     => $warehouse->id,
+                            'type'             => 'entrada',
+                            'date'             => now()->toDateString(),
+                            'quantity'         => $availability,
+                            'unit_price'       => $unitPrice > 0 ? $unitPrice : 0.0001,
+                            'notes'            => 'Entrada por vinculación inicial de rollo ' . $fabricRoll->roll_number,
+                            'source_type'      => FabricRoll::class,
+                            'source_id'        => $fabricRoll->id,
+                            'source_reference' => $fabricRoll->roll_number,
+                            'created_by_user_id' => Auth::id(),
+                        ]);
+                    }
+                }
+            }
+
             return $fabricRoll;
+        });
+    }
+
+    /**
+     * Importa rollos históricos desde un CSV de 15 columnas.
+     * Omite rollos con roll_number duplicado. item_id = null (se vincula después).
+     *
+     * @param  array<int, array> $rows  Filas ya parseadas (arrays indexados 0-14)
+     * @return array{inserted:int, skipped:int, errors:list<array{row:int|null,message:string}>}
+     */
+    public function importFromCsv(array $rows): array
+    {
+        $inserted = 0;
+        $skipped  = 0;
+        $errors   = [];
+
+        $existingRolls = DB::table('fabric_rolls')
+            ->pluck('roll_number')
+            ->flip()
+            ->toArray();
+
+        foreach ($rows as $i => $row) {
+            $rowNum     = $i + 2;
+            $rollNumber = trim((string) ($row[0] ?? ''));
+
+            if ($rollNumber === '') {
+                $skipped++;
+                continue;
+            }
+
+            if (isset($existingRolls[$rollNumber])) {
+                $skipped++;
+                continue;
+            }
+
+            $baseTela = strtoupper(trim((string) ($row[4] ?? '')));
+            $tela     = strtoupper(trim((string) ($row[5] ?? '')));
+            $description = $baseTela !== '' && $tela !== ''
+                ? "{$baseTela} - {$tela}"
+                : ($baseTela ?: $tela);
+
+            $entryDate = $this->parseCsvDate((string) ($row[14] ?? ''));
+
+            $quantity      = (float) str_replace(',', '.', (string) ($row[9] ?? 0));
+            $partialOutput = (float) str_replace(',', '.', (string) ($row[10] ?? 0));
+            $actualOutput  = (float) str_replace(',', '.', (string) ($row[12] ?? 0));
+
+            if ($quantity <= 0) {
+                $errors[] = ['row' => $rowNum, 'message' => "Rollo '{$rollNumber}': cantidad debe ser mayor a 0."];
+                $skipped++;
+                continue;
+            }
+
+            try {
+                DB::table('fabric_rolls')->insert([
+                    'roll_number'               => $rollNumber,
+                    'location'                  => trim((string) ($row[1] ?? '')) ?: null,
+                    'description'               => $description ?: null,
+                    'internal_color_name'       => strtoupper(trim((string) ($row[6] ?? ''))) ?: null,
+                    'internal_color_code'       => trim((string) ($row[7] ?? '')) ?: null,
+                    'roll_width'                => (float) str_replace(',', '.', (string) ($row[8] ?? 0)) ?: null,
+                    'quantity'                  => $quantity,
+                    'partial_output'            => $partialOutput,
+                    'actual_output'             => $actualOutput,
+                    'entry_date'                => $entryDate,
+                    'approval_status'           => FabricRoll::APPROVAL_APPROVED,
+                    'item_id'                   => null,
+                    'purchase_document_item_id' => null,
+                    'created_at'                => now(),
+                    'updated_at'                => now(),
+                ]);
+
+                $existingRolls[$rollNumber] = true;
+                $inserted++;
+            } catch (\Throwable $e) {
+                $errors[] = ['row' => $rowNum, 'message' => "Rollo '{$rollNumber}': " . $e->getMessage()];
+                $skipped++;
+            }
+        }
+
+        return compact('inserted', 'skipped', 'errors');
+    }
+
+    private function parseCsvDate(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return now()->toDateString();
+        }
+
+        // d/m/Y H:i or d/m/Y
+        foreach (['d/m/Y H:i', 'd/m/Y'] as $format) {
+            $date = \DateTime::createFromFormat($format, $value);
+            if ($date !== false) {
+                return $date->format('Y-m-d');
+            }
+        }
+
+        // fallback: strtotime
+        $ts = strtotime($value);
+        return $ts !== false ? date('Y-m-d', $ts) : now()->toDateString();
+    }
+
+    /**
+     * Registra un ajuste manual de cantidad (entrada/salida) sobre el rollo.
+     * - Entrada: incrementa quantity y crea movimiento de inventario.
+     * - Salida: delega en updateOutput() que ya crea el movimiento kardex.
+     * En ambos casos registra en fabric_roll_adjustments para trazabilidad.
+     *
+     * @throws ValidationException
+     * @throws \RuntimeException
+     */
+    public function discharge(FabricRoll $fabricRoll, string $type, float $quantity, string $reason, ?int $productionOrderId, ?string $reference): FabricRoll
+    {
+        return DB::transaction(function () use ($fabricRoll, $type, $quantity, $reason, $productionOrderId, $reference) {
+            $roll = FabricRoll::lockForUpdate()->findOrFail($fabricRoll->id);
+
+            $item = $roll->item ?? $roll->purchaseDocumentItem?->item;
+
+            if ($type === 'salida') {
+                if (! $item) {
+                    throw ValidationException::withMessages([
+                        'item_id' => ['El rollo no está vinculado a un ítem. Vincúlelo antes de registrar una salida.'],
+                    ]);
+                }
+
+                $newActualOutput = (float) $roll->actual_output + $quantity;
+
+                if ($newActualOutput > (float) $roll->quantity) {
+                    throw ValidationException::withMessages([
+                        'quantity' => ['La cantidad de salida no puede superar la disponibilidad real del rollo.'],
+                    ]);
+                }
+
+                $quantityBefore = (float) $roll->quantity;
+
+                $this->recordConsumptionAndCreateMovement($roll, $quantity, $productionOrderId);
+                $roll->increment('actual_output', $quantity);
+                $roll->refresh();
+
+                $movementId = \App\Models\Inventory\InventoryMovement::where('notes', 'like', '%' . $roll->roll_number . '%')
+                    ->orderByDesc('id')
+                    ->value('id');
+
+                FabricRollAdjustment::create([
+                    'fabric_roll_id'       => $roll->id,
+                    'user_id'              => Auth::id(),
+                    'type'                 => 'salida',
+                    'quantity_before'      => $quantityBefore,
+                    'quantity_after'       => (float) $roll->quantity,
+                    'partial_before'       => null,
+                    'partial_after'        => null,
+                    'reason'               => $reason,
+                    'reference'            => $reference,
+                    'inventory_movement_id' => $movementId,
+                ]);
+            } else {
+                // entrada: incrementa cantidad del rollo y crea movimiento de inventario
+                $quantityBefore = (float) $roll->quantity;
+
+                $inventoryMovementId = null;
+
+                if ($item) {
+                    $warehouse = $item->warehouses()->first();
+                    if (! $warehouse) {
+                        throw new \RuntimeException('El ítem vinculado al rollo no tiene bodega asignada. Configure la bodega del ítem antes de registrar una entrada.');
+                    }
+
+                    $unitPrice = (float) ($roll->price_per_meter ?? $roll->purchaseDocumentItem?->price ?? 0);
+
+                    $movement = $this->movementService->createMovement([
+                        'item_id'             => $item->id,
+                        'warehouse_id'        => $warehouse->id,
+                        'type'                => 'entrada',
+                        'quantity'            => $quantity,
+                        'unit_price'          => $unitPrice > 0 ? $unitPrice : 0.0001,
+                        'notes'               => 'Ajuste entrada rollo #' . $roll->roll_number . '. ' . $reason,
+                        'source_type'         => FabricRoll::class,
+                        'source_id'           => $roll->id,
+                        'source_reference'    => $roll->roll_number,
+                        'created_by_user_id'  => Auth::id(),
+                    ]);
+
+                    $inventoryMovementId = $movement->id;
+                }
+
+                $roll->increment('quantity', $quantity);
+                $roll->refresh();
+
+                FabricRollAdjustment::create([
+                    'fabric_roll_id'       => $roll->id,
+                    'user_id'              => Auth::id(),
+                    'type'                 => 'entrada',
+                    'quantity_before'      => $quantityBefore,
+                    'quantity_after'       => (float) $roll->quantity,
+                    'reason'               => $reason,
+                    'reference'            => $reference,
+                    'inventory_movement_id' => $inventoryMovementId,
+                ]);
+            }
+
+            return $roll;
         });
     }
 
@@ -437,6 +674,10 @@ class FabricRollService
             $query->whereIn(DB::raw('COALESCE(fr.item_id, pdi.item_id)'), (array) $filters['fabric_item_ids']);
         }
 
+        if (!empty($filters['no_item'])) {
+            $query->whereNull('fr.item_id')->whereNull('pdi.item_id');
+        }
+
         return $query->orderBy($sortColumn, $sortDirection)->paginate($perPage);
     }
 
@@ -631,5 +872,140 @@ class FabricRollService
             PurchaseDocument::APPROVAL_DIFFERENCE_REJECTED,
             'diferencia rechazada',
         ], true);
+    }
+
+    /**
+     * Actualiza cantidades de rollos existentes desde un array de filas importadas.
+     * Columnas esperadas: roll_number, quantity, partial_output, real_availability, item_reference (opcional), batch (opcional).
+     * Por cada rollo actualizado crea un registro en fabric_roll_adjustments.
+     * Si el delta de cantidad ≠ 0 y el rollo tiene item_id, crea movimiento de inventario tipo ajuste.
+     *
+     * @param  array<int, array{roll_number:string, quantity:float, partial_output:float, real_availability:float, item_reference:string, batch:string}> $rows
+     * @return array{updated:int, skipped:int, errors:list<array{row:int|null, message:string}>}
+     */
+    public function importQuantities(array $rows, string $batchRef): array
+    {
+        $updated = 0;
+        $skipped = 0;
+        $errors  = [];
+
+        $itemsByRef = [];
+
+        foreach ($rows as $rowIndex => $row) {
+            $rowNum = $rowIndex + 2; // 1-based + header row
+            $rollNumber = trim((string) ($row['roll_number'] ?? ''));
+
+            if ($rollNumber === '') {
+                $skipped++;
+                continue;
+            }
+
+            $roll = FabricRoll::where('roll_number', $rollNumber)->first();
+
+            if (! $roll) {
+                $errors[] = ['row' => $rowNum, 'message' => "Rollo '{$rollNumber}' no encontrado. Se omite."];
+                $skipped++;
+                continue;
+            }
+
+            $newQty     = (float) ($row['quantity'] ?? 0);
+            $newPartial = (float) ($row['partial_output'] ?? 0);
+            $realAvail  = (float) ($row['real_availability'] ?? 0);
+            $newActual  = max(0.0, round($newQty - $realAvail, 2));
+
+            if ($newQty <= 0) {
+                $errors[] = ['row' => $rowNum, 'message' => "Rollo '{$rollNumber}': la cantidad debe ser mayor a 0."];
+                $skipped++;
+                continue;
+            }
+
+            // Resolver item_id si se provee referencia
+            $newItemId = null;
+            $itemRef = trim((string) ($row['item_reference'] ?? ''));
+            if ($itemRef !== '') {
+                if (! isset($itemsByRef[$itemRef])) {
+                    $itemsByRef[$itemRef] = Item::where('reference', $itemRef)->value('id');
+                }
+                if ($itemsByRef[$itemRef]) {
+                    $newItemId = (int) $itemsByRef[$itemRef];
+                } else {
+                    $errors[] = ['row' => $rowNum, 'message' => "Rollo '{$rollNumber}': referencia ítem '{$itemRef}' no encontrada. Se actualiza cantidad sin cambiar ítem."];
+                }
+            }
+
+            try {
+                DB::transaction(function () use ($roll, $newQty, $newPartial, $newActual, $newItemId, $row, $batchRef, &$updated) {
+                    $lockedRoll = FabricRoll::lockForUpdate()->findOrFail($roll->id);
+
+                    $qtyBefore     = (float) $lockedRoll->quantity;
+                    $partialBefore = (float) $lockedRoll->partial_output;
+                    $delta         = round($newQty - $qtyBefore, 4);
+
+                    $updateData = [
+                        'quantity'       => $newQty,
+                        'partial_output' => $newPartial,
+                        'actual_output'  => $newActual,
+                    ];
+
+                    if ($newItemId !== null) {
+                        $updateData['item_id'] = $newItemId;
+                    }
+
+                    $batch = trim((string) ($row['batch'] ?? ''));
+                    if ($batch !== '') {
+                        $updateData['batch'] = $batch;
+                    }
+
+                    $lockedRoll->update($updateData);
+
+                    // Movimiento de inventario si hay delta y hay item vinculado
+                    $effectiveItemId = $newItemId ?? $lockedRoll->item_id;
+                    $inventoryMovementId = null;
+
+                    if (abs($delta) > 0.001 && $effectiveItemId) {
+                        $item = Item::find($effectiveItemId);
+                        if ($item) {
+                            $warehouseId = $this->warehouseResolver->resolveWarehouseId($item, null);
+                            $unitPrice = (float) ($lockedRoll->price_per_meter ?? $lockedRoll->purchaseDocumentItem?->price ?? 0);
+                            $movType = $delta > 0 ? 'entrada' : 'salida';
+
+                            $movement = $this->movementService->createMovement([
+                                'item_id'            => $item->id,
+                                'warehouse_id'       => $warehouseId,
+                                'type'               => $movType,
+                                'quantity'           => abs($delta),
+                                'unit_price'         => $unitPrice > 0 ? $unitPrice : 0.0001,
+                                'notes'              => 'Ajuste por importación masiva rollo #' . $lockedRoll->roll_number . '. Lote: ' . $batchRef,
+                                'source_type'        => FabricRoll::class,
+                                'source_id'          => $lockedRoll->id,
+                                'source_reference'   => $lockedRoll->roll_number,
+                                'created_by_user_id' => Auth::id(),
+                            ]);
+                            $inventoryMovementId = $movement->id;
+                        }
+                    }
+
+                    FabricRollAdjustment::create([
+                        'fabric_roll_id'       => $lockedRoll->id,
+                        'user_id'              => Auth::id(),
+                        'type'                 => 'import_update',
+                        'quantity_before'      => $qtyBefore,
+                        'quantity_after'       => $newQty,
+                        'partial_before'       => $partialBefore,
+                        'partial_after'        => $newPartial,
+                        'reason'               => 'Importación masiva de cantidades',
+                        'reference'            => $batchRef,
+                        'inventory_movement_id' => $inventoryMovementId,
+                    ]);
+
+                    $updated++;
+                });
+            } catch (\RuntimeException $e) {
+                $errors[] = ['row' => $rowNum, 'message' => "Rollo '{$rollNumber}': " . $e->getMessage()];
+                $skipped++;
+            }
+        }
+
+        return compact('updated', 'skipped', 'errors');
     }
 }

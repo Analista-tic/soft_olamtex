@@ -73,16 +73,28 @@ const form = ref({
     is_active: '1' as StatusValue,
 });
 
-watch(() => props.open, (value) => {
-    localOpen.value = value;
-    if (value) {
-        void fetchCatalogs();
-    }
-});
+watch(
+    () => props.open,
+    (value) => {
+        localOpen.value = value;
+    },
+    { immediate: true },
+);
 
-watch(localOpen, (value) => {
-    if (!value) emit('close');
-});
+watch(
+    localOpen,
+    (value, previousValue) => {
+        if (value && !previousValue) {
+            void fetchCatalogs();
+            return;
+        }
+
+        if (!value && previousValue !== undefined) {
+            emit('close');
+        }
+    },
+    { immediate: true },
+);
 
 watch(activeTab, () => resetForm());
 

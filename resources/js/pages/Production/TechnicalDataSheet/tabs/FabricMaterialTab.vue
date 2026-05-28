@@ -425,6 +425,14 @@ function trazoRollCount(trazo: TrazoGroup): number {
     return trazo.lines.reduce((sum, l) => sum + l.assignedRolls.filter((a) => toNumber(a.metersProgrammed) > 0).length, 0);
 }
 
+function formatCountLabel(count: number, singular: string, plural = `${singular}s`): string {
+    return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function rowMetersValue(rollId: string): number {
+    return toNumber(getRollMeters(rollId));
+}
+
 function trazoNeededMeters(trazo: TrazoGroup): number {
     if (!trazo.promTrazo || !props.units) return 0;
     return trazo.promTrazo * props.units;
@@ -477,7 +485,7 @@ function serializeState(): string {
 }
 
 const dirty = computed(() => serializeState() !== snapshot.value);
-const canSave = computed(() => dirty.value && !isSaving.value && !isLoading.value && !anyOverAllocation.value && !props.readonly);
+const canSave = computed(() => dirty.value && !isSaving.value && !isLoading.value && !props.readonly);
 
 function resetSnapshot(): void {
     snapshot.value = serializeState();
@@ -988,8 +996,8 @@ watch(activeLineUid, () => {
 
 watch(
     anyOverAllocation,
-    (value) => {
-        if (value) { showWarning(warningMessage.value ?? 'La cantidad asignada supera la disponibilidad del rollo.'); return; }
+    (value, oldValue) => {
+        if (value && !oldValue) { showWarning(warningMessage.value ?? 'La cantidad asignada supera la disponibilidad del rollo.'); return; }
         if (errorType.value === 'warning') clearError();
     },
     { immediate: true },
@@ -1021,6 +1029,9 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                 >
                     <Save class="mr-1 h-3.5 w-3.5" />{{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
                 </Button>
+                <div v-if="props.readonly" class="flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">
+                    🔒 Modo lectura
+                </div>
             </div>
         </div>
 
@@ -1077,10 +1088,10 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                         <!-- Pills -->
                         <div class="mt-1.5 flex flex-wrap gap-1">
                             <span class="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                                {{ trazoTelaCount(trazo) }} tela{{ trazoTelaCount(trazo) !== 1 ? 's' : '' }}
+                                {{ formatCountLabel(trazoTelaCount(trazo), 'tela') }}
                             </span>
                             <span v-if="trazoRollCount(trazo) > 0" class="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                                {{ trazoRollCount(trazo) }} rollo{{ trazoRollCount(trazo) !== 1 ? 's' : '' }}
+                                {{ formatCountLabel(trazoRollCount(trazo), 'rollo') }}
                             </span>
                         </div>
 
@@ -1325,7 +1336,7 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                                 'transition-colors',
                                                 row.isOrphan ? 'bg-muted/30' : '',
                                                 selectedRollIds.has(row.rollId) ? 'bg-[#d23f3f]/5' : 'hover:bg-muted/20',
-                                                isRollOverAllocated(row.rollId, toNumber(getRollMeters(row.rollId))) ? 'bg-destructive/5' : '',
+                                                isRollOverAllocated(row.rollId, rowMetersValue(row.rollId)) ? 'bg-destructive/5' : '',
                                             ]"
                                         >
                                             <!-- Checkbox -->
@@ -1363,7 +1374,7 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                                     </div>
                                                     <span
                                                         class="shrink-0 tabular-nums text-xs"
-                                                        :class="isRollOverAllocated(row.rollId, toNumber(getRollMeters(row.rollId))) ? 'font-semibold text-destructive' : 'text-muted-foreground'"
+                                                        :class="isRollOverAllocated(row.rollId, rowMetersValue(row.rollId)) ? 'font-semibold text-destructive' : 'text-muted-foreground'"
                                                     >{{ formatMeters(realAvailableForRoll(row.rollId)) }}</span>
                                                 </div>
                                             </td>
@@ -1386,7 +1397,7 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                                         :disabled="isSaving"
                                                         :class="[
                                                             'h-8 w-20 border border-input bg-background text-center text-sm tabular-nums outline-none focus:ring-1 focus:ring-ring disabled:opacity-50',
-                                                            isRollOverAllocated(row.rollId, toNumber(getRollMeters(row.rollId))) ? 'border-destructive text-destructive focus:ring-destructive' : '',
+                                                            isRollOverAllocated(row.rollId, rowMetersValue(row.rollId)) ? 'border-destructive text-destructive focus:ring-destructive' : '',
                                                         ]"
                                                         @input="(e) => setRollMeters(row.rollId, (e.target as HTMLInputElement).value)"
                                                         @keydown="(e: KeyboardEvent) => onMeterKeyDown(e, row.rollId)"
@@ -1409,9 +1420,9 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                             <td class="px-2 py-1.5 text-right">
                                                 <span
                                                     class="tabular-nums text-sm font-semibold"
-                                                    :class="toNumber(getRollMeters(row.rollId)) > 0 ? 'text-foreground' : 'text-muted-foreground/20'"
+                                                    :class="rowMetersValue(row.rollId) > 0 ? 'text-foreground' : 'text-muted-foreground/20'"
                                                 >
-                                                    {{ toNumber(getRollMeters(row.rollId)) > 0 ? formatCOP(toNumber(getRollMeters(row.rollId)) * toNumber(row.roll.pricePerMeter)) : '—' }}
+                                                    {{ rowMetersValue(row.rollId) > 0 ? formatCOP(rowMetersValue(row.rollId) * toNumber(row.roll.pricePerMeter)) : '—' }}
                                                 </span>
                                                 <div class="text-[10px] text-muted-foreground/50">{{ formatCOP(row.roll.pricePerMeter) }}/m</div>
                                             </td>

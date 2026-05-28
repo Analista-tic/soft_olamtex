@@ -524,6 +524,15 @@ class InventoryMovementService
             $query->where('item_id', $filters['item_id']);
         }
 
+        if (!empty($filters['fabric_items_only'])) {
+            $query->whereIn('item_id', function ($sub) {
+                $sub->select('item_id')
+                    ->from('fabric_rolls')
+                    ->whereNotNull('item_id')
+                    ->distinct();
+            });
+        }
+
         if (!empty($filters['warehouse_id'])) {
             $query->where('warehouse_id', $filters['warehouse_id']);
         }

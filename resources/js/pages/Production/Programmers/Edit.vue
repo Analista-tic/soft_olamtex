@@ -359,7 +359,6 @@ function calculateEstimatedDeliveryDate(season: string | number | null | undefin
 
 function updateEstimatedDeliveryDate() {
     if (isReadOnly.value) return;
-    if (programmer.value.is_advance) return;
 
     const priority = normalizePriorityForApi(programmer.value.priority);
     if (!priority) {
@@ -373,14 +372,6 @@ function updateEstimatedDeliveryDate() {
 }
 
 const selectedSeasonLabel = computed(() => normalizeSeasonForApi(programmer.value.season) || 'Sin temporada');
-const selectedDispatchMonthLabel = computed(() => normalizeSeasonForApi(programmer.value.dispatch_month) || selectedSeasonLabel.value);
-const isCrossSeasonAdvance = computed(() => {
-    const season = normalizeSeasonForApi(programmer.value.season);
-    const dispatchMonth = normalizeSeasonForApi(programmer.value.dispatch_month);
-
-    if (!season || !dispatchMonth) return false;
-    return season !== dispatchMonth;
-});
 
 const orderResumeStatusTone = computed(() => ((programmer.value.is_pending_completion ?? false) ? 'destructive' : 'default'));
 const orderResumeStatusText = computed(() => ((programmer.value.is_pending_completion ?? false) ? 'Pendiente' : 'Completo'));
@@ -511,7 +502,6 @@ async function saveChanges() {
             destination_id: programmer.value.destination_id,
             units: programmer.value.units,
             estimated_delivery_date: programmer.value.estimated_delivery_date,
-            is_advance: Boolean(programmer.value.is_advance || isCrossSeasonAdvance.value),
             notes: programmer.value.notes ?? null,
             ecommerce_units:
                 typeof programmer.value.ecommerce_units === 'string'
@@ -555,15 +545,6 @@ watch(
         updateEstimatedDeliveryDate();
     },
 );
-
-watch(
-    () => isCrossSeasonAdvance.value,
-    (crossSeason) => {
-        if (crossSeason) {
-            programmer.value.is_advance = true;
-        }
-    },
-);
 </script>
 
 <template>
@@ -595,10 +576,6 @@ watch(
                                 <Badge variant="outline">{{ programmer.op_code || 'OP sin código' }}</Badge>
                                 <Badge :variant="orderResumeStatusTone">{{ orderResumeStatusText }}</Badge>
                                 <Badge variant="outline">Temporada: {{ selectedSeasonLabel }}</Badge>
-                                <Badge variant="outline">Despacho: {{ selectedDispatchMonthLabel }}</Badge>
-                                <Badge :variant="isCrossSeasonAdvance ? 'destructive' : 'outline'">
-                                    {{ isCrossSeasonAdvance ? 'Adelanto entre temporadas' : 'Misma temporada' }}
-                                </Badge>
                             </div>
                         </section>
 
@@ -712,22 +689,11 @@ watch(
                                         v-model="programmer.priority"
                                         :options="priorityOptions"
                                         label=""
+                                        :clearable="true"
                                         :disabled="isReadOnly"
                                         class="mt-1 w-full"
                                         @update:modelValue="() => updateEstimatedDeliveryDate()"
                                     />
-                                </div>
-
-                                <div class="flex flex-col gap-1">
-                                    <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium">Adelanto</Label>
-                                    </div>
-                                    <div class="mt-2 flex items-center gap-2">
-                                        <input type="checkbox" v-model="programmer.is_advance" :disabled="isReadOnly || isCrossSeasonAdvance" />
-                                        <span v-if="isCrossSeasonAdvance" class="text-xs text-destructive">
-                                            Se marca automáticamente porque temporada y despacho son diferentes.
-                                        </span>
-                                    </div>
                                 </div>
 
                                 <!-- Fecha entrega estimada (disponible para todos) -->
@@ -741,7 +707,7 @@ watch(
                                         label="Fecha entrega estimada"
                                         :clearable="true"
                                         :show-today="true"
-                                        :disabled="isReadOnly || (!programmer.is_advance && Boolean(programmer.priority))"
+                                        :disabled="isReadOnly || Boolean(programmer.priority)"
                                     />
                                 </div>
 

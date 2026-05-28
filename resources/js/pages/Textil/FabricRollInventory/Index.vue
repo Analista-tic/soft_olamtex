@@ -9,18 +9,19 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { FabricRollView, FabricRollViewDto } from '@/domain/Textil';
-import { formatMeters, formatWidthToMeters, mapFabricRollViewDto, toUnitNumber } from '@/domain/Textil';
+import { formatMeters, formatWidthToMeters, mapFabricRollViewDto } from '@/domain/Textil';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 import { useAuthStore } from '@/stores/auth';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { ArrowDownToLine, Download, Eye, FileSpreadsheet, Search, SlidersHorizontal, Upload } from 'lucide-vue-next';
+import { ArrowDownToLine, Download, Eye, FileSpreadsheet, Link, Search, Upload } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
-import FabricRollAdjustDialog from './FabricRollAdjustDialog.vue';
 import FabricRollDownloadDialog from './FabricRollDownloadDialog.vue';
-import FabricRollImportDialog from './FabricRollImportDialog.vue';
 import FabricRollInventoryDialog from './FabricRollInventoryDialog.vue';
+import FabricRollLinkItemDialog from './FabricRollLinkItemDialog.vue';
+import FabricRollQuantityImportDialog from './FabricRollQuantityImportDialog.vue';
+import FabricRollCsvImportDialog from './FabricRollCsvImportDialog.vue';
 import ServerPagination from '@/components/common/ServerPagination.vue';
 
 const breadcrumbs = [{ title: 'Inventario Telas por Rollo', href: '/kardex-telas/inventario-rollos' }];
@@ -30,7 +31,7 @@ const authStore = useAuthStore();
 const searchQuery = ref('');
 const baseFilter = ref('');
 const providerFilter = ref('');
-const showDownloadedOnly = ref(false);
+const filterNoItem = ref(false);
 
 // Datos
 const rolls = ref<FabricRollView[]>([]);
@@ -101,12 +102,14 @@ const successMessage = ref('');
 const errorMessage = ref('');
 const errorType = ref<'error' | 'warning' | 'info'>('error');
 const isLoadingRolls = ref(false);
-const isAdjustDialogOpen = ref(false);
-const rollToAdjust = ref<FabricRollView | null>(null);
-const isImportDialogOpen = ref(false);
+
+const isLinkItemDialogOpen = ref(false);
+const rollToLink = ref<FabricRollView | null>(null);
+const isQuantityImportDialogOpen = ref(false);
+const isCsvImportDialogOpen = ref(false);
 
 const canSuperadminManageChanges = computed(() => authStore.hasRole('superadmin'));
-const canImportRolls = computed(() => canSuperadminManageChanges.value && authStore.can('fabric_rolls.import'));
+const canEditRolls = computed(() => authStore.can('editar telas rollos'));
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -119,7 +122,7 @@ async function fetchFabricRolls(page = 1) {
         if (searchQuery.value.trim()) params.set('search', searchQuery.value.trim());
         if (baseFilter.value.trim()) params.set('base_fabric', baseFilter.value.trim());
         if (providerFilter.value.trim()) params.set('provider', providerFilter.value.trim());
-        if (showDownloadedOnly.value) params.set('with_output', '1');
+        if (filterNoItem.value) params.set('no_item', '1');
         params.set('page', String(page));
         params.set('per_page', String(perPage.value));
         params.set('sort_by', sortColumn.value);
@@ -147,7 +150,7 @@ function scheduleRefetch() {
     debounceTimer = setTimeout(() => fetchFabricRolls(1), 350);
 }
 
-watch([searchQuery, baseFilter, providerFilter, showDownloadedOnly], scheduleRefetch);
+watch([searchQuery, baseFilter, providerFilter, filterNoItem], scheduleRefetch);
 
 onMounted(() => {
     authStore.fetchUser().catch(() => undefined);
@@ -191,45 +194,9 @@ function exportTemplate() {
     window.open('/fabric-rolls/descargar-plantilla', '_blank');
 }
 
-function openImportDialog() {
-    if (!canSuperadminManageChanges.value) {
-        errorType.value = 'warning';
-        errorMessage.value = 'Solo superadmin puede importar rollos al inventario.';
-        return;
-    }
-
-    isImportDialogOpen.value = true;
-}
-
 function openDownloadDialog(roll: FabricRollView) {
-    if (!canSuperadminManageChanges.value) {
-        errorType.value = 'warning';
-        errorMessage.value = 'Solo superadmin puede registrar descargues de rollos.';
-        return;
-    }
-
     rollToDownload.value = roll;
     isDownloadDialogOpen.value = true;
-}
-
-function openAdjustDialog(roll?: FabricRollView | null) {
-    if (!canSuperadminManageChanges.value) {
-        errorType.value = 'warning';
-        errorMessage.value = 'Solo superadmin puede ajustar salidas de rollos.';
-        return;
-    }
-    const target = roll ?? selectedRoll.value ?? null;
-    if (!target) {
-        errorType.value = 'warning';
-        errorMessage.value = 'Selecciona un rollo antes de ajustar la salida.';
-        return;
-    }
-    rollToAdjust.value = target;
-    isAdjustDialogOpen.value = true;
-}
-
-function toggleDownloadedFilter() {
-    showDownloadedOnly.value = !showDownloadedOnly.value;
 }
 
 function handleDischargeSuccess(payload: {
@@ -274,50 +241,9 @@ function handleDischargeError(payload: { message: string }) {
     errorMessage.value = payload.message;
 }
 
-async function handleAdjustRequest(payload: { roll: FabricRollView | null; data: Record<string, string> }) {
-    const roll = payload.roll;
-    if (!roll) {
-        errorType.value = 'error';
-        errorMessage.value = 'No se encontró el rollo seleccionado.';
-        return;
-    }
-    const exitQuantityValue = toUnitNumber(roll.exit_quantity_value ?? roll.exit_quantity) ?? 0;
-    const partialOutputValue = toUnitNumber(roll.partial_output_value ?? roll.partial_output) ?? 0;
-    const actualOutput = payload.data.actualOutput ? Number(payload.data.actualOutput) : exitQuantityValue;
-    const partialOutput = payload.data.partialOutput ? Number(payload.data.partialOutput) : partialOutputValue;
-    try {
-        await axios.patch(`/rollos-tela/${roll.id}/update-output`, {
-            actual_output: actualOutput,
-            partial_output: partialOutput,
-        });
-        successMessage.value = `Salida actualizada para el rollo ${roll.roll}.`;
-        errorMessage.value = '';
-        await fetchFabricRolls(currentPage.value);
-    } catch (error: any) {
-        errorType.value = 'error';
-        errorMessage.value = error?.response?.data?.message || 'No se pudo actualizar la salida del rollo.';
-    } finally {
-        isAdjustDialogOpen.value = false;
-        rollToAdjust.value = null;
-    }
-}
-
 function setDownloadDialogOpen(value: boolean) {
     isDownloadDialogOpen.value = value;
     if (!value) rollToDownload.value = null;
-}
-
-async function handleImportCompleted(payload: { message: string; inserted: number; skipped: number; errors: string[] }) {
-    successMessage.value = `Importación completada. Insertados: ${payload.inserted}. Omitidos: ${payload.skipped}.`;
-    errorType.value = payload.errors.length > 0 ? 'warning' : 'error';
-    errorMessage.value = payload.errors.length > 0 ? payload.errors.slice(0, 3).join(' | ') : '';
-
-    await fetchFabricRolls(1);
-}
-
-function handleImportError(payload: { message: string }) {
-    errorType.value = 'error';
-    errorMessage.value = payload.message;
 }
 
 async function handleMainFabricUpdated(payload: { rollId: number; itemId: number; itemName: string; message: string }) {
@@ -336,6 +262,49 @@ async function handleMainFabricUpdated(payload: { rollId: number; itemId: number
     errorType.value = 'error';
 
     await fetchFabricRolls(currentPage.value);
+}
+
+function openLinkItemDialog(roll: FabricRollView) {
+    rollToLink.value = roll;
+    isLinkItemDialogOpen.value = true;
+}
+
+async function handleLinkItemSuccess(payload: { rollId: number; itemId: number; itemName: string; message: string }) {
+    const rollIndex = rolls.value.findIndex((r) => r.id === payload.rollId);
+    if (rollIndex !== -1) {
+        rolls.value[rollIndex] = {
+            ...rolls.value[rollIndex],
+            fabric_item_id: payload.itemId,
+            fabric: payload.itemName,
+        };
+    }
+    successMessage.value = payload.message;
+    errorMessage.value = '';
+    isLinkItemDialogOpen.value = false;
+    rollToLink.value = null;
+}
+
+async function handleQuantityImportCompleted(payload: { message: string; updated: number; skipped: number; errors: string[] }) {
+    successMessage.value = `Importación completada. Actualizados: ${payload.updated}. Omitidos: ${payload.skipped}.`;
+    if (payload.errors.length > 0) {
+        errorType.value = 'warning';
+        errorMessage.value = payload.errors.slice(0, 3).join(' | ');
+    } else {
+        errorMessage.value = '';
+    }
+    await fetchFabricRolls(1);
+}
+
+async function handleCsvImported(payload: { inserted: number; skipped: number; errors: { row: number | null; message: string }[] }) {
+    isCsvImportDialogOpen.value = false;
+    successMessage.value = `CSV importado. Insertados: ${payload.inserted}. Omitidos: ${payload.skipped}.`;
+    if (payload.errors.length > 0) {
+        errorType.value = 'warning';
+        errorMessage.value = payload.errors.slice(0, 3).map((e) => e.message).join(' | ');
+    } else {
+        errorMessage.value = '';
+    }
+    await fetchFabricRolls(1);
 }
 </script>
 
@@ -382,8 +351,12 @@ async function handleMainFabricUpdated(payload: { rollId: number; itemId: number
                                 <FileSpreadsheet class="h-4 w-4" /> Exportar plantilla
                             </DropdownMenuItem>
 
-                            <DropdownMenuItem v-if="canImportRolls" class="cursor-pointer gap-2" @click="openImportDialog">
-                                <Upload class="h-4 w-4" /> Importar rollos
+                            <DropdownMenuItem v-if="canEditRolls" class="cursor-pointer gap-2" @click="isQuantityImportDialogOpen = true">
+                                <Upload class="h-4 w-4" /> Importar cantidades
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem v-if="canEditRolls" class="cursor-pointer gap-2" @click="isCsvImportDialogOpen = true">
+                                <Upload class="h-4 w-4" /> Importar CSV histórico
                             </DropdownMenuItem>
 
                             <DropdownMenuItem class="cursor-pointer gap-2" @click="exportFabricRollsExcel">
@@ -391,14 +364,6 @@ async function handleMainFabricUpdated(payload: { rollId: number; itemId: number
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    <Button
-                        variant="secondary"
-                        class="flex h-10 w-full items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm md:w-auto"
-                        type="button"
-                        @click="toggleDownloadedFilter"
-                    >
-                        {{ showDownloadedOnly ? 'Ver todos los rollos' : 'Ver descargue por rollo' }}
-                    </Button>
                 </div>
             </div>
 
@@ -438,6 +403,17 @@ async function handleMainFabricUpdated(payload: { rollId: number; itemId: number
                             <Search class="h-4 w-4 text-muted-foreground" />
                         </span>
                     </div>
+                </FilterField>
+                <FilterField label="Sin ítem" :active="filterNoItem" class="p-0">
+                    <button
+                        type="button"
+                        class="flex h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm transition hover:bg-muted/60"
+                        :class="{ 'border-primary bg-primary/5 font-medium text-primary': filterNoItem }"
+                        @click="filterNoItem = !filterNoItem"
+                    >
+                        <Link class="h-4 w-4" />
+                        Sin ítem vinculado
+                    </button>
                 </FilterField>
             </FilterBar>
 
@@ -547,7 +523,18 @@ async function handleMainFabricUpdated(payload: { rollId: number; itemId: number
                             <TableRow v-for="roll in sortedRolls" v-else :key="roll.id" class="border-b">
                                 <TableCell class="text-center text-sm">{{ roll.roll }}</TableCell>
                                 <TableCell class="text-center text-sm">{{ roll.location }}</TableCell>
-                                <TableCell class="text-center text-sm">{{ roll.fabric }}</TableCell>
+                                <TableCell class="text-center text-sm">
+                                    <div class="flex items-center justify-center gap-1.5">
+                                        <span>{{ roll.fabric }}</span>
+                                        <span
+                                            v-if="!roll.fabric_item_id"
+                                            class="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                                            title="Este rollo no está vinculado a un ítem del inventario"
+                                        >
+                                            Sin ítem
+                                        </span>
+                                    </div>
+                                </TableCell>
                                 <TableCell class="text-center text-sm">
                                     <div class="flex items-center justify-center gap-1.5">
                                         <span
@@ -577,24 +564,24 @@ async function handleMainFabricUpdated(payload: { rollId: number; itemId: number
                                         </button>
                                         <DeleteButton v-if="canSuperadminManageChanges" @click="confirmDeleteRoll(roll)" />
                                         <button
+                                            v-if="canEditRolls"
                                             class="inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                             title="Descargar rollo"
                                             type="button"
-                                            :disabled="!canSuperadminManageChanges"
-                                            :class="{ 'cursor-not-allowed opacity-50': !canSuperadminManageChanges }"
                                             @click="openDownloadDialog(roll)"
                                         >
                                             <ArrowDownToLine class="h-4 w-4" />
                                         </button>
+                                        <!-- Ajuste de salida: funcionalidad en estudio — puede generar inconsistencias de inventario -->
                                         <button
-                                            class="inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                            title="Ajustar salida"
+                                            v-if="canEditRolls"
+                                            class="inline-flex h-9 w-9 items-center justify-center rounded-md transition hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                            :class="roll.fabric_item_id ? 'text-foreground/50 hover:text-foreground' : 'text-amber-600 hover:text-amber-700'"
+                                            :title="roll.fabric_item_id ? 'Cambiar ítem vinculado' : 'Vincular ítem (sin vínculo)'"
                                             type="button"
-                                            :disabled="!canSuperadminManageChanges"
-                                            :class="{ 'cursor-not-allowed opacity-50': !canSuperadminManageChanges }"
-                                            @click="openAdjustDialog(roll)"
+                                            @click="openLinkItemDialog(roll)"
                                         >
-                                            <SlidersHorizontal class="h-4 w-4" />
+                                            <Link class="h-4 w-4" />
                                         </button>
                                     </div>
                                 </TableCell>
@@ -623,12 +610,7 @@ async function handleMainFabricUpdated(payload: { rollId: number; itemId: number
             @main-fabric-updated="handleMainFabricUpdated"
         />
 
-        <FabricRollAdjustDialog
-            :modelValue="isAdjustDialogOpen"
-            :roll="rollToAdjust"
-            @update:modelValue="(value) => (isAdjustDialogOpen = value)"
-            @submit-adjust="handleAdjustRequest"
-        />
+        <!-- FabricRollAdjustDialog: funcionalidad en estudio — puede generar inconsistencias de inventario -->
 
         <FabricRollDownloadDialog
             :modelValue="isDownloadDialogOpen"
@@ -636,13 +618,6 @@ async function handleMainFabricUpdated(payload: { rollId: number; itemId: number
             @update:modelValue="setDownloadDialogOpen"
             @discharge-success="handleDischargeSuccess"
             @discharge-error="handleDischargeError"
-        />
-
-        <FabricRollImportDialog
-            :modelValue="isImportDialogOpen"
-            @update:modelValue="(value) => (isImportDialogOpen = value)"
-            @imported="handleImportCompleted"
-            @error="handleImportError"
         />
 
         <ConfirmDialog
@@ -653,6 +628,25 @@ async function handleMainFabricUpdated(payload: { rollId: number; itemId: number
             cancel-text="Cancelar"
             :destructive="true"
             @confirm="deleteRoll"
+        />
+
+        <FabricRollLinkItemDialog
+            :model-value="isLinkItemDialogOpen"
+            :roll="rollToLink"
+            @update:model-value="(v) => { isLinkItemDialogOpen = v; if (!v) rollToLink = null; }"
+            @linked="handleLinkItemSuccess"
+        />
+
+        <FabricRollQuantityImportDialog
+            :model-value="isQuantityImportDialogOpen"
+            @update:model-value="(v) => (isQuantityImportDialogOpen = v)"
+            @imported="handleQuantityImportCompleted"
+        />
+
+        <FabricRollCsvImportDialog
+            :open="isCsvImportDialogOpen"
+            @update:open="(v) => (isCsvImportDialogOpen = v)"
+            @imported="handleCsvImported"
         />
     </AppLayout>
 </template>

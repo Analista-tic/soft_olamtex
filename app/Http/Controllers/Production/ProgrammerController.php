@@ -169,11 +169,6 @@ class ProgrammerController extends Controller
                     $dispatchMonth = $dispatchMonthRaw !== null && $dispatchMonthRaw !== ''
                         ? $dispatchMonthRaw
                         : $season;
-                    $seasonToken = $this->normalizeTemporalComparisonToken($season);
-                    $dispatchMonthToken = $this->normalizeTemporalComparisonToken($dispatchMonth);
-                    $isCrossSeasonAdvance = $seasonToken !== '' && $dispatchMonthToken !== '' && $seasonToken !== $dispatchMonthToken;
-                    // Si hay cruce de temporadas, SIEMPRE es adelanto (sin opción a deshabilitar)
-                    $isAdvance = $isCrossSeasonAdvance ? true : (bool) ($lot['is_advance'] ?? false);
                     $inputPriority = isset($lot['priority']) ? (string) $lot['priority'] : null;
                     $notes = isset($lot['notes']) ? trim((string) $lot['notes']) : null;
 
@@ -191,30 +186,10 @@ class ProgrammerController extends Controller
                         $inputPriority,
                     );
 
-                    if ($isAdvance) {
-                        $estimatedDeliveryDate = isset($lot['estimated_delivery_date']) ? trim((string) $lot['estimated_delivery_date']) : '';
-
-                        if ($estimatedDeliveryDate === '') {
-                            if ($isCrossSeasonAdvance) {
-                                $estimatedDeliveryDate = $this->schedulingService->resolveStandardDate($dispatchMonth, $priority);
-                            } else {
-                                throw ValidationException::withMessages([
-                                    'lots' => 'La fecha estimada es obligatoria cuando el lote es adelanto.',
-                                ]);
-                            }
-                        }
-
-                        if (!$isCrossSeasonAdvance) {
-                            try {
-                                $this->schedulingService->validateAdvanceDate($estimatedDeliveryDate);
-                            } catch (\InvalidArgumentException $exception) {
-                                throw ValidationException::withMessages([
-                                    'lots' => $exception->getMessage(),
-                                ]);
-                            }
-                        }
-                    } else {
+                    if ($priority !== '') {
                         $estimatedDeliveryDate = $this->schedulingService->resolveStandardDate($season, $priority);
+                    } else {
+                        $estimatedDeliveryDate = isset($lot['estimated_delivery_date']) ? trim((string) $lot['estimated_delivery_date']) : null;
                     }
 
                     $status = 'incomplete';
@@ -235,7 +210,7 @@ class ProgrammerController extends Controller
                         'priority'            => $priority,
                         'units'               => $units,
                         'estimated_delivery_date' => $estimatedDeliveryDate,
-                        'is_advance'          => $isAdvance,
+                        'is_advance'          => false,
                         'notes'               => $notes,
                         'ecommerce_units'     => $ecommerceUnits,
                         'status'              => $status,
@@ -322,7 +297,6 @@ class ProgrammerController extends Controller
             'priority',
             'units',
             'estimated_delivery_date',
-            'is_advance',
             'notes',
             'ecommerce_units',
         ];
@@ -345,13 +319,6 @@ class ProgrammerController extends Controller
             ? trim((string) ($validatedData['dispatch_month'] ?? ''))
             : trim((string) ($programador->dispatch_month ?? ''));
         $dispatchMonth = $dispatchMonthRaw !== '' ? $dispatchMonthRaw : $season;
-        $seasonToken = $this->normalizeTemporalComparisonToken($season);
-        $dispatchMonthToken = $this->normalizeTemporalComparisonToken($dispatchMonth);
-        $isCrossSeasonAdvance = $seasonToken !== '' && $dispatchMonthToken !== '' && $seasonToken !== $dispatchMonthToken;
-        // Si hay cruce de temporadas, SIEMPRE es adelanto (sin opción a deshabilitar)
-        $isAdvance = $isCrossSeasonAdvance ? true : (array_key_exists('is_advance', $validatedData)
-            ? (bool) $validatedData['is_advance']
-            : (bool) $programador->is_advance);
 
         $priority = (string) ($validatedData['priority'] ?? $programador->priority ?? '');
 
@@ -368,28 +335,7 @@ class ProgrammerController extends Controller
             }
         }
 
-        if ($isAdvance) {
-            $advanceDate = (string) ($validatedData['estimated_delivery_date']
-                ?? ($programador->estimated_delivery_date?->toDateString() ?? ''));
-
-            if ($advanceDate === '' && $isCrossSeasonAdvance && $season !== '' && $priority !== '') {
-                $advanceDate = $this->schedulingService->resolveStandardDate($dispatchMonth, $priority);
-            }
-
-            if ($advanceDate !== '') {
-                if (!$isCrossSeasonAdvance) {
-                    try {
-                        $this->schedulingService->validateAdvanceDate($advanceDate);
-                    } catch (\InvalidArgumentException $exception) {
-                        throw ValidationException::withMessages([
-                            'estimated_delivery_date' => $exception->getMessage(),
-                        ]);
-                    }
-                }
-            }
-
-            $validatedData['estimated_delivery_date'] = $advanceDate !== '' ? $advanceDate : null;
-        } elseif ($season !== '' && $priority !== '') {
+        if ($season !== '' && $priority !== '') {
             $validatedData['estimated_delivery_date'] = $this->schedulingService->resolveStandardDate($season, $priority);
         }
 
@@ -398,7 +344,7 @@ class ProgrammerController extends Controller
         }
 
         $validatedData['dispatch_month'] = $dispatchMonth;
-        $validatedData['is_advance'] = $isAdvance;
+        $validatedData['is_advance'] = false;
 
         // Fase C — escritura dual canónica (update)
         $seasonParsedU   = SeasonParser::parse($season);
@@ -969,7 +915,6 @@ class ProgrammerController extends Controller
             foreach ($orders as $order) {
                 /** @var ProductionOrder $order */
                 $order->estimated_delivery_date = $date;
-                $order->is_advance = true;
                 $order->status = $order->status === 'complete' ? 'complete' : 'incomplete';
                 $order->save();
                 $updated++;
@@ -1007,11 +952,7 @@ class ProgrammerController extends Controller
                 }
 
                 $order->priority = $priority;
-
-                if (!$order->is_advance) {
-                    $order->estimated_delivery_date = $this->schedulingService->resolveStandardDate($season, $priority);
-                }
-
+                $order->estimated_delivery_date = $this->schedulingService->resolveStandardDate($season, $priority);
                 $order->status = $order->status === 'complete' ? 'complete' : 'incomplete';
 
                 $order->save();
@@ -1072,21 +1013,11 @@ class ProgrammerController extends Controller
                 $order->dispatch_month_num = $dispatchParsed['month'];
                 $order->dispatch_year = $dispatchParsed['year'];
 
-                $seasonToken = $this->normalizeTemporalComparisonToken($season);
-                $dispatchToken = $this->normalizeTemporalComparisonToken($dispatchMonth);
-                $isCrossSeasonAdvance = $seasonToken !== '' && $dispatchToken !== '' && $seasonToken !== $dispatchToken;
-
-                $order->is_advance = $isCrossSeasonAdvance ? true : (bool) $order->is_advance;
+                $order->is_advance = false;
 
                 $priority = strtoupper(trim((string) ($order->priority ?? '')));
                 if ($priority !== '') {
-                    if ($order->is_advance) {
-                        if ($isCrossSeasonAdvance) {
-                            $order->estimated_delivery_date = $this->schedulingService->resolveStandardDate($dispatchMonth, $priority);
-                        }
-                    } else {
-                        $order->estimated_delivery_date = $this->schedulingService->resolveStandardDate($season, $priority);
-                    }
+                    $order->estimated_delivery_date = $this->schedulingService->resolveStandardDate($season, $priority);
                 }
 
                 $order->status = $order->status === 'complete' ? 'complete' : 'incomplete';
@@ -1098,58 +1029,6 @@ class ProgrammerController extends Controller
         return response()->json([
             'message' => "Temporada y mes de despacho actualizados en {$updated} registros.",
             'updated_count' => $updated,
-        ]);
-    }
-
-    public function revertAdvance(Request $request, ProductionOrder $programador): JsonResponse
-    {
-        Log::info('[ProgrammerController] revertAdvance', [
-            'order_id' => $programador->id,
-            'op_code'  => $programador->op_code,
-            'user_id'  => $request->user()?->id,
-        ]);
-
-        $season = trim((string) ($programador->season ?? ''));
-        $dispatchMonthRaw = trim((string) ($programador->dispatch_month ?? ''));
-        $dispatchMonth = $dispatchMonthRaw !== '' ? $dispatchMonthRaw : $season;
-        $units = max(1, (int) ($programador->units ?? 1));
-        $priority = trim((string) ($programador->priority ?? ''));
-
-        if ($priority === '' && $programador->product_sheet_id) {
-            $sheet = ProductSheet::find($programador->product_sheet_id);
-            if ($sheet && $season !== '') {
-                $priority = $this->schedulingService->resolvePriorityForNewOrder(
-                    $sheet,
-                    $season,
-                    $units,
-                    $dispatchMonth,
-                    null,
-                );
-            }
-        }
-
-        if ($priority === '' || $season === '') {
-            return response()->json([
-                'message' => 'No se pudo recalcular la lógica de prioridad para revertir el adelanto.',
-            ], 422);
-        }
-
-        $programador->priority = $priority;
-        $programador->is_advance = false;
-        $programador->estimated_delivery_date = $this->schedulingService->resolveStandardDate($season, $priority);
-        $programador->status = $programador->status === 'complete' ? 'complete' : 'incomplete';
-        $programador->save();
-        $programador->refresh();
-
-        return response()->json([
-            'message' => 'La orden "' . $programador->op_code . '" ya no es un adelanto y volvió a la lógica de prioridad.',
-            'data' => [
-                'id' => $programador->id,
-                'priority' => $programador->priority,
-                'estimated_delivery_date' => $programador->estimated_delivery_date?->toDateString(),
-                'is_advance' => (bool) $programador->is_advance,
-                'status' => $programador->status,
-            ],
         ]);
     }
 
@@ -1195,66 +1074,6 @@ class ProgrammerController extends Controller
         }
 
         return $raw;
-    }
-
-    /**
-     * Token para comparar temporada/despacho considerando año cuando exista.
-     *
-     * - Si detecta mes + año: YYYY-MM
-     * - Si detecta solo mes: MM-XX
-     * - Si no detecta mes: valor normalizado original
-     */
-    private function normalizeTemporalComparisonToken(string|int|null $value): string
-    {
-        $normalized = $this->normalizeMonthToken($value);
-        if ($normalized === '') {
-            return '';
-        }
-
-        $upper = strtoupper(trim($normalized));
-
-        $monthMap = [
-            'ENERO' => 1,
-            'FEBRERO' => 2,
-            'MARZO' => 3,
-            'ABRIL' => 4,
-            'MAYO' => 5,
-            'JUNIO' => 6,
-            'JULIO' => 7,
-            'AGOSTO' => 8,
-            'SEPTIEMBRE' => 9,
-            'SETIEMBRE' => 9,
-            'OCTUBRE' => 10,
-            'NOVIEMBRE' => 11,
-            'DICIEMBRE' => 12,
-        ];
-
-        $month = null;
-        foreach ($monthMap as $label => $number) {
-            if (preg_match('/\b' . preg_quote($label, '/') . '\b/u', $upper)) {
-                $month = $number;
-                break;
-            }
-        }
-
-        if ($month === null && preg_match('/\b(1[0-2]|0?[1-9])\b/', $upper, $monthMatch) === 1) {
-            $month = (int) $monthMatch[1];
-        }
-
-        if ($month === null) {
-            return $upper;
-        }
-
-        $year = null;
-        if (preg_match('/\b(19|20)\d{2}\b/', $upper, $yearMatch) === 1) {
-            $year = (int) $yearMatch[0];
-        }
-
-        if ($year !== null) {
-            return sprintf('%04d-%02d', $year, $month);
-        }
-
-        return sprintf('MM-%02d', $month);
     }
 
     protected function normalizeEcommerceUnits($value): ?array
@@ -1314,7 +1133,6 @@ class ProgrammerController extends Controller
             'destination_id' => $lot['destination_id'] ?? null,
             'priority' => $lot['priority'] ?? null,
             'units' => $lot['units'] ?? null,
-            'is_advance' => $lot['is_advance'] ?? null,
             'status' => $lot['status'] ?? null,
             'has_ecommerce_units' => array_key_exists('ecommerce_units', $lot) && $lot['ecommerce_units'] !== null,
         ];

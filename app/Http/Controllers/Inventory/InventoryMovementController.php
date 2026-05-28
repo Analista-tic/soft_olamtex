@@ -35,6 +35,7 @@ class InventoryMovementController extends Controller
             'search'             => $request->input('search'),
             'date_from'          => $request->input('date_from'),
             'date_to'            => $request->input('date_to'),
+            'fabric_items_only'  => $request->boolean('fabric_items_only'),
             // rangos numéricos
             'quantity_min'       => $request->input('quantity_min'),
             'quantity_max'       => $request->input('quantity_max'),

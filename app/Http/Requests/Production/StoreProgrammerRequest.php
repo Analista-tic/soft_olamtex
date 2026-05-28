@@ -26,7 +26,6 @@ class StoreProgrammerRequest extends FormRequest
             'lots.*.priority' => ['nullable', 'string', Rule::in(self::PRIORITIES)],
             'lots.*.units' => ['nullable', 'integer', 'min:1'],
             'lots.*.estimated_delivery_date' => ['nullable', 'date'],
-            'lots.*.is_advance' => ['nullable', 'boolean'],
             'lots.*.notes' => ['nullable', 'string', 'max:2000'],
             'lots.*.ecommerce_units' => ['nullable'],
             'lots.*.status' => ['nullable', 'string', Rule::in(self::STATUSES)],

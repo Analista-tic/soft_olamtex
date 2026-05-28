@@ -105,6 +105,11 @@ class FabricRollController extends Controller
         return Inertia::render('Textil/FabricRollInventory/Index');
     }
 
+    public function movementsPage()
+    {
+        return Inertia::render('Textil/FabricRollInventory/Movements');
+    }
+
     public function downloadOrders()
     {
         return Inertia::render('Textil/FabricRollOrders/Index');
@@ -179,6 +184,7 @@ class FabricRollController extends Controller
             'location'        => $request->input('location'),
             'with_output'     => $request->boolean('with_output'),
             'fabric_item_ids' => $fabricItemIds ?: null,
+            'no_item'         => $request->boolean('no_item'),
         ];
 
         $perPage       = min((int) $request->input('per_page', 100), 500);
@@ -835,8 +841,6 @@ class FabricRollController extends Controller
 
     public function updateOutput(UpdateFabricRollOutputRequest $request, FabricRoll $fabricRoll)
     {
-        $this->ensureSuperadminForInventoryChanges($request);
-
         $data = $request->validated();
         $actualOutput = array_key_exists('actual_output', $data) ? (float) $data['actual_output'] : $fabricRoll->actual_output;
 
@@ -855,33 +859,22 @@ class FabricRollController extends Controller
 
     public function discharge(DischargeFabricRollRequest $request, FabricRoll $fabricRoll): JsonResponse
     {
-        $this->ensureSuperadminForInventoryChanges($request);
-
         $data = $request->validated();
         $type = (string) $data['type'];
         $quantity = (float) $data['quantity'];
+        $reason = (string) ($data['reason'] ?? '');
         $productionOrderId = isset($data['production_order_id']) ? (int) $data['production_order_id'] : null;
+        $creditNote = isset($data['credit_note']) ? (string) $data['credit_note'] : null;
 
-        if ($type === 'salida') {
-            $newActualOutput = (float) $fabricRoll->actual_output + $quantity;
-
-            if ($newActualOutput > (float) $fabricRoll->quantity) {
-                return response()->json([
-                    'message' => 'La cantidad de salida no puede superar la disponibilidad real del rollo.',
-                    'errors' => [
-                        'quantity' => ['La cantidad de salida no puede superar la disponibilidad real del rollo.'],
-                    ],
-                ], 422);
-            }
-
-            $fabricRoll = $this->service->updateOutput(
-                $fabricRoll,
-                ['actual_output' => $newActualOutput],
-                $productionOrderId
-            );
-        } else {
-            $fabricRoll->increment('quantity', $quantity);
-            $fabricRoll->refresh();
+        try {
+            $fabricRoll = $this->service->discharge($fabricRoll, $type, $quantity, $reason, $productionOrderId, $creditNote);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'errors'  => $e->errors(),
+            ], 422);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
         }
 
         $rollQtyValue = (float) $fabricRoll->quantity;
@@ -985,8 +978,6 @@ class FabricRollController extends Controller
 
     public function relinkMainFabric(Request $request, FabricRoll $fabricRoll): JsonResponse
     {
-        $this->ensureSuperadminForInventoryChanges($request);
-
         $validated = $request->validate([
             'item_id' => ['required', 'integer', 'exists:items,id'],
         ]);
@@ -1192,5 +1183,189 @@ class FabricRollController extends Controller
         $date = date_create($value);
 
         return $date ? date_format($date, 'Y-m-d') : null;
+    }
+
+    // ─── Importador de actualización de cantidades ───────────────────────────
+
+    private const QUANTITY_IMPORT_HEADERS = [
+        'N° ROLLO',
+        'CANTIDAD (m)',
+        'SALIDA PARCIAL (m)',
+        'DISPONIBILIDAD REAL (m)',
+        'REFERENCIA ÍTEM',
+        'LOTE',
+    ];
+
+    public function downloadQuantitiesTemplate(): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('cantidades');
+
+        foreach (self::QUANTITY_IMPORT_HEADERS as $col => $header) {
+            $sheet->setCellValueByColumnAndRow($col + 1, 1, $header);
+        }
+
+        $tmpPath = sys_get_temp_dir() . '/plantilla_cantidades_rollos.xlsx';
+        (new Xlsx($spreadsheet))->save($tmpPath);
+
+        return response()->download($tmpPath, 'plantilla_cantidades_rollos.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
+
+    public function importQuantities(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx,xls'],
+        ]);
+
+        $file = $request->file('file');
+        if (!$file instanceof UploadedFile || !$file->isValid()) {
+            return response()->json(['message' => 'Archivo inválido.'], 422);
+        }
+
+        try {
+            $spreadsheet = IOFactory::load($file->getPathname());
+        } catch (\Throwable) {
+            return response()->json(['message' => 'No se pudo abrir el archivo Excel.'], 422);
+        }
+
+        $sheet = $spreadsheet->getSheetByName('cantidades') ?? $spreadsheet->getActiveSheet();
+        $rawRows = $sheet->toArray('', true, true, false);
+
+        if (empty($rawRows)) {
+            return response()->json(['message' => 'El archivo está vacío.'], 422);
+        }
+
+        // Validar encabezados
+        $headerRow = array_map(fn($h) => $this->normalizeImportHeader((string) ($h ?? '')), $rawRows[0]);
+        $expectedHeaders = array_map(fn($h) => $this->normalizeImportHeader($h), self::QUANTITY_IMPORT_HEADERS);
+
+        foreach ($expectedHeaders as $i => $expected) {
+            if (($headerRow[$i] ?? '') !== $expected) {
+                return response()->json([
+                    'message' => 'Encabezados incorrectos. Usa la plantilla descargada.',
+                ], 422);
+            }
+        }
+
+        $dataRows = array_slice($rawRows, 1);
+        $batchRef = 'IMP-' . now()->format('YmdHis');
+
+        $rows = array_map(fn($r) => [
+            'roll_number'      => trim((string) ($r[0] ?? '')),
+            'quantity'         => $this->normalizeImportFloat($r[1] ?? 0),
+            'partial_output'   => $this->normalizeImportFloat($r[2] ?? 0),
+            'real_availability' => $this->normalizeImportFloat($r[3] ?? 0),
+            'item_reference'   => trim((string) ($r[4] ?? '')),
+            'batch'            => trim((string) ($r[5] ?? '')),
+        ], $dataRows);
+
+        // Filtrar filas vacías
+        $rows = array_values(array_filter($rows, fn($r) => $r['roll_number'] !== ''));
+
+        if (empty($rows)) {
+            return response()->json(['message' => 'No hay datos para procesar.'], 422);
+        }
+
+        $result = $this->service->importQuantities($rows, $batchRef);
+
+        $status = empty($result['errors']) ? 200 : ($result['updated'] > 0 ? 200 : 422);
+        $message = $result['updated'] > 0
+            ? "Se actualizaron {$result['updated']} rollo(s). Omitidos: {$result['skipped']}."
+            : "No se actualizó ningún rollo. Omitidos: {$result['skipped']}.";
+
+        return response()->json([
+            'updated' => $result['updated'],
+            'skipped' => $result['skipped'],
+            'errors'  => array_values($result['errors']),
+            'message' => $message,
+            'batch'   => $batchRef,
+        ], $status);
+    }
+
+    // ─── Importador CSV histórico ─────────────────────────────────────────────
+
+    public function importFromCsv(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:csv,txt', 'max:10240'],
+        ]);
+
+        /** @var \Illuminate\Http\UploadedFile $file */
+        $file = $request->file('file');
+
+        $contents = file_get_contents($file->getPathname());
+        if ($contents === false) {
+            return response()->json(['message' => 'No se pudo leer el archivo.'], 422);
+        }
+
+        // Quitar BOM UTF-8
+        $contents = preg_replace('/^\xEF\xBB\xBF/', '', $contents) ?? $contents;
+
+        $lines = preg_split('/\r\n|\r|\n/', trim($contents)) ?: [];
+        if (count($lines) < 2) {
+            return response()->json(['message' => 'El archivo no tiene datos.'], 422);
+        }
+
+        // Omitir cabecera (primera fila)
+        $rows = [];
+        foreach (array_slice($lines, 1) as $line) {
+            if (trim($line) === '') {
+                continue;
+            }
+            $rows[] = str_getcsv($line, ',');
+        }
+
+        if (empty($rows)) {
+            return response()->json(['message' => 'El archivo no tiene filas de datos.'], 422);
+        }
+
+        $result = $this->service->importFromCsv($rows);
+
+        $status = $result['inserted'] > 0 ? 200 : 422;
+        $message = $result['inserted'] > 0
+            ? "Importación completada. Insertados: {$result['inserted']}, omitidos: {$result['skipped']}."
+            : "No se insertaron rollos. Omitidos: {$result['skipped']}.";
+
+        return response()->json([
+            'inserted' => $result['inserted'],
+            'skipped'  => $result['skipped'],
+            'errors'   => array_values($result['errors']),
+            'message'  => $message,
+        ], $status);
+    }
+
+    // ─── Reportes ─────────────────────────────────────────────────────────────
+
+    public function reportSinRelacion(Request $request): JsonResponse
+    {
+        $perPage = min((int) ($request->query('per_page', 50)), 100);
+
+        $paginator = FabricRoll::whereNull('item_id')
+            ->where('approval_status', FabricRoll::APPROVAL_APPROVED)
+            ->orderByDesc('created_at')
+            ->paginate($perPage);
+
+        return response()->json($paginator);
+    }
+
+    public function reportHistorialAjustes(Request $request): JsonResponse
+    {
+        $perPage = min((int) ($request->query('per_page', 50)), 100);
+
+        $query = \App\Models\Textil\FabricRollAdjustment::with([
+            'roll:id,roll_number',
+            'user:id,name',
+        ])
+            ->when($request->query('roll_number'), fn($q, $rn) => $q->whereHas('roll', fn($r) => $r->where('roll_number', $rn)))
+            ->when($request->query('type'), fn($q, $t) => $q->where('type', $t))
+            ->when($request->query('from'), fn($q, $f) => $q->whereDate('created_at', '>=', $f))
+            ->when($request->query('to'), fn($q, $t) => $q->whereDate('created_at', '<=', $t))
+            ->orderByDesc('created_at')
+            ->paginate($perPage);
+
+        return response()->json($query);
     }
 }

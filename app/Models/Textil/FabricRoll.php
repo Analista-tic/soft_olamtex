@@ -36,6 +36,7 @@ class FabricRoll extends Model
         'actual_output',
         'entry_date',
         'approval_status',
+        'batch',
     ];
 
     protected $casts = [
@@ -76,5 +77,10 @@ class FabricRoll extends Model
     public function consumptions()
     {
         return $this->hasMany(\App\Models\Production\ProductionRollConsumption::class, 'fabric_roll_id');
+    }
+
+    public function adjustments()
+    {
+        return $this->hasMany(FabricRollAdjustment::class, 'fabric_roll_id');
     }
 }

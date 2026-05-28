@@ -68,7 +68,6 @@ type ProgrammerLotForm = {
     destination_id: number | null;
     priority: string | null;
     estimated_delivery_date: string | null;
-    is_advance: boolean;
     notes: string;
     units: number | null;
     ecommerce_units: Record<string, number> | string | null;
@@ -380,20 +379,6 @@ function extractSeasonYear(season: string | number | null | undefined): number |
     return Number.isFinite(year) ? year : null;
 }
 
-// function getPriorityDays(priority: string | null | undefined): number | null {
-//     if (!priority) return null;
-
-//     const upper = (normalizeOptionToName(priority, priorityOptions.value) ?? String(priority)).toUpperCase().trim();
-//     const mapping: Record<string, number> = {
-//         A: 45,
-//         B: 30,
-//         C: 15,
-//         D: 10,
-//     };
-//     return mapping[upper] || null;
-// }
-
-//Cálculo de fecha estimada de entrega del programador basado en temporada y prioridad, según reglas definidas (A: -1 mes y 20 días, B: -1 mes y 27 días, C: 0 meses y 3 días, D: 0 meses y 10 días)
 function calculateEstimatedDeliveryDate(season: string | number | null | undefined, priority: string | null | undefined): string | null {
     const monthNum = monthToNumber(season);
 
@@ -436,7 +421,6 @@ function updateEstimatedDeliveryDate(lotIndex: number) {
     if (!lot) return;
 
     if (!lot.priority) {
-        lot.estimated_delivery_date = null;
         return;
     }
 
@@ -495,7 +479,6 @@ function generateLots() {
         destination_id: null,
         priority: '',
         estimated_delivery_date: null,
-        is_advance: false,
         notes: '',
         status: 'incomplete',
         isEcommerce: false,
@@ -653,7 +636,6 @@ function buildLotsPayload() {
             destination_id: lot.destination_id || null,
             priority: null,
             estimated_delivery_date: estimatedDate,
-            is_advance: Boolean(lot.is_advance),
             notes: typeof lot.notes === 'string' ? lot.notes.trim() : null,
             units: unitsValue,
             ecommerce_units: ecommerceUnitsValue,
