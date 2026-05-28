@@ -434,7 +434,7 @@ onUnmounted(() => {
                                         </span>
                                     </TableHead>
                                     <TableHead class="w-16 cursor-pointer select-none text-right" @click="toggleSort('measure')">
-                                        <span class="inline-flex items-center justify-end gap-1">Medida
+                                        <span class="inline-flex items-center justify-end gap-1">Medida (cm)
                                             <span class="text-muted-foreground"><template v-if="sortBy === 'measure'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template><template v-else><span class="opacity-30">↕</span></template></span>
                                         </span>
                                     </TableHead>

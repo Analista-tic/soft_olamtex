@@ -311,7 +311,7 @@ function compareRows(a: BatchControlRow, b: BatchControlRow, col: string, dir: '
 const filteredRows = computed(() => {
     const search = searchQuery.value.trim().toLowerCase();
     const filtered = allRows.value.filter((r) => {
-        const typeMatch = (r.product_sheet_type ?? 'producto') === activeType.value;
+        const typeMatch = getTypeByOpCode(r) === activeType.value;
         if (!typeMatch) return false;
         if (search) {
             const inRef = (r.referencia ?? '').toLowerCase().includes(search);
@@ -357,6 +357,11 @@ function setSort(column: string) {
 
 const emptyStateText = computed(() => (activeType.value === 'muestra' ? 'No hay órdenes tipo muestra.' : 'No hay órdenes tipo producto.'));
 
+/** Clasifica la orden por prefijo del op_code: MU → muestra, cualquier otro (MF) → producto. */
+function getTypeByOpCode(row: BatchControlRow): 'muestra' | 'producto' {
+    return (row.op_code ?? '').toUpperCase().startsWith('MU') ? 'muestra' : 'producto';
+}
+
 /** Flujo real según ProductSheet; fallback a lista completa si no hay ficha. */
 function getFlowForRow(row: BatchControlRow): string[] {
     const flow = row.product_sheet_processes ?? [];
@@ -365,7 +370,7 @@ function getFlowForRow(row: BatchControlRow): string[] {
 
 /** Si orden tipo muestra está en Muestras → termina ahí, no hay siguiente. */
 function getNextProcessForRow(row: BatchControlRow): string | null {
-    const isSample = (row.product_sheet_type ?? 'producto') === 'muestra';
+    const isSample = getTypeByOpCode(row) === 'muestra';
     const current = row.current_process ?? '';
     if (isSample && current === 'Muestras') return null;
 
@@ -398,7 +403,7 @@ const otherProcesses = computed(() => (deliverRow.value ? getOtherProcessesForRo
 const tabCounts = computed(() => {
     const counts: Record<string, number> = {};
     for (const p of props.processes) {
-        counts[p] = allRows.value.filter((r) => (r.current_process ?? '') === p && (r.product_sheet_type ?? 'producto') === activeType.value).length;
+        counts[p] = allRows.value.filter((r) => (r.current_process ?? '') === p && getTypeByOpCode(r) === activeType.value).length;
     }
     return counts;
 });
@@ -408,7 +413,7 @@ const tabNoveltyCounts = computed(() => {
     const counts: Record<string, number> = {};
     for (const p of props.processes) {
         counts[p] = allRows.value.filter(
-            (r) => (r.current_process ?? '') === p && (r.product_sheet_type ?? 'producto') === activeType.value && r.has_pending_novelties,
+            (r) => (r.current_process ?? '') === p && getTypeByOpCode(r) === activeType.value && r.has_pending_novelties,
         ).length;
     }
     return counts;

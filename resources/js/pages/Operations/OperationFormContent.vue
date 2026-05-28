@@ -250,6 +250,7 @@ function validate(): string | null {
     if (form.value.garment_part === null || form.value.garment_part === undefined) return 'La parte de prenda es obligatoria.';
     if (!form.value.section_id && !isEditing.value) return 'La sección es obligatoria.';
     if (!form.value.product_sheet_id_reference) return 'La sábana de producto es obligatoria.';
+    if (!form.value.measure || Number(form.value.measure) <= 0) return 'La medida es obligatoria y debe ser mayor a 0.';
 
     if (!isEditing.value) {
         const sam = form.value.sam_base ?? 0;
@@ -396,11 +397,10 @@ defineExpose({ submit, validate });
         <div class="space-y-3 rounded-lg border bg-card p-3">
             <p class="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                 Detalles de costura
-                <span class="ml-1 font-normal normal-case">— opcionales</span>
             </p>
             <div class="grid grid-cols-2 gap-4">
                 <div class="space-y-1">
-                    <Label class="text-sm">Medida (cm)</Label>
+                    <Label class="text-sm">Medida (cm) <span class="text-destructive">*</span></Label>
                     <InputField v-model.number="form.measure" label="" type="number" step="0.01" min="0" placeholder="0.00" />
                     <p class="text-[10px] text-muted-foreground">Longitud de costura</p>
                 </div>

@@ -87,7 +87,7 @@ class OperationCatalogController extends Controller
             match ($catalog) {
                 'sections' => [
                     'name' => ['required', 'string', 'max:255'],
-                    'type' => ['required', 'string', 'in:PREPARACION,ENSAMBLE,TERMINACION'],
+                    'type' => ['required', 'string', 'in:PREPARACION,ENSAMBLE,TERMINACION,confeccion,presentacion'],
                     'is_active' => ['sometimes', 'boolean'],
                 ],
                 'machines' => [
