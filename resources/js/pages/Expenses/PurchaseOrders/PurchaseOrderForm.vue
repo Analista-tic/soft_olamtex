@@ -16,6 +16,7 @@ import axios from 'axios';
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue';
 import { useAlertStack } from '@/composables/useAlert';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
+import { useSmartLoading } from '@/composables/useSmartLoading';
 import { useAuthStore } from '@/stores/auth';
 
 const { successMessage, errorMessage, errorType, showError, clearError, clearSuccess } = useAlertStack();
@@ -46,6 +47,9 @@ const selectedRequestValue = ref<number | null>(null);
 const selectedPurchaseRequest = ref<any | null>(null);
 const isLoading = ref(false);
 const isSubmitting = ref(false);
+const smartLoading = useSmartLoading();
+smartLoading.reset();
+const pageLoadTaskId = smartLoading.start({ label: 'Cargando orden de compra...' });
 const deliveryDateError = ref(false);
 const isLoadingRequest = ref(false);
 const isLoadingPurchaseRequests = ref(false);
@@ -456,6 +460,7 @@ onMounted(async () => {
         }
     } finally {
         isLoading.value = false;
+        smartLoading.stop(pageLoadTaskId);
     }
 });
 
@@ -465,9 +470,17 @@ watch(() => props.form, (newVal) => {
 
 watch(
     () => localForm.value.contact_id,
-    (id) => {
+    async (id) => {
         const normalized = id ? Number(id) : null;
         void fetchContactDetail(Number.isFinite(normalized as number) ? (normalized as number) : null);
+        if (normalized && !contacts.value.some((c: any) => Number(c.id) === normalized)) {
+            try {
+                const { data } = await axios.get(`/contactos/${normalized}`);
+                if (data && !contacts.value.some((c: any) => Number(c.id) === normalized)) {
+                    contacts.value = [data, ...contacts.value];
+                }
+            } catch {}
+        }
     },
 );
 

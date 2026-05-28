@@ -54,6 +54,7 @@ export type BatchControlRow = {
     description?: string;
     fecha: string;
     product_sheet_type?: string;
+    woven_product?: boolean;
     batch_priority: number;
     process_estimated_dates: Record<string, string>;
     deadline_statuses: Record<string, 'none' | 'on_time' | 'due_soon' | 'overdue'>;

@@ -539,7 +539,7 @@ class ProgrammerController extends Controller
                 'updated_at',
             ])
             ->with([
-                'productSheet:id,type,sample_reference,product_reference,section_id,group_id,billing_price,selling_price',
+                'productSheet:id,type,sample_reference,product_reference,section_id,group_id,billing_price,selling_price,woven_product',
             ]);
 
         $query->whereHas('productSheet', function ($q) {
@@ -647,6 +647,13 @@ class ProgrammerController extends Controller
 
         if ($estimatedDeliveryDateFilter !== '') {
             $query->whereDate('estimated_delivery_date', $estimatedDeliveryDateFilter);
+        }
+
+        if (!empty($filters['woven_product']) && $filters['woven_product'] !== 'all') {
+            $wovenValue = filter_var($filters['woven_product'], FILTER_VALIDATE_BOOLEAN);
+            $query->whereHas('productSheet', function ($q) use ($wovenValue) {
+                $q->where('woven_product', $wovenValue);
+            });
         }
 
         if (!empty($filters['search']) && trim((string) $filters['search']) !== '') {
@@ -919,6 +926,13 @@ class ProgrammerController extends Controller
 
         if ($estimatedDeliveryDateFilter !== '') {
             $query->whereDate('estimated_delivery_date', $estimatedDeliveryDateFilter);
+        }
+
+        if (!empty($filters['woven_product']) && $filters['woven_product'] !== 'all') {
+            $wovenValue = filter_var($filters['woven_product'], FILTER_VALIDATE_BOOLEAN);
+            $query->whereHas('productSheet', function ($q) use ($wovenValue) {
+                $q->where('woven_product', $wovenValue);
+            });
         }
 
         if (!empty($filters['search']) && trim((string) $filters['search']) !== '') {

@@ -272,6 +272,10 @@ async function initializeDialog() {
             nextInvoiceId.value = null;
             void fetchNextInvoiceId();
         }
+        const contactId = Number(localForm.value.contact_id ?? 0);
+        if (contactId > 0 && !contacts.value.some((c) => Number(c.id) === contactId)) {
+            await fetchContactById(contactId);
+        }
     } finally {
         if (isCurrentLoadingRun(currentRun)) {
             isBootstrapping.value = false;

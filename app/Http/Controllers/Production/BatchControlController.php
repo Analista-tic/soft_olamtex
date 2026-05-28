@@ -187,7 +187,7 @@ class BatchControlController extends Controller
         $legacyTemporalFallbackEnabled = (bool) config('product-sheet.temporal_legacy_fallback_enabled', true);
 
         $query = ProductionOrder::with([
-            'productSheet:id,type,processes,description,sample_reference,product_reference,section_id,group_id',
+            'productSheet:id,type,processes,description,sample_reference,product_reference,section_id,group_id,woven_product',
             'lastDelivery',
         ])
         ->withCount(['pendingNovelties'])
@@ -355,6 +355,7 @@ class BatchControlController extends Controller
                 'description' => trim((string) ($ps?->description ?? '')) ?: '-',
                 'fecha' => $p->estimated_delivery_date?->format('Y-m-d') ?? '-',
                 'product_sheet_type' => $ps?->type ?? 'producto',
+                'woven_product' => (bool) ($ps?->woven_product ?? false),
                 'batch_priority' => $p->batch_priority ?? 0,
                 'process_estimated_dates' => $allDates,
                 'deadline_statuses' => $deadlines,

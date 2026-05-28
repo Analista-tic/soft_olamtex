@@ -151,6 +151,7 @@ const filters = ref({
     type: FIXED_ORDER_TYPE,
     destination_id: 'all',
     estimated_delivery_date: '',
+    woven_product: 'all',
 });
 const fetchDebounceMs = 350;
 let fetchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -170,6 +171,12 @@ const seasonIsActive = computed(() => hasFilterValue(filters.value.season) && fi
 const priorityIsActive = computed(() => hasFilterValue(filters.value.priority) && filters.value.priority !== DEFAULT_SELECT_VALUE);
 const statusIsActive = computed(() => hasFilterValue(filters.value.status) && filters.value.status !== DEFAULT_SELECT_VALUE);
 const destinationIsActive = computed(() => hasFilterValue(filters.value.destination_id) && filters.value.destination_id !== DEFAULT_SELECT_VALUE);
+const fabricacionIsActive = computed(() => hasFilterValue(filters.value.woven_product) && filters.value.woven_product !== DEFAULT_SELECT_VALUE);
+const fabricacionOptions = [
+    { id: 'all', name: 'TODOS' },
+    { id: 'true', name: 'Tejido' },
+    { id: 'false', name: 'Punto' },
+];
 const deliveryDateIsActive = computed(() => filters.value.estimated_delivery_date.trim() !== '');
 const seasonOptions = computed<Option[]>(() => {
     const currentYear = new Date().getFullYear();
@@ -488,6 +495,7 @@ function clearAllFilters() {
         type: FIXED_ORDER_TYPE,
         destination_id: 'all',
         estimated_delivery_date: '',
+        woven_product: 'all',
     };
 }
 
@@ -539,6 +547,7 @@ async function fetchProgrammers(page = 1) {
                         ? undefined
                         : filters.value.destination_id,
                 estimated_delivery_date: filters.value.estimated_delivery_date.trim() === '' ? undefined : filters.value.estimated_delivery_date,
+                woven_product: !hasFilterValue(filters.value.woven_product) || filters.value.woven_product === DEFAULT_SELECT_VALUE ? undefined : filters.value.woven_product,
             },
             signal: controller.signal,
         });
@@ -1013,6 +1022,14 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                             clearable
                         />
                     </FilterField>
+                    <FilterField label="Fabricación" :active="fabricacionIsActive" class="min-w-[160px]">
+                        <SelectField
+                            v-model="filters.woven_product"
+                            placeholder="Fabricación"
+                            :options="fabricacionOptions"
+                            clearable
+                        />
+                    </FilterField>
                     <FilterField label="Fecha entrega" :active="deliveryDateIsActive" class="min-w-[220px]">
                         <div class="flex items-center gap-2">
                             <Popover>
@@ -1178,6 +1195,7 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                                         </span>
                                     </span>
                                 </TableHead>
+                                <TableHead>Fabricación</TableHead>
                                 <TableHead :class="tableSortHeadClass('season')" @click="toggleSort('season')">
                                     <span class="inline-flex items-center gap-1">
                                         Temporada
@@ -1315,14 +1333,14 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                         <TableBody>
                             <template v-if="isLoading">
                                 <TableRow v-for="i in 5" :key="`programmer-skeleton-${i}`">
-                                    <TableCell v-for="col in 14" :key="`programmer-skeleton-${i}-${col}`" class="px-4 py-3">
+                                    <TableCell v-for="col in 15" :key="`programmer-skeleton-${i}-${col}`" class="px-4 py-3">
                                         <Skeleton class="h-4 w-full" />
                                     </TableCell>
                                 </TableRow>
                             </template>
                             <template v-else-if="!programmers.length">
                                 <TableRow>
-                                    <TableCell colspan="14" class="py-6 text-center text-sm text-muted-foreground">
+                                    <TableCell colspan="15" class="py-6 text-center text-sm text-muted-foreground">
                                         No se encontraron programadores.
                                     </TableCell>
                                 </TableRow>
@@ -1346,6 +1364,16 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                                     </TableCell>
                                     <TableCell class="font-medium">{{ getOpLabel(programmer) }}</TableCell>
                                     <TableCell class="font-medium">{{ getRefLabel(programmer) }}</TableCell>
+                                    <TableCell class="text-center">
+                                        <span
+                                            v-if="programmer.product_sheet?.woven_product"
+                                            class="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-800 dark:bg-violet-900/40 dark:text-violet-300"
+                                        >Tejido</span>
+                                        <span
+                                            v-else
+                                            class="inline-flex items-center rounded-full bg-teal-100 px-2 py-0.5 text-[11px] font-medium text-teal-800 dark:bg-teal-900/40 dark:text-teal-300"
+                                        >Punto</span>
+                                    </TableCell>
                                     <TableCell>{{ monthLabel(programmer.season_display || programmer.season) }}</TableCell>
                                     <TableCell>{{ monthLabel(programmer.dispatch_month || '-') }}</TableCell>
                                     <TableCell>

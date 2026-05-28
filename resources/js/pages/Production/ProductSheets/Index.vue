@@ -82,6 +82,7 @@ const statusFilter = ref<string | null>(null);
 const typeFilter = ref<string | null>(null);
 const sectionFilter = ref<string | number | null>(null);
 const worldFilter = ref<string | number | null>(null);
+const fabricacionFilter = ref<string | null>(null);
 const fetchDebounceMs = 350;
 let fetchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let activeFetchController: AbortController | null = null;
@@ -89,6 +90,10 @@ let activeFetchController: AbortController | null = null;
 const statusOptions = [
     { id: 'incomplete', name: 'Incompleto' },
     { id: 'complete', name: 'Completo' },
+];
+const fabricacionOptions = [
+    { id: 'true', name: 'Tejido' },
+    { id: 'false', name: 'Punto' },
 ];
 const typeOptions = [
     { id: 'muestra', name: 'Muestra' },
@@ -316,11 +321,11 @@ function clearFetchDebounce() {
 function scheduleProductSheetsFetch(page = 1) {
     clearFetchDebounce();
     fetchDebounceTimer = setTimeout(() => {
-        fetchProductSheets(page, searchQuery.value, statusFilter.value, typeFilter.value, sectionFilter.value, worldFilter.value);
+        fetchProductSheets(page, searchQuery.value, statusFilter.value, typeFilter.value, sectionFilter.value, worldFilter.value, fabricacionFilter.value);
     }, fetchDebounceMs);
 }
 
-async function fetchProductSheets(page = 1, search = '', status: string | null = null, type: string | null = null, section: string | number | null = null, world: string | number | null = null) {
+async function fetchProductSheets(page = 1, search = '', status: string | null = null, type: string | null = null, section: string | number | null = null, world: string | number | null = null, fabricacion: string | null = null) {
     if (activeFetchController) {
         activeFetchController.abort();
     }
@@ -345,6 +350,7 @@ async function fetchProductSheets(page = 1, search = '', status: string | null =
                 type: type ?? undefined,
                 section_id: Number.isFinite(sectionId) ? sectionId : undefined,
                 world_id: Number.isFinite(worldId) ? worldId : undefined,
+                woven_product: fabricacion ?? undefined,
             },
             controller.signal,
         );
@@ -371,7 +377,7 @@ async function fetchProductSheets(page = 1, search = '', status: string | null =
 }
 
 // Llamar a fetchProductSheets cuando searchQuery o statusFilter cambien
-watch([searchQuery, statusFilter, typeFilter, sectionFilter, worldFilter], () => {
+watch([searchQuery, statusFilter, typeFilter, sectionFilter, worldFilter, fabricacionFilter], () => {
     scheduleProductSheetsFetch(1);
 });
 
@@ -381,7 +387,7 @@ function reloadProductSheets(page?: number) {
         currentPage.value = page;
     }
     clearFetchDebounce();
-    fetchProductSheets(currentPage.value, searchQuery.value, statusFilter.value, typeFilter.value, sectionFilter.value, worldFilter.value);
+    fetchProductSheets(currentPage.value, searchQuery.value, statusFilter.value, typeFilter.value, sectionFilter.value, worldFilter.value, fabricacionFilter.value);
 }
 
 async function loadProductSheetDialog(product: ProductSheet, mode: 'edit' | 'view') {
@@ -480,6 +486,9 @@ onUnmounted(() => {
                     <FilterField label="Mundo" :active="worldFilter !== null" class="min-w-[220px] max-w-[220px]">
                         <SelectField v-model="worldFilter" :options="worldOptions" placeholder="Filtrar por mundo" :clearable="true" />
                     </FilterField>
+                    <FilterField label="Fabricación" :active="fabricacionFilter !== null" class="min-w-[180px] max-w-[180px]">
+                        <SelectField v-model="fabricacionFilter" :options="fabricacionOptions" placeholder="Fabricación" :clearable="true" />
+                    </FilterField>
                 </div>
             </FilterBar>
 
@@ -493,11 +502,13 @@ onUnmounted(() => {
                             <TableHead>Ref. Muestra</TableHead>
                             <TableHead>Ref. Producto</TableHead>
                             <TableHead>Ref. Prod 2</TableHead>
+                            <TableHead>Fabricación</TableHead>
                             <TableHead>Nombre</TableHead>
                             <TableHead>Sección</TableHead>
                             <TableHead>Grupo</TableHead>
                             <TableHead>Mundo</TableHead>
                             <TableHead>Base</TableHead>
+                            <TableHead>Base hilaza</TableHead>
                             <TableHead>Dibujo</TableHead>
                             <TableHead>Costo Total</TableHead>
                             <TableHead>Estado</TableHead>
@@ -506,14 +517,14 @@ onUnmounted(() => {
                     </TableHeader>
                     <TableBody>
                         <TableRow v-if="isFetchingSheets && productSheets.length === 0">
-                            <TableCell colspan="11" class="py-10 text-center text-sm text-muted-foreground">
+                            <TableCell colspan="13" class="py-10 text-center text-sm text-muted-foreground">
                                 Cargando sábanas de productos...
                             </TableCell>
                         </TableRow>
 
                         <template v-else>
                             <TableRow v-if="productSheets.length === 0">
-                                <TableCell colspan="12" class="py-10 text-center text-sm text-muted-foreground">
+                                <TableCell colspan="14" class="py-10 text-center text-sm text-muted-foreground">
                                     No se encontraron sábanas de producto.
                                 </TableCell>
                             </TableRow>
@@ -543,6 +554,16 @@ onUnmounted(() => {
                                 <TableCell class="font-medium">
                                     {{ product.product_reference_2 ?? '-' }}
                                 </TableCell>
+                                <TableCell class="text-center">
+                                    <span
+                                        v-if="product.woven_product"
+                                        class="inline-block rounded-full border border-violet-300/80 bg-violet-100/80 px-1.5 py-0.5 text-[10px] font-medium leading-none text-violet-700 dark:border-violet-700/60 dark:bg-violet-900/30 dark:text-violet-400"
+                                    >Tejido</span>
+                                    <span
+                                        v-else
+                                        class="inline-block rounded-full border border-teal-300/80 bg-teal-100/80 px-1.5 py-0.5 text-[10px] font-medium leading-none text-teal-700 dark:border-teal-700/60 dark:bg-teal-900/30 dark:text-teal-400"
+                                    >Punto</span>
+                                </TableCell>
                                 <TableCell class="max-w-[220px] text-left">
                                     <span class="block truncate" :title="product.description ?? ''">{{ product.description ?? '—' }}</span>
                                 </TableCell>
@@ -550,6 +571,7 @@ onUnmounted(() => {
                                 <TableCell>{{ product.group?.name ?? '' }}</TableCell>
                                 <TableCell>{{ product.world?.name ?? '' }}</TableCell>
                                 <TableCell>{{ product.fabric_base?.name ?? '' }}</TableCell>
+                                <TableCell>{{ product.yarn_base?.name ?? '—' }}</TableCell>
                                 <TableCell>
                                     <div class="flex justify-center">
                                         <div class="h-12 w-12 overflow-hidden rounded-md border border-border bg-muted/30">

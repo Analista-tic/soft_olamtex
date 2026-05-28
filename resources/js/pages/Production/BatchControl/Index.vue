@@ -4,6 +4,7 @@ import SelectField from '@/components/SelectField.vue';
 import ServerPagination from '@/components/common/ServerPagination.vue';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import Input from '@/components/ui/input/Input.vue';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useAlertStack } from '@/composables/useAlert';
@@ -225,6 +226,14 @@ const isSavingLogisticsExit = ref(false);
 // Filtro de temporada
 const seasonFilter = ref<string | number | boolean | null>(null);
 
+// Filtros adicionales client-side
+const searchQuery = ref('');
+const wovenFilter = ref<string | null>(null);
+const fabricacionOptions = [
+    { id: 'true', name: 'Tejido' },
+    { id: 'false', name: 'Punto' },
+];
+
 // Ordenación: por defecto fecha estimada (más urgente primero)
 const sortColumn = ref<string>('process_estimated_date');
 const sortDirection = ref<'asc' | 'desc'>('asc');
@@ -300,9 +309,19 @@ function compareRows(a: BatchControlRow, b: BatchControlRow, col: string, dir: '
 }
 
 const filteredRows = computed(() => {
+    const search = searchQuery.value.trim().toLowerCase();
     const filtered = allRows.value.filter((r) => {
         const typeMatch = (r.product_sheet_type ?? 'producto') === activeType.value;
         if (!typeMatch) return false;
+        if (search) {
+            const inRef = (r.referencia ?? '').toLowerCase().includes(search);
+            const inLote = (r.op_code ?? '').toLowerCase().includes(search);
+            if (!inRef && !inLote) return false;
+        }
+        if (wovenFilter.value !== null) {
+            const expected = wovenFilter.value === 'true';
+            if ((r.woven_product ?? false) !== expected) return false;
+        }
         // Mostrar si está actualmente en este proceso (aunque el flujo configurado no lo incluya)
         // o si el flujo configurado incluye este proceso.
         return r.current_process === activeProcess.value || getFlowForRow(r).includes(activeProcess.value);
@@ -1395,15 +1414,29 @@ onUnmounted(() => {
                                     </ToggleGroup>
                                 </div>
 
-                                <!-- Filtro de temporada -->
-                                <div class="flex items-center gap-2">
+                                <!-- Filtros de temporada, búsqueda y fabricación -->
+                                <div class="flex flex-row items-center gap-2">
                                     <SelectField
                                         v-model="seasonFilter"
                                         label=""
                                         :options="seasonOptions"
                                         placeholder="Todas las temporadas"
                                         :clearable="true"
-                                        class="w-56"
+                                        class="w-40"
+                                    />
+                                    <SelectField
+                                        v-model="wovenFilter"
+                                        label=""
+                                        :options="fabricacionOptions"
+                                        placeholder="Fabricación"
+                                        :clearable="true"
+                                        class="w-40"
+                                    />
+                                    <Input
+                                        v-model="searchQuery"
+                                        type="text"
+                                        placeholder="Lote o referencia"
+                                        class="h-8 w-40 text-sm"
                                     />
                                 </div>
                             </div>

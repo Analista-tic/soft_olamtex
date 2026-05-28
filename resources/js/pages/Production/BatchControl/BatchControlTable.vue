@@ -129,6 +129,9 @@ function dimmedCellClass(row: BatchControlRow): string {
                         <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'op_code'" class="h-3 w-3" />
                     </span>
                 </TableHead>
+                <TableHead class="w-[7%] px-1 py-1.5 text-center text-xs">
+                    Fabricación
+                </TableHead>
                 <TableHead
                     class="w-[10%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50"
                     @click="setSort('referencia')"
@@ -218,14 +221,14 @@ function dimmedCellClass(row: BatchControlRow): string {
         <TableBody>
             <template v-if="isLoading">
                 <TableRow v-for="row in 5" :key="`sk-${row}`">
-                    <TableCell v-for="col in 12" :key="`sk-${row}-${col}`" class="px-1 py-2">
+                    <TableCell v-for="col in 13" :key="`sk-${row}-${col}`" class="px-1 py-2">
                         <Skeleton class="h-4 w-full" />
                     </TableCell>
                 </TableRow>
             </template>
             <template v-else-if="rows.length === 0">
                 <TableRow>
-                    <TableCell colspan="12" class="py-8 text-center text-xs text-muted-foreground">
+                    <TableCell colspan="13" class="py-8 text-center text-xs text-muted-foreground">
                         {{ emptyText }}
                     </TableCell>
                 </TableRow>
@@ -259,12 +262,18 @@ function dimmedCellClass(row: BatchControlRow): string {
                             {{ row.current_process ?? '—' }}
                         </span>
                     </TableCell>
+                    <TableCell :class="['px-1 py-2 text-center', dimmedCellClass(row)]">
+                        <span
+                            v-if="row.woven_product"
+                            class="inline-block rounded-full border border-violet-300/80 bg-violet-100/80 px-1.5 py-0.5 text-[10px] font-medium leading-none text-violet-700 dark:border-violet-700/60 dark:bg-violet-900/30 dark:text-violet-400"
+                        >Tejido</span>
+                        <span
+                            v-else
+                            class="inline-block rounded-full border border-teal-300/80 bg-teal-100/80 px-1.5 py-0.5 text-[10px] font-medium leading-none text-teal-700 dark:border-teal-700/60 dark:bg-teal-900/30 dark:text-teal-400"
+                        >Punto</span>
+                    </TableCell>
                     <TableCell :class="['max-w-0 px-1 py-2 text-center text-xs font-medium', dimmedCellClass(row)]" :title="row.referencia">
                         <div class="truncate">{{ row.referencia }}</div>
-                        <span
-                            v-if="row.product_sheet_processes?.includes('Tejido')"
-                            class="mt-0.5 inline-block rounded-full border border-violet-300/80 bg-violet-100/80 px-1.5 py-0.5 text-[10px] font-medium leading-none text-violet-700 dark:border-violet-700/60 dark:bg-violet-900/30 dark:text-violet-400"
-                        >Tejido</span>
                     </TableCell>
                     <TableCell :class="['truncate px-1 py-2 text-center text-xs', dimmedCellClass(row)]">{{ row.temporada }}</TableCell>
                     <TableCell :class="['px-1 py-2 text-center text-xs', dimmedCellClass(row)]">{{ row.prioridad }}</TableCell>

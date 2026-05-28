@@ -20,6 +20,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 
 import { useAlertStack } from '@/composables/useAlert';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
+import { useSmartLoading } from '@/composables/useSmartLoading';
 import type { PurchaseInvoiceWithholding, PurchaseOrderItem } from '@/domain/Expenses';
 import type { Contact as DomainContact } from '@/domain/MasterData';
 
@@ -112,6 +113,9 @@ const differenceEvidenceData = ref<string | null>(null);
 const savedInvoiceId = ref<number | null>(null);
 
 const isLoading = ref(false);
+const smartLoading = useSmartLoading();
+smartLoading.reset();
+const pageLoadTaskId = smartLoading.start({ label: 'Cargando factura de compra...' });
 const isSubmitting = ref(false);
 const isSendingMail = ref(false);
 
@@ -777,40 +781,44 @@ watch(
 );
 
 onMounted(async () => {
-    resetForm();
-    void fetchContacts();
+    try {
+        resetForm();
+        await fetchContacts();
 
-    if (mode.value === 'create') {
-        void fetchPendingPurchaseOrders();
-    }
-
-    const parentOrderId = localForm.value.parent_document_id ?? localForm.value.purchase_order_id ?? null;
-    if (parentOrderId) {
-        const order = await fetchPurchaseOrderById(Number(parentOrderId));
-        attachOriginalOrderItemsFromOrder(order);
-
-        if (order && !purchaseOrders.value.some((existingOrder: any) => Number(existingOrder.id) === Number(order.id))) {
-            purchaseOrders.value = [order, ...purchaseOrders.value];
+        if (mode.value === 'create') {
+            void fetchPendingPurchaseOrders();
         }
-    }
 
-    if (mode.value === 'create') {
-        // fetch next invoice id preview
-        isLoadingInvoiceId.value = true;
-        try {
-            const { data } = await axios.get('/gastos/facturas-compra/data', {
-                params: { per_page: 1, order_by: 'id', order_direction: 'desc' },
-            });
+        const parentOrderId = localForm.value.parent_document_id ?? localForm.value.purchase_order_id ?? null;
+        if (parentOrderId) {
+            const order = await fetchPurchaseOrderById(Number(parentOrderId));
+            attachOriginalOrderItemsFromOrder(order);
 
-            const last: string = Array.isArray(data.data) && data.data.length > 0 ? data.data[0].document_number || '' : '';
-            const lastNum = last ? parseInt(String(last).replace('FAC-', ''), 10) : 0;
-            const next = Number.isNaN(lastNum) ? 1 : lastNum + 1;
-            nextDocumentNumber.value = `FAC-${String(next).padStart(4, '0')}`;
-        } catch {
-            nextDocumentNumber.value = 'FAC-0001';
-        } finally {
-            isLoadingInvoiceId.value = false;
+            if (order && !purchaseOrders.value.some((existingOrder: any) => Number(existingOrder.id) === Number(order.id))) {
+                purchaseOrders.value = [order, ...purchaseOrders.value];
+            }
         }
+
+        if (mode.value === 'create') {
+            // fetch next invoice id preview
+            isLoadingInvoiceId.value = true;
+            try {
+                const { data } = await axios.get('/gastos/facturas-compra/data', {
+                    params: { per_page: 1, order_by: 'id', order_direction: 'desc' },
+                });
+
+                const last: string = Array.isArray(data.data) && data.data.length > 0 ? data.data[0].document_number || '' : '';
+                const lastNum = last ? parseInt(String(last).replace('FAC-', ''), 10) : 0;
+                const next = Number.isNaN(lastNum) ? 1 : lastNum + 1;
+                nextDocumentNumber.value = `FAC-${String(next).padStart(4, '0')}`;
+            } catch {
+                nextDocumentNumber.value = 'FAC-0001';
+            } finally {
+                isLoadingInvoiceId.value = false;
+            }
+        }
+    } finally {
+        smartLoading.stop(pageLoadTaskId);
     }
 });
 </script>

@@ -722,6 +722,10 @@ watch(
         try {
             const { data } = await axios.get(`/contactos/${val}`);
             selectedContactDetails.value = data;
+            const contactId = Number(val);
+            if (data && !contacts.value.some((c) => Number(c.id) === contactId)) {
+                contacts.value = [data, ...contacts.value];
+            }
         } catch {
             selectedContactDetails.value = null;
         }

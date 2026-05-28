@@ -250,6 +250,7 @@ class ProductSheetController extends Controller
             'fabric_base_id',
             'yarn_base_id',
             'flat_sketch_path',
+            'woven_product',
         ]);
 
         if ($request->filled('search')) {
@@ -274,6 +275,10 @@ class ProductSheetController extends Controller
 
         if ($request->filled('world_id')) {
             $query->where('world_id', $request->world_id);
+        }
+
+        if ($request->filled('woven_product')) {
+            $query->where('woven_product', filter_var($request->input('woven_product'), FILTER_VALIDATE_BOOLEAN));
         }
 
         $products_sheets = $query
