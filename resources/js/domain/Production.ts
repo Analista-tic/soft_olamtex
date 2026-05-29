@@ -203,6 +203,12 @@ export type {
     SupplyRequestPayload,
 } from './Production/types';
 export { normalizeSizes, sizesToLabel } from './Production/sizes';
+export {
+    calculateEstimatedDeliveryDateByPriority,
+    normalizePriorityLetter,
+    parseSeasonMonthNumber,
+    parseSeasonYearNumber,
+} from './Production/scheduling';
 export type { AvailableFabricRoll, RawMaterialItemMeta, RawMaterialTraceDto } from './Production/service';
 export {
     fetchOpBasicInfo,

@@ -243,7 +243,16 @@ export type OpProcessesData = {
 };
 
 export type CostsSummary = {
-    prices: { invoicing: number | null; fixedCost: number | null; sale: number | null; historicInvoicing: number | null };
+    prices: {
+        invoicing: number | null;
+        fixedCost: number | null;
+        sale: number | null;
+        historicInvoicing: number | null;
+        invoicingOverride: number | null;
+        saleOverride: number | null;
+        sheetInvoicing: number | null;
+        sheetSale: number | null;
+    };
     units: number | null;
     costs: {
         rawMaterial: number;

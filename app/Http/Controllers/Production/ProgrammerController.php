@@ -320,9 +320,12 @@ class ProgrammerController extends Controller
             : trim((string) ($programador->dispatch_month ?? ''));
         $dispatchMonth = $dispatchMonthRaw !== '' ? $dispatchMonthRaw : $season;
 
-        $priority = (string) ($validatedData['priority'] ?? $programador->priority ?? '');
+        $priorityProvided = array_key_exists('priority', $validatedData);
+        $priority = $priorityProvided
+            ? strtoupper(trim((string) ($validatedData['priority'] ?? '')))
+            : strtoupper(trim((string) ($programador->priority ?? '')));
 
-        if ($priority === '' && $season !== '' && $programador->product_sheet_id) {
+        if ($priority === '' && !$priorityProvided && $season !== '' && $programador->product_sheet_id) {
             $sheet = ProductSheet::find($programador->product_sheet_id);
             if ($sheet) {
                 $priority = $this->schedulingService->resolvePriorityForNewOrder(
@@ -335,12 +338,16 @@ class ProgrammerController extends Controller
             }
         }
 
-        if ($season !== '' && $priority !== '') {
+        $estimatedDateProvided = array_key_exists('estimated_delivery_date', $validatedData);
+
+        if (!$estimatedDateProvided && $season !== '' && $priority !== '') {
             $validatedData['estimated_delivery_date'] = $this->schedulingService->resolveStandardDate($season, $priority);
         }
 
         if ($priority !== '') {
             $validatedData['priority'] = $priority;
+        } elseif ($priorityProvided) {
+            $validatedData['priority'] = null;
         }
 
         $validatedData['dispatch_month'] = $dispatchMonth;

@@ -155,6 +155,52 @@ const trazoGroups = computed(() => {
     return [...groups.values()];
 });
 
+type FabricSummaryRow = {
+    fabric_reference: string;
+    meters_programmed: number;
+    total_consumption: number;
+    roll_count: number;
+};
+
+const fabricSummary = computed<FabricSummaryRow[]>(() => {
+    const map = new Map<string, FabricSummaryRow>();
+    for (const line of cutFabricLines.value ?? []) {
+        const key = String(line.fabric_reference ?? '').trim() || 'Sin referencia';
+        if (!map.has(key)) {
+            map.set(key, {
+                fabric_reference: key,
+                meters_programmed: 0,
+                total_consumption: 0,
+                roll_count: 0,
+            });
+        }
+        const entry = map.get(key)!;
+        entry.meters_programmed += Number(line.meters_per_roll ?? 0);
+        entry.total_consumption += Number(line.total_consumption ?? 0);
+        entry.roll_count += 1;
+    }
+    return Array.from(map.values()).sort((a, b) => b.total_consumption - a.total_consumption);
+});
+
+const grandTotalProgrammed = computed(() => fabricSummary.value.reduce((acc, row) => acc + row.meters_programmed, 0));
+const grandTotalConsumption = computed(() => fabricSummary.value.reduce((acc, row) => acc + row.total_consumption, 0));
+const grandTotalRollCount = computed(() => fabricSummary.value.reduce((acc, row) => acc + row.roll_count, 0));
+
+const unitsReportTotal = computed(() => {
+    if (!colorCapas.value.length || !reportSizes.value.length) return 0;
+    return Math.round(
+        colorCapas.value.reduce((acc, cap) => {
+            const rowTotal = reportSizes.value.reduce((sum, sz) => {
+                const principal = Number((sz as any).trazoPrincipal ?? 0) * Number(cap.layersFabric ?? 0);
+                const liq = Number((sz as any).liquidacion ?? 0) * Number(cap.layersLiq ?? 0);
+                const espiga = Number((sz as any).espiga ?? 0) * Number(cap.layersHerringbone ?? 0);
+                return sum + principal + liq + espiga;
+            }, 0);
+            return acc + rowTotal;
+        }, 0),
+    );
+});
+
 function stageLabel(stage: string | null | undefined): string {
     const value = String(stage ?? '').toUpperCase();
     if (value === 'CONFECCION') return 'Confeccion';
@@ -308,29 +354,27 @@ function parseStampNotes(raw: string | null | undefined): { procesos: string | n
         <table class="dt">
             <thead>
                 <tr>
-                    <th>Mat. Prima</th>
-                    <th>Tela / Articulo</th>
-                    <th>Proveedor</th>
-                    <th class="tc">Ancho</th>
-                    <th class="tc">Prom. Trazo</th>
-                    <th class="tc">Largo de Trazo</th>
-                    <th class="tc">Largo Liquidacion</th>
-                    <th class="tc">Consumo</th>
+                    <th>Tela</th>
+                    <th class="tc">Total Programado (m)</th>
+                    <th class="tc">Rollos</th>
+                    <th class="tr">Consumo Total (m)</th>
                 </tr>
             </thead>
             <tbody>
-                <tr v-for="(row, idx) in rawMaterials" :key="row.uid ?? idx">
-                    <td class="b">Tela {{ idx + 1 }}</td>
-                    <td>{{ row.tela ?? '-' }}</td>
-                    <td>{{ row.lastSupplierName ?? '-' }}</td>
-                    <td class="tc">{{ row.ancho != null ? `${formatNumber(row.ancho, 2)} ${row.anchoUnit ?? ''}` : '-' }}</td>
-                    <td class="tc">{{ row.promTrazo != null ? formatNumber(row.promTrazo, 1) : '-' }}</td>
-                    <td class="tc">{{ row.largoTrazo != null ? formatNumber(row.largoTrazo, 1) : '-' }}</td>
-                    <td class="tc">{{ row.largoLiq != null ? formatNumber(row.largoLiq, 1) : '-' }}</td>
-                    <td class="tc b">{{ row.consumo != null ? formatNumber(row.consumo, 1) : '-' }}</td>
+                <tr v-for="(row, idx) in fabricSummary" :key="`${row.fabric_reference}-${idx}`">
+                    <td class="b">{{ row.fabric_reference }}</td>
+                    <td class="tc">{{ formatNumber(row.meters_programmed, 2) }}</td>
+                    <td class="tc">{{ row.roll_count }}</td>
+                    <td class="tr b">{{ formatNumber(row.total_consumption, 2) }}</td>
                 </tr>
-                <tr v-if="rawMaterials.length === 0">
-                    <td colspan="8" class="mut">-</td>
+                <tr v-if="fabricSummary.length > 0" class="row-total">
+                    <td class="b">Total</td>
+                    <td class="tc b">{{ formatNumber(grandTotalProgrammed, 2) }} m</td>
+                    <td class="tc b">{{ grandTotalRollCount }}</td>
+                    <td class="tr b">{{ formatNumber(grandTotalConsumption, 2) }} m<span v-if="unitsReportTotal > 0"> · {{ unitsReportTotal }} uds</span></td>
+                </tr>
+                <tr v-if="fabricSummary.length === 0">
+                    <td colspan="4" class="mut">-</td>
                 </tr>
             </tbody>
         </table>

@@ -1,5 +1,6 @@
 export * from './dto';
 export * from './mappers';
+export * from './scheduling';
 export * from './service';
 export * from './sizes';
 export * from './types';

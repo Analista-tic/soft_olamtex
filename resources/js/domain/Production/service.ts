@@ -1,6 +1,7 @@
 import type { Option } from '@/domain/shared';
 import { toUnitNumber } from '@/domain/Textil';
 import axios from 'axios';
+import { normalizeAdditionalInfoForSummary, mergeCutConsumptionIntoAdditionalInfo } from './normalizers';
 import type {
     AdditionalInfoDto,
     CostsSummaryDto,
@@ -68,6 +69,7 @@ const ENDPOINTS = {
     PRODUCT_SHEETS_CONVERT: '/produccion/sabana-productos/:id/convert',
     PRODUCT_SHEETS_TOGGLE_ENABLED: '/produccion/sabana-productos/:id/toggle-enabled',
     PRODUCT_SHEETS_TEMPLATES: '/produccion/sabana-productos/templates',
+    CUT_FABRIC_CONSUMPTION: '/control-de-lotes/:id/consumo-telas-corte',
 } as const;
 
 type ItemCatalogDto = {
@@ -426,6 +428,61 @@ export async function fetchOpCostsSummary(opId: string | number): Promise<CostsS
             fixedCost: data?.prices?.fixedCost ?? null,
             sale: data?.prices?.sale ?? null,
             historicInvoicing: data?.prices?.historicInvoicing ?? null,
+            invoicingOverride: data?.prices?.invoicingOverride ?? null,
+            saleOverride: data?.prices?.saleOverride ?? null,
+            sheetInvoicing: data?.prices?.sheetInvoicing ?? null,
+            sheetSale: data?.prices?.sheetSale ?? null,
+        },
+        units: data?.units ?? null,
+        costs: {
+            rawMaterial: Number(data?.costs?.rawMaterial ?? 0),
+            rawMaterialPerUnit: Number(data?.costs?.rawMaterialPerUnit ?? 0),
+            supplies: Number(data?.costs?.supplies ?? 0),
+            processes: Number(data?.costs?.processes ?? 0),
+            cut: Number(data?.costs?.cut ?? 0),
+            confection: Number(data?.costs?.confection ?? 0),
+            finishing: Number(data?.costs?.finishing ?? 0),
+            total: Number(data?.costs?.total ?? 0),
+        },
+        profitability: {
+            olamtex: {
+                value: data?.profitability?.olamtex?.value ?? null,
+                percent: data?.profitability?.olamtex?.percent ?? null,
+            },
+            client: {
+                value: data?.profitability?.client?.value ?? null,
+                percent: data?.profitability?.client?.percent ?? null,
+            },
+        },
+        breakdownAvailable: {
+            rawMaterial: Boolean(data?.breakdownAvailable?.rawMaterial),
+            supplies: Boolean(data?.breakdownAvailable?.supplies),
+            processes: Boolean(data?.breakdownAvailable?.processes),
+        },
+    };
+}
+
+export async function updateOpPriceOverrides(
+    opId: string | number,
+    billingOverride: number | null,
+    saleOverride: number | null,
+): Promise<CostsSummary> {
+    const url = `/produccion/ficha-tecnica/${String(opId)}/costos/precios`;
+    const response = await axios.patch<CostsSummaryDto>(url, {
+        billing_price_override: billingOverride,
+        selling_price_override: saleOverride,
+    });
+    const data = response.data;
+    return {
+        prices: {
+            invoicing: data?.prices?.invoicing ?? null,
+            fixedCost: data?.prices?.fixedCost ?? null,
+            sale: data?.prices?.sale ?? null,
+            historicInvoicing: data?.prices?.historicInvoicing ?? null,
+            invoicingOverride: data?.prices?.invoicingOverride ?? null,
+            saleOverride: data?.prices?.saleOverride ?? null,
+            sheetInvoicing: data?.prices?.sheetInvoicing ?? null,
+            sheetSale: data?.prices?.sheetSale ?? null,
         },
         units: data?.units ?? null,
         costs: {
@@ -925,6 +982,25 @@ export async function fetchOpCuttingPieces(opId: string | number): Promise<Cutti
         };
     });
 }
+
+export async function fetchOpAdditionalInfoForSummary(opId: string | number): Promise<AdditionalInfo> {
+    const url = ENDPOINTS.OP_ADDITIONAL_INFO.replace(':id', String(opId));
+    const response = await axios.get(url);
+    return normalizeAdditionalInfoForSummary(response.data);
+}
+
+export async function fetchCutFabricConsumption(opId: string | number): Promise<Record<string, any> | null> {
+    const url = ENDPOINTS.CUT_FABRIC_CONSUMPTION.replace(':id', String(opId));
+    try {
+        const response = await axios.get(url);
+        return (response.data?.data ?? null) as Record<string, any> | null;
+    } catch {
+        return null;
+    }
+}
+
+export { normalizeAdditionalInfoForSummary, mergeCutConsumptionIntoAdditionalInfo } from './normalizers';
+export { resolveDrawingUrl } from './normalizers';
 
 /** Sincroniza el listado completo de piezas de despiece en BD (bulk replace). */
 export async function saveOpCuttingPieces(opId: string | number, pieces: CuttingPiece[]): Promise<CuttingPiece[]> {

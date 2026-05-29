@@ -543,6 +543,25 @@ class TechnicalDataSheetController extends Controller
         return response()->json($this->technicalSheetService->costsSummary($opId));
     }
 
+    public function updatePriceOverrides(Request $request, int $opId): JsonResponse
+    {
+        $validated = $request->validate([
+            'billing_price_override' => ['nullable', 'numeric', 'min:0'],
+            'selling_price_override' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $order = ProductionOrder::query()->findOrFail($opId);
+
+        $toPrice = fn ($v) => ($v !== null && $v !== '') ? (float) $v : null;
+
+        $order->update([
+            'billing_price_override' => $toPrice($validated['billing_price_override'] ?? null),
+            'selling_price_override' => $toPrice($validated['selling_price_override'] ?? null),
+        ]);
+
+        return response()->json($this->technicalSheetService->costsSummary($opId));
+    }
+
     /**
      * GET materia prima de la ficha técnica (desde BD).
      */

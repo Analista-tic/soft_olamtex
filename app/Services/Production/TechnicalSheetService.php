@@ -57,8 +57,8 @@ class TechnicalSheetService
             ->findOrFail($opId);
 
         $productSheet    = $order->productSheet;
-        $priceInvoicing  = $this->toNullableNumber($productSheet?->billing_price);
-        $priceSale       = $this->toNullableNumber($productSheet?->selling_price);
+        $priceInvoicing  = $this->toNullableNumber($order->billing_price_override ?? $productSheet?->billing_price);
+        $priceSale       = $this->toNullableNumber($order->selling_price_override ?? $productSheet?->selling_price);
         $units           = $this->toNullableNumber($order->units);
 
         $processes       = $this->calculateProcessesForSheet($opId, $productSheet?->id);
@@ -100,23 +100,27 @@ class TechnicalSheetService
             $clientPercent = ($clientValue / $saleSinIva) * 100;
         }
 
-        return [
+        $result = [
             'prices' => [
-                'invoicing'          => $priceInvoicing,
-                'fixedCost'          => $fixedCost !== null ? round($fixedCost, 4) : null,
-                'sale'               => $priceSale,
-                'historicInvoicing'  => null,
+                'invoicing'              => $priceInvoicing,
+                'fixedCost'              => $fixedCost !== null ? round($fixedCost, 4) : null,
+                'sale'                   => $priceSale,
+                'historicInvoicing'      => null,
+                'invoicingOverride'      => $this->toNullableNumber($order->billing_price_override),
+                'saleOverride'           => $this->toNullableNumber($order->selling_price_override),
+                'sheetInvoicing'         => $this->toNullableNumber($productSheet?->billing_price),
+                'sheetSale'              => $this->toNullableNumber($productSheet?->selling_price),
             ],
             'units' => $units,
             'costs' => [
-                'rawMaterial' => round($rawMaterialTotal, 4),
-                'rawMaterialPerUnit' => round($rawMaterialPerUnit, 4),
-                'supplies'    => round($supplies, 4),
-                'processes'   => round($processesTotal, 4),
-                'cut'         => round($processes['cut'], 4),
-                'confection'  => round($processes['confection'], 4),
-                'finishing'   => round($processes['finishing'], 4),
-                'total'       => round($total, 4),
+                'rawMaterial'       => round($rawMaterialTotal, 4),
+                'rawMaterialPerUnit'=> round($rawMaterialPerUnit, 4),
+                'supplies'          => round($supplies, 4),
+                'processes'         => round($processesTotal, 4),
+                'cut'               => round($processes['cut'], 4),
+                'confection'        => round($processes['confection'], 4),
+                'finishing'         => round($processes['finishing'], 4),
+                'total'             => round($total, 4),
             ],
             'profitability' => [
                 'olamtex' => [
@@ -134,6 +138,10 @@ class TechnicalSheetService
                 'processes'   => ($processes['rowsCount'] ?? 0) > 0,
             ],
         ];
+
+        $order->updateQuietly(['calculated_cost' => round($total, 4)]);
+
+        return $result;
     }
 
     /**

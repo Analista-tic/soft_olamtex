@@ -46,6 +46,8 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
         ->name('ficha-tecnica.processes.save');
     Route::get('ficha-tecnica/{opId}/costos', [TechnicalDataSheetController::class, 'costsSummary'])
         ->name('ficha-tecnica.costs-summary');
+    Route::patch('ficha-tecnica/{opId}/costos/precios', [TechnicalDataSheetController::class, 'updatePriceOverrides'])
+        ->name('ficha-tecnica.costs.update-prices');
     Route::get('ficha-tecnica/{opId}/imprimir', [TechnicalDataSheetController::class, 'printSummary'])
         ->name('ficha-tecnica.print-summary');
     Route::get('ficha-tecnica/{opId}/imprimir-h', [TechnicalDataSheetController::class, 'printSummaryH'])

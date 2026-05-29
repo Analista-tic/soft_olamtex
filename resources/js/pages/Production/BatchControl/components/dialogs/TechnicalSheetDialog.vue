@@ -60,9 +60,9 @@ const tabs = [
     { value: 'lista_operacional', label: 'Lista operacional', icon: ClipboardList },
     { value: 'procesos', label: 'Procesos', icon: Workflow },
     { value: 'materia_prima', label: 'Materia prima', icon: Box },
+    { value: 'informacion_adicional', label: 'Info adicional', icon: FilePlus2 },
     { value: 'hilos', label: 'Hilos', icon: Volleyball },
     { value: 'insumos', label: 'Insumos', icon: Package },
-    { value: 'informacion_adicional', label: 'Info adicional', icon: FilePlus2 },
     { value: 'costos', label: 'Costos', icon: DollarSign },
 ];
 
@@ -478,6 +478,17 @@ watch(
                             <FabricMaterialTab :key="`fabric-${dialogKey}`" :op-id="row!.id" :units="opDetail?.units ?? null" />
                         </TabsContent>
 
+                        <TabsContent value="informacion_adicional" class="mt-0">
+                            <AdditionalInfoTab
+                                :op-id="row!.id"
+                                :sizes="opDetail?.sizes ?? null"
+                                :total-units="opDetail?.units ?? null"
+                                :raw-materials-info="rawMaterialsInfo"
+                                :drawing-url="drawingUrl"
+                                :op-basic-info="opDetail"
+                            />
+                        </TabsContent>
+
                         <TabsContent value="hilos" class="mt-0">
                             <ThreadsTab :key="`hilos-${dialogKey}`" :op-id="row!.id" :units="opDetail?.units ?? null" />
                         </TabsContent>
@@ -489,17 +500,6 @@ watch(
                                 :has-operational-list="hasOperationalList"
                                 :op-code="opDetail?.opCode ?? null"
                                 :op-group="opDetail?.group ?? null"
-                            />
-                        </TabsContent>
-
-                        <TabsContent value="informacion_adicional" class="mt-0">
-                            <AdditionalInfoTab
-                                :op-id="row!.id"
-                                :sizes="opDetail?.sizes ?? null"
-                                :total-units="opDetail?.units ?? null"
-                                :raw-materials-info="rawMaterialsInfo"
-                                :drawing-url="drawingUrl"
-                                :op-basic-info="opDetail"
                             />
                         </TabsContent>
 

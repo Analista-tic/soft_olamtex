@@ -13,6 +13,7 @@ import EcommerceSizesDialog from './EcommerceSizesDialog.vue';
 
 import { useAlertStack } from '@/composables/useAlert';
 import type { OptionParams, ProductSheet, Programmer } from '@/domain/Production';
+import { calculateEstimatedDeliveryDateByPriority } from '@/domain/Production';
 import { normalizeSizes } from '@/domain/Production';
 import type { Option } from '@/domain/shared/types';
 
@@ -282,79 +283,13 @@ function normalizePriorityForApi(priority: string | number | null | undefined): 
     return PRIORITY_VALUES.includes(normalized as any) ? (normalized as (typeof PRIORITY_VALUES)[number]) : null;
 }
 
-function monthToNumber(month: string | number | null | undefined): number | null {
-    if (!month) return null;
-
-    const monthMap: Record<string, number> = {
-        ENERO: 1,
-        FEBRERO: 2,
-        MARZO: 3,
-        ABRIL: 4,
-        MAYO: 5,
-        JUNIO: 6,
-        JULIO: 7,
-        AGOSTO: 8,
-        SEPTIEMBRE: 9,
-        OCTUBRE: 10,
-        NOVIEMBRE: 11,
-        DICIEMBRE: 12,
-    };
-
-    const normalized = normalizeSeasonForApi(month) ?? String(month).trim().toUpperCase();
-    for (const [monthName, monthNumber] of Object.entries(monthMap)) {
-        if (normalized.includes(monthName)) {
-            return monthNumber;
-        }
-    }
-
-    const asNum = Number(normalized);
-    if (Number.isFinite(asNum) && asNum >= 1 && asNum <= 12) {
-        return Math.floor(asNum);
-    }
-
-    return null;
-}
-
-function extractSeasonYear(season: string | number | null | undefined): number | null {
-    if (!season) return null;
-    const normalized = normalizeSeasonForApi(season) ?? String(season).trim().toUpperCase();
-    const match = normalized.match(/(19|20)\d{2}/);
-    if (!match) return null;
-    const year = Number(match[0]);
-    return Number.isFinite(year) ? year : null;
-}
-
-function getPriorityDays(priority: string | number | null | undefined): number | null {
-    const normalized = normalizePriorityForApi(priority);
-    if (!normalized) return null;
-
-    const mapping: Record<string, number> = {
-        A: 45,
-        B: 30,
-        C: 15,
-        D: 10,
-    };
-
-    return mapping[normalized] ?? null;
-}
-
 function calculateEstimatedDeliveryDate(season: string | number | null | undefined, priority: string | number | null | undefined): string | null {
-    const monthNum = monthToNumber(season);
-    const days = getPriorityDays(priority);
+    const normalizedSeason = normalizeSeasonForApi(season);
+    const normalizedPriority = normalizePriorityForApi(priority);
 
-    if (monthNum === null || days === null) return null;
+    if (!normalizedSeason || !normalizedPriority) return null;
 
-    const now = new Date();
-    let year = extractSeasonYear(season) ?? now.getFullYear();
-
-    if (!extractSeasonYear(season) && monthNum < now.getMonth() + 1) {
-        year += 1;
-    }
-
-    const baseDate = new Date(year, monthNum - 1, 1);
-    baseDate.setDate(baseDate.getDate() + days);
-
-    return baseDate.toISOString().split('T')[0];
+    return calculateEstimatedDeliveryDateByPriority(normalizedSeason, normalizedPriority);
 }
 
 function updateEstimatedDeliveryDate() {
@@ -495,13 +430,17 @@ async function saveChanges() {
     const requestId = getRequestId();
 
     try {
+        const normalizedPriority = normalizePriorityForApi(programmer.value.priority);
+        const normalizedEstimatedDeliveryDate = normalizeIsoDate(programmer.value.estimated_delivery_date);
+
         const basePayload = {
             product_sheet_id: programmer.value.product_sheet_id,
             season: normalizeSeasonForApi(programmer.value.season),
             dispatch_month: normalizeSeasonForApi(programmer.value.dispatch_month ?? programmer.value.season),
             destination_id: programmer.value.destination_id,
+            priority: normalizedPriority,
             units: programmer.value.units,
-            estimated_delivery_date: programmer.value.estimated_delivery_date,
+            estimated_delivery_date: normalizedEstimatedDeliveryDate,
             notes: programmer.value.notes ?? null,
             ecommerce_units:
                 typeof programmer.value.ecommerce_units === 'string'
@@ -509,12 +448,7 @@ async function saveChanges() {
                     : JSON.stringify(programmer.value.ecommerce_units || {}),
         };
 
-        const payload: Record<string, unknown> = isManual.value
-            ? {
-                  ...basePayload,
-                  priority: normalizePriorityForApi(programmer.value.priority),
-              }
-            : basePayload;
+                const payload: Record<string, unknown> = basePayload;
 
         const response = await axios.put(`/comercial/programador/${programmer.value.id}`, payload, {
             headers: { 'X-Request-Id': requestId },
@@ -707,7 +641,7 @@ watch(
                                         label="Fecha entrega estimada"
                                         :clearable="true"
                                         :show-today="true"
-                                        :disabled="isReadOnly || Boolean(programmer.priority)"
+                                        :disabled="isReadOnly"
                                     />
                                 </div>
 

@@ -12,6 +12,9 @@
         }
     }
 
+    // ── Guardas de datos opcionales ──
+    $rolls = $rolls ?? ['lines' => []];
+
     // ── Extraer colores únicos desde rollos ──
     $producedColors = [];
     if (!empty($rolls['lines'])) {
@@ -44,6 +47,50 @@
         $suppliesOther = $supplies;
     }
 
+    // ── Resumen de consumo por tela (desde rollos de corte) ──
+    $cutLines = $additionalInfo['cutFabricLines'] ?? [];
+    $fabricSummaryMap = [];
+    if (!empty($cutLines)) {
+        foreach ($cutLines as $line) {
+            $fabricReference = trim((string) ($line['fabric_reference'] ?? ''));
+            $key = $fabricReference !== '' ? $fabricReference : 'Sin referencia';
+            if (!isset($fabricSummaryMap[$key])) {
+                $fabricSummaryMap[$key] = [
+                    'fabric_reference' => $key,
+                    'meters_programmed' => 0.0,
+                    'total_consumption' => 0.0,
+                    'roll_count' => 0,
+                ];
+            }
+            $fabricSummaryMap[$key]['meters_programmed'] += (float) ($line['meters_per_roll'] ?? 0);
+            $fabricSummaryMap[$key]['total_consumption'] += (float) ($line['total_consumption'] ?? 0);
+            $fabricSummaryMap[$key]['roll_count'] += 1;
+        }
+    }
+    $fabricSummary = array_values($fabricSummaryMap);
+    usort($fabricSummary, fn($a, $b) => $b['total_consumption'] <=> $a['total_consumption']);
+
+    $grandTotalProgrammed = array_sum(array_map(fn($row) => (float) ($row['meters_programmed'] ?? 0), $fabricSummary));
+    $grandTotalConsumption = array_sum(array_map(fn($row) => (float) ($row['total_consumption'] ?? 0), $fabricSummary));
+    $grandTotalRollCount = array_sum(array_map(fn($row) => (int) ($row['roll_count'] ?? 0), $fabricSummary));
+
+    $reportSizesForTotals = !empty($additionalInfo['cutting']['sizeCurves'])
+        ? $additionalInfo['cutting']['sizeCurves']
+        : ($additionalInfo['cutting']['sizes'] ?? []);
+    $colorCapasForTotals = $additionalInfo['cutting']['colorCapas'] ?? [];
+    $totalUnitsFromCut = 0;
+    if (!empty($reportSizesForTotals) && !empty($colorCapasForTotals)) {
+        foreach ($colorCapasForTotals as $cap) {
+            foreach ($reportSizesForTotals as $sz) {
+                $totalUnitsFromCut += (int) (
+                    ((int)($sz['trazoPrincipal'] ?? 0) * (int)($cap['layersFabric'] ?? 0))
+                    + ((int)($sz['liquidacion'] ?? 0) * (int)($cap['layersLiq'] ?? 0))
+                    + ((int)($sz['espiga'] ?? 0) * (int)($cap['layersHerringbone'] ?? 0))
+                );
+            }
+        }
+    }
+
     // ── Tallas ──
     $sizesDisplay = is_array($basic['sizes'] ?? null) ? $basic['sizes'] : [];
 
@@ -68,14 +115,14 @@
 /* ════════════════════════════════════════════════════════════
    BASE  —  Letter Landscape: 279.4 × 215.9 mm
    ════════════════════════════════════════════════════════════ */
-@page { size: letter landscape; margin: 30mm 18mm 18mm 18mm; }
+@page { size: letter landscape; margin: 22mm 14mm 14mm 14mm; }
 * { margin:0; padding:0; box-sizing:border-box; }
 html, body {
     font-family: Arial, Helvetica, sans-serif;
     background: #fff;
     color: #1e2533;
-    font-size: 9pt;
-    line-height: 1.35;
+    font-size: 8.5pt;
+    line-height: 1.3;
     text-transform: uppercase;
 }
 
@@ -115,8 +162,8 @@ html, body {
    ════════════════════════════════════════════════════════════ */
 .info-cards { width:100%; border-collapse:separate; border-spacing:0; margin-bottom:6px; border-radius:7px; border:1px solid #dde5f0; }
 .info-cards td {
-    padding:5px 8px; border-right:1px solid #dde5f0; border-bottom:1px solid #dde5f0;
-    background:#f6f9ff; vertical-align:top; text-align:center;
+    padding:4px 7px; border-right:1px solid #dde5f0; border-bottom:1px solid #dde5f0;
+    background:#f6f9ff; vertical-align:middle; text-align:center;
 }
 .info-cards td:last-child { border-right:none; }
 .info-cards tr:last-child td { border-bottom:none; }
@@ -125,11 +172,11 @@ html, body {
 .info-cards tr:last-child  td:first-child { border-bottom-left-radius:7px; }
 .info-cards tr:last-child  td:last-child  { border-bottom-right-radius:7px; }
 .ic-lbl {
-    display:block; font-size:9pt; font-weight:700;
+    display:block; font-size:7.5pt; font-weight:700;
     text-transform:uppercase; letter-spacing:.4px;
     color:#6278a0; margin-bottom:2px; text-align:center;
 }
-.ic-val { font-size:9pt; font-weight:600; color:#1e2533; text-align:center; display:block; }
+.ic-val { font-size:8.5pt; font-weight:600; color:#1e2533; text-align:center; display:block; }
 
 .summary-table td { text-align:center; vertical-align:bottom; }
 
@@ -137,19 +184,19 @@ html, body {
    SECTION TITLES
    ════════════════════════════════════════════════════ */
 .sec-title {
-    font-size:9pt; font-weight:700; text-transform:uppercase;
-    letter-spacing:.6px; padding:5px 9px;
-    margin:0 0 0 0; border-left:4px solid;
+    font-size:8.5pt; font-weight:700; text-transform:uppercase;
+    letter-spacing:.5px; padding:4px 8px;
+    margin:0; border-left:4px solid;
     border-radius:7px 7px 0 0;
     page-break-before:avoid; page-break-after:avoid;
 }
 .sec-divider {
-    height:8mm; border-bottom:1.5px solid #c5d3e8; margin:15px 0 0 0;
+    height:2.5mm; border-bottom:1px solid #c5d3e8; margin:5px 0 0 0;
     page-break-after:avoid;
 }
 .sec-sub {
-    font-size:9pt; font-weight:700;
-    padding:3px 0 2px 0; margin:5px 0 3px 0;
+    font-size:8.5pt; font-weight:700;
+    padding:2px 0 2px 0; margin:4px 0 2px 0;
     border-bottom:2px solid;
 }
 
@@ -158,7 +205,7 @@ html, body {
    ════════════════════════════════════════════════════════════ */
 table.dt { width:100%; border-collapse:separate; border-spacing:0; margin-bottom:5px; page-break-inside:avoid; border-radius:0 0 7px 7px; border:1px solid #c8d4e8; }
 table.dt th {
-    font-size:9pt; font-weight:700; text-transform:uppercase;
+    font-size:8pt; font-weight:700; text-transform:uppercase;
     letter-spacing:.3px; padding:3px 5px;
     text-align:center; white-space:nowrap;
     border-right:.5px solid rgba(255,255,255,0.25);
@@ -167,10 +214,10 @@ table.dt th {
 }
 table.dt th:last-child { border-right:none; }
 table.dt td {
-    font-size:9pt; padding:2.8px 5px;
+    font-size:8pt; padding:2.5px 5px;
     border-right:.5px solid #dde5f0;
     border-bottom:.5px solid #dde5f0;
-    vertical-align:top;
+    vertical-align:middle;
     text-align:center;
 }
 table.dt td:last-child { border-right:none; }
@@ -261,12 +308,11 @@ table.dt tfoot tr:last-child td:last-child   { border-bottom-right-radius:7px; }
 .tc  { text-align:center; }
 .b   { font-weight:700; }
 .nw  { white-space:nowrap; }
-.sm  { font-size:9pt; }
-.xs  { font-size:9pt; }
+.sm, .xs  { font-size:9pt; }
 .mut { color:#7a8fa8; }
 .page-break { margin-top:8mm; }
 table.hdr { page-break-after: avoid; }
-.page-frame { padding: 6mm 6mm 5mm 6mm; }
+.page-frame { padding: 4mm 4mm 3mm 4mm; }
 
 /* ════════════════════════════════════════════════════════════
    PAGE FOOTER
@@ -291,84 +337,29 @@ table.hdr { page-break-after: avoid; }
     Header  #2a9dc7  |  Acento #57c8f4  |  Claro #edf8fd
     ════════════════════════════════════════════════════════════ */
 
-/* — PRECOSTEO — */
-.n-hdr  { background:#2a9dc7; }
-.n-bar  { background:#57c8f4; }
-.n-sec  { background:#2a9dc7; border-left-color:#57c8f4; color:#fff; }
-.n-sub  { color:#0d3d52; border-bottom-color:#57c8f4; }
-.n-th   { background:#c8ecf8; color:#0d3d52; border-color:#b0e0f5; }
-.n-draw { border-color:#b0e0f5; }
-.n-dlbl { background:#2a9dc7; }
-.n-clbl { background:#2a9dc7; }
-.n-code { color:#2a9dc7; }
-.n-stg td { background:#c8ecf8 !important; color:#0d3d52; }
-.n-tot td { background:#c8ecf8 !important; font-weight:700; }
-.n-foot { background:#2a9dc7; }
-.n-note { background:#edf8fd; border-left-color:#57c8f4; color:#0d3d52; }
+/* — Tema unificado (aplica a todos los prefijos existentes) — */
+.n-hdr, .g-hdr, .p-hdr, .a-hdr  { background:#2a9dc7; }
+.n-bar, .g-bar, .p-bar, .a-bar  { background:#57c8f4; }
+.n-sec, .g-sec, .p-sec, .a-sec  { background:#2a9dc7; border-left-color:#57c8f4; color:#fff; }
+.n-sub, .g-sub, .p-sub, .a-sub  { color:#0d3d52; border-bottom-color:#57c8f4; }
+.n-th, .g-th, .p-th, .a-th      { background:#c8ecf8; color:#0d3d52; border-color:#b0e0f5; }
+.n-draw, .g-draw, .p-draw, .a-draw { border-color:#b0e0f5; }
+.n-dlbl, .g-dlbl, .p-dlbl, .a-dlbl { background:#2a9dc7; }
+.n-clbl, .g-clbl, .p-clbl, .a-clbl { background:#2a9dc7; }
+.n-code, .g-code, .p-code, .a-code { color:#2a9dc7; }
+.n-stg td, .g-stg td, .p-stg td, .a-stg td { background:#c8ecf8 !important; color:#0d3d52; }
+.n-tot td, .g-tot td, .p-tot td, .a-tot td { background:#c8ecf8 !important; font-weight:700; }
+.n-foot, .g-foot, .p-foot, .a-foot { background:#2a9dc7; }
+.n-note, .g-note, .p-note, .a-note { background:#edf8fd; border-left-color:#57c8f4; color:#0d3d52; }
 
-/* — CORTE — */
-.g-hdr  { background:#2a9dc7; }
-.g-bar  { background:#57c8f4; }
-.g-sec  { background:#2a9dc7; border-left-color:#57c8f4; color:#fff; }
-.g-sub  { color:#0d3d52; border-bottom-color:#57c8f4; }
-.g-th   { background:#c8ecf8; color:#0d3d52; border-color:#b0e0f5; }
-.g-draw { border-color:#b0e0f5; }
-.g-dlbl { background:#2a9dc7; }
-.g-clbl { background:#2a9dc7; }
-.g-code { color:#2a9dc7; }
-.g-stg td { background:#c8ecf8 !important; color:#0d3d52; }
-.g-tot td { background:#c8ecf8 !important; font-weight:700; }
-.g-foot { background:#2a9dc7; }
-.g-note { background:#edf8fd; border-left-color:#57c8f4; color:#0d3d52; }
+/* — COMPACCIÓN GLOBAL — */
+.info-cards { margin-bottom:4px; }
+table.dt    { margin-bottom:4px; }
+.draw-wrap  { margin-bottom:4px; }
 
-/* — CONFECCIÓN — */
-.p-hdr  { background:#2a9dc7; }
-.p-bar  { background:#57c8f4; }
-.p-sec  { background:#2a9dc7; border-left-color:#57c8f4; color:#fff; }
-.p-sub  { color:#0d3d52; border-bottom-color:#57c8f4; }
-.p-th   { background:#c8ecf8; color:#0d3d52; border-color:#b0e0f5; }
-.p-draw { border-color:#b0e0f5; }
-.p-dlbl { background:#2a9dc7; }
-.p-clbl { background:#2a9dc7; }
-.p-code { color:#2a9dc7; }
-.p-stg td { background:#c8ecf8 !important; color:#0d3d52; }
-.p-tot td { background:#c8ecf8 !important; font-weight:700; }
-.p-foot { background:#2a9dc7; }
-.p-note { background:#edf8fd; border-left-color:#57c8f4; color:#0d3d52; }
-
-/* — TERMINACIÓN — */
-.a-hdr  { background:#2a9dc7; }
-.a-bar  { background:#57c8f4; }
-.a-sec  { background:#2a9dc7; border-left-color:#57c8f4; color:#fff; }
-.a-sub  { color:#0d3d52; border-bottom-color:#57c8f4; }
-.a-th   { background:#c8ecf8; color:#0d3d52; border-color:#b0e0f5; }
-.a-draw { border-color:#b0e0f5; }
-.a-dlbl { background:#2a9dc7; }
-.a-clbl { background:#2a9dc7; }
-.a-code { color:#2a9dc7; }
-.a-stg td { background:#c8ecf8 !important; color:#0d3d52; }
-.a-tot td { background:#c8ecf8 !important; font-weight:700; }
-.a-foot { background:#2a9dc7; }
-.a-note { background:#edf8fd; border-left-color:#57c8f4; color:#0d3d52; }
-
-/* — COMPACCIÓN LOCAL PÁG. 3 y 4 — */
-.p-page .info-cards,
-.a-page .info-cards { margin-bottom:4px; }
-
-.p-page .sec-title,
-.a-page .sec-title {
-    padding:4px 8px;
-    margin:0 0 2px 0;
-}
-
-.p-page table.dt,
-.a-page table.dt { margin-bottom:4px; }
-
-.p-page .draw-wrap,
-.a-page .draw-wrap { margin-bottom:4px; }
-
-.p-page .pg-footer,
-.a-page .pg-footer { margin-top:3px; }
+/* ── Color dot alineado ── */
+.color-dot-row { display:flex; align-items:center; gap:5px; }
+.color-dot { flex-shrink:0; width:10px; height:10px; border-radius:50%; border:1px solid #b0b8c8; }
 </style>
 </head>
 <body>
@@ -431,32 +422,59 @@ table.hdr { page-break-after: avoid; }
                     <td><span class="ic-lbl">Base hilaza</span><span class="ic-val">{{ $basic['baseYarn'] ?? '-' }}</span></td>
                     <td><span class="ic-lbl">Descripción</span><span class="ic-val sm">{{ $basic['description'] ?? '-' }}</span></td>
                 </tr>
-                @if(!empty($additionalInfo['cutting']['sizes']))
+                @if(!empty($additionalInfo['cutting']['sizeCurves']) || !empty($additionalInfo['cutting']['sizes']))
                     @php
-                        $szRows       = $additionalInfo['cutting']['sizes'];
-                        $totalUnitsP1 = array_sum(array_column($szRows, 'units'));
+                        $szCurves     = $additionalInfo['cutting']['sizeCurves'] ?? [];
+                        $szUnits      = $additionalInfo['cutting']['sizes'] ?? [];
+                        $allSizes     = !empty($szCurves) ? array_column($szCurves, 'size') : array_column($szUnits, 'size');
+                        $unitsMap     = array_column($szUnits, 'units', 'size');
+                        $totalUnitsP1 = array_sum(array_values($unitsMap));
+                        $crvP = $crvL = $crvE = [];
+                        foreach ($szCurves as $sz) {
+                            $crvP[$sz['size']] = $sz['trazoPrincipal'] ?? 0;
+                            $crvL[$sz['size']] = $sz['liquidacion']    ?? 0;
+                            $crvE[$sz['size']] = $sz['espiga']         ?? 0;
+                        }
+                        $showCurveRows = !empty($szCurves);
+                        $totP = array_sum($crvP); $totL = array_sum($crvL); $totE = array_sum($crvE);
                     @endphp
                     <tr>
-                        <td colspan="3" style="padding-top:4px;">
-                            <span class="ic-lbl">Tallas / Curva / Unidades</span>
-                            <div style="margin-top:3px;overflow:hidden;">
+                        <td colspan="3" style="padding-top:3px;padding-bottom:2px;">
+                            <span class="ic-lbl">Tallas y Curva de Corte</span>
+                            <div style="margin-top:3px;">
                                 <table style="width:100%;font-size:7pt;border-collapse:collapse;">
                                     <thead><tr>
-                                        @foreach($szRows as $sz)
-                                            <th style="text-align:center;border:1px solid #c8d4e8;padding:2px 4px;background:#eaf1fb;color:#1a3a5c;font-weight:700;">{{ $sz['size'] ?? '-' }}</th>
+                                        <th style="text-align:left;border:1px solid #b0d8f0;padding:2px 5px;background:#2a9dc7;color:#fff;font-weight:700;border-radius:3px 0 0 0;">Trazo</th>
+                                        @foreach($allSizes as $size)
+                                            <th style="text-align:center;border:1px solid #b0d8f0;padding:2px 5px;background:#2a9dc7;color:#fff;font-weight:700;">{{ $size }}</th>
                                         @endforeach
-                                        <th style="text-align:center;border:1px solid #c8d4e8;padding:2px 4px;background:#d6e6f7;color:#1a3a5c;font-weight:700;">Total</th>
+                                        <th style="text-align:center;border:1px solid #b0d8f0;padding:2px 5px;background:#1a7a9f;color:#fff;font-weight:700;">Total</th>
                                     </tr></thead>
                                     <tbody>
-                                        <tr>
-                                            @foreach($szRows as $sz)
-                                                <td style="text-align:center;border:1px solid #c8d4e8;padding:2px 3px;font-size:6.5pt;">
-                                                    <div style="color:#6278a0;">cv: {{ $sz['curve'] ?? '-' }}</div>
-                                                    <div style="font-weight:700;">{{ $sz['units'] ?? 0 }}u</div>
-                                                </td>
-                                            @endforeach
-                                            <td style="text-align:center;border:1px solid #c8d4e8;padding:2px 3px;font-weight:700;">{{ $totalUnitsP1 }}u</td>
-                                        </tr>
+                                        @if($showCurveRows)
+                                            <tr>
+                                                <td style="text-align:left;border:1px solid #c8d4e8;padding:2px 5px;font-weight:700;background:#eaf1fb;color:#0d3d52;">Principal</td>
+                                                @foreach($allSizes as $size)<td style="text-align:center;border:1px solid #c8d4e8;padding:2px 4px;">{{ $crvP[$size] ?? 0 }}</td>@endforeach
+                                                <td style="text-align:center;border:1px solid #c8d4e8;padding:2px 4px;font-weight:700;">{{ $totP }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="text-align:left;border:1px solid #c8d4e8;padding:2px 5px;font-weight:700;background:#eaf1fb;color:#0d3d52;">Liquidación</td>
+                                                @foreach($allSizes as $size)<td style="text-align:center;border:1px solid #c8d4e8;padding:2px 4px;">{{ $crvL[$size] ?? 0 }}</td>@endforeach
+                                                <td style="text-align:center;border:1px solid #c8d4e8;padding:2px 4px;font-weight:700;">{{ $totL }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="text-align:left;border:1px solid #c8d4e8;padding:2px 5px;font-weight:700;background:#eaf1fb;color:#0d3d52;">Espiga</td>
+                                                @foreach($allSizes as $size)<td style="text-align:center;border:1px solid #c8d4e8;padding:2px 4px;">{{ $crvE[$size] ?? 0 }}</td>@endforeach
+                                                <td style="text-align:center;border:1px solid #c8d4e8;padding:2px 4px;font-weight:700;">{{ $totE }}</td>
+                                            </tr>
+                                        @endif
+                                        @if(!empty($unitsMap))
+                                            <tr style="background:#c8ecf8;">
+                                                <td style="text-align:left;border:1px solid #b0d8f0;padding:2px 5px;font-weight:700;color:#0d3d52;">Uds. Estimadas</td>
+                                                @foreach($allSizes as $size)<td style="text-align:center;border:1px solid #b0d8f0;padding:2px 4px;font-weight:700;">{{ $unitsMap[$size] ?? 0 }}</td>@endforeach
+                                                <td style="text-align:center;border:1px solid #b0d8f0;padding:2px 4px;font-weight:700;color:#0d3d52;">{{ $totalUnitsP1 }}</td>
+                                            </tr>
+                                        @endif
                                     </tbody>
                                 </table>
                             </div>
@@ -520,20 +538,15 @@ table.hdr { page-break-after: avoid; }
                     @php $ci=0; @endphp
                     @foreach($producedColors as $cN => $cC)
                         @if($ci % 3 === 0)<tr>@endif
-                        <td>
-                            <table style="width:100%;border-collapse:collapse;">
-                                <tr>
-                                    <td style="width:16px;vertical-align:middle;padding-right:5px;">
-                                        @if($cC)
-                                            <div style="width:10px;height:10px;border-radius:50%;background-color:{{ $cC }};border:1px solid #b0b8c8;"></div>
-                                        @endif
-                                    </td>
-                                    <td style="vertical-align:middle;">
-                                        <div class="clr-name">{{ $cN }}</div>
-                                        @if($cC)<div class="clr-code n-code">{{ $cC }}</div>@endif
-                                    </td>
-                                </tr>
-                            </table>
+                        <td style="padding:5px 8px;">
+                            <div style="display:flex;align-items:center;gap:7px;">
+                                @if($cC)
+                                    <div style="flex-shrink:0;width:16px;height:16px;border-radius:50%;background-color:{{ $cC }};border:1.5px solid #b0b8c8;box-shadow:0 1px 3px rgba(0,0,0,.15);"></div>
+                                @else
+                                    <div style="flex-shrink:0;width:16px;height:16px;border-radius:50%;background:#e8edf5;border:1.5px solid #c8d4e8;"></div>
+                                @endif
+                                <span class="clr-name">{{ $cN }}</span>
+                            </div>
                         </td>
                         @php $ci++; @endphp
                         @if($ci % 3 === 0)</tr>@endif
@@ -555,7 +568,34 @@ table.hdr { page-break-after: avoid; }
 {{-- ╚══════════════════════════════════════════════════════════════╝ --}}
 
             {{-- Materia Prima --}}
-            @if(!empty($rawMaterials))
+            @if(!empty($fabricSummary))
+                <div class="sec-divider"></div>
+<div class="sec-title g-sec">Materia Prima</div>
+                <table class="dt">
+                    <thead><tr>
+                        <th class="g-th">Tela</th>
+                        <th class="tc g-th">Total Programado (m)</th>
+                        <th class="tc g-th">Rollos</th>
+                        <th class="tr g-th">Consumo Total (m)</th>
+                    </tr></thead>
+                    <tbody>
+                        @foreach($fabricSummary as $row)
+                            <tr>
+                                <td class="b">{{ $row['fabric_reference'] ?? '-' }}</td>
+                                <td class="tc">{{ num($row['meters_programmed'] ?? 0, 2) }}</td>
+                                <td class="tc">{{ $row['roll_count'] ?? 0 }}</td>
+                                <td class="tr b">{{ num($row['total_consumption'] ?? 0, 2) }}</td>
+                            </tr>
+                        @endforeach
+                        <tr class="row-total g-tot">
+                            <td class="b">Total</td>
+                            <td class="tc b">{{ num($grandTotalProgrammed, 2) }} m</td>
+                            <td class="tc b">{{ $grandTotalRollCount }}</td>
+                            <td class="tr b">{{ num($grandTotalConsumption, 2) }} m</td>
+                        </tr>
+                    </tbody>
+                </table>
+            @elseif(!empty($rawMaterials))
                 <div class="sec-divider"></div>
 <div class="sec-title g-sec">Materia Prima</div>
                 <table class="dt">
@@ -588,7 +628,6 @@ table.hdr { page-break-after: avoid; }
 
             {{-- Rollos por Trazo (Consumo de Corte) --}}
             @php
-                $cutLines = $additionalInfo['cutFabricLines'] ?? [];
                 $trazoGroups = [];
                 foreach ($cutLines as $line) {
                     $tuid = $line['trazo_uid'] ?? '__none__';
@@ -617,29 +656,25 @@ table.hdr { page-break-after: avoid; }
                         $sumUsar   = array_sum(array_map(fn($l) => (float)($l['meters_per_roll'] ?? 0), $tLines));
                         $sumConsumo= array_sum(array_map(fn($l) => (float)($l['total_consumption'] ?? 0), $tLines));
                         $sumFalt   = array_sum(array_map(fn($l) => (float)($l['restante'] ?? 0), $tLines));
+                        $showLiq   = $sumCapaL > 0;
+                        $showEsp   = $sumCapaE > 0;
                     @endphp
                     <div style="page-break-inside: avoid; padding-top: 16px;">
+                    @php $isPrincipal = strtoupper(trim($tGroup['fabric_type'] ?? '')) === 'PRINCIPAL'; @endphp
                     <table style="width:100%;font-size:8pt;font-weight:700;margin:0 0 3px;color:#1a3a5c;border-collapse:collapse;">
                         <tr>
                             <td style="vertical-align:bottom;padding-bottom:1px;">
                                 Trazo {{ $loop->iteration }}
                                 @if($tGroup['fabric_type']) &nbsp;|&nbsp; <span style="font-weight:400;">{{ $tGroup['fabric_type'] }}</span> @endif
-                                &nbsp;|&nbsp; {{ $tCount }} rollo{{ $tCount !== 1 ? 's' : '' }}
-                                @if($tGroup['prom_trazo'] !== null) &nbsp;|&nbsp; Prom. Trazo: <span style="font-weight:400;">{{ num($tGroup['prom_trazo'],3) }} m</span> @endif
+                                @if($isPrincipal && $tGroup['prom_trazo'] !== null) &nbsp;|&nbsp; Prom. Trazo: <span style="font-weight:400;">{{ num($tGroup['prom_trazo'],3) }} m</span> @endif
+                                @if($isPrincipal && $tGroup['largo_trazo'] !== null) &nbsp;|&nbsp; Largo Trazo: <span style="font-weight:400;">{{ num($tGroup['largo_trazo'],3) }} m</span> @endif
+                                @if($isPrincipal && $tGroup['largo_liq'] !== null) &nbsp;|&nbsp; Largo Liq.: <span style="font-weight:400;">{{ num($tGroup['largo_liq'],3) }} m</span> @endif
                             </td>
                             <td style="text-align:right;vertical-align:bottom;padding-bottom:1px;">
                                 Capa Principal <span style="font-weight:400;">{{ $sumCapaP }}</span>
-                                &nbsp;|&nbsp; Capa Liquidación <span style="font-weight:400;">{{ $sumCapaL }}</span>
-                                &nbsp;|&nbsp; Capa Espiga <span style="font-weight:400;">{{ $sumCapaE }}</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="font-weight:400;padding-top:1px;">
-                                @if($tGroup['largo_trazo'] !== null) Largo de Trazo: <strong>{{ num($tGroup['largo_trazo'],3) }} m</strong> @endif
-                                @if($tGroup['largo_liq'] !== null) &nbsp;|&nbsp; Largo Liquidación: <strong>{{ num($tGroup['largo_liq'],3) }} m</strong> @endif
-                            </td>
-                            <td style="text-align:right;font-weight:400;padding-top:1px;">
-                                Consumo Total: <strong style="color:#c0392b;">{{ num($sumConsumo,2) }} m</strong>
+                                @if($showLiq)&nbsp;|&nbsp; Capa Liquidación <span style="font-weight:400;">{{ $sumCapaL }}</span>@endif
+                                @if($showEsp)&nbsp;|&nbsp; Capa Espiga <span style="font-weight:400;">{{ $sumCapaE }}</span>@endif
+                                &nbsp;|&nbsp; Consumo: <strong style="color:#c0392b;">{{ num($sumConsumo,2) }} m</strong>
                             </td>
                         </tr>
                     </table>
@@ -652,8 +687,8 @@ table.hdr { page-break-after: avoid; }
                             <th class="tr g-th" style="white-space:normal;">Total<br>Metros</th>
                             <th class="tr g-th" style="white-space:normal;">Metros a<br>Usar</th>
                             <th class="tc g-th" style="white-space:normal;">Capa<br>Principal</th>
-                            <th class="tc g-th" style="white-space:normal;">Capa<br>Liquidación</th>
-                            <th class="tc g-th" style="white-space:normal;">Capa<br>Espiga</th>
+                            @if($showLiq)<th class="tc g-th" style="white-space:normal;">Capa<br>Liquidación</th>@endif
+                            @if($showEsp)<th class="tc g-th" style="white-space:normal;">Capa<br>Espiga</th>@endif
                             <th class="tr g-th">Retazo</th>
                             <th class="tr g-th" style="white-space:normal;">Consumo<br>Total</th>
                             <th class="tr g-th">Faltante</th>
@@ -668,8 +703,8 @@ table.hdr { page-break-after: avoid; }
                                     <td class="tc">{{ isset($cl['roll_total_meters']) ? num($cl['roll_total_meters'],2) : '-' }}</td>
                                     <td class="tc">{{ isset($cl['meters_per_roll']) ? num($cl['meters_per_roll'],2) : '-' }}</td>
                                     <td class="tc">{{ $cl['layers_fabric'] ?? '-' }}</td>
-                                    <td class="tc">{{ $cl['layers_liquidation'] ?? '-' }}</td>
-                                    <td class="tc">{{ $cl['layers_herringbone'] ?? '-' }}</td>
+                                    @if($showLiq)<td class="tc">{{ $cl['layers_liquidation'] ?? '-' }}</td>@endif
+                                    @if($showEsp)<td class="tc">{{ $cl['layers_herringbone'] ?? '-' }}</td>@endif
                                     <td class="tc">{{ isset($cl['retazo_1']) ? num($cl['retazo_1'],2) : '-' }}</td>
                                     <td class="tc">{{ isset($cl['total_consumption']) ? num($cl['total_consumption'],2) : '-' }}</td>
                                     <td class="tc b" style="color:#c0392b;">{{ isset($cl['restante']) ? num($cl['restante'],2) : '-' }}</td>
@@ -681,8 +716,8 @@ table.hdr { page-break-after: avoid; }
                                 <td colspan="5" class="tr" style="font-size:5.5pt;color:#6278a0;padding-top:5px;padding-bottom:1px;">Total</td>
                                 <td class="tc">{{ num($sumUsar,2) }}</td>
                                 <td class="tc">{{ $sumCapaP }}</td>
-                                <td class="tc">{{ $sumCapaL }}</td>
-                                <td class="tc">{{ $sumCapaE }}</td>
+                                @if($showLiq)<td class="tc">{{ $sumCapaL }}</td>@endif
+                                @if($showEsp)<td class="tc">{{ $sumCapaE }}</td>@endif
                                 <td class="tc">—</td>
                                 <td class="tc">{{ num($sumConsumo,2) }}</td>
                                 <td class="tc" style="color:#c0392b;">{{ num($sumFalt,2) }}</td>
@@ -693,131 +728,63 @@ table.hdr { page-break-after: avoid; }
                 @endforeach
             @endif
 
-            {{-- Curvas por Talla y Reporte de Unidades Reales --}}
-            <div style="overflow:hidden; margin-bottom:5px;">
-                <div style="width:49%; display:inline-block; vertical-align:top; margin-right:1%; page-break-inside: avoid;">
-                    @if(!empty($additionalInfo['cutting']['sizeCurves']))
-                        @php
-                            $sc = $additionalInfo['cutting']['sizeCurves'];
-                            $totalPrincipal  = array_sum(array_column($sc, 'trazoPrincipal'));
-                            $totalLiquidacion = array_sum(array_column($sc, 'liquidacion'));
-                            $totalEspiga     = array_sum(array_column($sc, 'espiga'));
-                        @endphp
-                        <div class="sec-divider"></div>
-                        <div class="sec-title g-sec">Curvas por Talla</div>
-                        <table class="dt">
-                            <thead><tr>
-                                <th class="g-th">Tipo de Trazo</th>
-                                @foreach($sc as $sz)
-                                    <th class="tc g-th">{{ $sz['size'] }}</th>
+            {{-- Reporte de Unidades Reales (ancho completo) --}}
+            @php
+                $colorCapas      = $additionalInfo['cutting']['colorCapas'] ?? [];
+                $sizeCurvesRep   = $additionalInfo['cutting']['sizeCurves'] ?? [];
+                $reportSizes     = !empty($sizeCurvesRep) ? $sizeCurvesRep : ($additionalInfo['cutting']['sizes'] ?? []);
+                $hasRealUnitData = !empty($colorCapas) && !empty($reportSizes);
+            @endphp
+            @if($hasRealUnitData)
+                <div class="sec-divider"></div>
+                <div class="sec-title g-sec">Reporte de Unidades Reales por Color</div>
+                <table class="dt" style="margin-bottom:4px;">
+                    <thead><tr>
+                        <th class="g-th" style="text-align:left;">Color</th>
+                        @foreach($reportSizes as $sz)
+                            <th class="tc g-th">{{ $sz['size'] }}</th>
+                        @endforeach
+                        <th class="tc g-th">Total</th>
+                    </tr></thead>
+                    <tbody>
+                        @php $colTotals = array_fill(0, count($reportSizes), 0); $grandTotal = 0; @endphp
+                        @foreach($colorCapas as $cap)
+                            @php
+                                $rowUnits = []; $rowTotal = 0;
+                                foreach ($reportSizes as $sz) {
+                                    $u = (int)(($sz['trazoPrincipal'] ?? 0) * $cap['layersFabric']
+                                             + ($sz['liquidacion']    ?? 0) * $cap['layersLiq']
+                                             + ($sz['espiga']         ?? 0) * $cap['layersHerringbone']);
+                                    $rowUnits[] = $u; $rowTotal += $u;
+                                }
+                                $grandTotal += $rowTotal;
+                            @endphp
+                            <tr>
+                                <td style="text-align:left;">
+                                    <div style="display:flex;align-items:center;gap:5px;">
+                                        @if(!empty($cap['colorCode']))
+                                            <div style="flex-shrink:0;width:10px;height:10px;border-radius:50%;background-color:{{ $cap['colorCode'] }};border:1px solid #b0b8c8;"></div>
+                                        @endif
+                                        <span class="b">{{ $cap['color'] }}</span>
+                                    </div>
+                                </td>
+                                @foreach($rowUnits as $i => $u)
+                                    @php $colTotals[$i] += $u; @endphp
+                                    <td class="tc">{{ $u }}</td>
                                 @endforeach
-                                <th class="tc g-th">Total</th>
-                            </tr></thead>
-                            <tbody>
-                                <tr>
-                                    <td class="b">Principal</td>
-                                    @foreach($sc as $sz)<td class="tc">{{ $sz['trazoPrincipal'] ?? 0 }}</td>@endforeach
-                                    <td class="tc b">{{ $totalPrincipal }}</td>
-                                </tr>
-                                <tr>
-                                    <td class="b">Liquidación</td>
-                                    @foreach($sc as $sz)<td class="tc">{{ $sz['liquidacion'] ?? 0 }}</td>@endforeach
-                                    <td class="tc b">{{ $totalLiquidacion }}</td>
-                                </tr>
-                                <tr>
-                                    <td class="b">Espiga</td>
-                                    @foreach($sc as $sz)<td class="tc">{{ $sz['espiga'] ?? 0 }}</td>@endforeach
-                                    <td class="tc b">{{ $totalEspiga }}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    @endif
-                </div>
-                <div style="width:49%; display:inline-block; vertical-align:top; page-break-inside: avoid;">
-                    {{-- Reporte de Unidades Reales --}}
-                    @php
-                        $colorCapas      = $additionalInfo['cutting']['colorCapas'] ?? [];
-                        $sizeCurvesRep   = $additionalInfo['cutting']['sizeCurves'] ?? [];
-                        $reportSizes     = !empty($sizeCurvesRep) ? $sizeCurvesRep : ($additionalInfo['cutting']['sizes'] ?? []);
-                        $hasRealUnitData = !empty($colorCapas) && !empty($reportSizes);
-                    @endphp
-                    @if($hasRealUnitData)
-                        <div class="sec-divider"></div>
-                        <div class="sec-title g-sec">Reporte de Unidades Reales</div>
-                        <div style="font-size:6.5pt;color:#6278a0;margin:0 0 3px;">Tela principal &mdash; agrupado por color</div>
-                        <table class="dt">
-                            <thead><tr>
-                                <th class="g-th">Color</th>
-                                @foreach($reportSizes as $sz)
-                                    <th class="tc g-th">{{ $sz['size'] }}</th>
-                                @endforeach
-                                <th class="tc g-th">Total</th>
-                            </tr></thead>
-                            <tbody>
-                                @php $colTotals = array_fill(0, count($reportSizes), 0); $grandTotal = 0; @endphp
-                                @foreach($colorCapas as $cap)
-                                    @php
-                                        $rowUnits = []; $rowTotal = 0;
-                                        foreach ($reportSizes as $sz) {
-                                            $u = (int)(($sz['trazoPrincipal'] ?? 0) * $cap['layersFabric']
-                                                     + ($sz['liquidacion']    ?? 0) * $cap['layersLiq']
-                                                     + ($sz['espiga']         ?? 0) * $cap['layersHerringbone']);
-                                            $rowUnits[] = $u; $rowTotal += $u;
-                                        }
-                                        $grandTotal += $rowTotal;
-                                    @endphp
-                                    <tr>
-                                        <td class="b">{{ $cap['color'] }}</td>
-                                        @foreach($rowUnits as $i => $u)
-                                            @php $colTotals[$i] += $u; @endphp
-                                            <td class="tc">{{ $u }}</td>
-                                        @endforeach
-                                        <td class="tc b">{{ $rowTotal }}</td>
-                                    </tr>
-                                @endforeach
-                                <tr class="row-total">
-                                    <td class="b">TOTAL</td>
-                                    @foreach($colTotals as $ct)
-                                        <td class="tc b">{{ $ct }}</td>
-                                    @endforeach
-                                    <td class="tc b" style="color:#b03030;">{{ $grandTotal }}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    @elseif(!empty($producedColors) && !empty($additionalInfo['cutting']['sizes']))
-                        <div class="sec-divider"></div>
-                        <div class="sec-title g-sec">Reporte de Unidades Reales</div>
-                        <div style="font-size:6.5pt;color:#6278a0;margin:0 0 3px;">Tela principal &mdash; agrupado por color</div>
-                        <table class="dt">
-                            <thead><tr>
-                                <th class="g-th">Color</th>
-                                @foreach($additionalInfo['cutting']['sizes'] as $sz)
-                                    <th class="tc g-th">{{ $sz['size'] }}</th>
-                                @endforeach
-                                <th class="tc g-th">Total</th>
-                            </tr></thead>
-                            <tbody>
-                                @foreach($producedColors as $colorName => $colorCode)
-                                    <tr>
-                                        <td class="b">{{ $colorName }}</td>
-                                        @foreach($additionalInfo['cutting']['sizes'] as $sz)
-                                            <td class="tc">-</td>
-                                        @endforeach
-                                        <td class="tc b">-</td>
-                                    </tr>
-                                @endforeach
-                                <tr class="row-total">
-                                    <td class="b">TOTAL</td>
-                                    @foreach($additionalInfo['cutting']['sizes'] as $sz)
-                                        <td class="tc b">-</td>
-                                    @endforeach
-                                    <td class="tc b">-</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    @endif
-                </div>
-            </div>
+                                <td class="tc b">{{ $rowTotal }}</td>
+                            </tr>
+                        @endforeach
+                        <tr class="row-total g-tot">
+                            <td style="text-align:left;" class="b">TOTAL</td>
+                            @foreach($colTotals as $ct)
+                                <td class="tc b">{{ $ct }}</td>
+                            @endforeach
+                            <td class="tc b" style="color:#b03030;">{{ $grandTotal }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            @endif
 
 
             {{-- Hilos Asignados --}}
@@ -834,12 +801,7 @@ table.hdr { page-break-after: avoid; }
                 <div class="sec-title p-sec">Hilos Asignados</div>
                 <table class="dt" style="margin-bottom:4px;">
                     <thead><tr>
-                        <th class="p-th tc" style="width:22px;padding:0;text-align:center;vertical-align:middle;">
-                            <svg width="20" height="32" xmlns="http://www.w3.org/2000/svg">
-                                <text x="10" y="16" transform="rotate(-90,10,16)" text-anchor="middle"
-                                      font-size="7" font-weight="bold" fill="#ffffff" font-family="Arial, sans-serif">Color</text>
-                            </svg>
-                        </th>
+                        <th class="p-th">Color</th>
                         <th class="p-th">Proceso</th>
                         <th class="p-th">Hilo</th>
                         <th class="tc p-th">Calibre</th>
@@ -849,25 +811,17 @@ table.hdr { page-break-after: avoid; }
                     </tr></thead>
                     <tbody>
                         @foreach($threadsByColor as $colorName => $colorThreads)
+                            @php $hexCode = $colorThreads[0]['colorCode'] ?? ''; @endphp
                             @foreach($colorThreads as $thIdx => $th)
                                 <tr>
                                     @if($thIdx === 0)
-                                        @php
-                                            $hexCode = $colorThreads[0]['colorCode'] ?? '';
-                                            $label   = $colorName . ($hexCode ? ' ' . $hexCode : '');
-                                            $svgH    = max(45, mb_strlen($label) * 5 + 10);
-                                            $cx      = 10;
-                                            $cy      = $svgH / 2;
-                                        @endphp
-                                        <td rowspan="{{ count($colorThreads) }}"
-                                            style="width:22px;padding:0;text-align:center;vertical-align:middle;">
-                                            <svg width="20" height="{{ $svgH }}" xmlns="http://www.w3.org/2000/svg">
-                                                <text x="{{ $cx }}" y="{{ $cy }}"
-                                                      transform="rotate(-90,{{ $cx }},{{ $cy }})"
-                                                      text-anchor="middle"
-                                                      font-size="7" font-weight="bold" fill="#1a3a5c"
-                                                      font-family="Arial, sans-serif">{{ $label }}</text>
-                                            </svg>
+                                        <td rowspan="{{ count($colorThreads) }}" style="vertical-align:middle;">
+                                            <div style="display:flex;align-items:center;gap:5px;">
+                                                @if($hexCode)
+                                                    <div style="flex-shrink:0;width:10px;height:10px;border-radius:50%;background-color:{{ $hexCode }};border:1px solid #b0b8c8;"></div>
+                                                @endif
+                                                <span class="b" style="font-size:8pt;">{{ $colorName }}</span>
+                                            </div>
                                         </td>
                                     @endif
                                     <td class="b sm">{{ $th['processType'] ?? '-' }}</td>
@@ -962,34 +916,6 @@ table.hdr { page-break-after: avoid; }
                             <td colspan="3" class="tr b">Total minutos de ruta:</td>
                             <td class="tc b">{{ num($tMin) }}</td>
                         </tr>
-                    </tbody>
-                </table>
-            @endif
-
-            {{-- Colores × Tallas --}}
-            @if(!empty($producedColors) && !empty($additionalInfo['cutting']['sizes']))
-                <div class="sec-divider"></div>
-<div class="sec-title p-sec">Distribución Colores × Tallas</div>
-                <table class="dt">
-                    <thead>
-                        <tr>
-                            <th class="p-th">Color</th>
-                            @foreach($additionalInfo['cutting']['sizes'] as $sz)
-                                <th class="tc p-th">{{ $sz['size'] ?? '-' }}</th>
-                            @endforeach
-                            <th class="tc p-th b">Total</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($producedColors as $cN => $cC)
-                            <tr>
-                                <td class="b">{{ $cN }}</td>
-                                @foreach($additionalInfo['cutting']['sizes'] as $sz)
-                                    <td class="tc">{{ $sz['units'] ?? '-' }}</td>
-                                @endforeach
-                                <td class="tc b">-</td>
-                            </tr>
-                        @endforeach
                     </tbody>
                 </table>
             @endif
@@ -1127,28 +1053,84 @@ table.hdr { page-break-after: avoid; }
                             $stampObservacion = trim($raw) ?: null;
                         }
                     }
+                    // Unidades a estampar por color (solo tela principal)
+                    $stampingUnitsByColor = [];
+                    $stampTotal = 0;
+                    if (!empty($colorCapasForTotals) && !empty($reportSizesForTotals)) {
+                        foreach ($colorCapasForTotals as $cap) {
+                            $colorTotal = 0;
+                            foreach ($reportSizesForTotals as $sz) {
+                                $colorTotal += (int)(
+                                    ((int)($sz['trazoPrincipal'] ?? 0) * (int)($cap['layersFabric'] ?? 0))
+                                    + ((int)($sz['liquidacion'] ?? 0) * (int)($cap['layersLiq'] ?? 0))
+                                    + ((int)($sz['espiga'] ?? 0) * (int)($cap['layersHerringbone'] ?? 0))
+                                );
+                            }
+                            $stampingUnitsByColor[] = ['color' => $cap['color'], 'colorCode' => $cap['colorCode'] ?? null, 'units' => $colorTotal];
+                            $stampTotal += $colorTotal;
+                        }
+                    }
                 @endphp
                 <div class="sec-divider"></div>
 <div class="sec-title a-sec">Estampado</div>
+
+                {{-- Unidades a estampar --}}
+                @if(!empty($stampingUnitsByColor))
+                    <div class="sec-sub a-sub" style="margin-bottom:3px;">Unidades a Estampar</div>
+                    <table class="dt" style="margin-bottom:6px;">
+                        <thead><tr>
+                            <th class="a-th">Color</th>
+                            <th class="tc a-th">Unidades</th>
+                        </tr></thead>
+                        <tbody>
+                            @foreach($stampingUnitsByColor as $su)
+                                <tr>
+                                    <td>
+                                        <div style="display:flex;align-items:center;gap:6px;">
+                                            @if(!empty($su['colorCode']))
+                                                <div style="flex-shrink:0;width:12px;height:12px;border-radius:50%;background-color:{{ $su['colorCode'] }};border:1px solid #b0b8c8;"></div>
+                                            @endif
+                                            <span class="b">{{ $su['color'] }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="tc b">{{ $su['units'] }}</td>
+                                </tr>
+                            @endforeach
+                            <tr class="row-total a-tot">
+                                <td class="b">Total</td>
+                                <td class="tc b">{{ $stampTotal }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                @endif
+
                 @if($stampProcesos)
-                    <div class="note-box a-note"><strong>Procesos:</strong> {{ $stampProcesos }}</div>
+                    <div class="note-box a-note" style="margin-bottom:4px;"><strong>Procesos:</strong> {{ $stampProcesos }}</div>
                 @endif
                 @if($stampObservacion)
-                    <div class="note-box a-note"><strong>Observación:</strong> {{ $stampObservacion }}</div>
+                    <div class="note-box a-note" style="margin-bottom:4px;"><strong>Observación:</strong> {{ $stampObservacion }}</div>
                 @endif
                 @if(!empty($stamp['attachments']))
-                    <div class="sec-sub a-sub" style="margin-top:4px;">Imágenes de Estampado</div>
-                    <div style="text-align:center; margin-bottom:5px;">
+                    <div class="sec-sub a-sub" style="margin-top:5px;margin-bottom:3px;">Imágenes de Referencia</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:5px;">
                         @foreach($stamp['attachments'] as $att)
-                            @if(!empty($att['url']))<img src="{{ $att['url'] }}" alt="{{ $att['name'] ?? 'Estampado' }}" style="max-height:120px; max-width:160px; border:1px solid #dde5f0; margin:3px; object-fit:contain;" />@endif
+                            @if(!empty($att['url']))
+                                <div style="border:1px solid #dde5f0;border-radius:5px;overflow:hidden;padding:3px;background:#f8fbff;">
+                                    <img src="{{ $att['url'] }}" alt="{{ $att['name'] ?? 'Estampado' }}" style="max-height:110px;max-width:140px;display:block;object-fit:contain;" />
+                                </div>
+                            @endif
                         @endforeach
                     </div>
                 @endif
                 @if(!empty($stamp['drawingAttachments']))
-                    <div class="sec-sub a-sub" style="margin-top:4px;">Dibujos Técnicos de Estampado</div>
-                    <div style="text-align:center; margin-bottom:5px;">
+                    <div class="sec-sub a-sub" style="margin-top:5px;margin-bottom:3px;">Dibujos Técnicos</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:5px;">
                         @foreach($stamp['drawingAttachments'] as $att)
-                            @if(!empty($att['url']))<img src="{{ $att['url'] }}" alt="{{ $att['name'] ?? 'Dibujo' }}" style="max-height:120px; max-width:160px; border:1px solid #dde5f0; margin:3px; object-fit:contain;" />@endif
+                            @if(!empty($att['url']))
+                                <div style="border:1px solid #dde5f0;border-radius:5px;overflow:hidden;padding:3px;background:#f8fbff;">
+                                    <img src="{{ $att['url'] }}" alt="{{ $att['name'] ?? 'Dibujo' }}" style="max-height:110px;max-width:140px;display:block;object-fit:contain;" />
+                                </div>
+                            @endif
                         @endforeach
                     </div>
                 @endif
@@ -1164,17 +1146,35 @@ table.hdr { page-break-after: avoid; }
                 @php $laundry = $additionalInfo['laundry']; @endphp
                 <div class="sec-divider"></div>
 <div class="sec-title a-sec">Lavandería</div>
-                @if(!empty($laundry['type']))
-                    <div class="note-box a-note"><strong>Tipo:</strong> {{ $laundry['type'] }}</div>
+
+                @if(!empty($laundry['type']) || !empty($laundry['instructions']))
+                    <table class="info-cards" style="margin-bottom:5px;">
+                        <tr>
+                            @if(!empty($laundry['type']))
+                                <td style="width:35%;text-align:left;">
+                                    <span class="ic-lbl">Tipo de Lavado</span>
+                                    <span class="ic-val" style="text-align:left;">{{ $laundry['type'] }}</span>
+                                </td>
+                            @endif
+                            @if(!empty($laundry['instructions']))
+                                <td style="text-align:left;">
+                                    <span class="ic-lbl">Instrucciones / Observaciones</span>
+                                    <span class="ic-val" style="text-align:left;font-weight:400;">{{ $laundry['instructions'] }}</span>
+                                </td>
+                            @endif
+                        </tr>
+                    </table>
                 @endif
-                @if(!empty($laundry['instructions']))
-                    <div class="note-box a-note"><strong>Observación:</strong> {{ $laundry['instructions'] }}</div>
-                @endif
+
                 @if(!empty($laundry['attachments']))
-                    <div class="sec-sub a-sub" style="margin-top:4px;">Imagen de Lavandería</div>
-                    <div style="text-align:center; margin-bottom:5px;">
+                    <div class="sec-sub a-sub" style="margin-top:5px;margin-bottom:3px;">Imágenes de Referencia</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:5px;">
                         @foreach($laundry['attachments'] as $att)
-                            @if(!empty($att['url']))<img src="{{ $att['url'] }}" alt="{{ $att['name'] ?? 'Lavandería' }}" style="max-height:120px; max-width:160px; border:1px solid #dde5f0; margin:3px; object-fit:contain;" />@endif
+                            @if(!empty($att['url']))
+                                <div style="border:1px solid #dde5f0;border-radius:5px;overflow:hidden;padding:3px;background:#f8fbff;">
+                                    <img src="{{ $att['url'] }}" alt="{{ $att['name'] ?? 'Lavandería' }}" style="max-height:110px;max-width:140px;display:block;object-fit:contain;" />
+                                </div>
+                            @endif
                         @endforeach
                     </div>
                 @endif

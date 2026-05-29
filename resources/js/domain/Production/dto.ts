@@ -253,6 +253,10 @@ export interface CostsSummaryDto {
         fixedCost: number | null;
         sale: number | null;
         historicInvoicing: number | null;
+        invoicingOverride?: number | null;
+        saleOverride?: number | null;
+        sheetInvoicing?: number | null;
+        sheetSale?: number | null;
     };
     units: number | null;
     costs: {

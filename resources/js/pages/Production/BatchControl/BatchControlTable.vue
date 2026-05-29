@@ -2,6 +2,7 @@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertTriangle, ArrowDown, ArrowUp, Calendar, Clock, MessageSquareWarning, XCircle } from 'lucide-vue-next';
+import { computed } from 'vue';
 import BatchControlRowActions from './BatchControlRowActions.vue';
 import type { BatchControlRow } from './types';
 
@@ -117,6 +118,9 @@ function estimatedDatePriorityClass(status: 'none' | 'on_time' | 'due_soon' | 'o
 function dimmedCellClass(row: BatchControlRow): string {
     return props.isRowDisabled?.(row) ? 'opacity-40' : '';
 }
+
+const showDispatchColumn = computed(() => props.activeProcess === 'Bodega');
+const tableColumnsCount = computed(() => (showDispatchColumn.value ? 14 : 13));
 </script>
 
 <template>
@@ -215,20 +219,23 @@ function dimmedCellClass(row: BatchControlRow): string {
                         <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'fecha'" class="h-3 w-3" />
                     </span>
                 </TableHead>
+                <TableHead v-if="showDispatchColumn" class="w-[8%] px-1 py-1.5 text-center text-xs">
+                    Despacho (Mes/Año)
+                </TableHead>
                 <TableHead class="w-[8%] px-1 py-1.5 text-center text-xs">Acciones</TableHead>
             </TableRow>
         </TableHeader>
         <TableBody>
             <template v-if="isLoading">
                 <TableRow v-for="row in 5" :key="`sk-${row}`">
-                    <TableCell v-for="col in 13" :key="`sk-${row}-${col}`" class="px-1 py-2">
+                    <TableCell v-for="col in tableColumnsCount" :key="`sk-${row}-${col}`" class="px-1 py-2">
                         <Skeleton class="h-4 w-full" />
                     </TableCell>
                 </TableRow>
             </template>
             <template v-else-if="rows.length === 0">
                 <TableRow>
-                    <TableCell colspan="13" class="py-8 text-center text-xs text-muted-foreground">
+                    <TableCell :colspan="tableColumnsCount" class="py-8 text-center text-xs text-muted-foreground">
                         {{ emptyText }}
                     </TableCell>
                 </TableRow>
@@ -379,6 +386,9 @@ function dimmedCellClass(row: BatchControlRow): string {
                             {{ formatDate(row.fecha) }}
                         </span>
                         <span v-else class="text-xs text-muted-foreground">—</span>
+                    </TableCell>
+                    <TableCell v-if="showDispatchColumn" :class="['px-1 py-2 text-center text-xs', dimmedCellClass(row)]">
+                        <span class="tabular-nums">{{ row.mes_despacho || '-' }}</span>
                     </TableCell>
                     <!-- Acciones: siempre visibles; acciones de proceso en solo lectura si la fila no está activa -->
                     <TableCell class="px-1 py-2 text-center">

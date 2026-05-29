@@ -1096,6 +1096,11 @@ function mapFormStateToPayload(orderedExtraFields: Record<string, string>): Reco
     const resolvedTaxId = localForm.value.tax_id === 'none' ? null : localForm.value.tax_id;
     const selectedTax = taxes.value.find((tax) => String(tax.id) === String(resolvedTaxId));
     const selectedTaxPercentage = selectedTax ? Number(selectedTax.percentage) : 0;
+    const normalizedItemType = normalizeItemType(localForm.value.item_type);
+    const shouldTrackInventory =
+        normalizedItemType !== 'service' && (localForm.value.negative_movement === 1 || localForm.value.negative_movement === true
+            ? true
+            : (localForm.value.tracks_inventory ?? true));
 
     return {
         ...localForm.value,
@@ -1113,8 +1118,8 @@ function mapFormStateToPayload(orderedExtraFields: Record<string, string>): Reco
         extra_fields: JSON.stringify(orderedExtraFields),
         name: nameField.value,
         unit_measure: unitMeasure.value,
-        item_type: normalizeItemType(localForm.value.item_type),
-        tracks_inventory: localForm.value.tracks_inventory ?? normalizeItemType(localForm.value.item_type) !== 'service',
+        item_type: normalizedItemType,
+        tracks_inventory: shouldTrackInventory,
         status:
             typeof localForm.value.status === 'boolean'
                 ? localForm.value.status
@@ -1903,6 +1908,9 @@ onBeforeUnmount(() => {
                                                 showNegativeMovementWarning();
                                             } else {
                                                 localForm.negative_movement = val ? 1 : 0;
+                                                if (val && currentItemType !== 'service') {
+                                                    localForm.tracks_inventory = 1;
+                                                }
                                             }
                                         }
                                     "

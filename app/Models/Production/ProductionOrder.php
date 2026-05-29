@@ -60,6 +60,9 @@ class ProductionOrder extends Model
         'cut_fabric_consumption',
         'source',
         'created_by_user_id',
+        'billing_price_override',
+        'selling_price_override',
+        'calculated_cost',
     ];
 
     protected $casts = [
@@ -67,8 +70,11 @@ class ProductionOrder extends Model
         'estimated_delivery_date'  => 'date',
         'is_advance'               => 'boolean',
         'process_estimated_dates'  => 'array',
-        'cut_fabric_consumption'   => 'array',
-        'batch_priority'           => 'integer',
+        'cut_fabric_consumption'    => 'array',
+        'batch_priority'            => 'integer',
+        'billing_price_override'    => 'float',
+        'selling_price_override'    => 'float',
+        'calculated_cost'           => 'float',
         'created_by_user_id'       => 'integer',
         // Columnas canónicas Fase A
         'season_month'             => 'integer',

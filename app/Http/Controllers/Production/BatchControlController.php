@@ -336,6 +336,13 @@ class BatchControlController extends Controller
                 'op_code' => $p->op_code,
                 'season_month' => $p->season_month,
                 'season_year' => $p->season_year,
+                'mes_despacho' => $p->dispatch_month_num !== null
+                    ? ($p->dispatch_year !== null
+                        ? sprintf('%s %d', SeasonParser::monthName((int) $p->dispatch_month_num) ?? MonthLabel::fromNumber((int) $p->dispatch_month_num), (int) $p->dispatch_year)
+                        : (SeasonParser::monthName((int) $p->dispatch_month_num) ?? MonthLabel::fromNumber((int) $p->dispatch_month_num)))
+                    : ($legacyTemporalFallbackEnabled
+                        ? (trim((string) ($p->dispatch_month ?? '')) !== '' ? (string) $p->dispatch_month : '-')
+                        : '-'),
                 'current_process' => $currentProcess,
                 'referencia' => $displayRef ?: 'Sin referencia',
                 'temporada' => $p->season_month !== null

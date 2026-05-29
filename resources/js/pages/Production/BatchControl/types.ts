@@ -45,6 +45,7 @@ export type BatchControlRow = {
     product_sheet_processes?: string[];
     referencia: string;
     temporada: string;
+    mes_despacho: string;
     prioridad: string;
     cant_programadas: number;
     destino: string;

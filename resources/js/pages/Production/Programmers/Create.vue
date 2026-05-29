@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 import type { ProductSheet, Programmer } from '@/domain/Production';
+import { calculateEstimatedDeliveryDateByPriority } from '@/domain/Production';
 import { normalizeSizes, sizesToLabel } from '@/domain/Production';
 import type { Option } from '@/domain/shared/types';
 
@@ -335,87 +336,6 @@ function handleLotsCountInput(event: Event) {
     input.value = input.value.replace(/[^0-9]/g, '');
 }
 
-function monthToNumber(month: string | number | null | undefined): number | null {
-    if (!month) return null;
-
-    const monthMap: Record<string, number> = {
-        ENERO: 1,
-        FEBRERO: 2,
-        MARZO: 3,
-        ABRIL: 4,
-        MAYO: 5,
-        JUNIO: 6,
-        JULIO: 7,
-        AGOSTO: 8,
-        SEPTIEMBRE: 9,
-        OCTUBRE: 10,
-        NOVIEMBRE: 11,
-        DICIEMBRE: 12,
-    };
-
-    const normalized = normalizeOptionToName(month, monthOptions.value) ?? String(month).trim().toUpperCase();
-    for (const [monthName, monthNumber] of Object.entries(monthMap)) {
-        if (normalized.includes(monthName)) {
-            return monthNumber;
-        }
-    }
-
-    const asNum = Number(normalized);
-    if (Number.isFinite(asNum) && asNum >= 1 && asNum <= 12) {
-        return Math.floor(asNum);
-    }
-
-    return null;
-}
-
-function extractSeasonYear(season: string | number | null | undefined): number | null {
-    if (!season) return null;
-
-    const normalized = normalizeOptionToName(season, monthOptions.value) ?? String(season).trim().toUpperCase();
-    const match = normalized.match(/(19|20)\d{2}/);
-    if (!match) return null;
-
-    const year = Number(match[0]);
-    return Number.isFinite(year) ? year : null;
-}
-
-function calculateEstimatedDeliveryDate(season: string | number | null | undefined, priority: string | null | undefined): string | null {
-    const monthNum = monthToNumber(season);
-
-    if (monthNum === null || !priority) return null;
-
-    // 🔥 SOLUCIÓN: Traducimos el ID interno a la letra real de la prioridad (A, B, C, D)
-    const priorityName = normalizeOptionToName(priority, priorityOptions.value) ?? String(priority);
-    const upperPriority = priorityName.toUpperCase().trim();
-
-    const rules: Record<string, { monthOffset: number; day: number }> = {
-        A: { monthOffset: -1, day: 20 },
-        B: { monthOffset: -1, day: 27 },
-        C: { monthOffset: 0, day: 3 },
-        D: { monthOffset: 0, day: 10 },
-    };
-
-    const rule = rules[upperPriority];
-    if (!rule) return null; // Si no es A, B, C o D, no hace nada
-
-    const now = new Date();
-    let targetYear = extractSeasonYear(season) ?? now.getFullYear();
-
-    if (!extractSeasonYear(season) && monthNum < now.getMonth() + 1) {
-        targetYear += 1;
-    }
-
-    // Calculamos la fecha final
-    const finalDate = new Date(targetYear, monthNum - 1 + rule.monthOffset, rule.day);
-
-    // Formateamos la fecha a YYYY-MM-DD (Es más seguro que toISOString para evitar cambios de zona horaria)
-    const yyyy = finalDate.getFullYear();
-    const mm = String(finalDate.getMonth() + 1).padStart(2, '0');
-    const dd = String(finalDate.getDate()).padStart(2, '0');
-
-    return `${yyyy}-${mm}-${dd}`;
-}
-
 function updateEstimatedDeliveryDate(lotIndex: number) {
     const lot = lotsForm.value[lotIndex];
     if (!lot) return;
@@ -425,7 +345,8 @@ function updateEstimatedDeliveryDate(lotIndex: number) {
     }
 
     if (lot.season && lot.priority) {
-        const calculated = calculateEstimatedDeliveryDate(lot.season, lot.priority);
+        const normalizedPriority = normalizePriority(lot.priority);
+        const calculated = calculateEstimatedDeliveryDateByPriority(lot.season, normalizedPriority);
         if (calculated) {
             lot.estimated_delivery_date = calculated;
         }
@@ -634,7 +555,7 @@ function buildLotsPayload() {
             season: normalizeSeason(lot.season),
             dispatch_month: normalizeSeason(lot.dispatch_month) ?? normalizeSeason(lot.season),
             destination_id: lot.destination_id || null,
-            priority: null,
+            priority: normalizePriority(lot.priority),
             estimated_delivery_date: estimatedDate,
             notes: typeof lot.notes === 'string' ? lot.notes.trim() : null,
             units: unitsValue,
@@ -741,7 +662,7 @@ watch(
         </DialogTrigger>
 
         <FormDialogContent class="flex w-[96vw] max-w-[1500px] flex-col overflow-hidden p-0">
-            <DialogHeader class="flex-shrink-0 border-b px-6 pb-3 pt-4">
+            <DialogHeader class="flex-shrink-0 border-b px-6 pb-4 pt-6">
                 <DialogTitle>Crear Nuevo Programador</DialogTitle>
                 <DialogDescription> Completa los campos para crear un programador. Haz clic en guardar cuando termines. </DialogDescription>
             </DialogHeader>
@@ -757,13 +678,14 @@ watch(
             />
 
             <TooltipProvider>
-                <div ref="dialogInnerRef" class="relative min-h-0 flex-1 overflow-y-auto scroll-smooth px-6 py-3" style="scrollbar-width: thin">
+                <div ref="dialogInnerRef" class="relative min-h-0 flex-1 overflow-y-auto scroll-smooth px-6 py-4" style="scrollbar-width: thin">
                     <FormLoadingOverlay :active="isFormInitializing" message="Preparando formulario..." :delay-ms="100" />
 
-                    <div v-if="canRenderForm" class="grid grid-cols-1 gap-3">
-                        <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                    <div v-if="canRenderForm" class="grid grid-cols-1 gap-4">
+                        <section class="rounded-xl border border-border/70 bg-muted/20 p-4">
+                            <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                             <!-- Referencia -->
-                            <div class="flex flex-col gap-1">
+                            <div class="flex flex-col gap-1.5">
                                 <div class="flex items-center gap-2">
                                     <Label class="text-sm font-medium"> Referencia Seleccionada<span class="text-red-500">*</span> </Label>
                                     <HelpTooltip
@@ -783,7 +705,7 @@ watch(
                             </div>
 
                             <!-- Cantidad lotes -->
-                            <div class="flex flex-col gap-1">
+                            <div class="flex flex-col gap-1.5">
                                 <div class="flex items-center gap-2">
                                     <Label class="text-sm font-medium"> Cantidad de Lotes<span class="text-red-500">*</span> </Label>
                                     <HelpTooltip
@@ -803,100 +725,103 @@ watch(
                                     @update:modelValue="generateLots"
                                 />
                             </div>
-                        </div>
+                            </div>
+                        </section>
 
                         <!-- Detalles product sheet -->
-                        <div v-if="selectedProductSheet" class="mb-3">
+                        <section v-if="selectedProductSheet" class="rounded-xl border border-border/70 bg-background p-4">
                             <h3 class="mb-2 text-base font-bold">Detalles de la Ficha de Producto</h3>
 
-                            <div class="overflow-x-auto rounded-lg border border-gray-300">
+                            <div class="overflow-x-auto rounded-lg border border-border/70">
                                 <table class="w-full min-w-[980px] text-left text-sm">
                                     <tbody>
                                         <tr>
-                                            <td class="px-3 py-1.5 font-bold">Referencia:</td>
-                                            <td class="border border-l-0 px-3 py-1.5">
+                                            <td class="bg-muted/40 px-3 py-1.5 font-semibold">Referencia:</td>
+                                            <td class="border border-l-0 border-border/60 px-3 py-1.5">
                                                 {{ getProductSheetLabel(selectedProductSheet) || 'Sin referencia' }}
                                             </td>
-                                            <td class="px-3 py-1.5 font-bold">Sección:</td>
-                                            <td class="border border-l-0 px-3 py-1.5">
+                                            <td class="bg-muted/40 px-3 py-1.5 font-semibold">Sección:</td>
+                                            <td class="border border-l-0 border-border/60 px-3 py-1.5">
                                                 {{ selectedProductSheet.section?.name || 'Sin sección' }}
                                             </td>
-                                            <td class="px-3 py-1.5 font-bold">Grupo:</td>
-                                            <td class="border border-l-0 px-3 py-1.5">
+                                            <td class="bg-muted/40 px-3 py-1.5 font-semibold">Grupo:</td>
+                                            <td class="border border-l-0 border-border/60 px-3 py-1.5">
                                                 {{ selectedProductSheet.group?.name || 'Sin grupo' }}
                                             </td>
-                                            <td class="px-3 py-1.5 font-bold">Marca:</td>
-                                            <td class="border border-l-0 px-3 py-1.5">
+                                            <td class="bg-muted/40 px-3 py-1.5 font-semibold">Marca:</td>
+                                            <td class="border border-l-0 border-border/60 px-3 py-1.5">
                                                 {{ selectedProductSheet.brand?.name || 'Sin marca' }}
                                             </td>
                                         </tr>
                                         <tr>
-                                            <td class="border border-r-0 px-3 py-1.5 font-bold">Mundo:</td>
-                                            <td class="border border-l-0 px-3 py-1.5">
+                                            <td class="border border-r-0 border-border/60 bg-muted/40 px-3 py-1.5 font-semibold">Mundo:</td>
+                                            <td class="border border-l-0 border-border/60 px-3 py-1.5">
                                                 {{ selectedProductSheet.world?.name || 'Sin mundo' }}
                                             </td>
-                                            <td class="border border-r-0 px-3 py-1.5 font-bold">Base:</td>
-                                            <td class="border border-l-0 px-3 py-1.5">
+                                            <td class="border border-r-0 border-border/60 bg-muted/40 px-3 py-1.5 font-semibold">Base:</td>
+                                            <td class="border border-l-0 border-border/60 px-3 py-1.5">
                                                 {{ selectedProductSheet.fabric_base?.name || 'Sin base' }}
                                             </td>
-                                            <td class="border border-r-0 px-3 py-1.5 font-bold">Precio Facturación:</td>
-                                            <td class="border border-l-0 px-3 py-1.5">
+                                            <td class="border border-r-0 border-border/60 bg-muted/40 px-3 py-1.5 font-semibold">Precio Facturación:</td>
+                                            <td class="border border-l-0 border-border/60 px-3 py-1.5">
                                                 {{ selectedProductSheet.billing_price ?? 'N/A' }}
                                             </td>
-                                            <td class="border border-r-0 px-3 py-1.5 font-bold">Precio Venta:</td>
-                                            <td class="border border-l-0 px-3 py-1.5">
+                                            <td class="border border-r-0 border-border/60 bg-muted/40 px-3 py-1.5 font-semibold">Precio Venta:</td>
+                                            <td class="border border-l-0 border-border/60 px-3 py-1.5">
                                                 {{ selectedProductSheet.selling_price ?? 'N/A' }}
                                             </td>
                                         </tr>
                                         <tr>
-                                            <td class="border px-3 py-2 font-bold">Tallas:</td>
-                                            <td class="border px-3 py-2" colspan="3">
+                                            <td class="border border-border/60 bg-muted/40 px-3 py-2 font-semibold">Tallas:</td>
+                                            <td class="border border-border/60 px-3 py-2" colspan="3">
                                                 {{ sizesToLabel(selectedProductSheet?.sizes) }}
                                             </td>
-                                            <td class="border px-3 py-2 font-bold">Descripción:</td>
-                                            <td class="border px-3 py-2" colspan="3">
+                                            <td class="border border-border/60 bg-muted/40 px-3 py-2 font-semibold">Descripción:</td>
+                                            <td class="border border-border/60 px-3 py-2" colspan="3">
                                                 {{ selectedProductSheet.description || 'Sin descripción' }}
                                             </td>
                                         </tr>
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
+                        </section>
                     </div>
 
                     <!-- Lotes -->
-                    <div v-if="lotsForm.length > 0" class="mt-3">
+                    <section v-if="lotsForm.length > 0" class="mt-4 rounded-xl border border-border/70 bg-background p-4">
                         <h3 class="mb-2 text-base font-bold">Lotes Generados:</h3>
 
-                        <div class="overflow-x-auto overflow-y-hidden rounded-lg border border-gray-300 shadow-sm">
+                        <div class="overflow-x-auto overflow-y-hidden rounded-lg border border-border/70 shadow-sm">
                             <table class="w-full min-w-[1200px] text-center text-sm">
                                 <thead>
-                                    <tr class="bg-gray-50 dark:bg-gray-800 dark:text-gray-100">
-                                        <th class="border bg-gray-50 px-3 py-2 font-semibold dark:bg-gray-800">Lote</th>
-                                        <th class="border bg-gray-50 px-3 py-2 font-semibold dark:bg-gray-800">Referencia</th>
-                                        <th class="border bg-gray-50 px-3 py-2 font-semibold dark:bg-gray-800">Temporada (Mes Año)</th>
-                                        <th class="border bg-gray-50 px-3 py-2 font-semibold dark:bg-gray-800">Mes despacho (Mes Año)</th>
-                                        <th class="border bg-gray-50 px-3 py-2 font-semibold dark:bg-gray-800">Destino</th>
-                                        <th class="border bg-gray-50 px-3 py-2 font-semibold dark:bg-gray-800">Nota</th>
-                                        <th class="border bg-gray-50 px-3 py-2 font-semibold dark:bg-gray-800">E-commerce (opcional)</th>
-                                        <th class="border bg-gray-50 px-3 py-2 font-semibold dark:bg-gray-800">Unidades</th>
-                                        <th v-if="lotsForm.some((lot) => lot.isEcommerce)" class="border bg-gray-50 px-3 py-2 font-semibold dark:bg-gray-800">
+                                    <tr class="bg-muted/50">
+                                        <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">Lote</th>
+                                        <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">Referencia</th>
+                                        <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">Temporada (Mes Año)</th>
+                                        <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">Mes despacho (Mes Año)</th>
+                                        <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">Destino</th>
+                                        <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">Prioridad</th>
+                                        <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">Fecha entrega estimada</th>
+                                        <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">Nota</th>
+                                        <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">E-commerce (opcional)</th>
+                                        <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">Unidades</th>
+                                        <th v-if="lotsForm.some((lot) => lot.isEcommerce)" class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">
                                             Cant. E-commerce
                                         </th>
                                     </tr>
                                 </thead>
 
                                 <tbody>
-                                    <tr v-for="(lot, index) in lotsForm" :key="index" class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                                        <td class="whitespace-nowrap border px-3 py-2 font-mono text-sm text-muted-foreground">
+                                    <tr v-for="(lot, index) in lotsForm" :key="index" class="hover:bg-muted/30">
+                                        <td class="whitespace-nowrap border border-border/60 px-3 py-2 font-mono text-sm text-muted-foreground">
                                             {{ nextOpCodes[index] ?? '—' }}
                                         </td>
 
-                                        <td class="border px-3 py-2">
+                                        <td class="border border-border/60 px-3 py-2">
                                             {{ getDisplayReference(lot.product_sheet_id) }}
                                         </td>
 
-                                        <td class="border px-3 py-2" style="min-width: 180px">
+                                        <td class="border border-border/60 px-3 py-2" style="min-width: 180px">
                                             <SelectField
                                                 v-model="lot.season"
                                                 :options="monthOptions"
@@ -913,7 +838,7 @@ watch(
                                             />
                                         </td>
 
-                                        <td class="border px-3 py-2" style="min-width: 180px">
+                                        <td class="border border-border/60 px-3 py-2" style="min-width: 180px">
                                             <SelectField
                                                 v-model="lot.dispatch_month"
                                                 :options="monthOptions"
@@ -928,7 +853,7 @@ watch(
                                             />
                                         </td>
 
-                                        <td class="border px-3 py-2" style="min-width: 200px">
+                                        <td class="border border-border/60 px-3 py-2" style="min-width: 200px">
                                             <SelectField
                                                 v-model="lot.destination_id"
                                                 :options="destinationOptions"
@@ -939,7 +864,32 @@ watch(
                                             />
                                         </td>
 
-                                        <td class="border px-3 py-2" style="min-width: 220px">
+                                        <td class="border border-border/60 px-3 py-2" style="min-width: 150px">
+                                            <SelectField
+                                                v-model="lot.priority"
+                                                :options="priorityOptions"
+                                                label=""
+                                                :aria-label="`Prioridad para lote ${index + 1}`"
+                                                @update:modelValue="
+                                                    (value) => {
+                                                        lot.priority = value !== null && value !== undefined ? String(value) : null;
+                                                        validateLotField(index);
+                                                        updateEstimatedDeliveryDate(index);
+                                                    }
+                                                "
+                                            />
+                                        </td>
+
+                                        <td class="border border-border/60 px-3 py-2" style="min-width: 210px">
+                                            <DatePickerField
+                                                v-model="lot.estimated_delivery_date"
+                                                label=""
+                                                :clearable="true"
+                                                :show-today="true"
+                                            />
+                                        </td>
+
+                                        <td class="border border-border/60 px-3 py-2" style="min-width: 220px">
                                             <InputField
                                                 v-model="lot.notes"
                                                 label=""
@@ -948,12 +898,12 @@ watch(
                                             />
                                         </td>
 
-                                        <td class="border px-3 py-2 text-center">
+                                        <td class="border border-border/60 px-3 py-2 text-center">
                                             <input
                                                 type="checkbox"
                                                 v-model="lot.isEcommerce"
                                                 :aria-label="`Habilitar e-commerce para lote ${index + 1}`"
-                                                class="form-checkbox h-5 w-5 cursor-pointer text-blue-600"
+                                                class="h-5 w-5 cursor-pointer rounded border-border text-primary focus:ring-primary"
                                                 @change="
                                                     () => {
                                                         if (!lot.isEcommerce) lot.ecommerce_units = null;
@@ -962,7 +912,7 @@ watch(
                                             />
                                         </td>
 
-                                        <td class="border px-3 py-2" style="min-width: 180px">
+                                        <td class="border border-border/60 px-3 py-2" style="min-width: 180px">
                                             <InputField
                                                 :model-value="lot.unitsInput ?? ''"
                                                 inputmode="numeric"
@@ -984,7 +934,7 @@ watch(
                                             />
                                         </td>
 
-                                        <td v-if="lotsForm.some((item) => item.isEcommerce)" class="border px-3 py-2 text-center">
+                                        <td v-if="lotsForm.some((item) => item.isEcommerce)" class="border border-border/60 px-3 py-2 text-center">
                                             <EcommerceSizesDialog
                                                 v-if="lot.isEcommerce"
                                                 :productSheet="getDialogProductSheet(selectedProductSheet)"
@@ -1011,11 +961,11 @@ watch(
                                 </tbody>
                             </table>
                         </div>
-                    </div>
+                    </section>
                 </div>
             </TooltipProvider>
 
-            <div class="flex flex-shrink-0 flex-col items-end gap-2 border-t bg-background px-6 py-3">
+            <div class="flex flex-shrink-0 flex-col items-end gap-2 border-t bg-background px-6 py-4">
                 <div class="flex w-full max-w-lg items-center justify-end gap-3">
                     <button
                         type="button"

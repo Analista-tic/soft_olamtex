@@ -16,7 +16,7 @@ import {
 import type { Option } from '@/domain/shared';
 import { formatMeters } from '@/domain/Textil';
 import axios from 'axios';
-import { Plus, Save, Trash, X, Search } from 'lucide-vue-next';
+import { Plus, Save, Trash, X, Search, Pencil } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
 const props = defineProps<{
@@ -640,6 +640,19 @@ function updateTrazoFabricType(trazoUid: string, value: Option['id'] | Option['i
     trazo.fabricTypeParameterId = normalizeFabricTypeParameterId(value);
 }
 
+function resetLineTela(lineUid: string): void {
+    const line = trazos.value.flatMap((t) => t.lines).find((l) => l.uid === lineUid);
+    if (!line) return;
+    for (const a of line.assignedRolls) {
+        if (a.lineId && !deletedRollLineIds.value.includes(a.lineId)) deletedRollLineIds.value.push(a.lineId);
+    }
+    line.telaItemId = null;
+    line.tela = '';
+    clearLineMeta(line);
+    line.availableRolls = [];
+    line.assignedRolls = [];
+}
+
 function clearLineMeta(line: FabricLine): void {
     line.supplierId = null;
     line.lastSupplierName = null;
@@ -1184,9 +1197,6 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                 <div v-if="trazoNeededMeters(activeTrazo) > 0" class="text-xs text-muted-foreground">
                                     de {{ formatMeters(trazoNeededMeters(activeTrazo)) }} est.
                                 </div>
-                                <div v-if="trazoCost(activeTrazo) > 0" class="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
-                                    {{ formatCOP(trazoCost(activeTrazo)) }}
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -1293,7 +1303,12 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                     <span class="max-w-[180px] truncate text-xs font-medium text-foreground/70">{{ activeLine.tela }}</span>
                                     <span v-if="activeLine.lastSupplierName" class="hidden sm:inline truncate max-w-[120px]">{{ activeLine.lastSupplierName }}</span>
                                     <span v-if="activeLine.ancho !== null" class="hidden sm:inline shrink-0">{{ formatWidth(activeLine.ancho, activeLine.anchoUnit) }}</span>
-                                    <span v-if="activeLine.lastUnitPriceCop !== null" class="shrink-0">{{ formatCOP(activeLine.lastUnitPriceCop) }}/m ref.</span>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center gap-1 rounded border border-input bg-muted px-2 py-1 text-xs text-muted-foreground transition hover:border-[#d23f3f] hover:text-[#d23f3f] disabled:pointer-events-none disabled:opacity-40"
+                                        :disabled="isSaving"
+                                        @click="resetLineTela(activeLine.uid)"
+                                    ><Pencil class="h-3 w-3" /> Cambiar tela</button>
                                 </div>
                             </div>
 
@@ -1424,7 +1439,6 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                                 >
                                                     {{ rowMetersValue(row.rollId) > 0 ? formatCOP(rowMetersValue(row.rollId) * toNumber(row.roll.pricePerMeter)) : '—' }}
                                                 </span>
-                                                <div class="text-[10px] text-muted-foreground/50">{{ formatCOP(row.roll.pricePerMeter) }}/m</div>
                                             </td>
                                         </tr>
                                     </tbody>
