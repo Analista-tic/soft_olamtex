@@ -5,23 +5,43 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
-import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Check, ClipboardCheck, Eye } from 'lucide-vue-next';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Check, ChevronDown, ChevronRight, ClipboardCheck, Eye } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import type { BatchControlRow, CutCurves, CutFabricConsumptionLine, CutUnitsReportRow, InspectionApprovalPayload } from '../../types';
 import { CUT_SIZES } from '../../types';
+
+type InspectionCosts = {
+    precio_facturacion: number;
+    precio_venta: number;
+    costo_fijo: number;
+    costo_materia_prima: number;
+    costo_insumos: number;
+    costo_procesos: number;
+    costo_total: number;
+    rentabilidad_valor: number | null;
+    rentabilidad_pct: number | null;
+    margen_valor: number | null;
+    margen_pct: number | null;
+} | null;
 
 const props = defineProps<{
     open: boolean;
     row: BatchControlRow | null;
     cutLines: CutFabricConsumptionLine[];
     cutCurves: CutCurves | null;
+    sizes?: string[];
     savedInspection: InspectionApprovalPayload | null;
+    costs?: InspectionCosts;
     isLoading: boolean;
     isSaving: boolean;
     viewOnly?: boolean;
     saveError?: string | null;
 }>();
+
+const activeSizes = computed(() =>
+    props.sizes && props.sizes.length > 0 ? props.sizes : [...CUT_SIZES],
+);
 
 const emit = defineEmits<{
     (e: 'update:open', v: boolean): void;
@@ -40,86 +60,95 @@ watch(
 // ── Curvas de referencia del corte (read-only) ─────────────────────────────
 const cutUnitsReport = computed<CutUnitsReportRow[]>(() => {
     if (!props.cutCurves || !props.cutLines.length) return [];
+    const sizes = activeSizes.value;
     const map = new Map<string, { color_code: string | null; u: Record<string, number> }>();
     for (const line of props.cutLines) {
         if (line.fabric_type !== 'PRINCIPAL') continue;
         const color = line.color?.trim() || 'Sin color';
-        if (!map.has(color)) map.set(color, { color_code: line.color_code ?? null, u: { S: 0, M: 0, L: 0, XL: 0 } });
+        if (!map.has(color)) {
+            const u: Record<string, number> = {};
+            for (const s of sizes) u[s] = 0;
+            map.set(color, { color_code: line.color_code ?? null, u });
+        }
         const entry = map.get(color)!;
-        for (const s of CUT_SIZES) {
-            entry.u[s] +=
+        for (const s of sizes) {
+            entry.u[s] =
+                (entry.u[s] ?? 0) +
                 (props.cutCurves.principal[s] ?? 0) * (line.layers_fabric ?? 0) +
                 (props.cutCurves.liquidacion[s] ?? 0) * (line.layers_liquidation ?? 0) +
                 (props.cutCurves.espiga[s] ?? 0) * (line.layers_herringbone ?? 0);
         }
     }
-    return Array.from(map.entries()).map(([color, d]) => ({
-        color,
-        color_code: d.color_code,
-        S: Math.round(d.u.S),
-        M: Math.round(d.u.M),
-        L: Math.round(d.u.L),
-        XL: Math.round(d.u.XL),
-        total: Math.round(d.u.S + d.u.M + d.u.L + d.u.XL),
-    }));
+    return Array.from(map.entries()).map(([color, d]) => {
+        const row: CutUnitsReportRow = { color, color_code: d.color_code, total: 0 };
+        let total = 0;
+        for (const s of sizes) {
+            row[s] = Math.round(d.u[s] ?? 0);
+            total += row[s] as number;
+        }
+        row.total = total;
+        return row;
+    });
 });
 
-// ── Curvas confirmadas (editables) ─────────────────────────────────────────
-const confirmedCurves = ref<CutUnitsReportRow[]>([]);
-const reason = ref<string>('');
 const observations = ref<string>('');
 
 watch(
-    [() => props.open, cutUnitsReport, () => props.savedInspection],
+    [() => props.open, () => props.savedInspection],
     () => {
         if (!props.open) return;
-        if (props.savedInspection) {
-            confirmedCurves.value = props.savedInspection.confirmed_curves.map((r) => ({ ...r }));
-            reason.value = props.savedInspection.reason ?? '';
-            observations.value = props.savedInspection.observations ?? '';
-        } else {
-            confirmedCurves.value = cutUnitsReport.value.map((r) => ({ ...r }));
-            reason.value = '';
-            observations.value = '';
-        }
+        observations.value = props.savedInspection?.observations ?? '';
     },
     { immediate: true },
 );
 
-function setConfirmedField(idx: number, field: 'S' | 'M' | 'L' | 'XL', raw: string) {
-    if (props.viewOnly) return;
-    const n = raw.trim() === '' ? 0 : Math.max(0, Math.floor(Number(raw)));
-    const row = { ...confirmedCurves.value[idx], [field]: Number.isFinite(n) ? n : 0 };
-    row.total = row.S + row.M + row.L + row.XL;
-    confirmedCurves.value = confirmedCurves.value.map((r, i) => (i === idx ? row : r));
-}
-
-const matchesPerRow = computed(() =>
-    confirmedCurves.value.map((conf, i) => {
-        const ref = cutUnitsReport.value[i];
-        if (!ref) return true;
-        return conf.S === ref.S && conf.M === ref.M && conf.L === ref.L && conf.XL === ref.XL;
-    }),
-);
-
-const matchesCut = computed(() => matchesPerRow.value.every(Boolean));
-
 const cutTotal = computed(() => cutUnitsReport.value.reduce((a, r) => a + r.total, 0));
-const confirmedTotal = computed(() => confirmedCurves.value.reduce((a, r) => a + r.total, 0));
 
 function handleSave() {
-    if (!matchesCut.value && !reason.value.trim()) return;
     emit('save', {
-        confirmed_curves: confirmedCurves.value,
-        matches_cut: matchesCut.value,
-        reason: reason.value.trim() || null,
+        confirmed_curves: cutUnitsReport.value,
+        matches_cut: true,
+        reason: null,
         observations: observations.value.trim() || null,
     });
 }
 
-const inputBase = 'h-6 w-full border border-input rounded-md px-1.5 text-xs tabular-nums focus:outline-none focus:ring-1 focus:ring-ring bg-background transition-colors text-center';
 const inputRo   = 'h-6 w-full rounded-md px-1.5 text-xs tabular-nums bg-muted border border-transparent text-muted-foreground cursor-default select-none text-center inline-flex items-center justify-center';
 const textareaBase = 'w-full rounded-md border border-input bg-background px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring resize-none';
+
+// ── Resumen de costos ──────────────────────────────────────────────────────
+const costMode = ref<'prenda' | 'lote'>('prenda');
+const costsCollapsed = ref(true);
+
+const fmt = (n: number) =>
+    new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
+
+const fmtPct = (n: number) => {
+    const sign = n >= 0 ? '+' : '';
+    return `${sign}${n.toFixed(2)}%`;
+};
+
+const costMultiplier = computed(() => costMode.value === 'lote' ? cutTotal.value : 1);
+
+const costValues = computed(() => {
+    const c = props.costs;
+    if (!c) return null;
+    const m = costMultiplier.value;
+    const pf   = c.precio_facturacion * m;
+    const pv   = c.precio_venta * m;
+    const cf   = c.costo_fijo * m;
+    const cm   = c.costo_materia_prima * m;
+    const ci   = c.costo_insumos * m;
+    const cp   = c.costo_procesos * m;
+    const ct   = c.costo_total * m;
+    // Rentabilidad y margen: usar valores pre-calculados del backend (por prenda)
+    // Para lote: multiplicar por m
+    const rentVal   = (c.rentabilidad_valor ?? 0) * m;
+    const rentPct   = c.rentabilidad_pct ?? 0;
+    const margenVal = (c.margen_valor ?? 0) * m;
+    const margenPct = c.margen_pct ?? 0;
+    return { pf, pv, cf, cm, ci, cp, ct, rentVal, rentPct, margenVal, margenPct };
+});
 </script>
 
 <template>
@@ -148,13 +177,6 @@ const textareaBase = 'w-full rounded-md border border-input bg-background px-3 p
                         <Eye class="h-3 w-3" />
                         Solo lectura
                     </Badge>
-                    <Badge v-if="!isLoading && matchesCut && confirmedCurves.length" class="gap-1 bg-emerald-500 text-white">
-                        <Check class="h-3 w-3" />
-                        Cantidades correctas
-                    </Badge>
-                    <Badge v-else-if="!isLoading && !matchesCut && confirmedCurves.length" variant="destructive" class="gap-1">
-                        Discrepancia detectada
-                    </Badge>
                 </div>
             </div>
 
@@ -180,10 +202,8 @@ const textareaBase = 'w-full rounded-md border border-input bg-background px-3 p
                     </div>
 
                     <template v-else>
-                        <!-- Tablas de referencia vs confirmadas -->
-                        <div class="grid grid-cols-1 gap-4 px-5 pt-4 pb-3 lg:grid-cols-2">
-
-                            <!-- Tabla referencia (read-only) -->
+                        <!-- Tabla referencia del corte -->
+                        <div class="px-5 pt-4 pb-3">
                             <div class="rounded-xl border bg-card shadow-sm overflow-hidden">
                                 <div class="border-b bg-muted/40 px-4 py-2">
                                     <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Referencia del Corte</p>
@@ -193,7 +213,7 @@ const textareaBase = 'w-full rounded-md border border-input bg-background px-3 p
                                     <TableHeader>
                                         <TableRow class="text-xs hover:bg-transparent">
                                             <TableHead class="py-2 pl-4 font-semibold">Color</TableHead>
-                                            <TableHead v-for="s in CUT_SIZES" :key="s" class="py-2 text-center font-bold">{{ s }}</TableHead>
+                                            <TableHead v-for="s in activeSizes" :key="s" class="py-2 text-center font-bold">{{ s }}</TableHead>
                                             <TableHead class="py-2 pr-4 text-center font-bold">Total</TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -205,94 +225,129 @@ const textareaBase = 'w-full rounded-md border border-input bg-background px-3 p
                                                     <span class="font-medium">{{ rr.color }}</span>
                                                 </div>
                                             </TableCell>
-                                            <TableCell v-for="s in CUT_SIZES" :key="s" class="py-1.5 text-center tabular-nums">
+                                            <TableCell v-for="s in activeSizes" :key="s" class="py-1.5 text-center tabular-nums">
                                                 <span :class="inputRo + ' inline-flex w-12 items-center justify-center'">{{ rr[s] }}</span>
                                             </TableCell>
                                             <TableCell class="py-1.5 pr-4 text-center font-bold tabular-nums">{{ rr.total }}</TableCell>
                                         </TableRow>
                                         <TableRow class="border-t-2 bg-muted/40 text-xs font-bold hover:bg-muted/40">
                                             <TableCell class="py-2 pl-4">TOTAL</TableCell>
-                                            <TableCell v-for="s in CUT_SIZES" :key="s" class="py-2 text-center tabular-nums">
-                                                {{ cutUnitsReport.reduce((a, r) => a + r[s], 0) }}
+                                            <TableCell v-for="s in activeSizes" :key="s" class="py-2 text-center tabular-nums">
+                                                {{ cutUnitsReport.reduce((a, r) => a + ((r[s] as number) ?? 0), 0) }}
                                             </TableCell>
                                             <TableCell class="py-2 pr-4 text-center tabular-nums text-primary">{{ cutTotal }}</TableCell>
                                         </TableRow>
                                     </TableBody>
                                 </Table>
                             </div>
+                        </div>
 
-                            <!-- Tabla confirmada (editable) -->
-                            <div class="rounded-xl border bg-card shadow-sm overflow-hidden">
-                                <div class="border-b bg-muted/40 px-4 py-2">
-                                    <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Unidades Reales Confirmadas</p>
-                                    <p class="text-xs text-muted-foreground/60">Ingresa las unidades reales contadas en inspección</p>
+                        <!-- Resumen de Costos -->
+                        <div v-if="props.costs" class="mx-5 mt-3 rounded-xl border bg-card shadow-sm overflow-hidden">
+                            <!-- Header colapsable -->
+                            <div class="flex items-center gap-3 border-b bg-muted/30 px-4 py-2.5 cursor-pointer hover:bg-muted/50 transition-colors select-none"
+                                 @click="costsCollapsed = !costsCollapsed">
+                                <button type="button" class="shrink-0 text-muted-foreground">
+                                    <ChevronDown v-if="!costsCollapsed" class="h-4 w-4" />
+                                    <ChevronRight v-else class="h-4 w-4" />
+                                </button>
+                                <span class="text-xs font-bold text-foreground">Resumen de Costos</span>
+                                <!-- Toggle Por prenda / Total lote -->
+                                <div v-if="!costsCollapsed" class="ml-auto flex rounded-lg border border-border overflow-hidden text-xs">
+                                    <button
+                                        :class="['px-3 py-1 transition-colors', costMode === 'prenda' ? 'bg-primary text-primary-foreground font-semibold' : 'bg-card text-muted-foreground hover:bg-muted']"
+                                        @click.stop="costMode = 'prenda'"
+                                    >Por prenda</button>
+                                    <button
+                                        :class="['px-3 py-1 transition-colors border-l border-border', costMode === 'lote' ? 'bg-primary text-primary-foreground font-semibold' : 'bg-card text-muted-foreground hover:bg-muted']"
+                                        @click.stop="costMode = 'lote'"
+                                    >Total lote ({{ cutTotal }} uds)</button>
                                 </div>
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow class="text-xs hover:bg-transparent">
-                                            <TableHead class="py-2 pl-4 font-semibold">Color</TableHead>
-                                            <TableHead v-for="s in CUT_SIZES" :key="s" class="py-2 text-center font-bold">{{ s }}</TableHead>
-                                            <TableHead class="py-2 text-center font-bold">Total</TableHead>
-                                            <TableHead class="py-2 pr-4 text-center font-semibold">Estado</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        <TableRow v-for="(conf, idx) in confirmedCurves" :key="conf.color" class="text-xs" :class="!matchesPerRow[idx] ? 'bg-destructive/5' : ''">
-                                            <TableCell class="py-1.5 pl-4">
-                                                <div class="flex items-center gap-2">
-                                                    <span v-if="conf.color_code?.startsWith('#')" class="h-3 w-3 shrink-0 rounded-full border border-border/60" :style="{ backgroundColor: conf.color_code }" />
-                                                    <span class="font-medium">{{ conf.color }}</span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell v-for="s in CUT_SIZES" :key="s" class="py-1.5 text-center p-1">
-                                                <input v-if="!viewOnly" type="number" min="0" step="1"
-                                                    :value="conf[s]"
-                                                    :class="inputBase"
-                                                    @input="setConfirmedField(idx, s, ($event.target as HTMLInputElement).value)" />
-                                                <span v-else :class="inputRo + ' inline-flex w-12 items-center justify-center'">{{ conf[s] }}</span>
-                                            </TableCell>
-                                            <TableCell class="py-1.5 text-center font-bold tabular-nums">{{ conf.total }}</TableCell>
-                                            <TableCell class="py-1.5 pr-4 text-center">
-                                                <Badge v-if="matchesPerRow[idx]" class="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 text-xs">OK</Badge>
-                                                <Badge v-else variant="destructive" class="text-xs">Diferencia</Badge>
-                                            </TableCell>
-                                        </TableRow>
-                                        <TableRow class="border-t-2 bg-muted/40 text-xs font-bold hover:bg-muted/40">
-                                            <TableCell class="py-2 pl-4">TOTAL</TableCell>
-                                            <TableCell v-for="s in CUT_SIZES" :key="s" class="py-2 text-center tabular-nums">
-                                                {{ confirmedCurves.reduce((a, r) => a + r[s], 0) }}
-                                            </TableCell>
-                                            <TableCell class="py-2 text-center tabular-nums" :class="!matchesCut ? 'text-destructive' : 'text-primary'">{{ confirmedTotal }}</TableCell>
-                                            <TableCell class="py-2 pr-4 text-center">
-                                                <span v-if="!matchesCut" class="text-xs font-semibold text-destructive">Δ {{ confirmedTotal - cutTotal }}</span>
-                                            </TableCell>
-                                        </TableRow>
-                                    </TableBody>
-                                </Table>
+                            </div>
+
+                            <!-- Contenido -->
+                            <div v-if="!costsCollapsed && costValues" class="p-4 space-y-4">
+
+                                <!-- Valores base -->
+                                <div>
+                                    <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Valores base</p>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div class="rounded-lg border bg-muted/20 px-4 py-3">
+                                            <p class="text-xs text-muted-foreground">Precio Facturación</p>
+                                            <p class="mt-1 text-base font-bold text-foreground">{{ fmt(costValues.pf) }}</p>
+                                        </div>
+                                        <div class="rounded-lg border bg-emerald-50 dark:bg-emerald-950/30 px-4 py-3">
+                                            <p class="text-xs text-muted-foreground">Precio Venta</p>
+                                            <p class="mt-1 text-base font-bold text-emerald-700 dark:text-emerald-400">{{ fmt(costValues.pv) }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Desglose de costos -->
+                                <div>
+                                    <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Desglose de costos</p>
+                                    <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                                        <div class="rounded-lg border bg-muted/20 px-4 py-3">
+                                            <p class="text-xs text-muted-foreground">Costo Materia Prima</p>
+                                            <p class="mt-1 text-sm font-bold">{{ fmt(costValues.cm) }}</p>
+                                        </div>
+                                        <div class="rounded-lg border bg-muted/20 px-4 py-3">
+                                            <p class="text-xs text-muted-foreground">Costo Insumos</p>
+                                            <p class="mt-1 text-sm font-bold">{{ fmt(costValues.ci) }}</p>
+                                        </div>
+                                        <div class="rounded-lg border bg-muted/20 px-4 py-3">
+                                            <p class="text-xs text-muted-foreground">Costo Procesos</p>
+                                            <p class="mt-1 text-sm font-bold">{{ fmt(costValues.cp) }}</p>
+                                        </div>
+                                        <div class="rounded-lg border bg-muted/20 px-4 py-3">
+                                            <p class="text-xs text-muted-foreground">Costo Fijo (14.58%)</p>
+                                            <p class="mt-1 text-sm font-bold">{{ fmt(costValues.cf) }}</p>
+                                        </div>
+                                        <div class="rounded-lg border bg-primary/10 px-4 py-3">
+                                            <p class="text-xs text-muted-foreground">Costo Total</p>
+                                            <p class="mt-1 text-sm font-bold text-primary">{{ fmt(costValues.ct) }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Rentabilidad -->
+                                <div>
+                                    <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Rentabilidad</p>
+                                    <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                                        <div :class="['rounded-lg border px-4 py-3', costValues.rentVal >= 0 ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200' : 'bg-destructive/5 border-destructive/20']">
+                                            <p class="text-xs text-muted-foreground">Rentabilidad Operativa</p>
+                                            <div class="mt-1 flex items-baseline gap-2">
+                                                <p :class="['text-sm font-bold', costValues.rentVal >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-destructive']">
+                                                    {{ fmt(costValues.rentVal) }}
+                                                </p>
+                                                <Badge :class="['text-xs', costValues.rentVal >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-destructive/10 text-destructive border-destructive/20']" variant="outline">
+                                                    {{ fmtPct(costValues.rentPct) }}
+                                                </Badge>
+                                            </div>
+                                            <p class="mt-1 text-xs text-muted-foreground">Precio Facturación − Costo Total</p>
+                                        </div>
+                                        <div :class="['rounded-lg border px-4 py-3', costValues.margenVal >= 0 ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200' : 'bg-destructive/5 border-destructive/20']">
+                                            <p class="text-xs text-muted-foreground">Margen Comercial (s/IVA)</p>
+                                            <div class="mt-1 flex items-baseline gap-2">
+                                                <p :class="['text-sm font-bold', costValues.margenVal >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-destructive']">
+                                                    {{ fmt(costValues.margenVal) }}
+                                                </p>
+                                                <Badge :class="['text-xs', costValues.margenVal >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-destructive/10 text-destructive border-destructive/20']" variant="outline">
+                                                    {{ fmtPct(costValues.margenPct) }}
+                                                </Badge>
+                                            </div>
+                                            <p class="mt-1 text-xs text-muted-foreground">Precio Venta (s/IVA) − Precio Facturación</p>
+                                        </div>
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
 
-                        <Separator class="mx-5" />
+                        <Separator class="mx-5 mt-3" />
 
-                        <!-- Motivo (obligatorio si hay discrepancia) + Observaciones -->
-                        <div class="grid grid-cols-1 gap-4 px-5 py-4 lg:grid-cols-2">
-                            <div class="space-y-1.5">
-                                <label class="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                                    Motivo de discrepancia
-                                    <span v-if="!matchesCut" class="text-destructive">*</span>
-                                    <span v-if="matchesCut" class="text-muted-foreground font-normal">(no aplica)</span>
-                                </label>
-                                <textarea
-                                    v-if="!viewOnly"
-                                    :class="[textareaBase, !matchesCut && !reason.trim() ? 'border-destructive focus:ring-destructive' : '']"
-                                    rows="3"
-                                    :disabled="matchesCut"
-                                    :placeholder="matchesCut ? 'Las cantidades coinciden, no se requiere motivo.' : 'Describe por qué las cantidades no coinciden...'"
-                                    v-model="reason"
-                                />
-                                <p v-else class="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground min-h-[4rem]">{{ reason || '—' }}</p>
-                                <p v-if="!matchesCut && !reason.trim()" class="text-xs text-destructive">El motivo es obligatorio cuando las cantidades no coinciden.</p>
-                            </div>
+                        <!-- Observaciones -->
+                        <div class="px-5 py-4">
                             <div class="space-y-1.5">
                                 <label class="text-xs font-semibold text-foreground">Observaciones generales <span class="font-normal text-muted-foreground">(opcional)</span></label>
                                 <textarea
@@ -312,12 +367,12 @@ const textareaBase = 'w-full rounded-md border border-input bg-background px-3 p
             <!-- FOOTER -->
             <DialogFooter class="shrink-0 gap-2 border-t bg-card px-5 py-3">
                 <Button type="button" variant="ghost" size="sm" :disabled="isSaving" @click="emit('close')">Cerrar</Button>
-                <template v-if="!viewOnly && confirmedCurves.length">
+                <template v-if="!viewOnly && cutUnitsReport.length">
                     <Separator orientation="vertical" class="h-6" />
                     <Button
                         type="button"
                         size="sm"
-                        :disabled="isSaving || isLoading || (!matchesCut && !reason.trim())"
+                        :disabled="isSaving || isLoading"
                         @click="handleSave"
                     >
                         <Check class="mr-1.5 h-3.5 w-3.5" />

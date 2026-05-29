@@ -8,13 +8,14 @@ import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Eye, Check, ChevronDown, ChevronRight, Layers, Ruler } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
-import type { BatchControlRow, CutCurves, CutFabricConsumptionLine, CutSize, CutUnitsReportRow } from '../../types';
+import type { BatchControlRow, CutCurves, CutFabricConsumptionLine, CutUnitsReportRow } from '../../types';
 import { CUT_SIZES } from '../../types';
 
 const props = defineProps<{
     open: boolean;
     row: BatchControlRow | null;
     lines: CutFabricConsumptionLine[];
+    sizes?: string[];
     curves: CutCurves;
     sheetCurves?: CutCurves | null;
     largoEspiga: number | null;
@@ -23,6 +24,10 @@ const props = defineProps<{
     viewOnly?: boolean;
     saveError?: string | null;
 }>();
+
+const activeSizes = computed(() =>
+    props.sizes && props.sizes.length > 0 ? props.sizes : [...CUT_SIZES],
+);
 
 const emit = defineEmits<{
     (e: 'update:open', v: boolean): void;
@@ -181,7 +186,7 @@ const CURVE_LABELS: Record<keyof CutCurves, string> = {
 };
 const curveRows: Array<keyof CutCurves> = ['principal', 'liquidacion', 'espiga'];
 
-function updateCurve(row: keyof CutCurves, size: CutSize, value: string) {
+function updateCurve(row: keyof CutCurves, size: string, value: string) {
     if (props.viewOnly) return;
     const n = value.trim() === '' ? null : Number(value);
     emit('update:curves', {
@@ -191,39 +196,50 @@ function updateCurve(row: keyof CutCurves, size: CutSize, value: string) {
 }
 
 const unitsReport = computed<CutUnitsReportRow[]>(() => {
-    const map = new Map<string, { color_code: string | null; u: Record<CutSize, number> }>();
+    const sizes = activeSizes.value;
+    const map = new Map<string, { color_code: string | null; u: Record<string, number> }>();
     for (const line of props.lines) {
         if (line.fabric_type !== 'PRINCIPAL') continue;
         const color = line.color?.trim() || 'Sin color';
-        if (!map.has(color)) map.set(color, { color_code: line.color_code ?? null, u: { S: 0, M: 0, L: 0, XL: 0 } });
+        if (!map.has(color)) {
+            const u: Record<string, number> = {};
+            for (const s of sizes) u[s] = 0;
+            map.set(color, { color_code: line.color_code ?? null, u });
+        }
         const entry = map.get(color)!;
-        for (const s of CUT_SIZES) {
-            entry.u[s] +=
+        for (const s of sizes) {
+            entry.u[s] =
+                (entry.u[s] ?? 0) +
                 (props.curves.principal[s] ?? 0) * (line.layers_fabric ?? 0) +
                 (props.curves.liquidacion[s] ?? 0) * (line.layers_liquidation ?? 0) +
                 (props.curves.espiga[s] ?? 0) * (line.layers_herringbone ?? 0);
         }
     }
-    return Array.from(map.entries()).map(([color, d]) => ({
-        color,
-        color_code: d.color_code,
-        S: Math.round(d.u.S),
-        M: Math.round(d.u.M),
-        L: Math.round(d.u.L),
-        XL: Math.round(d.u.XL),
-        total: Math.round(d.u.S + d.u.M + d.u.L + d.u.XL),
-    }));
+    return Array.from(map.entries()).map(([color, d]) => {
+        const row: CutUnitsReportRow = { color, color_code: d.color_code, total: 0 };
+        let total = 0;
+        for (const s of sizes) {
+            row[s] = Math.round(d.u[s] ?? 0);
+            total += row[s] as number;
+        }
+        row.total = total;
+        return row;
+    });
 });
 
-const reportTotals = computed(() =>
-    unitsReport.value.reduce(
-        (a, r) => ({ S: a.S + r.S, M: a.M + r.M, L: a.L + r.L, XL: a.XL + r.XL, total: a.total + r.total }),
-        { S: 0, M: 0, L: 0, XL: 0, total: 0 },
-    ),
-);
+const reportTotals = computed(() => {
+    const sizes = activeSizes.value;
+    const init: Record<string, number> = { total: 0 };
+    for (const s of sizes) init[s] = 0;
+    return unitsReport.value.reduce((a, r) => {
+        for (const s of sizes) a[s] = (a[s] as number) + (r[s] as number ?? 0);
+        a.total += r.total;
+        return a;
+    }, init);
+});
 
 const hasPrincipalRolls = computed(() => props.lines.some((l) => l.fabric_type === 'PRINCIPAL'));
-const curvesEmpty = computed(() => curveRows.every((r) => CUT_SIZES.every((s) => (props.curves[r][s] ?? 0) === 0)));
+const curvesEmpty = computed(() => curveRows.every((r) => activeSizes.value.every((s) => (props.curves[r][s] ?? 0) === 0)));
 
 const inputBase = 'h-6 w-full border border-input rounded-md px-1.5 text-xs tabular-nums focus:outline-none focus:ring-1 focus:ring-ring focus:ring-offset-0 bg-background transition-colors text-center';
 const inputRo   = 'h-6 w-full rounded-md px-1.5 text-xs tabular-nums bg-muted border border-transparent text-muted-foreground cursor-default select-none text-center inline-flex items-center justify-center';
@@ -276,7 +292,7 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
             </div>
 
             <!-- ══ CUERPO ══════════════════════════════════════════════════ -->
-            <div class="flex-1 overflow-y-auto overflow-x-hidden bg-muted/20">
+            <div class="flex-1 overflow-y-auto overflow-x-auto bg-muted/20">
 
                 <!-- Alerta de error de guardado -->
                 <div v-if="showError && saveError" class="pointer-events-none fixed left-1/2 top-6 z-[99999] flex -translate-x-1/2 justify-center px-4 sm:px-0">
@@ -551,13 +567,13 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
                             <TableHeader>
                                 <TableRow class="text-xs hover:bg-transparent">
                                     <TableHead class="py-2 pl-4 font-semibold">Tipo de trazo</TableHead>
-                                    <TableHead v-for="s in CUT_SIZES" :key="s" class="py-2 text-center font-bold">{{ s }}</TableHead>
+                                    <TableHead v-for="s in activeSizes" :key="s" class="py-2 text-center font-bold">{{ s }}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 <TableRow v-for="cr in curveRows" :key="cr" class="text-xs">
                                     <TableCell class="py-1.5 pl-4 font-medium text-muted-foreground">{{ CURVE_LABELS[cr] }}</TableCell>
-                                    <TableCell v-for="s in CUT_SIZES" :key="s" class="p-1 text-center">
+                                    <TableCell v-for="s in activeSizes" :key="s" class="p-1 text-center">
                                         <span :class="inputRo + ' inline-flex w-16 items-center justify-center'">{{ curves[cr][s] ?? '—' }}</span>
                                     </TableCell>
                                 </TableRow>
@@ -589,7 +605,7 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
                             <TableHeader>
                                 <TableRow class="text-xs hover:bg-transparent">
                                     <TableHead class="py-2 pl-4 font-semibold">Color</TableHead>
-                                    <TableHead v-for="s in CUT_SIZES" :key="s" class="py-2 text-center font-bold">{{ s }}</TableHead>
+                                    <TableHead v-for="s in activeSizes" :key="s" class="py-2 text-center font-bold">{{ s }}</TableHead>
                                     <TableHead class="py-2 pr-4 text-center font-bold">Total</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -603,12 +619,12 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
                                             <span class="font-medium">{{ rr.color }}</span>
                                         </div>
                                     </TableCell>
-                                    <TableCell v-for="s in CUT_SIZES" :key="s" class="py-1.5 text-center tabular-nums">{{ rr[s] }}</TableCell>
+                                    <TableCell v-for="s in activeSizes" :key="s" class="py-1.5 text-center tabular-nums">{{ rr[s] }}</TableCell>
                                     <TableCell class="py-1.5 pr-4 text-center font-bold tabular-nums">{{ rr.total }}</TableCell>
                                 </TableRow>
                                 <TableRow class="border-t-2 bg-muted/40 text-xs font-bold hover:bg-muted/40">
                                     <TableCell class="py-2 pl-4">TOTAL</TableCell>
-                                    <TableCell v-for="s in CUT_SIZES" :key="s" class="py-2 text-center tabular-nums">{{ reportTotals[s] }}</TableCell>
+                                    <TableCell v-for="s in activeSizes" :key="s" class="py-2 text-center tabular-nums">{{ reportTotals[s] }}</TableCell>
                                     <TableCell class="py-2 pr-4 text-center tabular-nums text-primary">{{ reportTotals.total }}</TableCell>
                                 </TableRow>
                             </TableBody>

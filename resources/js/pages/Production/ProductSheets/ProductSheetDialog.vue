@@ -1079,6 +1079,19 @@ watch(
         }
     },
 );
+const autoDescription = computed(() => {
+    const ref = form.value.type === TYPE_SAMPLE
+        ? form.value.sample_reference
+        : form.value.product_reference;
+    const section = sectionOptions.value.find(s => Number(s.id) === Number(form.value.section_id))?.name ?? '';
+    const world   = worldOptions.value.find(w => Number(w.id) === Number(form.value.world_id))?.name ?? '';
+    return [ref, section, world].filter(Boolean).join(' ').toUpperCase();
+});
+
+watch(autoDescription, (val) => {
+    form.value.description = val;
+}, { immediate: true });
+
 watch(
     () => form.value.woven_product,
     (newValue) => {
@@ -2027,15 +2040,15 @@ function handleClose() {
                                         </span>
                                     </div>
 
-                                    <!-- Descripción -->
+                                    <!-- Descripción (auto-generado: referencia + sección + mundo) -->
                                     <div class="flex flex-col gap-1">
                                         <Label class="text-sm font-medium">Nombre del producto<span class="text-red-500">*</span></Label>
                                         <InputField
                                             v-model="form.description"
                                             label=""
                                             type="text"
-                                            placeholder="Nombre del producto"
-                                            :disabled="isReadonly"
+                                            placeholder="Se genera automáticamente"
+                                            :disabled="true"
                                             :error="showFieldErrors ? fieldErrors.description : undefined"
                                         />
                                     </div>

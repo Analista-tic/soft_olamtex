@@ -140,10 +140,10 @@ export type CutFabricConsumptionLine = {
 };
 
 export const CUT_SIZES = ['S', 'M', 'L', 'XL'] as const;
-export type CutSize = (typeof CUT_SIZES)[number];
+export type CutSize = string;
 
 /** Curva de unidades por talla para un tipo de capa (principal, liquidación, espiga) */
-export type CutSizeCurves = Record<CutSize, number | null>;
+export type CutSizeCurves = Record<string, number | null>;
 
 /** Curvas de corte a nivel de orden (tres curvas: principal, liquidación, espiga) */
 export type CutCurves = {
@@ -156,11 +156,8 @@ export type CutCurves = {
 export type CutUnitsReportRow = {
     color: string;
     color_code: string | null;
-    S: number;
-    M: number;
-    L: number;
-    XL: number;
     total: number;
+    [size: string]: number | string | null;
 };
 
 export type InspectionApprovalPayload = {

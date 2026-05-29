@@ -18,6 +18,7 @@ use App\Models\Production\TechnicalSheetOperationHistory;
 use App\Models\Textil\FabricRoll;
 use App\Services\Inventory\InventoryMovementService;
 use App\Services\Production\FinishedProductCatalogItemService;
+use App\Services\Production\TechnicalSheetService;
 use App\Services\Production\OperationCatalogService;
 use App\Services\Production\MachineService;
 use App\Services\Production\OperationSectionService;
@@ -114,6 +115,7 @@ class BatchControlController extends Controller
         private OperationService $operationService,
         private OperationCatalogService $operationCatalogService,
         private MachineService $machineService,
+        private TechnicalSheetService $technicalSheetService,
     ) {
     }
 
@@ -422,9 +424,6 @@ class BatchControlController extends Controller
                     'status' => $isFlowCompleted ? 'complete' : 'incomplete',
                 ]);
 
-                if ($this->shouldCreateFinishedProductCatalogItem($fromProcess, $toProcess)) {
-                    $this->finishedProductCatalogItemService->ensureForProductionOrder($order);
-                }
             });
         } catch (\Throwable $exception) {
             return response()->json([
@@ -442,11 +441,6 @@ class BatchControlController extends Controller
         ]);
     }
 
-    private function shouldCreateFinishedProductCatalogItem(string $fromProcess, string $toProcess): bool
-    {
-        return $fromProcess !== $toProcess
-            && $toProcess === 'Bodega';
-    }
 
     /**
      * Marca completa solo cuando la orden ya pasó por todos los procesos de su flujo real.
@@ -625,19 +619,16 @@ class BatchControlController extends Controller
             $rollLines = is_array($snapshot?->lines) ? array_values($snapshot->lines) : [];
         }
 
-        // Curvas desde TechnicalSheetSize (trazo_principal, liquidacion, espiga por talla)
+        // Curvas desde TechnicalSheetSize — usa todas las tallas definidas en la ficha
         $sheetCurves = null;
+        $sizesList = [];
         if ($sheet) {
-            $sizes = $sheet->sizes()->get();
-            if ($sizes->isNotEmpty()) {
-                $sheetCurves = [
-                    'principal'   => ['S' => null, 'M' => null, 'L' => null, 'XL' => null],
-                    'liquidacion' => ['S' => null, 'M' => null, 'L' => null, 'XL' => null],
-                    'espiga'      => ['S' => null, 'M' => null, 'L' => null, 'XL' => null],
-                ];
-                foreach ($sizes as $sizeRow) {
+            $sizeRows = $sheet->sizes()->orderBy('id')->get();
+            if ($sizeRows->isNotEmpty()) {
+                $sheetCurves = ['principal' => [], 'liquidacion' => [], 'espiga' => []];
+                foreach ($sizeRows as $sizeRow) {
                     $s = $sizeRow->size;
-                    if (!in_array($s, ['S', 'M', 'L', 'XL'], true)) continue;
+                    $sizesList[] = $s;
                     $sheetCurves['principal'][$s]   = $sizeRow->trazo_principal ?: null;
                     $sheetCurves['liquidacion'][$s] = $sizeRow->liquidacion ?: null;
                     $sheetCurves['espiga'][$s]      = $sizeRow->espiga ?: null;
@@ -792,6 +783,7 @@ class BatchControlController extends Controller
                     'curves'       => $stored['curves'] ?? null,
                     'largo_espiga' => $stored['largo_espiga'] ?? null,
                     'sheet_curves' => $sheetCurves,
+                    'sizes'        => $sizesList,
                 ],
             ]);
         }
@@ -866,6 +858,7 @@ class BatchControlController extends Controller
                 'lines'        => $mappedFromTechnicalData,
                 'largo_espiga' => null,
                 'sheet_curves' => $sheetCurves,
+                'sizes'        => $sizesList,
             ],
         ]);
     }
@@ -1000,33 +993,38 @@ class BatchControlController extends Controller
                     $unitPrice = (float) ($roll->price_per_meter ?? 0);
                 }
 
-                if ($delta > 0) {
-                    $this->movementService->createMovement([
-                        'item_id'            => $item->id,
-                        'warehouse_id'       => $warehouse->id,
-                        'type'               => 'salida',
-                        'quantity'           => $delta,
-                        'unit_price'         => $unitPrice,
-                        'date'               => now()->toDateString(),
-                        'source_type'        => ProductionOrder::class,
-                        'source_id'          => $order->id,
-                        'notes'              => "Consumo corte rollo #{$roll->roll_number} — OP {$order->op_code}",
-                        'created_by_user_id' => $userId,
-                    ]);
-                } else {
-                    // Corrección: reversa del exceso aplicado
-                    $this->movementService->createMovement([
-                        'item_id'            => $item->id,
-                        'warehouse_id'       => $warehouse->id,
-                        'type'               => 'entrada',
-                        'quantity'           => abs($delta),
-                        'unit_price'         => $unitPrice,
-                        'date'               => now()->toDateString(),
-                        'source_type'        => ProductionOrder::class,
-                        'source_id'          => $order->id,
-                        'notes'              => "Corrección corte rollo #{$roll->roll_number} — OP {$order->op_code}",
-                        'created_by_user_id' => $userId,
-                    ]);
+                try {
+                    if ($delta > 0) {
+                        $this->movementService->createMovement([
+                            'item_id'            => $item->id,
+                            'warehouse_id'       => $warehouse->id,
+                            'type'               => 'salida',
+                            'quantity'           => $delta,
+                            'unit_price'         => $unitPrice,
+                            'date'               => now()->toDateString(),
+                            'source_type'        => ProductionOrder::class,
+                            'source_id'          => $order->id,
+                            'notes'              => "Consumo corte rollo #{$roll->roll_number} — OP {$order->op_code}",
+                            'created_by_user_id' => $userId,
+                        ]);
+                    } else {
+                        // Corrección: reversa del exceso aplicado
+                        $this->movementService->createMovement([
+                            'item_id'            => $item->id,
+                            'warehouse_id'       => $warehouse->id,
+                            'type'               => 'entrada',
+                            'quantity'           => abs($delta),
+                            'unit_price'         => $unitPrice,
+                            'date'               => now()->toDateString(),
+                            'source_type'        => ProductionOrder::class,
+                            'source_id'          => $order->id,
+                            'notes'              => "Corrección corte rollo #{$roll->roll_number} — OP {$order->op_code}",
+                            'created_by_user_id' => $userId,
+                        ]);
+                    }
+                } catch (\Throwable $e) {
+                    // Si el movimiento de inventario falla (ej. stock insuficiente),
+                    // se omite silenciosamente para no bloquear el guardado del consumo.
                 }
             }
 
@@ -1184,7 +1182,7 @@ class BatchControlController extends Controller
                 $total = 0.0;
                 foreach ($cutConsumption['lines'] as $line) {
                     if (($line['fabric_type'] ?? null) !== 'PRINCIPAL') continue;
-                    foreach (['S', 'M', 'L', 'XL'] as $s) {
+                    foreach (array_keys($curves['principal'] ?? []) as $s) {
                         $total += (float)(($curves['principal'][$s] ?? 0) * ($line['layers_fabric'] ?? 0))
                                 + (float)(($curves['liquidacion'][$s] ?? 0) * ($line['layers_liquidation'] ?? 0))
                                 + (float)(($curves['espiga'][$s] ?? 0) * ($line['layers_herringbone'] ?? 0));
@@ -1567,10 +1565,40 @@ class BatchControlController extends Controller
     {
         $consumption = $order->cut_fabric_consumption;
 
+        // Obtener tallas dinámicas desde technical_sheet_sizes
+        $sheet = $order->technicalSheet;
+        $sizes = $sheet ? $sheet->sizes()->orderBy('id')->pluck('size')->all() : [];
+
+        $costs = null;
+        try {
+            $summary = $this->technicalSheetService->costsSummary($order->id);
+            $invoicing = $summary['prices']['invoicing'] ?? null;
+            $sale      = $summary['prices']['sale'] ?? null;
+            if ($invoicing !== null || $sale !== null) {
+                $costs = [
+                    'precio_facturacion'  => (float) ($invoicing ?? 0),
+                    'precio_venta'        => (float) ($sale ?? 0),
+                    'costo_fijo'          => (float) ($summary['prices']['fixedCost'] ?? 0),
+                    'costo_materia_prima' => (float) ($summary['costs']['rawMaterial'] ?? 0),
+                    'costo_insumos'       => (float) ($summary['costs']['supplies'] ?? 0),
+                    'costo_procesos'      => (float) ($summary['costs']['processes'] ?? 0),
+                    'costo_total'         => (float) ($summary['costs']['total'] ?? 0),
+                    'rentabilidad_valor'  => $summary['profitability']['olamtex']['value'] ?? null,
+                    'rentabilidad_pct'    => $summary['profitability']['olamtex']['percent'] ?? null,
+                    'margen_valor'        => $summary['profitability']['client']['value'] ?? null,
+                    'margen_pct'          => $summary['profitability']['client']['percent'] ?? null,
+                ];
+            }
+        } catch (\Throwable $e) {
+            $costs = null;
+        }
+
         return response()->json([
             'lines'       => $consumption['lines'] ?? [],
             'curves'      => $consumption['curves'] ?? null,
             'largo_espiga'=> $consumption['largo_espiga'] ?? null,
+            'sizes'       => $sizes,
+            'costs'       => $costs,
             'inspection'  => \App\Models\Production\BatchControlInspection::where('production_order_id', $order->id)
                 ->latest()
                 ->first(),
@@ -1583,10 +1611,6 @@ class BatchControlController extends Controller
             'confirmed_curves'   => 'required|array|min:1',
             'confirmed_curves.*.color'       => 'required|string|max:200',
             'confirmed_curves.*.color_code'  => 'nullable|string|max:100',
-            'confirmed_curves.*.S'           => 'nullable|integer|min:0',
-            'confirmed_curves.*.M'           => 'nullable|integer|min:0',
-            'confirmed_curves.*.L'           => 'nullable|integer|min:0',
-            'confirmed_curves.*.XL'          => 'nullable|integer|min:0',
             'confirmed_curves.*.total'       => 'nullable|integer|min:0',
             'matches_cut'   => 'required|boolean',
             'reason'        => 'nullable|string|max:2000',
@@ -1597,10 +1621,13 @@ class BatchControlController extends Controller
             return response()->json(['message' => 'El motivo es obligatorio cuando las cantidades no coinciden.'], 422);
         }
 
+        // Usar el input completo para preservar las tallas dinámicas (XS, 2XL, etc.)
+        $confirmedCurves = $request->input('confirmed_curves');
+
         $inspection = \App\Models\Production\BatchControlInspection::updateOrCreate(
             ['production_order_id' => $order->id],
             [
-                'confirmed_curves'   => $validated['confirmed_curves'],
+                'confirmed_curves'   => $confirmedCurves,
                 'matches_cut'        => $validated['matches_cut'],
                 'reason'             => $validated['reason'] ?? null,
                 'observations'       => $validated['observations'] ?? null,
@@ -1686,6 +1713,11 @@ class BatchControlController extends Controller
 
         $receivedCurves = $inspection?->confirmed_curves ?? [];
 
+        // Cargar recibo previo antes de sobreescribir (para revertir stock si existe)
+        $previousReceipt = \App\Models\Production\BatchControlWarehouseReceipt::where('production_order_id', $order->id)->first();
+        $previousRemisionCurves  = $previousReceipt?->remision_curves  ?? [];
+        $previousWarehouseId     = $previousReceipt?->warehouse_id;
+
         $receipt = \App\Models\Production\BatchControlWarehouseReceipt::updateOrCreate(
             ['production_order_id' => $order->id],
             [
@@ -1700,14 +1732,34 @@ class BatchControlController extends Controller
             ],
         );
 
-        // Actualizar inventario con el total remisionado
-        $totalRemision = collect($validated['remision_curves'])->sum('total');
-        if ($totalRemision > 0) {
-            $item = $this->finishedProductCatalogItemService->ensureForProductionOrder($order);
-            \App\Models\Inventory\WarehouseItem::updateOrCreate(
-                ['item_id' => $item->id, 'warehouse_id' => $validated['warehouse_id']],
-                ['quantity' => DB::raw("quantity + {$totalRemision}")]
+        // Revertir stock del recibo anterior si existía
+        if (!empty($previousRemisionCurves) && $previousWarehouseId) {
+            $oldItemQuantities = $this->finishedProductCatalogItemService->ensureItemsForCurves(
+                $order,
+                $previousRemisionCurves
             );
+            foreach ($oldItemQuantities as $itemId => $oldQty) {
+                \App\Models\Inventory\WarehouseItem::where('item_id', $itemId)
+                    ->where('warehouse_id', $previousWarehouseId)
+                    ->update(['quantity' => DB::raw("GREATEST(0, quantity - {$oldQty})")]);
+            }
+        }
+
+        // Aplicar nuevo stock: un ítem por cada combinación color+talla
+        // Se usa input() en lugar de validated() para preservar todas las tallas dinámicas
+        $rawRemisionCurves = $request->input('remision_curves', []);
+        $totalRemision = collect($rawRemisionCurves)->sum('total');
+        if ($totalRemision > 0) {
+            $itemQuantities = $this->finishedProductCatalogItemService->ensureItemsForCurves(
+                $order,
+                $rawRemisionCurves
+            );
+            foreach ($itemQuantities as $itemId => $qty) {
+                \App\Models\Inventory\WarehouseItem::updateOrCreate(
+                    ['item_id' => $itemId, 'warehouse_id' => $validated['warehouse_id']],
+                    ['quantity' => DB::raw("quantity + {$qty}")]
+                );
+            }
         }
 
         // Auto-novelty si hay imperfectos

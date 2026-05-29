@@ -45,14 +45,27 @@ watch(
 
 // ── Estado editable ────────────────────────────────────────────────────────
 const imperfectCurves = ref<CutUnitsReportRow[]>([]);
-const remisionCurves  = ref<CutUnitsReportRow[]>([]);
 const responsible     = ref('');
 const imperfectObs    = ref('');
 const remisionObs     = ref('');
 const warehouseId     = ref<number | null>(null);
 
+const NON_SIZE_KEYS = new Set(['color', 'color_code', 'total']);
+
+const dynamicSizes = computed<string[]>(() => {
+    const source = props.receivedCurves[0]
+        ?? props.savedReceipt?.remision_curves[0]
+        ?? {};
+    const keys = Object.keys(source).filter(k => !NON_SIZE_KEYS.has(k));
+    return keys.length ? keys : [...CUT_SIZES];
+});
+
 function buildEmptyCurves(source: CutUnitsReportRow[]): CutUnitsReportRow[] {
-    return source.map((r) => ({ ...r, S: 0, M: 0, L: 0, XL: 0, total: 0 }));
+    return source.map((r) => {
+        const row: CutUnitsReportRow = { color: r.color, color_code: r.color_code ?? null, total: 0 };
+        dynamicSizes.value.forEach(s => { row[s] = 0; });
+        return row;
+    });
 }
 
 watch(
@@ -61,14 +74,12 @@ watch(
         if (!props.open) return;
         if (props.savedReceipt) {
             imperfectCurves.value = props.savedReceipt.imperfect_curves.map((r) => ({ ...r }));
-            remisionCurves.value  = props.savedReceipt.remision_curves.map((r) => ({ ...r }));
             responsible.value     = props.savedReceipt.responsible ?? '';
             imperfectObs.value    = props.savedReceipt.imperfect_observations ?? '';
             remisionObs.value     = props.savedReceipt.remision_observations ?? '';
             warehouseId.value     = props.savedReceipt.warehouse_id ?? null;
         } else {
             imperfectCurves.value = buildEmptyCurves(props.receivedCurves);
-            remisionCurves.value  = buildEmptyCurves(props.receivedCurves);
             responsible.value     = '';
             imperfectObs.value    = '';
             remisionObs.value     = '';
@@ -78,20 +89,34 @@ watch(
     { immediate: true },
 );
 
-function setField(list: CutUnitsReportRow[], idx: number, field: 'S' | 'M' | 'L' | 'XL', raw: string) {
+// Sección 3: auto-calculado = Unidades Cortadas − Faltantes/dañadas
+const remisionCurves = computed<CutUnitsReportRow[]>(() =>
+    props.receivedCurves.map((received, idx) => {
+        const imperfect = imperfectCurves.value[idx];
+        const row: CutUnitsReportRow = { color: received.color, color_code: received.color_code, total: 0 };
+        let total = 0;
+        for (const s of dynamicSizes.value) {
+            const val = (Number(received[s]) || 0) - (imperfect ? (Number(imperfect[s]) || 0) : 0);
+            row[s] = val;
+            total += val;
+        }
+        row.total = total;
+        return row;
+    })
+);
+
+function setField(list: CutUnitsReportRow[], idx: number, field: string, raw: string) {
     if (props.viewOnly) return;
     const n = raw.trim() === '' ? 0 : Math.max(0, Math.floor(Number(raw)));
     const row = { ...list[idx], [field]: Number.isFinite(n) ? n : 0 };
-    row.total = row.S + row.M + row.L + row.XL;
+    row.total = dynamicSizes.value.reduce((sum, s) => sum + (Number(row[s]) || 0), 0);
     list.splice(idx, 1, row);
 }
 
 // ── Totales ────────────────────────────────────────────────────────────────
-const totalReceived   = computed(() => props.receivedCurves.reduce((a, r) => a + r.total, 0));
-const totalImperfect  = computed(() => imperfectCurves.value.reduce((a, r) => a + r.total, 0));
-const totalLost       = computed(() => totalImperfect.value);
-const totalRemision   = computed(() => remisionCurves.value.reduce((a, r) => a + r.total, 0));
-const exceedsAvailable = computed(() => totalRemision.value > (totalReceived.value - totalImperfect.value));
+const totalReceived  = computed(() => props.receivedCurves.reduce((a, r) => a + r.total, 0));
+const totalImperfect = computed(() => imperfectCurves.value.reduce((a, r) => a + r.total, 0));
+const totalRemision  = computed(() => remisionCurves.value.reduce((a: number, r: CutUnitsReportRow) => a + r.total, 0));
 
 function handleSave() {
     if (!warehouseId.value) return;
@@ -103,6 +128,10 @@ function handleSave() {
         remision_observations:  remisionObs.value.trim() || null,
         warehouse_id:           warehouseId.value,
     });
+}
+
+function cellNum(row: CutUnitsReportRow, size: string): number {
+    return Number(row[size]) || 0;
 }
 
 const inputBase = 'h-6 w-full border border-input rounded-md px-1.5 text-xs tabular-nums focus:outline-none focus:ring-1 focus:ring-ring bg-background transition-colors text-center';
@@ -160,7 +189,7 @@ const textareaBase = 'w-full rounded-md border border-input bg-background px-3 p
 
                 <template v-else>
 
-                    <!-- Sección 1: Unidades recibidas (read-only) -->
+                    <!-- Sección 1: Unidades Cortadas (read-only) -->
                     <div class="rounded-xl border bg-card shadow-sm overflow-hidden">
                         <div class="flex items-center gap-2.5 border-b bg-muted/30 px-4 py-2.5 cursor-pointer hover:bg-muted/50 transition-colors select-none"
                              @click="toggleSection('received')">
@@ -168,8 +197,8 @@ const textareaBase = 'w-full rounded-md border border-input bg-background px-3 p
                                 <ChevronDown v-if="!collapsedSections.has('received')" class="h-4 w-4" />
                                 <ChevronRight v-else class="h-4 w-4" />
                             </button>
-                            <span class="text-xs font-bold text-foreground">Sección 1 — Unidades Recibidas</span>
-                            <Badge variant="outline" class="ml-auto tabular-nums text-xs">{{ totalReceived }} uds</Badge>
+                            <span class="text-xs font-bold text-foreground">Sección 1 — Unidades Cortadas</span>
+                            <Badge variant="outline" class="ml-2 tabular-nums text-xs">{{ totalReceived }} uds</Badge>
                         </div>
                         <div v-if="!collapsedSections.has('received')" class="overflow-x-auto">
                             <div v-if="!receivedCurves.length" class="px-4 py-4 text-xs text-muted-foreground text-center">
@@ -179,7 +208,7 @@ const textareaBase = 'w-full rounded-md border border-input bg-background px-3 p
                                 <TableHeader>
                                     <TableRow class="text-xs hover:bg-transparent bg-muted/20">
                                         <TableHead class="py-2 pl-4 font-semibold">Color</TableHead>
-                                        <TableHead v-for="s in CUT_SIZES" :key="s" class="py-2 text-center font-bold">{{ s }}</TableHead>
+                                        <TableHead v-for="s in dynamicSizes" :key="s" class="py-2 text-center font-bold">{{ s }}</TableHead>
                                         <TableHead class="py-2 pr-4 text-center font-bold">Total</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -191,8 +220,8 @@ const textareaBase = 'w-full rounded-md border border-input bg-background px-3 p
                                                 <span class="font-medium">{{ rr.color }}</span>
                                             </div>
                                         </TableCell>
-                                        <TableCell v-for="s in CUT_SIZES" :key="s" class="py-1.5 text-center tabular-nums">
-                                            <span :class="inputRo + ' inline-flex w-12 items-center justify-center'">{{ rr[s] }}</span>
+                                        <TableCell v-for="s in dynamicSizes" :key="s" class="py-1.5 text-center tabular-nums">
+                                            <span :class="inputRo + ' inline-flex w-12 items-center justify-center'">{{ cellNum(rr, s) }}</span>
                                         </TableCell>
                                         <TableCell class="py-1.5 pr-4 text-center font-bold tabular-nums">{{ rr.total }}</TableCell>
                                     </TableRow>
@@ -200,8 +229,8 @@ const textareaBase = 'w-full rounded-md border border-input bg-background px-3 p
                                 <TableFooter>
                                     <TableRow class="text-xs font-bold">
                                         <TableCell class="py-2 pl-4">TOTAL</TableCell>
-                                        <TableCell v-for="s in CUT_SIZES" :key="s" class="py-2 text-center tabular-nums">
-                                            {{ receivedCurves.reduce((a, r) => a + r[s], 0) }}
+                                        <TableCell v-for="s in dynamicSizes" :key="s" class="py-2 text-center tabular-nums">
+                                            {{ receivedCurves.reduce((a, r) => a + cellNum(r, s), 0) }}
                                         </TableCell>
                                         <TableCell class="py-2 pr-4 text-center tabular-nums text-primary">{{ totalReceived }}</TableCell>
                                     </TableRow>
@@ -210,7 +239,7 @@ const textareaBase = 'w-full rounded-md border border-input bg-background px-3 p
                         </div>
                     </div>
 
-                    <!-- Sección 2: Imperfectos -->
+                    <!-- Sección 2: Unidades faltantes, dañadas o con defecto -->
                     <div class="rounded-xl border bg-card shadow-sm overflow-hidden">
                         <div class="flex items-center gap-2.5 border-b bg-muted/30 px-4 py-2.5 cursor-pointer hover:bg-muted/50 transition-colors select-none"
                              @click="toggleSection('imperfect')">
@@ -218,16 +247,15 @@ const textareaBase = 'w-full rounded-md border border-input bg-background px-3 p
                                 <ChevronDown v-if="!collapsedSections.has('imperfect')" class="h-4 w-4" />
                                 <ChevronRight v-else class="h-4 w-4" />
                             </button>
-                            <span class="text-xs font-bold text-foreground">Sección 2 — Imperfectos</span>
+                            <span class="text-xs font-bold text-foreground">Sección 2 — Unidades faltantes, dañadas o con defecto</span>
                             <Badge v-if="totalImperfect > 0" variant="destructive" class="ml-2 tabular-nums text-xs">{{ totalImperfect }} uds</Badge>
-                            <span class="text-xs text-muted-foreground ml-1">Unidades dañadas o con defecto</span>
                         </div>
                         <div v-if="!collapsedSections.has('imperfect')" class="overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow class="text-xs hover:bg-transparent bg-muted/20">
                                         <TableHead class="py-2 pl-4 font-semibold">Color</TableHead>
-                                        <TableHead v-for="s in CUT_SIZES" :key="s" class="py-2 text-center font-bold">{{ s }}</TableHead>
+                                        <TableHead v-for="s in dynamicSizes" :key="s" class="py-2 text-center font-bold">{{ s }}</TableHead>
                                         <TableHead class="py-2 pr-4 text-center font-bold">Total</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -239,7 +267,7 @@ const textareaBase = 'w-full rounded-md border border-input bg-background px-3 p
                                                 <span class="font-medium">{{ row.color }}</span>
                                             </div>
                                         </TableCell>
-                                        <TableCell v-for="s in CUT_SIZES" :key="s" class="py-1.5 text-center p-1">
+                                        <TableCell v-for="s in dynamicSizes" :key="s" class="py-1.5 text-center p-1">
                                             <input v-if="!viewOnly" type="number" min="0" step="1"
                                                 :value="row[s]"
                                                 :class="inputBase"
@@ -252,8 +280,8 @@ const textareaBase = 'w-full rounded-md border border-input bg-background px-3 p
                                 <TableFooter>
                                     <TableRow class="text-xs font-bold">
                                         <TableCell class="py-2 pl-4">TOTAL IMPERFECTOS</TableCell>
-                                        <TableCell v-for="s in CUT_SIZES" :key="s" class="py-2 text-center tabular-nums">
-                                            {{ imperfectCurves.reduce((a, r) => a + r[s], 0) }}
+                                        <TableCell v-for="s in dynamicSizes" :key="s" class="py-2 text-center tabular-nums">
+                                            {{ imperfectCurves.reduce((a, r) => a + cellNum(r, s), 0) }}
                                         </TableCell>
                                         <TableCell class="py-2 pr-4 text-center tabular-nums text-destructive">{{ totalImperfect }}</TableCell>
                                     </TableRow>
@@ -277,52 +305,45 @@ const textareaBase = 'w-full rounded-md border border-input bg-background px-3 p
                         </div>
                     </div>
 
-                    <!-- Sección 3: Remisión -->
-                    <div class="rounded-xl border bg-card shadow-sm overflow-hidden" :class="exceedsAvailable ? 'border-amber-400' : ''">
+                    <!-- Sección 3: Total de unidades recibidas (auto-calculado) -->
+                    <div class="rounded-xl border bg-card shadow-sm overflow-hidden">
                         <div class="flex items-center gap-2.5 border-b bg-muted/30 px-4 py-2.5 cursor-pointer hover:bg-muted/50 transition-colors select-none"
                              @click="toggleSection('remision')">
                             <button type="button" class="shrink-0 text-muted-foreground">
                                 <ChevronDown v-if="!collapsedSections.has('remision')" class="h-4 w-4" />
                                 <ChevronRight v-else class="h-4 w-4" />
                             </button>
-                            <span class="text-xs font-bold text-foreground">Sección 3 — Remisión a Inventario</span>
+                            <span class="text-xs font-bold text-foreground">Sección 3 — Total de unidades recibidas</span>
                             <Badge class="ml-2 tabular-nums text-xs">{{ totalRemision }} uds</Badge>
-                            <Badge v-if="exceedsAvailable" variant="outline" class="ml-1 border-amber-400 bg-amber-50 text-amber-700 text-xs">
-                                Excede disponibles
-                            </Badge>
                         </div>
                         <div v-if="!collapsedSections.has('remision')" class="overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow class="text-xs hover:bg-transparent bg-muted/20">
                                         <TableHead class="py-2 pl-4 font-semibold">Color</TableHead>
-                                        <TableHead v-for="s in CUT_SIZES" :key="s" class="py-2 text-center font-bold">{{ s }}</TableHead>
+                                        <TableHead v-for="s in dynamicSizes" :key="s" class="py-2 text-center font-bold">{{ s }}</TableHead>
                                         <TableHead class="py-2 pr-4 text-center font-bold">Total</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    <TableRow v-for="(row, idx) in remisionCurves" :key="row.color" class="text-xs">
+                                    <TableRow v-for="row in remisionCurves" :key="row.color" class="text-xs">
                                         <TableCell class="py-1.5 pl-4">
                                             <div class="flex items-center gap-2">
                                                 <span v-if="row.color_code?.startsWith('#')" class="h-3 w-3 shrink-0 rounded-full border border-border/60" :style="{ backgroundColor: row.color_code }" />
                                                 <span class="font-medium">{{ row.color }}</span>
                                             </div>
                                         </TableCell>
-                                        <TableCell v-for="s in CUT_SIZES" :key="s" class="py-1.5 text-center p-1">
-                                            <input v-if="!viewOnly" type="number" min="0" step="1"
-                                                :value="row[s]"
-                                                :class="inputBase"
-                                                @input="setField(remisionCurves, idx, s, ($event.target as HTMLInputElement).value)" />
-                                            <span v-else :class="inputRo + ' inline-flex w-12 items-center justify-center'">{{ row[s] }}</span>
+                                        <TableCell v-for="s in dynamicSizes" :key="s" class="py-1.5 text-center tabular-nums">
+                                            <span :class="[inputRo, 'inline-flex w-12 items-center justify-center', cellNum(row, s) < 0 ? 'text-destructive' : '']">{{ cellNum(row, s) }}</span>
                                         </TableCell>
-                                        <TableCell class="py-1.5 pr-4 text-center font-bold tabular-nums text-primary">{{ row.total }}</TableCell>
+                                        <TableCell class="py-1.5 pr-4 text-center font-bold tabular-nums" :class="row.total < 0 ? 'text-destructive' : 'text-primary'">{{ row.total }}</TableCell>
                                     </TableRow>
                                 </TableBody>
                                 <TableFooter>
                                     <TableRow class="text-xs font-bold">
-                                        <TableCell class="py-2 pl-4">TOTAL REMISIÓN</TableCell>
-                                        <TableCell v-for="s in CUT_SIZES" :key="s" class="py-2 text-center tabular-nums">
-                                            {{ remisionCurves.reduce((a, r) => a + r[s], 0) }}
+                                        <TableCell class="py-2 pl-4">TOTAL RECIBIDAS</TableCell>
+                                        <TableCell v-for="s in dynamicSizes" :key="s" class="py-2 text-center tabular-nums">
+                                            {{ remisionCurves.reduce((a: number, r: CutUnitsReportRow) => a + cellNum(r, s), 0) }}
                                         </TableCell>
                                         <TableCell class="py-2 pr-4 text-center tabular-nums text-primary">{{ totalRemision }}</TableCell>
                                     </TableRow>

@@ -166,6 +166,7 @@ const basicInfoRow = ref<BatchControlRow | null>(null);
 const cutConsumptionDialogOpen = ref(false);
 const cutConsumptionRow = ref<BatchControlRow | null>(null);
 const cutConsumptionLines = ref<CutFabricConsumptionLine[]>([]);
+const cutSizes = ref<string[]>([...CUT_SIZES]);
 const cutCurves = ref<CutCurves>(createEmptyCutCurves());
 const cutSheetCurves = ref<CutCurves | null>(null);
 /** Largo espiga (orden): usado para auto-calcular consumo por rollo */
@@ -197,11 +198,20 @@ const inspectionDialogOpen = ref(false);
 const inspectionRow = ref<BatchControlRow | null>(null);
 const inspectionCutLines = ref<CutFabricConsumptionLine[]>([]);
 const inspectionCutCurves = ref<CutCurves | null>(null);
+const inspectionSizes = ref<string[]>([...CUT_SIZES]);
 const inspectionSavedData = ref<InspectionApprovalPayload | null>(null);
 const inspectionViewOnly = ref(false);
 const isLoadingInspection = ref(false);
 const isSavingInspection = ref(false);
 const inspectionSaveError = ref<string | null>(null);
+const inspectionCosts = ref<{
+    precio_facturacion: number;
+    precio_venta: number;
+    costo_materia_prima: number;
+    costo_insumos: number;
+    costo_procesos: number;
+    costo_total: number;
+} | null>(null);
 
 // Dialog: recepción bodega
 const warehouseReceiptDialogOpen = ref(false);
@@ -816,18 +826,21 @@ function openBasicInfoDialog(row: BatchControlRow) {
     basicInfoDialogOpen.value = true;
 }
 
-function createEmptyCutCurves(): CutCurves {
-    const s = (): CutSizeCurves => ({ S: null, M: null, L: null, XL: null });
+function createEmptyCutCurves(sizes: string[] = [...CUT_SIZES]): CutCurves {
+    const s = (): CutSizeCurves => {
+        const result: CutSizeCurves = {};
+        for (const size of sizes) result[size] = null;
+        return result;
+    };
     return { principal: s(), liquidacion: s(), espiga: s() };
 }
 
-function normalizeCurves(raw: Partial<CutCurves>): CutCurves {
-    const s = (src: Partial<CutSizeCurves> | undefined): CutSizeCurves => ({
-        S: src?.S ?? null,
-        M: src?.M ?? null,
-        L: src?.L ?? null,
-        XL: src?.XL ?? null,
-    });
+function normalizeCurves(raw: Partial<CutCurves>, sizes: string[] = [...CUT_SIZES]): CutCurves {
+    const s = (src: Record<string, number | null> | undefined): CutSizeCurves => {
+        const result: CutSizeCurves = {};
+        for (const size of sizes) result[size] = src?.[size] ?? null;
+        return result;
+    };
     return {
         principal: s(raw?.principal),
         liquidacion: s(raw?.liquidacion),
@@ -942,15 +955,24 @@ async function openCutConsumptionDialog(row: BatchControlRow) {
 
     try {
         const { data } = await axios.get(route('control-de-lotes.cut-fabric-consumption', { order: row.id }));
+        // Tallas dinámicas del producto
+        const orderSizes: string[] = Array.isArray(data?.data?.sizes) && data.data.sizes.length > 0
+            ? data.data.sizes as string[]
+            : [...CUT_SIZES];
+        cutSizes.value = orderSizes;
         // Load largo_espiga before normalizing lines (recalcCutLine uses it)
         cutLargoEspiga.value = typeof data?.data?.largo_espiga === 'number' ? data.data.largo_espiga : null;
         const rawLines = Array.isArray(data?.data?.lines) ? data.data.lines : [];
         const parsed = rawLines.map((line: Partial<CutFabricConsumptionLine>) => normalizeCutLine(line));
         cutConsumptionLines.value = parsed.length > 0 ? parsed : [createEmptyCutConsumptionLine()];
-        const sheetC = data?.data?.sheet_curves ? normalizeCurves(data.data.sheet_curves as Partial<CutCurves>) : null;
+        const sheetC = data?.data?.sheet_curves ? normalizeCurves(data.data.sheet_curves as Partial<CutCurves>, orderSizes) : null;
         cutSheetCurves.value = sheetC;
-        if (data?.data?.curves) {
-            cutCurves.value = normalizeCurves(data.data.curves as Partial<CutCurves>);
+        const rawCurves = data?.data?.curves as Partial<CutCurves> | null | undefined;
+        const hasRealCurveValues = rawCurves != null && Object.values(rawCurves).some(
+            (group) => group != null && typeof group === 'object' && Object.values(group).some((v) => v !== null && v !== undefined),
+        );
+        if (hasRealCurveValues) {
+            cutCurves.value = normalizeCurves(rawCurves!, orderSizes);
         } else if (sheetC) {
             cutCurves.value = { ...sheetC };
         }
@@ -972,6 +994,7 @@ function closeCutConsumptionDialog() {
     cutConsumptionDialogOpen.value = false;
     cutConsumptionRow.value = null;
     cutConsumptionLines.value = [];
+    cutSizes.value = [...CUT_SIZES];
     cutCurves.value = createEmptyCutCurves();
     cutSheetCurves.value = null;
     cutLargoEspiga.value = null;
@@ -994,6 +1017,8 @@ async function openInspectionApprovalDialog(row: BatchControlRow) {
         const { data } = await axios.get(route('control-de-lotes.inspection-data', { order: row.id }));
         inspectionCutLines.value = Array.isArray(data?.lines) ? data.lines : [];
         inspectionCutCurves.value = data?.curves ?? null;
+        inspectionSizes.value = Array.isArray(data?.sizes) && data.sizes.length > 0 ? data.sizes : [...CUT_SIZES];
+        inspectionCosts.value = data?.costs ?? null;
         if (data?.inspection) {
             inspectionSavedData.value = {
                 confirmed_curves: data.inspection.confirmed_curves ?? [],
@@ -1014,6 +1039,7 @@ function closeInspectionDialog() {
     inspectionRow.value = null;
     inspectionCutLines.value = [];
     inspectionCutCurves.value = null;
+    inspectionSizes.value = [...CUT_SIZES];
     inspectionSavedData.value = null;
     inspectionViewOnly.value = false;
     inspectionSaveError.value = null;
@@ -1049,7 +1075,7 @@ async function saveInspectionApproval(payload: InspectionApprovalPayload) {
 
 async function openWarehouseReceiptDialog(row: BatchControlRow) {
     warehouseReceiptRow.value = row;
-    warehouseReceiptViewOnly.value = row.current_process !== 'Bodega';
+    warehouseReceiptViewOnly.value = row.current_process !== 'Bodega' || !!row.has_warehouse_receipt;
     warehouseReceiptDialogOpen.value = true;
     isLoadingWarehouseReceipt.value = true;
     warehouseReceiptReceivedCurves.value = [];
@@ -1186,7 +1212,7 @@ async function saveCutConsumption() {
         let cutUnitsTotal = 0;
         for (const line of payloadLines) {
             if (line.fabric_type !== 'PRINCIPAL') continue;
-            for (const s of CUT_SIZES) {
+            for (const s of cutSizes.value) {
                 cutUnitsTotal +=
                     (cutCurves.value.principal[s] ?? 0) * (line.layers_fabric ?? 0) +
                     (cutCurves.value.liquidacion[s] ?? 0) * (line.layers_liquidation ?? 0) +
@@ -1611,6 +1637,7 @@ onUnmounted(() => {
             :open="cutConsumptionDialogOpen"
             :row="cutConsumptionRow"
             :lines="cutConsumptionLines"
+            :sizes="cutSizes"
             :curves="cutCurves"
             :sheet-curves="cutSheetCurves"
             :largo-espiga="cutLargoEspiga"
@@ -1677,7 +1704,9 @@ onUnmounted(() => {
             :row="inspectionRow"
             :cut-lines="inspectionCutLines"
             :cut-curves="inspectionCutCurves"
+            :sizes="inspectionSizes"
             :saved-inspection="inspectionSavedData"
+            :costs="inspectionCosts"
             :is-loading="isLoadingInspection"
             :is-saving="isSavingInspection"
             :view-only="inspectionViewOnly"

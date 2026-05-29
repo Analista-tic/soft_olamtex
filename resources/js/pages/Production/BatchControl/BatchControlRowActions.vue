@@ -148,17 +148,16 @@ const iconCls = 'h-4 w-4';
             v-if="activeProcess === 'Bodega'"
             variant="ghost"
             size="icon"
-            :disabled="row.has_warehouse_receipt && isActiveRow"
             :class="[
                 actionBtn,
-                row.has_warehouse_receipt ? 'text-muted-foreground/40 cursor-not-allowed' : isActiveRow ? 'text-teal-600 hover:bg-teal-50 hover:text-teal-700' : 'text-muted-foreground/60 hover:bg-muted/40',
+                row.has_warehouse_receipt ? 'text-teal-600 hover:bg-teal-50 hover:text-teal-700' : isActiveRow ? 'text-teal-600 hover:bg-teal-50 hover:text-teal-700' : 'text-muted-foreground/60 hover:bg-muted/40',
             ]"
-            :title="row.has_warehouse_receipt ? 'Ya remisionado a bodega' : isActiveRow ? 'Recepción bodega' : 'Ver recepción bodega (solo lectura)'"
-            @click.stop="!row.has_warehouse_receipt && emit('warehouse-receipt')"
+            :title="row.has_warehouse_receipt ? 'Ver recepción bodega' : isActiveRow ? 'Recepción bodega' : 'Ver recepción bodega (solo lectura)'"
+            @click.stop="emit('warehouse-receipt')"
             @pointerdown.stop
         >
             <Archive :class="iconCls" />
-            <span class="sr-only">{{ row.has_warehouse_receipt ? 'Ya remisionado' : isActiveRow ? 'Recepción bodega' : 'Ver recepción bodega' }}</span>
+            <span class="sr-only">{{ row.has_warehouse_receipt ? 'Ver recepción bodega' : isActiveRow ? 'Recepción bodega' : 'Ver recepción bodega' }}</span>
         </Button>
 
         <!-- Info lavandería (Lavandería): visible para todos -->
@@ -202,12 +201,11 @@ const iconCls = 'h-4 w-4';
                 </DropdownMenuItem>
                 <DropdownMenuItem
                     v-if="activeProcess === 'Bodega'"
-                    :class="['gap-2', row.has_warehouse_receipt ? 'cursor-not-allowed opacity-60 text-muted-foreground' : 'cursor-pointer text-teal-700']"
-                    :disabled="row.has_warehouse_receipt"
-                    @click="!row.has_warehouse_receipt && emit('warehouse-receipt')"
+                    class="cursor-pointer gap-2 text-teal-700"
+                    @click="emit('warehouse-receipt')"
                 >
                     <Archive class="h-4 w-4" />
-                    {{ row.has_warehouse_receipt ? 'Ya remisionado a bodega' : 'Recepción bodega' }}
+                    {{ row.has_warehouse_receipt ? 'Ver recepción bodega' : 'Recepción bodega' }}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem class="cursor-pointer gap-2 text-orange-600" @click="emit('novelty')">

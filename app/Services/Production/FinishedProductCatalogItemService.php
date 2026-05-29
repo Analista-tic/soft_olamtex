@@ -5,6 +5,7 @@ namespace App\Services\Production;
 use App\Models\Finance\Tax;
 use App\Models\MasterData\CategoryGroup;
 use App\Models\MasterData\CategorySubGroup;
+use App\Models\MasterData\Color;
 use App\Models\MasterData\Item;
 use App\Models\Production\ProductionOrder;
 use App\Models\Production\ProductSheet;
@@ -244,6 +245,116 @@ class FinishedProductCatalogItemService
             ->first(function (Item $item) use ($semanticName) {
                 return $this->semanticKey($item->name) === $semanticName;
             });
+    }
+
+    /**
+     * Crea o actualiza un ítem por cada combinación color+talla en remision_curves.
+     * Referencia generada: {product_reference}{color_code_3dig}{talla} → ej. 9056790004S
+     *
+     * @param  array<int, array<string, mixed>>  $remisionCurves
+     * @return array<int, int>  [item_id => cantidad]
+     */
+    public function ensureItemsForCurves(ProductionOrder $order, array $remisionCurves): array
+    {
+        $order->loadMissing('productSheet');
+        $productSheet = $order->productSheet;
+
+        if (!$productSheet || ($productSheet->type ?? null) !== self::PRODUCT_SHEET_TYPE) {
+            throw new \RuntimeException('Solo se puede crear ítems automáticos desde sábanas de tipo producto.');
+        }
+
+        $productName = $this->extractProductName($productSheet->description);
+        if ($productName === '') {
+            throw new \RuntimeException('La sábana asociada no tiene nombre de producto.');
+        }
+
+        [$subGroupName, $baseExtraFields] = $this->extractSubGroupAndExtraFields($productName, $productSheet);
+
+        $group    = $this->resolveCategoryGroup();
+        $subGroup = $this->resolveCategorySubGroup($group, $subGroupName);
+        $taxId    = $this->resolveDefaultTaxId();
+        $productRef = $this->resolveReference($productSheet->product_reference, $productSheet->sample_reference) ?? '';
+
+        $nonSizeKeys = ['color', 'color_code', 'total'];
+        $result = [];
+
+        foreach ($remisionCurves as $curve) {
+            $colorName  = mb_strtoupper(trim((string) ($curve['color'] ?? '')), 'UTF-8');
+            $colorHex   = trim((string) ($curve['color_code'] ?? ''));
+
+            $colorModel  = $this->resolveColor($colorName, $colorHex);
+            $colorCode3  = $colorModel?->code;
+            $colorId     = $colorModel?->id;
+
+            foreach ($curve as $key => $qty) {
+                if (in_array(strtolower((string) $key), $nonSizeKeys, true)) {
+                    continue;
+                }
+
+                $qty = (int) ($qty ?? 0);
+                if ($qty <= 0) {
+                    continue;
+                }
+
+                $talla       = mb_strtoupper(trim((string) $key), 'UTF-8');
+                $colorSuffix = $colorCode3 ?? Str::upper(Str::limit($colorName, 6, ''));
+                $reference   = mb_strtoupper("{$productRef}{$colorSuffix}{$talla}", 'UTF-8');
+                $name        = mb_strtoupper(trim("{$subGroupName} {$talla} {$colorName}"), 'UTF-8');
+
+                $extraFields          = $baseExtraFields;
+                $extraFields['TALLA'] = $talla;
+
+                $item = $this->resolveItemByReference($reference);
+                if ($item?->trashed()) {
+                    $item->restore();
+                }
+
+                $payload = [
+                    'category_sub_group_id' => $subGroup->id,
+                    'name'                  => $name,
+                    'description'           => $name,
+                    'reference'             => $reference,
+                    'extra_fields'          => $extraFields,
+                    'item_type'             => 'product',
+                    'tracks_inventory'      => true,
+                    'negative_movement'     => false,
+                    'status'                => true,
+                    'unit_measure'          => self::DEFAULT_UNIT_MEASURE,
+                    'tax_id'                => $taxId,
+                    'color_id'              => $colorId,
+                ];
+
+                if ($item) {
+                    $item->update($payload);
+                    $item = $item->fresh();
+                } else {
+                    $item = Item::create($payload + ['origin_type' => Item::ORIGIN_SYSTEM]);
+                }
+
+                $result[$item->id] = $qty;
+            }
+        }
+
+        return $result;
+    }
+
+    private function resolveColor(string $colorName, string $colorHex): ?Color
+    {
+        if ($colorName !== '') {
+            $match = Color::whereRaw('UPPER(name) = ?', [$colorName])->first();
+            if ($match) {
+                return $match;
+            }
+        }
+
+        if ($colorHex !== '') {
+            $match = Color::whereRaw('LOWER(hexadecimal) = ?', [mb_strtolower($colorHex, 'UTF-8')])->first();
+            if ($match) {
+                return $match;
+            }
+        }
+
+        return null;
     }
 
     private function extractProductName(?string $value): string
