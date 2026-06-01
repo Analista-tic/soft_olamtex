@@ -124,20 +124,20 @@ const tableColumnsCount = computed(() => (showDispatchColumn.value ? 14 : 13));
 </script>
 
 <template>
-    <Table class="table-fixed">
+    <Table class="w-full table-auto whitespace-nowrap">
         <TableHeader>
             <TableRow class="hover:bg-transparent">
-                <TableHead class="w-[5%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50" @click="setSort('op_code')">
+                <TableHead class="w-[1%] cursor-pointer select-none px-1 py-1.5 text-center text-xs whitespace-nowrap hover:bg-muted/50" @click="setSort('op_code')">
                     <span class="inline-flex items-center gap-0.5">
                         Lote
                         <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'op_code'" class="h-3 w-3" />
                     </span>
                 </TableHead>
-                <TableHead class="w-[7%] px-1 py-1.5 text-center text-xs">
+                <TableHead class="w-[1%] px-1 py-1.5 text-center text-xs whitespace-nowrap">
                     Fabricación
                 </TableHead>
                 <TableHead
-                    class="w-[10%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50"
+                    class="w-[1%] cursor-pointer select-none px-1 py-1.5 text-center text-xs whitespace-nowrap hover:bg-muted/50"
                     @click="setSort('referencia')"
                 >
                     <span class="inline-flex items-center gap-0.5">
@@ -145,20 +145,20 @@ const tableColumnsCount = computed(() => (showDispatchColumn.value ? 14 : 13));
                         <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'referencia'" class="h-3 w-3" />
                     </span>
                 </TableHead>
-                <TableHead class="w-[6%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50" @click="setSort('temporada')">
+                <TableHead class="w-[1%] cursor-pointer select-none px-1 py-1.5 text-center text-xs whitespace-nowrap hover:bg-muted/50" @click="setSort('temporada')">
                     <span class="inline-flex items-center gap-0.5">
                         Temp.
                         <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'temporada'" class="h-3 w-3" />
                     </span>
                 </TableHead>
-                <TableHead class="w-[4%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50" @click="setSort('prioridad')">
+                <TableHead class="w-[1%] cursor-pointer select-none px-1 py-1.5 text-center text-xs whitespace-nowrap hover:bg-muted/50" @click="setSort('prioridad')">
                     <span class="inline-flex items-center gap-0.5">
                         Prio.
                         <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'prioridad'" class="h-3 w-3" />
                     </span>
                 </TableHead>
                 <TableHead
-                    class="w-[5%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50"
+                    class="w-[1%] cursor-pointer select-none px-1 py-1.5 text-center text-xs whitespace-nowrap hover:bg-muted/50"
                     @click="setSort('cant_programadas')"
                 >
                     <span class="inline-flex items-center gap-0.5">
@@ -166,14 +166,14 @@ const tableColumnsCount = computed(() => (showDispatchColumn.value ? 14 : 13));
                         <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'cant_programadas'" class="h-3 w-3" />
                     </span>
                 </TableHead>
-                <TableHead class="w-[6%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50" @click="setSort('destino')">
+                <TableHead class="w-[1%] cursor-pointer select-none px-1 py-1.5 text-center text-xs whitespace-nowrap hover:bg-muted/50" @click="setSort('destino')">
                     <span class="inline-flex items-center gap-0.5">
                         Destino
                         <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'destino'" class="h-3 w-3" />
                     </span>
                 </TableHead>
                 <TableHead
-                    class="w-[8%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50"
+                    class="w-[1%] cursor-pointer select-none px-1 py-1.5 text-center text-xs whitespace-nowrap hover:bg-muted/50"
                     @click="setSort('description')"
                 >
                     <span class="inline-flex items-center gap-0.5">
@@ -181,14 +181,14 @@ const tableColumnsCount = computed(() => (showDispatchColumn.value ? 14 : 13));
                         <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'description'" class="h-3 w-3" />
                     </span>
                 </TableHead>
-                <TableHead class="w-[6%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50" @click="setSort('grupo')">
+                <TableHead class="w-[1%] cursor-pointer select-none px-1 py-1.5 text-center text-xs whitespace-nowrap hover:bg-muted/50" @click="setSort('grupo')">
                     <span class="inline-flex items-center gap-0.5">
                         Grupo
                         <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'grupo'" class="h-3 w-3" />
                     </span>
                 </TableHead>
                 <TableHead
-                    class="w-[8%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50"
+                    class="w-[1%] cursor-pointer select-none px-1 py-1.5 text-center text-xs whitespace-nowrap hover:bg-muted/50"
                     @click="setSort('process_estimated_date')"
                 >
                     <span class="inline-flex items-center gap-0.5">
@@ -201,7 +201,7 @@ const tableColumnsCount = computed(() => (showDispatchColumn.value ? 14 : 13));
                     </span>
                 </TableHead>
                 <TableHead
-                    class="w-[8%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50"
+                    class="w-[1%] cursor-pointer select-none px-1 py-1.5 text-center text-xs whitespace-nowrap hover:bg-muted/50"
                     @click="setSort('current_process_arrived_at')"
                 >
                     <span class="inline-flex items-center gap-0.5">
@@ -213,16 +213,16 @@ const tableColumnsCount = computed(() => (showDispatchColumn.value ? 14 : 13));
                         />
                     </span>
                 </TableHead>
-                <TableHead class="w-[6%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50" @click="setSort('fecha')">
+                <TableHead class="w-[1%] cursor-pointer select-none px-1 py-1.5 text-center text-xs whitespace-nowrap hover:bg-muted/50" @click="setSort('fecha')">
                     <span class="inline-flex items-center gap-0.5">
                         Entrega
                         <component :is="sortDirection === 'asc' ? ArrowUp : ArrowDown" v-if="sortColumn === 'fecha'" class="h-3 w-3" />
                     </span>
                 </TableHead>
-                <TableHead v-if="showDispatchColumn" class="w-[8%] px-1 py-1.5 text-center text-xs">
+                <TableHead v-if="showDispatchColumn" class="w-[1%] px-1 py-1.5 text-center text-xs whitespace-nowrap">
                     Despacho (Mes/Año)
                 </TableHead>
-                <TableHead class="w-[8%] px-1 py-1.5 text-center text-xs">Acciones</TableHead>
+                <TableHead class="w-[1%] px-1 py-1.5 text-center text-xs whitespace-nowrap">Acciones</TableHead>
             </TableRow>
         </TableHeader>
         <TableBody>
@@ -279,17 +279,17 @@ const tableColumnsCount = computed(() => (showDispatchColumn.value ? 14 : 13));
                             class="inline-block rounded-full border border-teal-300/80 bg-teal-100/80 px-1.5 py-0.5 text-[10px] font-medium leading-none text-teal-700 dark:border-teal-700/60 dark:bg-teal-900/30 dark:text-teal-400"
                         >Punto</span>
                     </TableCell>
-                    <TableCell :class="['max-w-0 px-1 py-2 text-center text-xs font-medium', dimmedCellClass(row)]" :title="row.referencia">
-                        <div class="truncate">{{ row.referencia }}</div>
+                    <TableCell :class="['px-1 py-2 text-center text-xs font-medium whitespace-nowrap', dimmedCellClass(row)]" :title="row.referencia">
+                        <div class="max-w-[11rem] truncate">{{ row.referencia }}</div>
                     </TableCell>
-                    <TableCell :class="['truncate px-1 py-2 text-center text-xs', dimmedCellClass(row)]">{{ row.temporada }}</TableCell>
-                    <TableCell :class="['px-1 py-2 text-center text-xs', dimmedCellClass(row)]">{{ row.prioridad }}</TableCell>
-                    <TableCell :class="['px-1 py-2 text-center text-xs tabular-nums', dimmedCellClass(row)]">{{ row.cant_programadas }}</TableCell>
-                    <TableCell :class="['truncate px-1 py-2 text-center text-xs', dimmedCellClass(row)]">{{ row.destino }}</TableCell>
-                    <TableCell :class="['max-w-0 truncate px-1 py-2 text-center text-xs text-muted-foreground', dimmedCellClass(row)]" :title="row.description ?? '-'">
-                        {{ row.description || '-' }}
+                    <TableCell :class="['px-1 py-2 text-center text-xs whitespace-nowrap', dimmedCellClass(row)]">{{ row.temporada }}</TableCell>
+                    <TableCell :class="['px-1 py-2 text-center text-xs whitespace-nowrap', dimmedCellClass(row)]">{{ row.prioridad }}</TableCell>
+                    <TableCell :class="['px-1 py-2 text-center text-xs tabular-nums whitespace-nowrap', dimmedCellClass(row)]">{{ row.cant_programadas }}</TableCell>
+                    <TableCell :class="['px-1 py-2 text-center text-xs whitespace-nowrap', dimmedCellClass(row)]">{{ row.destino }}</TableCell>
+                    <TableCell :class="['px-1 py-2 text-center text-xs text-muted-foreground whitespace-nowrap', dimmedCellClass(row)]" :title="row.description ?? '-'">
+                        <div class="max-w-[14rem] truncate">{{ row.description || '-' }}</div>
                     </TableCell>
-                    <TableCell :class="['truncate px-1 py-2 text-center text-xs', dimmedCellClass(row)]">{{ row.grupo }}</TableCell>
+                    <TableCell :class="['px-1 py-2 text-center text-xs whitespace-nowrap', dimmedCellClass(row)]">{{ row.grupo }}</TableCell>
                     <!-- F. est.: siempre visible sin atenuar (es la acción clave para filas deshabilitadas) -->
                     <TableCell :class="['px-1 py-2 text-center', estimatedDateCellClass(row)]">
                         <button
