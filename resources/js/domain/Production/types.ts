@@ -417,7 +417,7 @@ export type ThreadSavePayload = { threads: ThreadLine[]; deletedIds: string[] };
 
 export type CuttingParams = { cutCostCop: number | null };
 
-export type SizeUnit = { size: string; trazoPrincipal: number; liquidacion: number; espiga: number; totalUnidades: number };
+export type SizeUnit = { size: string; trazoPrincipal: number; liquidacion: number; espiga: number; totalUnidades: number; curve?: string | null };
 
 export type PieceType = 'PRINCIPAL' | 'SECUNDARIO';
 export type Side = 'IZQUIERDA' | 'DERECHA' | 'AMBOS' | 'NO_APLICA';

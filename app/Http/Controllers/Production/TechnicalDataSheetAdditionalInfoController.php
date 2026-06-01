@@ -57,6 +57,7 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
                 'liquidacion'    => (int) $s->liquidacion,
                 'espiga'         => (int) $s->espiga,
                 'totalUnidades'  => (int) $s->total_unidades,
+                'curve'          => $s->curve !== null ? (string) $s->curve : null,
             ])->values()->all();
 
             if (!empty($dbSizes)) {
@@ -119,6 +120,7 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
             'cutting.sizes.*.liquidacion'         => ['nullable', 'integer', 'min:0'],
             'cutting.sizes.*.espiga'              => ['nullable', 'integer', 'min:0'],
             'cutting.sizes.*.totalUnidades'       => ['nullable', 'integer', 'min:0'],
+            'cutting.sizes.*.curve'               => ['nullable', 'string', 'max:100'],
             'cutting.pieces'                 => ['nullable', 'array'],
             'cutting.pieces.*.id'            => ['required_with:cutting.pieces', 'string', 'max:100'],
             'cutting.pieces.*.name'          => ['required_with:cutting.pieces', 'string', 'max:150'],
@@ -195,6 +197,7 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
                 'liquidacion'    => (int) $s->liquidacion,
                 'espiga'         => (int) $s->espiga,
                 'totalUnidades'  => (int) $s->total_unidades,
+                'curve'          => $s->curve !== null ? (string) $s->curve : null,
             ])->values()->all();
 
             if (!empty($dbSizes)) {
@@ -240,6 +243,7 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
                     'liquidacion'     => max(0, (int) ($row['liquidacion'] ?? 0)),
                     'espiga'          => max(0, (int) ($row['espiga'] ?? 0)),
                     'total_unidades'  => max(0, (int) ($row['totalUnidades'] ?? 0)),
+                    'curve'           => isset($row['curve']) && trim((string) $row['curve']) !== '' ? trim((string) $row['curve']) : null,
                 ]
             );
         }

@@ -20,6 +20,11 @@ const emit = defineEmits<{
 
 const isDragging = ref(false);
 const autoScrollInterval = ref<number | null>(null);
+const currentMouseY = ref(0);
+
+function onDragOver(e: DragEvent) {
+    currentMouseY.value = e.clientY;
+}
 
 function handleDragStart(e: DragEvent) {
     if (!props.isDraggable) return;
@@ -28,12 +33,14 @@ function handleDragStart(e: DragEvent) {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/html', String(props.index));
     }
+    document.addEventListener('dragover', onDragOver);
     emit('dragStart', props.index);
     startAutoScroll();
 }
 
 function handleDragEnd() {
     isDragging.value = false;
+    document.removeEventListener('dragover', onDragOver);
     stopAutoScroll();
     emit('dragEnd');
 }
@@ -49,24 +56,15 @@ function startAutoScroll() {
         if (!scrollContainer) return;
 
         const rect = scrollContainer.getBoundingClientRect();
-        const mouseY = window.event ? (window.event as MouseEvent).clientY : 0;
+        const mouseY = currentMouseY.value;
 
-        const scrollThreshold = 80; // px desde el borde
-        const scrollSpeed = 10; // px por intervalo
+        const scrollThreshold = 80;
+        const scrollSpeed = 10;
 
-        // Scroll hacia arriba
-        if (mouseY < rect.top + scrollThreshold) {
-            scrollContainer.scrollBy({
-                top: -scrollSpeed,
-                behavior: 'smooth',
-            });
-        }
-        // Scroll hacia abajo
-        else if (mouseY > rect.bottom - scrollThreshold) {
-            scrollContainer.scrollBy({
-                top: scrollSpeed,
-                behavior: 'smooth',
-            });
+        if (mouseY > 0 && mouseY < rect.top + scrollThreshold) {
+            scrollContainer.scrollBy({ top: -scrollSpeed, behavior: 'instant' as ScrollBehavior });
+        } else if (mouseY > 0 && mouseY > rect.bottom - scrollThreshold) {
+            scrollContainer.scrollBy({ top: scrollSpeed, behavior: 'instant' as ScrollBehavior });
         }
     }, 50);
 }
