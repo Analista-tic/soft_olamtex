@@ -1287,7 +1287,7 @@ watch(
 
         <!-- Modal tabla de medidas por talla -->
         <Dialog :open="measurementsModalOpen" @update:open="(v) => { if (!v) closeMeasurementsModal(); }">
-            <FormDialogContent class="!max-w-2xl p-2">
+            <FormDialogContent class="!max-w-md p-2">
                 <DialogHeader class="p-2">
                     <DialogTitle class="flex items-center gap-2">
                         <Ruler class="h-4 w-4 text-primary" />
@@ -1300,9 +1300,9 @@ watch(
                         <table class="w-full text-sm">
                         <thead class="bg-muted/50">
                             <tr>
-                                <th class="border-b px-3 py-2 text-left font-medium text-muted-foreground">Talla</th>
-                                <th class="border-b px-3 py-2 text-center font-medium text-muted-foreground">M.CORTE</th>
-                                <th class="border-b px-3 py-2 text-center font-medium text-muted-foreground">M.TERMI</th>
+                                <th class="border-b px-3 py-2 text-left font-medium text-muted-foreground">TALLA</th>
+                                <th class="border-b px-3 py-2 text-center font-medium text-muted-foreground">MEDIDA<br>CORTE</th>
+                                <th class="border-b px-3 py-2 text-center font-medium text-muted-foreground">MEDIDA<br>TERMINACIÓN</th>
                             </tr>
                         </thead>
                         <tbody>

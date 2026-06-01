@@ -183,6 +183,7 @@ const stampingInfoRow = ref<BatchControlRow | null>(null);
 const stampingInfoData = ref<AdditionalInfo['stamping']>({ designNotes: null, attachments: [] });
 const stampingInfoDrawingUrl = ref<string | null>(null);
 const stampingInfoBasicItems = ref<{ label: string; value: string }[]>([]);
+const stampingInfoCuttingData = ref<AdditionalInfo['cutting'] | null>(null);
 const isLoadingStampingInfo = ref(false);
 
 // Dialog: información de lavandería
@@ -191,6 +192,7 @@ const laundryInfoRow = ref<BatchControlRow | null>(null);
 const laundryInfoData = ref<AdditionalInfo['laundry']>({ type: null, instructions: null });
 const laundryInfoDrawingUrl = ref<string | null>(null);
 const laundryInfoBasicItems = ref<{ label: string; value: string }[]>([]);
+const laundryInfoCuttingData = ref<AdditionalInfo['cutting'] | null>(null);
 const isLoadingLaundryInfo = ref(false);
 
 // Dialog: inspección y aprobación
@@ -1345,6 +1347,7 @@ async function openStampingInfoDialog(row: BatchControlRow) {
     try {
         const [info, basicInfo] = await Promise.all([fetchOpAdditionalInfo(row.id), fetchOpBasicInfo(row.id)]);
         stampingInfoData.value = info.stamping;
+        stampingInfoCuttingData.value = info.cutting;
         stampingInfoDrawingUrl.value = basicInfo.flatDrawingUrl ?? basicInfo.flat_sketch_path ?? null;
     } catch {
         showError('No se pudo cargar la información de estampado.');
@@ -1359,6 +1362,7 @@ function closeStampingInfoDialog() {
     stampingInfoData.value = { designNotes: null, attachments: [] };
     stampingInfoDrawingUrl.value = null;
     stampingInfoBasicItems.value = [];
+    stampingInfoCuttingData.value = null;
 }
 
 /* ── Lavandería: info dialog ────────────────────────── */
@@ -1373,6 +1377,7 @@ async function openLaundryInfoDialog(row: BatchControlRow) {
     try {
         const [info, basicInfo] = await Promise.all([fetchOpAdditionalInfo(row.id), fetchOpBasicInfo(row.id)]);
         laundryInfoData.value = info.laundry;
+        laundryInfoCuttingData.value = info.cutting;
         laundryInfoDrawingUrl.value = basicInfo.flatDrawingUrl ?? basicInfo.flat_sketch_path ?? null;
         const typeRaw = String(info.laundry.type ?? '').trim().toUpperCase();
         const typeLabel = typeRaw ? (LAUNDRY_TYPE_LABELS[typeRaw] ?? typeRaw.charAt(0) + typeRaw.slice(1).toLowerCase().replace(/_/g, ' ')) : null;
@@ -1392,6 +1397,7 @@ function closeLaundryInfoDialog() {
     laundryInfoData.value = { type: null, instructions: null };
     laundryInfoDrawingUrl.value = null;
     laundryInfoBasicItems.value = [];
+    laundryInfoCuttingData.value = null;
 }
 
 onMounted(() => {
@@ -1678,6 +1684,7 @@ onUnmounted(() => {
             :saving-section="null"
             :drawing-url="stampingInfoDrawingUrl"
             :basic-info-items="stampingInfoBasicItems"
+            :cutting-data="stampingInfoCuttingData ?? undefined"
             view-only
             @close="closeStampingInfoDialog"
             @update:data="() => {}"
@@ -1693,6 +1700,7 @@ onUnmounted(() => {
             :saving-section="null"
             :drawing-url="laundryInfoDrawingUrl"
             :basic-info-items="laundryInfoBasicItems"
+            :cutting-data="laundryInfoCuttingData ?? undefined"
             view-only
             @close="closeLaundryInfoDialog"
             @update:data="() => {}"

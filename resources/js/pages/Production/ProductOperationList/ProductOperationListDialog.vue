@@ -22,7 +22,7 @@ import type {
     ProductOperationPayload,
     ProductSheetDialogOption,
 } from '@/domain/product-sheet/types';
-import { Check, GripVertical, Pencil, Plus, PlusCircle, X } from 'lucide-vue-next';
+import { Check, CornerDownLeft, GripVertical, Pencil, Plus, PlusCircle, X } from 'lucide-vue-next';
 import { computed, PropType, ref, watch } from 'vue';
 import AddNew from './AddNew.vue';
 
@@ -553,6 +553,8 @@ function removeOperation(i: number) {
 }
 
 const draggedIndex = ref<number | null>(null);
+const originalOrderSnapshot = ref<typeof operationList.value>([]);
+
 function handleDragStart(i: number) {
     draggedIndex.value = i;
 }
@@ -566,6 +568,15 @@ function handleDrop(target: number) {
     items.splice(target, 0, d);
     operationList.value = items;
     draggedIndex.value = null;
+}
+
+const isOrderChanged = computed(() => {
+    if (originalOrderSnapshot.value.length !== operationList.value.length) return false;
+    return originalOrderSnapshot.value.some((row, i) => row.row_key !== operationList.value[i]?.row_key);
+});
+
+function resetOrder() {
+    operationList.value = originalOrderSnapshot.value.map((row) => ({ ...row }));
 }
 
 function initializeForm() {
@@ -583,6 +594,7 @@ function initializeForm() {
             row_notes: row.row_notes ?? '',
             sam_total_base: Number(row.optimal_time ?? 0),
         }));
+        originalOrderSnapshot.value = operationList.value.map((row) => ({ ...row }));
         currentRow.value = createEmptyRow();
         return;
     }
@@ -831,9 +843,19 @@ function resetForm() {
                                 <GripVertical class="h-3 w-3 shrink-0" />
                                 Arrastra para reordenar · Edita notas y grupo de preparación
                             </p>
-                            <span class="rounded-full bg-background px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                                {{ operationList.length }} filas
-                            </span>
+                            <div class="flex items-center gap-2">
+                                <button
+                                    v-if="isOrderChanged"
+                                    type="button"
+                                    class="flex items-center gap-1 rounded-full border border-border bg-background px-2.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                                    @click="resetOrder"
+                                >
+                                    <CornerDownLeft class="h-3 w-3" /> Restablecer orden
+                                </button>
+                                <span class="rounded-full bg-background px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                                    {{ operationList.length }} filas
+                                </span>
+                            </div>
                         </div>
                         <div
                             class="rounded-lg border border-border/60 bg-muted/10"

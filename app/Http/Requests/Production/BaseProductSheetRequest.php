@@ -85,6 +85,7 @@ abstract class BaseProductSheetRequest extends FormRequest
                 $this->catalogRule('operational_lists'),
             ],
             'collection_id' => ['nullable', 'integer', 'exists:collections,id'],
+            'observaciones' => 'nullable|string',
         ];
     }
 

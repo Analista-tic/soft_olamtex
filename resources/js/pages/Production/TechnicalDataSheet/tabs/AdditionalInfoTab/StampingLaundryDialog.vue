@@ -16,7 +16,16 @@ type StampingData = {
     attachments?: Attachment[];
 };
 type CuttingGuideData = {
-    sizes?: Array<{ uid?: string; size: string; units: number; curve?: string | null }>;
+    sizes?: Array<{
+        uid?: string;
+        size: string;
+        units?: number;
+        totalUnidades?: number;
+        trazoPrincipal?: number;
+        liquidacion?: number;
+        espiga?: number;
+        curve?: string | null;
+    }>;
 };
 type BasicInfoItem = { label: string; value: string };
 type StampingProcessGuide = {
@@ -184,7 +193,11 @@ const processesLength = computed(() => meta.value.processes.length);
 const observationValue = computed(() => (isLaundryMode.value ? String(localData.value.designNotes ?? '') : meta.value.observation));
 const observationLength = computed(() => observationValue.value.length);
 const imageAttachment = computed(() => (Array.isArray(localData.value.attachments) ? (localData.value.attachments[0] ?? null) : null));
-const guideRows = computed(() => (props.cuttingData?.sizes ?? []).filter((row) => String(row.size ?? '').trim() !== ''));
+const guideRows = computed(() =>
+    (props.cuttingData?.sizes ?? [])
+        .filter((row) => String(row.size ?? '').trim() !== '')
+        .map((row) => ({ ...row, units: row.totalUnidades ?? row.units ?? 0 })),
+);
 const totalGuideUnits = computed(() => guideRows.value.reduce((acc, row) => acc + Math.max(0, Number(row.units || 0)), 0));
 const resolvedDrawingUrl = computed(() => {
     const raw = String(props.drawingUrl ?? '').trim();
@@ -401,19 +414,23 @@ function handleDialogOpenChange(value: boolean): void {
                             </div>
 
                             <div v-else class="overflow-x-auto rounded-md border border-border">
-                                <Table class="min-w-[420px] text-center">
+                                <Table class="min-w-[520px] text-center">
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>Talla</TableHead>
-                                            <TableHead>Curva</TableHead>
-                                            <TableHead>Unidades estimadas</TableHead>
+                                            <TableHead class="text-left">Talla</TableHead>
+                                            <TableHead>Trazo principal</TableHead>
+                                            <TableHead>Liquidación</TableHead>
+                                            <TableHead>Espiga</TableHead>
+                                            <TableHead>Total unidades</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         <TableRow v-for="row in guideRows" :key="row.uid ?? row.size">
-                                            <TableCell class="font-medium text-foreground">{{ row.size }}</TableCell>
-                                            <TableCell>{{ row.curve ? row.curve : '-' }}</TableCell>
-                                            <TableCell>{{ Math.max(0, Number(row.units || 0)) }}</TableCell>
+                                            <TableCell class="font-medium text-foreground text-left">{{ row.size }}</TableCell>
+                                            <TableCell>{{ Math.max(0, Number(row.trazoPrincipal ?? 0)) }}</TableCell>
+                                            <TableCell>{{ Math.max(0, Number(row.liquidacion ?? 0)) }}</TableCell>
+                                            <TableCell>{{ Math.max(0, Number(row.espiga ?? 0)) }}</TableCell>
+                                            <TableCell class="font-semibold">{{ Math.max(0, Number(row.units ?? 0)) }}</TableCell>
                                         </TableRow>
                                     </TableBody>
                                 </Table>

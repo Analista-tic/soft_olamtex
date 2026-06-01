@@ -233,27 +233,25 @@ function collectPrincipalColors(
         }
     }
 
-    // Fallback 3: si aún sin colores, usar rollos con programmedMeters > 0
-    if (deduped.size === 0) {
-        const meteredLines = rollLines.filter((line) => {
-            const meters = Number(line.programmedMeters ?? 0);
-            return Number.isFinite(meters) && meters > 0;
-        });
+    // Siempre agregar colores de todos los rollos con metros programados (incluye trazos secundarios)
+    const meteredLines = rollLines.filter((line) => {
+        const meters = Number(line.programmedMeters ?? 0);
+        return Number.isFinite(meters) && meters > 0;
+    });
 
-        for (const line of meteredLines) {
-            const color = String(line.color ?? line.colors ?? '').trim();
-            const colorCode = String(line.colorCode ?? '').trim();
-            if (color === '' && colorCode === '') {
-                continue;
-            }
+    for (const line of meteredLines) {
+        const color = String(line.color ?? line.colors ?? '').trim();
+        const colorCode = String(line.colorCode ?? '').trim();
+        if (color === '' && colorCode === '') {
+            continue;
+        }
 
-            const key = buildColorKey(color, colorCode);
-            if (!deduped.has(key)) {
-                deduped.set(key, {
-                    color: color || colorCode,
-                    colorCode,
-                });
-            }
+        const key = buildColorKey(color, colorCode);
+        if (!deduped.has(key)) {
+            deduped.set(key, {
+                color: color || colorCode,
+                colorCode,
+            });
         }
     }
 
@@ -284,12 +282,12 @@ function createEmptyRow(principalColor: PrincipalColor, processType: string): Lo
         uid: generateUid(),
         id: null,
         color: principalColor.color,
-        colorCode: principalColor.colorCode,
+        colorCode: '',
         processType,
-        threadName: null,
-        gauge: null,
-        brand: null,
-        stitchesPerInch: null,
+        threadName: resolveOptionId(threadOptions.value, '180'),
+        gauge: resolveOptionId(gaugeOptions.value, '120'),
+        brand: resolveOptionId(brandOptions.value, 'Venus'),
+        stitchesPerInch: resolveOptionId(stitchesPerInchOptions.value, '12'),
         defaultThreadCost: null,
     };
 }
@@ -514,7 +512,7 @@ onBeforeUnmount(() => {
                                 <TableHead class="min-w-[150px] text-left">Marca</TableHead>
                                 <TableHead class="min-w-[160px] text-left">Punt. x Pulgada</TableHead>
                                 <TableHead class="min-w-[150px] text-left">Color</TableHead>
-                                <TableHead class="min-w-[130px] text-left">Código color</TableHead>
+                                <TableHead class="min-w-[130px] text-left">Código de hilo</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
