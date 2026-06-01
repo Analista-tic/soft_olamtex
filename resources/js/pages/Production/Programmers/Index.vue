@@ -733,7 +733,8 @@ watch(
 );
 
 function openEditDialog(programmer: Programmer) {
-    editProgrammerDialogRef.value?.openDialog(programmer);
+    const mode = programmer.current_process === 'I&D' ? 'edit' : 'view';
+    editProgrammerDialogRef.value?.openDialog(programmer, mode);
 }
 
 function viewProgrammer(programmer: Programmer) {

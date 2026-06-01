@@ -323,6 +323,9 @@ Route::prefix('comercial')->name('comercial.')->group(function () {
     Route::delete('programador/{programador}', [ProgrammerController::class, 'destroy'])
         ->middleware('permission:eliminar programador')
         ->name('programador.destroy');
+    Route::post('programador/{order}/change-reference', [ProgrammerController::class, 'changeReference'])
+        ->middleware('permission:editar programador')
+        ->name('programador.change-reference');
 });
 
 // Control de lotes
