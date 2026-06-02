@@ -358,27 +358,22 @@ const rollOriginalAvailability = computed<Map<string, number>>(() => {
 
 function realAvailableForRoll(rollId: string): number {
     const original = rollOriginalAvailability.value.get(rollId) ?? 0;
-    const baseline = baselineRollProgrammed.value.get(rollId) ?? 0;
     const current = rollTotalProgrammed.value.get(rollId) ?? 0;
-    const delta = current - baseline;
-    return Math.max(0, original - delta);
+    return Math.max(0, original - current);
 }
 
 function isRollOverAllocated(rollId: string, ownMeters: number): boolean {
     const original = rollOriginalAvailability.value.get(rollId);
     if (original === undefined) return false;
-    const baseline = baselineRollProgrammed.value.get(rollId) ?? 0;
     const current = rollTotalProgrammed.value.get(rollId) ?? 0;
-    const delta = current - baseline;
-    return delta > original && ownMeters > 0;
+    return current > original && ownMeters > 0;
 }
 
 function availabilityPercent(rollId: string, availableMeters: number | null): number {
-    if (!availableMeters || availableMeters <= 0) return 100;
-    const baseline = baselineRollProgrammed.value.get(rollId) ?? 0;
+    const original = rollOriginalAvailability.value.get(rollId) ?? Number(availableMeters ?? 0);
+    if (original <= 0) return 100;
     const current = rollTotalProgrammed.value.get(rollId) ?? 0;
-    const delta = Math.max(0, current - baseline);
-    return Math.min(100, Math.round((delta / availableMeters) * 100));
+    return Math.min(100, Math.round((current / original) * 100));
 }
 
 const anyOverAllocation = computed(() =>

@@ -11,7 +11,9 @@ use App\Http\Requests\Production\UpdateProgrammerRequest;
 use App\Models\Production\ProductSheet;
 use App\Models\Production\ProductionOrder;
 use App\Models\Production\TechnicalSheet;
+use App\Models\Production\TechnicalSheetRoll;
 use App\Models\Production\TechnicalSheetSupply;
+use App\Models\Textil\FabricRoll;
 use App\Services\Production\ProductionOrderService;
 use App\Services\Production\ProductionOrderSchedulingService;
 use App\Services\Production\ProductSheetStatusService;
@@ -418,8 +420,10 @@ class ProgrammerController extends Controller
         // Si la referencia cambió y el proceso está en I&D → resetear ficha técnica e importar nuevo listado operacional
         $newProductSheetId = $programador->product_sheet_id;
         if ($programador->current_process === 'I&D' && (int) $newProductSheetId !== (int) $originalProductSheetId) {
-            $this->resetTechnicalSheet($programador->id);
-            $this->productionOrderService->createSnapshotForOrder($programador->fresh());
+            DB::transaction(function () use ($programador): void {
+                $this->resetTechnicalSheet($programador->id);
+                $this->productionOrderService->createSnapshotForOrder($programador->fresh());
+            });
         }
 
         Log::info('production_order.update.completed', [
@@ -1188,6 +1192,21 @@ class ProgrammerController extends Controller
         // Incluye registros soft-deleted para evitar violación de clave única al recrear
         $sheets = TechnicalSheet::withTrashed()->where('production_order_id', $orderId)->get();
 
+        // Recolectar rollIds afectados antes de borrar los snapshots
+        $affectedRollIds = [];
+        foreach ($sheets as $sheet) {
+            $snapshot = $sheet->rollsSnapshot()->first();
+            if ($snapshot && is_array($snapshot->lines)) {
+                foreach ($snapshot->lines as $line) {
+                    $rollId = trim((string) ($line['rollId'] ?? ''));
+                    $meters = is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : 0.0;
+                    if ($rollId !== '' && is_numeric($rollId) && $meters > 0.0) {
+                        $affectedRollIds[] = (int) $rollId;
+                    }
+                }
+            }
+        }
+
         foreach ($sheets as $sheet) {
             // Los siguientes modelos NO usan SoftDeletes → delete()
             $sheet->rollsSnapshot()->delete();
@@ -1198,6 +1217,47 @@ class ProgrammerController extends Controller
             // TechnicalSheet sí usa SoftDeletes → forceDelete para eliminar definitivamente
             $sheet->forceDelete();
         }
+
+        // Recalcular partial_output para los rollos afectados sumando snapshots restantes
+        if (!empty($affectedRollIds)) {
+            $affectedRollIds = array_unique($affectedRollIds);
+            $newTotals = $this->buildRollTotalsFromSnapshots($affectedRollIds);
+
+            FabricRoll::query()
+                ->whereIn('id', $affectedRollIds)
+                ->lockForUpdate()
+                ->get()
+                ->each(function (FabricRoll $roll) use ($newTotals): void {
+                    $correcto = round($newTotals[(string) $roll->id] ?? 0.0, 2);
+                    $roll->update(['partial_output' => $correcto]);
+                });
+        }
+    }
+
+    /**
+     * @param  int[]  $rollIds
+     * @return array<string, float>
+     */
+    private function buildRollTotalsFromSnapshots(array $rollIds): array
+    {
+        $totals = [];
+        $stringIds = array_map('strval', $rollIds);
+
+        foreach (TechnicalSheetRoll::query()->select('lines')->cursor() as $snapshot) {
+            $lines = is_array($snapshot->lines) ? $snapshot->lines : [];
+            foreach ($lines as $line) {
+                $rollId = trim((string) ($line['rollId'] ?? ''));
+                if ($rollId === '' || !in_array($rollId, $stringIds, true)) {
+                    continue;
+                }
+                $meters = is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : 0.0;
+                if ($meters > 0.0) {
+                    $totals[$rollId] = ($totals[$rollId] ?? 0.0) + $meters;
+                }
+            }
+        }
+
+        return $totals;
     }
 
     private function summarizeLot(?array $lot): array

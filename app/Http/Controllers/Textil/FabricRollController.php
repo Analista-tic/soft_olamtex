@@ -193,23 +193,19 @@ class FabricRollController extends Controller
         /** @var \Illuminate\Pagination\LengthAwarePaginator $paginator */
         $paginator = $this->service->inventoryWithFilters($filters, $perPage, $sortBy, $sortDirection);
 
-        // Descuentar metros ya programados en fichas técnicas de OTRAS órdenes
+        // Descuentar metros ya programados en fichas técnicas (fuente de verdad: TechnicalSheetRoll)
         $excludeOpId = $request->input('excludeOpId');
         $committedByRollId = $this->getCommittedMetersByRollId(
             is_numeric($excludeOpId) ? (int) $excludeOpId : null
         );
 
-        $useCommittedAvailability = is_numeric($excludeOpId);
-
-        $rows = $paginator->getCollection()->map(function (object $row) use ($committedByRollId, $useCommittedAvailability): array {
+        $rows = $paginator->getCollection()->map(function (object $row) use ($committedByRollId): array {
             $row     = (array) $row;
             $qty     = (float) ($row['quantity'] ?? 0);
             $partial = (float) ($row['partial_output'] ?? 0);
             $actual  = (float) ($row['actual_output'] ?? 0);
             $committed = (float) ($committedByRollId[(string) $row['id']] ?? 0.0);
-            $partialAvailability = $useCommittedAvailability
-                ? max(0.0, $qty - $actual - $committed)
-                : max(0.0, $qty - $actual - $partial);
+            $partialAvailability = max(0.0, $qty - $actual - $committed);
             $color     = $row['internal_color_name'] ?? $row['supplier_color'] ?? null;
             $colorName = $row['item_color_name'] ?? $color ?? null;
             $colorHex  = isset($row['item_color_hex']) && $row['item_color_hex'] !== ''
