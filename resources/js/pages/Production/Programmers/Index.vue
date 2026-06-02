@@ -740,6 +740,10 @@ function viewProgrammer(programmer: Programmer) {
     editProgrammerDialogRef.value?.openDialog(programmer, 'view');
 }
 
+function formatCurrency(value: number | null | undefined): string {
+    if (value === null || value === undefined) return '-';
+    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
+}
 
 onMounted(async () => {
     await loadPermissions();
@@ -1387,8 +1391,8 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                                         </template>
                                     </TableCell>
                                     <TableCell>{{ programmer.destination?.name || 'Sin destino' }}</TableCell>
-                                    <TableCell>{{ programmer.product_sheet?.billing_price ?? 'N/A' }}</TableCell>
-                                    <TableCell>{{ programmer.product_sheet?.selling_price ?? 'N/A' }}</TableCell>
+                                    <TableCell>{{ formatCurrency(programmer.product_sheet?.billing_price) }}</TableCell>
+                                    <TableCell>{{ formatCurrency(programmer.product_sheet?.selling_price) }}</TableCell>
                                     <TableCell>{{ programmer.units ?? '-' }}</TableCell>
                                     <TableCell>
                                         <div class="flex items-center justify-center gap-1">
