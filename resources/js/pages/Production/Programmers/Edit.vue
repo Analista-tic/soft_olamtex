@@ -3,6 +3,7 @@ import axios from 'axios';
 import { computed, ref } from 'vue';
 
 import AlertStack from '@/components/common/AlertStack.vue';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
@@ -20,6 +21,7 @@ import type { Option } from '@/domain/shared/types';
 import { Button } from '@/components/ui/button';
 import Badge from '@/components/ui/badge/Badge.vue';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ArrowLeftRight } from 'lucide-vue-next';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
@@ -167,6 +169,24 @@ const programmer = ref<EditableProgrammer>(createEmptyProgrammer());
 const isLoading = ref(false);
 const isFormInitializing = ref(false);
 const canRenderForm = computed(() => !isFormInitializing.value);
+
+// ── Confirmación de cambio de referencia ─────────────────────────────
+const showChangeRefConfirm = ref(false);
+const originalProductSheetId = ref<number | null>(null);
+const confirmingRefChange = ref(false);
+
+const referenceChanged = computed(() =>
+    !isReadOnly.value &&
+    originalProductSheetId.value !== null &&
+    Number(programmer.value.product_sheet_id) !== Number(originalProductSheetId.value),
+);
+
+const newReferenceLabel = computed(() => {
+    const sheet = props.productSheets.find(
+        (s) => getProductSheetValue(s) === Number(programmer.value.product_sheet_id),
+    );
+    return sheet ? getProductSheetLabel(sheet) : '';
+});
 
 const dialogInnerRef = ref<HTMLElement | null>(null);
 
@@ -378,6 +398,7 @@ async function openDialog(selectedProgrammer: Programmer, mode: 'edit' | 'view' 
             estimated_delivery_date: normalizeIsoDate(selectedProgrammer.estimated_delivery_date),
         };
 
+        originalProductSheetId.value = selectedProgrammer.product_sheet_id ?? null;
         initializeEcommerceSizes();
         isDialogOpen.value = true;
         clearAlerts();
@@ -425,6 +446,18 @@ async function saveChanges() {
         setAlert('No se encontro el ID del programador.');
         return;
     }
+
+    if (referenceChanged.value) {
+        isDialogOpen.value = false;
+        showChangeRefConfirm.value = true;
+        return;
+    }
+
+    await executeSave();
+}
+
+async function executeSave() {
+    if (!programmer.value.id) return;
 
     isLoading.value = true;
     const requestId = getRequestId();
@@ -715,6 +748,22 @@ watch(
             </DialogFooter>
         </FormDialogContent>
     </Dialog>
+
+    <ConfirmDialog
+        :open="showChangeRefConfirm"
+        title="¿Cambiar referencia?"
+        :description="`Se eliminará la ficha técnica actual (materiales, hilos, insumos y costos) y se importará el listado operacional de ${newReferenceLabel}. Esta acción no se puede deshacer.`"
+        confirm-text="Sí, cambiar"
+        cancel-text="Cancelar"
+        :destructive="false"
+        @update:open="(v) => { if (!v) { showChangeRefConfirm = false; if (!confirmingRefChange) isDialogOpen = true; confirmingRefChange = false; } }"
+        @confirm="() => { confirmingRefChange = true; showChangeRefConfirm = false; executeSave(); }"
+    >
+        <template #icon>
+            <ArrowLeftRight class="h-5 w-5" />
+        </template>
+    </ConfirmDialog>
+
 </template>
 
 <style scoped>
