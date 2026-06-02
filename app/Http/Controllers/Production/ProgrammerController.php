@@ -11,6 +11,7 @@ use App\Http\Requests\Production\UpdateProgrammerRequest;
 use App\Models\Production\ProductSheet;
 use App\Models\Production\ProductionOrder;
 use App\Models\Production\TechnicalSheet;
+use App\Models\Production\TechnicalSheetSupply;
 use App\Services\Production\ProductionOrderService;
 use App\Services\Production\ProductionOrderSchedulingService;
 use App\Services\Production\ProductSheetStatusService;
@@ -417,17 +418,7 @@ class ProgrammerController extends Controller
         // Si la referencia cambió y el proceso está en I&D → resetear ficha técnica e importar nuevo listado operacional
         $newProductSheetId = $programador->product_sheet_id;
         if ($programador->current_process === 'I&D' && (int) $newProductSheetId !== (int) $originalProductSheetId) {
-            $sheet = TechnicalSheet::where('production_order_id', $programador->id)->first();
-            if ($sheet) {
-                $sheet->operations()->forceDelete();
-                $sheet->rollsSnapshot()->delete();
-                $sheet->threadsSnapshot()->delete();
-                $sheet->suppliesSnapshot()->delete();
-                $sheet->rawMaterialsSnapshot()->delete();
-                $sheet->sizes()->delete();
-                $sheet->stampingImages()->delete();
-                $sheet->delete();
-            }
+            $this->resetTechnicalSheet($programador->id);
             $this->productionOrderService->createSnapshotForOrder($programador->fresh());
         }
 
@@ -508,6 +499,7 @@ class ProgrammerController extends Controller
                 'status',
                 'current_process',
                 'source',
+
                 'created_at',
                 'updated_at',
             ])
@@ -752,6 +744,7 @@ class ProgrammerController extends Controller
                 'is_advance' => (bool) $order->is_advance,
                 'notes' => $order->notes,
                 'status' => $order->status,
+                'current_process' => $order->current_process,
                 'source' => $order->source,
                 'is_auto_from_product_sheet' => $order->is_auto_from_product_sheet,
                 'is_pending_completion' => $isPendingCompletion,
@@ -1165,18 +1158,7 @@ class ProgrammerController extends Controller
         DB::transaction(function () use ($order, $newSheet) {
             $order->update(['product_sheet_id' => $newSheet->id]);
 
-            $sheet = TechnicalSheet::where('production_order_id', $order->id)->first();
-            if ($sheet) {
-                $sheet->operations()->forceDelete();
-                $sheet->rollsSnapshot()->delete();
-                $sheet->threadsSnapshot()->delete();
-                $sheet->suppliesSnapshot()->delete();
-                $sheet->rawMaterialsSnapshot()->delete();
-                $sheet->sizes()->delete();
-                $sheet->stampingImages()->delete();
-                $sheet->delete();
-            }
-
+            $this->resetTechnicalSheet($order->id);
             $this->productionOrderService->createSnapshotForOrder($order->fresh());
         });
 
@@ -1196,6 +1178,26 @@ class ProgrammerController extends Controller
         $trimmed = trim($requestId);
 
         return $trimmed !== '' ? $trimmed : null;
+    }
+
+    private function resetTechnicalSheet(int $orderId): void
+    {
+        // TechnicalSheetSupply usa SoftDeletes → forceDelete
+        TechnicalSheetSupply::where('production_order_id', $orderId)->forceDelete();
+
+        // Incluye registros soft-deleted para evitar violación de clave única al recrear
+        $sheets = TechnicalSheet::withTrashed()->where('production_order_id', $orderId)->get();
+
+        foreach ($sheets as $sheet) {
+            // Los siguientes modelos NO usan SoftDeletes → delete()
+            $sheet->rollsSnapshot()->delete();
+            $sheet->threadsSnapshot()->delete();
+            $sheet->rawMaterialsSnapshot()->delete();
+            $sheet->sizes()->delete();
+            $sheet->stampingImages()->delete();
+            // TechnicalSheet sí usa SoftDeletes → forceDelete para eliminar definitivamente
+            $sheet->forceDelete();
+        }
     }
 
     private function summarizeLot(?array $lot): array

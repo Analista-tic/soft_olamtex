@@ -428,7 +428,8 @@ class RolesAndPermissionsSeeder extends Seeder
             // COMERCIAL
             ['name' => 'Ximena Gutiérrez Trejos',           'email' => 'x.gutierrez@olamtex.co',     'password' => Hash::make('comercial123'),  'area_id' => $this->resolveAreaId($areas, ['Comercial']),              'role' => $produccion],
             ['name' => 'Angie Julieth Salamanca Villa',     'email' => 'a.salamanca@olamtex.co',     'password' => Hash::make('comercial123'),  'area_id' => $this->resolveAreaId($areas, ['Comercial']),              'role' => $produccion],
-            ['name' => 'Valentina Velez Florez',            'email' => 'v.velez@olamtex.co',         'password' => Hash::make('comercial123'),  'area_id' => $this->resolveAreaId($areas, ['Comercial']),              'role' => $produccion],
+            ['name' => 'Valentina Velez Florez',            'email' => 'v.velez@olamtex.co',         'password' => Hashgi
+            ::make('comercial123'),  'area_id' => $this->resolveAreaId($areas, ['Comercial']),              'role' => $produccion],
 
             // MARKETING
             ['name' => 'Sergio Alejandro Pedraza',          'email' => 's.pedraza@olamtex.co',       'password' => Hash::make('marketing123'),  'area_id' => $this->resolveAreaId($areas, ['Marketing']),              'role' => $general],
