@@ -25,7 +25,7 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
 
     public function show(int $opId): JsonResponse
     {
-        $productionOrder = ProductionOrder::query()->findOrFail($opId);
+        $productionOrder = ProductionOrder::with('productSheet')->findOrFail($opId);
 
         $data = $this->store->read($opId);
         $data['cutting'] = $this->emptyCuttingPayload();
@@ -39,13 +39,9 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
         // Piezas de corte: Leer desde ProductSheet (source of truth en BD)
         if ($productionOrder->productSheet) {
             $productSheet = $productionOrder->productSheet;
-            if ($productSheet->cuttingPieces()->exists()) {
-                $data['cutting']['pieces'] = $productSheet->cuttingPieces()
-                    ->orderBy('sequence')
-                    ->get()
-                    ->map(fn ($p) => $this->mapPiece($p))
-                    ->values()
-                    ->all();
+            $pieces = $productSheet->cuttingPieces()->orderBy('sequence')->get();
+            if ($pieces->isNotEmpty()) {
+                $data['cutting']['pieces'] = $pieces->map(fn ($p) => $this->mapPiece($p))->values()->all();
             }
         }
 
@@ -76,15 +72,20 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
         }
 
         // Inyectar colores únicos de los rollos consumidos en la orden
-        $data['stamping']['colorCodes'] = $this->resolveRollColors($productionOrder);
+        $data['stamping']['colorCodes'] = $this->resolveRollColors($productionOrder, $sheet);
 
         return response()->json($data);
     }
 
-    private function resolveRollColors(ProductionOrder $order): array
+    private function resolveRollColors(ProductionOrder $order, ?TechnicalSheet $sheet = null): array
     {
-        $payload = $this->rollsStore->read($order->id);
-        $lines = is_array($payload['lines'] ?? null) ? $payload['lines'] : [];
+        if ($sheet !== null) {
+            $snapshot = $sheet->rollsSnapshot()->select(['id', 'technical_sheet_id', 'lines'])->first();
+            $lines = $snapshot ? (is_array($snapshot->lines) ? array_values($snapshot->lines) : []) : [];
+        } else {
+            $payload = $this->rollsStore->read($order->id);
+            $lines = is_array($payload['lines'] ?? null) ? $payload['lines'] : [];
+        }
 
         $seen = [];
         $colors = [];
@@ -181,13 +182,9 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
             // Piezas desde ProductSheet
             if ($productionOrder->productSheet) {
                 $productSheet = $productionOrder->productSheet;
-                if ($productSheet->cuttingPieces()->exists()) {
-                    $responseData['cutting']['pieces'] = $productSheet->cuttingPieces()
-                        ->orderBy('sequence')
-                        ->get()
-                        ->map(fn ($p) => $this->mapPiece($p))
-                        ->values()
-                        ->all();
+                $pieces = $productSheet->cuttingPieces()->orderBy('sequence')->get();
+                if ($pieces->isNotEmpty()) {
+                    $responseData['cutting']['pieces'] = $pieces->map(fn ($p) => $this->mapPiece($p))->values()->all();
                 }
             }
 
