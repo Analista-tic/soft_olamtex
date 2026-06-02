@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import DialogActionButtons from '@/components/common/DialogActionButtons.vue';
 import DraggableTableRow from '@/components/DraggableTableRow.vue';
@@ -489,7 +490,7 @@ function getOperationOptionLabel(operation: OperationOption): string {
 }
 
 function handleEnterAddOperation(): void {
-    if (readonly) return;
+    if (props.readonly) return;
     if (!currentRow.value.operation_id) {
         pendingAutoAddOperation.value = true;
         return;
@@ -546,10 +547,25 @@ function addOperation() {
     clearValidationError();
 }
 
+const deleteConfirmOpen = ref(false);
+const deleteConfirmIndex = ref<number | null>(null);
+
+function confirmRemoveOperation(i: number) {
+    deleteConfirmIndex.value = i;
+    deleteConfirmOpen.value = true;
+}
+
 function removeOperation(i: number) {
     operationList.value.splice(i, 1);
     if (editingRowIndex.value === i) cancelEditRow();
     else if (editingRowIndex.value !== null && i < editingRowIndex.value) editingRowIndex.value -= 1;
+}
+
+function handleConfirmDelete() {
+    if (deleteConfirmIndex.value !== null) {
+        removeOperation(deleteConfirmIndex.value);
+    }
+    deleteConfirmIndex.value = null;
 }
 
 const draggedIndex = ref<number | null>(null);
@@ -993,7 +1009,7 @@ function resetForm() {
                                                     v-if="!isEditingRow(index)"
                                                     class="h-7 w-7"
                                                     title="Eliminar"
-                                                    @click="removeOperation(index)"
+                                                    @click="confirmRemoveOperation(index)"
                                                 />
                                             </div>
                                         </td>
@@ -1049,4 +1065,11 @@ function resetForm() {
             </FormDialogFooter>
         </FormDialogContent>
     </Dialog>
+
+    <ConfirmDialog
+        v-model:open="deleteConfirmOpen"
+        title="Eliminar operación"
+        description="¿Estás seguro de que deseas eliminar esta operación del listado?"
+        @confirm="handleConfirmDelete"
+    />
 </template>
