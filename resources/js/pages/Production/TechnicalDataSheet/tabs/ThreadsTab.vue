@@ -26,6 +26,7 @@ type LocalThreadRow = {
     id: string | null;
     color: string;
     colorCode: string;
+    threadCode: string | null;
     processType: string;
     threadName: string | number | null;
     gauge: string | number | null;
@@ -267,7 +268,8 @@ function mapLineToRow(line: ThreadLine, principalColor: PrincipalColor, processT
         uid: generateUid(),
         id: String(line.id ?? '').trim() || null,
         color: String(line.color ?? principalColor.color ?? '').trim(),
-        colorCode: String(line.colorCode ?? principalColor.colorCode ?? '').trim(),
+        colorCode: String(principalColor.colorCode ?? '').trim(),
+        threadCode: String(line.colorCode ?? '').trim() || null,
         processType,
         threadName: resolveOptionId(threadOptions.value, line.threadName),
         gauge: resolveOptionId(gaugeOptions.value, line.gauge),
@@ -282,7 +284,8 @@ function createEmptyRow(principalColor: PrincipalColor, processType: string): Lo
         uid: generateUid(),
         id: null,
         color: principalColor.color,
-        colorCode: '',
+        colorCode: principalColor.colorCode,
+        threadCode: null,
         processType,
         threadName: resolveOptionId(threadOptions.value, '180'),
         gauge: resolveOptionId(gaugeOptions.value, '120'),
@@ -300,7 +303,7 @@ function normalizeRowsForSave(): ThreadLine[] {
         gauge: toNullableNumber(resolveOptionName(gaugeOptions.value, row.gauge) ?? row.gauge),
         brand: resolveOptionName(brandOptions.value, row.brand) ?? toNullableText(row.brand),
         color: toNullableText(row.color),
-        colorCode: toNullableText(row.colorCode),
+        colorCode: toNullableText(row.threadCode),
         stitchesPerInch: toNullableNumber(resolveOptionName(stitchesPerInchOptions.value, row.stitchesPerInch) ?? row.stitchesPerInch),
         defaultThreadCost: toNullableNumber(row.defaultThreadCost),
     }));
@@ -358,15 +361,11 @@ const canSave = computed(() => !isLoading.value && !isSaving.value && dirty.valu
 
 // Agrupa las filas por color para mostrar encabezados de color en la tabla
 const colorGroups = computed(() => {
-    const processCount = PROCESS_TYPES.length;
-    const groups: Array<{ color: string; colorCode: string; startIndex: number }> = [];
-    for (let i = 0; i < rows.value.length; i += processCount) {
-        const row = rows.value[i];
-        if (row) {
-            groups.push({ color: row.color, colorCode: row.colorCode, startIndex: i });
-        }
-    }
-    return groups;
+    return principalColors.value.map((pc, i) => ({
+        color: pc.color,
+        colorCode: pc.colorCode,
+        startIndex: i * PROCESS_TYPES.length,
+    }));
 });
 
 async function loadThreadParameterOptions(): Promise<void> {
@@ -586,8 +585,8 @@ onBeforeUnmount(() => {
                                     </TableCell>
                                     <TableCell class="py-1">
                                         <Input
-                                            v-model="rows[group.startIndex + procIdx].colorCode"
-                                            placeholder="Código color"
+                                            v-model="rows[group.startIndex + procIdx].threadCode"
+                                            placeholder="Código hilo"
                                             :disabled="isSaving"
                                         />
                                     </TableCell>

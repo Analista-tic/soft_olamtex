@@ -1169,9 +1169,9 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                 </div>
             </div>
 
-            <div class="relative mt-4 min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+            <div class="relative mt-4 min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min overflow-x-auto">
                 <TooltipProvider>
-                    <Table>
+                    <Table class="w-full min-w-min">
                         <TableHeader>
                             <TableRow>
                                 <TableHead class="w-12 text-center">
