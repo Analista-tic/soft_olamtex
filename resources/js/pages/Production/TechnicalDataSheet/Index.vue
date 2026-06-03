@@ -5,6 +5,7 @@ import Button from '@/components/ui/button/Button.vue';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { OpBasicInfo } from '@/domain/Production';
 import { fetchOpBasicInfo, fetchOpOptions, fetchOpRawMaterials, fetchOpRolls } from '@/domain/Production';
+import axios from 'axios';
 import type { BreadcrumbItem, Option } from '@/domain/shared';
 import type { ProductOperationPayload } from '@/domain/product-sheet/types';
 import { useListadoOperacionalEdit } from '@/composables/useListadoOperacionalEdit';
@@ -143,12 +144,11 @@ const isSampleOp = computed(() =>
 
 const isEditable = computed(() => String(selectedOp.value?.current_process ?? '').trim().toUpperCase() === 'I&D');
 
-/* ── Edición de listado operacional (solo muestras) ── */
+/* ── Edición de listado operacional en Ficha Técnica ── */
 const productSheetId = computed(() => selectedOp.value?.product_sheet_id ?? null);
 const refreshKey = ref(0);
 
 const {
-    editOpsOpen,
     catalogLoading,
     catalogSections,
     catalogOperations,
@@ -157,21 +157,83 @@ const {
     catalogPreparationGroups,
     catalogActions,
     catalogGarmentParts,
-    opsInitialData,
-    openEditOpsDialog: _openEditOpsDialog,
-    handleSaveOps: _handleSaveOps,
-} = useListadoOperacionalEdit({
-    onSaved: () => { refreshKey.value += 1; },
-});
+} = useListadoOperacionalEdit({});
+
+const editOpsOpen = ref(false);
+const opsInitialData = ref<import('@/composables/useListadoOperacionalEdit').ListadoDialogInitialData | null>(null);
 
 async function openEditOpsDialog() {
-    await _openEditOpsDialog(productSheetId.value);
+    if (!selectedOpId.value) return;
+    catalogLoading.value = true;
+    try {
+        const [catalogResult, opsResult] = await Promise.allSettled([
+            axios.get('/produccion/listados-operacionales/options'),
+            axios.get(`/produccion/ficha-tecnica/${selectedOpId.value}/listado-operacional-detallado`),
+        ]);
+
+        if (catalogResult.status === 'fulfilled') {
+            const d = catalogResult.value.data ?? {};
+            catalogSections.value = Array.isArray(d.sections) ? d.sections : [];
+            catalogOperations.value = Array.isArray(d.operations) ? d.operations : [];
+            catalogMachines.value = Array.isArray(d.machines) ? d.machines : [];
+            catalogFabricBases.value = Array.isArray(d.fabric_bases) ? d.fabric_bases : [];
+            catalogPreparationGroups.value = Array.isArray(d.preparation_groups) ? d.preparation_groups : [];
+            catalogActions.value = Array.isArray(d.actions) ? d.actions : [];
+            catalogGarmentParts.value = Array.isArray(d.garmentParts) ? d.garmentParts : (Array.isArray(d.garment_parts) ? d.garment_parts : []);
+        }
+
+        const rows: any[] =
+            opsResult.status === 'fulfilled' && Array.isArray(opsResult.value.data?.data)
+                ? opsResult.value.data.data
+                : [];
+
+        const sorted = [...rows].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+
+        opsInitialData.value = {
+            productSheetId: productSheetId.value,
+            operations: sorted.map((row) => ({
+                id: row.id ?? null,
+                section_id: row.operation_section_id ?? row.operation_section?.id ?? null,
+                operation_id: row.operation_id ?? row.operation?.id ?? null,
+                machine_id: row.machine?.id ?? null,
+                optimal_time: Number(row.sam_base ?? row.optimal_time ?? 0).toFixed(4),
+                quantity: row.quantity ?? 1,
+                fabric_base_id: null,
+                operator_efficiency_factor: Number(row.operator_efficiency_factor ?? 1) || 1,
+                grupo_preparacion: row.grupo_preparacion ?? null,
+                row_notes: row.notes ?? '',
+            })),
+            operatorEfficiencyFactor: 1,
+            notes: '',
+        };
+        editOpsOpen.value = true;
+    } catch (e) {
+        console.error('Error cargando listado operacional de ficha técnica:', e);
+    } finally {
+        catalogLoading.value = false;
+    }
 }
 
 async function handleSaveOps(payload: ProductOperationPayload[]) {
-    if (!productSheetId.value) return;
-    await _handleSaveOps(payload, productSheetId.value);
-    refreshKey.value += 1;
+    if (!selectedOpId.value) return;
+    try {
+        await axios.post(`/produccion/ficha-tecnica/${selectedOpId.value}/listado-operacional/sync`, {
+            operations: payload.map((p) => ({
+                id: p.id ?? null,
+                operation_id: p.operation_id,
+                sequence: p.sequence,
+                optimal_time: Number(p.optimal_time),
+                operator_efficiency_factor: p.operator_efficiency_factor,
+                machine_supplement_factor: p.machine_supplement_factor,
+                grupo_preparacion: p.grupo_preparacion ?? null,
+                notes: p.notes ?? null,
+            })),
+        });
+        editOpsOpen.value = false;
+        refreshKey.value += 1;
+    } catch (e: any) {
+        console.error('Error guardando listado operacional de ficha técnica:', e);
+    }
 }
 const displayedSecondReference = computed(() => {
     const op = selectedOp.value as
@@ -647,7 +709,7 @@ onBeforeUnmount(() => {
                         </div>
 
                         <TabsContent value="lista_operacional" class="mt-0">
-                            <div v-if="isSampleOp" class="mb-3 flex justify-end">
+                            <div v-if="selectedOp && isEditable" class="mb-3 flex justify-end">
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -721,13 +783,13 @@ onBeforeUnmount(() => {
         </div>
     </AppLayout>
 
-    <!-- Dialog de edición de listado operacional (solo muestras) -->
+    <!-- Dialog de edición de listado operacional (I&D) -->
     <ProductOperationListDialog
-        v-if="isSampleOp"
+        v-if="selectedOp"
         :open="editOpsOpen"
         mode="edit"
         :initial-data="opsInitialData"
-        :product-sheets="[]"
+        :product-sheets="selectedOp && productSheetId ? [{ id: productSheetId, fabric_base_id: selectedOp.fabric_base_id ?? null }] : []"
         :sections="catalogSections"
         :operations="catalogOperations"
         :machines="catalogMachines"

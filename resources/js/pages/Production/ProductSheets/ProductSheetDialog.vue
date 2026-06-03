@@ -283,6 +283,7 @@ const loadingGroupSelect = ref(false);
 const loadingBrandSelect = ref(false);
 const loadingWorldSelect = ref(false);
 const loadingFabricBaseSelect = ref(false);
+const fabricBaseInlineFactor = ref<number>(100);
 const loadingYarnBaseSelect = ref(false);
 const loadingCollectionSelect = ref(false);
 const loadingTemplateSelect = ref(false);
@@ -480,10 +481,31 @@ async function onCreateWorld(name: string): Promise<Option> {
 }
 
 async function onCreateFabricBase(name: string): Promise<Option> {
-    await createCatalogOption('fabric_bases', name);
-    const created = baseFabricOptions.value.find((o) => String(o.name).trim().toLowerCase() === name.trim().toLowerCase());
-    if (!created) throw new Error('No se pudo crear la base tela');
-    return { id: String(created.id), name: String(created.name) };
+    const nombre = name.trim().toUpperCase();
+    const factor = Number(fabricBaseInlineFactor.value ?? 100);
+
+    if (!nombre) throw new Error('El nombre de la base tela es obligatorio.');
+    if (!factor || factor <= 0) throw new Error('El factor debe ser mayor que cero.');
+
+    loadingFabricBaseSelect.value = true;
+    try {
+        const response = await axios.post('/produccion/operaciones/catalog-management/fabric-bases', {
+            nombre,
+            factor: factor / 100,
+            is_active: true,
+        });
+
+        const created = response.data?.data;
+        if (!created?.id) throw new Error('No se pudo crear la base tela.');
+
+        const newOption = { id: Number(created.id), name: String(created.nombre ?? nombre) };
+        baseFabricOptions.value = [...baseFabricOptions.value, newOption];
+        fabricBaseInlineFactor.value = 100;
+
+        return { id: String(newOption.id), name: newOption.name };
+    } finally {
+        loadingFabricBaseSelect.value = false;
+    }
 }
 
 async function onCreateYarnBase(name: string): Promise<Option> {
@@ -1855,7 +1877,30 @@ function handleClose() {
                                             @inline-opened="handleInlineOpened"
                                             :invalid="showFieldErrors && !!fieldErrors.fabric_base_id"
                                             :error-message="showFieldErrors ? fieldErrors.fabric_base_id : undefined"
-                                        />
+                                        >
+                                            <template #inline-extra="{ loading }">
+                                                <div class="mt-2 flex items-center gap-2">
+                                                    <div class="flex flex-1 flex-col gap-1">
+                                                        <label class="text-xs font-medium text-foreground">
+                                                            Factor <span class="text-red-500">*</span>
+                                                        </label>
+                                                        <div class="flex items-center gap-1">
+                                                            <input
+                                                                v-model.number="fabricBaseInlineFactor"
+                                                                type="number"
+                                                                step="1"
+                                                                min="1"
+                                                                :disabled="loading"
+                                                                class="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60"
+                                                                placeholder="100"
+                                                            />
+                                                            <span class="text-xs text-muted-foreground">%</span>
+                                                        </div>
+                                                        <p class="text-xs text-muted-foreground">100% = neutro</p>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </CreatableSelectField>
                                     </div>
                                     <div v-if="form.woven_product" class="flex flex-col gap-1">
                                         <div class="flex items-center gap-2">

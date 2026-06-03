@@ -191,6 +191,7 @@ export function mapOpBasicInfoDtoToOpBasicInfo(dto: OpBasicInfoDto): OpBasicInfo
         priority: toNullableText(dto.priority),
         baseYarn,
         product_sheet_id: dto.product_sheet_id ?? null,
+        fabric_base_id: (dto as any).fabric_base_id ?? null,
         productType: toNullableText(dto.productType),
         isWovenProduct: Boolean(dto.isWovenProduct),
         current_process: toNullableText((dto as { current_process?: unknown }).current_process),

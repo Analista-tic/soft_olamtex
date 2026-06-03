@@ -12,7 +12,7 @@ class SettingService
         'groups' => ['groups', 'grupos', 'grupo', 'group'],
         'brands' => ['brands', 'marcas', 'marca', 'brand'],
         'worlds' => ['worlds', 'mundos', 'mundo', 'world'],
-        'fabric_bases' => ['fabric_bases', 'bases_de_tela', 'bases', 'base', 'base_fabrics'],
+        // fabric_bases migrado a tabla fabric_bases — ya no se gestiona desde settings
         'yarn_bases' => ['yarn_bases', 'bases_hilaza', 'bases_hilo'],
         'sizes' => ['sizes', 'tallas', 'talla'],
         'lines' => ['lines', 'lineas', 'linea'],

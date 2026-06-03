@@ -7,7 +7,11 @@ use App\Helpers\SeasonParser;
 use App\Http\Controllers\Controller;
 use App\Models\Production\ProductionOrder;
 use App\Models\Production\ProductOperationList;
+use App\Models\Production\TechnicalSheet;
+use App\Models\Production\TechnicalSheetOperation;
+use App\Enums\EstatusOperacionOrden;
 use App\Models\Textil\FabricRoll;
+use App\Services\Production\FabricBaseService;
 use App\Services\Production\OperationSectionService;
 use App\Services\Production\ProductionOrderService;
 use App\Services\Production\TechnicalDataSheetPdfService;
@@ -43,6 +47,7 @@ class TechnicalDataSheetController extends Controller
 
     public function __construct(
         private SettingService $settingService,
+        private FabricBaseService $fabricBaseService,
         private OperationSectionService $sectionService,
         private ProductionOrderService $productionOrderService,
         private TechnicalSheetService $technicalSheetService,
@@ -158,21 +163,23 @@ class TechnicalDataSheetController extends Controller
         $groups       = $this->settingService->getCatalogOptions('groups')->keyBy('id');
         $brands       = $this->settingService->getCatalogOptions('brands')->keyBy('id');
         $worlds       = $this->settingService->getCatalogOptions('worlds')->keyBy('id');
-        $fabricBases  = $this->settingService->getCatalogOptions('fabric_bases')->keyBy('id');
+        $fabricBases  = $this->fabricBaseService->options()->keyBy('id');
         $yarnBases    = $this->settingService->getCatalogOptions('yarn_bases')->keyBy('id');
 
         $destination  = $destinations->get($order->destination_id);
         $productSheet = $order->productSheet;
 
         $section = $group = $brand = $world = $base = $baseYarn = null;
+        $fabricBaseId = null;
 
         if ($productSheet) {
-            $section  = $productSheet->section_id   ? $sections->get($productSheet->section_id)       : null;
-            $group    = $productSheet->group_id     ? $groups->get($productSheet->group_id)           : null;
-            $brand    = $productSheet->brand_id     ? $brands->get($productSheet->brand_id)           : null;
-            $world    = $productSheet->world_id     ? $worlds->get($productSheet->world_id)           : null;
-            $base     = $productSheet->fabric_base_id ? $fabricBases->get($productSheet->fabric_base_id) : null;
-            $baseYarn = $productSheet->yarn_base_id ? $yarnBases->get($productSheet->yarn_base_id)     : null;
+            $section      = $productSheet->section_id   ? $sections->get($productSheet->section_id)       : null;
+            $group        = $productSheet->group_id     ? $groups->get($productSheet->group_id)           : null;
+            $brand        = $productSheet->brand_id     ? $brands->get($productSheet->brand_id)           : null;
+            $world        = $productSheet->world_id     ? $worlds->get($productSheet->world_id)           : null;
+            $fabricBaseId = $productSheet->fabric_base_id;
+            $base         = $fabricBaseId ? $fabricBases->get($fabricBaseId) : null;
+            $baseYarn     = $productSheet->yarn_base_id ? $yarnBases->get($productSheet->yarn_base_id)     : null;
         }
 
         $season = $order->season;
@@ -205,7 +212,8 @@ class TechnicalDataSheetController extends Controller
             'priority'         => $priority,
             'brand'            => $brand['name'] ?? null,
             'world'            => $world['name'] ?? null,
-            'base'             => $base['name'] ?? null,
+            'base'             => $base['nombre'] ?? $base['name'] ?? null,
+            'fabric_base_id'   => $fabricBaseId,
             'baseYarn'         => $baseYarn['name'] ?? null,
             'season'           => $seasonDisplay,
             'sizes'            => $this->normalizeSizes($productSheet?->sizes),
@@ -386,6 +394,111 @@ class TechnicalDataSheetController extends Controller
         $productSheet->update(['operational_list_id' => (int) $validated['list_id']]);
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Sincroniza el listado operacional de la Ficha Técnica (technical_sheet_operations).
+     * Solo permitido en estado I&D. Los cambios NO afectan product_sheet_operations.
+     */
+    public function syncOperationalList(Request $request, int $opId): JsonResponse
+    {
+        $order = ProductionOrder::with('productSheet')->findOrFail($opId);
+
+        if (strtoupper(trim((string) ($order->current_process ?? ''))) !== 'I&D') {
+            return response()->json(['message' => 'El listado operacional solo se puede editar en estado I&D.'], 403);
+        }
+
+        $validated = $request->validate([
+            'operations'                              => ['required', 'array', 'min:1'],
+            'operations.*.id'                         => ['nullable', 'integer'],
+            'operations.*.operation_id'               => ['required', 'integer', 'exists:operations,id'],
+            'operations.*.sequence'                   => ['required', 'integer', 'min:1'],
+            'operations.*.optimal_time'               => ['required', 'numeric', 'min:0'],
+            'operations.*.operator_efficiency_factor' => ['required', 'numeric', 'between:0.1,5'],
+            'operations.*.machine_supplement_factor'  => ['required', 'numeric', 'min:1'],
+            'operations.*.grupo_preparacion'          => ['nullable', 'string', 'max:100'],
+            'operations.*.notes'                      => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $technicalSheet = TechnicalSheet::firstOrCreate(
+            ['production_order_id' => $opId],
+            ['status' => TechnicalSheet::STATUS_DRAFT],
+        );
+
+        $quantityLote = max(1, (int) ($order->units ?? 1));
+
+        DB::transaction(function () use ($technicalSheet, $validated, $quantityLote, $order) {
+            $existingOps = TechnicalSheetOperation::where('technical_sheet_id', $technicalSheet->id)
+                ->get()->keyBy('id');
+
+            $processedIds = [];
+
+            foreach ($validated['operations'] as $data) {
+                $operationId       = (int) $data['operation_id'];
+                $sequence          = (int) $data['sequence'];
+                $samBase           = (float) $data['optimal_time'];
+                $opEfficiency      = (float) $data['operator_efficiency_factor'];
+                $machineSupplement = (float) $data['machine_supplement_factor'];
+
+                $operation    = \App\Models\Production\Operation::find($operationId);
+                $machineId    = $operation?->machine_id_reference ?? null;
+                $fabricFactor = $this->resolveFabricFactor($order);
+
+                $samTotalUnitario  = round($samBase * $machineSupplement * $fabricFactor * $opEfficiency, 4);
+                $samTotalLote      = round($samTotalUnitario * $quantityLote, 4);
+
+                $itemId = isset($data['id']) && $data['id'] !== null ? (int) $data['id'] : null;
+
+                if ($itemId && $existingOps->has($itemId)) {
+                    $item = $existingOps->get($itemId);
+                    $item->update([
+                        'sequence'                   => $sequence,
+                        'operation_id'               => $operationId,
+                        'machine_id'                 => $machineId,
+                        'sam_base'                   => $samBase,
+                        'operator_efficiency_factor' => $opEfficiency,
+                        'machine_supplement_factor'  => $machineSupplement,
+                        'fabric_base_factor'         => $fabricFactor,
+                        'sam_total_unitario'         => $samTotalUnitario,
+                        'sam_total_operacion'        => $samTotalUnitario,
+                        'sam_total_lote'             => $samTotalLote,
+                    ]);
+                    $processedIds[] = $itemId;
+                } else {
+                    $newItem = TechnicalSheetOperation::create([
+                        'technical_sheet_id'         => $technicalSheet->id,
+                        'sequence'                   => $sequence,
+                        'operation_id'               => $operationId,
+                        'machine_id'                 => $machineId,
+                        'quantity'                   => 1,
+                        'sam_base'                   => $samBase,
+                        'operator_efficiency_factor' => $opEfficiency,
+                        'machine_supplement_factor'  => $machineSupplement,
+                        'fabric_base_factor'         => $fabricFactor,
+                        'sam_total_unitario'         => $samTotalUnitario,
+                        'sam_total_operacion'        => $samTotalUnitario,
+                        'sam_total_lote'             => $samTotalLote,
+                        'quantity_progressed'        => 0,
+                        'status'                     => EstatusOperacionOrden::PENDIENTE,
+                    ]);
+                    $processedIds[] = (int) $newItem->id;
+                }
+            }
+
+            TechnicalSheetOperation::where('technical_sheet_id', $technicalSheet->id)
+                ->whereNotIn('id', $processedIds)
+                ->forceDelete();
+        });
+
+        return response()->json(['message' => 'Listado operacional de ficha técnica sincronizado correctamente.']);
+    }
+
+    private function resolveFabricFactor(ProductionOrder $order): float
+    {
+        $fabricBaseId = $order->productSheet?->fabric_base_id ?? null;
+        if ($fabricBaseId === null) return 1.0;
+
+        return $this->fabricBaseService->getFactorById((int) $fabricBaseId);
     }
 
     /**

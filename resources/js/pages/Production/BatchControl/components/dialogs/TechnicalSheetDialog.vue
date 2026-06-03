@@ -189,7 +189,7 @@ const dialogProductSheets = computed(() => {
         }
     }
 
-    const fallbackFabricBaseId = opsInitialData.value?.operations?.[0]?.fabric_base_id ?? null;
+    const fallbackFabricBaseId = opDetail.value?.fabric_base_id ?? opsInitialData.value?.operations?.[0]?.fabric_base_id ?? null;
     const isSample = isSampleOp.value;
     const fallbackReference = displayedSecondReference.value || '-';
 

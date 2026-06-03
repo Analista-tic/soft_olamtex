@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Production;
 use App\Http\Controllers\Controller;
 use App\Models\Production\Machine;
 use App\Models\Production\Operation;
+use App\Models\Production\ProductOperationList;
 use App\Models\Production\ProductSheet;
 use App\Models\Settings\AuditLog;
 use App\Services\Production\OperationCatalogService;
@@ -14,6 +15,8 @@ use App\Services\Production\ProductOperationListService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -378,6 +381,58 @@ class OperationController extends Controller
     }
 
     /**
+     * Sábanas activas donde se usa esta operación
+     * GET /produccion/operaciones/{operation}/referencias-activas
+     */
+    public function activeProductSheets(Operation $operation): JsonResponse
+    {
+        $sheets = ProductOperationList::query()
+            ->where('operation_id', $operation->id)
+            ->with('productSheet:id,sample_reference,product_reference,version,flat_sketch_path,is_enabled')
+            ->get()
+            ->map(fn($pol) => $pol->productSheet)
+            ->filter(fn($ps) => $ps && $ps->is_enabled)
+            ->unique('id')
+            ->values()
+            ->map(fn($ps) => [
+                'id'             => $ps->id,
+                'reference'      => $ps->sample_reference ?? $ps->product_reference ?? "#{$ps->id}",
+                'version'        => $ps->version ?? 1,
+                'flat_sketch_url' => $ps->flat_sketch_path ? $this->resolveFlatSketchUrl($ps->flat_sketch_path) : null,
+            ]);
+
+        return response()->json([
+            'data'  => $sheets,
+            'total' => $sheets->count(),
+        ]);
+    }
+
+    private function resolveFlatSketchUrl(string $rawPath): ?string
+    {
+        $path = str_replace('\\', '/', trim($rawPath));
+        if (preg_match('/^https?:\/\//i', $path) || preg_match('/^(data:|blob:)/i', $path)) {
+            return $path;
+        }
+        $normalized = ltrim($path, '/');
+        if (Str::startsWith($normalized, 'storage/')) {
+            $normalized = Str::after($normalized, 'storage/');
+        }
+        $candidates = [$normalized];
+        if (Str::startsWith($normalized, 'product-sheets/flat-sketches/')) {
+            $candidates[] = Str::replaceFirst('product-sheets/flat-sketches/', 'product_sheets/', $normalized);
+        }
+        if (Str::startsWith($normalized, 'product_sheets/')) {
+            $candidates[] = Str::replaceFirst('product_sheets/', 'product-sheets/flat-sketches/', $normalized);
+        }
+        foreach ($candidates as $candidate) {
+            if ($candidate !== '' && Storage::disk('public')->exists($candidate)) {
+                return route('storage.file.show', ['path' => $candidate]);
+            }
+        }
+        return null;
+    }
+
+    /**
      * Auto-vincula una operación al listado operacional de la sábana seleccionada.
      * Si ya existe un registro con la misma operación, máquina y sección, no duplica.
      * Retorna true si se creó la vinculación, false si ya existía o no pudo crearse.
@@ -391,7 +446,7 @@ class OperationController extends Controller
         int $quantity,
     ): bool {
         // Verificar si ya existe la combinación en el listado
-        $exists = \App\Models\Production\ProductOperationList::where('product_sheet_id', $productSheetId)
+        $exists = ProductOperationList::where('product_sheet_id', $productSheetId)
             ->where('operation_id', $operation->id)
             ->where('machine_id', $machineId)
             ->whereHas('operation', fn($q) => $q->where('section_id', $sectionId))
@@ -407,7 +462,7 @@ class OperationController extends Controller
         $machineSupplement = $machine ? (float) ($machine->supplement_factor ?? 1.0) : 1.0;
 
         // Calcular secuencia: siguiente disponible para esta ficha
-        $maxSequence = \App\Models\Production\ProductOperationList::where('product_sheet_id', $productSheetId)
+        $maxSequence = ProductOperationList::where('product_sheet_id', $productSheetId)
             ->max('sequence') ?? 0;
 
         try {

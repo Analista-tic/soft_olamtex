@@ -10,6 +10,7 @@ use App\Services\Production\OperationService;
 use App\Services\Production\OperationCatalogService;
 use App\Services\Production\MachineService;
 use App\Services\Production\OperationSectionService;
+use App\Services\Production\FabricBaseService;
 use App\Services\Production\ProductSheetService;
 use App\Services\Settings\SettingService;
 use App\Http\Requests\Production\StoreProductOperationListRequest;
@@ -30,6 +31,7 @@ class ProductOperationListController extends Controller
         protected OperationSectionService $sectionService,
         protected ProductSheetService $sheetService,
         protected SettingService $settingService,
+        protected FabricBaseService $fabricBaseService,
     ) {
     }
 
@@ -50,7 +52,7 @@ class ProductOperationListController extends Controller
             'operations' => $this->operationService->options(),
             'machines' => $this->machineService->options(),
             'productSheets' => $this->sheetService->optionsForOperationalList(50),
-            'fabric_bases' => $this->settingService->getFabricBasesWithFactor()->values()->all(),
+            'fabric_bases' => $this->fabricBaseService->options()->values()->all(),
             'actions' => $this->actionOptions(),
             'garmentParts' => $this->garmentPartOptions(),
         ]);
@@ -67,7 +69,7 @@ class ProductOperationListController extends Controller
             'operations' => $this->operationService->options(),
             'machines' => $this->machineService->options(),
             'productSheets' => $this->sheetService->optionsForOperationalList(50),
-            'fabric_bases' => $this->settingService->getFabricBasesWithFactor()->values()->all(),
+            'fabric_bases' => $this->fabricBaseService->options()->values()->all(),
             'preparation_groups' => $this->settingService->getCatalogOptions('preparation_groups')->pluck('name')->values()->all(),
             'actions' => $this->actionOptions(),
             'garmentParts' => $this->garmentPartOptions(),

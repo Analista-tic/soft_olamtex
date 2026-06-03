@@ -39,6 +39,8 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
         ->name('ficha-tecnica.operational-list-options');
     Route::post('ficha-tecnica/{opId}/listado-operacional', [TechnicalDataSheetController::class, 'assignOperationalList'])
         ->name('ficha-tecnica.assign-operational-list');
+    Route::post('ficha-tecnica/{opId}/listado-operacional/sync', [TechnicalDataSheetController::class, 'syncOperationalList'])
+        ->name('ficha-tecnica.sync-operational-list');
     Route::get('ficha-tecnica/{opId}/procesos', [TechnicalDataSheetController::class, 'processesSummary'])
         ->name('ficha-tecnica.processes-summary');
     Route::post('ficha-tecnica/{opId}/procesos', [TechnicalDataSheetController::class, 'saveProcesses'])
@@ -269,6 +271,9 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
         Route::get('/{operation}/audit-log', [OperationController::class, 'auditLog'])
             ->middleware('permission:ver listados operacionales|ver sabana productos')
             ->name('audit-log');
+        Route::get('/{operation}/referencias-activas', [OperationController::class, 'activeProductSheets'])
+            ->middleware('permission:ver listados operacionales|ver sabana productos')
+            ->name('referencias-activas');
     });
 
     // Máquinas

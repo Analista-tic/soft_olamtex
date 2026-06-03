@@ -2,6 +2,7 @@
 
 namespace App\Services\Production;
 
+use App\Models\Production\FabricBase;
 use App\Models\Production\Operation;
 use App\Models\Production\Machine;
 use App\Models\Production\ProductOperationList;
@@ -128,24 +129,45 @@ class ProductOperationListService
         $data['fabric_base_factor'] = $this->resolveFabricBaseFactor($sheet->fabric_base_id);
     }
 
-    /**
-     * Factor de base tela desde el catálogo (ligado al tipo de tela, no editable por usuario).
-     */
     private function resolveFabricBaseFactor(int|string|null $fabricBaseId): float
     {
         if ($fabricBaseId === null || $fabricBaseId === '') {
             return 1.0;
         }
 
-        $option = $this->settingService->getCatalogOptionById('fabric_bases', $fabricBaseId);
-        if (!$option) {
-            return 1.0;
-        }
-
-        $factor = $option['factor'] ?? $option['factor_base'] ?? $option['factor_base_tela'] ?? null;
-        $value = is_numeric($factor) ? (float) $factor : 1.0;
+        $fb = FabricBase::find((int) $fabricBaseId);
+        $value = (float) ($fb?->factor ?? 1.0);
 
         return $value > 0 ? $value : 1.0;
+    }
+
+    /**
+     * Recalcula fabric_base_factor en todas las operaciones activas de una ficha
+     * cuando cambia su fabric_base_id. Registra el cambio en historial.
+     */
+    public function recalculateFabricFactorForSheet(int $productSheetId, int|string|null $newFabricBaseId): void
+    {
+        $newFactor = $this->resolveFabricBaseFactor($newFabricBaseId);
+
+        $operations = $this->model
+            ->newQuery()
+            ->where('product_sheet_id', $productSheetId)
+            ->get();
+
+        foreach ($operations as $operation) {
+            if (abs((float) $operation->fabric_base_factor - $newFactor) < 0.00001) {
+                continue;
+            }
+
+            $before = $operation->getAttributes();
+
+            $operation->fabric_base_factor   = $newFactor;
+            $operation->sam_total_unitario    = $operation->calculateSamTotalUnitario();
+            $operation->sam_total_operacion   = $operation->calculateSamTotalOperacion();
+            $operation->save();
+
+            $this->recordChangeIfNeeded($operation, $before, 'Cambio de base tela en ficha técnica');
+        }
     }
 
     /**

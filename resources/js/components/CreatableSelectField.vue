@@ -768,6 +768,7 @@ defineExpose({ closeInlineFromParent });
                                             @keydown.enter.prevent="submitInlineCreate"
                                             @keydown.esc.prevent="cancelInlineCreate"
                                         />
+                                        <slot name="inline-extra" :loading="inlineLoading" />
                                         <p v-if="inlineError" class="mt-1 text-xs text-destructive">
                                             {{ inlineError }}
                                         </p>
