@@ -25,9 +25,45 @@ const props = defineProps<{
     saveError?: string | null;
 }>();
 
-const activeSizes = computed(() =>
-    props.sizes && props.sizes.length > 0 ? props.sizes : [...CUT_SIZES],
-);
+const SIZE_ORDER = [
+    'XS',
+    'S',
+    'M',
+    'L',
+    'XL',
+    '2XL',
+    'U',
+    '2',
+    '3',
+    '4',
+    '5',
+    '6',
+    '8',
+    '10',
+    '12',
+    '14',
+    '16',
+    '28',
+    '30',
+    '32',
+    '34',
+    '36',
+    '38',
+];
+
+function sortSizes(sizeNames: string[]): string[] {
+    const normalized = sizeNames.map((size) => String(size ?? '').trim().toUpperCase()).filter(Boolean);
+    const unique = Array.from(new Set(normalized));
+    const known = SIZE_ORDER.filter((size) => unique.includes(size));
+    const unknown = unique.filter((size) => !SIZE_ORDER.includes(size)).sort((a, b) => a.localeCompare(b, 'es'));
+
+    return [...known, ...unknown];
+}
+
+const activeSizes = computed(() => {
+    const source = props.sizes && props.sizes.length > 0 ? props.sizes : [...CUT_SIZES];
+    return sortSizes(source);
+});
 
 const emit = defineEmits<{
     (e: 'update:open', v: boolean): void;
