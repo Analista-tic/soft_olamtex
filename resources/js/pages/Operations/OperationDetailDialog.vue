@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { ChevronDown, ChevronRight, Pencil } from 'lucide-vue-next';
 import axios from 'axios';
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 type OperationRecord = {
     id: number;
@@ -65,6 +65,10 @@ const referencesLoading = ref(false);
 const referencesLoaded = ref(false);
 const references = ref<ReferenceSheet[]>([]);
 const lightboxUrl = ref<string | null>(null);
+const lightboxOpen = computed({
+    get: () => lightboxUrl.value !== null,
+    set: (v) => { if (!v) lightboxUrl.value = null; },
+});
 
 watch(
     () => props.operation,
@@ -236,14 +240,14 @@ async function toggleReferences() {
                             <div v-else-if="referencesLoaded && references.length === 0" class="py-4 text-center text-sm text-muted-foreground">
                                 Esta operación no está en ninguna sábana activa.
                             </div>
-                            <div v-else class="grid grid-cols-2 gap-3">
+                            <div v-else class="grid grid-cols-2 gap-2 sm:grid-cols-5">
                                 <div
                                     v-for="sheet in references"
                                     :key="sheet.id"
                                     class="overflow-hidden rounded-md border border-border"
                                 >
                                     <div
-                                        class="flex aspect-square items-center justify-center overflow-hidden bg-muted/30"
+                                        class="flex h-24 items-center justify-center overflow-hidden bg-muted/30"
                                         :class="sheet.flat_sketch_url ? 'cursor-zoom-in' : ''"
                                         @click="sheet.flat_sketch_url && (lightboxUrl = sheet.flat_sketch_url)"
                                     >
@@ -275,22 +279,15 @@ async function toggleReferences() {
     </Dialog>
 
     <!-- Lightbox -->
-    <Teleport to="body">
-        <div
-            v-if="lightboxUrl"
-            class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80"
-            @click.self="lightboxUrl = null"
-        >
-            <button
-                class="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
-                @click="lightboxUrl = null"
-            >
-                ✕
-            </button>
-            <img
-                :src="lightboxUrl"
-                class="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
-            />
-        </div>
-    </Teleport>
+    <Dialog v-model:open="lightboxOpen">
+        <DialogContent class="max-w-xl">
+            <div class="flex items-center justify-center py-2">
+                <img
+                    v-if="lightboxUrl"
+                    :src="lightboxUrl"
+                    class="max-h-[70vh] w-auto object-contain"
+                />
+            </div>
+        </DialogContent>
+    </Dialog>
 </template>
