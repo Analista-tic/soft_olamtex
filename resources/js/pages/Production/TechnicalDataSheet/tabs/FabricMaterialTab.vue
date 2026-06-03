@@ -1324,9 +1324,9 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                     Sin resultados para "{{ rollTableSearch }}".
                                 </div>
                                 <table v-else class="w-full text-sm">
-                                    <thead class="sticky top-0 z-10 border-b border-border bg-muted/60">
+                                    <thead class="sticky top-0 z-10 border-b border-border bg-muted/60 text-center">
                                         <tr>
-                                            <th class="w-10 px-2 py-1.5 text-left">
+                                            <th class="w-10 px-2 py-1.5 text-center">
                                                 <input
                                                     type="checkbox"
                                                     class="h-4 w-4 cursor-pointer rounded border-input accent-accent"
@@ -1335,13 +1335,13 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                                     @change="toggleAllRolls"
                                                 />
                                             </th>
-                                            <th class="px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rollo</th>
-                                            <th class="px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ubicación</th>
-                                            <th class="hidden px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground md:table-cell">Ancho</th>
-                                            <th class="px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Disp. parcial</th>
-                                            <th class="px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Disp. real</th>
+                                            <th class="px-2 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rollo</th>
+                                            <th class="px-2 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ubicación</th>
+                                            <th class="hidden px-2 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground md:table-cell">Ancho</th>
+                                            <th class="px-2 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">Disp. parcial</th>
+                                            <th class="px-2 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">Disp. real</th>
                                             <th class="px-2 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">Metros</th>
-                                            <th class="px-2 py-1.5 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Subtotal</th>
+                                            <th class="px-2 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">Subtotal</th>
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-border/30">
@@ -1356,7 +1356,7 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                             ]"
                                         >
                                             <!-- Checkbox -->
-                                            <td class="w-10 px-2 py-1.5">
+                                            <td class="w-10 px-2 py-1.5 text-center">
                                                 <input
                                                     type="checkbox"
                                                     class="h-4 w-4 cursor-pointer rounded border-input accent-accent"
@@ -1365,41 +1365,39 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                                 />
                                             </td>
                                             <!-- Rollo -->
-                                            <td class="px-2 py-1.5">
-                                                <div class="flex items-center gap-1.5">
+                                            <td class="px-2 py-1.5 text-center">
+                                                <div class="flex items-center justify-center gap-1.5">
                                                     <div
                                                         v-if="row.roll.colorCode"
                                                         class="h-3 w-3 rounded-full border border-border/30 shrink-0"
                                                         :style="{ backgroundColor: row.roll.colorCode }"
+                                                        :title="row.roll.color ?? 'Sin color'"
                                                     />
-                                                    <div class="flex flex-col gap-0">
-                                                        <span class="font-mono text-xs font-semibold text-foreground">{{ row.roll.label }}</span>
-                                                        <span v-if="row.roll.color" class="text-xs text-muted-foreground">{{ row.roll.color }}</span>
-                                                    </div>
+                                                    <span class="font-mono text-xs font-semibold text-foreground">{{ row.roll.label }}</span>
                                                 </div>
                                             </td>
                                             <!-- Ubicación -->
-                                            <td class="px-2 py-1.5">
+                                            <td class="px-2 py-1.5 text-center">
                                                 <span v-if="row.roll.location" class="inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{{ row.roll.location }}</span>
                                                 <span v-else class="text-xs text-muted-foreground/40">—</span>
                                             </td>
                                             <!-- Ancho -->
-                                            <td class="hidden px-2 py-1.5 md:table-cell">
+                                            <td class="hidden px-2 py-1.5 text-center md:table-cell">
                                                 <span class="text-xs text-muted-foreground">{{ row.roll.widthCm ? row.roll.widthCm + 'cm' : '—' }}</span>
                                             </td>
                                             <!-- Disponible parcial -->
-                                            <td class="px-2 py-1.5">
+                                            <td class="px-2 py-1.5 text-center">
                                                 <span class="tabular-nums text-xs text-muted-foreground">{{ formatMeters(row.roll.availableMeters ?? 0) }}</span>
                                             </td>
                                             <!-- Disponible real -->
-                                            <td class="px-2 py-1.5">
+                                            <td class="px-2 py-1.5 text-center">
                                                 <span
                                                     class="tabular-nums text-xs"
                                                     :class="isRollOverAllocated(row.rollId, rowMetersValue(row.rollId)) ? 'font-semibold text-destructive' : 'text-muted-foreground'"
                                                 >{{ formatMeters(realAvailableForRoll(row.rollId)) }}</span>
                                             </td>
                                             <!-- Asignar metros -->
-                                            <td class="px-2 py-1">
+                                            <td class="px-2 py-1 text-center">
                                                 <input
                                                     :data-meter="row.rollId"
                                                     type="number"
@@ -1417,9 +1415,9 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                                 />
                                             </td>
                                             <!-- Subtotal -->
-                                            <td class="px-2 py-1.5 text-right">
+                                            <td class="px-2 py-1.5 text-center">
                                                 <span
-                                                    class="tabular-nums text-sm font-semibold"
+                                                    class="tabular-nums text-sm font-semibold inline-flex items-center justify-center"
                                                     :class="rowMetersValue(row.rollId) > 0 ? 'text-foreground' : 'text-muted-foreground/20'"
                                                 >
                                                     {{ rowMetersValue(row.rollId) > 0 ? formatCOP(rowMetersValue(row.rollId) * toNumber(row.roll.pricePerMeter)) : '—' }}
@@ -1431,13 +1429,13 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                             </div>
 
                             <!-- ── Footer ──────────────────────────────────── -->
-                            <div class="flex items-center justify-end border-t border-border bg-card px-3 py-2">
+                            <div class="flex items-center justify-center border-t border-border bg-card px-3 py-2">
                                 <!-- Subtotal tela -->
-                                <div class="text-right">
+                                <div class="text-center">
                                     <div class="text-xl font-bold tabular-nums text-foreground">{{ formatMeters(lineProgrammedMeters(activeLine)) }}</div>
                                     <div class="text-xs text-muted-foreground">
-                                        <span v-if="lineCost(activeLine) > 0" class="font-semibold text-foreground">{{ formatCOP(lineCost(activeLine)) }}</span>
-                                        <span v-else>subtotal tela</span>
+                                        <span v-if="lineCost(activeLine) > 0" class="font-semibold text-foreground block text-center">{{ formatCOP(lineCost(activeLine)) }}</span>
+                                        <span v-else class="block text-center">subtotal tela</span>
                                     </div>
                                 </div>
                             </div>

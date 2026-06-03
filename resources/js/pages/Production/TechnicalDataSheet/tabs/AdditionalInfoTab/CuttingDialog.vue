@@ -80,6 +80,7 @@ const props = defineProps<{
     drawingUrl?: string | null;
     productSheetId?: number | null;
     opId?: string | number | null;
+    readonly?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -139,6 +140,7 @@ function initializeSizes(): void {
 type SizeField = 'trazoPrincipal' | 'liquidacion' | 'espiga' | 'totalUnidades';
 
 function updateSizeField(size: string, field: SizeField, value: string | number | boolean | Array<string | number | boolean> | null | undefined): void {
+    if (props.readonly) return;
     const raw = Array.isArray(value) ? value[0] : value;
     const parsed = Number(raw);
     const num = Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
@@ -149,6 +151,7 @@ function updateSizeField(size: string, field: SizeField, value: string | number 
 }
 
 function updateGeneralNotes(value: string): void {
+    if (props.readonly) return;
     emit('update:data', { ...localData.value, generalNotes: normalizeText(value) || value });
 }
 
@@ -158,6 +161,7 @@ function clearLocalMessages(): void {
 }
 
 function handleSave(): void {
+    if (props.readonly) return;
     emit('save', 'cutting');
 }
 
@@ -311,7 +315,7 @@ watch(
 
             <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-4 py-3">
                 <Button type="button" variant="outline" class="h-8 rounded-full px-5 text-xs" @click="handleClose">Cerrar</Button>
-                <Button type="button" class="h-8 rounded-full px-5 text-xs" :disabled="savingSection === 'cutting'" @click="handleSave">
+                <Button v-if="!readonly" type="button" class="h-8 rounded-full px-5 text-xs" :disabled="savingSection === 'cutting'" @click="handleSave">
                     {{ savingSection === 'cutting' ? 'Guardando...' : 'Guardar' }}
                 </Button>
             </DialogFooter>

@@ -96,6 +96,8 @@ const drawingUrl = computed(() => {
 });
 const drawingLoadFailed = ref(false);
 
+const isEditable = computed(() => String(opDetail.value?.current_process ?? '').trim().toUpperCase() === 'I&D');
+
 /* ── Edición de operaciones (solo muestras) — usa composable ── */
 const refreshKey = ref(0);
 
@@ -486,6 +488,7 @@ watch(
                                 :raw-materials-info="rawMaterialsInfo"
                                 :drawing-url="drawingUrl"
                                 :op-basic-info="opDetail"
+                                :readonly="!isEditable"
                             />
                         </TabsContent>
 

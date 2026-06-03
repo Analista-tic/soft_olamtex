@@ -748,6 +748,7 @@ onBeforeUnmount(() => {
                                 :raw-materials-info="rawMaterialsInfo"
                                 :drawing-url="drawingUrl"
                                 :op-basic-info="selectedOp"
+                                :readonly="!isEditable"
                             />
                         </TabsContent>
 

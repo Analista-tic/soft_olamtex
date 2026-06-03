@@ -49,6 +49,7 @@ const props = defineProps<{
     rawMaterialsInfo?: RawMaterialsInfoRow[] | null;
     drawingUrl?: string | null;
     opBasicInfo?: OpBasicInfo | null;
+    readonly?: boolean;
 }>();
 
 const isLoading = ref(false);
@@ -418,6 +419,8 @@ function closeStampingDialog(): void {
     activeStampingDialogSection.value = 'stamping';
 }
 
+const isReadonly = computed(() => Boolean(props.readonly));
+
 watch(
     () => props.opId,
     () => {
@@ -467,6 +470,7 @@ watch(
                 <button
                     v-if="sectionVisibility.cutting"
                     type="button"
+                    :disabled="isReadonly"
                     class="group flex flex-col rounded-2xl border border-border bg-background p-5 text-left shadow-sm transition-all duration-200 hover:border-primary/30 hover:shadow-md"
                     @click="openSectionDialog('cutting')"
                 >
@@ -497,6 +501,7 @@ watch(
                 <button
                     v-if="sectionVisibility.stamping"
                     type="button"
+                    :disabled="isReadonly"
                     class="group flex flex-col rounded-2xl border border-border bg-background p-5 text-left shadow-sm transition-all duration-200 hover:border-primary/30 hover:shadow-md"
                     @click="openSectionDialog('stamping')"
                 >
@@ -527,6 +532,7 @@ watch(
                 <button
                     v-if="sectionVisibility.laundry"
                     type="button"
+                    :disabled="isReadonly"
                     class="group flex flex-col rounded-2xl border border-border bg-background p-5 text-left shadow-sm transition-all duration-200 hover:border-primary/30 hover:shadow-md"
                     @click="openSectionDialog('laundry')"
                 >
@@ -567,6 +573,7 @@ watch(
             :raw-materials-info="effectiveRawMaterialsInfo"
             :drawing-url="drawingUrl ?? null"
             :product-sheet-id="opBasicInfo?.product_sheet_id ?? null"
+            :readonly="isReadonly"
             @update:data="updateCuttingData"
             @close="isCuttingDialogOpen = false"
             @save="handleSaveAndClose"
@@ -583,6 +590,7 @@ watch(
             :stamping-process-guide="stampingProcessGuide"
             :drawing-url="drawingUrl ?? null"
             :saving-section="savingSection"
+            :view-only="isReadonly"
             @update:data="updateStampingData"
             @close="closeStampingDialog"
             @save="handleSaveAndClose"
