@@ -2,6 +2,7 @@
 
 namespace App\Services\Inventory;
 
+use App\Models\Textil\FabricRoll;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
@@ -24,12 +25,22 @@ class ItemInventoryService
 
     protected function buildQuery(array $filters)
     {
+        $rollSubquery = DB::table('fabric_rolls as fr')
+            ->selectRaw('COALESCE(fr.item_id, pdi.item_id) AS item_id')
+            ->selectRaw('SUM(fr.quantity - fr.actual_output) AS roll_quantity')
+            ->selectRaw('SUM(fr.partial_output) AS reserved_quantity')
+            ->leftJoin('purchase_document_items as pdi', 'pdi.id', '=', 'fr.purchase_document_item_id')
+            ->whereNull('fr.deleted_at')
+            ->where('fr.approval_status', FabricRoll::APPROVAL_APPROVED)
+            ->groupByRaw('COALESCE(fr.item_id, pdi.item_id)');
+
         $query = DB::table('warehouse_items')
             ->join('items', 'items.id', '=', 'warehouse_items.item_id')
             ->join('warehouses', 'warehouses.id', '=', 'warehouse_items.warehouse_id')
             ->leftJoin('category_sub_groups',
                        'category_sub_groups.id', '=',
                        'items.category_sub_group_id')
+            ->leftJoinSub($rollSubquery, 'roll_inv', 'roll_inv.item_id', '=', 'items.id')
             ->select([
                 'warehouse_items.id',
                 'items.id as item_id',
@@ -40,10 +51,31 @@ class ItemInventoryService
                 'warehouses.name as warehouse_name',
                 'category_sub_groups.id as category_sub_group_id',
                 'category_sub_groups.category_group_id',
-                'warehouse_items.quantity',
+                DB::raw("
+                    CASE WHEN LOWER(COALESCE(category_sub_groups.name,'')) LIKE '%tela%'
+                         THEN COALESCE(roll_inv.roll_quantity, 0)
+                         ELSE warehouse_items.quantity
+                    END AS quantity
+                "),
+                DB::raw("
+                    CASE WHEN LOWER(COALESCE(category_sub_groups.name,'')) LIKE '%tela%'
+                         THEN COALESCE(roll_inv.reserved_quantity, 0)
+                         ELSE 0
+                    END AS reserved_quantity
+                "),
+                DB::raw("(LOWER(COALESCE(category_sub_groups.name,'')) LIKE '%tela%') AS is_fabric"),
                 DB::raw('COALESCE(warehouse_items.weighted_average_price, 0) as average_cost'),
                 DB::raw('COALESCE(warehouse_items.last_unit_cost, warehouse_items.weighted_average_price, 0) as last_unit_cost'),
-                DB::raw('COALESCE(warehouse_items.total_cost, warehouse_items.quantity * COALESCE(warehouse_items.weighted_average_price, 0), 0) as total_cost'),
+                DB::raw("
+                    COALESCE(
+                        CASE WHEN LOWER(COALESCE(category_sub_groups.name,'')) LIKE '%tela%'
+                             THEN COALESCE(roll_inv.roll_quantity, 0) * COALESCE(warehouse_items.weighted_average_price, 0)
+                             ELSE warehouse_items.total_cost
+                        END,
+                        warehouse_items.quantity * COALESCE(warehouse_items.weighted_average_price, 0),
+                        0
+                    ) AS total_cost
+                "),
                 'warehouse_items.stock_min as min_quantity',
                 'warehouse_items.stock_max as max_quantity',
                 'warehouse_items.source_type',
@@ -63,7 +95,7 @@ class ItemInventoryService
             });
         }
 
-        if (array_key_exists('status', $filters) && $filters['status'] !== '') {
+        if (\array_key_exists('status', $filters) && $filters['status'] !== '') {
             $status = filter_var(
                 $filters['status'],
                 FILTER_VALIDATE_BOOLEAN,
@@ -75,7 +107,18 @@ class ItemInventoryService
         }
 
         $query->where('items.deleted_at', null);
-        $query->where('warehouse_items.quantity', '<>', 0);
+
+        // Para ítems normales: excluir si quantity = 0.
+        // Para telas: excluir si no hay metros disponibles en rollos.
+        $query->where(function ($q) {
+            $q->where(function ($inner) {
+                $inner->whereRaw("LOWER(COALESCE(category_sub_groups.name,'')) NOT LIKE '%tela%'")
+                      ->where('warehouse_items.quantity', '<>', 0);
+            })->orWhere(function ($inner) {
+                $inner->whereRaw("LOWER(COALESCE(category_sub_groups.name,'')) LIKE '%tela%'")
+                      ->whereRaw("COALESCE(roll_inv.roll_quantity, 0) <> 0");
+            });
+        });
 
         return $query;
     }

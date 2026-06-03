@@ -688,6 +688,26 @@ class BatchControlController extends Controller
             }
         }
 
+        // Build uid→{largoTrazo, largoLiq, promTrazo, traceUid} map from raw materials snapshot
+        // (se hace aquí para reutilizarlo tanto en stored como en fresh)
+        $rawMaterialMap = [];
+        if ($sheet) {
+            $rawSnapshot = $sheet->rawMaterialsSnapshot()->first();
+            if ($rawSnapshot && is_array($rawSnapshot->rows)) {
+                foreach ($rawSnapshot->rows as $row) {
+                    $uid = $row['uid'] ?? null;
+                    if ($uid) {
+                        $rawMaterialMap[(string) $uid] = [
+                            'largo_trazo' => is_numeric($row['largoTrazo'] ?? null) ? (float) $row['largoTrazo'] : null,
+                            'largo_liq'   => is_numeric($row['largoLiq'] ?? null) ? (float) $row['largoLiq'] : null,
+                            'trace_uid'   => isset($row['traceUid']) && $row['traceUid'] !== '' ? (string) $row['traceUid'] : null,
+                            'prom_trazo'  => is_numeric($row['promTrazo'] ?? null) ? (float) $row['promTrazo'] : null,
+                        ];
+                    }
+                }
+            }
+        }
+
         $stored = is_array($order->cut_fabric_consumption) ? $order->cut_fabric_consumption : [];
         $storedLines = is_array($stored['lines'] ?? null) ? array_values($stored['lines']) : [];
 
@@ -739,7 +759,7 @@ class BatchControlController extends Controller
                 }
             }
 
-            $enrichedStoredLines = array_map(function (array $line) use ($rollIdByTechnicalLineId, $rollMetaById, $rollMetaByNumber): array {
+            $enrichedStoredLines = array_map(function (array $line) use ($rollIdByTechnicalLineId, $rollMetaById, $rollMetaByNumber, $rawMaterialMap): array {
                 $technicalRollId = trim((string) ($line['technical_roll_id'] ?? ''));
                 $rollCode = trim((string) ($line['roll_code'] ?? ''));
 
@@ -781,37 +801,100 @@ class BatchControlController extends Controller
                     $line['roll_total_meters'] = $rollMeta['quantity'];
                 }
 
+                // ── Sincronizar métricas de trazo desde rawMaterialsSnapshot ──
+                // (puede haber cambiado el largo_trazo, largo_liq, prom_trazo en la ficha)
+                $rawMaterialUid = trim((string) ($line['technical_roll_id'] ?? ''));
+                // El technical_roll_id en stored lines apunta al id de la línea en el snapshot de rollos,
+                // que a su vez tiene rawMaterialUid. Buscamos por trazo_uid si está disponible.
+                // Si la línea ya tiene trazo_uid, actualizamos métricas desde rawMaterialMap.
+                $trazoUid = trim((string) ($line['trazo_uid'] ?? ''));
+                if ($trazoUid !== '') {
+                    // Encontrar la entrada en rawMaterialMap cuyo trace_uid coincida
+                    foreach ($rawMaterialMap as $mapEntry) {
+                        if (isset($mapEntry['trace_uid']) && $mapEntry['trace_uid'] === $trazoUid) {
+                            $line['largo_trazo'] = $mapEntry['largo_trazo'];
+                            $line['largo_liq']   = $mapEntry['largo_liq'];
+                            $line['prom_trazo']  = $mapEntry['prom_trazo'];
+                            break;
+                        }
+                    }
+                }
+
                 return $line;
             }, $storedLines);
 
+            // ── Sincronizar rollos nuevos de la ficha técnica ──
+            // Agregar cualquier rollo del snapshot actual que no esté ya en las stored lines.
+            $storedTechnicalRollIds = array_flip(
+                array_filter(
+                    array_map(fn (array $l) => trim((string) ($l['technical_roll_id'] ?? '')), $enrichedStoredLines),
+                    fn (string $id) => $id !== '',
+                )
+            );
+
+            $newLinesFromSnapshot = [];
+            foreach ($rollLines as $snapshotLine) {
+                $technicalLineId = isset($snapshotLine['id']) ? trim((string) $snapshotLine['id']) : '';
+                if ($technicalLineId === '' || isset($storedTechnicalRollIds[$technicalLineId])) {
+                    continue; // ya está en stored lines o sin id
+                }
+
+                $widthCm        = is_numeric($snapshotLine['widthCm'] ?? null) ? (float) $snapshotLine['widthCm'] : null;
+                $rawType        = strtoupper(trim((string) ($snapshotLine['type'] ?? '')));
+                $rollId         = isset($snapshotLine['rollId']) ? (int) $snapshotLine['rollId'] : null;
+                $rawMaterialUid = (string) ($snapshotLine['rawMaterialUid'] ?? '');
+                $largos         = $rawMaterialMap[$rawMaterialUid] ?? ['largo_trazo' => null, 'largo_liq' => null, 'trace_uid' => null, 'prom_trazo' => null];
+                $rollMeta       = $rollId ? ($rollMetaById[$rollId] ?? null) : null;
+
+                $fabricReference = trim((string) ($snapshotLine['fabricName'] ?? ''));
+                $lineColor    = isset($snapshotLine['color']) ? trim((string) $snapshotLine['color']) : null;
+                $lineColor    = $lineColor !== '' ? $lineColor : null;
+                $lineColors   = isset($snapshotLine['colors']) ? trim((string) $snapshotLine['colors']) : null;
+                $lineColors   = $lineColors !== '' ? $lineColors : null;
+                $lineColorCode = isset($snapshotLine['colorCode']) ? trim((string) $snapshotLine['colorCode']) : null;
+                $lineColorCode = $lineColorCode !== '' ? $lineColorCode : null;
+                $lineLocation  = isset($snapshotLine['location']) ? trim((string) $snapshotLine['location']) : null;
+                $lineLocation  = $lineLocation !== '' ? $lineLocation : null;
+
+                $newLinesFromSnapshot[] = [
+                    'id'                 => (string) Str::uuid(),
+                    'technical_roll_id'  => $technicalLineId,
+                    'roll_code'          => $rollMeta['roll_number'] ?? null,
+                    'fabric_reference'   => $fabricReference,
+                    'color'              => $lineColor ?? $lineColors ?? ($rollMeta['internal_color_name'] ?? null) ?? $this->inferColorFromText($fabricReference),
+                    'color_code'         => $lineColorCode ?? ($rollMeta['internal_color_code'] ?? null),
+                    'fabric_type'        => in_array($rawType, ['PRINCIPAL', 'SECUNDARIA'], true) ? $rawType : null,
+                    'location'           => $lineLocation ?? ($rollMeta['location'] ?? null),
+                    'roll_width_m'       => $widthCm !== null ? round($widthCm / 100, 4) : null,
+                    'meters_per_roll'    => is_numeric($snapshotLine['programmedMeters'] ?? null) ? (float) $snapshotLine['programmedMeters'] : null,
+                    'roll_total_meters'  => $rollMeta !== null && isset($rollMeta['quantity']) ? $rollMeta['quantity'] : null,
+                    'trazo_uid'          => $largos['trace_uid'],
+                    'prom_trazo'         => $largos['prom_trazo'],
+                    'largo_trazo'        => $largos['largo_trazo'],
+                    'largo_liq'          => $largos['largo_liq'],
+                    'layers_fabric'      => null,
+                    'layers_liquidation' => null,
+                    'layers_herringbone' => null,
+                    'total_consumption'  => null,
+                    'restante'           => null,
+                    'ultimo_descargue'   => false,
+                    'retazo_1'           => null,
+                    'retazo_2'           => null,
+                    'retazo_3'           => null,
+                ];
+            }
+
+            $mergedLines = array_merge($enrichedStoredLines, $newLinesFromSnapshot);
+
             return response()->json([
                 'data' => [
-                    'lines'        => $enrichedStoredLines,
+                    'lines'        => $mergedLines,
                     'curves'       => $stored['curves'] ?? null,
                     'largo_espiga' => $stored['largo_espiga'] ?? null,
                     'sheet_curves' => $sheetCurves,
                     'sizes'        => $sizesList,
                 ],
             ]);
-        }
-
-        // Build uid→{largoTrazo, largoLiq} map from raw materials snapshot
-        $rawMaterialMap = [];
-        if ($sheet) {
-            $rawSnapshot = $sheet->rawMaterialsSnapshot()->first();
-            if ($rawSnapshot && is_array($rawSnapshot->rows)) {
-                foreach ($rawSnapshot->rows as $row) {
-                    $uid = $row['uid'] ?? null;
-                    if ($uid) {
-                        $rawMaterialMap[$uid] = [
-                            'largo_trazo' => is_numeric($row['largoTrazo'] ?? null) ? (float) $row['largoTrazo'] : null,
-                            'largo_liq'   => is_numeric($row['largoLiq'] ?? null) ? (float) $row['largoLiq'] : null,
-                            'trace_uid'   => isset($row['traceUid']) && $row['traceUid'] !== '' ? (string) $row['traceUid'] : null,
-                            'prom_trazo'  => is_numeric($row['promTrazo'] ?? null) ? (float) $row['promTrazo'] : null,
-                        ];
-                    }
-                }
-            }
         }
 
         $mappedFromTechnicalData = array_map(function (array $line) use ($rawMaterialMap, $rollMetaById): array {

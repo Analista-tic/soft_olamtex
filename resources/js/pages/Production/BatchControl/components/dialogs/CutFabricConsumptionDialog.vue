@@ -35,7 +35,6 @@ const emit = defineEmits<{
     (e: 'update:curves', v: CutCurves): void;
     (e: 'update:largoEspiga', v: number | null): void;
     (e: 'save'): void;
-    (e: 'reset'): void;
     (e: 'export-csv'): void;
     (e: 'close'): void;
     (e: 'clear-error'): void;
@@ -639,7 +638,6 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
                 <Button type="button" variant="outline" size="sm" :disabled="isSaving || isLoading" @click="emit('export-csv')">Exportar CSV</Button>
                 <template v-if="!viewOnly">
                     <Separator orientation="vertical" class="h-6" />
-                    <Button type="button" variant="outline" size="sm" :disabled="isSaving || isLoading" @click="emit('reset')">Limpiar</Button>
                     <Button type="button" size="sm" :disabled="isSaving || isLoading" @click="emit('save')">
                         <Check class="mr-1.5 h-3.5 w-3.5" />
                         {{ isSaving ? 'Guardando…' : 'Guardar registro' }}

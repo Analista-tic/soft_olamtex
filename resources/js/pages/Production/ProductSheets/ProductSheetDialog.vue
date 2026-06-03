@@ -667,6 +667,15 @@ const DEFAULT_SIZE_OPTIONS = [
     '38',
 ];
 
+function sortSizeNames(sizeNames: string[]): string[] {
+    const normalized = sizeNames.map((size) => normalizeSizeLabel(size)).filter(Boolean);
+    const unique = Array.from(new Set(normalized));
+    const known = DEFAULT_SIZE_OPTIONS.filter((size) => unique.includes(size));
+    const unknown = unique.filter((size) => !DEFAULT_SIZE_OPTIONS.includes(size)).sort((a, b) => a.localeCompare(b, 'es'));
+
+    return [...known, ...unknown];
+}
+
 function normalizeSizeLabel(value: unknown): string {
     return String(value ?? '')
         .trim()
@@ -704,7 +713,7 @@ function extractSizeNames(rawValue: unknown): string[] {
         result.push(name);
     }
 
-    return result;
+    return sortSizeNames(result);
 }
 
 function buildSizeGroupsFromNames(sizeNames: string[]): Record<string, string[]> {
@@ -714,7 +723,7 @@ function buildSizeGroupsFromNames(sizeNames: string[]): Record<string, string[]>
 }
 
 function applySizeCatalog(sizeNames: string[]) {
-    const effectiveSizes = sizeNames.length > 0 ? sizeNames : DEFAULT_SIZE_OPTIONS;
+    const effectiveSizes = sortSizeNames(sizeNames.length > 0 ? sizeNames : DEFAULT_SIZE_OPTIONS);
     sizeGroups.value = buildSizeGroupsFromNames(effectiveSizes);
 
     const parsed = parseBooleanRecord(form.value.sizes);

@@ -147,6 +147,7 @@ export type AvailableFabricRoll = {
     supplier: string | null;
     widthCm: number | null;
     availableMeters: number | null;
+    realAvailableMeters: number | null;
     pricePerMeter: number | null;
     location: string | null;
 };
@@ -844,6 +845,7 @@ export async function fetchAvailableFabricRolls(
             supplier: roll.provider ? String(roll.provider) : null,
             widthCm: parseWidth(roll.width),
             availableMeters: parseMeters(roll.partial_availability ?? roll.real_availability),
+            realAvailableMeters: parseMeters(roll.real_availability),
             pricePerMeter: roll.pricePerMeter ?? roll.price_per_meter ?? null,
             location: roll.location ? String(roll.location) : null,
         };

@@ -148,9 +148,70 @@ class ItemService
     {
         $payload = $this->buildCreatePayload($data);
         $item = Item::create($payload);
-        $this->syncWarehouses($item, $warehouses);
+        $this->syncWarehousesOnCreate($item, $warehouses);
 
         return $item;
+    }
+
+    protected function syncWarehousesOnCreate(Item $item, array $warehouses): void
+    {
+        if (empty($warehouses)) {
+            return;
+        }
+
+        DB::transaction(function () use ($item, $warehouses) {
+            foreach ($warehouses as $warehouse) {
+                $warehouseId = (int) ($warehouse['warehouse_id'] ?? 0);
+                if ($warehouseId <= 0) {
+                    continue;
+                }
+
+                $quantity  = (float) ($warehouse['quantity']  ?? 0);
+                $unitPrice = isset($warehouse['unit_price']) && $warehouse['unit_price'] !== null
+                    ? (float) $warehouse['unit_price']
+                    : null;
+                $date = $warehouse['initial_date'] ?? now()->toDateString();
+
+                WarehouseItem::updateOrCreate(
+                    ['item_id' => $item->id, 'warehouse_id' => $warehouseId],
+                    [
+                        'quantity'   => 0,
+                        'stock_min'  => $warehouse['stock_min']  ?? 0,
+                        'stock_max'  => $warehouse['stock_max']  ?? 0,
+                        'location_id' => $warehouse['location_id'] ?? null,
+                        'source_type' => InventoryMovementService::INITIAL_BALANCE_SOURCE_TYPE,
+                    ]
+                );
+
+                if ($quantity <= 0) {
+                    continue;
+                }
+
+                if ($unitPrice === null || $unitPrice <= 0) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'warehouses' => ['El costo unitario inicial es obligatorio cuando la cantidad es mayor a 0.'],
+                    ]);
+                }
+
+                $this->inventoryMovementService->createInitialBalanceMovement([
+                    'item_id'          => $item->id,
+                    'warehouse_id'     => $warehouseId,
+                    'quantity'         => $quantity,
+                    'unit_price'       => $unitPrice,
+                    'date'             => $date,
+                    'source_type'      => InventoryMovementService::INITIAL_BALANCE_SOURCE_TYPE,
+                    'source_reference' => 'manual_creation',
+                    'notes'            => 'Saldo inicial ingresado al crear el ítem manualmente',
+                ]);
+
+                WarehouseItem::where('item_id', $item->id)
+                    ->where('warehouse_id', $warehouseId)
+                    ->update([
+                        'stock_min' => $warehouse['stock_min'] ?? 0,
+                        'stock_max' => $warehouse['stock_max'] ?? 0,
+                    ]);
+            }
+        });
     }
 
     public function update(Item $item, array $data, ?array $warehouses = null): Item
@@ -989,12 +1050,20 @@ class ItemService
             }
 
             $locationId = $warehouse['location_id'] ?? null;
+            $unitPrice = isset($warehouse['unit_price']) && is_numeric($warehouse['unit_price'])
+                ? (float) $warehouse['unit_price']
+                : null;
+            $initialDate = isset($warehouse['initial_date']) && $warehouse['initial_date'] !== ''
+                ? (string) $warehouse['initial_date']
+                : null;
             $warehouses[] = [
                 'warehouse_id' => (int) $warehouseId,
-                'quantity' => is_numeric($warehouse['quantity'] ?? null) ? (float) $warehouse['quantity'] : 0.0,
-                'stock_min' => is_numeric($warehouse['stock_min'] ?? null) ? (float) $warehouse['stock_min'] : 0.0,
-                'stock_max' => is_numeric($warehouse['stock_max'] ?? null) ? (float) $warehouse['stock_max'] : 0.0,
-                'location_id' => $locationId !== null && $locationId !== '' ? (int) $locationId : null,
+                'quantity'     => is_numeric($warehouse['quantity'] ?? null) ? (float) $warehouse['quantity'] : 0.0,
+                'stock_min'    => is_numeric($warehouse['stock_min'] ?? null) ? (float) $warehouse['stock_min'] : 0.0,
+                'stock_max'    => is_numeric($warehouse['stock_max'] ?? null) ? (float) $warehouse['stock_max'] : 0.0,
+                'location_id'  => $locationId !== null && $locationId !== '' ? (int) $locationId : null,
+                'unit_price'   => $unitPrice,
+                'initial_date' => $initialDate,
             ];
         }
 

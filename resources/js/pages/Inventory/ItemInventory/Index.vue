@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import ServerPagination from '@/components/common/ServerPagination.vue';
 import StatusBadge from '@/components/common/StatusBadge.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -22,6 +24,8 @@ type InventoryViewItem = {
     item_name: string;
     reference?: string | null;
     quantity: number;
+    reserved_quantity: number;
+    is_fabric: boolean;
     status: boolean;
     average_cost: number;
     total_cost: number;
@@ -268,7 +272,26 @@ onMounted(() => {
                             <TableRow v-for="item in items" :key="item.id">
                                 <TableCell class="text-start">{{ item.item_name }}</TableCell>
                                 <TableCell class="text-center">{{ item.reference ?? '-' }}</TableCell>
-                                <TableCell class="text-right font-medium tabular-nums">{{ formatQuantity(item.quantity) }}</TableCell>
+                                <TableCell class="text-right font-medium tabular-nums">
+                                    <div class="inline-flex items-center justify-end gap-2">
+                                        <span>{{ formatQuantity(item.quantity) }}</span>
+                                        <template v-if="item.is_fabric">
+                                            <TooltipProvider v-if="item.reserved_quantity > 0">
+                                                <Tooltip>
+                                                    <TooltipTrigger as-child>
+                                                        <span>
+                                                            <TableStatusBadge label="Tela" tone="blue" />
+                                                        </span>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        {{ formatQuantity(item.reserved_quantity) }} metros reservados a producción
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                            <TableStatusBadge v-else label="Tela" tone="blue" />
+                                        </template>
+                                    </div>
+                                </TableCell>
                                 <TableCell class="text-center">
                                     <StatusBadge :status="item.status" />
                                 </TableCell>

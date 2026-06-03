@@ -33,6 +33,7 @@ type DisplayRoll = {
     location: string | null;
     widthCm: number | null;
     availableMeters: number | null;
+    realAvailableMeters: number | null;
     pricePerMeter: number;
     color: string | null;
     colorCode: string | null;
@@ -136,6 +137,17 @@ function generateUid(): string {
 
 function toNumber(v: unknown): number {
     const n = Number(v);
+    return Number.isFinite(n) ? Math.max(0, n) : 0;
+}
+
+function toDecimalNumber(v: unknown): number {
+    if (typeof v === 'number') return Number.isFinite(v) ? Math.max(0, v) : 0;
+
+    const normalized = String(v ?? '')
+        .trim()
+        .replace(/,/g, '.');
+
+    const n = Number(normalized);
     return Number.isFinite(n) ? Math.max(0, n) : 0;
 }
 
@@ -626,7 +638,7 @@ function removeLineFromTrazo(trazoUid: string, lineUid: string): void {
 
 function updateTrazoMetric(trazoUid: string, field: 'promTrazo' | 'largoTrazo' | 'largoLiq', value: unknown): void {
     const trazo = trazos.value.find((t) => t.uid === trazoUid);
-    if (trazo) trazo[field] = toNumber(value);
+    if (trazo) trazo[field] = toDecimalNumber(value);
 }
 
 function updateTrazoFabricType(trazoUid: string, value: Option['id'] | Option['id'][] | null | undefined): void {
@@ -705,6 +717,7 @@ async function loadRollsForLine(line: FabricLine): Promise<void> {
                 location: r.location,
                 widthCm: r.widthCm,
                 availableMeters: r.availableMeters,
+                realAvailableMeters: r.realAvailableMeters,
                 pricePerMeter: resolvePricePerMeter(null, r.pricePerMeter),
                 color: r.color,
                 colorCode: r.colorCode,
@@ -851,7 +864,7 @@ async function loadAll(): Promise<void> {
                 const itemId = roll.fabricItemId;
                 if (!itemId) continue;
                 const list = availableByItem.get(itemId) ?? [];
-                list.push({ rollId: roll.id, rollCode: roll.roll, label: roll.label, fabricName: roll.fabricName, location: roll.location, widthCm: roll.widthCm, availableMeters: roll.availableMeters, pricePerMeter: resolvePricePerMeter(null, roll.pricePerMeter), color: roll.color, colorCode: roll.colorCode, supplier: roll.supplier });
+                list.push({ rollId: roll.id, rollCode: roll.roll, label: roll.label, fabricName: roll.fabricName, location: roll.location, widthCm: roll.widthCm, availableMeters: roll.availableMeters, realAvailableMeters: roll.realAvailableMeters, pricePerMeter: resolvePricePerMeter(null, roll.pricePerMeter), color: roll.color, colorCode: roll.colorCode, supplier: roll.supplier });
                 availableByItem.set(itemId, list);
             }
             for (const [itemId, list] of availableByItem.entries()) {
@@ -892,11 +905,11 @@ async function loadAll(): Promise<void> {
                         uid: generateUid(),
                         lineId: sl.id ?? null,
                         metersProgrammed: sl.programmedMeters != null ? String(sl.programmedMeters) : '',
-                        roll: { rollId: String(sl.rollId), rollCode: avail?.roll ?? catalog?.roll ?? sl.consecutive ?? null, label: avail?.label ?? catalog?.label ?? String(sl.rollId), fabricName: avail?.fabricName ?? catalog?.fabricName ?? sl.fabricName ?? String(rm.tela ?? ''), location: avail?.location ?? catalog?.location ?? null, widthCm: avail?.widthCm ?? catalog?.widthCm ?? sl.widthCm ?? null, availableMeters: avail?.availableMeters ?? catalog?.availableMeters ?? sl.availableMeters ?? null, pricePerMeter: resolvePricePerMeter(sl.pricePerMeter, avail?.pricePerMeter ?? catalog?.pricePerMeter), color: avail?.color ?? catalog?.color ?? sl.color ?? null, colorCode: avail?.colorCode ?? catalog?.colorCode ?? sl.colorCode ?? null, supplier: avail?.supplier ?? catalog?.supplier ?? sl.supplier ?? null },
+                        roll: { rollId: String(sl.rollId), rollCode: avail?.roll ?? catalog?.roll ?? sl.consecutive ?? null, label: avail?.label ?? catalog?.label ?? String(sl.rollId), fabricName: avail?.fabricName ?? catalog?.fabricName ?? sl.fabricName ?? String(rm.tela ?? ''), location: avail?.location ?? catalog?.location ?? null, widthCm: avail?.widthCm ?? catalog?.widthCm ?? sl.widthCm ?? null, availableMeters: avail?.availableMeters ?? catalog?.availableMeters ?? sl.availableMeters ?? null, realAvailableMeters: avail?.realAvailableMeters ?? catalog?.realAvailableMeters ?? null, pricePerMeter: resolvePricePerMeter(sl.pricePerMeter, avail?.pricePerMeter ?? catalog?.pricePerMeter), color: avail?.color ?? catalog?.color ?? sl.color ?? null, colorCode: avail?.colorCode ?? catalog?.colorCode ?? sl.colorCode ?? null, supplier: avail?.supplier ?? catalog?.supplier ?? sl.supplier ?? null },
                     };
                 });
             const itemRolls: DisplayRoll[] = itemId
-                ? availableRolls.filter((r) => r.fabricItemId === itemId).map((r) => ({ rollId: r.id, rollCode: r.roll, label: r.label, fabricName: r.fabricName, location: r.location, widthCm: r.widthCm, availableMeters: r.availableMeters, pricePerMeter: resolvePricePerMeter(null, r.pricePerMeter), color: r.color, colorCode: r.colorCode, supplier: r.supplier })).sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }))
+                ? availableRolls.filter((r) => r.fabricItemId === itemId).map((r) => ({ rollId: r.id, rollCode: r.roll, label: r.label, fabricName: r.fabricName, location: r.location, widthCm: r.widthCm, availableMeters: r.availableMeters, realAvailableMeters: r.realAvailableMeters, pricePerMeter: resolvePricePerMeter(null, r.pricePerMeter), color: r.color, colorCode: r.colorCode, supplier: r.supplier })).sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }))
                 : [];
             trazo.lines.push({ uid: lineUid, telaItemId: itemId, tela: String(rm.tela ?? '').trim(), supplierId: toNullableNumber(rm.supplierId), lastSupplierName: rm.lastSupplierName ? String(rm.lastSupplierName).trim() : null, lastUnitPriceCop: toNullableNumber(rm.lastUnitPriceCop), lastPurchaseDate: null, lastInvoiceNumber: null, ancho: toNullableNumber(rm.ancho), anchoUnit: rm.anchoUnit === 'cm' || rm.anchoUnit === 'm' ? rm.anchoUnit : null, loadingMeta: false, loadingRolls: false, rollSearch: '', rollsOpen: true, availableRolls: itemRolls, assignedRolls });
         }
@@ -1145,7 +1158,10 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                     <span class="whitespace-nowrap font-medium text-muted-foreground">Prom. trazo</span>
                                     <Input
                                         :model-value="activeTrazo.promTrazo === 0 ? '' : String(activeTrazo.promTrazo)"
-                                        type="number" min="0" step="0.01" placeholder="0"
+                                        type="text"
+                                        inputmode="decimal"
+                                        default-value="number"
+                                        placeholder="0"
                                         class="h-8 w-[72px] text-sm"
                                         :disabled="isSaving"
                                         @update:model-value="(v) => updateTrazoMetric(activeTrazo!.uid, 'promTrazo', v)"
@@ -1155,7 +1171,10 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                     <span class="whitespace-nowrap font-medium text-muted-foreground">Largo trazo</span>
                                     <Input
                                         :model-value="activeTrazo.largoTrazo === 0 ? '' : String(activeTrazo.largoTrazo)"
-                                        type="number" min="0" step="0.01" placeholder="0"
+                                        type="text"
+                                        inputmode="decimal"
+                                        default-value="number"
+                                        placeholder="0"
                                         class="h-8 w-[72px] text-sm"
                                         :disabled="isSaving"
                                         @update:model-value="(v) => updateTrazoMetric(activeTrazo!.uid, 'largoTrazo', v)"
@@ -1165,7 +1184,10 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                     <span class="whitespace-nowrap font-medium text-muted-foreground">Largo Liquidación</span>
                                     <Input
                                         :model-value="activeTrazo.largoLiq === 0 ? '' : String(activeTrazo.largoLiq)"
-                                        type="number" min="0" step="0.01" placeholder="0"
+                                        type="text"
+                                        inputmode="decimal"
+                                        default-value="number"
+                                        placeholder="0"
                                         class="h-8 w-[72px] text-sm"
                                         :disabled="isSaving"
                                         @update:model-value="(v) => updateTrazoMetric(activeTrazo!.uid, 'largoLiq', v)"
@@ -1333,7 +1355,7 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                             <th class="px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rollo</th>
                                             <th class="px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ubicación</th>
                                             <th class="hidden px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground md:table-cell">Ancho</th>
-                                            <th class="px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Disponible</th>
+                                            <th class="px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Disp. parcial / real</th>
                                             <th class="px-2 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">Asignar metros</th>
                                             <th class="px-2 py-1.5 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Subtotal</th>
                                         </tr>
@@ -1382,10 +1404,16 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                                             :style="{ width: `${availabilityPercent(row.rollId, row.roll.availableMeters)}%` }"
                                                         />
                                                     </div>
-                                                    <span
-                                                        class="shrink-0 tabular-nums text-xs"
-                                                        :class="isRollOverAllocated(row.rollId, rowMetersValue(row.rollId)) ? 'font-semibold text-destructive' : 'text-muted-foreground'"
-                                                    >{{ formatMeters(realAvailableForRoll(row.rollId)) }}</span>
+                                                    <div class="flex flex-col leading-tight">
+                                                        <span
+                                                            class="shrink-0 tabular-nums text-xs"
+                                                            :class="isRollOverAllocated(row.rollId, rowMetersValue(row.rollId)) ? 'font-semibold text-destructive' : 'text-muted-foreground'"
+                                                        >{{ formatMeters(realAvailableForRoll(row.rollId)) }}</span>
+                                                        <span
+                                                            v-if="row.roll.realAvailableMeters !== null"
+                                                            class="shrink-0 tabular-nums text-[10px] text-muted-foreground/60"
+                                                        >{{ formatMeters(row.roll.realAvailableMeters) }} real</span>
+                                                    </div>
                                                 </div>
                                             </td>
                                             <!-- Asignar metros -->

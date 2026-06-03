@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 class InventoryMovementService
 {
     private const MIGRATION_SOURCE_TYPE = 'item_excel_import';
+    public const INITIAL_BALANCE_SOURCE_TYPE = 'initial_balance';
 
     /**
      * Crear un nuevo movimiento de inventario y calcular precio ponderado automáticamente.
@@ -223,6 +224,8 @@ class InventoryMovementService
             throw new \InvalidArgumentException('No se encontró un usuario responsable para registrar el saldo inicial de inventario.');
         }
 
+        $sourceType = $data['source_type'] ?? self::MIGRATION_SOURCE_TYPE;
+
         return $this->createMovement([
             'item_id' => $itemId,
             'warehouse_id' => $warehouseId,
@@ -230,7 +233,7 @@ class InventoryMovementService
             'quantity' => $quantity,
             'unit_price' => $unitPrice,
             'date' => $data['date'] ?? now()->toDateString(),
-            'source_type' => self::MIGRATION_SOURCE_TYPE,
+            'source_type' => $sourceType,
             'source_id' => null,
             'source_reference' => $data['source_reference'] ?? null,
             'notes' => $data['notes'] ?? 'Saldo inicial importado desde plantilla de items',

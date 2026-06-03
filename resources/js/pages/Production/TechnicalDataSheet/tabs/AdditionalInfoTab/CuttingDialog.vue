@@ -35,6 +35,41 @@ function normalizeText(value: string | null | undefined): string | null {
     return clean === '' ? null : clean;
 }
 
+const SIZE_ORDER = [
+    'XS',
+    'S',
+    'M',
+    'L',
+    'XL',
+    '2XL',
+    'U',
+    '2',
+    '3',
+    '4',
+    '5',
+    '6',
+    '8',
+    '10',
+    '12',
+    '14',
+    '16',
+    '28',
+    '30',
+    '32',
+    '34',
+    '36',
+    '38',
+];
+
+function sortSizes(sizeNames: string[]): string[] {
+    const normalized = sizeNames.map((size) => String(size ?? '').trim().toUpperCase()).filter(Boolean);
+    const unique = Array.from(new Set(normalized));
+    const known = SIZE_ORDER.filter((size) => unique.includes(size));
+    const unknown = unique.filter((size) => !SIZE_ORDER.includes(size)).sort((a, b) => a.localeCompare(b, 'es'));
+
+    return [...known, ...unknown];
+}
+
 const props = defineProps<{
     open: boolean;
     data: CuttingData;
@@ -71,7 +106,7 @@ const totalUnidades = computed(() => localData.value.sizes.reduce((acc, r) => ac
 
 // Construye la curva de tallas desde las tallas del producto, preservando valores guardados
 function buildSizes(): SizeUnit[] {
-    const source = Array.isArray(props.sizes) ? props.sizes : [];
+    const source = sortSizes(Array.isArray(props.sizes) ? props.sizes : []);
     const existingMap = new Map(localData.value.sizes.map((r) => [r.size, r]));
     return source.map((size) => {
         const existing = existingMap.get(size);
@@ -86,13 +121,17 @@ function buildSizes(): SizeUnit[] {
 }
 
 function initializeSizes(): void {
-    const source = Array.isArray(props.sizes) ? props.sizes : [];
+    const source = sortSizes(Array.isArray(props.sizes) ? props.sizes : []);
     if (source.length === 0) return;
-    // Sincroniza siempre para reflejar cambios en las tallas del producto
+    // Sincroniza siempre para reflejar cambios en las tallas del producto, preservando orden
     const built = buildSizes();
-    const currentKeys = localData.value.sizes.map((r) => r.size).join(',');
-    const builtKeys = built.map((r) => r.size).join(',');
-    if (currentKeys !== builtKeys) {
+    
+    // Verifica si el orden o cantidad de tallas cambió
+    const needsUpdate = 
+        localData.value.sizes.length !== built.length ||
+        localData.value.sizes.some((size, idx) => size.size !== built[idx]?.size);
+    
+    if (needsUpdate) {
         emit('update:data', { ...localData.value, sizes: built });
     }
 }

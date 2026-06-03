@@ -225,6 +225,8 @@ type WarehouseStockEntry = {
     stock_min: number;
     stock_max: number;
     location_id: number | string | null;
+    unit_price?: number | null;
+    initial_date?: string | null;
 };
 const warehouseStocks = ref<WarehouseStockEntry[]>([]);
 
@@ -935,6 +937,8 @@ function addWarehouseStock() {
         stock_min: 0,
         stock_max: 0,
         location_id: null,
+        unit_price: null,
+        initial_date: new Date().toISOString().split('T')[0],
     });
 }
 
@@ -1235,16 +1239,40 @@ async function handleSubmit() {
         'weighted_average_price',
         'cost_price',
     ];
+    const isCreate = props.dialogType === 'create';
+
+    // Validación client-side: costo unitario requerido si cantidad > 0 en modo create
+    if (isCreate) {
+        const missingCost = warehouseStocks.value.some(
+            (w) => Number(w.warehouse_id) && Number(w.quantity) > 0 && !(w.unit_price && Number(w.unit_price) > 0),
+        );
+        if (missingCost) {
+            errorType.value = 'warning';
+            errorMessage.value = 'El costo unitario inicial es obligatorio cuando la cantidad de bodega es mayor a 0.';
+            return;
+        }
+    }
+
     const warehousesPayload = warehouseStocks.value
         .filter((w) => Number(w.warehouse_id))
-        .map((w) => ({
-            warehouse_id: Number(w.warehouse_id),
-            quantity: Number(w.quantity),
-            stock_min: Number(w.stock_min),
-            stock_max: Number(w.stock_max),
-            location_id: w.location_id !== null && w.location_id !== undefined && String(w.location_id).trim() !== '' ? Number(w.location_id) : null,
-        }));
-    const url = props.dialogType === 'create' ? '/item' : `/item/${localForm.value.id}`;
+        .map((w) => {
+            const base = {
+                warehouse_id: Number(w.warehouse_id),
+                quantity: Number(w.quantity),
+                stock_min: Number(w.stock_min),
+                stock_max: Number(w.stock_max),
+                location_id: w.location_id !== null && w.location_id !== undefined && String(w.location_id).trim() !== '' ? Number(w.location_id) : null,
+            };
+            if (isCreate) {
+                return {
+                    ...base,
+                    unit_price: w.unit_price != null ? Number(w.unit_price) : null,
+                    initial_date: w.initial_date ?? new Date().toISOString().split('T')[0],
+                };
+            }
+            return base;
+        });
+    const url = isCreate ? '/item' : `/item/${localForm.value.id}`;
     const isEdit = props.dialogType === 'edit';
     const hasImageUpload = Boolean(imageFile.value);
 
@@ -1709,7 +1737,12 @@ onBeforeUnmount(() => {
 
                                 <div v-for="(ws, idx) in warehouseStocks" :key="idx" class="mb-2 rounded-md bg-muted/50 p-2">
                                     <div
-                                        class="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(160px,1.2fr)_repeat(3,minmax(80px,1fr))_minmax(140px,1fr)_auto] sm:items-end"
+                                        :class="[
+                                            'grid grid-cols-1 gap-2 sm:items-end',
+                                            props.dialogType === 'create'
+                                                ? 'sm:grid-cols-[minmax(140px,1.2fr)_repeat(3,minmax(70px,1fr))_minmax(110px,1fr)_minmax(100px,1fr)_minmax(120px,1fr)_auto]'
+                                                : 'sm:grid-cols-[minmax(160px,1.2fr)_repeat(3,minmax(80px,1fr))_minmax(140px,1fr)_auto]',
+                                        ]"
                                     >
                                         <div class="space-y-1">
                                             <Label class="text-xs">Bodega</Label>
@@ -1755,6 +1788,36 @@ onBeforeUnmount(() => {
                                                 @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }"
                                             />
                                         </div>
+
+                                        <template v-if="props.dialogType === 'create'">
+                                            <div class="space-y-1">
+                                                <Label class="text-xs">
+                                                    Costo unitario inicial
+                                                    <span v-if="ws.quantity > 0" class="text-destructive">*</span>
+                                                </Label>
+                                                <InputIntegerField
+                                                    v-model="ws.unit_price"
+                                                    label=""
+                                                    type="number"
+                                                    class="w-full"
+                                                    placeholder="0"
+                                                    :allowDecimal="true"
+                                                    @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }"
+                                                />
+                                                <p v-if="ws.quantity > 0 && !(ws.unit_price && ws.unit_price > 0)" class="text-xs text-destructive">
+                                                    Requerido si cantidad &gt; 0
+                                                </p>
+                                            </div>
+                                            <div class="space-y-1">
+                                                <Label class="text-xs">Fecha movimiento</Label>
+                                                <Input
+                                                    v-model="ws.initial_date"
+                                                    type="date"
+                                                    class="h-10 w-full"
+                                                    :max="new Date().toISOString().split('T')[0]"
+                                                />
+                                            </div>
+                                        </template>
 
                                         <div class="space-y-1">
                                             <Label class="text-xs">Cantidad Min</Label>
