@@ -85,6 +85,8 @@ html {
     html[data-accent='zinc'] {
         --primary: 240 5.9% 10%;
         --primary-foreground: 0 0% 98%;
+        --accent: 240 5.9% 10%;
+        --accent-foreground: 0 0% 98%;
         --ring: 240 5.9% 10%;
     }
 
@@ -92,49 +94,128 @@ html {
     html.dark[data-accent='zinc'] {
         --primary: 240 5% 64.9%;
         --primary-foreground: 0 0% 9%;
+        --accent: 240 5% 64.9%;
+        --accent-foreground: 0 0% 9%;
         --ring: 240 5% 64.9%;
     }
 
     html[data-accent='red'] {
         --primary: 0 72.2% 50.6%;
         --primary-foreground: 0 0% 98%;
+        --accent: 0 72.2% 50.6%;
+        --accent-foreground: 0 0% 98%;
+        --ring: 0 72.2% 50.6%;
+    }
+
+    .dark html[data-accent='red'],
+    html.dark[data-accent='red'] {
+        --primary: 0 72.2% 50.6%;
+        --primary-foreground: 0 0% 98%;
+        --accent: 0 72.2% 50.6%;
+        --accent-foreground: 0 0% 98%;
         --ring: 0 72.2% 50.6%;
     }
 
     html[data-accent='rose'] {
         --primary: 352.6 95.7% 81.8%;
         --primary-foreground: 20 14.3% 4.1%;
+        --accent: 352.6 95.7% 81.8%;
+        --accent-foreground: 20 14.3% 4.1%;
         --ring: 352.6 95.7% 81.8%;
+    }
+
+    .dark html[data-accent='rose'],
+    html.dark[data-accent='rose'] {
+        --primary: 355 100% 64.3%;
+        --primary-foreground: 0 0% 100%;
+        --accent: 355 100% 64.3%;
+        --accent-foreground: 0 0% 100%;
+        --ring: 355 100% 64.3%;
     }
 
     html[data-accent='orange'] {
         --primary: 24.6 95% 53.1%;
         --primary-foreground: 0 0% 98%;
+        --accent: 24.6 95% 53.1%;
+        --accent-foreground: 0 0% 98%;
         --ring: 24.6 95% 53.1%;
+    }
+
+    .dark html[data-accent='orange'],
+    html.dark[data-accent='orange'] {
+        --primary: 33 92% 50.4%;
+        --primary-foreground: 210 40% 98%;
+        --accent: 33 92% 50.4%;
+        --accent-foreground: 210 40% 98%;
+        --ring: 33 92% 50.4%;
     }
 
     html[data-accent='green'] {
         --primary: 142.1 76.2% 36.3%;
         --primary-foreground: 0 0% 98%;
+        --accent: 142.1 76.2% 36.3%;
+        --accent-foreground: 0 0% 98%;
         --ring: 142.1 76.2% 36.3%;
+    }
+
+    .dark html[data-accent='green'],
+    html.dark[data-accent='green'] {
+        --primary: 142.4 71.8% 29.2%;
+        --primary-foreground: 0 0% 98%;
+        --accent: 142.4 71.8% 29.2%;
+        --accent-foreground: 0 0% 98%;
+        --ring: 142.4 71.8% 29.2%;
     }
 
     html[data-accent='blue'] {
         --primary: 221.2 83.2% 53.3%;
         --primary-foreground: 210 40% 98%;
+        --accent: 221.2 83.2% 53.3%;
+        --accent-foreground: 210 40% 98%;
         --ring: 221.2 83.2% 53.3%;
+    }
+
+    .dark html[data-accent='blue'],
+    html.dark[data-accent='blue'] {
+        --primary: 217.2 91.2% 59.8%;
+        --primary-foreground: 222.2 47.4% 11.2%;
+        --accent: 217.2 91.2% 59.8%;
+        --accent-foreground: 222.2 47.4% 11.2%;
+        --ring: 217.2 91.2% 59.8%;
     }
 
     html[data-accent='yellow'] {
         --primary: 47.9 95.8% 53.1%;
         --primary-foreground: 20 14.3% 4.1%;
+        --accent: 47.9 95.8% 53.1%;
+        --accent-foreground: 20 14.3% 4.1%;
         --ring: 47.9 95.8% 53.1%;
+    }
+
+    .dark html[data-accent='yellow'],
+    html.dark[data-accent='yellow'] {
+        --primary: 48 96% 50%;
+        --primary-foreground: 15 86% 97%;
+        --accent: 48 96% 50%;
+        --accent-foreground: 15 86% 97%;
+        --ring: 48 96% 50%;
     }
 
     html[data-accent='violet'] {
         --primary: 262.1 83.3% 57.8%;
         --primary-foreground: 0 0% 98%;
+        --accent: 262.1 83.3% 57.8%;
+        --accent-foreground: 0 0% 98%;
         --ring: 262.1 83.3% 57.8%;
+    }
+
+    .dark html[data-accent='violet'],
+    html.dark[data-accent='violet'] {
+        --primary: 263.4 70% 50.4%;
+        --primary-foreground: 210 40% 98%;
+        --accent: 263.4 70% 50.4%;
+        --accent-foreground: 210 40% 98%;
+        --ring: 263.4 70% 50.4%;
     }
 }
 

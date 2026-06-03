@@ -104,7 +104,6 @@ const activeTrazoUid = ref<string | null>(null);
 const activeLineUid = ref<string | null>(null);
 const selectedRollIds = ref<Set<string>>(new Set());
 const rollTableSearch = ref('');
-const distributeTotal = ref('');
 const baselineRollProgrammed = ref<Map<string, number>>(new Map());
 
 function buildCurrentProgrammedByRoll(): Map<string, number> {
@@ -358,10 +357,12 @@ const rollOriginalAvailability = computed<Map<string, number>>(() => {
     for (const trazo of trazos.value) {
         for (const line of trazo.lines) {
             for (const a of line.assignedRolls) {
-                if (a.roll.availableMeters !== null && !map.has(a.roll.rollId)) map.set(a.roll.rollId, a.roll.availableMeters);
+                const availability = a.roll.realAvailableMeters ?? a.roll.availableMeters;
+                if (availability !== null && !map.has(a.roll.rollId)) map.set(a.roll.rollId, availability);
             }
             for (const roll of line.availableRolls) {
-                if (roll.availableMeters !== null && !map.has(roll.rollId)) map.set(roll.rollId, roll.availableMeters);
+                const availability = roll.realAvailableMeters ?? roll.availableMeters;
+                if (availability !== null && !map.has(roll.rollId)) map.set(roll.rollId, availability);
             }
         }
     }
@@ -451,7 +452,7 @@ function trazoMeterColorClass(trazo: TrazoGroup): string {
     if (needed <= 0) return 'text-foreground';
     if (assigned >= needed * 0.95 && assigned <= needed * 1.1) return 'text-emerald-600';
     if (assigned > needed * 1.1) return 'text-orange-500';
-    return 'text-[#d23f3f]';
+    return 'text-destructive';
 }
 
 const usedRolls = computed(() =>
@@ -580,15 +581,6 @@ function toggleAllRolls(): void {
     } else {
         selectedRollIds.value = new Set(filteredTableRolls.value.map((r) => r.rollId));
     }
-}
-
-function doDistributeMeters(): void {
-    const total = Number(distributeTotal.value);
-    if (!total || selectedRollIds.value.size === 0) return;
-    const perRoll = Math.round((total / selectedRollIds.value.size) * 100) / 100;
-    for (const rollId of selectedRollIds.value) setRollMeters(rollId, String(perRoll));
-    distributeTotal.value = '';
-    selectedRollIds.value = new Set();
 }
 
 // ── Trazo / Line management ───────────────────────────────────────────────────
@@ -985,6 +977,7 @@ async function handleSave(): Promise<void> {
         syncBaselineRollProgrammed();
         resetSnapshot();
         await Promise.all(trazos.value.flatMap((t) => t.lines.filter((l) => l.telaItemId !== null).map((l) => loadRollsForLine(l))));
+        resetSnapshot(); // Actualizar snapshot después de recargar rollos
         if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('tds-raw-material-saved', { detail: { opId: props.opId } }));
     } catch (err: unknown) {
         showError(formatSaveError(err));
@@ -1012,7 +1005,6 @@ watch(activeLineUid, () => {
     );
     selectedRollIds.value = preSelected;
     rollTableSearch.value = '';
-    distributeTotal.value = '';
 });
 
 watch(
@@ -1080,7 +1072,7 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                         :class="[
                             'group relative cursor-pointer rounded-lg border p-2 transition-all',
                             activeTrazoUid === trazo.uid
-                                ? 'border-[#d23f3f] bg-card shadow-[3px_3px_0_0_rgba(210,63,63,0.2)]'
+                                ? 'border-accent/50 bg-accent/5 shadow-sm ring-1 ring-accent/20'
                                 : 'border-dashed border-border bg-muted/10 hover:border-border hover:bg-muted/30',
                         ]"
                         @click="selectTrazo(trazo.uid)"
@@ -1113,15 +1105,6 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                             </span>
                             <span v-if="trazoRollCount(trazo) > 0" class="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                                 {{ formatCountLabel(trazoRollCount(trazo), 'rollo') }}
-                            </span>
-                        </div>
-
-                        <!-- Metadata -->
-                        <div class="mt-1 flex flex-wrap gap-x-2 text-[10px] text-muted-foreground">
-                            <span v-if="trazo.largoTrazo > 0">Largo {{ trazo.largoTrazo }}m</span>
-                            <span v-if="trazo.promTrazo > 0">Prom. {{ trazo.promTrazo }}m</span>
-                            <span v-if="trazoProgrammedMeters(trazo) > 0" :class="['font-semibold', trazoMeterColorClass(trazo)]">
-                                {{ formatMeters(trazoProgrammedMeters(trazo)) }} asig.
                             </span>
                         </div>
                     </div>
@@ -1228,8 +1211,8 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                             :class="[
                                 'group inline-flex min-w-[170px] cursor-pointer items-center justify-between gap-2 rounded-full border px-3.5 py-1.5 text-xs font-medium transition',
                                 activeLineUid === line.uid
-                                    ? 'border-[#d23f3f] bg-[#d23f3f] text-white'
-                                    : 'border-border text-foreground hover:border-[#d23f3f] hover:text-[#d23f3f]',
+                                    ? 'border-accent bg-accent text-accent-foreground'
+                                    : 'border-border text-foreground hover:border-accent hover:text-accent',
                             ]"
                             @click="activeLineUid = line.uid"
                             @keydown.enter.space.prevent="activeLineUid = line.uid"
@@ -1317,12 +1300,12 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                 <span class="text-xs text-muted-foreground">{{ filteredTableRolls.length }} rollo{{ filteredTableRolls.length !== 1 ? 's' : '' }}</span>
                                 <!-- Tela info -->
                                 <div class="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
-                                    <span class="max-w-[180px] truncate text-xs font-medium text-foreground/70">{{ activeLine.tela }}</span>
-                                    <span v-if="activeLine.lastSupplierName" class="hidden sm:inline truncate max-w-[120px]">{{ activeLine.lastSupplierName }}</span>
+                                    <span class="text-xs font-medium text-foreground/70">{{ activeLine.tela }}</span>
+                                    <span v-if="activeLine.lastSupplierName" class="hidden sm:inline">{{ activeLine.lastSupplierName }}</span>
                                     <span v-if="activeLine.ancho !== null" class="hidden sm:inline shrink-0">{{ formatWidth(activeLine.ancho, activeLine.anchoUnit) }}</span>
                                     <button
                                         type="button"
-                                        class="inline-flex items-center gap-1 rounded border border-input bg-muted px-2 py-1 text-xs text-muted-foreground transition hover:border-[#d23f3f] hover:text-[#d23f3f] disabled:pointer-events-none disabled:opacity-40"
+                                        class="inline-flex items-center gap-1 rounded border border-input bg-muted px-2 py-1 text-xs text-muted-foreground transition hover:border-accent hover:text-accent disabled:pointer-events-none disabled:opacity-40"
                                         :disabled="isSaving"
                                         @click="resetLineTela(activeLine.uid)"
                                     ><Pencil class="h-3 w-3" /> Cambiar tela</button>
@@ -1346,7 +1329,7 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                             <th class="w-10 px-2 py-1.5 text-left">
                                                 <input
                                                     type="checkbox"
-                                                    class="h-4 w-4 cursor-pointer rounded border-input accent-[#d23f3f]"
+                                                    class="h-4 w-4 cursor-pointer rounded border-input accent-accent"
                                                     :checked="allRollsSelected"
                                                     :indeterminate="!allRollsSelected && filteredTableRolls.some(r => selectedRollIds.has(r.rollId))"
                                                     @change="toggleAllRolls"
@@ -1355,8 +1338,9 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                             <th class="px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rollo</th>
                                             <th class="px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ubicación</th>
                                             <th class="hidden px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground md:table-cell">Ancho</th>
-                                            <th class="px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Disp. parcial / real</th>
-                                            <th class="px-2 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">Asignar metros</th>
+                                            <th class="px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Disp. parcial</th>
+                                            <th class="px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Disp. real</th>
+                                            <th class="px-2 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">Metros</th>
                                             <th class="px-2 py-1.5 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Subtotal</th>
                                         </tr>
                                     </thead>
@@ -1367,7 +1351,7 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                             :class="[
                                                 'transition-colors',
                                                 row.isOrphan ? 'bg-muted/30' : '',
-                                                selectedRollIds.has(row.rollId) ? 'bg-[#d23f3f]/5' : 'hover:bg-muted/20',
+                                                selectedRollIds.has(row.rollId) ? 'bg-accent/5' : 'hover:bg-muted/20',
                                                 isRollOverAllocated(row.rollId, rowMetersValue(row.rollId)) ? 'bg-destructive/5' : '',
                                             ]"
                                         >
@@ -1375,15 +1359,24 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                             <td class="w-10 px-2 py-1.5">
                                                 <input
                                                     type="checkbox"
-                                                    class="h-4 w-4 cursor-pointer rounded border-input accent-[#d23f3f]"
+                                                    class="h-4 w-4 cursor-pointer rounded border-input accent-accent"
                                                     :checked="selectedRollIds.has(row.rollId)"
                                                     @change="toggleRoll(row.rollId)"
                                                 />
                                             </td>
                                             <!-- Rollo -->
                                             <td class="px-2 py-1.5">
-                                                <span class="font-mono text-xs font-semibold text-foreground">{{ row.roll.label }}</span>
-                                                <span v-if="row.roll.color" class="ml-1.5 text-xs text-muted-foreground">{{ row.roll.color }}</span>
+                                                <div class="flex items-center gap-1.5">
+                                                    <div
+                                                        v-if="row.roll.colorCode"
+                                                        class="h-3 w-3 rounded-full border border-border/30 shrink-0"
+                                                        :style="{ backgroundColor: row.roll.colorCode }"
+                                                    />
+                                                    <div class="flex flex-col gap-0">
+                                                        <span class="font-mono text-xs font-semibold text-foreground">{{ row.roll.label }}</span>
+                                                        <span v-if="row.roll.color" class="text-xs text-muted-foreground">{{ row.roll.color }}</span>
+                                                    </div>
+                                                </div>
                                             </td>
                                             <!-- Ubicación -->
                                             <td class="px-2 py-1.5">
@@ -1394,65 +1387,34 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                             <td class="hidden px-2 py-1.5 md:table-cell">
                                                 <span class="text-xs text-muted-foreground">{{ row.roll.widthCm ? row.roll.widthCm + 'cm' : '—' }}</span>
                                             </td>
-                                            <!-- Disponible -->
+                                            <!-- Disponible parcial -->
                                             <td class="px-2 py-1.5">
-                                                <div class="flex items-center gap-1.5">
-                                                    <div class="h-1.5 w-12 overflow-hidden rounded-full bg-muted">
-                                                        <div
-                                                            class="h-full rounded-full transition-all"
-                                                            :class="availabilityPercent(row.rollId, row.roll.availableMeters) >= 100 ? 'bg-destructive' : 'bg-emerald-500'"
-                                                            :style="{ width: `${availabilityPercent(row.rollId, row.roll.availableMeters)}%` }"
-                                                        />
-                                                    </div>
-                                                    <div class="flex flex-col leading-tight">
-                                                        <span
-                                                            class="shrink-0 tabular-nums text-xs"
-                                                            :class="isRollOverAllocated(row.rollId, rowMetersValue(row.rollId)) ? 'font-semibold text-destructive' : 'text-muted-foreground'"
-                                                        >{{ formatMeters(realAvailableForRoll(row.rollId)) }}</span>
-                                                        <span
-                                                            v-if="row.roll.realAvailableMeters !== null"
-                                                            class="shrink-0 tabular-nums text-[10px] text-muted-foreground/60"
-                                                        >{{ formatMeters(row.roll.realAvailableMeters) }} real</span>
-                                                    </div>
-                                                </div>
+                                                <span class="tabular-nums text-xs text-muted-foreground">{{ formatMeters(row.roll.availableMeters ?? 0) }}</span>
+                                            </td>
+                                            <!-- Disponible real -->
+                                            <td class="px-2 py-1.5">
+                                                <span
+                                                    class="tabular-nums text-xs"
+                                                    :class="isRollOverAllocated(row.rollId, rowMetersValue(row.rollId)) ? 'font-semibold text-destructive' : 'text-muted-foreground'"
+                                                >{{ formatMeters(realAvailableForRoll(row.rollId)) }}</span>
                                             </td>
                                             <!-- Asignar metros -->
                                             <td class="px-2 py-1">
-                                                <div class="flex items-center justify-center gap-0.5">
-                                                    <button
-                                                        type="button"
-                                                        class="flex h-8 w-7 items-center justify-center rounded-l-md border border-r-0 border-input bg-muted text-sm font-medium text-foreground transition hover:bg-muted/80 disabled:pointer-events-none disabled:opacity-40"
-                                                        :disabled="isSaving"
-                                                        @click="adjustMeters(row.rollId, -0.5)"
-                                                    >−</button>
-                                                    <input
-                                                        :data-meter="row.rollId"
-                                                        type="number"
-                                                        min="0"
-                                                        step="0.01"
-                                                        placeholder="0"
-                                                        :value="getRollMeters(row.rollId)"
-                                                        :disabled="isSaving"
-                                                        :class="[
-                                                            'h-8 w-20 border border-input bg-background text-center text-sm tabular-nums outline-none focus:ring-1 focus:ring-ring disabled:opacity-50',
-                                                            isRollOverAllocated(row.rollId, rowMetersValue(row.rollId)) ? 'border-destructive text-destructive focus:ring-destructive' : '',
-                                                        ]"
-                                                        @input="(e) => setRollMeters(row.rollId, (e.target as HTMLInputElement).value)"
-                                                        @keydown="(e: KeyboardEvent) => onMeterKeyDown(e, row.rollId)"
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        class="flex h-8 w-7 items-center justify-center border border-l-0 border-input bg-muted text-sm font-medium text-foreground transition hover:bg-muted/80 disabled:pointer-events-none disabled:opacity-40"
-                                                        :disabled="isSaving"
-                                                        @click="adjustMeters(row.rollId, 0.5)"
-                                                    >+</button>
-                                                    <button
-                                                        type="button"
-                                                        class="ml-1 flex h-8 items-center justify-center rounded-md border border-input bg-muted px-2 text-xs font-medium text-muted-foreground transition hover:bg-muted/80 hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-                                                        :disabled="isSaving || realAvailableForRoll(row.rollId) <= 0"
-                                                        @click="useAllMetersForRoll(row.rollId)"
-                                                    >Todo</button>
-                                                </div>
+                                                <input
+                                                    :data-meter="row.rollId"
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    placeholder="0"
+                                                    :value="getRollMeters(row.rollId)"
+                                                    :disabled="isSaving"
+                                                    :class="[
+                                                        'h-8 w-24 rounded-md border border-input bg-background text-center text-sm tabular-nums outline-none focus:ring-1 focus:ring-ring disabled:opacity-50',
+                                                        isRollOverAllocated(row.rollId, rowMetersValue(row.rollId)) ? 'border-destructive/60 text-destructive focus:ring-destructive' : '',
+                                                    ]"
+                                                    @input="(e) => setRollMeters(row.rollId, (e.target as HTMLInputElement).value)"
+                                                    @keydown="(e: KeyboardEvent) => onMeterKeyDown(e, row.rollId)"
+                                                />
                                             </td>
                                             <!-- Subtotal -->
                                             <td class="px-2 py-1.5 text-right">
@@ -1469,29 +1431,9 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                             </div>
 
                             <!-- ── Footer ──────────────────────────────────── -->
-                            <div class="flex items-center gap-2 border-t border-border bg-card px-3 py-2">
-                                <!-- Distribuir -->
-                                <div class="flex items-center gap-2">
-                                    <input
-                                        v-model="distributeTotal"
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        placeholder="Total m"
-                                        class="h-8 w-24 rounded-md border border-input bg-background px-2 text-sm tabular-nums outline-none focus:ring-1 focus:ring-ring"
-                                    />
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        class="h-8 px-3 text-xs"
-                                        :disabled="!distributeTotal || selectedRollIds.size === 0 || isSaving"
-                                        @click="doDistributeMeters"
-                                    >
-                                        Distribuir entre seleccionados{{ selectedRollIds.size > 0 ? ` (${selectedRollIds.size})` : '' }}
-                                    </Button>
-                                </div>
+                            <div class="flex items-center justify-end border-t border-border bg-card px-3 py-2">
                                 <!-- Subtotal tela -->
-                                <div class="ml-auto text-right">
+                                <div class="text-right">
                                     <div class="text-xl font-bold tabular-nums text-foreground">{{ formatMeters(lineProgrammedMeters(activeLine)) }}</div>
                                     <div class="text-xs text-muted-foreground">
                                         <span v-if="lineCost(activeLine) > 0" class="font-semibold text-foreground">{{ formatCOP(lineCost(activeLine)) }}</span>
