@@ -206,7 +206,7 @@ class SettingsFieldParametersSeeder extends Seeder
                     'label' => 'Áreas',
                     'description' => 'Catálogo de áreas organizacionales',
                     'value' => $this->mapNames([
-                        'Gerencia', 'Producción', 'Logística', 'Diseño', 'Marketing', 'Comercial', 'Tics', 'Recursos Humanos', 'Financiero', 'Desarrollo Organizacional', 'SST'
+                        'Gerencia', 'Producción', 'Corte', 'Logística', 'Diseño', 'Marketing', 'Comercial', 'Tics', 'Recursos Humanos', 'Financiero', 'Desarrollo Organizacional', 'SST'
                     ]),
                     'status' => true,
                 ],

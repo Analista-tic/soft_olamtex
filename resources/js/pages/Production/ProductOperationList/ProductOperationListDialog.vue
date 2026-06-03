@@ -23,7 +23,7 @@ import type {
     ProductOperationPayload,
     ProductSheetDialogOption,
 } from '@/domain/product-sheet/types';
-import { Check, CornerDownLeft, GripVertical, Pencil, Plus, PlusCircle, X } from 'lucide-vue-next';
+import { CornerDownLeft, GripVertical, Pencil, Plus, PlusCircle, X } from 'lucide-vue-next';
 import { computed, PropType, ref, watch } from 'vue';
 import AddNew from './AddNew.vue';
 
@@ -931,6 +931,8 @@ function resetForm() {
                                                 type="text"
                                                 placeholder="Nota (opcional)"
                                                 class="mt-1 h-6 w-full rounded border border-input bg-transparent px-1.5 text-[10px] text-muted-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+                                                @blur="saveEditRow(index)"
+                                                @keydown.enter.prevent="saveEditRow(index)"
                                             />
                                         </td>
                                         <td class="px-3 py-2.5 text-xs">
@@ -957,7 +959,7 @@ function resetForm() {
                                                 v-model="editRow.grupo_preparacion"
                                                 :options="preparationGroupsList.map((g: string) => ({ id: g, name: g }))"
                                                 placeholder="Grupo"
-                                                class="h-7 min-w-[80px]"
+                                                class="h-7 min-w-[110px]"
                                                 :searchable="true"
                                                 :search-threshold="0"
                                                 search-placeholder="Buscar o escribir grupo"
@@ -965,6 +967,7 @@ function resetForm() {
                                                 :action-disabled="readonly"
                                                 @search="(term) => (preparationGroupSearchTerm = String(term ?? ''))"
                                                 @action="(term) => addPreparationGroupFromEditRow(String(term ?? ''))"
+                                                @update:model-value="saveEditRow(index)"
                                             />
                                             <span
                                                 v-else-if="isSectionPreparacion(row.section_id) && row.grupo_preparacion"
@@ -984,16 +987,6 @@ function resetForm() {
                                                     @click="startEditRow(index)"
                                                 >
                                                     <Pencil class="h-3.5 w-3.5" />
-                                                </Button>
-                                                <Button
-                                                    v-else
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    class="h-7 w-7"
-                                                    title="Guardar"
-                                                    @click="saveEditRow(index)"
-                                                >
-                                                    <Check class="h-3.5 w-3.5" />
                                                 </Button>
                                                 <Button
                                                     v-if="isEditingRow(index)"

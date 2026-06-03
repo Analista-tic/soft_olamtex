@@ -271,6 +271,9 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
         Route::get('/{operation}/audit-log', [OperationController::class, 'auditLog'])
             ->middleware('permission:ver listados operacionales|ver sabana productos')
             ->name('audit-log');
+        Route::get('/{operation}/referencias-activas', [OperationController::class, 'activeProductSheets'])
+            ->middleware('permission:ver listados operacionales|ver sabana productos')
+            ->name('referencias-activas');
     });
 
     // Máquinas

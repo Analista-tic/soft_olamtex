@@ -2,7 +2,8 @@
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
-import { Pencil } from 'lucide-vue-next';
+import { ChevronDown, ChevronRight, Pencil } from 'lucide-vue-next';
+import axios from 'axios';
 import { ref, watch } from 'vue';
 
 type OperationRecord = {
@@ -51,6 +52,42 @@ watch(
 watch(localOpen, (v) => {
     if (!v) emit('close');
 });
+
+type ReferenceSheet = {
+    id: number;
+    reference: string;
+    version: number;
+    flat_sketch_url: string | null;
+};
+
+const referencesExpanded = ref(false);
+const referencesLoading = ref(false);
+const referencesLoaded = ref(false);
+const references = ref<ReferenceSheet[]>([]);
+const lightboxUrl = ref<string | null>(null);
+
+watch(
+    () => props.operation,
+    () => {
+        referencesExpanded.value = false;
+        referencesLoaded.value = false;
+        references.value = [];
+    },
+);
+
+async function toggleReferences() {
+    referencesExpanded.value = !referencesExpanded.value;
+    if (referencesExpanded.value && !referencesLoaded.value && props.operation) {
+        referencesLoading.value = true;
+        try {
+            const { data } = await axios.get(`/produccion/operaciones/${props.operation.id}/referencias-activas`);
+            references.value = data.data;
+            referencesLoaded.value = true;
+        } finally {
+            referencesLoading.value = false;
+        }
+    }
+}
 </script>
 
 <template>
@@ -78,86 +115,154 @@ watch(localOpen, (v) => {
                         <p v-if="operation.codigo" class="mt-1 text-xs text-muted-foreground">{{ operation.codigo }}</p>
                     </div>
 
-                    <!-- Grid de campos -->
-                    <div class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-                    <div>
-                        <p class="text-[11px] font-medium text-muted-foreground">Sección</p>
-                        <p class="font-medium">{{ operation.section?.name ?? '-' }}</p>
-                    </div>
-                    <div>
-                        <p class="text-[11px] font-medium text-muted-foreground">Tipo</p>
-                        <p>{{ operation.section?.type ?? '-' }}</p>
+                    <!-- Filas con separadores -->
+                    <div class="divide-y divide-border/60 text-sm">
+
+                        <div class="grid grid-cols-2 gap-x-6 py-3">
+                            <div>
+                                <p class="text-xs font-medium text-muted-foreground">Sección</p>
+                                <p class="mt-0.5 font-medium text-foreground">{{ operation.section?.name ?? '-' }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs font-medium text-muted-foreground">Tipo</p>
+                                <p class="mt-0.5 font-medium text-foreground">{{ operation.section?.type ?? '-' }}</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-x-6 py-3">
+                            <div>
+                                <p class="text-xs font-medium text-muted-foreground">Acción</p>
+                                <p class="mt-0.5 font-medium uppercase text-foreground">{{ operation.action }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs font-medium text-muted-foreground">Parte de prenda</p>
+                                <p class="mt-0.5 font-medium uppercase text-foreground">{{ operation.garment_part }}</p>
+                            </div>
+                        </div>
+
+                        <div v-if="operation.anexo" class="py-3">
+                            <p class="text-xs font-medium text-muted-foreground">Complemento (anexo)</p>
+                            <p class="mt-0.5 font-medium uppercase text-foreground">{{ operation.anexo }}</p>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-x-6 py-3">
+                            <div>
+                                <p class="text-xs font-medium text-muted-foreground">Medida</p>
+                                <p class="mt-0.5 font-medium text-foreground">{{ operation.measure != null ? `${operation.measure} cm` : '-' }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs font-medium text-muted-foreground">Cantidad</p>
+                                <p class="mt-0.5 font-medium text-foreground">{{ operation.quantity ?? '-' }}</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-x-6 py-3">
+                            <div>
+                                <p class="text-xs font-medium text-muted-foreground">SAM base</p>
+                                <p class="mt-0.5 font-mono font-bold text-primary">
+                                    {{ operation.sam_base != null ? `${operation.sam_base.toFixed(2)} min` : '-' }}
+                                </p>
+                            </div>
+                            <div>
+                                <p class="text-xs font-medium text-muted-foreground">Factor operario</p>
+                                <p class="mt-0.5 font-medium text-foreground">{{ operation.factor_operario != null ? `${operation.factor_operario}%` : '-' }}</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-x-6 py-3">
+                            <div>
+                                <p class="text-xs font-medium text-muted-foreground">Referencia (Sábana de producto)</p>
+                                <p class="mt-0.5 font-medium text-foreground">
+                                    {{
+                                        (operation.productSheetReference?.sample_reference ??
+                                            operation.productSheetReference?.product_reference ??
+                                            operation.product_sheet_reference?.sample_reference ??
+                                            operation.product_sheet_reference?.product_reference) ||
+                                        '-'
+                                    }}
+                                </p>
+                            </div>
+                            <div>
+                                <p class="text-xs font-medium text-muted-foreground">Máquina de referencia</p>
+                                <p class="mt-0.5 font-medium text-foreground">
+                                    {{
+                                        (operation.machineReference ?? operation.machine_reference)
+                                            ? `${(operation.machineReference ?? operation.machine_reference)!.code} · ${(operation.machineReference ?? operation.machine_reference)!.name}`
+                                            : '-'
+                                    }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="py-3">
+                            <p class="text-xs font-medium text-muted-foreground">Descripción</p>
+                            <p class="mt-0.5 font-medium text-foreground">{{ (operation.generated_description || '-').toUpperCase() }}</p>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-x-6 py-3">
+                            <div>
+                                <p class="text-xs font-medium text-muted-foreground">Creado por</p>
+                                <p class="mt-0.5 font-medium text-foreground">{{ operation.created_by?.name ?? '-' }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs font-medium text-muted-foreground">Fecha de creación</p>
+                                <p class="mt-0.5 font-medium text-foreground">{{ operation.created_at ? new Date(operation.created_at).toLocaleDateString('es-CO') : '-' }}</p>
+                            </div>
+                        </div>
+
                     </div>
 
-                    <div>
-                        <p class="text-[11px] font-medium text-muted-foreground">Acción</p>
-                        <p class="font-semibold uppercase">{{ operation.action }}</p>
-                    </div>
-                    <div>
-                        <p class="text-[11px] font-medium text-muted-foreground">Parte de prenda</p>
-                        <p class="font-semibold uppercase">{{ operation.garment_part }}</p>
-                    </div>
+                    <!-- Referencias desplegables -->
+                    <div class="pt-1">
+                        <button
+                            type="button"
+                            class="flex w-full items-center gap-2 rounded-md border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted/40"
+                            @click="toggleReferences"
+                        >
+                            <component :is="referencesExpanded ? ChevronDown : ChevronRight" class="h-4 w-4 shrink-0 text-muted-foreground" />
+                            <span>Ver referencias donde se usa</span>
+                            <span
+                                v-if="referencesLoaded"
+                                class="ml-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-semibold text-primary"
+                            >
+                                {{ references.length }}
+                            </span>
+                        </button>
 
-                    <div v-if="operation.anexo" class="col-span-2">
-                        <p class="text-[11px] font-medium text-muted-foreground">Complemento (anexo)</p>
-                        <p class="font-medium uppercase">{{ operation.anexo }}</p>
-                    </div>
-
-                    <div>
-                        <p class="text-[11px] font-medium text-muted-foreground">Medida</p>
-                        <p class="font-mono">{{ operation.measure != null ? `${operation.measure} cm` : '-' }}</p>
-                    </div>
-                    <div>
-                        <p class="text-[11px] font-medium text-muted-foreground">Cantidad</p>
-                        <p class="font-mono">{{ operation.quantity ?? '-' }}</p>
-                    </div>
-                    <div>
-                        <p class="text-[11px] font-medium text-muted-foreground">SAM base</p>
-                        <p class="font-mono font-bold text-primary">
-                            {{ operation.sam_base != null ? `${operation.sam_base.toFixed(4)} min` : '-' }}
-                        </p>
-                    </div>
-                    <div>
-                        <p class="text-[11px] font-medium text-muted-foreground">Factor operario</p>
-                        <p class="font-mono">{{ operation.factor_operario != null ? `${operation.factor_operario}%` : '-' }}</p>
-                    </div>
-
-                    <div>
-                        <p class="text-[11px] font-medium text-muted-foreground">Referencia (Sábana de producto)</p>
-                        <p>
-                            {{
-                                (operation.productSheetReference?.sample_reference ??
-                                    operation.productSheetReference?.product_reference ??
-                                    operation.product_sheet_reference?.sample_reference ??
-                                    operation.product_sheet_reference?.product_reference) ||
-                                '-'
-                            }}
-                        </p>
-                    </div>
-                    <div>
-                        <p class="text-[11px] font-medium text-muted-foreground">Máquina de referencia</p>
-                        <p>
-                            {{
-                                (operation.machineReference ?? operation.machine_reference)
-                                    ? `${(operation.machineReference ?? operation.machine_reference)!.code} · ${(operation.machineReference ?? operation.machine_reference)!.name}`
-                                    : '-'
-                            }}
-                        </p>
-                    </div>
-
-                    <div class="col-span-2">
-                        <p class="text-[11px] font-medium text-muted-foreground">Descripción</p>
-                        <p class="uppercase text-muted-foreground">{{ (operation.generated_description || '-').toUpperCase() }}</p>
-                    </div>
-
-                    <div>
-                        <p class="text-[11px] font-medium text-muted-foreground">Creado por</p>
-                        <p class="text-xs">{{ operation.created_by?.name ?? '-' }}</p>
-                    </div>
-                    <div>
-                        <p class="text-[11px] font-medium text-muted-foreground">Fecha de creación</p>
-                        <p class="text-xs">{{ operation.created_at ? new Date(operation.created_at).toLocaleDateString('es-CO') : '-' }}</p>
-                    </div>
+                        <div v-if="referencesExpanded" class="mt-3">
+                            <div v-if="referencesLoading" class="py-6 text-center text-sm text-muted-foreground">
+                                Cargando...
+                            </div>
+                            <div v-else-if="referencesLoaded && references.length === 0" class="py-4 text-center text-sm text-muted-foreground">
+                                Esta operación no está en ninguna sábana activa.
+                            </div>
+                            <div v-else class="grid grid-cols-2 gap-3">
+                                <div
+                                    v-for="sheet in references"
+                                    :key="sheet.id"
+                                    class="overflow-hidden rounded-md border border-border"
+                                >
+                                    <div
+                                        class="flex aspect-square items-center justify-center overflow-hidden bg-muted/30"
+                                        :class="sheet.flat_sketch_url ? 'cursor-zoom-in' : ''"
+                                        @click="sheet.flat_sketch_url && (lightboxUrl = sheet.flat_sketch_url)"
+                                    >
+                                        <img
+                                            v-if="sheet.flat_sketch_url"
+                                            :src="sheet.flat_sketch_url"
+                                            :alt="sheet.reference"
+                                            class="h-full w-full object-contain"
+                                            @error="(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }"
+                                        />
+                                        <span :class="sheet.flat_sketch_url ? 'hidden' : ''" class="text-xs text-muted-foreground">Sin boceto</span>
+                                    </div>
+                                    <div class="px-3 py-2">
+                                        <p class="text-sm font-semibold text-foreground">{{ sheet.reference }}</p>
+                                        <p class="text-xs text-muted-foreground">V{{ sheet.version }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -168,4 +273,24 @@ watch(localOpen, (v) => {
             </DialogFooter>
         </DialogContent>
     </Dialog>
+
+    <!-- Lightbox -->
+    <Teleport to="body">
+        <div
+            v-if="lightboxUrl"
+            class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80"
+            @click.self="lightboxUrl = null"
+        >
+            <button
+                class="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+                @click="lightboxUrl = null"
+            >
+                ✕
+            </button>
+            <img
+                :src="lightboxUrl"
+                class="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
+            />
+        </div>
+    </Teleport>
 </template>

@@ -280,6 +280,10 @@ class RolesAndPermissionsSeeder extends Seeder
 
 
 
+        // Corte: mismos permisos que produccion
+        $corte = Role::firstOrCreate(['name' => 'corte']);
+        $corte->syncPermissions($produccion->permissions->pluck('name')->toArray());
+
         // Contabilidad: financiero + compras
         $contabilidad = Role::firstOrCreate(['name' => 'contabilidad']);
         $contabilidad->syncPermissions([
@@ -428,8 +432,7 @@ class RolesAndPermissionsSeeder extends Seeder
             // COMERCIAL
             ['name' => 'Ximena Gutiérrez Trejos',           'email' => 'x.gutierrez@olamtex.co',     'password' => Hash::make('comercial123'),  'area_id' => $this->resolveAreaId($areas, ['Comercial']),              'role' => $produccion],
             ['name' => 'Angie Julieth Salamanca Villa',     'email' => 'a.salamanca@olamtex.co',     'password' => Hash::make('comercial123'),  'area_id' => $this->resolveAreaId($areas, ['Comercial']),              'role' => $produccion],
-            ['name' => 'Valentina Velez Florez',            'email' => 'v.velez@olamtex.co',         'password' => Hashgi
-            ::make('comercial123'),  'area_id' => $this->resolveAreaId($areas, ['Comercial']),              'role' => $produccion],
+            ['name' => 'Valentina Velez Florez',            'email' => 'v.velez@olamtex.co',         'password' => Hash::make('comercial123'),  'area_id' => $this->resolveAreaId($areas, ['Comercial']),              'role' => $produccion],
 
             // MARKETING
             ['name' => 'Sergio Alejandro Pedraza',          'email' => 's.pedraza@olamtex.co',       'password' => Hash::make('marketing123'),  'area_id' => $this->resolveAreaId($areas, ['Marketing']),              'role' => $general],
@@ -447,6 +450,14 @@ class RolesAndPermissionsSeeder extends Seeder
 
             // LOGÍSTICA
             ['name' => 'Yordan Alexis Quiroga Paniagua',    'email' => 'y.quiroga@olamtex.co',       'password' => Hash::make('logistica123'),  'area_id' => $this->resolveAreaId($areas, ['Logística', 'Logistica']), 'role' => $logistica],
+
+            // CORTE
+            ['name' => 'Nestor Hurtado Bedoya',             'email' => 'n.hurtado@olamtex.co',       'password' => Hash::make('corte123'),      'area_id' => $this->resolveAreaId($areas, ['Corte']),                  'role' => $corte],
+            ['name' => 'Juan Gabriel Martinez Jaramillo',   'email' => 'j.martinez@olamtex.co',      'password' => Hash::make('corte123'),      'area_id' => $this->resolveAreaId($areas, ['Corte']),                  'role' => $corte],
+            ['name' => 'Andres Antonio Velez Ospina',       'email' => 'a.velez@olamtex.co',         'password' => Hash::make('corte123'),      'area_id' => $this->resolveAreaId($areas, ['Corte']),                  'role' => $corte],
+            ['name' => 'Wilmar Marquez Giraldo',            'email' => 'w.marquez@olamtex.co',       'password' => Hash::make('corte123'),      'area_id' => $this->resolveAreaId($areas, ['Corte']),                  'role' => $corte],
+            ['name' => 'Michael Stiven Acevedo Villa',      'email' => 'm.acevedo@olamtex.co',       'password' => Hash::make('corte123'),      'area_id' => $this->resolveAreaId($areas, ['Corte']),                  'role' => $corte],
+            ['name' => 'Jorge Arley Valencia Sanchez',      'email' => 'j.valencia@olamtex.co',      'password' => Hash::make('corte123'),      'area_id' => $this->resolveAreaId($areas, ['Corte']),                  'role' => $corte],
         ];
 
         $contabilidadUser = User::firstOrCreate(
