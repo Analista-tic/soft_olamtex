@@ -7,6 +7,8 @@ use App\Http\Requests\Production\StoreProductSheetRequest;
 use App\Http\Requests\Production\UpdateProductSheetRequest;
 use App\Models\Production\ProductSheet;
 use App\Services\Production\CollectionService;
+use App\Services\Production\FabricBaseService;
+use App\Services\Production\ProductOperationListService;
 use App\Services\Production\ProductSheetCreationService;
 use App\Services\Production\ProductSheetPersistenceService;
 use App\Services\Settings\SettingService;
@@ -26,6 +28,8 @@ class ProductSheetController extends Controller
     public function __construct(
         private SettingService $settingService,
         private CollectionService $collectionService,
+        private FabricBaseService $fabricBaseService,
+        private ProductOperationListService $operationListService,
         private ProductSheetCreationService $productSheetCreationService,
         private ProductSheetPersistenceService $productSheetPersistenceService,
     ) {
@@ -95,7 +99,14 @@ class ProductSheetController extends Controller
             $validatedData['status'] = 'incomplete';
         }
 
+        $oldFabricBaseId = $sabana->fabric_base_id;
+        $newFabricBaseId = $validatedData['fabric_base_id'] ?? $oldFabricBaseId;
+
         $sabana->update($validatedData);
+
+        if ((int) $oldFabricBaseId !== (int) $newFabricBaseId) {
+            $this->operationListService->recalculateFabricFactorForSheet($sabana->id, $newFabricBaseId);
+        }
 
         return response()->json([
             'success' => true,
@@ -383,8 +394,7 @@ class ProductSheetController extends Controller
 
     private function gatherCatalogs(): array
     {
-        $keys = ['sections', 'groups', 'brands', 'worlds', 'fabric_bases', 'yarn_bases', 'sizes', 'operational_lists'];
-        // Claves que requieren campos extra (allowed_garment_type, factor, etc.)
+        $keys = ['sections', 'groups', 'brands', 'worlds', 'yarn_bases', 'sizes', 'operational_lists'];
         $richKeys = ['sections'];
         $catalogs = [];
         foreach ($keys as $key) {
@@ -392,6 +402,7 @@ class ProductSheetController extends Controller
                 ? $this->settingService->getCatalogOptionsRich($key)
                 : $this->settingService->getCatalogOptions($key);
         }
+        $catalogs['fabric_bases'] = $this->fabricBaseService->options();
         $catalogs['collections'] = $this->collectionService->allActive()
             ->map(fn (\App\Models\Production\Collection $c) => ['id' => $c->id, 'name' => $c->name]);
         return $catalogs;

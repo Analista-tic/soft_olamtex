@@ -113,6 +113,7 @@ export interface ProgrammerSummaryDto {
     units?: number | null;
     estimated_delivery_date?: string | null;
     ecommerce_units?: Record<string, number> | null;
+    product_sheet_id?: number | null;
 }
 
 export interface ProductionOrderDetailResponseDto {
@@ -148,6 +149,7 @@ export interface OpBasicInfoDto {
     priceSale?: number | null;
     description?: string | null;
     product_sheet_id?: number | null;
+    fabric_base_id?: number | null;
     productType?: string | null;
     isWovenProduct?: boolean;
 }

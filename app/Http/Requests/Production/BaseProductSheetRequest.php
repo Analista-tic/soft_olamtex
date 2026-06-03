@@ -56,7 +56,7 @@ abstract class BaseProductSheetRequest extends FormRequest
             'fabric_base_id' => array_filter([
                 $this->requiresYarnBase() ? 'nullable' : 'required',
                 'integer',
-                $this->catalogRule('fabric_bases'),
+                Rule::exists('fabric_bases', 'id'),
             ]),
             'yarn_base_id' => array_filter([
                 $this->requiresYarnBase() ? 'required' : 'nullable',

@@ -184,6 +184,7 @@ export interface OpBasicInfo {
     baseYarn?: string | null;
     estimatedDeliveryTime?: number | null;
     product_sheet_id?: number | null;
+    fabric_base_id?: number | null;
     productType?: string | null;
     isWovenProduct?: boolean;
     current_process?: string | null;
