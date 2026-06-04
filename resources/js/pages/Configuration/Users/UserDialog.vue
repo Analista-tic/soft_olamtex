@@ -77,15 +77,15 @@ function normalizeAreas(payload: unknown): AreaOption[] {
     }
 
     return payload
-        .map((area) => {
+        .map((area, index) => {
             if (area && typeof area === 'object') {
                 const record = area as Record<string, unknown>;
                 const name = String(record.name ?? record.nombre ?? record.label ?? '').trim();
                 if (!name) return null;
                 const rawId = record.id;
                 const parsedId = typeof rawId === 'number' ? rawId : Number(rawId);
-                if (!Number.isInteger(parsedId)) return null;
-                return { id: parsedId, name };
+                const id = Number.isInteger(parsedId) ? parsedId : index + 1;
+                return { id, name };
             }
             return null;
         })

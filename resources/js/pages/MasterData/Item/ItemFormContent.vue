@@ -532,6 +532,10 @@ function applyFormData(source: ItemFormSource) {
     fillExtraFields(source.extra_fields);
     warehouseStocks.value = normalizeWarehouseStocksFromSource(source);
 
+    if (warehouseStocks.value.length === 0 && !isViewMode.value && currentItemType.value !== 'service') {
+        addWarehouseStock();
+    }
+
     imageFile.value = null;
     if (fileInputRef.value) fileInputRef.value.value = '';
 
@@ -762,6 +766,9 @@ async function hydrateOpenForm() {
         applyFormData(props.form);
         await loadFormCatalogs();
         warehouseStocks.value = [];
+        if (currentItemType.value !== 'service') {
+            addWarehouseStock();
+        }
         void loadSecondaryFormData();
         updateNameField();
         syncGroupFromSubgroup();
@@ -1713,167 +1720,6 @@ onBeforeUnmount(() => {
                                 </template>
                             </div>
 
-                            <div v-if="currentItemType !== 'service'" class="rounded-lg border border-sidebar-border/70 bg-muted/30 p-3">
-                                <div class="mb-2 flex items-center justify-between">
-                                    <p class="flex items-center gap-1 text-sm font-semibold">
-                                        <span>Detalle de Inventario</span>
-                                        <HelpTooltip
-                                            text="Selecciona las bodegas y cantidades donde se almacenará este ítem para llevar control de stock."
-                                        />
-                                    </p>
-
-                                    <button
-                                        v-if="!isViewMode"
-                                        type="button"
-                                        class="rounded-full p-1 transition hover:bg-muted"
-                                        :class="isSecondaryLoading || availableWarehouses().length === 0 ? 'cursor-not-allowed opacity-50' : ''"
-                                        :disabled="isSecondaryLoading"
-                                        @click="handleAddWarehouseStock"
-                                        title="Agregar Bodega"
-                                    >
-                                        <Plus class="h-5 w-5 text-primary" />
-                                    </button>
-                                </div>
-
-                                <div v-for="(ws, idx) in warehouseStocks" :key="idx" class="mb-2 rounded-md bg-muted/50 p-2">
-                                    <div
-                                        :class="[
-                                            'grid grid-cols-1 gap-2 sm:items-end',
-                                            props.dialogType === 'create'
-                                                ? 'sm:grid-cols-[minmax(140px,1.2fr)_repeat(3,minmax(70px,1fr))_minmax(110px,1fr)_minmax(100px,1fr)_minmax(120px,1fr)_auto]'
-                                                : 'sm:grid-cols-[minmax(160px,1.2fr)_repeat(3,minmax(80px,1fr))_minmax(140px,1fr)_auto]',
-                                        ]"
-                                    >
-                                        <div class="space-y-1">
-                                            <Label class="text-xs">Bodega</Label>
-                                            <SelectField
-                                                v-model="ws.warehouse_id"
-                                                label=""
-                                                :options="
-                                                    availableWarehouses(idx).map((w) => ({
-                                                        id: String(w.id ?? ''),
-                                                        name: w.name,
-                                                    }))
-                                                "
-                                                @change="updateWarehouseName(idx)"
-                                                class="w-full"
-                                                placeholder="Bodega"
-                                                :searchable="false"
-                                            >
-                                                <template v-if="canCreateWarehouses" #header>
-                                                    <Button
-                                                        type="button"
-                                                        size="sm"
-                                                        variant="outline"
-                                                        class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
-                                                        @click.stop="openCatalog('warehouse')"
-                                                    >
-                                                        <Plus class="h-3 w-3" />
-                                                        Nueva bodega
-                                                    </Button>
-                                                </template>
-                                            </SelectField>
-                                        </div>
-
-                                        <div class="space-y-1">
-                                            <Label class="text-xs">Cantidad</Label>
-                                            <InputIntegerField
-                                                v-model="ws.quantity"
-                                                label=""
-                                                type="number"
-                                                class="w-full"
-                                                placeholder="Cantidad"
-                                                :allowNegative="true"
-                                                :allowDecimal="true"
-                                                @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }"
-                                            />
-                                        </div>
-
-                                        <template v-if="props.dialogType === 'create'">
-                                            <div class="space-y-1">
-                                                <Label class="text-xs">
-                                                    Costo unitario inicial
-                                                    <span v-if="ws.quantity > 0" class="text-destructive">*</span>
-                                                </Label>
-                                                <InputIntegerField
-                                                    v-model="ws.unit_price"
-                                                    label=""
-                                                    type="number"
-                                                    class="w-full"
-                                                    placeholder="0"
-                                                    :allowDecimal="true"
-                                                    @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }"
-                                                />
-                                                <p v-if="ws.quantity > 0 && !(ws.unit_price && ws.unit_price > 0)" class="text-xs text-destructive">
-                                                    Requerido si cantidad &gt; 0
-                                                </p>
-                                            </div>
-                                            <div class="space-y-1">
-                                                <Label class="text-xs">Fecha movimiento</Label>
-                                                <Input
-                                                    v-model="ws.initial_date"
-                                                    type="date"
-                                                    class="h-10 w-full"
-                                                    :max="new Date().toISOString().split('T')[0]"
-                                                />
-                                            </div>
-                                        </template>
-
-                                        <div class="space-y-1">
-                                            <Label class="text-xs">Cantidad Min</Label>
-                                            <InputIntegerField v-model="ws.stock_min" label="" type="number" class="w-full" placeholder="Min" :allowDecimal="true" @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }" />
-                                        </div>
-
-                                        <div class="space-y-1">
-                                            <Label class="text-xs">Cantidad Max</Label>
-                                            <InputIntegerField v-model="ws.stock_max" label="" type="number" class="w-full" placeholder="Max" :allowDecimal="true" @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }" />
-                                        </div>
-
-                                        <div class="space-y-1">
-                                            <Label class="text-xs">Ubicación</Label>
-                                            <SelectField
-                                                v-model="ws.location_id"
-                                                label=""
-                                                :options="warehouseLocations.map((l) => ({ id: String(l.id), name: l.name }))"
-                                                placeholder="Sin ubicación"
-                                                :searchable="true"
-                                                search-placeholder="Buscar ubicación..."
-                                                :show-placeholder-option="true"
-                                                :disabled="isViewMode"
-                                                class="w-full"
-                                            >
-                                                <template v-if="!isViewMode" #header>
-                                                    <Button
-                                                        type="button"
-                                                        size="sm"
-                                                        variant="outline"
-                                                        class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
-                                                        @click.stop="openLocationDialog(idx)"
-                                                    >
-                                                        <Plus class="h-3 w-3" />
-                                                        Nueva ubicación
-                                                    </Button>
-                                                </template>
-                                            </SelectField>
-                                        </div>
-
-                                        <div class="flex items-end justify-end">
-                                            <button
-                                                v-if="!isViewMode"
-                                                type="button"
-                                                class="rounded-full p-2 transition hover:bg-red-100 dark:hover:bg-red-900"
-                                                @click="removeWarehouseStock(idx)"
-                                                title="Quitar"
-                                            >
-                                                <Trash class="h-4 w-4 text-red-500" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div v-if="isSecondaryLoading" class="px-2 py-1 text-xs text-muted-foreground">Cargando bodegas e inventario...</div>
-                                <div v-else-if="warehouseStocks.length === 0" class="px-2 py-1 text-xs text-gray-400">No hay bodegas asociadas.</div>
-                            </div>
                         </div>
 
                         <div class="min-w-0">
@@ -1918,6 +1764,160 @@ onBeforeUnmount(() => {
                                 </template>
                             </div>
                         </div>
+                    <div v-if="currentItemType !== 'service'" class="lg:col-span-2 rounded-lg border border-sidebar-border/70 bg-muted/30 p-3">
+                        <div class="mb-2 flex items-center justify-between">
+                            <p class="flex items-center gap-1 text-sm font-semibold">
+                                <span>Detalle de Inventario</span>
+                                <HelpTooltip
+                                    text="Selecciona las bodegas y cantidades donde se almacenará este ítem para llevar control de stock."
+                                />
+                            </p>
+
+                            <button
+                                v-if="!isViewMode"
+                                type="button"
+                                class="rounded-full p-1 transition hover:bg-muted"
+                                :class="isSecondaryLoading || availableWarehouses().length === 0 ? 'cursor-not-allowed opacity-50' : ''"
+                                :disabled="isSecondaryLoading"
+                                @click="handleAddWarehouseStock"
+                                title="Agregar Bodega"
+                            >
+                                <Plus class="h-5 w-5 text-primary" />
+                            </button>
+                        </div>
+
+                        <div v-for="(ws, idx) in warehouseStocks" :key="idx" class="mb-2 rounded-md bg-muted/50 p-2">
+                            <div
+                                :class="[
+                                    'grid grid-cols-1 gap-2 sm:items-end',
+                                    props.dialogType === 'create'
+                                        ? 'sm:grid-cols-[minmax(140px,1.2fr)_repeat(2,minmax(70px,1fr))_minmax(110px,1fr)_minmax(100px,1fr)_minmax(120px,1fr)_auto]'
+                                        : 'sm:grid-cols-[minmax(160px,1.2fr)_repeat(3,minmax(80px,1fr))_minmax(140px,1fr)_auto]',
+                                ]"
+                            >
+                                <div class="space-y-1">
+                                    <Label class="text-xs">Bodega</Label>
+                                    <SelectField
+                                        v-model="ws.warehouse_id"
+                                        label=""
+                                        :options="
+                                            availableWarehouses(idx).map((w) => ({
+                                                id: String(w.id ?? ''),
+                                                name: w.name,
+                                            }))
+                                        "
+                                        @change="updateWarehouseName(idx)"
+                                        class="w-full"
+                                        placeholder="Bodega"
+                                        :searchable="false"
+                                    >
+                                        <template v-if="canCreateWarehouses" #header>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
+                                                @click.stop="openCatalog('warehouse')"
+                                            >
+                                                <Plus class="h-3 w-3" />
+                                                Nueva bodega
+                                            </Button>
+                                        </template>
+                                    </SelectField>
+                                </div>
+
+                                <div class="space-y-1">
+                                    <Label class="text-xs">Cantidad</Label>
+                                    <InputIntegerField
+                                        v-model="ws.quantity"
+                                        label=""
+                                        type="number"
+                                        class="w-full"
+                                        placeholder="Cantidad"
+                                        :allowNegative="true"
+                                        :allowDecimal="true"
+                                        @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }"
+                                    />
+                                </div>
+
+                                <template v-if="props.dialogType === 'create'">
+                                    <div class="space-y-1">
+                                        <Label class="text-xs">
+                                            Costo unitario inicial
+                                            <span v-if="ws.quantity > 0" class="text-destructive">*</span>
+                                        </Label>
+                                        <InputIntegerField
+                                            v-model="ws.unit_price"
+                                            label=""
+                                            type="number"
+                                            class="w-full"
+                                            placeholder="$0"
+                                            :allowDecimal="true"
+                                            :currency="true"
+                                            @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '$0' || el.value === '0') el.value = '' }"
+                                        />
+                                        <p v-if="ws.quantity > 0 && !(ws.unit_price && ws.unit_price > 0)" class="text-xs text-destructive">
+                                            Requerido si cantidad &gt; 0
+                                        </p>
+                                    </div>
+                                </template>
+
+                                <div class="space-y-1">
+                                    <Label class="text-xs">Cantidad Min</Label>
+                                    <InputIntegerField v-model="ws.stock_min" label="" type="number" class="w-full" placeholder="Min" :allowDecimal="true" @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }" />
+                                </div>
+
+                                <div class="space-y-1">
+                                    <Label class="text-xs">Cantidad Max</Label>
+                                    <InputIntegerField v-model="ws.stock_max" label="" type="number" class="w-full" placeholder="Max" :allowDecimal="true" @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }" />
+                                </div>
+
+                                <div class="space-y-1">
+                                    <Label class="text-xs">Ubicación</Label>
+                                    <SelectField
+                                        v-model="ws.location_id"
+                                        label=""
+                                        :options="warehouseLocations.map((l) => ({ id: String(l.id), name: l.name }))"
+                                        placeholder="Sin ubicación"
+                                        :searchable="true"
+                                        search-placeholder="Buscar ubicación..."
+                                        :show-placeholder-option="true"
+                                        :disabled="isViewMode"
+                                        class="w-full"
+                                    >
+                                        <template v-if="!isViewMode" #header>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
+                                                @click.stop="openLocationDialog(idx)"
+                                            >
+                                                <Plus class="h-3 w-3" />
+                                                Nueva ubicación
+                                            </Button>
+                                        </template>
+                                    </SelectField>
+                                </div>
+
+                                <div class="flex items-end justify-end">
+                                    <button
+                                        v-if="!isViewMode"
+                                        type="button"
+                                        class="rounded-full p-2 transition hover:bg-red-100 dark:hover:bg-red-900"
+                                        @click="removeWarehouseStock(idx)"
+                                        title="Quitar"
+                                    >
+                                        <Trash class="h-4 w-4 text-red-500" />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-if="isSecondaryLoading" class="px-2 py-1 text-xs text-muted-foreground">Cargando bodegas e inventario...</div>
+                        <div v-else-if="warehouseStocks.length === 0" class="px-2 py-1 text-xs text-gray-400">No hay bodegas asociadas.</div>
+                    </div>
+
                     </div>
 
                     <!-- SEGUNDA SECCIÓN -->

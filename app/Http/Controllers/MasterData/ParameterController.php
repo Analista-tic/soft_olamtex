@@ -70,6 +70,21 @@ class ParameterController extends Controller
     {
         $setting = Setting::parameters()->where('key', 'areas')->first();
 
-        return response()->json($setting ? $setting->value : []);
+        if (! $setting) {
+            return response()->json([]);
+        }
+
+        $areas = is_array($setting->value) ? array_values($setting->value) : [];
+
+        $areas = array_map(function (mixed $area, int $index): ?array {
+            if (! is_array($area)) {
+                return null;
+            }
+            $id = isset($area['id']) && is_int($area['id']) ? $area['id'] : ($index + 1);
+
+            return array_merge($area, ['id' => $id]);
+        }, $areas, array_keys($areas));
+
+        return response()->json(array_values(array_filter($areas)));
     }
 }
