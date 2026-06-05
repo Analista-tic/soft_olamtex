@@ -246,6 +246,45 @@ function setDownloadDialogOpen(value: boolean) {
     if (!value) rollToDownload.value = null;
 }
 
+function handleQuantityCorrected(payload: { rollId: number; newQuantity: number }) {
+    const idx = rolls.value.findIndex((r) => r.id === payload.rollId);
+    if (idx !== -1) {
+        const roll = rolls.value[idx];
+        const newQty = payload.newQuantity;
+        const actualOutput = roll.exit_quantity_value ?? 0;
+        const partialOutput = roll.partial_output_value ?? 0;
+        const realAvail = newQty - actualOutput;
+        const partialAvail = Math.max(0, realAvail - partialOutput);
+        rolls.value[idx] = {
+            ...roll,
+            roll_qty_value: newQty,
+            roll_qty: formatMeters(newQty),
+            real_availability_value: realAvail,
+            real_availability: formatMeters(realAvail),
+            partial_availability_value: partialAvail,
+            partial_availability: formatMeters(partialAvail),
+            status: realAvail <= 0 ? 'depleted' : 'available',
+        };
+        if (selectedRoll.value?.id === payload.rollId) {
+            selectedRoll.value = rolls.value[idx];
+        }
+    }
+    successMessage.value = 'Cantidad del rollo corregida correctamente.';
+    errorMessage.value = '';
+}
+
+function handlePriceUpdated(payload: { rollId: number; pricePerMeter: number }) {
+    const idx = rolls.value.findIndex((r) => r.id === payload.rollId);
+    if (idx !== -1) {
+        rolls.value[idx] = { ...rolls.value[idx], price_per_meter: payload.pricePerMeter };
+        if (selectedRoll.value?.id === payload.rollId) {
+            selectedRoll.value = { ...selectedRoll.value, price_per_meter: payload.pricePerMeter };
+        }
+    }
+    successMessage.value = 'Precio por metro actualizado correctamente.';
+    errorMessage.value = '';
+}
+
 async function handleMainFabricUpdated(payload: { rollId: number; itemId: number; itemName: string; message: string }) {
     const rollIndex = rolls.value.findIndex((roll) => roll.id === payload.rollId);
 
@@ -606,8 +645,11 @@ async function handleCsvImported(payload: { inserted: number; skipped: number; e
             :modelValue="isDialogOpen"
             :roll="selectedRoll"
             :can-edit-main-fabric="canSuperadminManageChanges"
+            :can-edit-rolls="canEditRolls"
             @update:modelValue="(value) => (isDialogOpen = value)"
             @main-fabric-updated="handleMainFabricUpdated"
+            @quantity-corrected="handleQuantityCorrected"
+            @price-updated="handlePriceUpdated"
         />
 
         <!-- FabricRollAdjustDialog: funcionalidad en estudio — puede generar inconsistencias de inventario -->

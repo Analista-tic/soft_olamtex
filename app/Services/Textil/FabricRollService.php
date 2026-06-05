@@ -4,6 +4,7 @@ namespace App\Services\Textil;
 
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
+use App\Models\Inventory\WarehouseItem;
 use App\Models\MasterData\Item;
 use App\Models\Production\ProductionRollConsumption;
 use App\Models\Textil\FabricRoll;
@@ -353,6 +354,71 @@ class FabricRollService
      * @throws ValidationException
      * @throws \RuntimeException
      */
+    public function correctQuantity(FabricRoll $fabricRoll, float $newQuantity, string $reason): FabricRoll
+    {
+        return DB::transaction(function () use ($fabricRoll, $newQuantity, $reason) {
+            $roll = FabricRoll::lockForUpdate()->findOrFail($fabricRoll->id);
+
+            $currentQty = (float) $roll->quantity;
+            $delta      = round($newQuantity - $currentQty, 4);
+
+            if (abs($delta) < 0.001) {
+                return $roll;
+            }
+
+            $newActualOutput = (float) $roll->actual_output;
+            if ($delta < 0 && ($newQuantity < $newActualOutput)) {
+                throw ValidationException::withMessages([
+                    'new_quantity' => ['La nueva cantidad no puede ser menor que la cantidad ya consumida (' . $newActualOutput . ' mts).'],
+                ]);
+            }
+
+            $roll->update(['quantity' => $newQuantity]);
+            $roll->refresh();
+
+            $item = $roll->item ?? $roll->purchaseDocumentItem?->item;
+            $inventoryMovementId = null;
+
+            if ($item) {
+                $warehouseId = $this->warehouseResolver->resolveWarehouseId($item, null);
+                $unitPrice   = $this->movementService->getCurrentWeightedPrice($item->id, $warehouseId);
+
+                if ($unitPrice <= 0) {
+                    $unitPrice = (float) ($roll->price_per_meter ?? $roll->purchaseDocumentItem?->price ?? 0.0001);
+                }
+
+                $movType = $delta > 0 ? 'entrada' : 'salida';
+
+                $movement = $this->movementService->createMovement([
+                    'item_id'            => $item->id,
+                    'warehouse_id'       => $warehouseId,
+                    'type'               => $movType,
+                    'quantity'           => abs($delta),
+                    'unit_price'         => max(0.0001, $unitPrice),
+                    'notes'              => 'Corrección de cantidad rollo #' . $roll->roll_number . '. Motivo: ' . $reason,
+                    'source_type'        => FabricRoll::class,
+                    'source_id'          => $roll->id,
+                    'source_reference'   => $roll->roll_number,
+                    'created_by_user_id' => Auth::id(),
+                ]);
+
+                $inventoryMovementId = $movement->id;
+            }
+
+            FabricRollAdjustment::create([
+                'fabric_roll_id'        => $roll->id,
+                'user_id'               => Auth::id(),
+                'type'                  => 'correction',
+                'quantity_before'       => $currentQty,
+                'quantity_after'        => $newQuantity,
+                'reason'                => $reason,
+                'inventory_movement_id' => $inventoryMovementId,
+            ]);
+
+            return $roll;
+        });
+    }
+
     public function discharge(FabricRoll $fabricRoll, string $type, float $quantity, string $reason, ?int $productionOrderId, ?string $reference): FabricRoll
     {
         return DB::transaction(function () use ($fabricRoll, $type, $quantity, $reason, $productionOrderId, $reference) {
@@ -1007,5 +1073,41 @@ class FabricRollService
         }
 
         return compact('updated', 'skipped', 'errors');
+    }
+
+    /**
+     * Recalcula el PP ponderado en warehouse_items para un ítem de tela,
+     * usando el promedio ponderado de todos sus rollos aprobados con precio > 0.
+     *
+     * Se llama tras actualizar price_per_meter de un rollo para que el cambio
+     * se propague inmediatamente al costo de producción y al inventario.
+     */
+    public function refreshWarehouseItemPP(int $itemId): void
+    {
+        // PP ponderado desde fabric_rolls aprobados con precio definido
+        $result = DB::table('fabric_rolls as fr')
+            ->leftJoin('purchase_document_items as pdi', 'pdi.id', '=', 'fr.purchase_document_item_id')
+            ->whereRaw('COALESCE(fr.item_id, pdi.item_id) = ?', [$itemId])
+            ->whereNull('fr.deleted_at')
+            ->where('fr.approval_status', FabricRoll::APPROVAL_APPROVED)
+            ->where('fr.price_per_meter', '>', 0)
+            ->where('fr.quantity', '>', 0)
+            ->selectRaw('SUM(fr.quantity * fr.price_per_meter) / SUM(fr.quantity) AS new_pp')
+            ->selectRaw('SUM(fr.quantity) AS total_qty')
+            ->first();
+
+        if (!$result || (float) ($result->total_qty ?? 0) <= 0) {
+            return;
+        }
+
+        $newPP = round((float) $result->new_pp, 4);
+
+        // Actualizar warehouse_items del ítem: precio ponderado y total_cost
+        WarehouseItem::where('item_id', $itemId)
+            ->each(function (WarehouseItem $wi) use ($newPP) {
+                $wi->weighted_average_price = $newPP;
+                $wi->total_cost             = round((float) $wi->quantity * $newPP, 4);
+                $wi->save();
+            });
     }
 }

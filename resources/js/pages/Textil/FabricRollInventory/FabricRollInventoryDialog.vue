@@ -10,19 +10,100 @@ import type { FabricItemOption, FabricRollView } from '@/domain/Textil';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
 
+const currencyFormatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 2 });
+
 const props = withDefaults(
     defineProps<{
         modelValue?: boolean;
         roll?: FabricRollView | null;
         canEditMainFabric?: boolean;
+        canEditRolls?: boolean;
     }>(),
-    { modelValue: false, roll: null, canEditMainFabric: false },
+    { modelValue: false, roll: null, canEditMainFabric: false, canEditRolls: false },
 );
 
 const emit = defineEmits<{
     (event: 'update:modelValue', value: boolean): void;
     (event: 'main-fabric-updated', payload: { rollId: number; itemId: number; itemName: string; message: string }): void;
+    (event: 'quantity-corrected', payload: { rollId: number; newQuantity: number }): void;
+    (event: 'price-updated', payload: { rollId: number; pricePerMeter: number }): void;
 }>();
+
+// ── Corrección de cantidad ──────────────────────────────────────
+const newQuantity    = ref('');
+const quantityReason = ref('');
+const isSavingQty   = ref(false);
+const qtyError       = ref('');
+
+// ── Precio por metro ────────────────────────────────────────────
+const newPrice      = ref('');
+const isSavingPrice = ref(false);
+const priceError    = ref('');
+
+watch(
+    () => props.roll,
+    (roll) => {
+        newQuantity.value    = roll?.roll_qty_value != null ? String(roll.roll_qty_value) : '';
+        quantityReason.value = '';
+        qtyError.value       = '';
+        newPrice.value       = roll?.price_per_meter != null ? String(roll.price_per_meter) : '';
+        priceError.value     = '';
+    },
+    { immediate: true },
+);
+
+async function saveQuantityCorrection() {
+    if (!props.roll?.id) return;
+    const qty = parseFloat(newQuantity.value.replace(',', '.'));
+    if (isNaN(qty) || qty <= 0) {
+        qtyError.value = 'Ingresa una cantidad válida mayor a 0.';
+        return;
+    }
+    if (!quantityReason.value.trim()) {
+        qtyError.value = 'El motivo es obligatorio.';
+        return;
+    }
+    qtyError.value = '';
+    isSavingQty.value = true;
+    try {
+        const res = await axios.patch(`/rollos-tela/${props.roll.id}/corregir-cantidad`, {
+            new_quantity: qty,
+            reason: quantityReason.value.trim(),
+        });
+        emit('quantity-corrected', { rollId: props.roll.id, newQuantity: res.data.roll_qty_value });
+        quantityReason.value = '';
+        showAlert(res.data.message || 'Cantidad corregida correctamente.', 'success');
+    } catch (err: any) {
+        const msg = err?.response?.data?.errors?.new_quantity?.[0]
+            ?? err?.response?.data?.message
+            ?? 'No se pudo corregir la cantidad.';
+        qtyError.value = msg;
+    } finally {
+        isSavingQty.value = false;
+    }
+}
+
+async function savePrice() {
+    if (!props.roll?.id) return;
+    const price = parseFloat(newPrice.value.replace(',', '.'));
+    if (isNaN(price) || price < 0) {
+        priceError.value = 'Ingresa un precio válido (0 o mayor).';
+        return;
+    }
+    priceError.value = '';
+    isSavingPrice.value = true;
+    try {
+        const res = await axios.patch(`/rollos-tela/${props.roll.id}/actualizar-precio`, {
+            price_per_meter: price,
+        });
+        emit('price-updated', { rollId: props.roll.id, pricePerMeter: res.data.price_per_meter });
+        showAlert(res.data.message || 'Precio actualizado correctamente.', 'success');
+    } catch (err: any) {
+        priceError.value = err?.response?.data?.message ?? 'No se pudo actualizar el precio.';
+    } finally {
+        isSavingPrice.value = false;
+    }
+}
 
 const fabricSearch = ref('');
 const fabricOptions = ref<FabricItemOption[]>([]);
@@ -333,6 +414,86 @@ const metricCards = computed(() => {
                             <p v-else class="text-xs text-muted-foreground">
                                 Solo superadmin puede actualizar la relación del rollo con su tela principal.
                             </p>
+                        </div>
+                    </section>
+
+                    <!-- Corrección de cantidad (solo usuarios con permiso editar rollos) -->
+                    <section v-if="props.canEditRolls">
+                        <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Corrección de cantidad</p>
+                        <div class="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
+                            <div class="flex items-center justify-between gap-3 text-sm">
+                                <span class="text-muted-foreground">Cantidad actual</span>
+                                <span class="font-semibold text-foreground">{{ props.roll?.roll_qty ?? '—' }} mts</span>
+                            </div>
+                            <div class="space-y-1">
+                                <p class="text-xs font-semibold text-muted-foreground">Nueva cantidad total (mts) <span class="text-destructive">*</span></p>
+                                <Input
+                                    v-model="newQuantity"
+                                    type="number"
+                                    step="0.01"
+                                    min="0.01"
+                                    class="h-9"
+                                    placeholder="Ej: 48.5"
+                                />
+                            </div>
+                            <div class="space-y-1">
+                                <p class="text-xs font-semibold text-muted-foreground">Motivo <span class="text-destructive">*</span></p>
+                                <Input
+                                    v-model="quantityReason"
+                                    class="h-9"
+                                    placeholder="Ej: Error de medición en recepción"
+                                    maxlength="500"
+                                />
+                            </div>
+                            <p v-if="qtyError" class="text-xs text-destructive">{{ qtyError }}</p>
+                            <div class="flex justify-end">
+                                <Button
+                                    type="button"
+                                    size="pill"
+                                    :disabled="isSavingQty"
+                                    @click="saveQuantityCorrection"
+                                >
+                                    {{ isSavingQty ? 'Guardando...' : 'Aplicar corrección' }}
+                                </Button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Precio por metro (solo usuarios con permiso editar rollos) -->
+                    <section v-if="props.canEditRolls">
+                        <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Precio por metro</p>
+                        <div class="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
+                            <div class="flex items-center justify-between gap-3 text-sm">
+                                <span class="text-muted-foreground">Precio actual</span>
+                                <span class="font-semibold text-foreground">
+                                    {{ props.roll?.price_per_meter != null
+                                        ? currencyFormatter.format(props.roll.price_per_meter)
+                                        : 'Sin precio definido' }}
+                                </span>
+                            </div>
+                            <div class="space-y-1">
+                                <p class="text-xs font-semibold text-muted-foreground">Nuevo precio por metro (COP) <span class="text-destructive">*</span></p>
+                                <Input
+                                    v-model="newPrice"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    class="h-9"
+                                    placeholder="Ej: 12500"
+                                />
+                                <p class="text-xs text-muted-foreground">Este valor se usa como costo unitario en los movimientos de inventario futuros.</p>
+                            </div>
+                            <p v-if="priceError" class="text-xs text-destructive">{{ priceError }}</p>
+                            <div class="flex justify-end">
+                                <Button
+                                    type="button"
+                                    size="pill"
+                                    :disabled="isSavingPrice"
+                                    @click="savePrice"
+                                >
+                                    {{ isSavingPrice ? 'Guardando...' : 'Guardar precio' }}
+                                </Button>
+                            </div>
                         </div>
                     </section>
                 </div>

@@ -891,6 +891,63 @@ class FabricRollController extends Controller
         ]);
     }
 
+    public function correctQuantity(\Illuminate\Http\Request $request, FabricRoll $fabricRoll): JsonResponse
+    {
+        $data = $request->validate([
+            'new_quantity' => ['required', 'numeric', 'min:0.01'],
+            'reason'       => ['required', 'string', 'max:500'],
+        ]);
+
+        try {
+            $fabricRoll = $this->service->correctQuantity(
+                $fabricRoll,
+                (float) $data['new_quantity'],
+                (string) $data['reason']
+            );
+        } catch (ValidationException $e) {
+            return response()->json(['message' => $e->getMessage(), 'errors' => $e->errors()], 422);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        $rollQtyValue           = (float) $fabricRoll->quantity;
+        $exitQuantityValue      = (float) $fabricRoll->actual_output;
+        $partialOutputValue     = (float) $fabricRoll->partial_output;
+        $partialAvailability    = max(0.0, $rollQtyValue - $exitQuantityValue - $partialOutputValue);
+        $realAvailability       = $rollQtyValue - $exitQuantityValue;
+
+        return response()->json([
+            'message'                   => 'Cantidad del rollo corregida correctamente.',
+            'roll_qty_value'            => $rollQtyValue,
+            'exit_quantity_value'       => $exitQuantityValue,
+            'partial_output_value'      => $partialOutputValue,
+            'partial_availability_value' => $partialAvailability,
+            'real_availability_value'   => $realAvailability,
+        ]);
+    }
+
+    public function updatePrice(\Illuminate\Http\Request $request, FabricRoll $fabricRoll): JsonResponse
+    {
+        $data = $request->validate([
+            'price_per_meter' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $fabricRoll->update(['price_per_meter' => (float) $data['price_per_meter']]);
+
+        // Recalcular el PP ponderado en warehouse_items para el ítem vinculado al rollo.
+        // Se usa el promedio ponderado de todos los rollos aprobados del ítem para
+        // que el cambio de precio se refleje inmediatamente en el costo de producción.
+        $item = $fabricRoll->item ?? $fabricRoll->purchaseDocumentItem?->item;
+        if ($item) {
+            $this->service->refreshWarehouseItemPP($item->id);
+        }
+
+        return response()->json([
+            'message'         => 'Precio por metro actualizado correctamente.',
+            'price_per_meter' => (float) $fabricRoll->price_per_meter,
+        ]);
+    }
+
     public function approveReception($invoiceId)
     {
         try {

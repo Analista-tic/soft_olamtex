@@ -17,6 +17,8 @@ Route::prefix('rollos-tela')->name('fabric-rolls.')->middleware('permission:ver 
     Route::delete('/{fabricRoll}', [App\Http\Controllers\Textil\FabricRollController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar telas rollos');
     Route::patch('/{fabricRoll}/update-output', [App\Http\Controllers\Textil\FabricRollController::class, 'updateOutput'])->name('update-output')->middleware('permission:editar telas rollos');
     Route::patch('/{fabricRoll}/discharge', [App\Http\Controllers\Textil\FabricRollController::class, 'discharge'])->name('discharge')->middleware('permission:editar telas rollos');
+    Route::patch('/{fabricRoll}/corregir-cantidad', [App\Http\Controllers\Textil\FabricRollController::class, 'correctQuantity'])->name('correct-quantity')->middleware('permission:editar telas rollos');
+    Route::patch('/{fabricRoll}/actualizar-precio', [App\Http\Controllers\Textil\FabricRollController::class, 'updatePrice'])->name('update-price')->middleware('permission:editar telas rollos');
 });
 
 // Ruta para descargar la plantilla de importación de rollos (archivo en storage/app/public)
