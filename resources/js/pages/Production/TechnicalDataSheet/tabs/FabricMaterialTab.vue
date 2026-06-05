@@ -5,8 +5,14 @@ import { useAlertStack } from '@/composables/useAlert';
 import Button from '@/components/ui/button/Button.vue';
 import Input from '@/components/ui/input/Input.vue';
 import type { AvailableFabricRoll, RawMaterialItemMeta, RollLine } from '@/domain/Production';
+
+type RawMaterialDetailRow = {
+    fabricItemId: number | null;
+    ppInventario: number;
+};
 import {
     fetchAvailableFabricRolls,
+    fetchOpCostsSummary,
     fetchOpRawMaterialsState,
     fetchOpRolls,
     fetchRawMaterialCatalogOptions,
@@ -86,6 +92,27 @@ const trazos = ref<TrazoGroup[]>([]);
 const itemOptions = ref<Option[]>([]);
 const isLoading = ref(false);
 const isSaving = ref(false);
+
+// PP de inventario por fabricItemId (cargado desde costsSummary)
+const inventoryPPDetail = ref<RawMaterialDetailRow[]>([]);
+const inventoryPPMap = computed<Map<number, number>>(() => {
+    const m = new Map<number, number>();
+    for (const row of inventoryPPDetail.value) {
+        if (row.fabricItemId != null && row.ppInventario > 0) {
+            m.set(row.fabricItemId, row.ppInventario);
+        }
+    }
+    return m;
+});
+
+async function loadInventoryPP(): Promise<void> {
+    try {
+        const summary = await fetchOpCostsSummary(props.opId);
+        inventoryPPDetail.value = summary.rawMaterialDetail ?? [];
+    } catch {
+        // silencioso — no bloquear la UI si falla
+    }
+}
 const isLoadingItems = ref(false);
 const fabricTypeOptions = ref<Option[]>([...HARDCODED_FABRIC_TYPE_OPTIONS]);
 const { successMessage, errorMessage, errorType, showSuccess, showError, showWarning, clearSuccess, clearError } = useAlertStack();
@@ -920,6 +947,7 @@ async function loadAll(): Promise<void> {
         isLoading.value = false;
         syncBaselineRollProgrammed();
         resetSnapshot();
+        void loadInventoryPP();
     }
 }
 
@@ -1303,6 +1331,20 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                     <span class="text-xs font-medium text-foreground/70">{{ activeLine.tela }}</span>
                                     <span v-if="activeLine.lastSupplierName" class="hidden sm:inline">{{ activeLine.lastSupplierName }}</span>
                                     <span v-if="activeLine.ancho !== null" class="hidden sm:inline shrink-0">{{ formatWidth(activeLine.ancho, activeLine.anchoUnit) }}</span>
+                                    <!-- PP inventario y costo estimado por prenda -->
+                                    <template v-if="activeLine.telaItemId != null">
+                                        <span class="hidden sm:inline text-border">·</span>
+                                        <span
+                                            v-if="inventoryPPMap.get(activeLine.telaItemId)"
+                                            class="hidden sm:inline-flex items-center gap-1 rounded border border-primary/30 bg-primary/5 px-2 py-0.5 font-semibold text-primary"
+                                            title="PP inventario (warehouse_items) × (Prom. trazo + 0.03 m)"
+                                        >
+                                            PP {{ formatCOP(inventoryPPMap.get(activeLine.telaItemId) ?? 0) }}/m
+                                        </span>
+                                        <span v-else class="hidden sm:inline rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-amber-700" title="Sin precio promedio ponderado en inventario">
+                                            Sin PP
+                                        </span>
+                                    </template>
                                     <button
                                         type="button"
                                         class="inline-flex items-center gap-1 rounded border border-input bg-muted px-2 py-1 text-xs text-muted-foreground transition hover:border-accent hover:text-accent disabled:pointer-events-none disabled:opacity-40"

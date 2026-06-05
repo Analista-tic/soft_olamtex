@@ -44,6 +44,67 @@ class TechnicalSheetService
         private TechnicalDataSheetProcessesStore $processesStore,
     ) {}
 
+    /**
+     * Devuelve el PP de inventario (warehouse_items.weighted_average_price) para
+     * cada fabricItemId, consultando la BD una sola vez por llamada.
+     *
+     * @param  int[] $itemIds
+     * @return array<int, float>  map de item_id → PP
+     */
+    private function fetchInventoryPPByItem(array $itemIds): array
+    {
+        if (empty($itemIds)) {
+            return [];
+        }
+
+        $rows = \Illuminate\Support\Facades\DB::table('warehouse_items')
+            ->whereIn('item_id', $itemIds)
+            ->where('weighted_average_price', '>', 0)
+            ->where('quantity', '>', 0)
+            ->select('item_id',
+                \Illuminate\Support\Facades\DB::raw('SUM(quantity * weighted_average_price) / SUM(quantity) AS pp'))
+            ->groupBy('item_id')
+            ->get();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(int) $row->item_id] = (float) $row->pp;
+        }
+        return $map;
+    }
+
+    /**
+     * Fallback: PP calculado directamente desde fabric_rolls.price_per_meter
+     * para ítems sin PP en warehouse_items (recepción pendiente o PP = 0).
+     *
+     * @param  int[] $itemIds
+     * @return array<int, float>  map de item_id → PP ponderado por metros
+     */
+    private function fetchRollPPByItem(array $itemIds): array
+    {
+        if (empty($itemIds)) {
+            return [];
+        }
+
+        $rows = \Illuminate\Support\Facades\DB::table('fabric_rolls as fr')
+            ->leftJoin('purchase_document_items as pdi', 'pdi.id', '=', 'fr.purchase_document_item_id')
+            ->whereRaw('COALESCE(fr.item_id, pdi.item_id) IN (' . implode(',', array_map('intval', $itemIds)) . ')')
+            ->whereNull('fr.deleted_at')
+            ->where('fr.approval_status', 'approved')
+            ->where('fr.price_per_meter', '>', 0)
+            ->where('fr.quantity', '>', 0)
+            ->selectRaw('COALESCE(fr.item_id, pdi.item_id) AS item_id')
+            ->selectRaw('SUM(fr.quantity * fr.price_per_meter) / SUM(fr.quantity) AS pp')
+            ->groupByRaw('COALESCE(fr.item_id, pdi.item_id)')
+            ->get();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(int) $row->item_id] = (float) $row->pp;
+        }
+        return $map;
+    }
+
     // ─── API pública ──────────────────────────────────────
 
     /**
@@ -137,6 +198,7 @@ class TechnicalSheetService
                 'supplies'    => $this->hasSuppliesData($opId),
                 'processes'   => ($processes['rowsCount'] ?? 0) > 0,
             ],
+            'rawMaterialDetail' => $this->buildRawMaterialDetail($opId),
         ];
 
         $order->updateQuietly(['calculated_cost' => round($total, 4)]);
@@ -509,54 +571,104 @@ class TechnicalSheetService
     }
 
     /**
-     * Calcula el costo de materia prima (rollos) POR PRENDA.
+     * Calcula el costo de materia prima (rollos) POR PRENDA, tela a tela.
      *
-     * Fórmula por trazo:
+     * Fórmula por (tela × trazo):
      *   consumo_prenda = promTrazo + 0.03
-     *   precio_ponderado = Σ(metros × precio) / Σ(metros)  → promedio de todos los rollos del trazo
-     *   costo_prenda_trazo = consumo_prenda × precio_ponderado
+     *   pp_tela        = warehouse_items.weighted_average_price para ese fabricItemId
+     *   costo_prenda   = consumo_prenda × pp_tela
      *
-     * Total = Σ(costo_prenda_trazo) para todos los trazos.
+     * Fallback: si la tela no tiene PP en inventario, se usa pricePerMeter guardado.
+     *
+     * Total = Σ(costo_prenda) para todas las combinaciones únicas (tela × trazo).
      */
     public function calculateRollsTotal(int $opId, float $units): float
+    {
+        return array_sum(
+            array_column($this->buildRawMaterialDetail($opId), 'costoPrenda')
+        );
+    }
+
+    /**
+     * Construye el desglose de costo de materia prima por tela y trazo.
+     *
+     * @return array<int, array{fabricItemId:int|null,fabricName:string,promTrazo:float,ppInventario:float,consumoPrenda:float,costoPrenda:float}>
+     */
+    public function buildRawMaterialDetail(int $opId): array
     {
         $state = $this->rollsStore->read($opId);
         $lines = is_array($state['lines'] ?? null) ? $state['lines'] : [];
         if (empty($lines)) {
-            return 0.0;
+            return [];
         }
 
-        // Agrupar líneas por promTrazo (campo averageTrace guardado en cada línea)
+        // Recopilar fabricItemIds únicos para consultarlos en bloque
+        $fabricItemIds = [];
+        foreach ($lines as $line) {
+            $id = isset($line['fabricItemId']) && is_numeric($line['fabricItemId'])
+                ? (int) $line['fabricItemId']
+                : null;
+            if ($id !== null) {
+                $fabricItemIds[$id] = true;
+            }
+        }
+        $ids = array_keys($fabricItemIds);
+
+        // 1a fuente: PP de warehouse_items (actualizado por movimientos de inventario)
+        $ppMap = $this->fetchInventoryPPByItem($ids);
+
+        // 2a fuente (fallback): PP ponderado calculado desde fabric_rolls.price_per_meter
+        // Se usa cuando warehouse_items no tiene PP (recepción pendiente o PP = 0)
+        $idsNeedingFallback = array_filter($ids, fn($id) => !isset($ppMap[$id]) || $ppMap[$id] <= 0);
+        $rollPPMap = !empty($idsNeedingFallback) ? $this->fetchRollPPByItem($idsNeedingFallback) : [];
+
+        // Agrupar por (fabricItemId, averageTrace): una entrada por tela×trazo
         $groups = [];
         foreach ($lines as $line) {
-            $averageTrace     = is_numeric($line['averageTrace'] ?? null) ? (float) $line['averageTrace'] : null;
-            $programmedMeters = is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : 0.0;
-            $price            = is_numeric($line['pricePerMeter'] ?? null) ? (float) $line['pricePerMeter'] : 0.0;
-
-            if ($averageTrace === null || $averageTrace <= 0 || $programmedMeters <= 0 || $price <= 0) {
+            $averageTrace = is_numeric($line['averageTrace'] ?? null) ? (float) $line['averageTrace'] : null;
+            if ($averageTrace === null || $averageTrace <= 0) {
                 continue;
             }
 
-            // Clave estable por valor de promTrazo (redondeado a 8 decimales)
-            $key = number_format($averageTrace, 8, '.', '');
-            if (!isset($groups[$key])) {
-                $groups[$key] = ['promTrazo' => $averageTrace, 'totalMeters' => 0.0, 'totalCost' => 0.0];
+            $fabricItemId = isset($line['fabricItemId']) && is_numeric($line['fabricItemId'])
+                ? (int) $line['fabricItemId']
+                : null;
+
+            $groupKey = ($fabricItemId ?? 'null') . '|' . number_format($averageTrace, 8, '.', '');
+
+            if (!isset($groups[$groupKey])) {
+                // Jerarquía de fuentes para el PP (mayor a menor confiabilidad):
+                // 1. warehouse_items.weighted_average_price  (movimientos de inventario)
+                // 2. fabric_rolls.price_per_meter ponderado  (precio actualizado en el rollo)
+                // 3. pricePerMeter guardado en la línea de ficha técnica (valor histórico)
+                $ppInventario = 0.0;
+                if ($fabricItemId !== null && isset($ppMap[$fabricItemId]) && $ppMap[$fabricItemId] > 0) {
+                    $ppInventario = $ppMap[$fabricItemId];
+                } elseif ($fabricItemId !== null && isset($rollPPMap[$fabricItemId]) && $rollPPMap[$fabricItemId] > 0) {
+                    $ppInventario = $rollPPMap[$fabricItemId];
+                } elseif (is_numeric($line['pricePerMeter'] ?? null) && (float) $line['pricePerMeter'] > 0) {
+                    $ppInventario = (float) $line['pricePerMeter'];
+                }
+
+                $groups[$groupKey] = [
+                    'fabricItemId'  => $fabricItemId,
+                    'fabricName'    => (string) ($line['fabricName'] ?? ''),
+                    'promTrazo'     => $averageTrace,
+                    'ppInventario'  => $ppInventario,
+                    'consumoPrenda' => round($averageTrace + 0.03, 6),
+                    'costoPrenda'   => 0.0,
+                ];
             }
-            $groups[$key]['totalMeters'] += $programmedMeters;
-            $groups[$key]['totalCost']   += $programmedMeters * $price;
+
+            // El PP ya es fijo por tela; solo necesitamos que el grupo exista una vez.
         }
 
-        $costPerGarment = 0.0;
-        foreach ($groups as $group) {
-            if ($group['totalMeters'] <= 0) {
-                continue;
-            }
-            $weightedPrice    = $group['totalCost'] / $group['totalMeters'];
-            $consumoPorPrenda = $group['promTrazo'] + 0.03; // factor 0,03 m sobre promedio de trazo
-            $costPerGarment  += $consumoPorPrenda * $weightedPrice;
+        foreach ($groups as &$g) {
+            $g['costoPrenda'] = round($g['consumoPrenda'] * $g['ppInventario'], 4);
         }
+        unset($g);
 
-        return $costPerGarment;
+        return array_values($groups);
     }
 
     /**

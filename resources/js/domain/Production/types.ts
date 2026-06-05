@@ -267,6 +267,16 @@ export type CostsSummary = {
     };
     profitability: { olamtex: { value: number | null; percent: number | null }; client: { value: number | null; percent: number | null } };
     breakdownAvailable: { rawMaterial: boolean; supplies: boolean; processes: boolean };
+    rawMaterialDetail?: RawMaterialDetailRow[];
+};
+
+export type RawMaterialDetailRow = {
+    fabricItemId: number | null;
+    fabricName: string;
+    promTrazo: number;
+    ppInventario: number;
+    consumoPrenda: number;
+    costoPrenda: number;
 };
 
 export type SupplyStage = 'CORTE' | 'CONFECCION' | 'TERMINACION' | 'GENERAL' | 'OTRO';

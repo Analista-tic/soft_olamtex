@@ -460,6 +460,14 @@ export async function fetchOpCostsSummary(opId: string | number): Promise<CostsS
             supplies: Boolean(data?.breakdownAvailable?.supplies),
             processes: Boolean(data?.breakdownAvailable?.processes),
         },
+        rawMaterialDetail: (data?.rawMaterialDetail ?? []).map((r) => ({
+            fabricItemId: r.fabricItemId ?? null,
+            fabricName: r.fabricName ?? '',
+            promTrazo: Number(r.promTrazo ?? 0),
+            ppInventario: Number(r.ppInventario ?? 0),
+            consumoPrenda: Number(r.consumoPrenda ?? 0),
+            costoPrenda: Number(r.costoPrenda ?? 0),
+        })),
     };
 }
 

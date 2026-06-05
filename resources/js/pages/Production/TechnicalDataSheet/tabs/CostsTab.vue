@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import HelpTooltip from '@/components/HelpTooltip.vue';
-import type { CostsSummary, OpBasicInfo } from '@/domain/Production';
+import type { CostsSummary, OpBasicInfo, RawMaterialDetailRow } from '@/domain/Production';
 import { fetchOpCostsSummary } from '@/domain/Production';
 import axios from 'axios';
 import { Minus, RotateCcw, TrendingDown, TrendingUp } from 'lucide-vue-next';
@@ -338,6 +338,44 @@ watch(() => props.opId, () => void load(), { immediate: true });
             <!-- ── 2. Desglose de costos ────────────────────────────────────── -->
             <section class="space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Desglose por prenda</p>
+
+                <!-- Detalle de materia prima por tela -->
+                <div v-if="summary.rawMaterialDetail && summary.rawMaterialDetail.length > 0"
+                     class="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+                    <div class="border-b bg-muted/30 px-4 py-2 flex items-center gap-2">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Materia prima — PP inventario por tela</p>
+                        <HelpTooltip text="Precio ponderado de inventario (warehouse_items) × (Promedio trazo + 0.03 m)" aria-label="Cómo se calcula" />
+                    </div>
+                    <table class="w-full text-xs">
+                        <thead>
+                            <tr class="border-b bg-muted/20 text-left text-muted-foreground">
+                                <th class="px-4 py-2 font-semibold">Tela</th>
+                                <th class="px-4 py-2 text-center font-semibold">Prom. trazo</th>
+                                <th class="px-4 py-2 text-center font-semibold">Consumo/prenda</th>
+                                <th class="px-4 py-2 text-right font-semibold">PP inventario</th>
+                                <th class="px-4 py-2 text-right font-semibold">Costo/prenda</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr
+                                v-for="(row, idx) in summary.rawMaterialDetail"
+                                :key="idx"
+                                :class="idx % 2 === 0 ? 'bg-transparent' : 'bg-muted/20'"
+                                class="border-b last:border-0"
+                            >
+                                <td class="px-4 py-2 font-medium text-foreground">{{ row.fabricName || '—' }}</td>
+                                <td class="px-4 py-2 text-center tabular-nums text-muted-foreground">{{ row.promTrazo.toFixed(4) }} m</td>
+                                <td class="px-4 py-2 text-center tabular-nums text-muted-foreground">{{ row.consumoPrenda.toFixed(4) }} m</td>
+                                <td class="px-4 py-2 text-right tabular-nums">
+                                    <span v-if="row.ppInventario > 0" class="font-semibold text-foreground">{{ fCOP(row.ppInventario) }}</span>
+                                    <span v-else class="text-amber-600 font-medium">Sin PP</span>
+                                </td>
+                                <td class="px-4 py-2 text-right tabular-nums font-bold text-primary">{{ fCOP(row.costoPrenda) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
                 <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
                     <article
                         v-for="card in costCards"

@@ -276,6 +276,14 @@ export interface CostsSummaryDto {
         client: { value: number | null; percent: number | null };
     };
     breakdownAvailable: { rawMaterial: boolean; supplies: boolean; processes: boolean };
+    rawMaterialDetail?: Array<{
+        fabricItemId: number | null;
+        fabricName: string;
+        promTrazo: number;
+        ppInventario: number;
+        consumoPrenda: number;
+        costoPrenda: number;
+    }>;
 }
 
 export interface RollLineDto {

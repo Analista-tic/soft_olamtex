@@ -6,10 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { fetchOpCostsSummary } from '@/domain/Production';
 import { Eye, Check, ChevronDown, ChevronRight, Layers, Ruler } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import type { BatchControlRow, CutCurves, CutFabricConsumptionLine, CutUnitsReportRow } from '../../types';
 import { CUT_SIZES } from '../../types';
+
+const copFmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+function fCOP(v: number): string { return copFmt.format(Number(v ?? 0)); }
 
 const props = defineProps<{
     open: boolean;
@@ -78,6 +82,29 @@ const emit = defineEmits<{
 
 const collapsedTrazos = ref<Set<string>>(new Set());
 const showError = ref(false);
+
+// PP de inventario por nombre de tela (fabric_reference → ppInventario)
+const ppByFabricName = ref<Map<string, number>>(new Map());
+
+watch(
+    () => props.open,
+    async (open) => {
+        if (!open || !props.row?.id) return;
+        try {
+            const summary = await fetchOpCostsSummary(props.row.id);
+            const m = new Map<string, number>();
+            for (const d of (summary.rawMaterialDetail ?? []) as any[]) {
+                if (d.fabricName && d.ppInventario > 0) {
+                    m.set(d.fabricName, d.ppInventario);
+                }
+            }
+            ppByFabricName.value = m;
+        } catch {
+            // silencioso
+        }
+    },
+    { immediate: true },
+);
 
 function toggleTrazo(uid: string) {
     if (collapsedTrazos.value.has(uid)) collapsedTrazos.value.delete(uid);
@@ -356,6 +383,7 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
                                     <TableHead class="py-2 pl-4 font-semibold">Tela</TableHead>
                                     <TableHead class="py-2 text-center font-semibold">Total Programado (m)</TableHead>
                                     <TableHead class="py-2 text-center font-semibold">Rollos</TableHead>
+                                    <TableHead class="py-2 text-right font-semibold">PP Inventario</TableHead>
                                     <TableHead class="py-2 pr-4 text-right font-semibold">Consumo Total (m)</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -364,6 +392,16 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
                                     <TableCell class="py-1.5 pl-4 font-medium">{{ fab.fabric_reference }}</TableCell>
                                     <TableCell class="py-1.5 text-center tabular-nums text-muted-foreground">{{ fmt(fab.meters_programmed) }}</TableCell>
                                     <TableCell class="py-1.5 text-center tabular-nums text-muted-foreground">{{ fab.roll_count }}</TableCell>
+                                    <TableCell class="py-1.5 text-right tabular-nums">
+                                        <span
+                                            v-if="ppByFabricName.get(fab.fabric_reference)"
+                                            class="font-semibold text-primary"
+                                            :title="`PP inventario: ${fCOP(ppByFabricName.get(fab.fabric_reference) ?? 0)}/m`"
+                                        >
+                                            {{ fCOP(ppByFabricName.get(fab.fabric_reference) ?? 0) }}/m
+                                        </span>
+                                        <span v-else class="text-amber-600 text-xs font-medium">Sin PP</span>
+                                    </TableCell>
                                     <TableCell class="py-1.5 pr-4 text-right tabular-nums font-semibold text-primary">{{ fmt(fab.total_consumption) }}</TableCell>
                                 </TableRow>
                             </TableBody>
@@ -374,6 +412,7 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
                                     <TableCell class="py-2 text-center tabular-nums text-muted-foreground">
                                         {{ fabricSummary.reduce((a, r) => a + r.roll_count, 0) }}
                                     </TableCell>
+                                    <TableCell class="py-2 text-right tabular-nums text-muted-foreground">—</TableCell>
                                     <TableCell class="py-2 pr-4 text-right tabular-nums text-primary">
                                         <span class="inline-flex items-center gap-2">
                                             {{ fmt(grandTotalConsumption) }} m
