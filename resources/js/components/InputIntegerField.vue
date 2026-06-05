@@ -11,6 +11,7 @@ interface Props {
     readonly?: boolean;
     allowNegative?: boolean;
     allowDecimal?: boolean;
+    currency?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -18,9 +19,19 @@ const emit = defineEmits(['update:modelValue']);
 
 const localModelValue = ref<string | number | undefined>(props.modelValue);
 
+function stripCurrencyFormat(value: string): string {
+    return value.replace(/\$/g, '').replace(/\./g, '').replace(/,/g, '.');
+}
+
+function formatCurrency(value: string | number): string {
+    const num = typeof value === 'number' ? value : parseFloat(String(value).replace(',', '.'));
+    if (isNaN(num)) return '';
+    return '$' + num.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
 // --- función de sanitizado reutilizable ---
 function sanitize(value: string): string {
-    const rawValue = String(value ?? '');
+    const rawValue = props.currency ? stripCurrencyFormat(String(value ?? '')) : String(value ?? '');
     const allowsNegative = Boolean(props.allowNegative);
     const allowsDecimal = Boolean(props.allowDecimal);
 
@@ -46,6 +57,10 @@ const formattedValue = computed({
         if (localModelValue.value != null && localModelValue.value !== '') {
             const strValue = String(localModelValue.value);
 
+            if (props.currency) {
+                return formatCurrency(strValue);
+            }
+
             const regex = props.allowDecimal
                 ? props.allowNegative
                     ? /^-?\d*(\.\d*)?$/
@@ -69,12 +84,16 @@ function handleBlur(e: Event) {
     const target = e.target as HTMLInputElement;
     const cleaned = sanitize(target.value);
     localModelValue.value = cleaned;
+    if (props.currency && cleaned !== '') {
+        target.value = formatCurrency(cleaned);
+    }
     emit('update:modelValue', localModelValue.value);
 }
 
 function handleInput(e: Event) {
     const target = e.target as HTMLInputElement;
-    const cleaned = sanitize(target.value);
+    const raw = props.currency ? stripCurrencyFormat(target.value) : target.value;
+    const cleaned = sanitize(raw);
 
     if (target.value !== cleaned) {
         target.value = cleaned;
