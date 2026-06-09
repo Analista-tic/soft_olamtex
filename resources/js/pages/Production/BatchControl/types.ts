@@ -135,9 +135,8 @@ export type CutFabricConsumptionLine = {
     restante: number | null;
     /** Si es el último descargue el restante pasa a ser faltante */
     ultimo_descargue: boolean;
-    retazo_1: number | null;
-    retazo_2: number | null;
-    retazo_3: number | null;
+    /** Lista de retazos en metros (suma se incluye en consumo total) */
+    retazos: number[];
 };
 
 export const CUT_SIZES = ['S', 'M', 'L', 'XL'] as const;

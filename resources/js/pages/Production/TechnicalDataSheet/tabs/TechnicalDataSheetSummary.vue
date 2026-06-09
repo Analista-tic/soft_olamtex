@@ -418,7 +418,20 @@ function parseStampNotes(raw: string | null | undefined): { procesos: string | n
                             <td class="tc">{{ line.layers_fabric ?? '-' }}</td>
                             <td class="tc">{{ line.layers_liquidation ?? '-' }}</td>
                             <td class="tc">{{ line.layers_herringbone ?? '-' }}</td>
-                            <td class="tr">{{ line.retazo_1 != null ? formatNumber(line.retazo_1, 2) : '-' }}</td>
+                            <td class="tr">
+                                <template v-if="(line.retazos ?? []).length > 0">
+                                    <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:flex-end;">
+                                        <span v-for="(rv, ri) in (line.retazos ?? [])" :key="ri"
+                                            style="display:inline-block;border:1px solid #b0b8c8;border-radius:8px;padding:0 3px;font-size:0.7em;white-space:nowrap;">
+                                            {{ formatNumber(rv, 2) }}
+                                        </span>
+                                    </div>
+                                    <div style="font-size:0.65em;color:#6278a0;text-align:right;">
+                                        Σ {{ formatNumber((line.retazos ?? []).reduce((s: number, v: number) => s + v, 0), 2) }}
+                                    </div>
+                                </template>
+                                <template v-else>-</template>
+                            </td>
                             <td class="tr">{{ line.total_consumption != null ? formatNumber(line.total_consumption, 2) : '-' }}</td>
                             <td class="tr b">{{ line.restante != null ? formatNumber(line.restante, 2) : '-' }}</td>
                         </tr>

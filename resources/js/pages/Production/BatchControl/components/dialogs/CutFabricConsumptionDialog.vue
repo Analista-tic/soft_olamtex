@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { fetchOpCostsSummary } from '@/domain/Production';
 import { Eye, Check, ChevronDown, ChevronRight, Layers, Ruler } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import type { BatchControlRow, CutCurves, CutFabricConsumptionLine, CutUnitsReportRow } from '../../types';
 import { CUT_SIZES } from '../../types';
 
@@ -118,6 +118,10 @@ watch(
     },
 );
 
+function retazosSum(line: CutFabricConsumptionLine): number {
+    return (line.retazos ?? []).reduce((s, v) => s + v, 0);
+}
+
 function recalcLine(line: CutFabricConsumptionLine): CutFabricConsumptionLine {
     const lt = line.largo_trazo ?? 0;
     const ll = line.largo_liq ?? 0;
@@ -125,10 +129,71 @@ function recalcLine(line: CutFabricConsumptionLine): CutFabricConsumptionLine {
     const cp = line.layers_fabric ?? 0;
     const cl = line.layers_liquidation ?? 0;
     const ce = line.layers_herringbone ?? 0;
-    const retazo = line.retazo_1 ?? 0;
-    const total = Number(((cp * lt) + (cl * ll) + (ce * le) + retazo).toFixed(4));
+    const total = Number(((cp * lt) + (cl * ll) + (ce * le) + retazosSum(line)).toFixed(4));
     const restante = Number(((line.meters_per_roll ?? 0) - total).toFixed(4));
     return { ...line, total_consumption: total, restante };
+}
+
+// ── Chip editing state ──────────────────────────────────────────────────────
+const editingChip = ref<{ lineId: string; idx: number } | null>(null);
+const editChipValue = ref('');
+
+function startEditChip(line: CutFabricConsumptionLine, chipIdx: number) {
+    if (props.viewOnly) return;
+    editingChip.value = { lineId: line.id, idx: chipIdx };
+    editChipValue.value = String((line.retazos ?? [])[chipIdx] ?? 0);
+    nextTick(() => {
+        const el = document.querySelector<HTMLInputElement>('[data-chip-edit="true"]');
+        el?.focus();
+        el?.select();
+    });
+}
+
+function commitEditChip(lineIndex: number, chipIdx: number) {
+    if (!editingChip.value) return;
+    const n = toNonNeg(String(editChipValue.value)) ?? 0;
+    const next = [...props.lines];
+    const cur = next[lineIndex];
+    if (!cur) { editingChip.value = null; return; }
+    const retazos = [...(cur.retazos ?? [])];
+    retazos[chipIdx] = n;
+    next[lineIndex] = recalcLine({ ...cur, retazos });
+    emit('update:lines', next);
+    editingChip.value = null;
+}
+
+function cancelEditChip() {
+    editingChip.value = null;
+}
+
+function addRetazo(lineIndex: number) {
+    if (props.viewOnly) return;
+    const next = [...props.lines];
+    const cur = next[lineIndex];
+    if (!cur) return;
+    const retazos = [...(cur.retazos ?? []), 0];
+    next[lineIndex] = recalcLine({ ...cur, retazos });
+    emit('update:lines', next);
+    const newIdx = retazos.length - 1;
+    nextTick(() => {
+        editingChip.value = { lineId: cur.id, idx: newIdx };
+        editChipValue.value = '0';
+        nextTick(() => {
+            const el = document.querySelector<HTMLInputElement>('[data-chip-edit="true"]');
+            el?.focus();
+            el?.select();
+        });
+    });
+}
+
+function removeRetazo(lineIndex: number, chipIdx: number) {
+    if (props.viewOnly) return;
+    const next = [...props.lines];
+    const cur = next[lineIndex];
+    if (!cur) return;
+    const retazos = (cur.retazos ?? []).filter((_, i) => i !== chipIdx);
+    next[lineIndex] = recalcLine({ ...cur, retazos });
+    emit('update:lines', next);
 }
 
 function toNonNeg(value: string): number | null {
@@ -208,7 +273,7 @@ function trazoTotals(group: TrazoGroup) {
         (acc, l) => ({
             total_consumption: acc.total_consumption + (l.total_consumption ?? 0),
             restante: acc.restante + (l.restante ?? 0),
-            retazos: acc.retazos + (l.retazo_1 ?? 0),
+            retazos: acc.retazos + retazosSum(l),
             cap_p: acc.cap_p + (l.layers_fabric ?? 0),
             cap_l: acc.cap_l + (l.layers_liquidation ?? 0),
             cap_e: acc.cap_e + (l.layers_herringbone ?? 0),
@@ -516,7 +581,7 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
                                             <TableHead class="py-2 text-center">Capa Principal</TableHead>
                                             <TableHead class="py-2 text-center">Capa Liquidación</TableHead>
                                             <TableHead class="py-2 text-center">Capa Espiga</TableHead>
-                                            <TableHead class="py-2 text-center">Último Descargue</TableHead>
+                                            <TableHead class="py-2 text-center">Fin del Rollo</TableHead>
                                             <TableHead class="py-2 text-center">Retazo</TableHead>
                                             <TableHead class="py-2 text-center border-l text-primary/80">Consumo Total</TableHead>
                                             <TableHead class="py-2 pr-4 text-center text-primary/80">Faltante</TableHead>
@@ -578,12 +643,43 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
                                                     class="h-4 w-4 cursor-pointer accent-amber-500 disabled:cursor-default"
                                                     @change="setCheck(globalIndex(line), 'ultimo_descargue', ($event.target as HTMLInputElement).checked)" />
                                             </TableCell>
-                                            <TableCell class="py-1.5 text-center">
-                                                <input v-if="!viewOnly" type="number" min="0" step="0.0001"
-                                                    :value="line.retazo_1 ?? ''"
-                                                    :class="inputBase"
-                                                    @input="setField(globalIndex(line), 'retazo_1', ($event.target as HTMLInputElement).value)" />
-                                                <span v-else :class="inputRo">{{ line.retazo_1 ?? '—' }}</span>
+                                            <TableCell class="py-1.5 text-center" style="min-width:130px">
+                                                <div class="flex flex-col items-center gap-0.5">
+                                                    <div class="flex flex-wrap gap-1 justify-center">
+                                                        <template v-for="(val, chipIdx) in (line.retazos ?? [])" :key="chipIdx">
+                                                            <input
+                                                                v-if="editingChip?.lineId === line.id && editingChip?.idx === chipIdx"
+                                                                type="number" min="0" step="0.0001"
+                                                                v-model="editChipValue"
+                                                                data-chip-edit="true"
+                                                                class="w-16 h-5 border border-primary rounded-full px-2 text-xs tabular-nums text-center focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+                                                                @keydown.enter="commitEditChip(globalIndex(line), chipIdx)"
+                                                                @keydown.escape="cancelEditChip"
+                                                                @blur="commitEditChip(globalIndex(line), chipIdx)"
+                                                            />
+                                                            <span
+                                                                v-else
+                                                                class="group inline-flex items-center gap-0.5 rounded-full border border-border bg-muted px-1.5 h-5 text-xs tabular-nums"
+                                                                :class="!viewOnly ? 'cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-colors' : ''"
+                                                                @click="startEditChip(line, chipIdx)"
+                                                            >
+                                                                {{ fmt(val) }}
+                                                                <button v-if="!viewOnly" type="button"
+                                                                    class="opacity-0 group-hover:opacity-100 text-muted-foreground/60 hover:text-destructive transition-all ml-0.5 leading-none"
+                                                                    @click.stop="removeRetazo(globalIndex(line), chipIdx)"
+                                                                >×</button>
+                                                            </span>
+                                                        </template>
+                                                        <button v-if="!viewOnly" type="button"
+                                                            class="inline-flex items-center justify-center h-5 w-5 rounded-full border border-dashed border-muted-foreground/40 text-muted-foreground/60 hover:border-primary hover:text-primary transition-colors text-xs leading-none"
+                                                            @click="addRetazo(globalIndex(line))"
+                                                        >+</button>
+                                                        <span v-if="viewOnly && (line.retazos ?? []).length === 0" :class="inputRo">—</span>
+                                                    </div>
+                                                    <span v-if="(line.retazos ?? []).length > 0" class="text-[10px] text-muted-foreground tabular-nums">
+                                                        Σ {{ fmt(retazosSum(line)) }} m
+                                                    </span>
+                                                </div>
                                             </TableCell>
                                             <!-- Consumo Total (calculado) -->
                                             <TableCell class="py-1.5 text-center border-l">

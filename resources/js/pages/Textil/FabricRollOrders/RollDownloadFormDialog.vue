@@ -5,7 +5,7 @@ import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } fr
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { FabricRollView } from '@/domain/Textil';
-import { computed, reactive, watch } from 'vue';
+import { computed, nextTick, reactive, ref, watch } from 'vue';
 
 type FormValues = {
     largoTrazo: string;
@@ -20,9 +20,7 @@ type FormValues = {
     capasLiquidacionLargo: string;
     capasEspigaLargo: string;
 
-    retazo1: string;
-    retazo2: string;
-    retazo3: string;
+    retazos: number[];
 
     consumoTotalManual: string;
     restanteManual: string;
@@ -74,15 +72,12 @@ const LARGO_FIELDS: Array<{ key: LargoKey; label: string; placeholder: string; s
     { key: 'largoEspiga', label: 'Largo espiga', placeholder: '0.00', step: '0.01' },
 ];
 
-type ConsumoKey = 'capasPrincipal' | 'capasLiquidacion' | 'capasEspiga' | 'retazo1' | 'retazo2' | 'retazo3';
+type ConsumoKey = 'capasPrincipal' | 'capasLiquidacion' | 'capasEspiga';
 
 const CONSUMO_FIELDS: Array<{ key: ConsumoKey; label: string; placeholder: string }> = [
     { key: 'capasPrincipal', label: 'Capas principal', placeholder: '0' },
     { key: 'capasLiquidacion', label: 'Capas liquidación', placeholder: '0' },
     { key: 'capasEspiga', label: 'Capas espiga', placeholder: '0' },
-    { key: 'retazo1', label: 'Retazo 1', placeholder: '0' },
-    { key: 'retazo2', label: 'Retazo 2', placeholder: '0' },
-    { key: 'retazo3', label: 'Retazo 3', placeholder: '0' },
 ];
 
 /** Estado */
@@ -99,9 +94,7 @@ const createInitialForm = (roll?: FabricRollView | null): FormValues => ({
     capasLiquidacionLargo: '',
     capasEspigaLargo: '',
 
-    retazo1: '',
-    retazo2: '',
-    retazo3: '',
+    retazos: [],
 
     consumoTotalManual: '',
     restanteManual: '',
@@ -119,10 +112,56 @@ const createInitialTallas = (): Record<SizeKey, string> => ({
 const form = reactive<FormValues>(createInitialForm(props.roll));
 const tallas = reactive<Record<SizeKey, string>>(createInitialTallas());
 
-/** Cálculos (misma lógica) */
+/** Cálculos */
 const consumoTotal = computed(() => {
-    return CONSUMO_FIELDS.reduce((sum, field) => sum + toNumber(form[field.key]), 0);
+    const capasSum = CONSUMO_FIELDS.reduce((sum, field) => sum + toNumber(form[field.key]), 0);
+    const retazosSum = form.retazos.reduce((s, v) => s + v, 0);
+    return capasSum + retazosSum;
 });
+
+/** Estado de edición de chips de retazo */
+const editingChipIdx = ref<number | null>(null);
+const editChipValue = ref('');
+
+function startEditChip(idx: number) {
+    editingChipIdx.value = idx;
+    editChipValue.value = String(form.retazos[idx] ?? 0);
+    nextTick(() => {
+        const el = document.querySelector<HTMLInputElement>('[data-chip-edit="true"]');
+        el?.focus();
+        el?.select();
+    });
+}
+
+function commitEditChip(idx: number) {
+    if (editingChipIdx.value === null) return;
+    const n = Number(editChipValue.value);
+    form.retazos[idx] = Number.isFinite(n) ? Math.max(0, n) : 0;
+    editingChipIdx.value = null;
+}
+
+function cancelEditChip() {
+    editingChipIdx.value = null;
+}
+
+function addRetazo() {
+    form.retazos.push(0);
+    const newIdx = form.retazos.length - 1;
+    nextTick(() => {
+        editingChipIdx.value = newIdx;
+        editChipValue.value = '0';
+        nextTick(() => {
+            const el = document.querySelector<HTMLInputElement>('[data-chip-edit="true"]');
+            el?.focus();
+            el?.select();
+        });
+    });
+}
+
+function removeRetazo(idx: number) {
+    form.retazos.splice(idx, 1);
+    if (editingChipIdx.value === idx) editingChipIdx.value = null;
+}
 
 const restante = computed(() => {
     const quantity = toNumber(props.roll?.roll_qty_value);
@@ -224,7 +263,7 @@ function submitForm() {
                         </div>
                     </section>
 
-                    <!-- CONSUMOS (ahora sí usa CONSUMO_FIELDS -> se quita el warning) -->
+                    <!-- CONSUMOS -->
                     <section class="space-y-2">
                         <p class="text-sm font-semibold text-card-foreground">Consumos</p>
 
@@ -247,6 +286,49 @@ function submitForm() {
                                     </TableBody>
                                 </Table>
                             </div>
+                        </div>
+                    </section>
+
+                    <!-- RETAZOS -->
+                    <section class="space-y-2">
+                        <p class="text-sm font-semibold text-card-foreground">Retazos</p>
+
+                        <div class="overflow-hidden rounded-2xl border border-border bg-card shadow-sm px-4 py-3">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <template v-for="(val, idx) in form.retazos" :key="idx">
+                                    <input
+                                        v-if="editingChipIdx === idx"
+                                        type="number" min="0" step="0.0001"
+                                        v-model="editChipValue"
+                                        data-chip-edit="true"
+                                        class="w-20 h-7 border border-primary rounded-full px-2 text-sm tabular-nums text-center focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+                                        @keydown.enter="commitEditChip(idx)"
+                                        @keydown.escape="cancelEditChip"
+                                        @blur="commitEditChip(idx)"
+                                    />
+                                    <span
+                                        v-else
+                                        class="group inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2.5 h-7 text-sm tabular-nums cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-colors"
+                                        @click="startEditChip(idx)"
+                                    >
+                                        {{ val.toFixed(4) }} m
+                                        <button type="button"
+                                            class="opacity-0 group-hover:opacity-100 text-muted-foreground/60 hover:text-destructive transition-all leading-none"
+                                            @click.stop="removeRetazo(idx)"
+                                        >×</button>
+                                    </span>
+                                </template>
+
+                                <button type="button"
+                                    class="inline-flex items-center justify-center h-7 w-7 rounded-full border border-dashed border-muted-foreground/40 text-muted-foreground/60 hover:border-primary hover:text-primary transition-colors text-base leading-none"
+                                    @click="addRetazo"
+                                >+</button>
+                            </div>
+
+                            <p v-if="form.retazos.length > 0" class="mt-2 text-xs text-muted-foreground tabular-nums">
+                                Suma retazos: <span class="font-semibold text-foreground">{{ form.retazos.reduce((s, v) => s + v, 0).toFixed(4) }} m</span>
+                            </p>
+                            <p v-else class="text-xs text-muted-foreground">Sin retazos. Haz clic en + para agregar.</p>
                         </div>
                     </section>
 
@@ -289,7 +371,7 @@ function submitForm() {
                         </div>
 
                         <div class="rounded-2xl border border-border bg-card p-4 shadow-sm">
-                            <p class="text-rm font-semibold text-muted-foreground">Último descargue</p>
+                            <p class="text-rm font-semibold text-muted-foreground">Fin del Rollo</p>
 
                             <label class="inline-flex items-center gap-2">
                                 <input
@@ -297,7 +379,7 @@ function submitForm() {
                                     type="checkbox"
                                     class="h-4 w-4 rounded border border-border text-primary focus:ring-2 focus:ring-primary"
                                 />
-                                <span class="text-xs text-muted-foreground">Marcar si este es el último descargue</span>
+                                <span class="text-xs text-muted-foreground">Marcar si este es el fin del rollo</span>
                             </label>
 
                             <p class="mt-1 text-xs text-muted-foreground">Si se marca, el restante pasa a ser faltante rollo.</p>

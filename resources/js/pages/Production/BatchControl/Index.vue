@@ -899,9 +899,7 @@ function createEmptyCutConsumptionLine(
         total_consumption: null,
         restante: null,
         ultimo_descargue: false,
-        retazo_1: null,
-        retazo_2: null,
-        retazo_3: null,
+        retazos: [],
     };
 }
 
@@ -942,9 +940,7 @@ function normalizeCutLine(raw: Partial<CutFabricConsumptionLine>): CutFabricCons
         total_consumption: raw.total_consumption ?? null,
         restante: raw.restante ?? null,
         ultimo_descargue: raw.ultimo_descargue ?? false,
-        retazo_1: raw.retazo_1 ?? null,
-        retazo_2: raw.retazo_2 ?? null,
-        retazo_3: raw.retazo_3 ?? null,
+        retazos: Array.isArray(raw.retazos) ? raw.retazos : [],
     });
 }
 
@@ -1152,10 +1148,8 @@ function exportCutConsumptionCsv() {
         'Capas principal',
         'Capas liquidación',
         'Capas espiga',
-        'Último descargue',
-        'Retazo 1',
-        'Retazo 2',
-        'Retazo 3',
+        'Fin del Rollo',
+        'Retazos',
         'Restante',
         'T. Consumo',
     ];
@@ -1182,9 +1176,7 @@ function exportCutConsumptionCsv() {
         line.layers_liquidation,
         line.layers_herringbone,
         line.ultimo_descargue ? 'SI' : 'NO',
-        line.retazo_1,
-        line.retazo_2,
-        line.retazo_3,
+        (line.retazos ?? []).join(' | '),
         line.restante,
         line.total_consumption,
     ]);

@@ -17,8 +17,8 @@ const underConstructionHref = (title: string) =>
 
 export const footerNavItems: NavItem[] = [
     {
-        title: 'Reportes',
-        href: underConstructionHref('Reportes'),
+        title: 'Informes',
+        href: '/informes',
         icon: BarChart3,
     },
     {

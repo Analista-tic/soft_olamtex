@@ -801,6 +801,18 @@ class BatchControlController extends Controller
                     $line['roll_total_meters'] = $rollMeta['quantity'];
                 }
 
+                // ── Migrar retazo_1/2/3 → retazos[] (backward compat) ──
+                if (!isset($line['retazos']) || !is_array($line['retazos'])) {
+                    $retazos = [];
+                    foreach (['retazo_1', 'retazo_2', 'retazo_3'] as $k) {
+                        if (isset($line[$k]) && is_numeric($line[$k]) && (float) $line[$k] > 0) {
+                            $retazos[] = (float) $line[$k];
+                        }
+                    }
+                    $line['retazos'] = $retazos;
+                }
+                unset($line['retazo_1'], $line['retazo_2'], $line['retazo_3']);
+
                 // ── Sincronizar métricas de trazo desde rawMaterialsSnapshot ──
                 // (puede haber cambiado el largo_trazo, largo_liq, prom_trazo en la ficha)
                 $rawMaterialUid = trim((string) ($line['technical_roll_id'] ?? ''));
@@ -878,9 +890,7 @@ class BatchControlController extends Controller
                     'total_consumption'  => null,
                     'restante'           => null,
                     'ultimo_descargue'   => false,
-                    'retazo_1'           => null,
-                    'retazo_2'           => null,
-                    'retazo_3'           => null,
+                    'retazos'            => [],
                 ];
             }
 
@@ -981,9 +991,8 @@ class BatchControlController extends Controller
             'lines.*.total_consumption' => 'nullable|numeric|min:0',
             'lines.*.restante' => 'nullable|numeric',
             'lines.*.ultimo_descargue' => 'nullable|boolean',
-            'lines.*.retazo_1' => 'nullable|numeric|min:0',
-            'lines.*.retazo_2' => 'nullable|numeric|min:0',
-            'lines.*.retazo_3' => 'nullable|numeric|min:0',
+            'lines.*.retazos'   => 'nullable|array',
+            'lines.*.retazos.*' => 'numeric|min:0',
             'largo_espiga' => 'nullable|numeric|min:0',
             'curves' => 'nullable|array',
             'curves.principal' => 'nullable|array',
