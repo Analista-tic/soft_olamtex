@@ -284,6 +284,14 @@ const actionButtonClass = computed(() => {
     return customClass ? `${base} ${customClass}` : base;
 });
 
+function handleEnterKey(event: KeyboardEvent) {
+    if (normalizedSearchTerm.value && !props.loading && filteredOptions.value.length === 1) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        handleComboboxChange(filteredOptions.value[0]);
+    }
+}
+
 function handleActionClick() {
     if (props.disabled || props.actionDisabled) return;
     const currentSearchTerm = searchTerm.value.trim();
@@ -422,6 +430,7 @@ watch(
                             :display-value="displayValueForInput"
                             :disabled="disabled"
                             @input="handleInput"
+                            @keydown.enter="handleEnterKey"
                         />
                         <button
                             v-if="

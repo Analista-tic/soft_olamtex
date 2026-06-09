@@ -531,13 +531,27 @@ class TechnicalDataSheetPdfService
                 'layers_herringbone' => $consump['layers_herringbone'] ?? null,
                 'total_consumption'  => $consump['total_consumption']  ?? null,
                 'restante'           => $consump['restante']           ?? $programmedMeters,
-                'retazo_1'           => $consump['retazo_1']           ?? null,
+                'retazos'            => $this->migrateRetazos($consump),
             ];
         }
 
         return !empty($lines)
             ? $lines
             : $this->enrichTrazoUidFallback($consumptionLines, $sheet);
+    }
+
+    private function migrateRetazos(array $line): array
+    {
+        if (isset($line['retazos']) && is_array($line['retazos'])) {
+            return array_values(array_filter($line['retazos'], fn($v) => is_numeric($v) && (float) $v > 0));
+        }
+        $retazos = [];
+        foreach (['retazo_1', 'retazo_2', 'retazo_3'] as $k) {
+            if (isset($line[$k]) && is_numeric($line[$k]) && (float) $line[$k] > 0) {
+                $retazos[] = (float) $line[$k];
+            }
+        }
+        return $retazos;
     }
 
     private function enrichTrazoUidFallback(array $lines, TechnicalSheet $sheet): array

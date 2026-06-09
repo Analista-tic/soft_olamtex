@@ -58,6 +58,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     require __DIR__.'/finance.php';
     require __DIR__.'/income.php';
     require __DIR__.'/textil.php';
+    require __DIR__.'/reports.php';
 });
 
 require __DIR__.'/auth.php';

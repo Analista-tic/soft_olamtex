@@ -656,6 +656,12 @@ table.dt    { margin-bottom:4px; }
                         $sumUsar   = array_sum(array_map(fn($l) => (float)($l['meters_per_roll'] ?? 0), $tLines));
                         $sumConsumo= array_sum(array_map(fn($l) => (float)($l['total_consumption'] ?? 0), $tLines));
                         $sumFalt   = array_sum(array_map(fn($l) => (float)($l['restante'] ?? 0), $tLines));
+                        $sumRetazos= array_sum(array_map(function($l) {
+                            if (isset($l['retazos']) && is_array($l['retazos'])) return array_sum($l['retazos']);
+                            $s = 0;
+                            foreach (['retazo_1','retazo_2','retazo_3'] as $k) $s += (float)($l[$k] ?? 0);
+                            return $s;
+                        }, $tLines));
                         $showLiq   = $sumCapaL > 0;
                         $showEsp   = $sumCapaE > 0;
                     @endphp
@@ -705,7 +711,28 @@ table.dt    { margin-bottom:4px; }
                                     <td class="tc">{{ $cl['layers_fabric'] ?? '-' }}</td>
                                     @if($showLiq)<td class="tc">{{ $cl['layers_liquidation'] ?? '-' }}</td>@endif
                                     @if($showEsp)<td class="tc">{{ $cl['layers_herringbone'] ?? '-' }}</td>@endif
-                                    <td class="tc">{{ isset($cl['retazo_1']) ? num($cl['retazo_1'],2) : '-' }}</td>
+                                    <td class="tc">
+                                        @php
+                                            $clRetazos = [];
+                                            if (isset($cl['retazos']) && is_array($cl['retazos'])) {
+                                                $clRetazos = array_values(array_filter($cl['retazos'], fn($v) => is_numeric($v) && (float)$v > 0));
+                                            } else {
+                                                foreach (['retazo_1','retazo_2','retazo_3'] as $rk) {
+                                                    if (isset($cl[$rk]) && is_numeric($cl[$rk]) && (float)$cl[$rk] > 0) $clRetazos[] = (float)$cl[$rk];
+                                                }
+                                            }
+                                            $clRetazoSum = array_sum($clRetazos);
+                                        @endphp
+                                        @if(count($clRetazos) > 0)
+                                            <div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center;">
+                                                @foreach($clRetazos as $rv)
+                                                    <span style="display:inline-block;border:1px solid #b0b8c8;border-radius:8px;padding:0 3px;font-size:5pt;white-space:nowrap;">{{ num($rv,2) }}</span>
+                                                @endforeach
+                                            </div>
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
                                     <td class="tc">{{ isset($cl['total_consumption']) ? num($cl['total_consumption'],2) : '-' }}</td>
                                     <td class="tc b" style="color:#c0392b;">{{ isset($cl['restante']) ? num($cl['restante'],2) : '-' }}</td>
                                 </tr>
@@ -718,7 +745,7 @@ table.dt    { margin-bottom:4px; }
                                 <td class="tc">{{ $sumCapaP }}</td>
                                 @if($showLiq)<td class="tc">{{ $sumCapaL }}</td>@endif
                                 @if($showEsp)<td class="tc">{{ $sumCapaE }}</td>@endif
-                                <td class="tc">—</td>
+                                <td class="tc">{{ $sumRetazos > 0 ? num($sumRetazos,2) : '—' }}</td>
                                 <td class="tc">{{ num($sumConsumo,2) }}</td>
                                 <td class="tc" style="color:#c0392b;">{{ num($sumFalt,2) }}</td>
                             </tr>
