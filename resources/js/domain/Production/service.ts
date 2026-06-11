@@ -840,7 +840,7 @@ export async function fetchAvailableFabricRolls(
         const rollCode = String(roll.roll ?? `Rollo ${id}`);
         const fabricName = String(roll.fabric ?? 'Tela');
         const color = roll.color ? String(roll.color) : null;
-        const label = color ? `${rollCode} - ${fabricName} - ${color}` : `${rollCode} - ${fabricName}`;
+        const label = `${rollCode} - ${fabricName}`;
 
         return {
             id,

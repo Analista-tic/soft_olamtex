@@ -180,8 +180,9 @@ class TechnicalDataSheetRollsController extends Controller
                     $currentPartial = (float) $roll->partial_output;
                     $newPartial     = round(max(0.0, $currentPartial + $delta), 2);
 
-                    if ($newPartial > (float) $roll->quantity + 0.001) {
-                        $available = round(max(0.0, (float) $roll->quantity - $currentPartial), 2);
+                    $realCeiling = (float) $roll->quantity - (float) $roll->actual_output;
+                    if ($newPartial > $realCeiling + 0.001) {
+                        $available = round(max(0.0, $realCeiling - $currentPartial), 2);
                         throw ValidationException::withMessages([
                             'rolls' => [
                                 "Rollo {$roll->roll_number}: disponibilidad parcial insuficiente "

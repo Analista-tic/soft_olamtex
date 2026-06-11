@@ -16,6 +16,7 @@ use App\Models\Production\TechnicalSheet;
 use App\Models\Production\TechnicalSheetOperation;
 use App\Models\Production\TechnicalSheetOperationHistory;
 use App\Models\Textil\FabricRoll;
+use App\Models\Textil\FabricRollAdjustment;
 use App\Services\Inventory\InventoryMovementService;
 use App\Services\Production\FinishedProductCatalogItemService;
 use App\Services\Production\TechnicalSheetService;
@@ -1036,6 +1037,17 @@ class BatchControlController extends Controller
             $newByRollId[$rollId] = ($newByRollId[$rollId] ?? 0.0) + $consumption;
         }
 
+        // ── 2b. Metros programados por esta OP (para liberar partial en primer descargue) ──
+        $programmedByRollId = [];
+        foreach ($validated['lines'] as $line) {
+            $rollCode   = trim((string) ($line['roll_code'] ?? ''));
+            $rollId     = $rollCode !== '' ? ($rollIdsByCode[$rollCode] ?? null) : null;
+            $programmed = (float) ($line['meters_per_roll'] ?? 0);
+            if ($rollId !== null && $programmed > 0) {
+                $programmedByRollId[$rollId] = ($programmedByRollId[$rollId] ?? 0.0) + $programmed;
+            }
+        }
+
         // ── 3. Leer consumo previo aplicado por esta orden ───────────────────────
         $prevByRollId = ProductionRollConsumption::where('production_order_id', $order->id)
             ->get()
@@ -1059,12 +1071,12 @@ class BatchControlController extends Controller
         $userId = $request->user()?->id;
 
         DB::transaction(function () use (
-            $order, $payload, $newByRollId, $prevByRollId, $allRollIds, $rollModels, $userId
+            $order, $payload, $newByRollId, $prevByRollId, $allRollIds, $rollModels, $userId, $programmedByRollId
         ) {
             // 4a. Guardar JSON
             $order->update(['cut_fabric_consumption' => $payload]);
 
-            // 4b. Aplicar deltas a actual_output y crear movimientos de inventario
+            // 4b. Aplicar deltas a actual_output, liberar partial en primer descargue, y registrar novedades
             foreach ($allRollIds as $rollId) {
                 $prevMeters = (float) ($prevByRollId[$rollId] ?? 0);
                 $newMeters  = $newByRollId[$rollId] ?? 0.0;
@@ -1076,10 +1088,38 @@ class BatchControlController extends Controller
                 $roll = $rollModels[$rollId] ?? null;
                 if (!$roll) continue;
 
-                // Actualizar actual_output del rollo (nunca negativo)
-                $roll->update([
-                    'actual_output' => max(0.0, round((float) $roll->actual_output + $delta, 6)),
-                ]);
+                $isFirstCut          = $prevMeters < 0.001;
+                $programmedForThisOp = (float) ($programmedByRollId[$rollId] ?? 0.0);
+                $currentPartial      = (float) $roll->partial_output;
+
+                if ($isFirstCut && $programmedForThisOp > 0.001) {
+                    // Primer descargue: liberar la reserva parcial de esta OP
+                    $newPartial = round(max(0.0, $currentPartial - $programmedForThisOp), 2);
+                    $roll->update([
+                        'actual_output'  => max(0.0, round((float) $roll->actual_output + $delta, 6)),
+                        'partial_output' => $newPartial,
+                    ]);
+
+                    // Trazabilidad de novedad si el consumo difiere del programado
+                    if (abs($newMeters - $programmedForThisOp) > 0.01) {
+                        FabricRollAdjustment::create([
+                            'fabric_roll_id'  => $rollId,
+                            'user_id'         => $userId,
+                            'type'            => 'salida',
+                            'quantity_before' => $roll->quantity,
+                            'quantity_after'  => $roll->quantity,
+                            'partial_before'  => $currentPartial,
+                            'partial_after'   => $newPartial,
+                            'reason'          => "Novedad descargue corte: {$newMeters}m consumidos vs {$programmedForThisOp}m programados — OP {$order->op_code}",
+                            'reference'       => "cut_consumption::{$order->id}",
+                        ]);
+                    }
+                } else {
+                    // Corrección de descargue: solo ajustar actual_output
+                    $roll->update([
+                        'actual_output' => max(0.0, round((float) $roll->actual_output + $delta, 6)),
+                    ]);
+                }
 
                 // Movimiento de inventario (solo si el rollo tiene ítem y bodega)
                 $item = $roll->item;

@@ -396,6 +396,24 @@ const rollOriginalAvailability = computed<Map<string, number>>(() => {
     return map;
 });
 
+// Disponibilidad parcial (quantity - partial_output) por rollo, capturada al cargar
+const rollPartialAvailability = computed<Map<string, number>>(() => {
+    const map = new Map<string, number>();
+    for (const trazo of trazos.value) {
+        for (const line of trazo.lines) {
+            for (const a of line.assignedRolls) {
+                if (a.roll.availableMeters !== null && !map.has(a.roll.rollId))
+                    map.set(a.roll.rollId, a.roll.availableMeters);
+            }
+            for (const roll of line.availableRolls) {
+                if (roll.availableMeters !== null && !map.has(roll.rollId))
+                    map.set(roll.rollId, roll.availableMeters);
+            }
+        }
+    }
+    return map;
+});
+
 function realAvailableForRoll(rollId: string): number {
     const original = rollOriginalAvailability.value.get(rollId) ?? 0;
     const current = rollTotalProgrammed.value.get(rollId) ?? 0;
@@ -403,10 +421,12 @@ function realAvailableForRoll(rollId: string): number {
 }
 
 function isRollOverAllocated(rollId: string, ownMeters: number): boolean {
-    const original = rollOriginalAvailability.value.get(rollId);
-    if (original === undefined) return false;
+    // Techo = metros que estaban disponibles parcialmente al cargar + metros ya asegurados en partial por esta ficha
+    const partialAvail = rollPartialAvailability.value.get(rollId);
+    if (partialAvail === undefined) return false;
+    const baseline = baselineRollProgrammed.value.get(rollId) ?? 0;
     const current = rollTotalProgrammed.value.get(rollId) ?? 0;
-    return current > original && ownMeters > 0;
+    return current > baseline + partialAvail && ownMeters > 0;
 }
 
 function availabilityPercent(rollId: string, availableMeters: number | null): number {
@@ -1253,6 +1273,7 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                 ]"
                             >{{ line.assignedRolls.filter(a => toNumber(a.metersProgrammed) > 0).length }}</span>
                             <button
+                                v-if="activeTrazo.lines.length > 1"
                                 type="button"
                                 :class="[
                                     'shrink-0 rounded-full p-0.5 transition',
@@ -1415,7 +1436,13 @@ watch(() => props.opId, () => void loadAll(), { immediate: true });
                                                         :style="{ backgroundColor: row.roll.colorCode }"
                                                         :title="row.roll.color ?? 'Sin color'"
                                                     />
-                                                    <span class="font-mono text-xs font-semibold text-foreground">{{ row.roll.label }}</span>
+                                                    <div class="flex flex-col items-start">
+                                                        <span class="font-mono text-xs font-semibold text-foreground">{{ row.roll.label }}</span>
+                                                        <span
+                                                            v-if="row.roll.color && !row.roll.label.toLowerCase().includes(row.roll.color.toLowerCase())"
+                                                            class="text-[10px] text-muted-foreground leading-tight"
+                                                        >{{ row.roll.color }}</span>
+                                                    </div>
                                                 </div>
                                             </td>
                                             <!-- Ubicación -->
