@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { fetchOpCostsSummary } from '@/domain/Production';
 import { Eye, Check, ChevronDown, ChevronRight, Layers, Ruler } from 'lucide-vue-next';
 import { computed, nextTick, ref, watch } from 'vue';
@@ -118,6 +119,24 @@ watch(
     },
 );
 
+const originalLargos = ref<Map<string, { lt: number | null; ll: number | null }>>(new Map());
+const _largosCapture = ref(false);
+
+watch(
+    [() => props.open, () => props.lines] as const,
+    ([open, lines]) => {
+        if (!open) { _largosCapture.value = false; return; }
+        if (_largosCapture.value || lines.length === 0) return;
+        const m = new Map<string, { lt: number | null; ll: number | null }>();
+        for (const group of trazoGroups.value) {
+            m.set(group.uid, { lt: group.largo_trazo, ll: group.largo_liq });
+        }
+        originalLargos.value = m;
+        _largosCapture.value = true;
+    },
+    { immediate: true },
+);
+
 function retazosSum(line: CutFabricConsumptionLine): number {
     return (line.retazos ?? []).reduce((s, v) => s + v, 0);
 }
@@ -222,6 +241,16 @@ function setField(
     if (!cur) return;
     next[index] = recalcLine({ ...cur, [field]: parse(raw) });
     emit('update:lines', next);
+}
+
+function setTrazoLargo(group: TrazoGroup, field: 'largo_trazo' | 'largo_liq', raw: string) {
+    if (props.viewOnly) return;
+    const val = toNonNeg(raw);
+    const lineIds = new Set(group.lines.map((l) => l.id));
+    emit(
+        'update:lines',
+        props.lines.map((l) => (lineIds.has(l.id) ? recalcLine({ ...l, [field]: val }) : l)),
+    );
 }
 
 function setCheck(index: number, field: keyof CutFabricConsumptionLine, value: boolean) {
@@ -510,7 +539,7 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
                         >
                             <!-- Cabecera del trazo -->
                             <div
-                                class="flex items-center gap-2.5 border-b bg-muted/30 px-4 py-2.5 cursor-pointer select-none hover:bg-muted/50 transition-colors"
+                                class="flex items-center gap-2.5 border-b bg-muted/30 px-4 pt-2.5 pb-4 cursor-pointer select-none hover:bg-muted/50 transition-colors"
                                 @click="toggleTrazo(group.uid)"
                             >
                                 <button type="button" class="shrink-0 rounded text-muted-foreground hover:text-foreground transition-colors">
@@ -536,17 +565,43 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
 
                                 <Separator orientation="vertical" class="mx-1 h-4" />
 
-                                <!-- Parámetros informativos -->
-                                <div class="flex items-center gap-4 flex-wrap text-xs">
+                                <!-- Parámetros del trazo -->
+                                <div class="flex items-center gap-4 flex-wrap text-xs" @click.stop>
                                     <span class="text-muted-foreground">
                                         Promedio Trazo: <span class="font-semibold text-foreground tabular-nums">{{ group.prom_trazo ?? '—' }} m</span>
                                     </span>
-                                    <span class="text-muted-foreground">
-                                        Largo Trazo: <span class="font-semibold text-foreground tabular-nums">{{ group.largo_trazo ?? '—' }} m</span>
-                                    </span>
-                                    <span class="text-muted-foreground">
-                                        Largo Liquidación: <span class="font-semibold text-foreground tabular-nums">{{ group.largo_liq ?? '—' }} m</span>
-                                    </span>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="text-muted-foreground whitespace-nowrap shrink-0">Largo Trazo:</span>
+                                        <div class="relative">
+                                            <input v-if="!viewOnly" type="number" min="0" step="0.0001"
+                                                :value="group.largo_trazo ?? ''"
+                                                class="h-6 w-20 border border-input rounded-md px-1.5 text-xs tabular-nums focus:outline-none focus:ring-1 focus:ring-ring bg-transparent transition-colors text-center"
+                                                placeholder="0.0000"
+                                                @input="setTrazoLargo(group, 'largo_trazo', ($event.target as HTMLInputElement).value)"
+                                            />
+                                            <span v-else class="font-semibold text-foreground tabular-nums">{{ group.largo_trazo ?? '—' }} m</span>
+                                            <span v-if="originalLargos.get(group.uid)?.lt != null"
+                                                class="absolute left-0 top-full whitespace-nowrap pt-0.5 text-[10px] text-muted-foreground/60 tabular-nums leading-none">
+                                                Ficha:{{ originalLargos.get(group.uid)?.lt }} m
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="text-muted-foreground whitespace-nowrap shrink-0">Largo Liquidación:</span>
+                                        <div class="relative">
+                                            <input v-if="!viewOnly" type="number" min="0" step="0.0001"
+                                                :value="group.largo_liq ?? ''"
+                                                class="h-6 w-20 border border-input rounded-md px-1.5 text-xs tabular-nums focus:outline-none focus:ring-1 focus:ring-ring bg-transparent transition-colors text-center"
+                                                placeholder="0.0000"
+                                                @input="setTrazoLargo(group, 'largo_liq', ($event.target as HTMLInputElement).value)"
+                                            />
+                                            <span v-else class="font-semibold text-foreground tabular-nums">{{ group.largo_liq ?? '—' }} m</span>
+                                            <span v-if="originalLargos.get(group.uid)?.ll != null"
+                                                class="absolute left-0 top-full whitespace-nowrap pt-0.5 text-[10px] text-muted-foreground/60 tabular-nums leading-none">
+                                                Ficha:{{ originalLargos.get(group.uid)?.ll }} m
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <!-- Totales del trazo -->
@@ -640,7 +695,7 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
                                             </TableCell>
                                             <TableCell class="py-1.5 text-center">
                                                 <input type="checkbox" :checked="line.ultimo_descargue" :disabled="viewOnly"
-                                                    class="h-4 w-4 cursor-pointer accent-amber-500 disabled:cursor-default"
+                                                    class="h-4 w-4 cursor-pointer accent-primary disabled:cursor-default"
                                                     @change="setCheck(globalIndex(line), 'ultimo_descargue', ($event.target as HTMLInputElement).checked)" />
                                             </TableCell>
                                             <TableCell class="py-1.5 text-center" style="min-width:130px">
@@ -677,7 +732,7 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
                                                         <span v-if="viewOnly && (line.retazos ?? []).length === 0" :class="inputRo">—</span>
                                                     </div>
                                                     <span v-if="(line.retazos ?? []).length > 0" class="text-[10px] text-muted-foreground tabular-nums">
-                                                        Σ {{ fmt(retazosSum(line)) }} m
+                                                        Total: {{ fmt(retazosSum(line)) }} m
                                                     </span>
                                                 </div>
                                             </TableCell>
@@ -690,15 +745,24 @@ const inputRef  = 'h-7 w-20 border border-blue-300 rounded-md px-2 text-xs tabul
                                             <!-- Faltante (calculado) -->
                                             <TableCell class="py-1.5 pr-4 text-center">
                                                 <div class="flex flex-col items-center gap-0.5">
-                                                    <span :class="[
-                                                        'inline-flex h-6 w-full items-center justify-center rounded-md px-1.5 text-xs tabular-nums font-semibold',
-                                                        (line.restante ?? 0) < 0
-                                                            ? 'bg-destructive/10 text-destructive'
-                                                            : line.ultimo_descargue
-                                                                ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400'
-                                                                : 'bg-muted text-muted-foreground',
-                                                    ]">{{ line.restante ?? '—' }}</span>
-                                                    <span v-if="line.ultimo_descargue" class="text-xs font-medium text-amber-500">faltante</span>
+                                                    <TooltipProvider>
+                                                        <Tooltip :delayDuration="200">
+                                                            <TooltipTrigger asChild>
+                                                                <span :class="[
+                                                                    'inline-flex h-6 w-full items-center justify-center rounded-md px-1.5 text-xs tabular-nums font-semibold cursor-default',
+                                                                    (line.restante ?? 0) < 0
+                                                                        ? 'bg-destructive/10 text-destructive'
+                                                                        : line.ultimo_descargue
+                                                                            ? 'bg-primary/10 text-primary'
+                                                                            : 'bg-muted text-muted-foreground',
+                                                                ]">{{ line.restante ?? '—' }}</span>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent v-if="line.restante != null" side="top">
+                                                                {{ (line.restante ?? 0) >= 0 ? 'Se consumió menos de lo programado.' : 'Se consumió más de lo programado.' }}
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                    <span v-if="line.ultimo_descargue" class="text-xs font-medium text-primary">faltante</span>
                                                 </div>
                                             </TableCell>
                                         </TableRow>
