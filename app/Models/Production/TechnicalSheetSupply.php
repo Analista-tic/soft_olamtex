@@ -2,6 +2,7 @@
 
 namespace App\Models\Production;
 
+use App\Models\MasterData\Item;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -50,6 +51,11 @@ class TechnicalSheetSupply extends Model
     public function productionOrder(): BelongsTo
     {
         return $this->belongsTo(ProductionOrder::class, 'production_order_id');
+    }
+
+    public function item(): BelongsTo
+    {
+        return $this->belongsTo(Item::class, 'item_id');
     }
 
     /** Serializa al formato array que espera el frontend (manteniendo keys camelCase). */

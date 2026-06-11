@@ -200,13 +200,14 @@ class ReportController extends Controller
             $supplies = TechnicalSheetSupply::where('production_order_id', $order->id)
                 ->when($dateFrom, fn ($q) => $q->whereDate('created_at', '>=', $dateFrom))
                 ->when($dateTo,   fn ($q) => $q->whereDate('created_at', '<=', $dateTo))
+                ->with('item')
                 ->get()
                 ->map(function ($supply) use ($units) {
                     $qty   = round((float) $supply->qty_per_unit * $units, 4);
                     $price = (float) $supply->unit_cost;
                     return [
                         'type'      => 'Insumo',
-                        'reference' => $supply->uid ?? '—',
+                        'reference' => $supply->item?->reference ?? '—',
                         'name'      => $supply->name ?? $supply->requested_name ?? '—',
                         'iva'       => 0,
                         'qty'       => $qty,
@@ -225,16 +226,31 @@ class ReportController extends Controller
                     $qty   = (float) $consumption->meters_consumed;
                     $price = (float) ($consumption->fabricRoll?->price_per_meter ?? 0);
                     return [
-                        'type'      => 'Tela',
-                        'reference' => $consumption->fabricRoll?->roll_number ?? '—',
+                        'item_id'   => $consumption->fabricRoll?->item_id ?? 0,
+                        'reference' => $consumption->fabricRoll?->item?->reference ?? '—',
                         'name'      => $consumption->fabricRoll?->item?->name ?? '—',
-                        'iva'       => 0,
                         'qty'       => $qty,
-                        'uom'       => 'mts',
-                        'price'     => $price,
                         'total'     => round($qty * $price, 2),
                     ];
-                });
+                })
+                ->groupBy('item_id')
+                ->map(function ($group) {
+                    $totalQty  = round($group->sum('qty'), 4);
+                    $totalCost = round($group->sum('total'), 2);
+                    $avgPrice  = $totalQty > 0 ? round($totalCost / $totalQty, 2) : 0;
+                    $first     = $group->first();
+                    return [
+                        'type'      => 'Tela',
+                        'reference' => $first['reference'],
+                        'name'      => $first['name'],
+                        'iva'       => 0,
+                        'qty'       => $totalQty,
+                        'uom'       => 'mts',
+                        'price'     => $avgPrice,
+                        'total'     => $totalCost,
+                    ];
+                })
+                ->values();
 
             $lines = $rolls->concat($supplies)->values();
 
@@ -262,6 +278,7 @@ class ReportController extends Controller
 
         // Insumos: qty_per_unit es por prenda; total = qty_per_unit × unidades
         $supplies = TechnicalSheetSupply::where('production_order_id', $orderId)
+            ->with('item')
             ->get()
             ->map(function ($supply) use ($units) {
                 $qtyTotal = round((float) $supply->qty_per_unit * $units, 4);
@@ -269,7 +286,7 @@ class ReportController extends Controller
                 $total    = round($qtyTotal * $price, 2);
                 return [
                     'type'      => 'Insumo',
-                    'reference' => $supply->uid ?? '—',
+                    'reference' => $supply->item?->reference ?? '—',
                     'name'      => $supply->name ?? $supply->requested_name ?? '—',
                     'iva'       => 0,
                     'qty'       => $qtyTotal,
@@ -279,25 +296,39 @@ class ReportController extends Controller
                 ];
             });
 
-        // Telas: consumo real registrado post-corte
+        // Telas: consumo real registrado post-corte, agrupado por ítem
         $rolls = ProductionRollConsumption::where('production_order_id', $orderId)
             ->with(['fabricRoll.item'])
             ->get()
             ->map(function ($consumption) {
                 $qty   = (float) $consumption->meters_consumed;
                 $price = (float) ($consumption->fabricRoll?->price_per_meter ?? 0);
-                $total = round($qty * $price, 2);
+                return [
+                    'item_id'   => $consumption->fabricRoll?->item_id ?? 0,
+                    'reference' => $consumption->fabricRoll?->item?->reference ?? '—',
+                    'name'      => $consumption->fabricRoll?->item?->name ?? '—',
+                    'qty'       => $qty,
+                    'total'     => round($qty * $price, 2),
+                ];
+            })
+            ->groupBy('item_id')
+            ->map(function ($group) {
+                $totalQty   = round($group->sum('qty'), 4);
+                $totalCost  = round($group->sum('total'), 2);
+                $avgPrice   = $totalQty > 0 ? round($totalCost / $totalQty, 2) : 0;
+                $first      = $group->first();
                 return [
                     'type'      => 'Tela',
-                    'reference' => $consumption->fabricRoll?->roll_number ?? '—',
-                    'name'      => $consumption->fabricRoll?->item?->name ?? '—',
+                    'reference' => $first['reference'],
+                    'name'      => $first['name'],
                     'iva'       => 0,
-                    'qty'       => $qty,
+                    'qty'       => $totalQty,
                     'uom'       => 'mts',
-                    'price'     => $price,
-                    'total'     => $total,
+                    'price'     => $avgPrice,
+                    'total'     => $totalCost,
                 ];
-            });
+            })
+            ->values();
 
         $lines = $rolls->concat($supplies)->values();
 

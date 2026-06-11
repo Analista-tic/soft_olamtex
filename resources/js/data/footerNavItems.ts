@@ -1,5 +1,5 @@
 import type { NavItem } from '@/domain/shared';
-import { BarChart3, Settings, ShieldCheck } from 'lucide-vue-next';
+import { FileBarChart2, Settings, ShieldCheck } from 'lucide-vue-next';
 
 const toSlug = (value: string) =>
     value
@@ -19,7 +19,7 @@ export const footerNavItems: NavItem[] = [
     {
         title: 'Informes',
         href: '/informes',
-        icon: BarChart3,
+        icon: FileBarChart2,
     },
     {
         title: 'Auditoría',
