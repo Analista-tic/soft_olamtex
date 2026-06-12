@@ -165,6 +165,8 @@ export type InspectionApprovalPayload = {
     matches_cut: boolean;
     reason: string | null;
     observations: string | null;
+    precio_facturacion?: number;
+    precio_venta?: number;
 };
 
 export type WarehouseReceiptPayload = {

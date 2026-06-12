@@ -1751,13 +1751,27 @@ class BatchControlController extends Controller
             'confirmed_curves.*.color'       => 'required|string|max:200',
             'confirmed_curves.*.color_code'  => 'nullable|string|max:100',
             'confirmed_curves.*.total'       => 'nullable|integer|min:0',
-            'matches_cut'   => 'required|boolean',
-            'reason'        => 'nullable|string|max:2000',
-            'observations'  => 'nullable|string|max:2000',
+            'matches_cut'        => 'required|boolean',
+            'reason'             => 'nullable|string|max:2000',
+            'observations'       => 'nullable|string|max:2000',
+            'precio_facturacion' => 'nullable|numeric|min:0',
+            'precio_venta'       => 'nullable|numeric|min:0',
         ]);
 
         if (!$validated['matches_cut'] && empty(trim($validated['reason'] ?? ''))) {
             return response()->json(['message' => 'El motivo es obligatorio cuando las cantidades no coinciden.'], 422);
+        }
+
+        // Actualizar precios de override si fueron enviados
+        $priceUpdate = [];
+        if (isset($validated['precio_facturacion'])) {
+            $priceUpdate['billing_price_override'] = $validated['precio_facturacion'];
+        }
+        if (isset($validated['precio_venta'])) {
+            $priceUpdate['selling_price_override'] = $validated['precio_venta'];
+        }
+        if (!empty($priceUpdate)) {
+            $order->update($priceUpdate);
         }
 
         // Usar el input completo para preservar las tallas dinámicas (XS, 2XL, etc.)

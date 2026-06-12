@@ -7,7 +7,9 @@ import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Check, ChevronDown, ChevronRight, ClipboardCheck, Eye } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, type Directive } from 'vue';
+
+const vFocus: Directive = { mounted: (el) => el.focus() };
 import type { BatchControlRow, CutCurves, CutFabricConsumptionLine, CutUnitsReportRow, InspectionApprovalPayload } from '../../types';
 import { CUT_SIZES } from '../../types';
 
@@ -92,12 +94,26 @@ const cutUnitsReport = computed<CutUnitsReportRow[]>(() => {
 });
 
 const observations = ref<string>('');
+const editPf = ref<number>(0);
+const editPv = ref<number>(0);
+const editingPf = ref(false);
+const editingPv = ref(false);
 
 watch(
     [() => props.open, () => props.savedInspection],
     () => {
         if (!props.open) return;
         observations.value = props.savedInspection?.observations ?? '';
+    },
+    { immediate: true },
+);
+
+watch(
+    [() => props.open, () => props.costs],
+    () => {
+        if (!props.open) return;
+        editPf.value = props.costs?.precio_facturacion ?? 0;
+        editPv.value = props.costs?.precio_venta ?? 0;
     },
     { immediate: true },
 );
@@ -110,6 +126,8 @@ function handleSave() {
         matches_cut: true,
         reason: null,
         observations: observations.value.trim() || null,
+        precio_facturacion: editPf.value,
+        precio_venta: editPv.value,
     });
 }
 
@@ -134,8 +152,8 @@ const costValues = computed(() => {
     const c = props.costs;
     if (!c) return null;
     const m = costMultiplier.value;
-    const pf   = c.precio_facturacion * m;
-    const pv   = c.precio_venta * m;
+    const pf   = (!props.viewOnly ? editPf.value : c.precio_facturacion) * m;
+    const pv   = (!props.viewOnly ? editPv.value : c.precio_venta) * m;
     const cf   = c.costo_fijo * m;
     const cm   = c.costo_materia_prima * m;
     const ci   = c.costo_insumos * m;
@@ -272,13 +290,51 @@ const costValues = computed(() => {
                                 <div>
                                     <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Valores base</p>
                                     <div class="grid grid-cols-2 gap-3">
+                                        <!-- Precio Facturación -->
                                         <div class="rounded-lg border bg-muted/20 px-4 py-3">
                                             <p class="text-xs text-muted-foreground">Precio Facturación</p>
-                                            <p class="mt-1 text-base font-bold text-foreground">{{ fmt(costValues.pf) }}</p>
+                                            <input
+                                                v-if="!viewOnly && editingPf"
+                                                :value="editPf"
+                                                type="number"
+                                                min="0"
+                                                step="1"
+                                                class="mt-1 w-full bg-transparent text-base font-bold text-foreground outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                                @input="editPf = Number(($event.target as HTMLInputElement).value)"
+                                                @blur="editingPf = false"
+                                                @keydown.enter="editingPf = false"
+                                                @keydown.escape="editingPf = false"
+                                                v-focus
+                                            />
+                                            <p
+                                                v-else
+                                                class="mt-1 text-base font-bold text-foreground"
+                                                :class="!viewOnly ? 'cursor-pointer hover:text-primary' : ''"
+                                                @click="!viewOnly && (editingPf = true)"
+                                            >{{ fmt(costValues.pf) }}</p>
                                         </div>
+                                        <!-- Precio Venta -->
                                         <div class="rounded-lg border bg-emerald-50 dark:bg-emerald-950/30 px-4 py-3">
                                             <p class="text-xs text-muted-foreground">Precio Venta</p>
-                                            <p class="mt-1 text-base font-bold text-emerald-700 dark:text-emerald-400">{{ fmt(costValues.pv) }}</p>
+                                            <input
+                                                v-if="!viewOnly && editingPv"
+                                                :value="editPv"
+                                                type="number"
+                                                min="0"
+                                                step="1"
+                                                class="mt-1 w-full bg-transparent text-base font-bold text-emerald-700 outline-none dark:text-emerald-400 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                                @input="editPv = Number(($event.target as HTMLInputElement).value)"
+                                                @blur="editingPv = false"
+                                                @keydown.enter="editingPv = false"
+                                                @keydown.escape="editingPv = false"
+                                                v-focus
+                                            />
+                                            <p
+                                                v-else
+                                                class="mt-1 text-base font-bold text-emerald-700 dark:text-emerald-400"
+                                                :class="!viewOnly ? 'cursor-pointer hover:opacity-80' : ''"
+                                                @click="!viewOnly && (editingPv = true)"
+                                            >{{ fmt(costValues.pv) }}</p>
                                         </div>
                                     </div>
                                 </div>
