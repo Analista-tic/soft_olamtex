@@ -178,6 +178,13 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 const imageError = ref<string | null>(null);
 const processingImage = ref(false);
 const isDrawingPreviewOpen = ref(false);
+const drawingLoadFailed = ref(false);
+
+function onDrawingError(): void {
+    drawingLoadFailed.value = true;
+}
+
+const hasDrawing = computed(() => Boolean(resolvedDrawingUrl.value) && !drawingLoadFailed.value);
 
 const localData = computed({
     get: () => props.data,
@@ -535,13 +542,13 @@ function handleDialogOpenChange(value: boolean): void {
                                 </div>
 
                                 <button
-                                    v-if="resolvedDrawingUrl"
+                                    v-if="hasDrawing"
                                     type="button"
                                     class="w-full overflow-hidden rounded-md bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                                     aria-label="Abrir dibujo plano en tamaño grande"
                                     @click="openDrawingPreview"
                                 >
-                                    <img :src="resolvedDrawingUrl" alt="Dibujo plano de referencia" class="h-52 w-full object-cover" />
+                                    <img :src="resolvedDrawingUrl ?? undefined" alt="Dibujo plano de referencia" class="h-52 w-full object-cover" @error="onDrawingError" />
                                 </button>
 
                                 <div v-else class="flex h-52 items-center justify-center rounded-md bg-muted/20 px-3 text-sm text-muted-foreground">
@@ -597,11 +604,13 @@ function handleDialogOpenChange(value: boolean): void {
             <FormHeader title="Dibujo plano" description="Referencia visual del producto" />
             <div class="mt-2 flex max-h-[80vh] items-center justify-center overflow-hidden rounded-md border border-border bg-background p-3">
                 <img
-                    v-if="resolvedDrawingUrl"
-                    :src="resolvedDrawingUrl"
+                    v-if="hasDrawing"
+                    :src="resolvedDrawingUrl ?? undefined"
                     alt="Dibujo plano de referencia en vista ampliada"
                     class="max-h-[75vh] w-full object-contain"
+                    @error="onDrawingError"
                 />
+                <p v-else class="text-sm text-muted-foreground">Sin dibujo plano</p>
             </div>
             <DialogFooter class="mt-4 justify-end">
                 <Button type="button" variant="outline" class="rounded-full px-6" @click="isDrawingPreviewOpen = false">Cerrar</Button>

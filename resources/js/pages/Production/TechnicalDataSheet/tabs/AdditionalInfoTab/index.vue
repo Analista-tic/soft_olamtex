@@ -470,7 +470,6 @@ watch(
                 <button
                     v-if="sectionVisibility.cutting"
                     type="button"
-                    :disabled="isReadonly"
                     class="group flex flex-col rounded-2xl border border-border bg-background p-5 text-left shadow-sm transition-all duration-200 hover:border-primary/30 hover:shadow-md"
                     @click="openSectionDialog('cutting')"
                 >
@@ -501,7 +500,6 @@ watch(
                 <button
                     v-if="sectionVisibility.stamping"
                     type="button"
-                    :disabled="isReadonly"
                     class="group flex flex-col rounded-2xl border border-border bg-background p-5 text-left shadow-sm transition-all duration-200 hover:border-primary/30 hover:shadow-md"
                     @click="openSectionDialog('stamping')"
                 >
@@ -532,7 +530,6 @@ watch(
                 <button
                     v-if="sectionVisibility.laundry"
                     type="button"
-                    :disabled="isReadonly"
                     class="group flex flex-col rounded-2xl border border-border bg-background p-5 text-left shadow-sm transition-all duration-200 hover:border-primary/30 hover:shadow-md"
                     @click="openSectionDialog('laundry')"
                 >
