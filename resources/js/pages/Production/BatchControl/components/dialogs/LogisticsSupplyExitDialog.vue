@@ -152,11 +152,17 @@ const linesWithCompleteDelivery = computed(() =>
     </Teleport>
 
     <Dialog :open="open" @update:open="handleDialogOpenChange">
-        <FormDialogContent class="flex max-h-[92vh] max-w-4xl flex-col overflow-y-auto px-4 py-3 sm:max-w-[96vw]" :scrollable="true" :disable-outside-pointer-events="expandedImageUrl === null">
-            <FormHeader
-                title="Salida de insumos — Logística"
-                :description="`Orden ${row?.op_code ?? ''}`"
-            />
+        <FormDialogContent class="flex max-h-[92vh] max-w-4xl flex-col sm:max-w-[96vw]" :scrollable="true" :disable-outside-pointer-events="expandedImageUrl === null">
+            <!-- Header fijo -->
+            <div class="shrink-0 px-4 pt-3">
+                <FormHeader
+                    title="Salida de insumos — Logística"
+                    :description="`Orden ${row?.op_code ?? ''}`"
+                />
+            </div>
+
+            <!-- Cuerpo scrolleable -->
+            <div class="flex-1 min-h-0 overflow-y-auto px-4 pb-3 space-y-3">
 
             <!-- Base de cálculo -->
             <div
@@ -397,7 +403,10 @@ const linesWithCompleteDelivery = computed(() =>
                 </div>
             </div>
 
-            <DialogFooter class="mt-4 flex justify-end gap-2 border-t pt-3">
+            </div>
+
+            <!-- Footer fijo -->
+            <DialogFooter class="shrink-0 flex justify-end gap-2 border-t px-4 py-3">
                 <Button variant="ghost" size="sm" :disabled="isSaving" @click="emit('close')">
                     Cancelar
                 </Button>

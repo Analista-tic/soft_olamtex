@@ -393,8 +393,12 @@ function syncCatalogOptionsFromProps(): void {
     groupOptions.value = Array.isArray(props.groups) ? [...props.groups] : [];
     brandOptions.value = Array.isArray(props.brands) ? [...props.brands] : [];
     worldOptions.value = Array.isArray(props.worlds) ? [...props.worlds] : [];
-    baseFabricOptions.value = Array.isArray(props.fabricBases) ? [...props.fabricBases] : [];
     yarnBaseOptions.value = Array.isArray(props.yarnBases) ? [...props.yarnBases] : [];
+
+    const fromPropsFabric = Array.isArray(props.fabricBases) ? [...props.fabricBases] : [];
+    const fabricPropIds = new Set(fromPropsFabric.map((c) => Number(c.id)));
+    const localOnlyFabric = baseFabricOptions.value.filter((c) => !fabricPropIds.has(Number(c.id)));
+    baseFabricOptions.value = [...fromPropsFabric, ...localOnlyFabric];
 }
 
 async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig, rawName?: string): Promise<void> {
@@ -508,7 +512,10 @@ function handleInlineOpened(openedInstanceId: string | undefined) {
 }
 
 function syncCollectionOptionsFromProps(): void {
-    collectionOptions.value = Array.isArray(props.collections) ? [...props.collections] : [];
+    const fromProps = Array.isArray(props.collections) ? [...props.collections] : [];
+    const propIds = new Set(fromProps.map((c) => Number(c.id)));
+    const localOnly = collectionOptions.value.filter((c) => !propIds.has(Number(c.id)));
+    collectionOptions.value = [...fromProps, ...localOnly];
 }
 
 function findCollectionByName(name: string, options: OptionParams[]): OptionParams | undefined {
@@ -1089,12 +1096,9 @@ watch(
     },
 );
 const autoDescription = computed(() => {
-    const ref = form.value.type === TYPE_SAMPLE
-        ? form.value.sample_reference
-        : form.value.product_reference;
     const section = sectionOptions.value.find(s => Number(s.id) === Number(form.value.section_id))?.name ?? '';
     const world   = worldOptions.value.find(w => Number(w.id) === Number(form.value.world_id))?.name ?? '';
-    return [ref, section, world].filter(Boolean).join(' ').toUpperCase();
+    return [section, world].filter(Boolean).join(' ').toUpperCase();
 });
 
 watch(autoDescription, (val) => {

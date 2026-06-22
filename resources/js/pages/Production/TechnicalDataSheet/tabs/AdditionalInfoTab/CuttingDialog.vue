@@ -263,6 +263,7 @@ watch(
                                         <Input
                                             :model-value="row.trazoPrincipal || ''"
                                             type="number" min="0" step="1" placeholder="0"
+                                            :disabled="readonly"
                                             class="mx-auto h-7 w-20 text-center text-xs"
                                             @update:model-value="(v) => updateSizeField(row.size, 'trazoPrincipal', v)"
                                         />
@@ -271,6 +272,7 @@ watch(
                                         <Input
                                             :model-value="row.liquidacion || ''"
                                             type="number" min="0" step="1" placeholder="0"
+                                            :disabled="readonly"
                                             class="mx-auto h-7 w-20 text-center text-xs"
                                             @update:model-value="(v) => updateSizeField(row.size, 'liquidacion', v)"
                                         />
@@ -279,6 +281,7 @@ watch(
                                         <Input
                                             :model-value="row.espiga || ''"
                                             type="number" min="0" step="1" placeholder="0"
+                                            :disabled="readonly"
                                             class="mx-auto h-7 w-20 text-center text-xs"
                                             @update:model-value="(v) => updateSizeField(row.size, 'espiga', v)"
                                         />
@@ -287,6 +290,7 @@ watch(
                                         <Input
                                             :model-value="row.totalUnidades || ''"
                                             type="number" min="0" step="1" placeholder="0"
+                                            :disabled="readonly"
                                             class="mx-auto h-7 w-20 text-center text-xs font-semibold"
                                             @update:model-value="(v) => updateSizeField(row.size, 'totalUnidades', v)"
                                         />

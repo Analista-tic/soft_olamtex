@@ -14,6 +14,7 @@ use App\Services\Production\ProductSheetPersistenceService;
 use App\Services\Settings\SettingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -447,6 +448,29 @@ class ProductSheetController extends Controller
 
         $key = $request->input('key');
         $name = trim($request->input('name'));
+
+        if ($key === 'fabric_bases') {
+            try {
+                $fabricBase = $this->fabricBaseService->create([
+                    'nombre'    => $name,
+                    'factor'    => 1.0,
+                    'is_active' => true,
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'data'    => [
+                        'id'   => $fabricBase->id,
+                        'name' => $fabricBase->nombre,
+                    ],
+                ], 201);
+            } catch (ValidationException $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => collect($e->errors())->flatten()->first(),
+                ], 422);
+            }
+        }
 
         try {
             $created = $this->settingService->addCatalogOption($key, $name);

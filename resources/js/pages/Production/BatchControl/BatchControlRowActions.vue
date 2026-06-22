@@ -59,9 +59,9 @@ const iconCls = 'h-4 w-4';
             <span class="sr-only">{{ isActiveRow ? 'Ficha técnica' : 'Ver ficha técnica' }}</span>
         </Button>
 
-        <!-- Resumen de ficha técnica: en tab Desarrollo de muestras, visible para todos -->
+        <!-- Resumen de ficha técnica: en tab Desarrollo de muestras, Confección y Terminación -->
         <Button
-            v-if="activeProcess === 'Desarrollo de muestras'"
+            v-if="activeProcess === 'Desarrollo de muestras' || activeProcess === 'Confección' || activeProcess === 'Terminación'"
             variant="ghost"
             size="icon"
             :class="[actionBtn, 'text-blue-600 hover:bg-blue-50 hover:text-blue-700']"
