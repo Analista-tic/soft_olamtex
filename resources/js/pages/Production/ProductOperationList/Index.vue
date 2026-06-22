@@ -342,6 +342,7 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
             }
 
             await fetchOperationSummaries();
+            reloadFromDatabase(false);
 
             setTimeout(() => {
                 clearSuccess();
@@ -737,6 +738,7 @@ watch(productSheets, () => {
                     }))
                 "
                 :excluded-product-sheet-ids="operationSummaries.map((s) => s.product_sheet_id)"
+                :default-product-sheet-id="selectedProductSheetId !== 'all' ? selectedProductSheetId : null"
                 :sections="sections"
                 :operations="operations"
                 :machines="machines"
