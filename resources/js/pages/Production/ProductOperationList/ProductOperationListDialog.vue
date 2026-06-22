@@ -77,6 +77,10 @@ const props = defineProps({
         type: Array as () => string[],
         default: () => [],
     },
+    defaultProductSheetId: {
+        type: [Number, String] as PropType<number | string | null>,
+        default: null,
+    },
 });
 
 const emit = defineEmits<{
@@ -264,6 +268,13 @@ watch(
 watch(localOpen, (value) => {
     if (!value) emit('close');
 });
+
+watch(
+    () => props.operations,
+    () => {
+        syncListsFromProps();
+    },
+);
 
 watch(
     () => currentRow.value.operation_id,
@@ -675,7 +686,9 @@ function saveOperations() {
 function resetForm() {
     cancelEditRow();
     operationList.value = [];
-    productSheetId.value = availableProductSheets.value[0]?.id ?? null;
+    const defaultId = props.defaultProductSheetId;
+    const isDefaultAvailable = defaultId != null && availableProductSheets.value.some((s) => idsMatch(s.id, defaultId));
+    productSheetId.value = isDefaultAvailable ? defaultId : (availableProductSheets.value[0]?.id ?? null);
     currentRow.value = createEmptyRow();
     pendingAutoAddOperation.value = false;
 }
