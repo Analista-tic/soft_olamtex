@@ -136,6 +136,7 @@ Vacíos en producción: **ubicaciones de bodega** y **contactos** (proveedores/c
 | Documento | Para qué |
 |---|---|
 | [`Documentacion.md`](../Documentacion.md) | Documentación técnica y funcional completa. **Fuente de verdad** ante conflictos. |
+| `Documentacion_ERP.pdf` | Misma documentación, pero **es la única copia que conserva los diagramas** (arquitectura, entidad-relación, UML de casos de uso, actividades y estados). El `.md` es una conversión que perdió todas las imágenes: los títulos de diagrama quedaron sin contenido. Para texto usa el `.md`; para cualquier diagrama, el PDF. |
 | [`.github/copilot-instructions.md`](../.github/copilot-instructions.md) | Reglas de ingeniería obligatorias (persistencia, alertas, dialogs, cohesión de dominio). |
 | [`docs/plantillas/`](plantillas/) | Plantillas de carga inicial + generador verificado. |
 | [`docs/INDICE_DOCUMENTACION.md`](INDICE_DOCUMENTACION.md) | Índice de la documentación por módulo. |
