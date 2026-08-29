@@ -28,7 +28,9 @@ yarn-error.log
 
 
 # Local dev artifacts
-.claude/
+# .claude/ es local, salvo skills/ que son tooling compartido del proyecto
+.claude/*
+!.claude/skills/
 /db/
 seed_output.log
 .codex_tmp/

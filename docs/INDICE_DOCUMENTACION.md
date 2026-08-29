@@ -9,7 +9,8 @@
 
 Antes de leer la documentación de módulos, lee primero:
 
-1. [Roadmap de conocimientos para empezar](ROADMAP_CONOCMIENTOS_ONBOARDING.md) — tecnologías, estructura de carpetas, flujo de trabajo y buenas prácticas.
+1. [Estado y trazabilidad](ESTADO_Y_TRAZABILIDAD.md) — **documento vivo**: en qué fase va la implementación, qué se está trabajando, y los hechos técnicos ya verificados contra el código. Si retomas el proyecto, empieza aquí.
+2. [Roadmap de conocimientos para empezar](ROADMAP_CONOCIMIENTOS_ONBOARDING.md) — tecnologías, estructura de carpetas, flujo de trabajo y buenas prácticas.
 
 Luego continúa con los módulos en este orden (de más a menos importante):
 
@@ -87,6 +88,8 @@ REPORTES
 
 | Archivo | ¿Para qué sirve? |
 |---------|-----------------|
+| [ESTADO_Y_TRAZABILIDAD.md](ESTADO_Y_TRAZABILIDAD.md) | Estado por fase, registro de cambios/bugs y hechos técnicos verificados |
+| [plantillas/](plantillas/) | Plantillas de carga inicial (ítems, rollos, catálogos) y su generador |
 | [ROADMAP_CONOCIMIENTOS_ONBOARDING.md](ROADMAP_CONOCIMIENTOS_ONBOARDING.md) | Guía de 6 semanas para ponerse al día |
 | [DESPLIEGUE_HOSTINGER_SSH.md](DESPLIEGUE_HOSTINGER_SSH.md) | Cómo hacer deploy en el servidor de producción |
 | [ANALISIS_FLUJO_COMPRAS.md](ANALISIS_FLUJO_COMPRAS.md) | Análisis detallado del flujo de compras |
