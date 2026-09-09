@@ -2,120 +2,93 @@
 import AlertStack from '@/components/common/AlertStack.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
+import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { Programmer } from '@/domain/Production';
+import { useGlobalAlert } from '@/composables/useGlobalAlert';
+import type { ManualOrderCodeSummary } from '@/domain/Textil';
 import AppLayout from '@/layouts/AppLayout.vue';
+import ManualRollProgramDialog from '@/pages/Textil/FabricRollOrders/ManualRollProgramDialog.vue';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { ArrowDownToLine, Search } from 'lucide-vue-next';
-import { computed, onMounted, ref } from 'vue';
+import { ArrowRight, Plus, Search } from 'lucide-vue-next';
+import { onMounted, ref, watch } from 'vue';
 
 const breadcrumbs = [{ title: 'Descargue de tela por orden', href: '/kardex-telas/descargue-orden' }];
 
+const { successMessage, errorMessage, error, success, clear } = useGlobalAlert();
+
 const searchQuery = ref('');
+const codes = ref<ManualOrderCodeSummary[]>([]);
+const isLoading = ref(false);
+const isProgramDialogOpen = ref(false);
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-const programmers = ref<Programmer[]>([]);
-const successMessage = ref('');
-const errorMessage = ref('');
-const isLoadingProgrammers = ref(false);
+const numFmt = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+const fmtMeters = (v: number) => `${numFmt.format(v)} m`;
 
-const normalizedValue = (value?: string | null) =>
-    (value ?? '')
-        .toString()
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .trim();
-
-const filteredProgrammers = computed(() => {
-    const query = normalizedValue(searchQuery.value);
-    return programmers.value.filter((programmer) => {
-        const fieldsToSearch = [
-            String(programmer.id),
-            programmer.product_sheet?.reference,
-            programmer.season,
-            programmer.product_sheet?.section?.name,
-            programmer.product_sheet?.group?.name,
-            programmer.priority,
-        ];
-        const matchesSearch = !query || fieldsToSearch.some((field) => normalizedValue(field).includes(query));
-        return matchesSearch;
-    });
-});
-
-const getLotLabel = (programmer: Programmer) => `MF${programmer.id}`;
-
-const getReferenceLabel = (programmer: Programmer) => programmer.product_sheet?.reference ?? '-';
-
-const getSeasonLabel = (programmer: Programmer) => programmer.season ?? '-';
-
-const getSectionLabel = (programmer: Programmer) => programmer.product_sheet?.section?.name ?? '-';
-
-const getGroupLabel = (programmer: Programmer) => programmer.product_sheet?.group?.name ?? '-';
-
-const getPriorityLabel = (programmer: Programmer) => programmer.priority ?? '-';
-
-const getScheduledUnitsLabel = (programmer: Programmer) => programmer.units ?? '-';
-
-function openDownloadWindow(programmer: Programmer) {
-    if (!programmer?.id) return;
-    const url = route('kardex-telas.descargue-orden.descarga', { programmer: programmer.id });
-    router.visit(url);
-}
-
-async function fetchProgrammers() {
-    isLoadingProgrammers.value = true;
-    errorMessage.value = '';
+async function fetchCodes() {
+    isLoading.value = true;
     try {
-        const response = await axios.get('/comercial/programmers', {
-            params: {
-                per_page: 1000,
-            },
+        const { data } = await axios.get('/kardex-telas/descargue-orden/data', {
+            params: { search: searchQuery.value.trim() || undefined, per_page: 100 },
         });
-        const payload = response.data?.data ?? response.data;
-        programmers.value = Array.isArray(payload) ? (payload as Programmer[]) : [];
+        codes.value = Array.isArray(data?.data) ? data.data : [];
     } catch {
-        programmers.value = [];
-        errorMessage.value = 'No se pudo cargar el programador.';
+        codes.value = [];
+        error('No se pudo cargar el listado de códigos de orden.');
     } finally {
-        isLoadingProgrammers.value = false;
+        isLoading.value = false;
     }
 }
 
-onMounted(fetchProgrammers);
+function scheduleFetch() {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(fetchCodes, 350);
+}
+
+watch(searchQuery, scheduleFetch);
+
+function openCode(code: ManualOrderCodeSummary) {
+    router.visit(route('kardex-telas.descargue-orden.show', { manualOrderCode: code.manual_order_code }));
+}
+
+function handleProgramSuccess(payload: { manualOrderCode: string }) {
+    success('Programación registrada correctamente.');
+    void fetchCodes();
+    router.visit(route('kardex-telas.descargue-orden.show', { manualOrderCode: payload.manualOrderCode }));
+}
+
+onMounted(fetchCodes);
 </script>
 
 <template>
     <Head title="Descargue de tela por orden" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="relative flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
-            <AlertStack
-                :success-message="successMessage"
-                :error-message="errorMessage"
-                success-title="Exito"
-                error-title="Error"
-                @close-success="successMessage = ''"
-                @close-error="errorMessage = ''"
-            />
+            <AlertStack :success-message="successMessage" :error-message="errorMessage" @close-success="clear" @close-error="clear" />
 
-            <div class="flex items-center justify-between">
+            <div class="flex items-center justify-between gap-3">
                 <div class="flex flex-col gap-1">
                     <h1 class="text-lg font-bold">Descargue de tela por orden</h1>
                     <p class="text-sm text-muted-foreground">
-                        Registra el descargue de tela por orden de produccion, controlando el metraje utilizado y actualizando automaticamente el
-                        inventario con trazabilidad por rollo.
+                        Programa y descarga metros de rollo por un código de orden escrito a mano, mientras no exista una orden de producción real en
+                        el sistema.
                     </p>
                 </div>
+                <Button variant="default" class="shrink-0 gap-1.5 rounded-full" @click="isProgramDialogOpen = true">
+                    <Plus class="h-4 w-4" />
+                    Nuevo código
+                </Button>
             </div>
 
             <FilterBar>
-                <FilterField label="Buscar lote" :active="searchQuery.trim().length > 0" class="min-w-[220px] flex-1 p-0">
+                <FilterField label="Buscar código" :active="searchQuery.trim().length > 0" class="min-w-[220px] flex-1 p-0">
                     <div class="relative">
                         <Input
                             v-model="searchQuery"
-                            placeholder="Buscar lote"
+                            placeholder="Buscar código de orden"
                             class="h-10 w-full rounded-md border border-input bg-background pl-10 text-sm focus:border-primary focus:ring-0"
                         />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
@@ -130,57 +103,48 @@ onMounted(fetchProgrammers);
                     <Table class="min-w-full text-[0.9rem]">
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Lote</TableHead>
-                                <TableHead>Referencia</TableHead>
-                                <TableHead>Temporada</TableHead>
-                                <TableHead>Seccion</TableHead>
-                                <TableHead>Grupo</TableHead>
-                                <TableHead>Prioridad</TableHead>
-                                <TableHead>Unidades programadas</TableHead>
-                                <TableHead>Acciones</TableHead>
+                                <TableHead>Código de orden</TableHead>
+                                <TableHead class="text-right">Rollos</TableHead>
+                                <TableHead class="text-right">Programado</TableHead>
+                                <TableHead class="text-right">Consumido</TableHead>
+                                <TableHead></TableHead>
                             </TableRow>
                         </TableHeader>
 
                         <TableBody>
-                            <template v-if="isLoadingProgrammers">
+                            <template v-if="isLoading">
                                 <TableRow v-for="i in 5" :key="`fabric-roll-order-skeleton-${i}`">
-                                    <TableCell v-for="col in 8" :key="`fabric-roll-order-skeleton-${i}-${col}`" class="px-4 py-3">
+                                    <TableCell v-for="col in 5" :key="`fabric-roll-order-skeleton-${i}-${col}`" class="px-4 py-3">
                                         <Skeleton class="h-4 w-full" />
                                     </TableCell>
                                 </TableRow>
                             </template>
-                            <TableRow v-for="programmer in filteredProgrammers" v-else :key="programmer.id" class="border-b">
-                                <TableCell class="text-center text-sm">{{ getLotLabel(programmer) }}</TableCell>
-
-                                <TableCell class="text-center text-sm">
-                                    {{ getReferenceLabel(programmer) }}
+                            <TableRow v-else-if="codes.length === 0">
+                                <TableCell colspan="5" class="py-8 text-center text-sm text-muted-foreground">
+                                    No hay códigos de orden registrados todavía.
                                 </TableCell>
-
-                                <TableCell class="text-center text-sm">{{ getSeasonLabel(programmer) }}</TableCell>
-                                <TableCell class="text-center text-sm">{{ getSectionLabel(programmer) }}</TableCell>
-                                <TableCell class="text-center text-sm">{{ getGroupLabel(programmer) }}</TableCell>
-                                <TableCell class="text-center text-sm">{{ getPriorityLabel(programmer) }}</TableCell>
-                                <TableCell class="text-center text-sm">{{ getScheduledUnitsLabel(programmer) }}</TableCell>
-
-                                <TableCell class="flex justify-center gap-1">
-                                    <button
-                                        class="inline-flex items-center justify-center text-muted-foreground transition-colors hover:text-primary"
-                                        title="Descargar orden"
-                                        type="button"
-                                        @click="openDownloadWindow(programmer)"
-                                    >
-                                        <ArrowDownToLine class="h-4 w-4" />
-                                    </button>
+                            </TableRow>
+                            <TableRow
+                                v-for="code in codes"
+                                v-else
+                                :key="code.manual_order_code"
+                                class="cursor-pointer border-b hover:bg-muted/40"
+                                @click="openCode(code)"
+                            >
+                                <TableCell class="font-medium">{{ code.manual_order_code }}</TableCell>
+                                <TableCell class="text-right">{{ code.rolls_count }}</TableCell>
+                                <TableCell class="text-right">{{ fmtMeters(code.programmed_meters) }}</TableCell>
+                                <TableCell class="text-right">{{ fmtMeters(code.consumed_meters) }}</TableCell>
+                                <TableCell class="text-right">
+                                    <ArrowRight class="ml-auto h-4 w-4 text-muted-foreground" />
                                 </TableCell>
                             </TableRow>
                         </TableBody>
                     </Table>
-
-                    <div v-if="!isLoadingProgrammers && filteredProgrammers.length === 0" class="p-4 text-center text-sm text-muted-foreground">
-                        No hay programadores disponibles.
-                    </div>
                 </div>
             </div>
         </div>
+
+        <ManualRollProgramDialog v-model="isProgramDialogOpen" @success="handleProgramSuccess" />
     </AppLayout>
 </template>

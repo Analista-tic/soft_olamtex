@@ -182,7 +182,7 @@ async function submitDischarge() {
             errors.type ||
             errors.production_order_id ||
             errors.credit_note ||
-            'No se pudo procesar el descargue del rollo.';
+            'No se pudo procesar el ajuste del rollo.';
 
         emit('discharge-error', { message });
     } finally {
@@ -195,7 +195,7 @@ async function submitDischarge() {
     <Dialog :open="props.modelValue" modal @update:open="handleOpenChange">
         <FormDialogContent class="flex max-h-[95vh] max-w-2xl flex-col px-2 py-2">
             <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
-                <DialogTitle>Descargue por rollo</DialogTitle>
+                <DialogTitle>Ajuste de rollo</DialogTitle>
                 <DialogDescription>Registra una salida o entrada sin modificar la salida parcial del rollo.</DialogDescription>
             </DialogHeader>
 

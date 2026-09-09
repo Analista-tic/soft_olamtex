@@ -2,7 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Production\TechnicalSheetRoll;
+use App\Models\Production\FabricRollProgrammingLine;
+use App\Models\Production\ManualRollProgramming;
 use App\Models\Textil\FabricRoll;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -65,29 +66,36 @@ class RecalibrarPartialOutput extends Command
     {
         $totalesPorRoll = [];
 
-        foreach (TechnicalSheetRoll::query()->select('lines')->cursor() as $snapshot) {
-            $lines = is_array($snapshot->lines) ? $snapshot->lines : [];
+        // Fase 15: fuente de verdad es fabric_roll_programming_lines, ya no
+        // TechnicalSheetRoll::lines (JSON, congelado como respaldo de solo lectura).
+        $query = FabricRollProgrammingLine::query()
+            ->whereNotNull('fabric_roll_id')
+            ->where('programmed_meters', '>', 0)
+            ->select(['fabric_roll_id', 'programmed_meters']);
 
-            foreach ($lines as $line) {
-                $rollId = trim((string) ($line['rollId'] ?? ''));
-                if ($rollId === '' || !is_numeric($rollId)) {
-                    continue;
-                }
+        if ($targetRollId !== null) {
+            $query->where('fabric_roll_id', (int) $targetRollId);
+        }
 
-                if ($targetRollId !== null && $rollId !== $targetRollId) {
-                    continue;
-                }
+        foreach ($query->cursor() as $line) {
+            $rollId = (string) $line->fabric_roll_id;
+            $totalesPorRoll[$rollId] = ($totalesPorRoll[$rollId] ?? 0.0) + (float) $line->programmed_meters;
+        }
 
-                $meters = is_numeric($line['programmedMeters'] ?? null)
-                    ? (float) $line['programmedMeters']
-                    : 0.0;
+        // Reservas manuales pendientes (manual_roll_programmings) — programado menos ya
+        // consumido, para no perder la reserva de la fecha de un descargue parcial.
+        $manualQuery = ManualRollProgramming::query()->whereNotNull('fabric_roll_id');
+        if ($targetRollId !== null) {
+            $manualQuery->where('fabric_roll_id', (int) $targetRollId);
+        }
 
-                if ($meters <= 0.0) {
-                    continue;
-                }
-
-                $totalesPorRoll[$rollId] = ($totalesPorRoll[$rollId] ?? 0.0) + $meters;
+        foreach ($manualQuery->cursor() as $manualLine) {
+            $pending = (float) $manualLine->programmed_meters - (float) $manualLine->consumed_meters;
+            if ($pending <= 0) {
+                continue;
             }
+            $rollId = (string) $manualLine->fabric_roll_id;
+            $totalesPorRoll[$rollId] = ($totalesPorRoll[$rollId] ?? 0.0) + $pending;
         }
 
         return $totalesPorRoll;

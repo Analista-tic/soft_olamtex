@@ -97,6 +97,7 @@ class PermissionSeeder extends Seeder
             'crear telas rollos',
             'editar telas rollos',
             'eliminar telas rollos',
+            'ajustar telas rollos',
             'fabric_rolls.import',
             'aprobar recepcion tela',
             'rechazar recepcion tela',

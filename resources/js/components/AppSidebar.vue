@@ -182,13 +182,9 @@ const moduleSections: ModuleSection[] = [
                 label: 'Inventario Textil',
                 items: [
                     { title: 'Inventario tela por rollos', href: route('kardex-telas.inventario-rollos'), permission: 'ver telas rollos' },
-                    { title: 'Movimientos de rollos', href: route('kardex-telas.inventario-rollos.movimientos'), permission: 'ver telas rollos' },
                     { title: 'Descargue de telas por orden', href: route('kardex-telas.descargue-orden'), permission: 'ver descargue telas orden' },
-                    {
-                        title: 'Salida de telas por orden',
-                        href: underConstructionHref('Salida de telas por orden'),
-                        permission: 'ver telas rollos',
-                    },
+                    { title: 'Programación de rollos', href: route('kardex-telas.programacion-rollos'), permission: 'ver telas rollos' },
+                    { title: 'Historial de ajustes de rollos', href: route('kardex-telas.inventario-rollos.movimientos'), permission: 'ver telas rollos' },
                 ],
             },
         ],
@@ -265,26 +261,52 @@ const hasMatchingQueryParams = (target: URL, current: URL): boolean => {
     return true;
 };
 
-const isRouteActive = (href: string) => {
+// Largo del pathname si `href` matchea la URL actual (exacto, o como prefijo de una
+// subruta), o `null` si no matchea. Se usa para desempatar entre hermanos del mismo
+// grupo: cuando dos items comparten el mismo prefijo de ruta (ej. "/kardex-telas/x" y
+// "/kardex-telas/x/y"), solo el match más largo (el más específico) debe quedar activo.
+const routeMatchLength = (href: string): number | null => {
     const targetUrl = resolveHrefUrl(href);
     if (!targetUrl) {
-        return false;
+        return null;
     }
 
     const current = currentUrl.value;
     const hasQuery = targetUrl.searchParams.toString().length > 0;
 
     if (hasQuery) {
-        return current.pathname === targetUrl.pathname && hasMatchingQueryParams(targetUrl, current);
+        return current.pathname === targetUrl.pathname && hasMatchingQueryParams(targetUrl, current) ? targetUrl.pathname.length : null;
     }
 
-    return current.pathname === targetUrl.pathname || current.pathname.startsWith(`${targetUrl.pathname}/`);
+    if (current.pathname === targetUrl.pathname || current.pathname.startsWith(`${targetUrl.pathname}/`)) {
+        return targetUrl.pathname.length;
+    }
+
+    return null;
+};
+
+const isRouteActive = (href: string, siblingHrefs?: string[]) => {
+    const length = routeMatchLength(href);
+    if (length === null) {
+        return false;
+    }
+    if (!siblingHrefs || siblingHrefs.length === 0) {
+        return true;
+    }
+
+    const bestLength = Math.max(...siblingHrefs.map((sibling) => routeMatchLength(sibling) ?? -1));
+    return length === bestLength;
 };
 
 const getVisibleSections = () => visibleModuleSections.value;
 
 const getActiveSectionTitle = () => {
-    return getVisibleSections().find((section) => section.groups.some((group) => group.items.some((item) => isRouteActive(item.href))))?.title;
+    return getVisibleSections().find((section) =>
+        section.groups.some((group) => {
+            const hrefs = group.items.map((item) => item.href);
+            return group.items.some((item) => isRouteActive(item.href, hrefs));
+        }),
+    )?.title;
 };
 
 const buildSectionStates = (openTitle?: string) =>
@@ -474,7 +496,11 @@ watch(
                             </div>
                             <SidebarMenu class="module-submodules px-0">
                                 <SidebarMenuItem v-for="item in group.items" :key="item.title" class="module-submodule-item">
-                                    <SidebarMenuButton as-child :tooltip="item.title" :class="{ active: isRouteActive(item.href) }">
+                                    <SidebarMenuButton
+                                        as-child
+                                        :tooltip="item.title"
+                                        :class="{ active: isRouteActive(item.href, group.items.map((i) => i.href)) }"
+                                    >
                                         <Link :href="item.href">
                                             <span>{{ item.title }}</span>
                                         </Link>

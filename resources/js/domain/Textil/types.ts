@@ -56,3 +56,48 @@ export interface FabricItemOption {
     name: string;
     reference: string | null;
 }
+
+export interface RollProgrammingRow {
+    id: number;
+    source: 'order' | 'manual';
+    op_code: string | null;
+    manual_order_code: string | null;
+    roll_number: string | null;
+    location: string | null;
+    fabric_name: string | null;
+    color: string | null;
+    type: string | null;
+    programmed_meters: number;
+    available_meters: number | null;
+    consumed_real_meters: number;
+    difference_meters: number;
+}
+
+export interface ManualRollProgrammingLine {
+    id: number;
+    fabric_roll_id: number;
+    roll_number: string | null;
+    location: string | null;
+    manual_order_code: string;
+    programmed_meters: number;
+    consumed_meters: number;
+    remaining_meters: number;
+    notes: string | null;
+    has_item: boolean;
+}
+
+export interface ManualRollProgrammingHistoryEntry {
+    id: number;
+    created_at: string | null;
+    user_name: string | null;
+    quantity: number | null;
+    reason: string | null;
+}
+
+export interface ManualOrderCodeSummary {
+    manual_order_code: string;
+    rolls_count: number;
+    programmed_meters: number;
+    consumed_meters: number;
+    created_at: string | null;
+}

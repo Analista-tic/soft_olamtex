@@ -34,7 +34,7 @@ Revisión contra [INVENTARIO_4UTEX.md](./INVENTARIO_4UTEX.md). Fecha: 2026-02-10
 |---|-------|--------|--------------|
 | 11 | Tabla `production_roll_consumptions` | OK | Migración `2026_02_10_000003`. |
 | 12 | Consumo producción crea consumo + movimiento | OK | `recordConsumptionAndCreateMovement()` en `FabricRollService`. |
-| 13 | Consumo rollo genera salida inventario | OK | `updateOutput()` llama a `createMovement` cuando `consumedDelta > 0`. |
+| 13 | Consumo rollo genera salida inventario | OK | `discharge($roll, 'salida', ...)` llama a `recordConsumptionAndCreateMovement()`, que crea el movimiento de kardex. (Antes este punto apuntaba a `updateOutput()`, eliminado por no tener ninguna pantalla que lo usara.) |
 
 ---
 
@@ -90,7 +90,7 @@ Revisión contra [INVENTARIO_4UTEX.md](./INVENTARIO_4UTEX.md). Fecha: 2026-02-10
 | Devolución venta | `createSaleReturn` |
 | Devolución compra | `createPurchaseReturn` |
 | Traslado | `createTransfer` |
-| Consumo rollo | `FabricRollService::updateOutput` → `recordConsumptionAndCreateMovement` → `createMovement` |
+| Consumo rollo | `FabricRollService::discharge` (tipo `salida`) → `recordConsumptionAndCreateMovement` → `createMovement` |
 
 ---
 

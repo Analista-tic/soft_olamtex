@@ -1,4 +1,15 @@
-export type { FabricItemOption, FabricOrder, FabricOrderItem, FabricRoll, FabricRollReceptionForm, FabricRollView } from './types';
+export type {
+    FabricItemOption,
+    FabricOrder,
+    FabricOrderItem,
+    FabricRoll,
+    FabricRollReceptionForm,
+    FabricRollView,
+    ManualOrderCodeSummary,
+    ManualRollProgrammingHistoryEntry,
+    ManualRollProgrammingLine,
+    RollProgrammingRow,
+} from './types';
 
 export type { FabricOrderDto, FabricOrderItemDto, FabricRollDto, FabricRollViewDto } from './dto';
 

@@ -17,9 +17,9 @@ const props = withDefaults(
         modelValue?: boolean;
         roll?: FabricRollView | null;
         canEditMainFabric?: boolean;
-        canEditRolls?: boolean;
+        canAdjustRolls?: boolean;
     }>(),
-    { modelValue: false, roll: null, canEditMainFabric: false, canEditRolls: false },
+    { modelValue: false, roll: null, canEditMainFabric: false, canAdjustRolls: false },
 );
 
 const emit = defineEmits<{
@@ -418,7 +418,7 @@ const metricCards = computed(() => {
                     </section>
 
                     <!-- Corrección de cantidad (solo usuarios con permiso editar rollos) -->
-                    <section v-if="props.canEditRolls">
+                    <section v-if="props.canAdjustRolls">
                         <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Corrección de cantidad</p>
                         <div class="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
                             <div class="flex items-center justify-between gap-3 text-sm">
@@ -460,7 +460,7 @@ const metricCards = computed(() => {
                     </section>
 
                     <!-- Precio por metro (solo usuarios con permiso editar rollos) -->
-                    <section v-if="props.canEditRolls">
+                    <section v-if="props.canAdjustRolls">
                         <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Precio por metro</p>
                         <div class="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
                             <div class="flex items-center justify-between gap-3 text-sm">

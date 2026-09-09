@@ -8,15 +8,18 @@ use App\Helpers\ScopeHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Production\StoreProgrammerRequest;
 use App\Http\Requests\Production\UpdateProgrammerRequest;
+use App\Models\Production\FabricRollProgrammingLine;
+use App\Models\Production\ManualRollProgramming;
 use App\Models\Production\ProductSheet;
 use App\Models\Production\ProductionOrder;
 use App\Models\Production\TechnicalSheet;
-use App\Models\Production\TechnicalSheetRoll;
 use App\Models\Production\TechnicalSheetSupply;
 use App\Models\Textil\FabricRoll;
+use App\Services\Production\FabricBaseService;
 use App\Services\Production\ProductionOrderService;
 use App\Services\Production\ProductionOrderSchedulingService;
 use App\Services\Production\ProductSheetStatusService;
+use App\Services\Production\YarnBaseService;
 use App\Services\Settings\SettingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -45,6 +48,8 @@ class ProgrammerController extends Controller
         private ProductionOrderService $productionOrderService,
         private ProductSheetStatusService $productSheetStatusService,
         private ProductionOrderSchedulingService $schedulingService,
+        private FabricBaseService $fabricBaseService,
+        private YarnBaseService $yarnBaseService,
     ) {
     }
 
@@ -1061,7 +1066,11 @@ class ProgrammerController extends Controller
         $catalogs = [];
 
         foreach ($keys as $key) {
-            $catalogs[$key] = $this->settingService->getCatalogOptions($key);
+            $catalogs[$key] = match ($key) {
+                'fabric_bases' => $this->fabricBaseService->options(),
+                'yarn_bases'   => $this->yarnBaseService->options(),
+                default        => $this->settingService->getCatalogOptions($key),
+            };
         }
 
         return $catalogs;
@@ -1192,17 +1201,13 @@ class ProgrammerController extends Controller
         // Incluye registros soft-deleted para evitar violación de clave única al recrear
         $sheets = TechnicalSheet::withTrashed()->where('production_order_id', $orderId)->get();
 
-        // Recolectar rollIds afectados antes de borrar los snapshots
+        // Recolectar rollIds afectados antes de borrar las líneas (Fase 15: fuente de
+        // verdad es fabric_roll_programming_lines, ya no rollsSnapshot()->lines).
         $affectedRollIds = [];
         foreach ($sheets as $sheet) {
-            $snapshot = $sheet->rollsSnapshot()->first();
-            if ($snapshot && is_array($snapshot->lines)) {
-                foreach ($snapshot->lines as $line) {
-                    $rollId = trim((string) ($line['rollId'] ?? ''));
-                    $meters = is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : 0.0;
-                    if ($rollId !== '' && is_numeric($rollId) && $meters > 0.0) {
-                        $affectedRollIds[] = (int) $rollId;
-                    }
+            foreach ($sheet->rollProgrammingLines()->whereNotNull('fabric_roll_id')->get() as $line) {
+                if ((float) $line->programmed_meters > 0.0) {
+                    $affectedRollIds[] = (int) $line->fabric_roll_id;
                 }
             }
         }
@@ -1210,6 +1215,7 @@ class ProgrammerController extends Controller
         foreach ($sheets as $sheet) {
             // Los siguientes modelos NO usan SoftDeletes → delete()
             $sheet->rollsSnapshot()->delete();
+            $sheet->rollProgrammingLines()->delete();
             $sheet->threadsSnapshot()->delete();
             $sheet->rawMaterialsSnapshot()->delete();
             $sheet->sizes()->delete();
@@ -1241,21 +1247,33 @@ class ProgrammerController extends Controller
     private function buildRollTotalsFromSnapshots(array $rollIds): array
     {
         $totals = [];
-        $stringIds = array_map('strval', $rollIds);
 
-        foreach (TechnicalSheetRoll::query()->select('lines')->cursor() as $snapshot) {
-            $lines = is_array($snapshot->lines) ? $snapshot->lines : [];
-            foreach ($lines as $line) {
-                $rollId = trim((string) ($line['rollId'] ?? ''));
-                if ($rollId === '' || !in_array($rollId, $stringIds, true)) {
-                    continue;
+        // Fase 15: la fuente de verdad de líneas programadas es fabric_roll_programming_lines,
+        // ya no TechnicalSheetRoll::lines (JSON).
+        FabricRollProgrammingLine::query()
+            ->whereIn('fabric_roll_id', $rollIds)
+            ->where('programmed_meters', '>', 0)
+            ->select(['fabric_roll_id', 'programmed_meters'])
+            ->cursor()
+            ->each(function (FabricRollProgrammingLine $line) use (&$totals): void {
+                $rollId = (string) $line->fabric_roll_id;
+                $totals[$rollId] = ($totals[$rollId] ?? 0.0) + (float) $line->programmed_meters;
+            });
+
+        // Reservas manuales pendientes (manual_roll_programmings) — sin sumarlas aquí,
+        // el update de partial_output más abajo las borraría de la contabilidad del
+        // rollo aunque la línea manual siga activa (mismo bug que RecalibrarPartialOutput).
+        ManualRollProgramming::query()
+            ->whereIn('fabric_roll_id', $rollIds)
+            ->get(['fabric_roll_id', 'programmed_meters', 'consumed_meters'])
+            ->each(function (ManualRollProgramming $line) use (&$totals): void {
+                $pending = (float) $line->programmed_meters - (float) $line->consumed_meters;
+                if ($pending <= 0) {
+                    return;
                 }
-                $meters = is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : 0.0;
-                if ($meters > 0.0) {
-                    $totals[$rollId] = ($totals[$rollId] ?? 0.0) + $meters;
-                }
-            }
-        }
+                $rollId = (string) $line->fabric_roll_id;
+                $totals[$rollId] = ($totals[$rollId] ?? 0.0) + $pending;
+            });
 
         return $totals;
     }

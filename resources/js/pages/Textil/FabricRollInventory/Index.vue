@@ -110,6 +110,7 @@ const isCsvImportDialogOpen = ref(false);
 
 const canSuperadminManageChanges = computed(() => authStore.hasRole('superadmin'));
 const canEditRolls = computed(() => authStore.can('editar telas rollos'));
+const canAdjustRolls = computed(() => authStore.can('ajustar telas rollos'));
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -231,7 +232,7 @@ function handleDischargeSuccess(payload: {
         };
     }
 
-    successMessage.value = `Descargue actualizado para el rollo ${payload.roll.roll}.`;
+    successMessage.value = `Ajuste registrado para el rollo ${payload.roll.roll}.`;
     errorMessage.value = '';
     rollToDownload.value = null;
 }
@@ -603,9 +604,9 @@ async function handleCsvImported(payload: { inserted: number; skipped: number; e
                                         </button>
                                         <DeleteButton v-if="canSuperadminManageChanges" @click="confirmDeleteRoll(roll)" />
                                         <button
-                                            v-if="canEditRolls"
+                                            v-if="canAdjustRolls"
                                             class="inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                            title="Descargar rollo"
+                                            title="Ajustar rollo"
                                             type="button"
                                             @click="openDownloadDialog(roll)"
                                         >
@@ -645,7 +646,7 @@ async function handleCsvImported(payload: { inserted: number; skipped: number; e
             :modelValue="isDialogOpen"
             :roll="selectedRoll"
             :can-edit-main-fabric="canSuperadminManageChanges"
-            :can-edit-rolls="canEditRolls"
+            :can-adjust-rolls="canAdjustRolls"
             @update:modelValue="(value) => (isDialogOpen = value)"
             @main-fabric-updated="handleMainFabricUpdated"
             @quantity-corrected="handleQuantityCorrected"
