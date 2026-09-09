@@ -83,6 +83,14 @@ class RolesAndPermissionsSeeder extends Seeder
             'crear recepcion telas',
             'editar recepcion telas',
             'eliminar recepcion telas',
+            'aprobar recepcion tela',
+            'rechazar recepcion tela',
+
+            // Datos maestros: contactos
+            'ver contactos',
+            'crear contactos',
+            'editar contactos',
+            'eliminar contactos',
 
             // Inventario: stock
             'ver inventario telas',
