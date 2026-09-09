@@ -27,12 +27,10 @@ class ParameterUsageService
         'worlds' => [
             'Se usa como catalogo de mundos en fichas de producto.',
         ],
-        'fabric_bases' => [
-            'Se usa en catalogos y factores de base de tela para procesos y costeo.',
-        ],
-        'yarn_bases' => [
-            'Se usa como catalogo de bases de hilo en fichas de producto.',
-        ],
+        // fabric_bases / yarn_bases se retiraron: sus catálogos viven en las tablas
+        // dedicadas fabric_bases / yarn_bases, no en settings. Mantenerlos aquí hacía
+        // que el sistema declarase "en uso" unas filas que ya nadie leía, impidiendo
+        // borrarlas desde la pantalla de Parámetros.
         'sizes' => [
             'Se usa como catalogo de tallas en fichas de producto y batch control.',
         ],
@@ -44,9 +42,6 @@ class ParameterUsageService
         ],
         'unit_measures' => [
             'Se usa en unidades de medida para insumos y formularios de produccion.',
-        ],
-        'fabric_colors' => [
-            'Se usa en catalogos de colores de tela e hilo.',
         ],
         'thread_brands' => [
             'Se usa en catalogos de marcas de hilo.',
@@ -70,8 +65,7 @@ class ParameterUsageService
 
     public function __construct(
         private readonly SettingService $settingService,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array<string, mixed>

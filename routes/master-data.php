@@ -4,10 +4,14 @@ use App\Http\Controllers\MasterData\CategoryGroupController;
 use App\Http\Controllers\MasterData\CategorySubGroupController;
 use App\Http\Controllers\MasterData\ColorController;
 use App\Http\Controllers\MasterData\ContactController;
+use App\Http\Controllers\MasterData\FabricNameController;
 use App\Http\Controllers\MasterData\ItemController;
+use App\Http\Controllers\MasterData\MaterialCatalogController;
 use App\Http\Controllers\MasterData\ParameterController;
+use App\Http\Controllers\MasterData\YarnNameController;
 use App\Http\Controllers\Production\SectionController;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 // === LOOKUPS DE CATALOGOS PARA REFERENCIA ===
 Route::prefix('catalogos/categorias')->name('catalogos.categorias.')->group(function () {
@@ -75,6 +79,46 @@ Route::prefix('parametros')->name('parametros.')->middleware('permission:ver par
     Route::get('/{id}', [ParameterController::class, 'show'])->name('show');
     Route::put('/{id}', [ParameterController::class, 'update'])->name('update')->middleware('permission:editar parametros');
     Route::delete('/{id}', [ParameterController::class, 'destroy'])->name('destroy')->middleware('permission:editar parametros');
+});
+
+// === CATÁLOGO DE MATERIALES (bases y nombres de tela / hilaza) ===
+// Pantalla única en Datos Maestros: consolida lo que antes vivía repartido entre el
+// diálogo de catálogos operativos de Producción (bases) y esta pantalla (nombres).
+Route::middleware(['auth', 'permission:ver catalogo materiales'])->group(function () {
+    Route::get('nombres-materiales', fn () => Inertia::render('MasterData/MaterialCatalog/Index'))
+        ->name('nombres-materiales.index');
+
+    Route::prefix('catalogos/materiales-base')->name('catalogo-materiales.')->group(function () {
+        Route::get('/', [MaterialCatalogController::class, 'index'])->name('index');
+        Route::get('/fabric-bases/{fabricBase}/factor-impact', [MaterialCatalogController::class, 'factorImpact'])
+            ->name('factor-impact')
+            ->middleware('permission:editar catalogo materiales');
+        Route::post('/{catalog}', [MaterialCatalogController::class, 'store'])->name('store')->middleware('permission:crear catalogo materiales');
+        Route::put('/{catalog}/{id}', [MaterialCatalogController::class, 'update'])->name('update')->middleware('permission:editar catalogo materiales');
+        Route::delete('/{catalog}/{id}', [MaterialCatalogController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar catalogo materiales');
+    });
+});
+
+// Nombres de tela/hilaza: mantienen sus permisos propios (ya existían antes de esta
+// fase); la pantalla que los consume ahora vive en MaterialCatalog/Index.vue.
+Route::middleware(['auth', 'permission:ver nombres materiales'])->group(function () {
+    Route::prefix('nombres-tela')->name('nombres-tela.')->group(function () {
+        Route::get('/', [FabricNameController::class, 'index'])->name('index');
+        Route::get('/options', [FabricNameController::class, 'options'])->name('options');
+        Route::get('/bases-disponibles', [FabricNameController::class, 'baseOptions'])->name('bases-disponibles');
+        Route::post('/', [FabricNameController::class, 'store'])->middleware('permission:crear nombres materiales')->name('store');
+        Route::put('/{fabricName}', [FabricNameController::class, 'update'])->middleware('permission:editar nombres materiales')->name('update');
+        Route::delete('/{fabricName}', [FabricNameController::class, 'destroy'])->middleware('permission:eliminar nombres materiales')->name('destroy');
+    });
+
+    Route::prefix('nombres-hilaza')->name('nombres-hilaza.')->group(function () {
+        Route::get('/', [YarnNameController::class, 'index'])->name('index');
+        Route::get('/options', [YarnNameController::class, 'options'])->name('options');
+        Route::get('/bases-disponibles', [YarnNameController::class, 'baseOptions'])->name('bases-disponibles');
+        Route::post('/', [YarnNameController::class, 'store'])->middleware('permission:crear nombres materiales')->name('store');
+        Route::put('/{yarnName}', [YarnNameController::class, 'update'])->middleware('permission:editar nombres materiales')->name('update');
+        Route::delete('/{yarnName}', [YarnNameController::class, 'destroy'])->middleware('permission:eliminar nombres materiales')->name('destroy');
+    });
 });
 
 // === CATALOGOS PARA CAMPOS PARAMETRIZABLES ===

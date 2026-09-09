@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             RolesAndPermissionsSeeder::class,
             PermissionSeeder::class,
             FabricRollImportPermissionSeeder::class,
+            MaterialCatalogPermissionSeeder::class,
             RolePermissionMatrixAdjustmentSeeder::class,
 
             // === MAESTROS DE DATOS ===
