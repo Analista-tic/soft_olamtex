@@ -1,16 +1,31 @@
 <?php
 
+use App\Models\Production\FabricBase;
 use App\Models\Production\ProductionOrder;
 use App\Models\Production\ProductSheet;
+use App\Models\Production\YarnBase;
 
 it('persists batch control fields through mass update', function () {
+    $fabricBase = FabricBase::create([
+        'codigo' => 'BT-PERSIST-001',
+        'nombre' => 'BASE DE PRUEBA PERSISTENCIA',
+        'factor' => 1.0,
+        'is_active' => true,
+    ]);
+
+    $yarnBase = YarnBase::create([
+        'codigo' => 'BH-PERSIST-001',
+        'nombre' => 'BASE HILAZA DE PRUEBA PERSISTENCIA',
+        'is_active' => true,
+    ]);
+
     $productSheet = ProductSheet::create([
         'section_id' => 1,
         'group_id' => 1,
         'brand_id' => 1,
         'world_id' => 1,
-        'fabric_base_id' => 1,
-        'yarn_base_id' => 1,
+        'fabric_base_id' => $fabricBase->id,
+        'yarn_base_id' => $yarnBase->id,
         'type' => 'producto',
         'billing_price' => 1000,
         'selling_price' => 1200,

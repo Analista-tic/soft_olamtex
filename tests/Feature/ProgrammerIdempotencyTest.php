@@ -1,17 +1,23 @@
 <?php
 
+use App\Models\Production\FabricBase;
 use App\Models\Production\ProductSheet;
 use App\Models\Production\ProductionOrder;
 use Illuminate\Support\Str;
 
 function createProductSheetForProgrammer(): ProductSheet
 {
+    $fabricBase = FabricBase::firstOrCreate(
+        ['nombre' => 'BASE DE PRUEBA PROGRAMADOR'],
+        ['codigo' => 'BT-PROG-001', 'factor' => 1.0, 'is_active' => true],
+    );
+
     return ProductSheet::create([
         'section_id' => 1,
         'group_id' => 1,
         'brand_id' => 1,
         'world_id' => 1,
-        'fabric_base_id' => 1,
+        'fabric_base_id' => $fabricBase->id,
         'yarn_base_id' => null,
         'type' => 'producto',
         'billing_price' => 10,
