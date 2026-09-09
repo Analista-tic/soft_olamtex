@@ -1,12 +1,13 @@
 <?php
 
 use App\Models\MasterData\Item;
+use App\Services\Inventory\InventoryMovementService;
 use App\Services\MasterData\AdditionalFieldService;
 use App\Services\MasterData\ItemService;
 
 function invokeItemServiceOriginNormalizer(mixed $value): string
 {
-    $service = new ItemService(new AdditionalFieldService());
+    $service = new ItemService(new AdditionalFieldService(), new InventoryMovementService());
     $method = new ReflectionMethod(ItemService::class, 'normalizeOriginType');
     $method->setAccessible(true);
 
@@ -15,7 +16,7 @@ function invokeItemServiceOriginNormalizer(mixed $value): string
 
 function invokeShouldMarkEditedAfterImport(Item $item): bool
 {
-    $service = new ItemService(new AdditionalFieldService());
+    $service = new ItemService(new AdditionalFieldService(), new InventoryMovementService());
     $method = new ReflectionMethod(ItemService::class, 'shouldMarkEditedAfterImport');
     $method->setAccessible(true);
 

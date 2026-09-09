@@ -18,8 +18,11 @@ use App\Models\Inventory\WarehouseTransferItem;
 use App\Models\MasterData\CategoryGroup;
 use App\Models\MasterData\CategorySubGroup;
 use App\Models\MasterData\Contact;
+use App\Models\MasterData\FabricName;
 use App\Models\MasterData\Item;
 use App\Models\MasterData\Parameter;
+use App\Models\MasterData\YarnName;
+use App\Models\Production\FabricBase;
 use App\Models\Production\Machine;
 use App\Models\Production\Collection;
 use App\Models\Production\Operation;
@@ -37,6 +40,7 @@ use App\Models\Production\TechnicalSheetRoll;
 use App\Models\Production\TechnicalSheetSupply;
 use App\Models\Production\ProductSheetCuttingPiece;
 use App\Models\Production\TechnicalSheetThread;
+use App\Models\Production\YarnBase;
 use App\Models\Settings\Area;
 use App\Models\Settings\User;
 use App\Models\Settings\Role;
@@ -125,6 +129,8 @@ class AppServiceProvider extends ServiceProvider
             Contact::class,
             Item::class,
             Parameter::class,
+            FabricName::class,
+            YarnName::class,
             // Finance
             Tax::class,
             Retention::class,
@@ -150,6 +156,8 @@ class AppServiceProvider extends ServiceProvider
             OperationGarmentPart::class,
             OperationSection::class,
             Machine::class,
+            FabricBase::class,
+            YarnBase::class,
             ProductionOrder::class,
             TechnicalSheet::class,
             TechnicalSheetOperation::class,

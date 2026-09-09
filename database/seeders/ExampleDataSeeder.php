@@ -233,8 +233,15 @@ class ExampleDataSeeder extends Seeder
         $brandAmericanEastId = $this->getParameterIdByName('brands', 'AMERICAN EAST', $brandEvaCastilloId);
         $worldDamaId = $this->getParameterIdByName('worlds', 'DAMA', $this->getParameterFirstId('worlds'));
         $worldHombreId = $this->getParameterIdByName('worlds', 'HOMBRE', $worldDamaId);
-        $fabricBaseAlgodonId = $this->getParameterIdByName('fabric_bases', 'ALGODÓN', $this->getParameterFirstId('fabric_bases'));
-        $fabricBaseLanaId = $this->getParameterIdByName('fabric_bases', 'LANA', $fabricBaseAlgodonId);
+        // fabric_bases ya no vive en settings (tabla dedicada) — se garantizan por nombre.
+        $fabricBaseAlgodonId = \App\Models\Production\FabricBase::firstOrCreate(
+            ['nombre' => 'ALGODÓN'],
+            ['codigo' => 'BT-EX-001', 'factor' => 1.0, 'is_active' => true],
+        )->id;
+        $fabricBaseLanaId = \App\Models\Production\FabricBase::firstOrCreate(
+            ['nombre' => 'LANA'],
+            ['codigo' => 'BT-EX-002', 'factor' => 1.0, 'is_active' => true],
+        )->id;
 
         // ========== PRODUCT SHEETS Y PRODUCTION ORDERS ==========
         // Se crean escenarios consistentes con la lógica del ERP:

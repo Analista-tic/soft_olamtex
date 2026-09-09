@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\Inventory\InventoryMovementService;
 use App\Services\MasterData\AdditionalFieldService;
 use App\Services\MasterData\ItemService;
 use App\Support\TextNormalizer;
@@ -19,7 +20,7 @@ it('normalizes additional field text values to title case', function (string $in
 ]);
 
 it('normalizes item extra field values before persistence', function () {
-    $service = new ItemService(new AdditionalFieldService());
+    $service = new ItemService(new AdditionalFieldService(), new InventoryMovementService());
 
     expect($service->normalizeExtraFields([
         'Color' => 'VERDE   CLARO',
