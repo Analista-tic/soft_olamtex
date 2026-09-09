@@ -19,10 +19,9 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useGlobalAlert } from '@/composables/useGlobalAlert';
 import {
@@ -42,8 +41,9 @@ import { uiPatterns } from '@/lib/ui-patterns';
 import { useAuthStore } from '@/stores/auth';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Eye, MoreVertical, Pencil, PlusCircle, Power, Repeat2, Search, Trash } from 'lucide-vue-next';
+import { Download, Eye, MoreVertical, Pencil, PlusCircle, Power, Repeat2, Search, Trash, Upload } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import BulkUploadDialog from './BulkUploadDialog.vue';
 import ProductSheetDialog from './ProductSheetDialog.vue'; // Usar el componente unificado
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -82,6 +82,8 @@ const statusFilter = ref<string | null>(null);
 const typeFilter = ref<string | null>(null);
 const sectionFilter = ref<string | number | null>(null);
 const worldFilter = ref<string | number | null>(null);
+const sortBy = ref<string>('id');
+const sortDir = ref<'asc' | 'desc'>('desc');
 const fabricacionFilter = ref<string | null>(null);
 const fetchDebounceMs = 350;
 let fetchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -110,6 +112,8 @@ const canView = ref(false);
 const canCreate = ref(false);
 const canEdit = ref(false);
 const canDelete = ref(false);
+const canBulkUpload = ref(false);
+const isBulkDialogOpen = ref(false);
 const convertRowDialogOpen = ref(false);
 const convertRowTarget = ref<ProductSheet | null>(null);
 const convertRowLoading = ref(false);
@@ -151,6 +155,7 @@ async function loadPermissions() {
         canCreate.value = authStore.can('crear sabana productos');
         canEdit.value = authStore.can('editar sabana productos');
         canDelete.value = authStore.can('eliminar sabana productos');
+        canBulkUpload.value = authStore.can('carga masiva sabana productos');
     } catch (error) {
         console.error('Error al cargar los permisos:', error);
     }
@@ -321,11 +326,27 @@ function clearFetchDebounce() {
 function scheduleProductSheetsFetch(page = 1) {
     clearFetchDebounce();
     fetchDebounceTimer = setTimeout(() => {
-        fetchProductSheets(page, searchQuery.value, statusFilter.value, typeFilter.value, sectionFilter.value, worldFilter.value, fabricacionFilter.value);
+        fetchProductSheets(
+            page,
+            searchQuery.value,
+            statusFilter.value,
+            typeFilter.value,
+            sectionFilter.value,
+            worldFilter.value,
+            fabricacionFilter.value,
+        );
     }, fetchDebounceMs);
 }
 
-async function fetchProductSheets(page = 1, search = '', status: string | null = null, type: string | null = null, section: string | number | null = null, world: string | number | null = null, fabricacion: string | null = null) {
+async function fetchProductSheets(
+    page = 1,
+    search = '',
+    status: string | null = null,
+    type: string | null = null,
+    section: string | number | null = null,
+    world: string | number | null = null,
+    fabricacion: string | null = null,
+) {
     if (activeFetchController) {
         activeFetchController.abort();
     }
@@ -351,6 +372,8 @@ async function fetchProductSheets(page = 1, search = '', status: string | null =
                 section_id: Number.isFinite(sectionId) ? sectionId : undefined,
                 world_id: Number.isFinite(worldId) ? worldId : undefined,
                 woven_product: fabricacion ?? undefined,
+                sort_by: sortBy.value,
+                sort_direction: sortDir.value,
             },
             controller.signal,
         );
@@ -376,6 +399,17 @@ async function fetchProductSheets(page = 1, search = '', status: string | null =
     }
 }
 
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+
+    reloadProductSheets(1);
+}
+
 // Llamar a fetchProductSheets cuando searchQuery o statusFilter cambien
 watch([searchQuery, statusFilter, typeFilter, sectionFilter, worldFilter, fabricacionFilter], () => {
     scheduleProductSheetsFetch(1);
@@ -387,7 +421,15 @@ function reloadProductSheets(page?: number) {
         currentPage.value = page;
     }
     clearFetchDebounce();
-    fetchProductSheets(currentPage.value, searchQuery.value, statusFilter.value, typeFilter.value, sectionFilter.value, worldFilter.value, fabricacionFilter.value);
+    fetchProductSheets(
+        currentPage.value,
+        searchQuery.value,
+        statusFilter.value,
+        typeFilter.value,
+        sectionFilter.value,
+        worldFilter.value,
+        fabricacionFilter.value,
+    );
 }
 
 async function loadProductSheetDialog(product: ProductSheet, mode: 'edit' | 'view') {
@@ -427,6 +469,23 @@ function handleProductSheetSaved(payload: { success?: boolean; message?: string;
     reloadProductSheets();
 }
 
+function downloadProductSheetTemplate() {
+    window.open('/produccion/sabana-productos/descargar-plantilla', '_blank');
+}
+
+function closeBulkDialog() {
+    isBulkDialogOpen.value = false;
+}
+
+function handleBulkUploaded(payload: { message: string }) {
+    reloadProductSheets();
+    success(payload.message);
+}
+
+function handleBulkUploadError(payload: { message: string }) {
+    error(payload.message);
+}
+
 onMounted(async () => {
     await loadPermissions();
     fetchProductSheets();
@@ -454,15 +513,35 @@ onUnmounted(() => {
             />
             <div class="flex items-center justify-between">
                 <h1 :class="uiPatterns.typography.pageTitle">Lista Sabana de Productos</h1>
-                <Button
-                    v-if="canCreate"
-                    variant="default"
-                    size="sm"
-                    class="flex h-10 items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
-                    @click="openCreateDialog"
-                >
-                    <PlusCircle class="h-4 w-4" /> Nuevo Producto
-                </Button>
+                <div class="flex items-center gap-2">
+                    <Button
+                        v-if="canView"
+                        variant="outline"
+                        size="sm"
+                        class="flex h-10 items-center gap-2 rounded-full px-4 text-sm"
+                        @click="downloadProductSheetTemplate"
+                    >
+                        <Download class="h-4 w-4" /> Descargar plantilla
+                    </Button>
+                    <Button
+                        v-if="canBulkUpload"
+                        variant="outline"
+                        size="sm"
+                        class="flex h-10 items-center gap-2 rounded-full px-4 text-sm"
+                        @click="isBulkDialogOpen = true"
+                    >
+                        <Upload class="h-4 w-4" /> Carga masiva
+                    </Button>
+                    <Button
+                        v-if="canCreate"
+                        variant="default"
+                        size="sm"
+                        class="flex h-10 items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+                        @click="openCreateDialog"
+                    >
+                        <PlusCircle class="h-4 w-4" /> Nuevo Producto
+                    </Button>
+                </div>
             </div>
             <FilterBar align="start">
                 <FilterField label="Referencia" :active="searchQuery.trim().length > 0" class="min-w-[220px] flex-1 p-0">
@@ -499,8 +578,24 @@ onUnmounted(() => {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Ref. Muestra</TableHead>
-                            <TableHead>Ref. Producto</TableHead>
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('sample_reference')">
+                                <span class="inline-flex items-center gap-1">
+                                    Ref. Muestra
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'sample_reference'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                        <template v-else><span class="opacity-30">↕</span></template>
+                                    </span>
+                                </span>
+                            </TableHead>
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('product_reference')">
+                                <span class="inline-flex items-center gap-1">
+                                    Ref. Producto
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'product_reference'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                        <template v-else><span class="opacity-30">↕</span></template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Ref. Prod 2</TableHead>
                             <TableHead>Fabricación</TableHead>
                             <TableHead>Nombre</TableHead>
@@ -511,7 +606,15 @@ onUnmounted(() => {
                             <TableHead>Base hilaza</TableHead>
                             <TableHead>Dibujo</TableHead>
                             <TableHead>Costo Total</TableHead>
-                            <TableHead>Estado</TableHead>
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('status')">
+                                <span class="inline-flex items-center gap-1">
+                                    Estado
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'status'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                        <template v-else><span class="opacity-30">↕</span></template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead class="text-center">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -558,11 +661,13 @@ onUnmounted(() => {
                                     <span
                                         v-if="product.woven_product"
                                         class="inline-block rounded-full border border-violet-300/80 bg-violet-100/80 px-1.5 py-0.5 text-[10px] font-medium leading-none text-violet-700 dark:border-violet-700/60 dark:bg-violet-900/30 dark:text-violet-400"
-                                    >Tejido</span>
+                                        >Tejido</span
+                                    >
                                     <span
                                         v-else
                                         class="inline-block rounded-full border border-teal-300/80 bg-teal-100/80 px-1.5 py-0.5 text-[10px] font-medium leading-none text-teal-700 dark:border-teal-700/60 dark:bg-teal-900/30 dark:text-teal-400"
-                                    >Punto</span>
+                                        >Punto</span
+                                    >
                                 </TableCell>
                                 <TableCell class="max-w-[220px] text-left">
                                     <span class="block truncate" :title="product.description ?? ''">{{ product.description ?? '—' }}</span>
@@ -711,6 +816,8 @@ onUnmounted(() => {
             </DialogFooter>
         </FormDialogContent>
     </Dialog>
+
+    <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="handleBulkUploaded" @error="handleBulkUploadError" />
 
     <ConvertSampleToProductDialog
         v-model:open="convertRowDialogOpen"

@@ -1,6 +1,7 @@
 ﻿<script setup lang="ts">
 import AlertBox from '@/components/AlertBox.vue';
 import DialogActionButtons from '@/components/common/DialogActionButtons.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
 import CreatableSelectField from '@/components/CreatableSelectField.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
@@ -37,7 +38,7 @@ import {
 import type { Option } from '@/domain/shared/types';
 import ParameterDialog from '@/pages/MasterData/Parameters/ParameterDialog.vue';
 import axios from 'axios';
-import { Loader2 } from 'lucide-vue-next';
+import { DollarSign, IdCard, LayoutGrid, ListChecks, Loader2, Shirt } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import CuttingBreakdown, { type CuttingPiece } from './components/CuttingBreakdown.vue';
 
@@ -401,7 +402,7 @@ function syncCatalogOptionsFromProps(): void {
     baseFabricOptions.value = [...fromPropsFabric, ...localOnlyFabric];
 }
 
-async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig, rawName?: string): Promise<void> {
+async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig, rawName?: string, extra?: Record<string, unknown>): Promise<void> {
     if (isReadonly.value) return;
 
     const config = selectCreationConfig[catalogKey];
@@ -426,7 +427,7 @@ async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig
 
     selectLoading.value = true;
     try {
-        const response = await axios.post(route('produccion.product-sheets.parameters.store-option'), { key: catalogKey, name });
+        const response = await axios.post(route('produccion.product-sheets.parameters.store-option'), { key: catalogKey, name, ...extra });
 
         const created = response.data?.data;
         const createdId = toIdOrNull(created?.id ?? null);
@@ -483,8 +484,48 @@ async function onCreateWorld(name: string): Promise<Option> {
     return { id: String(created.id), name: String(created.name) };
 }
 
+// El factor afecta el costeo (SAM): antes se creaba fijo en 1.0 y quedaba así hasta
+// que alguien lo notara y lo corrigiera manualmente en Producción. Se pide aquí, en
+// un mini-diálogo, antes de llamar al endpoint (que ahora lo exige).
+const fabricBaseFactorDialogOpen = ref(false);
+const fabricBaseFactorDialogName = ref('');
+const fabricBaseFactorDialogValue = ref<number | null>(1);
+let fabricBaseFactorDialogResolve: ((factor: number) => void) | null = null;
+let fabricBaseFactorDialogReject: (() => void) | null = null;
+
+function requestFabricBaseFactor(name: string): Promise<number> {
+    fabricBaseFactorDialogName.value = name;
+    fabricBaseFactorDialogValue.value = 1;
+    fabricBaseFactorDialogOpen.value = true;
+
+    return new Promise((resolve, reject) => {
+        fabricBaseFactorDialogResolve = resolve;
+        fabricBaseFactorDialogReject = reject;
+    });
+}
+
+function confirmFabricBaseFactorDialog() {
+    const factor = Number(fabricBaseFactorDialogValue.value);
+    if (!Number.isFinite(factor) || factor <= 0) {
+        setError('El factor debe ser un número mayor que cero.', 'warning');
+        return;
+    }
+    fabricBaseFactorDialogOpen.value = false;
+    fabricBaseFactorDialogResolve?.(factor);
+    fabricBaseFactorDialogResolve = null;
+    fabricBaseFactorDialogReject = null;
+}
+
+function cancelFabricBaseFactorDialog() {
+    fabricBaseFactorDialogOpen.value = false;
+    fabricBaseFactorDialogReject?.();
+    fabricBaseFactorDialogResolve = null;
+    fabricBaseFactorDialogReject = null;
+}
+
 async function onCreateFabricBase(name: string): Promise<Option> {
-    await createCatalogOption('fabric_bases', name);
+    const factor = await requestFabricBaseFactor(name);
+    await createCatalogOption('fabric_bases', name, { factor });
     const created = baseFabricOptions.value.find((o) => String(o.name).trim().toLowerCase() === name.trim().toLowerCase());
     if (!created) throw new Error('No se pudo crear la base tela');
     return { id: String(created.id), name: String(created.name) };
@@ -1063,38 +1104,16 @@ watch(
     { immediate: true },
 );
 
-watch(
-    () => form.value.sample_reference,
-    (value) => {
-        if (typeof value !== 'string') return;
-        const normalized = normalizeUpperText(value);
-        if (value !== normalized) {
-            form.value.sample_reference = normalized;
-        }
-    },
-);
+// Nota de rendimiento: no se re-normaliza (trim + mayúsculas) sample_reference /
+// product_reference / product_reference_2 en cada tecla. El listener global de
+// app.ts ya fuerza mayúsculas a nivel de DOM en cada input (con selección de cursor
+// preservada, ver app.ts), y el trim final ya lo aplica normalizeUpperText() al
+// guardar (buildBasePayload), al hidratar (hydrateFormFromProductSheet) y al aplicar
+// una plantilla (applyTemplate). Tener además un watch por campo aquí duplicaba esa
+// normalización en cada keystroke y, al recortar espacios de inmediato, provocaba
+// saltos de cursor mientras se escribía (p.ej. el espacio final desaparecía apenas
+// se tecleaba). Quitarlo elimina ese trabajo redundante sin cambiar el valor final.
 
-watch(
-    () => form.value.product_reference,
-    (value) => {
-        if (typeof value !== 'string') return;
-        const normalized = normalizeUpperText(value);
-        if (value !== normalized) {
-            form.value.product_reference = normalized;
-        }
-    },
-);
-
-watch(
-    () => form.value.product_reference_2,
-    (value) => {
-        if (typeof value !== 'string') return;
-        const normalized = normalizeUpperText(value);
-        if (value !== normalized) {
-            form.value.product_reference_2 = normalized;
-        }
-    },
-);
 const autoDescription = computed(() => {
     const section = sectionOptions.value.find(s => Number(s.id) === Number(form.value.section_id))?.name ?? '';
     const world   = worldOptions.value.find(w => Number(w.id) === Number(form.value.world_id))?.name ?? '';
@@ -1639,343 +1658,365 @@ function handleClose() {
                     <div v-if="!canRenderForm" class="min-h-[320px]" />
                     <template v-if="canRenderForm">
                         <div class="grid gap-6 sm:grid-cols-[minmax(0,1fr)_340px]">
-                            <div class="space-y-4">
-                                <!-- Primera seccion: Identificacion del producto (3 referencias) -->
-                                <div class="mb-4 grid grid-cols-3 gap-4">
-                                    <!-- Ref. Muestra â€” visible en tipo muestra (obligatorio)
-                                     y en tipo producto (opcional, muestra de origen) -->
-                                    <div class="flex flex-col gap-1">
-                                        <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">
-                                                <template v-if="form.type === TYPE_SAMPLE">
-                                                    Ref. Muestra<span class="text-red-500">*</span>
-                                                </template>
-                                                <template v-else> Ref. Muestra de origen </template>
-                                            </Label>
-                                        </div>
-                                        <InputField
-                                            v-model="form.sample_reference"
-                                            label=""
-                                            :placeholder="form.type === TYPE_SAMPLE ? 'ej: MU1' : 'Opcional'"
-                                            :disabled="isReadonly"
-                                            :error="
-                                                showFieldErrors && fieldErrors.reference && form.type === TYPE_SAMPLE
-                                                    ? fieldErrors.reference
-                                                    : undefined
-                                            "
-                                        />
+                            <div class="space-y-6">
+                                <!-- Sección 1: Tipo y referencia — el tipo decide qué campo de
+                                referencia es obligatorio, así que va primero y junto. -->
+                                <section>
+                                    <div class="mb-3 flex items-center gap-2 border-b border-border/70 pb-1.5">
+                                        <IdCard class="h-4 w-4 text-muted-foreground" />
+                                        <h3 class="text-[0.8rem] font-semibold uppercase tracking-wide text-muted-foreground">Tipo y referencia</h3>
+                                        <HelpTooltip :text="tooltips.type" aria-label="Ayuda sobre Tipo" />
                                     </div>
-
-                                    <!-- Ref. Prod 1 â€” visible cuando type = producto -->
-                                    <div v-if="form.type === TYPE_PRODUCT" class="flex flex-col gap-1">
-                                        <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">Ref 1. Producto<span class="text-red-500">*</span></Label>
+                                    <div class="grid grid-cols-1 gap-4 md:grid-cols-[180px_1fr]">
+                                        <div class="flex flex-col gap-1">
+                                            <Label class="text-sm font-medium">Tipo<span class="text-red-500">*</span></Label>
+                                            <SegmentedToggle v-model="typeModel" :options="typeOptions" :disabled="isTypeReadonly" />
                                         </div>
-                                        <InputField
-                                            v-model="form.product_reference"
-                                            label=""
-                                            placeholder="ej: 901010"
-                                            :disabled="isReadonly"
-                                            :error="
-                                                showFieldErrors && fieldErrors.reference && form.type === TYPE_PRODUCT
-                                                    ? fieldErrors.reference
-                                                    : undefined
-                                            "
-                                        />
-                                    </div>
-
-                                    <!-- Ref. Prod 2 â€” visible cuando type = producto -->
-                                    <div v-if="form.type === TYPE_PRODUCT" class="flex flex-col gap-1">
-                                        <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">Ref 2. Producto</Label>
-                                        </div>
-                                        <InputField v-model="form.product_reference_2" label="" placeholder="ej: 4002" :disabled="isReadonly" />
-                                    </div>
-                                </div>
-
-                                <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-                                    <div class="flex flex-col gap-1">
-                                        <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">Precio facturacion</Label>
-                                        </div>
-                                        <InputField
-                                            v-model="form.billing_price"
-                                            type="currency"
-                                            label=""
-                                            placeholder="$ 0"
-                                            :disabled="isReadonly"
-                                            :error="showFieldErrors ? fieldErrors.billing_price : undefined"
-                                        />
-                                    </div>
-                                    <div class="flex flex-col gap-1">
-                                        <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">Costo</Label>
-                                        </div>
-                                        <InputField v-model="form.costo" type="currency" label="" placeholder="$ 0" :disabled="isReadonly" />
-                                    </div>
-                                    <div class="flex flex-col gap-1">
-                                        <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">Precio venta</Label>
-                                        </div>
-                                        <InputField v-model="form.selling_price" type="currency" label="" placeholder="$ 0" :disabled="isReadonly" />
-                                    </div>
-                                </div>
-
-                                <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                                    <div class="flex flex-col gap-1">
-                                        <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">Seccion<span class="text-red-500">*</span></Label>
-                                            <HelpTooltip :text="tooltips.section" aria-label="Ayuda sobre Seccion" />
-                                        </div>
-                                        <CreatableSelectField
-                                            ref="sectionSelectRef"
-                                            v-model="form.section_id"
-                                            label=""
-                                            :options="sectionOptions"
-                                            :loading="loadingSectionSelect"
-                                            required
-                                            placeholder="Seleccione sección"
-                                            :disabled="isReadonly"
-                                            :searchable="true"
-                                            :search-threshold="0"
-                                            :creatable="!isReadonly"
-                                            create-label="sección"
-                                            create-button-label="Nueva sección"
-                                            :on-create="onCreateSection"
-                                            instance-id="section"
-                                            @inline-opened="handleInlineOpened"
-                                            :invalid="showFieldErrors && !!fieldErrors.section_id"
-                                            :error-message="showFieldErrors ? fieldErrors.section_id : undefined"
-                                        />
-                                    </div>
-                                    <div class="flex flex-col gap-1">
-                                        <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">Grupo<span class="text-red-500">*</span></Label>
-                                            <HelpTooltip :text="tooltips.group" aria-label="Ayuda sobre Grupo" />
-                                        </div>
-                                        <CreatableSelectField
-                                            ref="groupSelectRef"
-                                            v-model="form.group_id"
-                                            label=""
-                                            :options="groupOptions"
-                                            :loading="loadingGroupSelect"
-                                            required
-                                            placeholder="Seleccione grupo"
-                                            :disabled="isReadonly"
-                                            :searchable="true"
-                                            :search-threshold="0"
-                                            :creatable="!isReadonly"
-                                            create-label="grupo"
-                                            create-button-label="Nuevo grupo"
-                                            :on-create="onCreateGroup"
-                                            instance-id="group"
-                                            @inline-opened="handleInlineOpened"
-                                            :invalid="showFieldErrors && !!fieldErrors.group_id"
-                                            :error-message="showFieldErrors ? fieldErrors.group_id : undefined"
-                                        />
-                                    </div>
-                                    <div class="flex flex-col gap-1">
-                                        <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">Marca<span class="text-red-500">*</span></Label>
-                                        </div>
-                                        <CreatableSelectField
-                                            ref="brandSelectRef"
-                                            v-model="form.brand_id"
-                                            label=""
-                                            :options="brandOptions"
-                                            :loading="loadingBrandSelect"
-                                            required
-                                            placeholder="Seleccione marca"
-                                            :disabled="isReadonly"
-                                            :searchable="true"
-                                            :search-threshold="0"
-                                            :creatable="!isReadonly"
-                                            create-label="marca"
-                                            create-button-label="Nueva marca"
-                                            :on-create="onCreateBrand"
-                                            instance-id="brand"
-                                            @inline-opened="handleInlineOpened"
-                                            :invalid="showFieldErrors && !!fieldErrors.brand_id"
-                                            :error-message="showFieldErrors ? fieldErrors.brand_id : undefined"
-                                        />
-                                    </div>
-                                    <div class="flex flex-col gap-1">
-                                        <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">Mundo<span class="text-red-500">*</span></Label>
-                                            <HelpTooltip :text="tooltips.world" aria-label="Ayuda sobre Mundo" />
-                                        </div>
-                                        <CreatableSelectField
-                                            ref="worldSelectRef"
-                                            class="w-full"
-                                            v-model="form.world_id"
-                                            label=""
-                                            :options="worldOptions"
-                                            :loading="loadingWorldSelect"
-                                            required
-                                            placeholder="Seleccione mundo"
-                                            :disabled="isReadonly"
-                                            :searchable="true"
-                                            :search-threshold="0"
-                                            :creatable="!isReadonly"
-                                            create-label="mundo"
-                                            create-button-label="Nuevo mundo"
-                                            :on-create="onCreateWorld"
-                                            instance-id="world"
-                                            @inline-opened="handleInlineOpened"
-                                            :invalid="showFieldErrors && !!fieldErrors.world_id"
-                                            :error-message="showFieldErrors ? fieldErrors.world_id : undefined"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div
-                                    class="mb-4 grid gap-4"
-                                    :class="
-                                        form.woven_product ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
-                                    "
-                                >
-                                    <div class="flex w-auto flex-col gap-1">
-                                        <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">Producto tejido</Label>
-                                            <HelpTooltip :text="tooltips.wovenProduct" aria-label="Ayuda sobre Producto tejido" />
-                                        </div>
-                                        <SwitchField v-model="form.woven_product" label="" id="woven_product" :disabled="isReadonly" />
-                                    </div>
-                                    <div class="flex flex-col gap-1">
-                                        <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium"
-                                                >Base Tela<span v-if="!form.woven_product" class="text-red-500">*</span></Label
-                                            >
-                                            <HelpTooltip :text="tooltips.base" aria-label="Ayuda sobre Base Tela" />
-                                        </div>
-                                        <CreatableSelectField
-                                            ref="fabricBaseSelectRef"
-                                            class="w-full"
-                                            v-model="form.fabric_base_id"
-                                            label=""
-                                            :options="fabricBaseOptions"
-                                            :loading="loadingFabricBaseSelect"
-                                            :required="!form.woven_product"
-                                            placeholder="Seleccione base tela"
-                                            :disabled="isReadonly"
-                                            :searchable="true"
-                                            :search-threshold="0"
-                                            :creatable="!isReadonly"
-                                            create-label="base tela"
-                                            create-button-label="Nueva base tela"
-                                            :on-create="onCreateFabricBase"
-                                            instance-id="fabricBase"
-                                            @inline-opened="handleInlineOpened"
-                                            :invalid="showFieldErrors && !!fieldErrors.fabric_base_id"
-                                            :error-message="showFieldErrors ? fieldErrors.fabric_base_id : undefined"
-                                        />
-                                    </div>
-                                    <div v-if="form.woven_product" class="flex flex-col gap-1">
-                                        <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">Base hilaza<span class="text-red-500">*</span></Label>
-                                            <HelpTooltip :text="tooltips.yarnBase" aria-label="Ayuda sobre Base hilaza" />
-                                        </div>
-                                        <CreatableSelectField
-                                            ref="yarnBaseSelectRef"
-                                            class="w-full"
-                                            v-model="form.yarn_base_id"
-                                            label=""
-                                            :options="yarnBaseOptions"
-                                            :loading="loadingYarnBaseSelect"
-                                            required
-                                            placeholder="Seleccione base hilaza"
-                                            :disabled="isReadonly"
-                                            :searchable="true"
-                                            :search-threshold="0"
-                                            :creatable="!isReadonly"
-                                            create-label="base hilaza"
-                                            create-button-label="Nueva base hilaza"
-                                            :on-create="onCreateYarnBase"
-                                            instance-id="yarnBase"
-                                            @inline-opened="handleInlineOpened"
-                                            :invalid="showFieldErrors && !!fieldErrors.yarn_base_id"
-                                            :error-message="showFieldErrors ? fieldErrors.yarn_base_id : undefined"
-                                        />
-                                    </div>
-                                    <div class="flex flex-col gap-1">
-                                        <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">Tallas<span class="text-red-500">*</span></Label>
-                                        </div>
-                                        <div class="tooltip-managed-size-selector">
-                                            <SizeSelector class="w-full" v-model="form.sizes" :sizeGroups="sizeGroups" :disabled="isReadonly" />
-                                        </div>
-                                        <button
-                                            type="button"
-                                            class="w-fit text-xs text-muted-foreground underline-offset-2 transition hover:text-foreground hover:underline disabled:opacity-50"
-                                            :disabled="isReadonly || isSizesParameterLoading"
-                                            @click="openSizesParameterDialog"
-                                        >
-                                            {{ isSizesParameterLoading ? 'Abriendo parametrización...' : 'Parametrizar tallas' }}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div
-                                    class="mb-4 rounded-xl border border-emerald-200/70 bg-gradient-to-r from-emerald-50 via-white to-cyan-50 p-4 shadow-sm"
-                                >
-                                    <template v-if="checkingSampleOperationalList">
-                                        <div class="flex items-center justify-center py-8">
-                                            <Loader2 class="h-8 w-8 animate-spin text-primary" />
-                                            <span class="ml-3 text-primary">Validando listado operacional...</span>
-                                        </div>
-                                    </template>
-                                    <template v-else>
-                                        <div class="flex items-start justify-between gap-4">
-                                            <div class="flex-1 space-y-1">
+                                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                            <!-- Ref. Muestra — visible en tipo muestra (obligatorio)
+                                             y en tipo producto (opcional, muestra de origen) -->
+                                            <div class="flex flex-col gap-1">
                                                 <div class="flex items-center gap-2">
-                                                    <Label class="text-sm font-semibold text-emerald-900">Listado operacional</Label>
-                                                    <HelpTooltip :text="tooltips.operationalList" aria-label="Ayuda sobre Listado operacional" />
+                                                    <Label class="text-sm font-medium">
+                                                        <template v-if="form.type === TYPE_SAMPLE">
+                                                            Ref. Muestra<span class="text-red-500">*</span>
+                                                        </template>
+                                                        <template v-else> Ref. Muestra de origen </template>
+                                                    </Label>
                                                 </div>
-                                                <p class="text-xs leading-relaxed text-emerald-800/80">
-                                                    <template v-if="normalizeTypeValue(form.type) === TYPE_SAMPLE && currentProductSheetId">
-                                                        Estado: {{ hasSampleOperationalList ? 'Configurado' : 'Pendiente' }}.
-                                                        {{
-                                                            hasSampleOperationalList
-                                                                ? 'La muestra ya tiene listado operacional registrado.'
-                                                                : 'La muestra aún no tiene listado operacional registrado.'
-                                                        }}
-                                                    </template>
-                                                    <template v-else> Esta validación aplica para muestras ya guardadas. </template>
-                                                </p>
+                                                <InputField
+                                                    v-model="form.sample_reference"
+                                                    label=""
+                                                    :placeholder="form.type === TYPE_SAMPLE ? 'ej: MU1' : 'Opcional'"
+                                                    :disabled="isReadonly"
+                                                    :error="
+                                                        showFieldErrors && fieldErrors.reference && form.type === TYPE_SAMPLE
+                                                            ? fieldErrors.reference
+                                                            : undefined
+                                                    "
+                                                />
                                             </div>
-                                            <div
-                                                v-if="normalizeTypeValue(form.type) === TYPE_SAMPLE && currentProductSheetId"
-                                                class="flex shrink-0 items-center gap-2"
-                                            >
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    class="rounded-full px-4 text-xs font-semibold"
-                                                    :disabled="checkingSampleOperationalList"
-                                                    @click="validateSampleOperationalList()"
-                                                >
-                                                    Revalidar
-                                                </Button>
-                                                <Button
-                                                    v-if="hasSampleOperationalList"
-                                                    variant="default"
-                                                    size="sm"
-                                                    class="rounded-full bg-emerald-700 px-4 text-xs font-semibold text-primary-foreground hover:bg-emerald-800"
-                                                    :disabled="checkingSampleOperationalList"
-                                                    @click="openOperationalListInNewWindow"
-                                                >
-                                                    Ver listado
-                                                </Button>
+
+                                            <!-- Ref. Prod 1 — visible cuando type = producto -->
+                                            <div v-if="form.type === TYPE_PRODUCT" class="flex flex-col gap-1">
+                                                <div class="flex items-center gap-2">
+                                                    <Label class="text-sm font-medium">Ref 1. Producto<span class="text-red-500">*</span></Label>
+                                                </div>
+                                                <InputField
+                                                    v-model="form.product_reference"
+                                                    label=""
+                                                    placeholder="ej: 901010"
+                                                    :disabled="isReadonly"
+                                                    :error="
+                                                        showFieldErrors && fieldErrors.reference && form.type === TYPE_PRODUCT
+                                                            ? fieldErrors.reference
+                                                            : undefined
+                                                    "
+                                                />
+                                            </div>
+
+                                            <!-- Ref. Prod 2 — visible cuando type = producto -->
+                                            <div v-if="form.type === TYPE_PRODUCT" class="flex flex-col gap-1">
+                                                <div class="flex items-center gap-2">
+                                                    <Label class="text-sm font-medium">Ref 2. Producto</Label>
+                                                </div>
+                                                <InputField v-model="form.product_reference_2" label="" placeholder="ej: 4002" :disabled="isReadonly" />
                                             </div>
                                         </div>
-                                    </template>
-                                </div>
+                                    </div>
+                                </section>
 
-                                <div class="space-y-1">
-                                    <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium">Procesos<span class="text-red-500">*</span></Label>
+                                <!-- Sección 2: Clasificación — a qué categoría de prenda pertenece. -->
+                                <section>
+                                    <div class="mb-3 flex items-center gap-2 border-b border-border/70 pb-1.5">
+                                        <LayoutGrid class="h-4 w-4 text-muted-foreground" />
+                                        <h3 class="text-[0.8rem] font-semibold uppercase tracking-wide text-muted-foreground">Clasificación</h3>
+                                    </div>
+                                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex items-center gap-2">
+                                                <Label class="text-sm font-medium">Seccion<span class="text-red-500">*</span></Label>
+                                                <HelpTooltip :text="tooltips.section" aria-label="Ayuda sobre Seccion" />
+                                            </div>
+                                            <CreatableSelectField
+                                                ref="sectionSelectRef"
+                                                v-model="form.section_id"
+                                                label=""
+                                                :options="sectionOptions"
+                                                :loading="loadingSectionSelect"
+                                                required
+                                                placeholder="Seleccione sección"
+                                                :disabled="isReadonly"
+                                                :searchable="true"
+                                                :search-threshold="0"
+                                                :creatable="!isReadonly"
+                                                create-label="sección"
+                                                create-button-label="Nueva sección"
+                                                :on-create="onCreateSection"
+                                                instance-id="section"
+                                                @inline-opened="handleInlineOpened"
+                                                :invalid="showFieldErrors && !!fieldErrors.section_id"
+                                                :error-message="showFieldErrors ? fieldErrors.section_id : undefined"
+                                            />
+                                        </div>
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex items-center gap-2">
+                                                <Label class="text-sm font-medium">Grupo<span class="text-red-500">*</span></Label>
+                                                <HelpTooltip :text="tooltips.group" aria-label="Ayuda sobre Grupo" />
+                                            </div>
+                                            <CreatableSelectField
+                                                ref="groupSelectRef"
+                                                v-model="form.group_id"
+                                                label=""
+                                                :options="groupOptions"
+                                                :loading="loadingGroupSelect"
+                                                required
+                                                placeholder="Seleccione grupo"
+                                                :disabled="isReadonly"
+                                                :searchable="true"
+                                                :search-threshold="0"
+                                                :creatable="!isReadonly"
+                                                create-label="grupo"
+                                                create-button-label="Nuevo grupo"
+                                                :on-create="onCreateGroup"
+                                                instance-id="group"
+                                                @inline-opened="handleInlineOpened"
+                                                :invalid="showFieldErrors && !!fieldErrors.group_id"
+                                                :error-message="showFieldErrors ? fieldErrors.group_id : undefined"
+                                            />
+                                        </div>
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex items-center gap-2">
+                                                <Label class="text-sm font-medium">Marca<span class="text-red-500">*</span></Label>
+                                            </div>
+                                            <CreatableSelectField
+                                                ref="brandSelectRef"
+                                                v-model="form.brand_id"
+                                                label=""
+                                                :options="brandOptions"
+                                                :loading="loadingBrandSelect"
+                                                required
+                                                placeholder="Seleccione marca"
+                                                :disabled="isReadonly"
+                                                :searchable="true"
+                                                :search-threshold="0"
+                                                :creatable="!isReadonly"
+                                                create-label="marca"
+                                                create-button-label="Nueva marca"
+                                                :on-create="onCreateBrand"
+                                                instance-id="brand"
+                                                @inline-opened="handleInlineOpened"
+                                                :invalid="showFieldErrors && !!fieldErrors.brand_id"
+                                                :error-message="showFieldErrors ? fieldErrors.brand_id : undefined"
+                                            />
+                                        </div>
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex items-center gap-2">
+                                                <Label class="text-sm font-medium">Mundo<span class="text-red-500">*</span></Label>
+                                                <HelpTooltip :text="tooltips.world" aria-label="Ayuda sobre Mundo" />
+                                            </div>
+                                            <CreatableSelectField
+                                                ref="worldSelectRef"
+                                                class="w-full"
+                                                v-model="form.world_id"
+                                                label=""
+                                                :options="worldOptions"
+                                                :loading="loadingWorldSelect"
+                                                required
+                                                placeholder="Seleccione mundo"
+                                                :disabled="isReadonly"
+                                                :searchable="true"
+                                                :search-threshold="0"
+                                                :creatable="!isReadonly"
+                                                create-label="mundo"
+                                                create-button-label="Nuevo mundo"
+                                                :on-create="onCreateWorld"
+                                                instance-id="world"
+                                                @inline-opened="handleInlineOpened"
+                                                :invalid="showFieldErrors && !!fieldErrors.world_id"
+                                                :error-message="showFieldErrors ? fieldErrors.world_id : undefined"
+                                            />
+                                        </div>
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex items-center gap-2">
+                                                <Label class="text-sm font-medium">Tipo de prenda<span class="text-red-500">*</span></Label>
+                                                <span v-if="isGarmentTypeLocked" class="text-[10px] font-normal text-muted-foreground"
+                                                    >(por sección)</span
+                                                >
+                                            </div>
+                                            <div class="flex h-9 gap-2">
+                                                <button
+                                                    type="button"
+                                                    :class="[
+                                                        'flex-1 rounded-md border px-3 text-sm font-medium transition-colors',
+                                                        form.garment_type === 'superior'
+                                                            ? 'border-primary bg-primary text-primary-foreground'
+                                                            : 'border-input bg-background hover:bg-muted',
+                                                    ]"
+                                                    :disabled="isReadonly || isGarmentTypeLocked"
+                                                    @click="form.garment_type = 'superior'"
+                                                >
+                                                    ↑ Sup.
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    :class="[
+                                                        'flex-1 rounded-md border px-3 text-sm font-medium transition-colors',
+                                                        form.garment_type === 'inferior'
+                                                            ? 'border-primary bg-primary text-primary-foreground'
+                                                            : 'border-input bg-background hover:bg-muted',
+                                                    ]"
+                                                    :disabled="isReadonly || isGarmentTypeLocked"
+                                                    @click="form.garment_type = 'inferior'"
+                                                >
+                                                    ↓ Inf.
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <!-- Sección 3: Material — de qué está hecha la prenda. -->
+                                <section>
+                                    <div class="mb-3 flex items-center gap-2 border-b border-border/70 pb-1.5">
+                                        <Shirt class="h-4 w-4 text-muted-foreground" />
+                                        <h3 class="text-[0.8rem] font-semibold uppercase tracking-wide text-muted-foreground">Material y tallas</h3>
+                                    </div>
+                                    <div
+                                        class="grid gap-4"
+                                        :class="
+                                            form.woven_product ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
+                                        "
+                                    >
+                                        <div class="flex w-auto flex-col gap-1">
+                                            <div class="flex items-center gap-2">
+                                                <Label class="text-sm font-medium">Producto tejido</Label>
+                                                <HelpTooltip :text="tooltips.wovenProduct" aria-label="Ayuda sobre Producto tejido" />
+                                            </div>
+                                            <SwitchField v-model="form.woven_product" label="" id="woven_product" :disabled="isReadonly" />
+                                        </div>
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex items-center gap-2">
+                                                <Label class="text-sm font-medium"
+                                                    >Base Tela<span v-if="!form.woven_product" class="text-red-500">*</span></Label
+                                                >
+                                                <HelpTooltip :text="tooltips.base" aria-label="Ayuda sobre Base Tela" />
+                                            </div>
+                                            <CreatableSelectField
+                                                ref="fabricBaseSelectRef"
+                                                class="w-full"
+                                                v-model="form.fabric_base_id"
+                                                label=""
+                                                :options="fabricBaseOptions"
+                                                :loading="loadingFabricBaseSelect"
+                                                :required="!form.woven_product"
+                                                placeholder="Seleccione base tela"
+                                                :disabled="isReadonly"
+                                                :searchable="true"
+                                                :search-threshold="0"
+                                                :creatable="!isReadonly"
+                                                create-label="base tela"
+                                                create-button-label="Nueva base tela"
+                                                :on-create="onCreateFabricBase"
+                                                instance-id="fabricBase"
+                                                @inline-opened="handleInlineOpened"
+                                                :invalid="showFieldErrors && !!fieldErrors.fabric_base_id"
+                                                :error-message="showFieldErrors ? fieldErrors.fabric_base_id : undefined"
+                                            />
+                                        </div>
+                                        <div v-if="form.woven_product" class="flex flex-col gap-1">
+                                            <div class="flex items-center gap-2">
+                                                <Label class="text-sm font-medium">Base hilaza<span class="text-red-500">*</span></Label>
+                                                <HelpTooltip :text="tooltips.yarnBase" aria-label="Ayuda sobre Base hilaza" />
+                                            </div>
+                                            <CreatableSelectField
+                                                ref="yarnBaseSelectRef"
+                                                class="w-full"
+                                                v-model="form.yarn_base_id"
+                                                label=""
+                                                :options="yarnBaseOptions"
+                                                :loading="loadingYarnBaseSelect"
+                                                required
+                                                placeholder="Seleccione base hilaza"
+                                                :disabled="isReadonly"
+                                                :searchable="true"
+                                                :search-threshold="0"
+                                                :creatable="!isReadonly"
+                                                create-label="base hilaza"
+                                                create-button-label="Nueva base hilaza"
+                                                :on-create="onCreateYarnBase"
+                                                instance-id="yarnBase"
+                                                @inline-opened="handleInlineOpened"
+                                                :invalid="showFieldErrors && !!fieldErrors.yarn_base_id"
+                                                :error-message="showFieldErrors ? fieldErrors.yarn_base_id : undefined"
+                                            />
+                                        </div>
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex items-center gap-2">
+                                                <Label class="text-sm font-medium">Tallas<span class="text-red-500">*</span></Label>
+                                            </div>
+                                            <div class="tooltip-managed-size-selector">
+                                                <SizeSelector class="w-full" v-model="form.sizes" :sizeGroups="sizeGroups" :disabled="isReadonly" />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                class="w-fit text-xs text-muted-foreground underline-offset-2 transition hover:text-foreground hover:underline disabled:opacity-50"
+                                                :disabled="isReadonly || isSizesParameterLoading"
+                                                @click="openSizesParameterDialog"
+                                            >
+                                                {{ isSizesParameterLoading ? 'Abriendo parametrización...' : 'Parametrizar tallas' }}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <!-- Sección 4: Procesos de producción. -->
+                                <section>
+                                    <div class="mb-3 flex items-center gap-2 border-b border-border/70 pb-1.5">
+                                        <ListChecks class="h-4 w-4 text-muted-foreground" />
+                                        <h3 class="text-[0.8rem] font-semibold uppercase tracking-wide text-muted-foreground">Procesos de producción</h3>
                                         <HelpTooltip :text="tooltips.processes" aria-label="Ayuda sobre Procesos" />
                                     </div>
+
+                                    <!-- Indicador compacto: solo aparece cuando aplica (muestra ya guardada) —
+                                    antes era un card de ancho completo visible siempre, incluso cuando no
+                                    había nada que decir (producto, o muestra sin guardar todavía). -->
+                                    <div
+                                        v-if="normalizeTypeValue(form.type) === TYPE_SAMPLE && currentProductSheetId"
+                                        class="mb-3 flex flex-wrap items-center gap-2"
+                                    >
+                                        <template v-if="checkingSampleOperationalList">
+                                            <Loader2 class="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                                            <span class="text-xs text-muted-foreground">Validando listado operacional...</span>
+                                        </template>
+                                        <template v-else>
+                                            <TableStatusBadge
+                                                :tone="hasSampleOperationalList ? 'success' : 'warning'"
+                                                :label="hasSampleOperationalList ? 'Listado operacional: configurado' : 'Listado operacional: pendiente'"
+                                            />
+                                            <HelpTooltip :text="tooltips.operationalList" aria-label="Ayuda sobre Listado operacional" />
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                class="h-6 rounded-full px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+                                                :disabled="checkingSampleOperationalList"
+                                                @click="validateSampleOperationalList()"
+                                            >
+                                                Revalidar
+                                            </Button>
+                                            <Button
+                                                v-if="hasSampleOperationalList"
+                                                variant="ghost"
+                                                size="sm"
+                                                class="h-6 rounded-full px-2 text-xs font-medium text-emerald-700 hover:text-emerald-800"
+                                                :disabled="checkingSampleOperationalList"
+                                                @click="openOperationalListInNewWindow"
+                                            >
+                                                Ver listado
+                                            </Button>
+                                        </template>
+                                    </div>
+
                                     <ProcessSelector
                                         v-model="form.processes"
                                         :availableProcesses="allProcesses"
@@ -1983,8 +2024,42 @@ function handleClose() {
                                         :productSheetType="form.type"
                                         :disabled="isReadonly"
                                     />
-                                </div>
+                                </section>
 
+                                <!-- Sección 5: Precios — al final, es lo último que se suele definir. -->
+                                <section>
+                                    <div class="mb-3 flex items-center gap-2 border-b border-border/70 pb-1.5">
+                                        <DollarSign class="h-4 w-4 text-muted-foreground" />
+                                        <h3 class="text-[0.8rem] font-semibold uppercase tracking-wide text-muted-foreground">Precios</h3>
+                                    </div>
+                                    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex items-center gap-2">
+                                                <Label class="text-sm font-medium">Precio facturacion</Label>
+                                            </div>
+                                            <InputField
+                                                v-model="form.billing_price"
+                                                type="currency"
+                                                label=""
+                                                placeholder="$ 0"
+                                                :disabled="isReadonly"
+                                                :error="showFieldErrors ? fieldErrors.billing_price : undefined"
+                                            />
+                                        </div>
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex items-center gap-2">
+                                                <Label class="text-sm font-medium">Costo</Label>
+                                            </div>
+                                            <InputField v-model="form.costo" type="currency" label="" placeholder="$ 0" :disabled="isReadonly" />
+                                        </div>
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex items-center gap-2">
+                                                <Label class="text-sm font-medium">Precio venta</Label>
+                                            </div>
+                                            <InputField v-model="form.selling_price" type="currency" label="" placeholder="$ 0" :disabled="isReadonly" />
+                                        </div>
+                                    </div>
+                                </section>
                             </div>
                             <div class="w-full min-w-0 sm:sticky sm:top-0 sm:w-[340px] sm:self-start">
                                 <div class="space-y-4">
@@ -1997,65 +2072,19 @@ function handleClose() {
                                         @error="setError"
                                     />
 
-                                    <!-- Tipo (muestra / producto) -->
-                                    <div class="grid gap-1.5">
-                                        <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">Tipo<span class="text-red-500">*</span></Label>
-                                            <HelpTooltip :text="tooltips.type" aria-label="Ayuda sobre Tipo" />
-                                        </div>
-                                        <SegmentedToggle v-model="typeModel" :options="typeOptions" :disabled="isTypeReadonly" />
-                                    </div>
-
-                                    <!-- Tipo de prenda (superior / inferior) -->
-                                    <div class="grid gap-1.5">
-                                        <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">Tipo de prenda<span class="text-red-500">*</span></Label>
-                                            <span v-if="isGarmentTypeLocked" class="text-[10px] font-normal text-muted-foreground"
-                                                >(definido por sección)</span
-                                            >
-                                        </div>
-                                        <div class="flex gap-2">
-                                            <button
-                                                type="button"
-                                                :class="[
-                                                    'flex-1 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors',
-                                                    form.garment_type === 'superior'
-                                                        ? 'border-primary bg-primary text-primary-foreground'
-                                                        : 'border-input bg-background hover:bg-muted',
-                                                ]"
-                                                :disabled="isReadonly || isGarmentTypeLocked"
-                                                @click="form.garment_type = 'superior'"
-                                            >
-                                                ↑ Superior
-                                            </button>
-                                            <button
-                                                type="button"
-                                                :class="[
-                                                    'flex-1 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors',
-                                                    form.garment_type === 'inferior'
-                                                        ? 'border-primary bg-primary text-primary-foreground'
-                                                        : 'border-input bg-background hover:bg-muted',
-                                                ]"
-                                                :disabled="isReadonly || isGarmentTypeLocked"
-                                                @click="form.garment_type = 'inferior'"
-                                            >
-                                                ↓ Inferior
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <!-- Version badge -->
-                                    <div v-if="!isCreateMode && form.version && form.version > 1">
-                                        <span
-                                            class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-800"
-                                        >
-                                            Versión {{ form.version }}
-                                        </span>
-                                    </div>
-
-                                    <!-- Descripción (auto-generado: referencia + sección + mundo) -->
+                                    <!-- Nombre del producto (auto-generado: sección + mundo) — se
+                                    muestra aquí, junto a la imagen, como una vista previa de lo
+                                    que resulta de la Clasificación elegida a la izquierda. -->
                                     <div class="flex flex-col gap-1">
-                                        <Label class="text-sm font-medium">Nombre del producto<span class="text-red-500">*</span></Label>
+                                        <div class="flex items-center gap-2">
+                                            <Label class="text-sm font-medium">Nombre del producto<span class="text-red-500">*</span></Label>
+                                            <span
+                                                v-if="!isCreateMode && form.version && form.version > 1"
+                                                class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium text-purple-800"
+                                            >
+                                                Versión {{ form.version }}
+                                            </span>
+                                        </div>
                                         <InputField
                                             v-model="form.description"
                                             label=""
@@ -2149,6 +2178,33 @@ function handleClose() {
         @cancel="closeSizesParameterDialog"
         @submit="handleSizesParameterSubmit"
     />
+
+    <Dialog :open="fabricBaseFactorDialogOpen" @update:open="(value) => { if (!value) cancelFabricBaseFactorDialog(); }">
+        <FormDialogContent class="max-w-sm">
+            <DialogHeader>
+                <DialogTitle>Nueva base de tela: {{ fabricBaseFactorDialogName }}</DialogTitle>
+                <DialogDescription>
+                    Indica el factor que afecta el cálculo del SAM para esta base. 1.0 = neutro.
+                </DialogDescription>
+            </DialogHeader>
+            <div class="flex flex-col gap-1 py-2">
+                <Label for="fabric-base-factor-input">Factor</Label>
+                <InputField
+                    id="fabric-base-factor-input"
+                    v-model="fabricBaseFactorDialogValue"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    label=""
+                    @keyup.enter="confirmFabricBaseFactorDialog"
+                />
+            </div>
+            <DialogFooter>
+                <Button variant="outline" @click="cancelFabricBaseFactorDialog">Cancelar</Button>
+                <Button @click="confirmFabricBaseFactorDialog">Crear</Button>
+            </DialogFooter>
+        </FormDialogContent>
+    </Dialog>
 </template>
 
 <style scoped>

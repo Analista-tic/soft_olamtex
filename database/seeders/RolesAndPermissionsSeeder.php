@@ -59,6 +59,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'crear sabana productos',
             'editar sabana productos',
             'eliminar sabana productos',
+            'carga masiva sabana productos',
             'editar procesos ficha tecnica',
 
             // Listados operacionales

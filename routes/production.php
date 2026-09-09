@@ -120,6 +120,12 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
     Route::get('sabana-productos/templates', [ProductSheetController::class, 'templates'])
         ->middleware('permission:ver sabana productos')
         ->name('sabana-productos.templates');
+    Route::get('sabana-productos/descargar-plantilla', [ProductSheetController::class, 'downloadTemplate'])
+        ->middleware('permission:ver sabana productos')
+        ->name('sabana-productos.descargar-plantilla');
+    Route::post('sabana-productos/carga-masiva', [ProductSheetController::class, 'bulkUpload'])
+        ->middleware('permission:carga masiva sabana productos')
+        ->name('sabana-productos.carga-masiva');
     Route::get('sabana-productos/{sabana}', [ProductSheetController::class, 'show'])
         ->middleware('permission:ver sabana productos')
         ->name('sabana-productos.show');

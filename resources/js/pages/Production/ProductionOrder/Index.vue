@@ -408,9 +408,34 @@ const filteredRows = computed(() => {
 
 const totalItems = computed(() => filteredRows.value.length);
 
+const sortBy = ref<'id' | 'units'>('id');
+const sortDir = ref<'asc' | 'desc'>('desc');
+
+function toggleSort(column: 'id' | 'units') {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+
+    currentPage.value = 1;
+}
+
+const sortedRows = computed(() => {
+    const column = sortBy.value;
+    const direction = sortDir.value === 'asc' ? 1 : -1;
+
+    return [...filteredRows.value].sort((a, b) => {
+        const left = Number(a[column] ?? 0);
+        const right = Number(b[column] ?? 0);
+        return (left - right) * direction;
+    });
+});
+
 const rows = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage.value;
-    return filteredRows.value.slice(start, start + itemsPerPage.value);
+    return sortedRows.value.slice(start, start + itemsPerPage.value);
 });
 
 const dashboardTotals = computed(() => {
@@ -613,13 +638,29 @@ onUnmounted(() => {
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead class="text-center">OP</TableHead>
+                                                <TableHead class="cursor-pointer select-none whitespace-nowrap text-center" @click="toggleSort('id')">
+                                                    <span class="inline-flex items-center justify-center gap-1">
+                                                        OP
+                                                        <span class="text-muted-foreground">
+                                                            <template v-if="sortBy === 'id'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                                            <template v-else><span class="opacity-30">↕</span></template>
+                                                        </span>
+                                                    </span>
+                                                </TableHead>
                                                 <TableHead class="text-center">Tipo</TableHead>
                                                 <TableHead class="text-center">Referencia</TableHead>
                                                 <TableHead class="text-center">Temporada</TableHead>
                                                 <TableHead class="text-center">Despacho</TableHead>
                                                 <TableHead class="text-center">Destino</TableHead>
-                                                <TableHead class="text-center">Unidades</TableHead>
+                                                <TableHead class="cursor-pointer select-none whitespace-nowrap text-center" @click="toggleSort('units')">
+                                                    <span class="inline-flex items-center justify-center gap-1">
+                                                        Unidades
+                                                        <span class="text-muted-foreground">
+                                                            <template v-if="sortBy === 'units'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                                            <template v-else><span class="opacity-30">↕</span></template>
+                                                        </span>
+                                                    </span>
+                                                </TableHead>
                                                 <TableHead class="text-center">Precio facturación</TableHead>
                                                 <TableHead class="text-center">Total facturación</TableHead>
                                                 <TableHead class="text-center">Precio venta</TableHead>

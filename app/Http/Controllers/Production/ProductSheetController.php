@@ -1,40 +1,51 @@
 <?php
+
 namespace App\Http\Controllers\Production;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Production\ConvertProductSheetRequest;
 use App\Http\Requests\Production\StoreProductSheetRequest;
 use App\Http\Requests\Production\UpdateProductSheetRequest;
+use App\Models\Production\Collection;
+use App\Models\Production\ProductionOrder;
 use App\Models\Production\ProductSheet;
 use App\Services\Production\CollectionService;
 use App\Services\Production\FabricBaseService;
 use App\Services\Production\ProductOperationListService;
+use App\Services\Production\ProductSheetBulkImportService;
 use App\Services\Production\ProductSheetCreationService;
+use App\Services\Production\ProductSheetExcelService;
 use App\Services\Production\ProductSheetPersistenceService;
+use App\Services\Production\YarnBaseService;
 use App\Services\Settings\SettingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class ProductSheetController extends Controller
 {
     private const TYPE_PRODUCT = 'producto';
+
     private const TYPE_SAMPLE = 'muestra';
 
     public function __construct(
         private SettingService $settingService,
         private CollectionService $collectionService,
         private FabricBaseService $fabricBaseService,
+        private YarnBaseService $yarnBaseService,
         private ProductOperationListService $operationListService,
         private ProductSheetCreationService $productSheetCreationService,
         private ProductSheetPersistenceService $productSheetPersistenceService,
-    ) {
-    }
+        private ProductSheetExcelService $productSheetExcelService,
+        private ProductSheetBulkImportService $productSheetBulkImportService,
+    ) {}
+
     /**
      * Carga datos relacionados y los envÃƒÆ’Ã‚Â­a a la vista.
      */
@@ -96,7 +107,7 @@ class ProductSheetController extends Controller
         $validatedData = $this->productSheetPersistenceService->prepareFlatSketchUpload($request, $validatedData, $sabana);
         $validatedData = $this->productSheetCreationService->sanitizeAttributes($validatedData);
 
-        if (($validatedData['status'] ?? null) === 'complete' && !$this->hasOperationalListRegistered($sabana->id)) {
+        if (($validatedData['status'] ?? null) === 'complete' && ! $this->hasOperationalListRegistered($sabana->id)) {
             $validatedData['status'] = 'incomplete';
         }
 
@@ -134,7 +145,7 @@ class ProductSheetController extends Controller
             ->where('id', '!=', $sabana->id)
             ->exists();
 
-        if ($referenceExists && !$allowDuplicateReference) {
+        if ($referenceExists && ! $allowDuplicateReference) {
             return response()->json([
                 'success' => false,
                 'code' => 'PRODUCT_REFERENCE_ALREADY_EXISTS',
@@ -205,7 +216,7 @@ class ProductSheetController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error al obtener el producto: ' . $e->getMessage(),
+                'message' => 'Error al obtener el producto: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -267,9 +278,9 @@ class ProductSheetController extends Controller
 
         if ($request->filled('search')) {
             $query->where(function ($sub) use ($request) {
-                $sub->where('sample_reference', 'like', '%' . $request->search . '%')
-                    ->orWhere('product_reference', 'like', '%' . $request->search . '%')
-                    ->orWhere('product_reference_2', 'like', '%' . $request->search . '%');
+                $sub->where('sample_reference', 'like', '%'.$request->search.'%')
+                    ->orWhere('product_reference', 'like', '%'.$request->search.'%')
+                    ->orWhere('product_reference_2', 'like', '%'.$request->search.'%');
             });
         }
 
@@ -293,10 +304,15 @@ class ProductSheetController extends Controller
             $query->where('woven_product', filter_var($request->input('woven_product'), FILTER_VALIDATE_BOOLEAN));
         }
 
+        $sortBy = in_array($request->input('sort_by'), ['id', 'sample_reference', 'product_reference', 'status'], true)
+            ? $request->input('sort_by')
+            : 'id';
+        $sortDir = strtolower((string) $request->input('sort_direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+
         $products_sheets = $query
             ->withCount('productionOrders')
             ->addSelect([
-                'latest_total_cost' => \App\Models\Production\ProductionOrder::query()
+                'latest_total_cost' => ProductionOrder::query()
                     ->select('technical_sheets.total_cost')
                     ->join('technical_sheets', 'technical_sheets.production_order_id', '=', 'production_orders.id')
                     ->whereColumn('production_orders.product_sheet_id', 'product_sheets.id')
@@ -304,7 +320,7 @@ class ProductSheetController extends Controller
                     ->orderByDesc('production_orders.id')
                     ->limit(1),
             ])
-            ->orderBy('id', 'desc')
+            ->orderBy($sortBy, $sortDir)
             ->paginate($perPage);
 
         $catalogs = $this->gatherCatalogs();
@@ -325,6 +341,7 @@ class ProductSheetController extends Controller
             $product->yarn_base = $product->yarn_base_id ? $yarnBases->get($product->yarn_base_id, ['id' => $product->yarn_base_id, 'name' => 'N/A']) : null;
             $product->flat_sketch_path = $this->resolveExistingFlatSketchPath($product->flat_sketch_path);
             $product->has_production_orders = ($product->production_orders_count ?? 0) > 0;
+
             return $product;
         });
 
@@ -354,7 +371,7 @@ class ProductSheetController extends Controller
             // Permitir deshabilitar igualmente, pero no afecta OPs existentes
         }
 
-        $sabana->update(['is_enabled' => !$sabana->is_enabled]);
+        $sabana->update(['is_enabled' => ! $sabana->is_enabled]);
 
         return response()->json([
             'success' => true,
@@ -382,8 +399,9 @@ class ProductSheetController extends Controller
                 ]);
                 $label = implode(' / ', $refs) ?: 'Sin referencia';
                 if ($ps->version > 1) {
-                    $label .= ' v' . $ps->version;
+                    $label .= ' v'.$ps->version;
                 }
+
                 return [
                     'id' => $ps->id,
                     'name' => $label,
@@ -393,9 +411,62 @@ class ProductSheetController extends Controller
         return response()->json(['data' => $templates->values()->all()]);
     }
 
+    /**
+     * Descarga la plantilla Excel de sábanas de producto (trae las existentes
+     * ya cargadas para editarlas + filas en blanco para crear nuevas).
+     */
+    public function downloadTemplate()
+    {
+        return $this->productSheetExcelService->downloadTemplate();
+    }
+
+    /**
+     * Procesa el Excel de carga masiva: crea o actualiza sábanas según la
+     * columna ID de cada fila.
+     */
+    public function bulkUpload(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls',
+        ]);
+
+        $spreadsheet = IOFactory::load($request->file('file')->getPathname());
+        $rows = $spreadsheet->getActiveSheet()->toArray(null, true, true, true);
+
+        $result = $this->productSheetBulkImportService->processBulkUploadArray($rows);
+
+        $inserted = $result['inserted'] ?? 0;
+        $updated = $result['updated'] ?? 0;
+        $errors = $result['errors'] ?? [];
+
+        if ($inserted === 0 && $updated === 0 && ! empty($errors)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pudo procesar ninguna fila. Errores: '.implode('; ', $errors),
+                'errors' => $errors,
+            ], 422);
+        }
+
+        $parts = [];
+        if ($inserted > 0) {
+            $parts[] = "{$inserted} sábana(s) creada(s)";
+        }
+        if ($updated > 0) {
+            $parts[] = "{$updated} sábana(s) actualizada(s)";
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Carga masiva completada. '.implode(', ', $parts).(! empty($errors) ? '. Revisa las filas con advertencias.' : '.'),
+            'inserted' => $inserted,
+            'updated' => $updated,
+            'errors' => $errors,
+        ]);
+    }
+
     private function gatherCatalogs(): array
     {
-        $keys = ['sections', 'groups', 'brands', 'worlds', 'yarn_bases', 'sizes', 'operational_lists'];
+        $keys = ['sections', 'groups', 'brands', 'worlds', 'sizes', 'operational_lists'];
         $richKeys = ['sections'];
         $catalogs = [];
         foreach ($keys as $key) {
@@ -404,8 +475,10 @@ class ProductSheetController extends Controller
                 : $this->settingService->getCatalogOptions($key);
         }
         $catalogs['fabric_bases'] = $this->fabricBaseService->options();
+        $catalogs['yarn_bases'] = $this->yarnBaseService->options();
         $catalogs['collections'] = $this->collectionService->allActive()
-            ->map(fn (\App\Models\Production\Collection $c) => ['id' => $c->id, 'name' => $c->name]);
+            ->map(fn (Collection $c) => ['id' => $c->id, 'name' => $c->name]);
+
         return $catalogs;
     }
 
@@ -420,7 +493,7 @@ class ProductSheetController extends Controller
     public function parameters(Request $request): JsonResponse
     {
         $key = $request->query('key');
-        if (!$key) {
+        if (! $key) {
             return response()->json(['success' => false, 'message' => 'El parámetro key es requerido.'], 422);
         }
 
@@ -450,18 +523,53 @@ class ProductSheetController extends Controller
         $name = trim($request->input('name'));
 
         if ($key === 'fabric_bases') {
+            // El factor afecta el costeo (SAM): antes se creaba fijo en 1.0 y quedaba
+            // así hasta que alguien lo notara y lo corrigiera manualmente en Producción.
+            if (! $request->user()?->can('crear catalogo materiales')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes permiso para crear bases de tela. Solicítalo a Diseño.',
+                ], 403);
+            }
+
+            $request->validate([
+                'factor' => ['required', 'numeric', 'min:0.0001', 'max:99.9999'],
+            ]);
+
             try {
                 $fabricBase = $this->fabricBaseService->create([
-                    'nombre'    => $name,
-                    'factor'    => 1.0,
+                    'nombre' => $name,
+                    'factor' => (float) $request->input('factor'),
                     'is_active' => true,
                 ]);
 
                 return response()->json([
                     'success' => true,
-                    'data'    => [
-                        'id'   => $fabricBase->id,
+                    'data' => [
+                        'id' => $fabricBase->id,
                         'name' => $fabricBase->nombre,
+                    ],
+                ], 201);
+            } catch (ValidationException $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => collect($e->errors())->flatten()->first(),
+                ], 422);
+            }
+        }
+
+        if ($key === 'yarn_bases') {
+            try {
+                $yarnBase = $this->yarnBaseService->create([
+                    'nombre' => $name,
+                    'is_active' => true,
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'id' => $yarnBase->id,
+                        'name' => $yarnBase->nombre,
                     ],
                 ], 201);
             } catch (ValidationException $e) {
@@ -510,7 +618,7 @@ class ProductSheetController extends Controller
      */
     private function resolveExistingFlatSketchPath(?string $rawPath): ?string
     {
-        if (!is_string($rawPath) || trim($rawPath) === '') {
+        if (! is_string($rawPath) || trim($rawPath) === '') {
             return null;
         }
 
@@ -540,5 +648,4 @@ class ProductSheetController extends Controller
 
         return null;
     }
-
 }
