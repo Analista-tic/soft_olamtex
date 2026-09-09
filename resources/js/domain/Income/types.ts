@@ -112,6 +112,8 @@ export interface QuoteFilters {
     contact_id?: number | null;
     date_from?: string;
     date_to?: string;
+    sort_by?: string;
+    sort_direction?: 'asc' | 'desc';
 }
 
 export interface SalesOrderItem extends SaleDocumentItem {
@@ -142,6 +144,8 @@ export interface SalesOrderFilters {
     date_from?: string;
     date_to?: string;
     origin?: 'direct' | 'from_quote';
+    sort_by?: string;
+    sort_direction?: 'asc' | 'desc';
 }
 
 export interface SalesInvoiceWithholding {
@@ -184,6 +188,8 @@ export interface SalesInvoiceFilters {
     date_from?: string;
     date_to?: string;
     origin?: 'direct' | 'from_order';
+    sort_by?: string;
+    sort_direction?: 'asc' | 'desc';
 }
 
 export interface SaleNoteItem extends SaleDocumentItem {
@@ -212,6 +218,8 @@ export interface SaleNoteFilters {
     contact_id?: number | null;
     date_from?: string;
     date_to?: string;
+    sort_by?: string;
+    sort_direction?: 'asc' | 'desc';
 }
 
 export interface SalePayment {

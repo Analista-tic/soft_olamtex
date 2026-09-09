@@ -12,7 +12,7 @@ class RetentionService
     {
         $query = Retention::query();
 
-        if (!empty($filters['search'])) {
+        if (! empty($filters['search'])) {
             $q = $filters['search'];
             $query->where(function ($sub) use ($q) {
                 $sub->where('name', 'like', "%{$q}%")
@@ -20,12 +20,21 @@ class RetentionService
             });
         }
 
-        if (!empty($filters['type'])) {
+        if (! empty($filters['type'])) {
             $query->where('type', $filters['type']);
         }
 
-        if (!empty($filters['status'])) {
+        if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);
+        }
+
+        $sortBy = in_array($filters['sort_by'] ?? '', ['name', 'percent', 'type'], true)
+            ? $filters['sort_by']
+            : null;
+        $direction = strtolower((string) ($filters['sort_direction'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        if ($sortBy !== null) {
+            $query->orderBy($sortBy, $direction);
         }
 
         return $query->orderByDesc('id')->paginate($perPage);
@@ -52,6 +61,7 @@ class RetentionService
     {
         return DB::transaction(function () use ($retention, $data) {
             $retention->update($data);
+
             return $retention->fresh();
         });
     }

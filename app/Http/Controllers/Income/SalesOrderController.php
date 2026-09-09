@@ -21,13 +21,12 @@ class SalesOrderController extends Controller
         private readonly SaleDocumentService $service,
         private readonly SalesOrderNumberSequenceService $salesOrderSequenceService,
         private readonly SalesInvoiceNumberSequenceService $salesInvoiceSequenceService,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request)
     {
         $perPage = (int) $request->integer('per_page', 10);
-        $filters = $request->only(['search', 'status', 'contact_id', 'client_id', 'date_from', 'date_to', 'origin']);
+        $filters = $request->only(['search', 'status', 'contact_id', 'client_id', 'date_from', 'date_to', 'origin', 'sort_by', 'sort_direction']);
         $documents = $this->service->paginateDocuments(
             SaleDocument::TYPE_SALES_ORDER, $filters, $perPage,
             $request->user(), 'ver propios pedidos venta', 'ver area pedidos venta', 'ver todos pedidos venta'
@@ -85,7 +84,7 @@ class SalesOrderController extends Controller
     {
         $salesOrder = $this->resolveAccessibleSalesOrder($saleDocument, $request->user());
 
-        if (!$salesOrder->canEditSalesOrder()) {
+        if (! $salesOrder->canEditSalesOrder()) {
             throw ValidationException::withMessages([
                 'document' => 'Solo se pueden editar pedidos de venta en estado borrador o confirmado.',
             ]);
@@ -125,7 +124,7 @@ class SalesOrderController extends Controller
     {
         $salesOrder = $this->resolveAccessibleSalesOrder($saleDocument, request()->user());
 
-        if (!$salesOrder->canDeleteSalesOrder()) {
+        if (! $salesOrder->canDeleteSalesOrder()) {
             throw ValidationException::withMessages([
                 'document' => 'Solo se pueden eliminar pedidos de venta en estado borrador.',
             ]);
@@ -151,7 +150,7 @@ class SalesOrderController extends Controller
 
             $this->resolveSalesOrder($salesOrder);
 
-            if (!$salesOrder->canConvertSalesOrder()) {
+            if (! $salesOrder->canConvertSalesOrder()) {
                 throw ValidationException::withMessages([
                     'document' => 'Solo se pueden convertir pedidos confirmados o en proceso.',
                 ]);
@@ -207,7 +206,7 @@ class SalesOrderController extends Controller
 
     private function resolveSalesOrder(SaleDocument $document): SaleDocument
     {
-        if (!$document->isSalesOrder()) {
+        if (! $document->isSalesOrder()) {
             abort(404);
         }
 
@@ -233,7 +232,7 @@ class SalesOrderController extends Controller
 
         $quote = SaleDocument::query()->findOrFail($parentDocumentId);
 
-        if (!$quote->isQuote()) {
+        if (! $quote->isQuote()) {
             throw ValidationException::withMessages([
                 'parent_document_id' => 'El documento de origen debe ser una cotizacion.',
             ]);

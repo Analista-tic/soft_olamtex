@@ -11,9 +11,7 @@ use Inertia\Inertia;
 
 class CreditDebitNoteController extends Controller
 {
-    public function __construct(protected CreditDebitNoteService $service)
-    {
-    }
+    public function __construct(protected CreditDebitNoteService $service) {}
 
     public function index(Request $request)
     {
@@ -32,9 +30,9 @@ class CreditDebitNoteController extends Controller
 
     public function getData(Request $request)
     {
-        $filters = $request->only(['contact_id', 'parent_document_id', 'date_from', 'date_to', 'per_page', 'context', 'document_type']);
+        $filters = $request->only(['contact_id', 'parent_document_id', 'date_from', 'date_to', 'per_page', 'context', 'document_type', 'sort_by', 'sort_direction']);
 
-        if (!$request->filled('contact_id') && $request->filled('provider_id')) {
+        if (! $request->filled('contact_id') && $request->filled('provider_id')) {
             $filters['contact_id'] = $request->input('provider_id');
         }
 

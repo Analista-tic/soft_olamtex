@@ -21,13 +21,12 @@ class QuoteController extends Controller
         private readonly SaleDocumentService $service,
         private readonly QuoteNumberSequenceService $quoteSequenceService,
         private readonly SalesOrderNumberSequenceService $salesOrderSequenceService,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request)
     {
         $perPage = (int) $request->integer('per_page', 10);
-        $filters = $request->only(['search', 'status', 'contact_id', 'client_id', 'date_from', 'date_to']);
+        $filters = $request->only(['search', 'status', 'contact_id', 'client_id', 'date_from', 'date_to', 'sort_by', 'sort_direction']);
         $documents = $this->service->paginateDocuments(
             SaleDocument::TYPE_QUOTE, $filters, $perPage,
             $request->user(), 'ver propios cotizaciones', 'ver area cotizaciones', 'ver todos cotizaciones'
@@ -77,7 +76,7 @@ class QuoteController extends Controller
     {
         $quote = $this->resolveAccessibleQuote($saleDocument, $request->user());
 
-        if (!$quote->canEditQuote()) {
+        if (! $quote->canEditQuote()) {
             throw ValidationException::withMessages([
                 'document' => 'No se puede editar una cotización aceptada o convertida.',
             ]);
@@ -105,7 +104,7 @@ class QuoteController extends Controller
     {
         $quote = $this->resolveAccessibleQuote($saleDocument, request()->user());
 
-        if (!$quote->canDeleteQuote()) {
+        if (! $quote->canDeleteQuote()) {
             throw ValidationException::withMessages([
                 'document' => 'Solo se pueden eliminar cotizaciones en estado borrador.',
             ]);
@@ -131,7 +130,7 @@ class QuoteController extends Controller
 
             $this->resolveQuote($quote);
 
-            if (!$quote->canConvertQuote()) {
+            if (! $quote->canConvertQuote()) {
                 throw ValidationException::withMessages([
                     'document' => 'Solo se pueden convertir cotizaciones enviadas o aceptadas.',
                 ]);
@@ -187,7 +186,7 @@ class QuoteController extends Controller
 
     private function resolveQuote(SaleDocument $document): SaleDocument
     {
-        if (!$document->isQuote()) {
+        if (! $document->isQuote()) {
             abort(404);
         }
 

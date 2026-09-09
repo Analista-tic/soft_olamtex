@@ -52,12 +52,15 @@ class WarehouseController extends Controller
         if ($request->has('search') && $request->search) {
             $search = $request->search;
             $query->where('name', 'like', "%{$search}%")
-                  ->orWhere('observation', 'like', "%{$search}%");
+                ->orWhere('observation', 'like', "%{$search}%");
         }
 
         $perPage = $request->input('per_page', 10);
 
-        $warehouses = $query->orderBy('id', 'desc')->paginate($perPage);
+        $sortBy = in_array($request->input('sort_by'), ['name', 'observation'], true) ? $request->input('sort_by') : 'id';
+        $direction = strtolower((string) $request->input('sort_direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        $warehouses = $query->orderBy($sortBy, $direction)->paginate($perPage);
 
         return response()->json($warehouses);
     }

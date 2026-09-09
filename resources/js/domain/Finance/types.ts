@@ -46,6 +46,8 @@ export type RetentionListQuery = {
     search?: string;
     type?: string;
     status?: RetentionStatus;
+    sort_by?: string;
+    sort_direction?: 'asc' | 'desc';
 };
 
 export type CreditDebitNoteType = 'purchase_credit_note' | 'purchase_debit_note';
@@ -105,6 +107,8 @@ export type CreditDebitNoteListQuery = {
     document_type?: CreditDebitNoteType | 'all';
     date_from?: string;
     date_to?: string;
+    sort_by?: string;
+    sort_direction?: 'asc' | 'desc';
 };
 
 export type TreasuryPartyType = 'supplier' | 'customer';
@@ -201,6 +205,8 @@ export type ExpenseVoucherListQuery = {
     status?: string;
     date_from?: string;
     date_to?: string;
+    sort_by?: string;
+    sort_direction?: 'asc' | 'desc';
 };
 
 export interface ExpenseVoucherListItem {

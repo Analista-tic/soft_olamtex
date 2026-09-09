@@ -9,9 +9,7 @@ use Inertia\Inertia;
 
 class ExpenseVoucherController extends Controller
 {
-    public function __construct(private ExpenseVoucherService $expenseVoucherService)
-    {
-    }
+    public function __construct(private ExpenseVoucherService $expenseVoucherService) {}
 
     public function index()
     {
@@ -51,6 +49,8 @@ class ExpenseVoucherController extends Controller
             'status' => ['nullable', 'string', 'in:all,recorded'],
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date'],
+            'sort_by' => ['nullable', 'string', 'in:voucher_number,payment_date,supplier_name,total_applied'],
+            'sort_direction' => ['nullable', 'string', 'in:asc,desc'],
         ]);
 
         $paginator = $this->expenseVoucherService->paginate(

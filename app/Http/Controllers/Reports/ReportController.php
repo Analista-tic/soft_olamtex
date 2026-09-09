@@ -82,10 +82,19 @@ class ReportController extends Controller
             $query->where('approval_status', $status);
         }
 
+        $sortBy = in_array($request->input('sort_by'), ['roll_number', 'internal_color_name', 'quantity', 'batch', 'approval_status'], true)
+            ? $request->input('sort_by')
+            : null;
+        $direction = strtolower((string) $request->input('sort_direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        if ($sortBy !== null) {
+            $query->orderBy($sortBy, $direction);
+        } else {
+            $query->orderByDesc('id');
+        }
+
         $all = $request->boolean('all');
-        $rolls = $all
-            ? $query->orderByDesc('id')->get()
-            : $query->orderByDesc('id')->paginate($perPage);
+        $rolls = $all ? $query->get() : $query->paginate($perPage);
 
         $totalRolls = FabricRoll::count();
         $availableMeters = (float) FabricRoll::selectRaw('SUM(quantity - actual_output) as total')
@@ -98,18 +107,18 @@ class ReportController extends Controller
         return response()->json([
             'data' => $rolls,
             'summary' => [
-                'total_rolls'      => $totalRolls,
+                'total_rolls' => $totalRolls,
                 'available_meters' => round($availableMeters, 2),
-                'no_movement'      => $noMovement,
+                'no_movement' => $noMovement,
             ],
         ]);
     }
 
     public function produccionData(Request $request)
     {
-        $perPage  = (int) $request->input('per_page', 15);
+        $perPage = (int) $request->input('per_page', 15);
         $dateFrom = $request->input('date_from');
-        $dateTo   = $request->input('date_to');
+        $dateTo = $request->input('date_to');
 
         $query = ProductionOrder::query()
             ->with(['productSheet', 'technicalSheet'])
@@ -137,49 +146,58 @@ class ReportController extends Controller
         if ($dateFrom || $dateTo) {
             $rollIds = ProductionRollConsumption::query()
                 ->when($dateFrom, fn ($q) => $q->whereDate('created_at', '>=', $dateFrom))
-                ->when($dateTo,   fn ($q) => $q->whereDate('created_at', '<=', $dateTo))
+                ->when($dateTo, fn ($q) => $q->whereDate('created_at', '<=', $dateTo))
                 ->distinct()->pluck('production_order_id');
 
             $supplyIds = TechnicalSheetSupply::query()
                 ->when($dateFrom, fn ($q) => $q->whereDate('created_at', '>=', $dateFrom))
-                ->when($dateTo,   fn ($q) => $q->whereDate('created_at', '<=', $dateTo))
+                ->when($dateTo, fn ($q) => $q->whereDate('created_at', '<=', $dateTo))
                 ->distinct()->pluck('production_order_id');
 
             $orderIds = $rollIds->merge($supplyIds)->unique()->values();
             $query->whereIn('id', $orderIds);
         }
 
+        $sortBy = in_array($request->input('sort_by'), ['op_code', 'season', 'units', 'status'], true)
+            ? $request->input('sort_by')
+            : null;
+        $direction = strtolower((string) $request->input('sort_direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        if ($sortBy !== null) {
+            $query->orderBy($sortBy, $direction);
+        } else {
+            $query->orderByDesc('id');
+        }
+
         $all = $request->boolean('all');
-        $orders = $all
-            ? $query->orderByDesc('id')->get()
-            : $query->orderByDesc('id')->paginate($perPage);
+        $orders = $all ? $query->get() : $query->paginate($perPage);
 
         $summary = [
-            'total'       => ProductionOrder::count(),
-            'activas'     => ProductionOrder::where('status', 'active')->count(),
+            'total' => ProductionOrder::count(),
+            'activas' => ProductionOrder::where('status', 'active')->count(),
             'completadas' => ProductionOrder::where('status', 'completed')->count(),
         ];
 
         return response()->json([
-            'data'    => $orders,
+            'data' => $orders,
             'summary' => $summary,
         ]);
     }
 
     public function produccionConsolidadoData(Request $request)
     {
-        $search   = $request->input('search');
+        $search = $request->input('search');
         $dateFrom = $request->input('date_from');
-        $dateTo   = $request->input('date_to');
+        $dateTo = $request->input('date_to');
 
         $rollIds = ProductionRollConsumption::query()
             ->when($dateFrom, fn ($q) => $q->whereDate('created_at', '>=', $dateFrom))
-            ->when($dateTo,   fn ($q) => $q->whereDate('created_at', '<=', $dateTo))
+            ->when($dateTo, fn ($q) => $q->whereDate('created_at', '<=', $dateTo))
             ->distinct()->pluck('production_order_id');
 
         $supplyIds = TechnicalSheetSupply::query()
             ->when($dateFrom, fn ($q) => $q->whereDate('created_at', '>=', $dateFrom))
-            ->when($dateTo,   fn ($q) => $q->whereDate('created_at', '<=', $dateTo))
+            ->when($dateTo, fn ($q) => $q->whereDate('created_at', '<=', $dateTo))
             ->distinct()->pluck('production_order_id');
 
         $orderIds = $rollIds->merge($supplyIds)->unique()->values();
@@ -199,55 +217,58 @@ class ReportController extends Controller
 
             $supplies = TechnicalSheetSupply::where('production_order_id', $order->id)
                 ->when($dateFrom, fn ($q) => $q->whereDate('created_at', '>=', $dateFrom))
-                ->when($dateTo,   fn ($q) => $q->whereDate('created_at', '<=', $dateTo))
+                ->when($dateTo, fn ($q) => $q->whereDate('created_at', '<=', $dateTo))
                 ->with('item')
                 ->get()
                 ->map(function ($supply) use ($units) {
-                    $qty   = round((float) $supply->qty_per_unit * $units, 4);
+                    $qty = round((float) $supply->qty_per_unit * $units, 4);
                     $price = (float) $supply->unit_cost;
+
                     return [
-                        'type'      => 'Insumo',
+                        'type' => 'Insumo',
                         'reference' => $supply->item?->reference ?? '—',
-                        'name'      => $supply->name ?? $supply->requested_name ?? '—',
-                        'iva'       => 0,
-                        'qty'       => $qty,
-                        'uom'       => $supply->uom ?? '—',
-                        'price'     => $price,
-                        'total'     => round($qty * $price, 2),
+                        'name' => $supply->name ?? $supply->requested_name ?? '—',
+                        'iva' => 0,
+                        'qty' => $qty,
+                        'uom' => $supply->uom ?? '—',
+                        'price' => $price,
+                        'total' => round($qty * $price, 2),
                     ];
                 });
 
             $rolls = ProductionRollConsumption::where('production_order_id', $order->id)
                 ->with(['fabricRoll.item'])
                 ->when($dateFrom, fn ($q) => $q->whereDate('created_at', '>=', $dateFrom))
-                ->when($dateTo,   fn ($q) => $q->whereDate('created_at', '<=', $dateTo))
+                ->when($dateTo, fn ($q) => $q->whereDate('created_at', '<=', $dateTo))
                 ->get()
                 ->map(function ($consumption) {
-                    $qty   = (float) $consumption->meters_consumed;
+                    $qty = (float) $consumption->meters_consumed;
                     $price = (float) ($consumption->fabricRoll?->price_per_meter ?? 0);
+
                     return [
-                        'item_id'   => $consumption->fabricRoll?->item_id ?? 0,
+                        'item_id' => $consumption->fabricRoll?->item_id ?? 0,
                         'reference' => $consumption->fabricRoll?->item?->reference ?? '—',
-                        'name'      => $consumption->fabricRoll?->item?->name ?? '—',
-                        'qty'       => $qty,
-                        'total'     => round($qty * $price, 2),
+                        'name' => $consumption->fabricRoll?->item?->name ?? '—',
+                        'qty' => $qty,
+                        'total' => round($qty * $price, 2),
                     ];
                 })
                 ->groupBy('item_id')
                 ->map(function ($group) {
-                    $totalQty  = round($group->sum('qty'), 4);
+                    $totalQty = round($group->sum('qty'), 4);
                     $totalCost = round($group->sum('total'), 2);
-                    $avgPrice  = $totalQty > 0 ? round($totalCost / $totalQty, 2) : 0;
-                    $first     = $group->first();
+                    $avgPrice = $totalQty > 0 ? round($totalCost / $totalQty, 2) : 0;
+                    $first = $group->first();
+
                     return [
-                        'type'      => 'Tela',
+                        'type' => 'Tela',
                         'reference' => $first['reference'],
-                        'name'      => $first['name'],
-                        'iva'       => 0,
-                        'qty'       => $totalQty,
-                        'uom'       => 'mts',
-                        'price'     => $avgPrice,
-                        'total'     => $totalCost,
+                        'name' => $first['name'],
+                        'iva' => 0,
+                        'qty' => $totalQty,
+                        'uom' => 'mts',
+                        'price' => $avgPrice,
+                        'total' => $totalCost,
                     ];
                 })
                 ->values();
@@ -255,13 +276,13 @@ class ReportController extends Controller
             $lines = $rolls->concat($supplies)->values();
 
             return [
-                'id'        => $order->id,
-                'op_code'   => $order->op_code,
+                'id' => $order->id,
+                'op_code' => $order->op_code,
                 'reference' => $order->getDisplayReference(),
-                'season'    => $order->season,
-                'units'     => $order->units,
-                'lines'     => $lines,
-                'subtotal'  => round($lines->sum('total'), 2),
+                'season' => $order->season,
+                'units' => $order->units,
+                'lines' => $lines,
+                'subtotal' => round($lines->sum('total'), 2),
             ];
         })->filter(fn ($o) => count($o['lines']) > 0)->values();
 
@@ -282,17 +303,18 @@ class ReportController extends Controller
             ->get()
             ->map(function ($supply) use ($units) {
                 $qtyTotal = round((float) $supply->qty_per_unit * $units, 4);
-                $price    = (float) $supply->unit_cost;
-                $total    = round($qtyTotal * $price, 2);
+                $price = (float) $supply->unit_cost;
+                $total = round($qtyTotal * $price, 2);
+
                 return [
-                    'type'      => 'Insumo',
+                    'type' => 'Insumo',
                     'reference' => $supply->item?->reference ?? '—',
-                    'name'      => $supply->name ?? $supply->requested_name ?? '—',
-                    'iva'       => 0,
-                    'qty'       => $qtyTotal,
-                    'uom'       => $supply->uom ?? '—',
-                    'price'     => $price,
-                    'total'     => $total,
+                    'name' => $supply->name ?? $supply->requested_name ?? '—',
+                    'iva' => 0,
+                    'qty' => $qtyTotal,
+                    'uom' => $supply->uom ?? '—',
+                    'price' => $price,
+                    'total' => $total,
                 ];
             });
 
@@ -301,31 +323,33 @@ class ReportController extends Controller
             ->with(['fabricRoll.item'])
             ->get()
             ->map(function ($consumption) {
-                $qty   = (float) $consumption->meters_consumed;
+                $qty = (float) $consumption->meters_consumed;
                 $price = (float) ($consumption->fabricRoll?->price_per_meter ?? 0);
+
                 return [
-                    'item_id'   => $consumption->fabricRoll?->item_id ?? 0,
+                    'item_id' => $consumption->fabricRoll?->item_id ?? 0,
                     'reference' => $consumption->fabricRoll?->item?->reference ?? '—',
-                    'name'      => $consumption->fabricRoll?->item?->name ?? '—',
-                    'qty'       => $qty,
-                    'total'     => round($qty * $price, 2),
+                    'name' => $consumption->fabricRoll?->item?->name ?? '—',
+                    'qty' => $qty,
+                    'total' => round($qty * $price, 2),
                 ];
             })
             ->groupBy('item_id')
             ->map(function ($group) {
-                $totalQty   = round($group->sum('qty'), 4);
-                $totalCost  = round($group->sum('total'), 2);
-                $avgPrice   = $totalQty > 0 ? round($totalCost / $totalQty, 2) : 0;
-                $first      = $group->first();
+                $totalQty = round($group->sum('qty'), 4);
+                $totalCost = round($group->sum('total'), 2);
+                $avgPrice = $totalQty > 0 ? round($totalCost / $totalQty, 2) : 0;
+                $first = $group->first();
+
                 return [
-                    'type'      => 'Tela',
+                    'type' => 'Tela',
                     'reference' => $first['reference'],
-                    'name'      => $first['name'],
-                    'iva'       => 0,
-                    'qty'       => $totalQty,
-                    'uom'       => 'mts',
-                    'price'     => $avgPrice,
-                    'total'     => $totalCost,
+                    'name' => $first['name'],
+                    'iva' => 0,
+                    'qty' => $totalQty,
+                    'uom' => 'mts',
+                    'price' => $avgPrice,
+                    'total' => $totalCost,
                 ];
             })
             ->values();
@@ -334,22 +358,22 @@ class ReportController extends Controller
 
         return response()->json([
             'order' => [
-                'id'                => $order->id,
-                'op_code'           => $order->op_code,
-                'season'            => $order->season,
-                'units'             => $order->units,
-                'status'            => $order->status,
-                'reference'         => $order->getDisplayReference(),
+                'id' => $order->id,
+                'op_code' => $order->op_code,
+                'season' => $order->season,
+                'units' => $order->units,
+                'status' => $order->status,
+                'reference' => $order->getDisplayReference(),
                 'raw_material_cost' => (float) ($order->technicalSheet?->raw_material_cost ?? 0),
-                'supplies_cost'     => (float) ($order->technicalSheet?->supplies_cost ?? 0),
-                'processes_cost'    => (float) ($order->technicalSheet?->processes_cost ?? 0),
-                'total_cost'        => (float) ($order->technicalSheet?->total_cost ?? 0),
+                'supplies_cost' => (float) ($order->technicalSheet?->supplies_cost ?? 0),
+                'processes_cost' => (float) ($order->technicalSheet?->processes_cost ?? 0),
+                'total_cost' => (float) ($order->technicalSheet?->total_cost ?? 0),
             ],
-            'lines'   => $lines,
+            'lines' => $lines,
             'summary' => [
-                'total_telas'   => round($rolls->sum('total'), 2),
+                'total_telas' => round($rolls->sum('total'), 2),
                 'total_insumos' => round($supplies->sum('total'), 2),
-                'grand_total'   => round($lines->sum('total'), 2),
+                'grand_total' => round($lines->sum('total'), 2),
             ],
         ]);
     }
@@ -379,19 +403,28 @@ class ReportController extends Controller
             $query->where('warehouse_id', $warehouseId);
         }
 
+        $sortBy = in_array($request->input('sort_by'), ['quantity', 'stock_min', 'stock_max', 'weighted_average_price'], true)
+            ? $request->input('sort_by')
+            : null;
+        $direction = strtolower((string) $request->input('sort_direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        if ($sortBy !== null) {
+            $query->orderBy($sortBy, $direction);
+        } else {
+            $query->orderByDesc('id');
+        }
+
         $all = $request->boolean('all');
-        $items = $all
-            ? $query->orderByDesc('id')->get()
-            : $query->orderByDesc('id')->paginate($perPage);
+        $items = $all ? $query->get() : $query->paginate($perPage);
 
         $summary = [
             'total_items' => WarehouseItem::count(),
-            'sin_stock'   => WarehouseItem::where('quantity', '<=', 0)->count(),
-            'con_stock'   => WarehouseItem::where('quantity', '>', 0)->count(),
+            'sin_stock' => WarehouseItem::where('quantity', '<=', 0)->count(),
+            'con_stock' => WarehouseItem::where('quantity', '>', 0)->count(),
         ];
 
         return response()->json([
-            'data'    => $items,
+            'data' => $items,
             'summary' => $summary,
         ]);
     }
@@ -445,19 +478,28 @@ class ReportController extends Controller
             $query->whereDate('date', '<=', $to);
         }
 
+        $sortBy = in_array($request->input('sort_by'), ['document_number', 'date', 'status'], true)
+            ? $request->input('sort_by')
+            : null;
+        $direction = strtolower((string) $request->input('sort_direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        if ($sortBy !== null) {
+            $query->orderBy($sortBy, $direction);
+        } else {
+            $query->orderByDesc('id');
+        }
+
         $all = $request->boolean('all');
-        $docs = $all
-            ? $query->orderByDesc('id')->get()
-            : $query->orderByDesc('id')->paginate($perPage);
+        $docs = $all ? $query->get() : $query->paginate($perPage);
 
         $summary = [
             'total_docs' => PurchaseDocument::count(),
             'pendientes' => PurchaseDocument::where('status', 'pending')->count(),
-            'aprobados'  => PurchaseDocument::where('approval_status', 'approved')->count(),
+            'aprobados' => PurchaseDocument::where('approval_status', 'approved')->count(),
         ];
 
         return response()->json([
-            'data'    => $docs,
+            'data' => $docs,
             'summary' => $summary,
         ]);
     }

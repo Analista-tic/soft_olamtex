@@ -10,15 +10,17 @@ use App\Helpers\ScopeHelper;
 use App\Models\Income\SaleDocument;
 use App\Models\Settings\User;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
 class SaleDocumentService
 {
+    private const SORTABLE_COLUMNS = ['date', 'document_number', 'status', 'payment_status'];
+
     public function createDocument(array $data, array $items = []): SaleDocument
     {
         return DB::transaction(function () use ($data, $items) {
@@ -45,7 +47,7 @@ class SaleDocumentService
         $query = $this->applyDocumentFilters($query, $filters);
         ScopeHelper::apply($query, $user, $ownPermission, $areaPermission, $allPermission);
 
-        return $query->orderByDesc('date')->orderByDesc('id')->paginate($perPage);
+        return $this->applyDocumentSort($query, $filters)->paginate($perPage);
     }
 
     public function paginateDocumentsByTypes(array $documentTypes, array $filters = [], int $perPage = 20): LengthAwarePaginator
@@ -53,7 +55,19 @@ class SaleDocumentService
         $query = $this->buildDocumentQueryByTypes($documentTypes);
         $query = $this->applyDocumentFilters($query, $filters);
 
-        return $query->orderByDesc('date')->orderByDesc('id')->paginate($perPage);
+        return $this->applyDocumentSort($query, $filters)->paginate($perPage);
+    }
+
+    protected function applyDocumentSort(Builder $query, array $filters): Builder
+    {
+        $sortBy = $filters['sort_by'] ?? null;
+        $direction = strtolower((string) ($filters['sort_direction'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        if (in_array($sortBy, self::SORTABLE_COLUMNS, true)) {
+            return $query->orderBy($sortBy, $direction)->orderByDesc('id');
+        }
+
+        return $query->orderByDesc('date')->orderByDesc('id');
     }
 
     public function buildDocumentQuery(string $documentType): Builder
@@ -79,10 +93,10 @@ class SaleDocumentService
         $search = trim($filters['search'] ?? '');
         $contactIdFilter = isset($filters['contact_id']) ? (int) $filters['contact_id'] : null;
 
-        if (!($contactIdFilter > 0)) {
+        if (! ($contactIdFilter > 0)) {
             $clientId = $filters['client_id'] ?? null;
             $contactIdFilter = is_numeric($clientId) ? (int) $clientId : null;
-            if (!($contactIdFilter > 0)) {
+            if (! ($contactIdFilter > 0)) {
                 $contactIdFilter = null;
             }
         }
@@ -101,8 +115,8 @@ class SaleDocumentService
             ->when(($filters['origin'] ?? null) === 'from_quote', fn (Builder $builder) => $builder->whereNotNull('parent_document_id'))
             ->when(($filters['origin'] ?? null) === 'from_order', fn (Builder $builder) => $builder->whereNotNull('parent_document_id'))
             ->when($contactIdFilter !== null, fn (Builder $builder) => $builder->where('contact_id', $contactIdFilter))
-            ->when(!empty($filters['date_from']), fn (Builder $builder) => $builder->whereDate('date', '>=', $filters['date_from']))
-            ->when(!empty($filters['date_to']), fn (Builder $builder) => $builder->whereDate('date', '<=', $filters['date_to']));
+            ->when(! empty($filters['date_from']), fn (Builder $builder) => $builder->whereDate('date', '>=', $filters['date_from']))
+            ->when(! empty($filters['date_to']), fn (Builder $builder) => $builder->whereDate('date', '<=', $filters['date_to']));
     }
 
     protected function shouldApplyFilter(mixed $value): bool
@@ -123,7 +137,7 @@ class SaleDocumentService
         return DB::transaction(function () use ($document, $data, $items) {
             $fillable = array_intersect_key($data, array_flip($this->updateFillableKeys()));
 
-            if (!empty($fillable)) {
+            if (! empty($fillable)) {
                 $document->fill($fillable);
             }
 
@@ -181,7 +195,7 @@ class SaleDocumentService
             'payments',
         ]);
 
-        if ($document->relationLoaded('client') && !$document->relationLoaded('contact')) {
+        if ($document->relationLoaded('client') && ! $document->relationLoaded('contact')) {
             $document->setRelation('contact', $document->getRelation('client'));
         }
 
@@ -201,7 +215,7 @@ class SaleDocumentService
 
         ScopeHelper::apply($query, $user, $ownPermission, $areaPermission, $allPermission);
 
-        if (!$query->exists()) {
+        if (! $query->exists()) {
             throw new AuthorizationException('No tienes permisos para acceder a este documento de ingresos.');
         }
 
@@ -223,7 +237,7 @@ class SaleDocumentService
 
             $itemName = isset($item['item_name']) ? trim((string) $item['item_name']) : null;
 
-            if ($rawItemId !== null && $rawItemId !== '' && !is_numeric($rawItemId)) {
+            if ($rawItemId !== null && $rawItemId !== '' && ! is_numeric($rawItemId)) {
                 $itemName = $itemName ?: (string) $rawItemId;
                 $rawItemId = null;
             }
@@ -231,7 +245,7 @@ class SaleDocumentService
             $resolvedItemId = is_numeric($rawItemId) ? (int) $rawItemId : null;
             $hasReference = $resolvedItemId !== null || ($itemName !== null && $itemName !== '');
 
-            if (!$hasReference || empty($item['quantity'])) {
+            if (! $hasReference || empty($item['quantity'])) {
                 continue;
             }
 
@@ -254,7 +268,7 @@ class SaleDocumentService
             ];
         }
 
-        if (!empty($payload)) {
+        if (! empty($payload)) {
             foreach ($payload as $row) {
                 $rowToCreate = $row;
                 unset($rowToCreate['sale_document_id']);
@@ -265,13 +279,13 @@ class SaleDocumentService
 
     protected function ensureDocumentCanBeDeleted(SaleDocument $document): void
     {
-        if ($document->isQuote() && !$document->canDeleteQuote()) {
+        if ($document->isQuote() && ! $document->canDeleteQuote()) {
             throw ValidationException::withMessages([
                 'document' => 'Solo se pueden eliminar cotizaciones en estado borrador.',
             ]);
         }
 
-        if (!$document->isSalesOrder()) {
+        if (! $document->isSalesOrder()) {
             if (! $document->isInvoice()) {
                 if (! $document->isCreditDebitNote()) {
                     return;
@@ -301,7 +315,7 @@ class SaleDocumentService
             return;
         }
 
-        if (!$document->canDeleteSalesOrder()) {
+        if (! $document->canDeleteSalesOrder()) {
             throw ValidationException::withMessages([
                 'document' => 'Solo se pueden eliminar pedidos de venta en estado borrador.',
             ]);

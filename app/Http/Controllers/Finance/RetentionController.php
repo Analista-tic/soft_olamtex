@@ -12,6 +12,7 @@ use Inertia\Inertia;
 class RetentionController extends Controller
 {
     public function __construct(protected RetentionService $service) {}
+
     public function index()
     {
         return Inertia::render('Finance/Retention/Index', [
@@ -22,6 +23,7 @@ class RetentionController extends Controller
     public function store(RetentionRequest $request)
     {
         $retention = $this->service->create($request->validated());
+
         return response()->json(['data' => $retention], 201);
     }
 
@@ -29,6 +31,7 @@ class RetentionController extends Controller
     {
         $retention = $this->service->findOrFail($id);
         $retention = $this->service->update($retention, $request->validated());
+
         return response()->json(['data' => $retention]);
     }
 
@@ -36,19 +39,20 @@ class RetentionController extends Controller
     {
         $retention = $this->service->findOrFail($id);
         $this->service->delete($retention);
+
         return response()->json(['message' => 'Retención eliminada']);
     }
 
     public function data(Request $request)
     {
-        $filters = $request->only(['search']);
+        $filters = $request->only(['search', 'sort_by', 'sort_direction']);
         $perPage = $request->per_page ?? 20;
         $retentions = $this->service->paginate($filters, $perPage);
 
         return response()->json([
             'data' => $retentions->items(),
             'total' => $retentions->total(),
-            'current_page' => $retentions->currentPage()
+            'current_page' => $retentions->currentPage(),
         ]);
     }
 

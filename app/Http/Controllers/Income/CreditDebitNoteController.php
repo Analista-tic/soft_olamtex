@@ -24,13 +24,12 @@ class CreditDebitNoteController extends Controller
         private readonly SaleNoteService $saleNoteService,
         private readonly CreditNoteNumberSequenceService $creditNoteSequenceService,
         private readonly DebitNoteNumberSequenceService $debitNoteSequenceService,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request)
     {
         $perPage = (int) $request->integer('per_page', 10);
-        $filters = $request->only(['search', 'status', 'contact_id', 'client_id', 'date_from', 'date_to']);
+        $filters = $request->only(['search', 'status', 'contact_id', 'client_id', 'date_from', 'date_to', 'sort_by', 'sort_direction']);
         $documents = $this->service->paginateDocumentsByTypes(
             $this->resolveRequestedTypes($request->query('type')),
             $filters,

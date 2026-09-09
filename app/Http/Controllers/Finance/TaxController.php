@@ -18,7 +18,7 @@ class TaxController extends Controller
         try {
             $query = Tax::query();
             if ($request->has('search') && $request->search) {
-                $query->where('name', 'like', '%' . $request->search . '%');
+                $query->where('name', 'like', '%'.$request->search.'%');
             }
             if ($request->has('status') && $request->status !== '' && $request->status !== 'all') {
                 $status = $request->status;
@@ -34,11 +34,15 @@ class TaxController extends Controller
                     $query->where('status', $status);
                 }
             }
-            $taxes = $query->orderBy('name')->paginate($request->per_page ?? 20);
+            $sortBy = in_array($request->input('sort_by'), ['name', 'percentage'], true) ? $request->input('sort_by') : 'name';
+            $direction = strtolower((string) $request->input('sort_direction', 'asc')) === 'desc' ? 'desc' : 'asc';
+
+            $taxes = $query->orderBy($sortBy, $direction)->paginate($request->per_page ?? 20);
+
             return response()->json([
                 'data' => $taxes->items(),
                 'total' => $taxes->total(),
-                'current_page' => $taxes->currentPage()
+                'current_page' => $taxes->currentPage(),
             ]);
         } catch (\Throwable $e) {
             return response()->json([
@@ -63,6 +67,7 @@ class TaxController extends Controller
             'credit_account_id' => 'nullable|exists:accounting_accounts,id',
         ]);
         $tax = Tax::create($data);
+
         return response()->json($tax, 201);
     }
 
@@ -77,6 +82,7 @@ class TaxController extends Controller
             'credit_account_id' => 'nullable|exists:accounting_accounts,id',
         ]);
         $tax->update($data);
+
         return response()->json($tax);
     }
 
@@ -84,14 +90,16 @@ class TaxController extends Controller
     {
         $tax = Tax::findOrFail($id);
         $tax->delete();
+
         return response()->noContent();
     }
 
     public function toggleStatus($id)
     {
         $tax = Tax::findOrFail($id);
-        $tax->status = !$tax->status;
+        $tax->status = ! $tax->status;
         $tax->save();
+
         return response()->json(['status' => $tax->status]);
     }
 }

@@ -4,17 +4,18 @@ namespace App\Services\Expenses;
 
 use App\Helpers\ScopeHelper;
 use App\Models\Expenses\ExpenseVoucher;
-use App\Models\Inventory\InventoryPeriodLock;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchasePayment;
+use App\Models\Inventory\InventoryPeriodLock;
 use App\Models\Settings\User;
 use App\Services\Finance\AccountingPostingService;
 use App\Services\Finance\TreasuryVoucherService;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Validation\ValidationException;
 
 class ExpenseVoucherService
@@ -24,8 +25,7 @@ class ExpenseVoucherService
         private PurchasePaymentService $purchasePaymentService,
         private ExpenseVoucherNumberSequenceService $expenseVoucherNumberSequenceService,
         private AccountingPostingService $accountingPostingService,
-    ) {
-    }
+    ) {}
 
     public function paginate(array $filters = [], int $perPage = 10, ?User $user = null)
     {
@@ -52,6 +52,7 @@ class ExpenseVoucherService
                         ->orWhere('vouchers.reference', 'like', "%{$search}%")
                         ->orWhere('purchase_documents.document_number', 'like', "%{$search}%")
                         ->orWhere('contacts.full_name', 'like', "%{$search}%");
+
                     return;
                 }
 
@@ -108,9 +109,20 @@ class ExpenseVoucherService
             ->selectRaw('MAX(purchase_documents.document_number) AS invoice_number')
             ->selectRaw('COUNT(*) AS applications_count')
             ->selectRaw('SUM(COALESCE(purchase_payments.amount, 0)) AS total_applied')
-            ->groupBy(DB::raw($voucherKeyExpression))
-            ->orderByRaw('COALESCE(MIN(vouchers.payment_date), MIN(purchase_payments.payment_date)) DESC')
-            ->orderByRaw('MIN(purchase_payments.id) DESC');
+            ->groupBy(DB::raw($voucherKeyExpression));
+
+        $sortableColumns = ['voucher_number', 'payment_date', 'supplier_name', 'total_applied'];
+        $sortBy = in_array($filters['sort_by'] ?? '', $sortableColumns, true) ? $filters['sort_by'] : null;
+        $direction = strtolower((string) ($filters['sort_direction'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        if ($sortBy !== null) {
+            // Ordenar por el alias del SELECT agregado (soportado por MySQL en GROUP BY).
+            $query->orderBy($sortBy, $direction);
+        } else {
+            $query->orderByRaw('COALESCE(MIN(vouchers.payment_date), MIN(purchase_payments.payment_date)) DESC');
+        }
+
+        $query->orderByRaw('MIN(purchase_payments.id) DESC');
 
         return $query
             ->paginate(max(1, min($perPage, 100)))
@@ -128,8 +140,8 @@ class ExpenseVoucherService
             ->whereKey($id)
             ->first();
 
-        if (!$payment) {
-            throw (new ModelNotFoundException())->setModel(PurchasePayment::class, [$id]);
+        if (! $payment) {
+            throw (new ModelNotFoundException)->setModel(PurchasePayment::class, [$id]);
         }
 
         $voucherNumber = $payment->voucher_number;
@@ -187,8 +199,8 @@ class ExpenseVoucherService
                 ->lockForUpdate()
                 ->first();
 
-            if (!$basePayment) {
-                throw (new ModelNotFoundException())->setModel(PurchasePayment::class, [$id]);
+            if (! $basePayment) {
+                throw (new ModelNotFoundException)->setModel(PurchasePayment::class, [$id]);
             }
 
             $voucherNumber = $basePayment->voucher_number ?? (int) $basePayment->id;
@@ -230,7 +242,7 @@ class ExpenseVoucherService
                 $amount = (float) $line['amount'];
 
                 $doc = $availableDocs->get($documentId);
-                if (!$doc) {
+                if (! $doc) {
                     throw ValidationException::withMessages([
                         'applications' => "La factura {$documentId} no pertenece al proveedor seleccionado o no tiene saldo pendiente.",
                     ]);
@@ -345,7 +357,7 @@ class ExpenseVoucherService
 
                 if ($recentPayments === $applicationDocumentIds) {
                     // Retornar el comprobante existente en lugar de crear uno nuevo
-                    \Illuminate\Support\Facades\Log::warning(
+                    Log::warning(
                         'ExpenseVoucherService: duplicate submission detected, returning existing voucher',
                         [
                             'contact_id' => $contactId,
@@ -379,7 +391,7 @@ class ExpenseVoucherService
                 $amount = (float) $line['amount'];
 
                 $doc = $availableDocs->get($documentId);
-                if (!$doc) {
+                if (! $doc) {
                     throw ValidationException::withMessages([
                         'applications' => "La factura {$documentId} no pertenece al proveedor seleccionado o no tiene saldo pendiente.",
                     ]);
@@ -461,6 +473,7 @@ class ExpenseVoucherService
         return collect($rows)
             ->map(function ($row) {
                 $data = is_array($row) ? $row : (array) $row;
+
                 return [
                     'document_id' => (int) ($data['document_id'] ?? 0),
                     'amount' => round((float) ($data['amount'] ?? 0), 2),
@@ -506,7 +519,7 @@ class ExpenseVoucherService
             'notes' => $notes,
         ]);
 
-        if (!$header->exists) {
+        if (! $header->exists) {
             $header->created_by_user_id = Auth::id() ?? $fallbackCreatorUserId;
         }
 
@@ -517,7 +530,7 @@ class ExpenseVoucherService
 
     private function resolveAccountLabel(?int $accountId): ?string
     {
-        if (!$accountId) {
+        if (! $accountId) {
             return null;
         }
 
@@ -529,6 +542,7 @@ class ExpenseVoucherService
         }
 
         $label = $map[$accountId] ?? null;
+
         return is_string($label) && $label !== '' ? $label : null;
     }
 
@@ -595,7 +609,7 @@ class ExpenseVoucherService
             return $voucher;
         }
 
-        throw (new ModelNotFoundException())->setModel(ExpenseVoucher::class, [$voucherId]);
+        throw (new ModelNotFoundException)->setModel(ExpenseVoucher::class, [$voucherId]);
     }
 
     private function resolvePaymentVoucherVoidedAt(PurchasePayment $payment): ?string
@@ -774,8 +788,7 @@ class ExpenseVoucherService
     {
         return $voucherPayments
             ->map(fn (PurchasePayment $payment) => $payment->invoice)
-            ->filter(fn ($invoice) =>
-                $invoice instanceof PurchaseDocument
+            ->filter(fn ($invoice) => $invoice instanceof PurchaseDocument
                 && $invoice->document_type === PurchaseDocument::TYPE_INVOICE
             )
             ->unique(fn (PurchaseDocument $invoice) => (int) $invoice->id)
@@ -838,6 +851,7 @@ class ExpenseVoucherService
                     $this->resolveInvoiceWithholdingsTotal($invoice),
                 );
                 $pendingRows->put($documentId, $current);
+
                 continue;
             }
 
@@ -881,12 +895,12 @@ class ExpenseVoucherService
 
     private function resolveInvoiceWithholdingsTotal(mixed $invoice): float
     {
-        if (!$invoice) {
+        if (! $invoice) {
             return 0.0;
         }
 
         $withholdings = $invoice->withholdings;
-        if (!is_array($withholdings)) {
+        if (! is_array($withholdings)) {
             return 0.0;
         }
 
@@ -923,7 +937,7 @@ class ExpenseVoucherService
     {
         return $voucherPayments->contains(function (PurchasePayment $payment) {
             $paymentDate = $payment->payment_date;
-            if (!$paymentDate) {
+            if (! $paymentDate) {
                 return false;
             }
 
@@ -956,12 +970,13 @@ class ExpenseVoucherService
             return true;
         }
 
-        if (!Schema::hasColumn('purchase_payments', 'status')) {
+        if (! Schema::hasColumn('purchase_payments', 'status')) {
             return false;
         }
 
         return $voucherPayments->contains(function (PurchasePayment $payment) use ($blockedStatuses) {
             $status = strtolower(trim((string) $payment->getAttribute('status')));
+
             return $status !== '' && in_array($status, $blockedStatuses, true);
         });
     }
