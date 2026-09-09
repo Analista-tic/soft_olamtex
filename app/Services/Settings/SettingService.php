@@ -12,8 +12,7 @@ class SettingService
         'groups' => ['groups', 'grupos', 'grupo', 'group'],
         'brands' => ['brands', 'marcas', 'marca', 'brand'],
         'worlds' => ['worlds', 'mundos', 'mundo', 'world'],
-        // fabric_bases migrado a tabla fabric_bases — ya no se gestiona desde settings
-        'yarn_bases' => ['yarn_bases', 'bases_hilaza', 'bases_hilo'],
+        // fabric_bases y yarn_bases migrados a tablas dedicadas — ya no se gestionan desde settings
         'sizes' => ['sizes', 'tallas', 'talla'],
         'lines' => ['lines', 'lineas', 'linea'],
         'destinations' => ['destinations', 'destinos', 'destino'],
@@ -21,7 +20,8 @@ class SettingService
         'priorities' => ['priorities', 'prioridades', 'prioridad'],
         'process_types' => ['process_types', 'tipos_proceso', 'tipos_de_proceso', 'tipo_proceso', 'process_type', 'processes'],
         'operational_lists' => ['operational_lists', 'listados_operacionales', 'listado_operacional', 'listado_operacional'],
-        'fabric_colors' => ['fabric_colors', 'colores', 'colors'],
+        // fabric_colors se retiró: código muerto sin consumidores; el catálogo real de
+        // colores es el modelo Color (tabla colors), usado por items.color_id.
         'unit_measures' => ['unit_measures', 'unit_measure_catalog', 'unidades_medida', 'unidades_de_medida', 'unidad_medida'],
         'thread_brands' => ['thread_brands', 'marcas_hilo', 'marcas_de_hilo'],
         'preparation_groups' => ['preparation_groups', 'grupos_preparacion', 'grupo_preparacion'],
@@ -30,7 +30,6 @@ class SettingService
     /**
      * Return the available options for a parameter setting.
      *
-     * @param string $key
      * @return Collection<int, array{id: string|int, name: string}>
      */
     public function getCatalogOptions(string $key): Collection
@@ -46,10 +45,12 @@ class SettingService
     }
 
     /**
-     * Obtiene una opción del catálogo por id con todos sus campos (id, name, factor, factor_base, etc.).
-     * Útil para leer factor de base tela ligado al tipo de tela.
+     * Obtiene una opción del catálogo por id con todos sus campos.
      *
-     * @param  string  $key  Clave del catálogo (ej. fabric_bases)
+     * Nota: las bases de tela e hilaza ya NO se leen desde aquí — viven en las tablas
+     * fabric_bases / yarn_bases y se consultan con FabricBaseService / YarnBaseService.
+     *
+     * @param  string  $key  Clave del catálogo (ej. sections, brands)
      * @param  int|string  $id  Id de la opción
      * @return array|null Opción completa o null si no existe
      */
@@ -61,12 +62,12 @@ class SettingService
                 ->where('status', true)
                 ->first();
 
-            if (!$setting || !is_array($setting->value)) {
+            if (! $setting || ! is_array($setting->value)) {
                 continue;
             }
 
             foreach ($setting->value as $item) {
-                if (!is_array($item) || !array_key_exists('id', $item)) {
+                if (! is_array($item) || ! array_key_exists('id', $item)) {
                     continue;
                 }
                 $itemId = $item['id'];
@@ -77,92 +78,6 @@ class SettingService
         }
 
         return null;
-    }
-
-    /**
-     * Devuelve las bases de tela con factor para el cálculo del SAM.
-     * Incluye id, name, factor (default 1.0), nombre, codigo.
-     * Se usa en listados operacionales donde el factor afecta SAM unitario.
-     */
-    public function getFabricBasesWithFactor(): Collection
-    {
-        foreach ($this->keyCandidates('fabric_bases') as $candidate) {
-            $setting = Setting::parameters()
-                ->where('key', $candidate)
-                ->where('status', true)
-                ->first();
-
-            if (!$setting || !is_array($setting->value)) {
-                continue;
-            }
-
-            return collect($setting->value)
-                ->map(function (mixed $item) {
-                    if (!is_array($item) || !array_key_exists('id', $item)) {
-                        return null;
-                    }
-                    $name = $item['name'] ?? $item['nombre'] ?? (string) $item['id'];
-                    $factor = isset($item['factor']) ? (float) $item['factor']
-                        : (isset($item['factor_base']) ? (float) $item['factor_base']
-                            : (isset($item['factor_base_tela']) ? (float) $item['factor_base_tela'] : 1.0));
-                    return [
-                        'id' => $item['id'],
-                        'name' => (string) $name,
-                        'nombre' => (string) $name,
-                        'codigo' => $item['codigo'] ?? $item['code'] ?? null,
-                        'factor' => $factor > 0 ? $factor : 1.0,
-                        'factor_base' => $factor,
-                        'factor_base_tela' => $factor,
-                    ];
-                })
-                ->filter()
-                ->values();
-        }
-
-        return collect();
-    }
-
-    /**
-     * Return catalog options with code when available (e.g. fabric_colors).
-     * Used for thread color selection where both name and code are needed.
-     *
-     * @return Collection<int, array{id: string|int, name: string, code?: string}>
-     */
-    public function getCatalogOptionsWithCode(string $key): Collection
-    {
-        foreach ($this->keyCandidates($key) as $candidate) {
-            $setting = Setting::parameters()
-                ->where('key', $candidate)
-                ->where('status', true)
-                ->first();
-
-            if (!$setting || !is_array($setting->value)) {
-                continue;
-            }
-
-            $value = $setting->value;
-            return collect($value)
-                ->map(function (mixed $item) {
-                    if (is_array($item)) {
-                        $name = isset($item['name']) ? (string) $item['name'] : null;
-                        $id = $item['id'] ?? $name ?? $item['code'] ?? null;
-                        $code = isset($item['code']) ? (string) $item['code'] : null;
-                        if ($name !== null && $id !== null) {
-                            $row = ['id' => $id, 'name' => $name];
-                            if ($code !== null) {
-                                $row['code'] = $code;
-                            }
-                            return $row;
-                        }
-                    }
-                    $label = is_string($item) ? $item : (string) $item;
-                    return ['id' => $label, 'name' => $label];
-                })
-                ->filter()
-                ->values();
-        }
-
-        return collect();
     }
 
     /**
@@ -193,7 +108,7 @@ class SettingService
             ->where('status', true)
             ->first();
 
-        if (!$setting || !is_array($setting->value)) {
+        if (! $setting || ! is_array($setting->value)) {
             return collect();
         }
 
@@ -211,10 +126,12 @@ class SettingService
                                 $row[$extra] = $item[$extra];
                             }
                         }
+
                         return $row;
                     }
                 }
                 $label = is_string($item) ? $item : (string) $item;
+
                 return ['id' => $label, 'name' => $label];
             })
             ->values();
@@ -230,12 +147,12 @@ class SettingService
             ->where('status', true)
             ->first();
 
-        if (!$setting) {
+        if (! $setting) {
             return collect();
         }
 
         $value = $setting->value;
-        if (!is_array($value)) {
+        if (! is_array($value)) {
             return collect();
         }
 
@@ -295,10 +212,12 @@ class SettingService
                 ->where('key', $candidate)
                 ->where('status', true)
                 ->first();
-            if ($setting) break;
+            if ($setting) {
+                break;
+            }
         }
 
-        if (!$setting) {
+        if (! $setting) {
             throw new \RuntimeException("No se encontró el catálogo '{$canonical}' en Settings.");
         }
 
@@ -345,9 +264,14 @@ class SettingService
             ->where('key', $key)
             ->where('status', true)
             ->first();
-        if (!$setting) return [];
+        if (! $setting) {
+            return [];
+        }
         $val = $setting->getAttribute('value');
-        if (!is_array($val)) return [];
+        if (! is_array($val)) {
+            return [];
+        }
+
         return array_values(array_filter($val, 'is_string'));
     }
 
@@ -364,9 +288,9 @@ class SettingService
             $setting->save();
         } else {
             Setting::create([
-                'key'    => $key,
-                'value'  => $clean,
-                'type'   => 'parameters',
+                'key' => $key,
+                'value' => $clean,
+                'type' => 'parameters',
                 'status' => true,
             ]);
         }
@@ -383,7 +307,7 @@ class SettingService
             ->where('status', true)
             ->first();
 
-        if (!$setting) {
+        if (! $setting) {
             return $default;
         }
 

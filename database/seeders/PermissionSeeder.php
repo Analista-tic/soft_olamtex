@@ -23,6 +23,11 @@ class PermissionSeeder extends Seeder
             'editar colores',
             'eliminar colores',
 
+            'ver nombres materiales',
+            'crear nombres materiales',
+            'editar nombres materiales',
+            'eliminar nombres materiales',
+
             'ver propios cotizaciones',
             'ver area cotizaciones',
             'ver todos cotizaciones',
