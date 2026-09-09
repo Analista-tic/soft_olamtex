@@ -19,6 +19,7 @@ import { Eye, PlusCircle, Search } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { useServerTable } from '@/composables/useServerTable';
 import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
 import type { Parameter, ParameterDeletionCheck, ParameterListQuery, ParameterStatusFilter } from '@/domain/MasterData';
 import {
@@ -41,10 +42,6 @@ type ParameterItem = ParameterDialogModel & {
 };
 
 /*-Variables reactivas-*/
-const itemsPerPage = ref(10);
-const totalItems = ref(0);
-const currentPage = ref(1);
-
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Datos maestros', href: '/parametros' },
     { title: 'Parámetros', href: '/parametros' },
@@ -61,7 +58,6 @@ const actionButtonClass =
     'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 const actionIconClass = 'h-4 w-4';
 
-const parameters = ref<ParameterItem[]>([]);
 const searchQuery = ref('');
 const statusFilter = ref<ParameterStatusFilter | null>(DEFAULT_STATUS_FILTER);
 
@@ -80,7 +76,6 @@ let dialogPreparationLoadingId: SmartLoadingTaskId | null = null;
 const smartLoading = useSmartLoading();
 
 const isSubmitting = ref(false);
-const isLoading = ref(false);
 
 const successMessage = ref('');
 const errorMessage = ref('');
@@ -206,27 +201,49 @@ function scheduleDialogPreparationFinish(token: number) {
     }, DIALOG_PREPARE_FINISH_DELAY_MS);
 }
 
-async function fetchParameters(page = 1) {
-    isLoading.value = true;
-    try {
+// El backend de parámetros no pagina server-side (ParameterService::list()
+// devuelve la colección completa) — sí soporta sort_by/sort_direction, que es
+// lo que esta pantalla necesitaba. El fetcher adapta esa respuesta al shape
+// {data, total, currentPage} que espera useServerTable; total/currentPage
+// quedan derivados de la colección completa, igual que se comportaba antes.
+const {
+    items: parameters,
+    totalItems,
+    currentPage,
+    pageSize: itemsPerPage,
+    isLoading,
+    sortBy,
+    sortDir,
+    toggleSort,
+    fetchPage: fetchParametersPage,
+} = useServerTable<ParameterItem>({
+    defaultSortBy: 'label',
+    defaultSortDir: 'asc',
+    fetcher: async (params) => {
         const status = normalizeStatusFilter(statusFilter.value);
         const response = await getParameters({
-            page,
-            per_page: itemsPerPage.value,
             search: searchQuery.value.trim() || undefined,
             status,
+            sort_by: params.sort_by === 'key' ? 'key' : 'label',
+            sort_direction: params.sort_dir,
         });
 
         const rows = Array.isArray(response.data?.data) ? response.data.data : [];
-        parameters.value = rows.map(toParameterItem);
 
-        totalItems.value = Number(response.data?.total ?? rows.length);
-        currentPage.value = response.data?.current_page ?? page;
+        return {
+            data: rows.map(toParameterItem),
+            total: rows.length,
+            currentPage: 1,
+        };
+    },
+});
+
+async function fetchParameters(page = 1) {
+    try {
+        await fetchParametersPage(page);
     } catch (error: any) {
         setError(error?.response?.data?.message ?? 'No se pudieron cargar los parámetros.');
         totalItems.value = 0;
-    } finally {
-        isLoading.value = false;
     }
 }
 
@@ -525,7 +542,19 @@ onBeforeUnmount(() => {
                     <Table class="text-center">
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Nombre</TableHead>
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('label')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Nombre
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'label'">
+                                                {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
                                 <TableHead>Descripción</TableHead>
                                 <TableHead>Valor</TableHead>
                                 <TableHead class="w-[140px] text-center">Estado</TableHead>
