@@ -169,7 +169,13 @@ const filteredOptions = computed(() => {
     if (!term) {
         return props.options;
     }
-    return props.options.filter((option) => option.name.toLowerCase().includes(term));
+    // Busca en option.name y en la etiqueta mostrada (labelOf). Sin getOptionLabel
+    // ambas son el mismo texto, así que no cambia nada para los usos existentes.
+    // Con getOptionLabel (ej. "MILE (ALGODÓN)" con name="MILE"), antes buscar
+    // "algodón" no encontraba nada porque solo se comparaba contra name.
+    return props.options.filter(
+        (option) => option.name.toLowerCase().includes(term) || labelOf(option).toLowerCase().includes(term),
+    );
 });
 
 const groupedOptions = computed(() => {

@@ -3,7 +3,7 @@ import { DialogContent, DialogDescription, DialogTitle } from '@/components/ui/d
 import { cn } from '@/lib/utils';
 import { computed, type HTMLAttributes } from 'vue';
 
-type FormDialogSize = 'sm' | 'md' | 'lg';
+type FormDialogSize = 'sm' | 'md' | 'lg' | 'xl';
 
 const props = withDefaults(
     defineProps<{
@@ -23,6 +23,7 @@ const sizeClasses: Record<FormDialogSize, string> = {
     sm: 'max-w-[560px]',
     md: 'max-w-[820px]',
     lg: 'max-w-[1120px]',
+    xl: 'max-w-[1320px]',
 };
 
 const contentClass = computed(() =>
