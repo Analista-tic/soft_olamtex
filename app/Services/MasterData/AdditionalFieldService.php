@@ -6,6 +6,7 @@ use App\Models\Settings\Setting;
 use App\Support\TextNormalizer;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
@@ -16,7 +17,7 @@ class AdditionalFieldService
     {
         $query = $this->fieldQuery();
 
-        if (!empty($filters['search'])) {
+        if (! empty($filters['search'])) {
             $search = $filters['search'];
             $query->where(function (Builder $builder) use ($search) {
                 $builder->where('label', 'like', "%{$search}%")
@@ -24,7 +25,7 @@ class AdditionalFieldService
             });
         }
 
-        if (!empty($filters['field_type'])) {
+        if (! empty($filters['field_type'])) {
             $types = is_array($filters['field_type']) ? $filters['field_type'] : [$filters['field_type']];
             $query->whereIn('field_type', $types);
         }
@@ -33,25 +34,39 @@ class AdditionalFieldService
             $query->where('status', (bool) $filters['status']);
         }
 
-        return $query->orderBy('position', 'asc')->paginate($perPage);
+        return $query->with('categorySubGroups:id,name')->orderBy('position', 'asc')->paginate($perPage);
     }
 
     public function find(int $id): Setting
     {
-        return $this->fieldQuery()->findOrFail($id);
+        return $this->fieldQuery()->with('categorySubGroups:id')->findOrFail($id);
     }
 
     public function create(array $data): Setting
     {
         $payload = $this->preparePayload($data, true);
-        return Setting::create($payload);
+        $field = Setting::create($payload);
+        $this->syncCategorySubGroups($field, $data);
+
+        return $field;
     }
 
     public function update(Setting $field, array $data): Setting
     {
         $payload = $this->preparePayload($data, false, $field);
         $field->update($payload);
+        $this->syncCategorySubGroups($field, $data);
+
         return $field;
+    }
+
+    protected function syncCategorySubGroups(Setting $field, array $data): void
+    {
+        if (! array_key_exists('category_sub_group_ids', $data)) {
+            return;
+        }
+
+        $field->categorySubGroups()->sync(array_filter((array) $data['category_sub_group_ids']));
     }
 
     public function delete(Setting $field): void
@@ -69,27 +84,78 @@ class AdditionalFieldService
     }
 
     public const OPTIONS_CACHE_KEY = 'additional_fields_options';
+
     public const OPTIONS_CACHE_TTL = 3600; // 1 hora
 
-    public function options(): Collection
+    public function options(?int $categorySubGroupId = null): Collection
     {
-        return Cache::remember(self::OPTIONS_CACHE_KEY, self::OPTIONS_CACHE_TTL, function () {
+        $fields = Cache::remember(self::OPTIONS_CACHE_KEY, self::OPTIONS_CACHE_TTL, function () {
             return $this->fieldQuery()
                 ->where('status', true)
                 ->orderBy('position', 'asc')
-                ->get(['id', 'label', 'field_type', 'options', 'default_value', 'description', 'is_required', 'position'])
-                ->map(fn(Setting $field) => [
-                    'id'            => $field->id,
-                    'name'          => $field->label,
-                    'label'         => $field->label,
-                    'field_type'    => $field->field_type,
-                    'options'       => $field->options,
+                ->with('categorySubGroups:id')
+                ->get(['id', 'label', 'field_type', 'options', 'source_type', 'catalog_key', 'default_value', 'description', 'is_required', 'position'])
+                ->map(fn (Setting $field) => [
+                    'id' => $field->id,
+                    'name' => $field->label,
+                    'label' => $field->label,
+                    'field_type' => $field->field_type,
+                    'options' => $field->options,
+                    'source_type' => $field->source_type,
+                    'catalog_key' => $field->catalog_key,
                     'default_value' => $field->default_value,
-                    'description'   => $field->description,
-                    'is_required'   => $field->is_required,
-                    'position'      => $field->position,
+                    'description' => $field->description,
+                    'is_required' => $field->is_required,
+                    'position' => $field->position,
+                    'category_sub_group_ids' => $field->categorySubGroups->pluck('id')->all(),
                 ]);
         });
+
+        // Las opciones de un campo de catálogo se resuelven en vivo, fuera del cache de
+        // definiciones: un FabricName creado después de que este cache se llenó debe
+        // aparecer igual, sin esperar a que expire ni tocar el campo para invalidarlo.
+        $fields = $fields->map(function (array $field) {
+            if (($field['source_type'] ?? Setting::SOURCE_TYPE_LIST) === Setting::SOURCE_TYPE_CATALOG && $field['catalog_key']) {
+                $field['options'] = $this->resolveCatalogOptions($field['catalog_key']);
+            }
+
+            return $field;
+        });
+
+        if ($categorySubGroupId === null) {
+            return $fields;
+        }
+
+        return $fields->filter(function (array $field) use ($categorySubGroupId) {
+            $ids = $field['category_sub_group_ids'] ?? [];
+
+            return empty($ids) || in_array($categorySubGroupId, $ids, true);
+        })->values();
+    }
+
+    public function resolveCatalogOptions(string $catalogKey): array
+    {
+        $catalog = config("additional_field_catalogs.{$catalogKey}");
+
+        if (! $catalog || ! is_subclass_of($catalog['model'], Model::class)) {
+            return [];
+        }
+
+        /** @var Model $modelClass */
+        $modelClass = $catalog['model'];
+        $query = $modelClass::query();
+
+        if (! empty($catalog['active_scope'])) {
+            $query->{$catalog['active_scope']}();
+        }
+
+        return $query
+            ->orderBy($catalog['value_column'])
+            ->pluck($catalog['value_column'])
+            ->filter(fn ($value) => is_string($value) && trim($value) !== '')
+            ->unique()
+            ->values()
+            ->all();
     }
 
     public function clearOptionsCache(): void
@@ -103,8 +169,8 @@ class AdditionalFieldService
             ->where('status', true)
             ->orderBy('position', 'asc')
             ->pluck('label')
-            ->map(fn($label) => is_string($label) ? trim($label) : '')
-            ->filter(fn($label) => $label !== '')
+            ->map(fn ($label) => is_string($label) ? trim($label) : '')
+            ->filter(fn ($label) => $label !== '')
             ->unique()
             ->values()
             ->toArray();
@@ -117,12 +183,19 @@ class AdditionalFieldService
 
     protected function preparePayload(array $data, bool $isNew, ?Setting $field = null): array
     {
+        $sourceType = $data['source_type'] ?? Setting::SOURCE_TYPE_LIST;
+        $isCatalogSourced = $sourceType === Setting::SOURCE_TYPE_CATALOG;
+
         $payload = [
             'kind' => Setting::KIND_FIELD,
             'key' => $this->determineKey($data, $field),
             'label' => $data['name'],
             'field_type' => $data['field_type'],
-            'options' => $this->normalizeOptions($data['options'] ?? null),
+            // Un campo de catálogo no guarda lista manual: sus opciones se resuelven en
+            // vivo desde el catálogo (ver options()/resolveCatalogOptions()).
+            'options' => $isCatalogSourced ? null : $this->normalizeOptions($data['options'] ?? null),
+            'source_type' => $sourceType,
+            'catalog_key' => $isCatalogSourced ? ($data['catalog_key'] ?? null) : null,
             'default_value' => $this->normalizeDefaultValue($data['default_value'] ?? null, $data['field_type'] ?? null),
             'description' => $data['description'] ?? null,
             'is_required' => array_key_exists('is_required', $data)
@@ -145,11 +218,11 @@ class AdditionalFieldService
 
     protected function determineKey(array $data, ?Setting $field): string
     {
-        if (!empty($data['key'])) {
+        if (! empty($data['key'])) {
             return Str::slug($data['key']);
         }
 
-        if (!empty($data['name'])) {
+        if (! empty($data['name'])) {
             return Str::slug($data['name']);
         }
 
@@ -157,7 +230,7 @@ class AdditionalFieldService
             return $field->key;
         }
 
-        return 'field-' . Str::random(6);
+        return 'field-'.Str::random(6);
     }
 
     protected function normalizeOptions(mixed $options): ?array
@@ -171,7 +244,7 @@ class AdditionalFieldService
             }
         }
 
-        if (!is_array($options)) {
+        if (! is_array($options)) {
             return null;
         }
 

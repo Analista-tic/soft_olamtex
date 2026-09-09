@@ -15,6 +15,7 @@ use Inertia\Inertia;
 
 // === LOOKUPS DE CATALOGOS PARA REFERENCIA ===
 Route::get('catalogos/campos-adicionales/options', [AdditionalFieldController::class, 'options'])->name('catalogos.additional-fields.options');
+Route::get('catalogos/campos-adicionales/fuentes', [AdditionalFieldController::class, 'catalogSources'])->name('catalogos.additional-fields.catalog-sources');
 
 // === UBICACIONES DE BODEGA ===
 Route::prefix('ubicaciones-bodega')->name('warehouse-locations.')->group(function () {

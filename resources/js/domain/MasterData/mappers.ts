@@ -56,11 +56,23 @@ export function normalizeBooleanFlag(value: unknown, fallback = false): boolean 
     return fallback;
 }
 
+function extractCategorySubGroupIds(field?: Partial<AdditionalField> | null): number[] {
+    if (Array.isArray(field?.category_sub_group_ids)) {
+        return field.category_sub_group_ids.map((id) => Number(id));
+    }
+    if (Array.isArray(field?.category_sub_groups)) {
+        return field.category_sub_groups.map((sg) => Number(sg.id));
+    }
+    return [];
+}
+
 export function mapAdditionalFieldToDialogForm(field?: Partial<AdditionalField> | null): AdditionalFieldDialogFormState {
     return {
         name: field?.name ?? '',
         field_type: field?.field_type ?? 'text',
         options: Array.isArray(field?.options) ? field.options : [],
+        source_type: field?.source_type ?? 'list',
+        catalog_key: field?.catalog_key ?? null,
         default_value: String(field?.default_value ?? ''),
         description: field?.description ?? '',
         is_required: normalizeBooleanFlag(field?.is_required, false),
@@ -69,6 +81,7 @@ export function mapAdditionalFieldToDialogForm(field?: Partial<AdditionalField> 
         position: field?.position,
         created_at: field?.created_at,
         updated_at: field?.updated_at,
+        category_sub_group_ids: extractCategorySubGroupIds(field),
     };
 }
 
@@ -78,6 +91,8 @@ export function mapAdditionalFieldRecord(field?: (Partial<AdditionalField> & { l
         name: field?.name ?? field?.label ?? '',
         field_type: field?.field_type ?? 'text',
         options: Array.isArray(field?.options) ? field.options : [],
+        source_type: field?.source_type ?? 'list',
+        catalog_key: field?.catalog_key ?? null,
         default_value: field?.default_value ?? '',
         description: field?.description ?? '',
         is_required: normalizeBooleanFlag(field?.is_required, false),
@@ -85,6 +100,8 @@ export function mapAdditionalFieldRecord(field?: (Partial<AdditionalField> & { l
         position: field?.position,
         created_at: field?.created_at,
         updated_at: field?.updated_at,
+        category_sub_group_ids: extractCategorySubGroupIds(field),
+        category_sub_groups: Array.isArray(field?.category_sub_groups) ? field.category_sub_groups : undefined,
     };
 }
 

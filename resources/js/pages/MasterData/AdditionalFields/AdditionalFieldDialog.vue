@@ -15,8 +15,48 @@ import { Label } from '@/components/ui/label';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { mapAdditionalFieldToDialogForm } from '@/domain/MasterData';
 import type { AdditionalField, AdditionalFieldDialogFormState, AdditionalFieldPayload, AdditionalFieldType } from '@/domain/MasterData';
+import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
 import { normalizeChipDisplay, normalizeUniqueChipList } from '@/lib/textNormalizer';
-import { computed, nextTick, ref, watch } from 'vue';
+import axios from 'axios';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
+
+interface CategorySubGroupOption {
+    id: number;
+    name: string;
+}
+
+interface CatalogSourceOption {
+    id: string;
+    name: string;
+}
+
+const categorySubGroupOptions = ref<CategorySubGroupOption[]>([]);
+const catalogSourceOptions = ref<CatalogSourceOption[]>([]);
+
+async function fetchCategorySubGroupOptions() {
+    try {
+        const { data } = await axios.get(catalogLookupRoutes.categorySubGroups, { params: { per_page: 1000 } });
+        categorySubGroupOptions.value = (data.data ?? []).map((sg: any) => ({ id: sg.id, name: sg.name }));
+    } catch (error) {
+        console.error('Error al obtener los subgrupos de categoría:', error);
+        categorySubGroupOptions.value = [];
+    }
+}
+
+async function fetchCatalogSourceOptions() {
+    try {
+        const { data } = await axios.get(catalogLookupRoutes.additionalFieldCatalogSources);
+        catalogSourceOptions.value = data.data ?? [];
+    } catch (error) {
+        console.error('Error al obtener los catálogos disponibles:', error);
+        catalogSourceOptions.value = [];
+    }
+}
+
+onMounted(() => {
+    fetchCategorySubGroupOptions();
+    fetchCatalogSourceOptions();
+});
 
 const fieldTypeOptions: Array<{ id: AdditionalFieldType; name: string }> = [
     { id: 'text', name: 'Texto' },
@@ -25,6 +65,11 @@ const fieldTypeOptions: Array<{ id: AdditionalFieldType; name: string }> = [
     { id: 'date', name: 'Fecha' },
     { id: 'boolean', name: 'Si/No' },
     { id: 'select', name: 'Lista de opciones' },
+];
+
+const originOptions: Array<{ id: 'list' | 'catalog'; name: string }> = [
+    { id: 'list', name: 'Lista escrita a mano' },
+    { id: 'catalog', name: 'Catálogo del sistema' },
 ];
 
 const props = defineProps<{
@@ -46,10 +91,13 @@ const defaultForm: AdditionalFieldDialogFormState = {
     name: '',
     field_type: 'text',
     options: [],
+    source_type: 'list',
+    catalog_key: null,
     default_value: '',
     description: '',
     is_required: false,
     status: true,
+    category_sub_group_ids: [],
 };
 
 const localForm = ref<AdditionalFieldDialogFormState>({
@@ -62,8 +110,9 @@ const formError = ref('');
 const shouldEmitLoadingState = computed(() => props.open && isInitializingDialog.value);
 
 const isSelectField = computed(() => localForm.value.field_type === 'select');
+const isCatalogSourced = computed(() => isSelectField.value && localForm.value.source_type === 'catalog');
 const defaultValueOptions = computed(() => {
-    if (!isSelectField.value) {
+    if (!isSelectField.value || isCatalogSourced.value) {
         return [];
     }
 
@@ -105,6 +154,8 @@ watch(
     (value) => {
         if (value !== 'select') {
             localOptions.value = [];
+            localForm.value.source_type = 'list';
+            localForm.value.catalog_key = null;
         }
     },
     { immediate: true },
@@ -161,10 +212,13 @@ function buildPayload(preparedOptions: string[]): AdditionalFieldPayload {
         label,
         field_type: localForm.value.field_type,
         options: preparedOptions.length ? preparedOptions : undefined,
+        source_type: isSelectField.value ? (localForm.value.source_type ?? 'list') : undefined,
+        catalog_key: isCatalogSourced.value ? localForm.value.catalog_key : null,
         default_value: localForm.value.default_value ?? undefined,
         is_required: localForm.value.is_required,
         status: localForm.value.status,
         position: localForm.value.position ?? props.form?.position,
+        category_sub_group_ids: localForm.value.category_sub_group_ids ?? [],
     };
 
     if (generatedKey) {
@@ -175,10 +229,15 @@ function buildPayload(preparedOptions: string[]): AdditionalFieldPayload {
 }
 
 function handleSubmit() {
-    const preparedOptions = isSelectField.value ? normalizeUniqueChipList(localOptions.value, undefined, 'title-case') : [];
+    const preparedOptions = isSelectField.value && !isCatalogSourced.value ? normalizeUniqueChipList(localOptions.value, undefined, 'title-case') : [];
 
-    if (isSelectField.value && preparedOptions.length === 0) {
+    if (isSelectField.value && !isCatalogSourced.value && preparedOptions.length === 0) {
         formError.value = 'Debe agregar al menos una opción para los campos de tipo lista.';
+        return;
+    }
+
+    if (isCatalogSourced.value && !localForm.value.catalog_key) {
+        formError.value = 'Debe seleccionar el catálogo del que vendrán las opciones.';
         return;
     }
 
@@ -275,7 +334,17 @@ function handleSubmit() {
                                 </div>
                             </div>
 
-                            <div v-if="isSelectField" class="space-y-2">
+                            <div v-if="isSelectField" class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <Label class="text-sm font-medium">Origen de las opciones</Label>
+                                    <HelpTooltip
+                                        text="Lista escrita a mano: tú defines los valores. Catálogo del sistema: las opciones se toman siempre actualizadas de otro catálogo (ej. nombres de tela)."
+                                    />
+                                </div>
+                                <SelectField v-model="localForm.source_type" :options="originOptions" option-label="name" option-value="id" required />
+                            </div>
+
+                            <div v-if="isSelectField && !isCatalogSourced" class="space-y-2">
                                 <ChipInputField
                                     v-model="localOptions"
                                     label="Valores"
@@ -286,7 +355,38 @@ function handleSubmit() {
                                 />
                             </div>
 
+                            <div v-if="isCatalogSourced" class="flex flex-col gap-1">
+                                <Label class="text-sm font-medium">Catálogo</Label>
+                                <SelectField
+                                    v-model="localForm.catalog_key"
+                                    :options="catalogSourceOptions"
+                                    option-label="name"
+                                    option-value="id"
+                                    placeholder="Selecciona un catálogo"
+                                    required
+                                />
+                                <p class="text-xs text-muted-foreground">
+                                    Las opciones se resuelven en vivo desde este catálogo: un valor nuevo aparece sin volver a editar este campo.
+                                </p>
+                            </div>
+
                             <p v-if="formError" class="text-sm text-red-600">{{ formError }}</p>
+
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <Label class="text-sm font-medium">Categorías</Label>
+                                    <HelpTooltip text="Restringe en qué subgrupos de categoría aparece este campo. Sin selección, el campo es global y aparece en todos los ítems." />
+                                </div>
+                                <SelectField
+                                    v-model="localForm.category_sub_group_ids"
+                                    label=""
+                                    multiple
+                                    :options="categorySubGroupOptions"
+                                    option-label="name"
+                                    option-value="id"
+                                    placeholder="Global (todas las categorías)"
+                                />
+                            </div>
 
                             <div class="my-2 h-px bg-slate-100" />
 

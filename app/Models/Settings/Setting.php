@@ -2,8 +2,10 @@
 
 namespace App\Models\Settings;
 
+use App\Models\MasterData\CategorySubGroup;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Str;
 
 class Setting extends Model
@@ -11,6 +13,7 @@ class Setting extends Model
     public const KEY_PATTERN = '/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/i';
 
     public const KIND_PARAMETER = 'parameter';
+
     public const KIND_FIELD = 'field';
 
     public const FIELD_TYPES = [
@@ -33,11 +36,17 @@ class Setting extends Model
         'value',
         'field_type',
         'options',
+        'source_type',
+        'catalog_key',
         'default_value',
         'is_required',
         'position',
         'status',
     ];
+
+    public const SOURCE_TYPE_LIST = 'list';
+
+    public const SOURCE_TYPE_CATALOG = 'catalog';
 
     protected $casts = [
         'value' => 'array',
@@ -62,6 +71,16 @@ class Setting extends Model
     public function scopeFields(Builder $query): Builder
     {
         return $query->where('kind', self::KIND_FIELD);
+    }
+
+    public function categorySubGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            CategorySubGroup::class,
+            'additional_field_category_sub_group',
+            'setting_id',
+            'category_sub_group_id',
+        );
     }
 
     protected static function booted(): void

@@ -24,6 +24,7 @@ class AdditionalFieldController extends Controller
     {
         $result = $this->service->create($request->validated());
         $this->service->clearOptionsCache();
+
         return $result;
     }
 
@@ -37,6 +38,7 @@ class AdditionalFieldController extends Controller
         $field = $this->service->find($id);
         $result = $this->service->update($field, $request->validated());
         $this->service->clearOptionsCache();
+
         return $result;
     }
 
@@ -74,11 +76,19 @@ class AdditionalFieldController extends Controller
         return response()->json($additionalFields);
     }
 
-    public function options()
+    public function options(Request $request)
     {
         return response()->json([
-            'data' => $this->service->options(),
+            'data' => $this->service->options($request->integer('category_sub_group_id') ?: null),
         ]);
     }
 
+    public function catalogSources()
+    {
+        $sources = collect(config('additional_field_catalogs', []))
+            ->map(fn (array $catalog, string $key) => ['id' => $key, 'name' => $catalog['label']])
+            ->values();
+
+        return response()->json(['data' => $sources]);
+    }
 }

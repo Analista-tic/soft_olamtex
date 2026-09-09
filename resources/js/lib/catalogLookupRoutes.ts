@@ -5,5 +5,6 @@ export const catalogLookupRoutes = {
     warehouses: '/bodegas/data',
     warehouseLocations: '/ubicaciones-bodega',
     additionalFields: '/catalogos/campos-adicionales/options',
+    additionalFieldCatalogSources: '/catalogos/campos-adicionales/fuentes',
     accountingAccounts: '/catalogos/cuentas-contables/options',
 } as const;

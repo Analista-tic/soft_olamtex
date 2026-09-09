@@ -464,20 +464,21 @@ onBeforeUnmount(() => {
                             <TableHead>Requerido</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead>Opciones</TableHead>
+                            <TableHead>Categorías</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <template v-if="isLoading">
                             <TableRow v-for="i in 5" :key="`additional-field-skeleton-${i}`">
-                                <TableCell v-for="col in 6" :key="`additional-field-skeleton-${i}-${col}`" class="px-4 py-3">
+                                <TableCell v-for="col in 7" :key="`additional-field-skeleton-${i}-${col}`" class="px-4 py-3">
                                     <Skeleton class="h-4 w-full" />
                                 </TableCell>
                             </TableRow>
                         </template>
                         <template v-else-if="!additionalFields.length">
                             <TableRow>
-                                <TableCell colspan="6">
+                                <TableCell colspan="7">
                                     <div class="py-6 text-center text-sm text-muted-foreground">No hay campos adicionales registrados.</div>
                                 </TableCell>
                             </TableRow>
@@ -508,6 +509,10 @@ onBeforeUnmount(() => {
                                     <TableStatusBadge :label="field.status ? 'Activo' : 'Inactivo'" :tone="field.status ? 'green' : 'red'" />
                                 </TableCell>
                                 <TableCell>{{ field.options?.length ?? 0 }}</TableCell>
+                                <TableCell>
+                                    <span v-if="!field.category_sub_groups?.length" class="text-xs text-muted-foreground">Global</span>
+                                    <span v-else class="text-xs">{{ field.category_sub_groups.map((sg) => sg.name).join(', ') }}</span>
+                                </TableCell>
                                 <TableCell class="flex justify-center gap-1">
                                     <EditButton :onClick="() => openDialog('edit', field)" />
                                     <DeleteButton @click="confirmDeleteField(field)" />
