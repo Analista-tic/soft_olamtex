@@ -3,7 +3,7 @@
 namespace App\Models\Textil;
 
 use App\Models\Inventory\InventoryMovement;
-use App\Models\User;
+use App\Models\Settings\User;
 use Illuminate\Database\Eloquent\Model;
 
 class FabricRollAdjustment extends Model
@@ -23,9 +23,9 @@ class FabricRollAdjustment extends Model
 
     protected $casts = [
         'quantity_before' => 'decimal:2',
-        'quantity_after'  => 'decimal:2',
-        'partial_before'  => 'decimal:2',
-        'partial_after'   => 'decimal:2',
+        'quantity_after' => 'decimal:2',
+        'partial_before' => 'decimal:2',
+        'partial_after' => 'decimal:2',
     ];
 
     public function roll()
