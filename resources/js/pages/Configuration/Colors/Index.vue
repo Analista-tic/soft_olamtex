@@ -69,15 +69,23 @@ const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
 const searchQuery = ref('');
+const sortBy = ref<'name' | 'description'>('name');
+const sortDir = ref<'asc' | 'desc'>('asc');
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 
 const filteredColors = computed(() => {
     const term = searchQuery.value.trim().toLowerCase();
-    if (!term) return allColors.value;
-    return allColors.value.filter((c) =>
-        c.name.toLowerCase().includes(term)
-    );
+    const base = !term ? allColors.value : allColors.value.filter((c) => c.name.toLowerCase().includes(term));
+
+    const column = sortBy.value;
+    const direction = sortDir.value === 'asc' ? 1 : -1;
+
+    return [...base].sort((a, b) => {
+        const left = String(a[column] ?? '').toLowerCase();
+        const right = String(b[column] ?? '').toLowerCase();
+        return left.localeCompare(right) * direction;
+    });
 });
 
 const totalItems = computed(() => filteredColors.value.length);
@@ -86,6 +94,17 @@ const paginatedColors = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage.value;
     return filteredColors.value.slice(start, start + itemsPerPage.value);
 });
+
+function toggleSort(column: 'name' | 'description') {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'asc';
+    }
+
+    currentPage.value = 1;
+}
 
 watch(searchQuery, () => {
     currentPage.value = 1;
@@ -238,9 +257,25 @@ onMounted(() => {
                     <TableHeader>
                         <TableRow>
                             <TableHead>N° Color</TableHead>
-                            <TableHead>Nombre</TableHead>
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('name')">
+                                <span class="inline-flex items-center gap-1">
+                                    Nombre
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'name'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                        <template v-else><span class="opacity-30">↕</span></template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Color</TableHead>
-                            <TableHead>Descripción</TableHead>
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('description')">
+                                <span class="inline-flex items-center gap-1">
+                                    Descripción
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'description'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                        <template v-else><span class="opacity-30">↕</span></template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
