@@ -946,6 +946,150 @@ o inventario.
 o documentos de compra y venta.
 • Una colección solo puede asignarse a fichas de producto — no tiene uso directo en
 compras, ventas ni inventario.
+• Los catálogos de material (bases y nombres de tela e hilaza) viven exclusivamente en
+las tablas relacionales fabric_bases, yarn_bases, fabric_names y yarn_names. La tabla
+settings (parámetros y campos adicionales) ya NO guarda ningún dato de material —
+las filas que lo hacían (parámetro "Telas", campo adicional "Base tela"/"Base hilaza",
+y las filas huérfanas "Bases de tela"/"Bases de hilaza") se archivaron en
+settings_archive y se eliminaron por duplicar esas tablas sin que ningún consumidor
+las leyera. Si en el futuro algo necesita restaurarlas, están en settings_archive con
+su contenido original.
+• El parámetro "Colores de tela" (fabric_colors) de settings también se eliminó (mismo
+mecanismo de archivo/reversión) por ser código muerto: ningún formulario del sistema
+lo consumía. El catálogo real de colores es el modelo Color (tabla colors), usado por
+items.color_id y el selector de color del formulario de ítems — ese no se tocó.
+• Las 4 tablas de material se mantienen separadas a propósito (fabric_bases/fabric_names
+por un lado, yarn_bases/yarn_names por otro) — no se unificaron en una sola tabla con
+el tipo como dato: eso habría hecho depender de código, en vez de la base de datos, que
+una hilaza nunca entre donde va una tela. Lo que sí se unificó es la gestión: una sola
+pantalla en Datos Maestros (antes las bases se editaban desde un diálogo dentro de
+Producción y los nombres en una pantalla aparte).
+• La pantalla única de catálogo de materiales pagina y permite buscar tanto bases como
+nombres (fabric_bases ya supera las 38 filas reales). La relación base→nombre se
+muestra haciendo clic en una fila de "Bases": la tabla de "Nombres" se filtra a solo
+los de esa base, con un botón "Ver todos" para quitar el filtro — no son tablas
+independientes sin relación visible, aunque siguen siendo dos tablas (no una sola
+anidada). El selector de base al crear un nombre siempre lista todas las bases
+activas, sin importar en qué página de la tabla esté el usuario.
+• El factor de una base de tela (afecta el cálculo del SAM) solo lo ve y edita el rol
+DISEÑO — permiso "ver factor material". Cualquier otro rol con acceso al catálogo de
+materiales ve la base y el nombre, nunca el factor: ni en la pantalla ni en la
+respuesta JSON del endpoint (se retira en el controlador antes de responder).
+• Crear una base de tela nueva exige indicar su factor — ya no existe ninguna vía
+(incluido el atajo desde el select de la Sábana de productos) que la cree con un
+factor de 1.0 por defecto en silencio.
+• Un subgrupo de categoría se clasifica como Tela o Hilaza mediante la columna
+category_sub_groups.material_kind, editable desde el diálogo de edición de subgrupos
+(Datos Maestros → Categorías). Antes esta clasificación vivía hardcodeada en
+config/master_data.php (ids de subgrupo fijos en un archivo PHP) — un cambio exigía
+editar código y desplegar. Ya no existe ese archivo. La clasificación se cachea
+(driver de caché de la app, no memoria de proceso) e invalida automáticamente al
+guardar un subgrupo.
+• El nombre de un ítem de tela o hilaza incluye ahora su material: subgrupo + base +
+nombre + extras + color (ej. "TELA ALGODÓN MILE AZUL REY"), sin paréntesis — el
+paréntesis solo aparece en el selector del formulario ("MILE (ALGODÓN)"), nunca en el
+nombre guardado. Hay un único punto que arma esta regla en el backend
+(ItemService::buildName(), usado tanto por el alta manual como por la carga masiva) y
+su espejo en el frontend (ItemFormContent.vue, solo como previsualización — el nombre
+real siempre lo decide el backend al guardar). El factor de la base no aparece en
+ningún nombre ni en el selector salvo para el rol con el permiso "ver factor material".
+• Al migrar un ítem del texto libre histórico (extra_fields, ej. "Base tela") a su FK
+real (fabric_name_id), el valor original no se borra ni queda duplicado: se mueve a
+extra_fields._legacy, una clave reservada que el nombre del ítem y el formulario
+ignoran siempre.
+• Al crear un ítem manualmente se elige entre referencia Automática o Manual. Manual
+es el campo de texto de siempre, con la misma validación de unicidad. Automática
+genera consecutivo(5 dígitos) + código del grupo(2) + código del subgrupo(2) +
+código del color(3) — necesita que el grupo, el subgrupo y el color del ítem tengan
+su código de 2 (grupo/subgrupo) o 3 (color) dígitos asignado; si falta alguno, el
+sistema lo rechaza explicando cuál falta en vez de generar algo incompleto. El
+código de grupo/subgrupo se asigna desde Datos Maestros → Categorías (editar grupo:
+botón junto al filtro "Grupo"; editar subgrupo: mismo diálogo de siempre). El
+consecutivo es atómico (misma tabla de secuencias que usan cotizaciones, pedidos y
+facturas) — no se repite aunque dos personas guarden a la vez. Editar un ítem ya
+creado **nunca** regenera su referencia, sin importar cómo se creó originalmente.
+Este toggle es independiente del patrón ref-color-talla que ya usan los productos
+terminados generados desde curvas de remisión — ese flujo no cambió.
+• Cambiar el factor de una base de tela desde el catálogo de materiales ya no queda en
+silencio: el sistema repropaga el nuevo factor a todo lo que depende de él. La UI pide
+confirmación explícita antes de guardar, mostrando cuántas fichas y operaciones se
+verían afectadas.
+   • Fichas técnicas (listados de operaciones): se recalculan siempre, sin excepción —
+   son plantilla, no tienen concepto de avance.
+   • Operaciones de órdenes de producción ya generadas: se recalculan SOLO si no
+   tienen avance reportado (cantidad avanzada en 0/nulo y sin fecha de avance). Una
+   operación con avance conserva el factor y el SAM con los que se midió ese trabajo —
+   cambiarlo falsearía la eficiencia histórica ya registrada.
+   • ⚠ Consecuencia importante para quien lea un informe de SAM: una misma orden de
+   producción puede quedar con algunas operaciones al factor viejo (las que ya
+   tenían avance cuando se cambió la base) y otras al factor nuevo (las que no lo
+   tenían). No es un error de datos — es el resultado esperado de recalcular por
+   operación, no por orden completa.
+   • Cada operación recalculada queda en el historial de la operación
+   (technical_sheet_operation_history) con el valor anterior y el nuevo, quién hizo
+   el cambio de factor y en qué base.
+• Un campo adicional de tipo "Lista de opciones" puede tomar sus valores de dos
+orígenes: una lista escrita a mano (como siempre) o un catálogo del sistema. Con
+origen de catálogo, las opciones que ve el usuario se resuelven en vivo contra la
+tabla del catálogo cada vez que se abre el formulario del ítem — nunca quedan
+guardadas como lista fija en el campo, así que un valor nuevo en el catálogo (ej. un
+nombre de tela agregado en Datos Maestros → Catálogo de materiales) aparece de
+inmediato sin editar el campo adicional. El registro de qué catálogos están
+disponibles vive en config/additional_field_catalogs.php (hoy: nombres de tela,
+nombres de hilaza, colores) — agregar uno nuevo ahí es lo único que hace falta para
+ofrecerlo en el selector de origen. El valor que finalmente se guarda en
+items.extra_fields sigue siendo texto plano en ambos casos: ningún consumidor de ese
+campo (exportación/importación de Excel, generación del nombre del ítem, migración
+de datos legados) distingue de dónde vino la opción.
+
+Decisiones de diseño descartadas para el catálogo de materiales (para que el próximo
+desarrollador no las reintente creyendo que fue un descuido):
+• Unificar fabric_bases/fabric_names y yarn_bases/yarn_names en un catálogo maestro
+único con el tipo de material como dato (material_types + material_bases +
+material_names). Rechazada por tres motivos concretos: (a) hoy product_sheets.
+fabric_base_id apunta a fabric_bases y el motor de base de datos garantiza que ahí
+no puede entrar una hilaza — con una tabla única esa garantía desaparece y pasa a
+depender de una validación en código; (b) obligaría a que factor sea nullable con
+una validación condicional ("obligatorio solo si el tipo lo usa"), cuando hoy la
+estructura documenta sola la regla: fabric_bases tiene factor, yarn_bases no; (c) el
+beneficio ("un tipo nuevo sin programar") es especulativo — en toda la historia del
+sistema han existido dos tipos, tela e hilaza. Se pagaba complejidad cierta hoy por
+flexibilidad hipotética. Si algún día entra un tercer tipo real de material (hilo,
+cierre…), esta decisión se reevalúa entonces con el caso concreto sobre la mesa, no
+antes — el costo de cambiar más adelante es acotado porque MaterialClassifier ya
+centraliza la pregunta de clasificación.
+• Formulario de ítem generado 100% desde metadata (con storage, storage_column,
+render_hint, name_position…). Rechazada por deuda técnica: ~8 dimensiones de
+configuración que no se documentan en una página, con alto riesgo de que el
+siguiente desarrollador no las entienda y vuelva a hardcodear. La regla que queda es
+explicable en una frase: un ítem tiene campos propios (referencia, color, tela/
+hilaza según su categoría) y campos adicionales configurables, cuyas opciones se
+escriben a mano o vienen de un catálogo del sistema (ver arriba). Si el nombre del
+ítem necesitara componerse distinto por categoría (que Tela arme su nombre diferente
+a Prenda, por ejemplo), ahí sí haría falta esa metadata de orden — hoy la regla es
+única para todo el sistema.
+• Un ítem puede tener legacy_code: el identificador con el que existía en el sistema
+anterior, guardado tal cual para trazabilidad (no es único ni se valida contra nada —
+el sistema anterior podía repetirlo o dejarlo vacío). Se ve en el formulario de ítem
+como campo de solo lectura (nunca aparece al crear uno nuevo, porque un ítem nuevo no
+tiene código anterior) y tiene su propia columna "CÓDIGO SISTEMA ANTERIOR" en la
+plantilla y exportación de Excel.
+• La carga masiva de ítems empareja cada fila con un ítem existente de dos formas: por
+N° ITEM (si el archivo viene de una exportación previa, como siempre) o, si esa
+columna no está o viene vacía, por legacy_code. Esto permite reimportar un Excel
+proveniente del sistema anterior (que nunca tuvo N° ITEM de este sistema) y que
+actualice los ítems ya migrados en vez de duplicarlos.
+• Por defecto, reimportar sigue actualizando todos los campos reconocidos de una fila
+que hace match (comportamiento de siempre, sin cambios). Opcionalmente, desde el
+diálogo de carga masiva, se puede activar un checklist que restringe la corrida a
+tocar solo los campos marcados (ej. actualizar solo el stock de bodega, sin arriesgar
+sobrescribir nombre/descripción/color con datos desactualizados del archivo). Esta
+restricción solo aplica a filas que actualizan un ítem existente — un ítem nuevo
+siempre se crea con todos los datos de su fila, sin excepción. La lista de campos
+seleccionables es fija (no hay un mapeador de columnas configurable): son los mismos
+que ya reconoce el importador, agrupados donde comparten un mismo dato de fondo (ej.
+bodega+precio+cantidad+mínimo+máximo van juntos porque son un único registro de stock
+por bodega).
 4.2.6 Pantallas / endpoints relevantes
 Pantalla / Endpoint
 Descripción
@@ -1300,6 +1444,41 @@ Los estados de la entidad InventoryRequest son tres:
    movimientos con fecha dentro del período bloqueado.
    • Una solicitud rechazada debe registrar obligatoriamente el motivo del rechazo
    (rejection_reason) y el usuario que rechazó (rejected_by_user_id).
+
+   Reglas específicas de rollos de tela (fabric_rolls):
+   • El número de rollo se reserva de forma atómica en el momento de guardar, desde la
+   tabla roll_number_sequences. El número que muestra el formulario antes de guardar es
+   solo un preview: si otro usuario se adelanta y lo ocupa, el sistema asigna el siguiente
+   de la secuencia en vez de fallar. Un número escrito manualmente se respeta tal cual.
+   • Los importadores nunca descartan filas en silencio. Todo rollo duplicado —dentro del
+   archivo o ya existente en el sistema— se reporta como error por fila, indicando el
+   número de rollo. Antes solo se sumaba a un contador de "omitidos" sin explicar la causa,
+   mezclado con filas vacías y cantidades inválidas.
+   • La importación de cantidades rechaza el archivo completo si un mismo número de rollo
+   aparece en más de una fila, nombrando las filas implicadas. Procesarlo dos veces
+   generaría dos ajustes y dos movimientos de kardex sobre el mismo rollo, con el segundo
+   delta calculado sobre el resultado del primero: saldos contradictorios.
+   • Los rollos con sufijo -DUP1 / -DUP2 son históricos: el mismo rollo físico registrado
+   dos veces por colisiones en migraciones antiguas. El comando
+   inventory:check-fabric-integrity los lista para revisión manual, pero no los consolida
+   automáticamente — fusionarlos exige decidir qué pasa con su inventario y sus
+   movimientos, y si dos no eran realmente el mismo rollo se perdería trazabilidad.
+   • La programación de rollos que hace Diseño en cada ficha técnica (rollo, tela, metros
+   programados) vive en la tabla fabric_roll_programming_lines — ya no en un JSON dentro
+   de technical_sheet_rolls. La columna JSON (lines) que servía de respaldo ya se eliminó
+   (migración de limpieza ejecutada tras verificar en producción que la tabla nueva
+   coincidía exactamente: mismo conteo de líneas y misma suma de metros programados que
+   el JSON). TechnicalDataSheetRollsStore sigue siendo el único punto de
+   lectura/escritura de esa programación — nada más debe leer technical_sheet_rolls.lines
+   directamente ni fabric_roll_programming_lines por fuera del store, para no volver a
+   quedar con datos desactualizados como pasó con 5 consumidores (PDF de ficha técnica,
+   reseteo de programación, diálogo de consumo de rollos en Corte, entre otros) que leían
+   el JSON directamente antes de esta normalización.
+   • Pantalla nueva "Programación de rollos" (Kardex de Telas → Inventario Textil) cruza
+   esa programación con production_roll_consumptions (consumo real registrado por Corte)
+   para mostrar, por línea: programado, disponible, consumido real y diferencia — el
+   control que antes no existía para que Diseño vea de un vistazo si lo programado
+   coincide con lo que Corte realmente usó.
    4.5.6 Pantallas / endpoints relevantes
    Pantalla / Endpoint
    Descripción
