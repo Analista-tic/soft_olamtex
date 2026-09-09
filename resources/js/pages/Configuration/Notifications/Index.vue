@@ -585,7 +585,7 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
                         :sibling-count="1"
                         show-edges
                         :default-page="currentPage"
-                        @page-changed="fetchNotifications"
+                        @update:page="fetchNotifications"
                     >
                         <PaginationList v-slot="{ items }" class="flex items-center gap-1">
                             <PaginationFirst />

@@ -5,14 +5,8 @@ namespace App\Services\Settings;
 use App\Models\Settings\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Collection;
 class UserService
 {
-    public function listAll(): Collection
-    {
-        return User::with('roles.permissions')->get();
-    }
-
     public function findOrFail($id): User
     {
         return User::with('roles.permissions')->findOrFail($id);

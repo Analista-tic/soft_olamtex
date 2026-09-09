@@ -375,7 +375,7 @@ onMounted(async () => {
                     :sibling-count="1"
                     show-edges
                     :default-page="currentPage"
-                    @page-changed="fetchUsers"
+                    @update:page="fetchUsers"
                 >
                     <PaginationList v-slot="{ items }" class="flex items-center gap-1">
                         <PaginationFirst />

@@ -287,7 +287,7 @@ onMounted(async () => {
                     :sibling-count="1"
                     show-edges
                     v-model:current-page="currentPage"
-                    @page-changed="handlePageChange"
+                    @update:page="handlePageChange"
                 >
                     <PaginationList v-slot="{ items }" class="flex items-center gap-1">
                         <PaginationFirst />
