@@ -45,6 +45,8 @@ const itemsPerPage = ref(10);
 const totalItems = ref(0);
 const searchQuery = ref('');
 const isLoading = ref(false);
+const sortBy = ref<string>('id');
+const sortDir = ref<'asc' | 'desc'>('desc');
 const actionButtonClass =
     'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 const actionIconClass = 'h-4 w-4';
@@ -154,11 +156,22 @@ async function handleDialogSubmit(warehouseData: Warehouse) {
     }
 }
 
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'asc';
+    }
+
+    void fetchWarehouses(1, searchQuery.value);
+}
+
 async function fetchWarehouses(page = 1, search = '') {
     isLoading.value = true;
     try {
         const response = await axios.get('/bodegas/data', {
-            params: { page, per_page: itemsPerPage.value, search },
+            params: { page, per_page: itemsPerPage.value, search, sort_by: sortBy.value, sort_direction: sortDir.value },
         });
         warehouses.value = response.data.data;
         totalItems.value = response.data.total;
@@ -244,8 +257,24 @@ onMounted(async () => {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>N° Bodegas</TableHead>
-                                <TableHead>Nombre</TableHead>
-                                <TableHead>Observación</TableHead>
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('name')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Nombre
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'name'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('observation')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Observación
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'observation'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
+                                    </span>
+                                </TableHead>
                                 <TableHead class="text-center">Acciones</TableHead>
                             </TableRow>
                         </TableHeader>

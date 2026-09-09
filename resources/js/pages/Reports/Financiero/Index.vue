@@ -32,12 +32,22 @@ const printDate = ref('');
 
 const docs = ref<any[]>([]);
 const summary = ref({ total_docs: 0, pendientes: 0, aprobados: 0 });
+const sortBy = ref<string>('');
+const sortDir = ref<'asc' | 'desc'>('desc');
 
 async function fetchData() {
     isLoading.value = true;
     try {
         const { data } = await axios.get('/informes/financiero/data', {
-            params: { search: search.value || undefined, date_from: dateFrom.value || undefined, date_to: dateTo.value || undefined, page: currentPage.value, per_page: itemsPerPage.value },
+            params: {
+                search: search.value || undefined,
+                date_from: dateFrom.value || undefined,
+                date_to: dateTo.value || undefined,
+                page: currentPage.value,
+                per_page: itemsPerPage.value,
+                sort_by: sortBy.value || undefined,
+                sort_direction: sortBy.value ? sortDir.value : undefined,
+            },
         });
         docs.value = data.data.data;
         totalItems.value = data.data.total;
@@ -45,6 +55,18 @@ async function fetchData() {
     } finally {
         isLoading.value = false;
     }
+}
+
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+
+    currentPage.value = 1;
+    fetchData();
 }
 
 watch([currentPage, itemsPerPage, dateFrom, dateTo], () => { currentPage.value = 1; fetchData(); });
@@ -172,11 +194,35 @@ const docTypeLabel = (type: string) => {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>N° Documento</TableHead>
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('document_number')">
+                                    <span class="inline-flex items-center gap-1">
+                                        N° Documento
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'document_number'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
+                                    </span>
+                                </TableHead>
                                 <TableHead>Tipo</TableHead>
                                 <TableHead>Proveedor</TableHead>
-                                <TableHead>Fecha</TableHead>
-                                <TableHead>Estado</TableHead>
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('date')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Fecha
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'date'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('status')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Estado
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'status'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
+                                    </span>
+                                </TableHead>
                                 <TableHead>Aprobación</TableHead>
                             </TableRow>
                         </TableHeader>

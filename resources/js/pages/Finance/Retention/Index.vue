@@ -52,6 +52,8 @@ const itemsPerPage = ref(10);
 const totalItems = ref(0);
 const searchQuery = ref('');
 const isLoading = ref(false);
+const sortBy = ref<string>('');
+const sortDir = ref<'asc' | 'desc'>('asc');
 const DEFAULT_FILTER_VALUE: null = null;
 const typeFilter = ref<string | null>(DEFAULT_FILTER_VALUE);
 const statusFilter = ref<RetentionStatus | null>(DEFAULT_FILTER_VALUE);
@@ -140,6 +142,8 @@ async function fetchRetentions(page = 1, search = '') {
             search,
             type: typeFilter.value !== DEFAULT_FILTER_VALUE ? typeFilter.value : undefined,
             status: statusParam,
+            sort_by: sortBy.value || undefined,
+            sort_direction: sortBy.value ? sortDir.value : undefined,
         });
         retentions.value = data.data;
         totalItems.value = Number(data.total ?? retentions.value.length);
@@ -153,9 +157,15 @@ async function fetchRetentions(page = 1, search = '') {
     }
 }
 
-function handlePageChange(newPage: number) {
-    currentPage.value = newPage;
-    fetchRetentions(newPage, searchQuery.value);
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'asc';
+    }
+
+    void fetchRetentions(1, searchQuery.value);
 }
 
 watch([searchQuery, typeFilter, statusFilter], ([search]) => {
@@ -225,8 +235,24 @@ onMounted(() => fetchRetentions());
                     <TableHeader>
                         <TableRow>
                             <TableHead>N° Retención</TableHead>
-                            <TableHead>Nombre</TableHead>
-                            <TableHead>Porcentaje</TableHead>
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('name')">
+                                <span class="inline-flex items-center gap-1">
+                                    Nombre
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'name'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                        <template v-else><span class="opacity-30">↕</span></template>
+                                    </span>
+                                </span>
+                            </TableHead>
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('percent')">
+                                <span class="inline-flex items-center gap-1">
+                                    Porcentaje
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'percent'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                        <template v-else><span class="opacity-30">↕</span></template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Tipo</TableHead>
                             <TableHead>Descripción</TableHead>
                             <TableHead>Estado</TableHead>

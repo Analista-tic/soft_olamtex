@@ -54,6 +54,8 @@ const itemsPerPage = ref(incomeStore.quotesMeta.perPage || 10);
 const totalItems = computed(() => incomeStore.quotesMeta.total || 0);
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
+const sortBy = ref<string>('date');
+const sortDir = ref<'asc' | 'desc'>('desc');
 const search = ref(incomeStore.quoteFilters.search ?? '');
 const status = ref<string | null>(incomeStore.quoteFilters.status && incomeStore.quoteFilters.status !== 'all' ? incomeStore.quoteFilters.status : null);
 const contactId = ref<number | null>((incomeStore.quoteFilters.contact_id as number | null | undefined) ?? null);
@@ -121,11 +123,24 @@ async function fetchQuotes(page = 1) {
             contact_id: contactId.value ?? undefined,
             date_from: dateFilter.value || undefined,
             date_to: dateFilter.value || undefined,
+            sort_by: sortBy.value,
+            sort_direction: sortDir.value,
         });
     } catch (error: any) {
         errorType.value = 'error';
         errorMessage.value = normalizeErrorMessage(error, 'No se pudieron cargar las cotizaciones.');
     }
+}
+
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+
+    void fetchQuotes(1);
 }
 
 async function loadCustomerOptions(searchTerm = '') {
@@ -300,9 +315,25 @@ onMounted(() => {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead :class="uiPatterns.typography.tableHead">Numero</TableHead>
+                            <TableHead :class="`${uiPatterns.typography.tableHead} cursor-pointer select-none whitespace-nowrap`" @click="toggleSort('document_number')">
+                                <span class="inline-flex items-center gap-1">
+                                    Numero
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'document_number'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                        <template v-else><span class="opacity-30">↕</span></template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead :class="uiPatterns.typography.tableHead">Cliente</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Fecha emision</TableHead>
+                            <TableHead :class="`${uiPatterns.typography.tableHead} cursor-pointer select-none whitespace-nowrap`" @click="toggleSort('date')">
+                                <span class="inline-flex items-center gap-1">
+                                    Fecha emision
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'date'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                        <template v-else><span class="opacity-30">↕</span></template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead :class="uiPatterns.typography.tableHead">Fecha vencimiento</TableHead>
                             <TableHead :class="uiPatterns.typography.tableHead">Total</TableHead>
                             <TableHead :class="uiPatterns.typography.tableHead">Estado</TableHead>

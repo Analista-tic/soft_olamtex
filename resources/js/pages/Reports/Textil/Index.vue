@@ -34,6 +34,8 @@ const printDate = ref('');
 
 const rolls = ref<any[]>([]);
 const summary = ref({ total_rolls: 0, available_meters: 0, no_movement: 0 });
+const sortBy = ref<string>('');
+const sortDir = ref<'asc' | 'desc'>('desc');
 
 const tabs: { value: ReportTab; label: string }[] = [
     { value: 'disponibilidad', label: 'Disponibilidad' },
@@ -56,6 +58,8 @@ async function fetchData() {
                 search: search.value || undefined,
                 page: currentPage.value,
                 per_page: itemsPerPage.value,
+                sort_by: sortBy.value || undefined,
+                sort_direction: sortBy.value ? sortDir.value : undefined,
             },
         });
         rolls.value = data.data.data;
@@ -64,6 +68,18 @@ async function fetchData() {
     } finally {
         isLoading.value = false;
     }
+}
+
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+
+    currentPage.value = 1;
+    fetchData();
 }
 
 watch([activeTab, currentPage, itemsPerPage], () => fetchData());
@@ -203,13 +219,53 @@ const approvalLabel = (status: string) => approvalBadge(status).label;
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>N° Rollo</TableHead>
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('roll_number')">
+                                    <span class="inline-flex items-center gap-1">
+                                        N° Rollo
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'roll_number'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
+                                    </span>
+                                </TableHead>
                                 <TableHead>Tela / Ítem</TableHead>
-                                <TableHead>Color</TableHead>
-                                <TableHead>Cantidad inicial</TableHead>
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('internal_color_name')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Color
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'internal_color_name'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('quantity')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Cantidad inicial
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'quantity'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
+                                    </span>
+                                </TableHead>
                                 <TableHead>Disponible</TableHead>
-                                <TableHead>Lote</TableHead>
-                                <TableHead>Estado</TableHead>
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('batch')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Lote
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'batch'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('approval_status')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Estado
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'approval_status'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
+                                    </span>
+                                </TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>

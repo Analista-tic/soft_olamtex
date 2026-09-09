@@ -85,6 +85,8 @@ const itemsPerPage = ref(10);
 
 const isLoading = ref(false);
 const context = ref<NoteContext>('purchase');
+const sortBy = ref<string>('');
+const sortDir = ref<'asc' | 'desc'>('desc');
 
 const contactsStore = useContactsStore();
 const invoiceReferences = ref<Array<{ id: number; document_number?: string | null }>>([]);
@@ -318,6 +320,8 @@ async function fetchNotes(pageNumber = 1): Promise<void> {
             date_from: createdDate.value || undefined,
             date_to: createdDate.value || undefined,
             document_type: typeFilter.value ?? undefined,
+            sort_by: sortBy.value || undefined,
+            sort_direction: sortBy.value ? sortDir.value : undefined,
         } as Parameters<typeof listCreditDebitNotes>[0]);
 
         notes.value = Array.isArray(response.data) ? response.data : [];
@@ -330,6 +334,17 @@ async function fetchNotes(pageNumber = 1): Promise<void> {
     } finally {
         isLoading.value = false;
     }
+}
+
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+
+    void fetchNotes(1);
 }
 
 /**
@@ -592,9 +607,25 @@ onMounted(async () => {
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead>N° Documento</TableHead>
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('document_number')">
+                                <span class="inline-flex items-center gap-1">
+                                    N° Documento
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'document_number'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                        <template v-else><span class="opacity-30">↕</span></template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Tipo</TableHead>
-                            <TableHead>Fecha</TableHead>
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('date')">
+                                <span class="inline-flex items-center gap-1">
+                                    Fecha
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'date'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                        <template v-else><span class="opacity-30">↕</span></template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>{{ counterpartLabel }}</TableHead>
                             <TableHead>{{ baseInvoiceLabel }}</TableHead>
                             <TableHead>Estado</TableHead>

@@ -29,12 +29,20 @@ const printDate = ref('');
 
 const items = ref<any[]>([]);
 const summary = ref({ total_items: 0, con_stock: 0, sin_stock: 0 });
+const sortBy = ref<string>('');
+const sortDir = ref<'asc' | 'desc'>('desc');
 
 async function fetchData() {
     isLoading.value = true;
     try {
         const { data } = await axios.get('/informes/inventario/data', {
-            params: { search: search.value || undefined, page: currentPage.value, per_page: itemsPerPage.value },
+            params: {
+                search: search.value || undefined,
+                page: currentPage.value,
+                per_page: itemsPerPage.value,
+                sort_by: sortBy.value || undefined,
+                sort_direction: sortBy.value ? sortDir.value : undefined,
+            },
         });
         items.value = data.data.data;
         totalItems.value = data.data.total;
@@ -42,6 +50,18 @@ async function fetchData() {
     } finally {
         isLoading.value = false;
     }
+}
+
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+
+    currentPage.value = 1;
+    fetchData();
 }
 
 watch([currentPage, itemsPerPage], fetchData);
@@ -141,10 +161,42 @@ async function exportPdf() {
                             <TableRow>
                                 <TableHead>Ítem</TableHead>
                                 <TableHead>Bodega</TableHead>
-                                <TableHead>Cantidad</TableHead>
-                                <TableHead>Stock mín.</TableHead>
-                                <TableHead>Stock máx.</TableHead>
-                                <TableHead>Costo prom.</TableHead>
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('quantity')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Cantidad
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'quantity'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('stock_min')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Stock mín.
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'stock_min'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('stock_max')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Stock máx.
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'stock_max'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('weighted_average_price')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Costo prom.
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'weighted_average_price'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                            <template v-else><span class="opacity-30">↕</span></template>
+                                        </span>
+                                    </span>
+                                </TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>

@@ -40,6 +40,8 @@ const totalItems   = ref(0);
 const isLoading    = ref(false);
 const orders  = ref<any[]>([]);
 const summary = ref({ total: 0, activas: 0, completadas: 0 });
+const sortBy = ref<string>('');
+const sortDir = ref<'asc' | 'desc'>('desc');
 
 // ─── Detail state ─────────────────────────────────────
 const selectedOrder  = ref<any>(null);
@@ -89,6 +91,8 @@ async function fetchData() {
                 date_to:   dateTo.value    || undefined,
                 page:      currentPage.value,
                 per_page:  itemsPerPage.value,
+                sort_by: sortBy.value || undefined,
+                sort_direction: sortBy.value ? sortDir.value : undefined,
             },
         });
         orders.value     = data.data.data;
@@ -97,6 +101,18 @@ async function fetchData() {
     } finally {
         isLoading.value = false;
     }
+}
+
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+
+    currentPage.value = 1;
+    fetchData();
 }
 
 watch([currentPage, itemsPerPage], fetchData);
@@ -296,14 +312,46 @@ const dateLabel = computed(() => {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Código OP</TableHead>
+                                    <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('op_code')">
+                                        <span class="inline-flex items-center gap-1">
+                                            Código OP
+                                            <span class="text-muted-foreground">
+                                                <template v-if="sortBy === 'op_code'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                                <template v-else><span class="opacity-30">↕</span></template>
+                                            </span>
+                                        </span>
+                                    </TableHead>
                                     <TableHead>Referencia</TableHead>
-                                    <TableHead>Temporada</TableHead>
-                                    <TableHead class="text-right">Unidades</TableHead>
+                                    <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('season')">
+                                        <span class="inline-flex items-center gap-1">
+                                            Temporada
+                                            <span class="text-muted-foreground">
+                                                <template v-if="sortBy === 'season'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                                <template v-else><span class="opacity-30">↕</span></template>
+                                            </span>
+                                        </span>
+                                    </TableHead>
+                                    <TableHead class="cursor-pointer select-none whitespace-nowrap text-right" @click="toggleSort('units')">
+                                        <span class="inline-flex items-center justify-end gap-1">
+                                            Unidades
+                                            <span class="text-muted-foreground">
+                                                <template v-if="sortBy === 'units'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                                <template v-else><span class="opacity-30">↕</span></template>
+                                            </span>
+                                        </span>
+                                    </TableHead>
                                     <TableHead class="text-right">M.P.</TableHead>
                                     <TableHead class="text-right">Insumos</TableHead>
                                     <TableHead class="text-right">Total</TableHead>
-                                    <TableHead>Estado</TableHead>
+                                    <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('status')">
+                                        <span class="inline-flex items-center gap-1">
+                                            Estado
+                                            <span class="text-muted-foreground">
+                                                <template v-if="sortBy === 'status'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                                <template v-else><span class="opacity-30">↕</span></template>
+                                            </span>
+                                        </span>
+                                    </TableHead>
                                     <TableHead class="w-20"></TableHead>
                                 </TableRow>
                             </TableHeader>

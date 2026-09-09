@@ -55,6 +55,8 @@ const successMessage = ref('');
 const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
+const sortBy = ref<string>('date');
+const sortDir = ref<'asc' | 'desc'>('desc');
 const search = ref(incomeStore.noteFilters.search ?? '');
 const type = ref<'credit' | 'debit' | null>((incomeStore.noteFilters.type as 'credit' | 'debit' | undefined) ?? null);
 const status = ref<string | null>(incomeStore.noteFilters.status && incomeStore.noteFilters.status !== 'all' ? incomeStore.noteFilters.status : null);
@@ -124,11 +126,24 @@ async function fetchNotes(page = 1) {
             contact_id: contactId.value ?? undefined,
             date_from: dateFilter.value || undefined,
             date_to: dateFilter.value || undefined,
+            sort_by: sortBy.value,
+            sort_direction: sortDir.value,
         });
     } catch (error: unknown) {
         errorType.value = 'error';
         errorMessage.value = normalizeErrorMessage(error, 'No se pudieron cargar las notas de venta.');
     }
+}
+
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+
+    void fetchNotes(1);
 }
 
 async function loadCustomerOptions(searchTerm = '') {
@@ -334,10 +349,26 @@ onMounted(() => {
                     <TableHeader>
                         <TableRow>
                             <TableHead :class="uiPatterns.typography.tableHead">Tipo</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Numero</TableHead>
+                            <TableHead :class="`${uiPatterns.typography.tableHead} cursor-pointer select-none whitespace-nowrap`" @click="toggleSort('document_number')">
+                                <span class="inline-flex items-center gap-1">
+                                    Numero
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'document_number'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                        <template v-else><span class="opacity-30">↕</span></template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead :class="uiPatterns.typography.tableHead">Factura ref.</TableHead>
                             <TableHead :class="uiPatterns.typography.tableHead">Cliente</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Fecha</TableHead>
+                            <TableHead :class="`${uiPatterns.typography.tableHead} cursor-pointer select-none whitespace-nowrap`" @click="toggleSort('date')">
+                                <span class="inline-flex items-center gap-1">
+                                    Fecha
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'date'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                        <template v-else><span class="opacity-30">↕</span></template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead :class="uiPatterns.typography.tableHead">Total</TableHead>
                             <TableHead :class="uiPatterns.typography.tableHead">Estado</TableHead>
                             <TableHead :class="`${uiPatterns.typography.tableHead} text-center`">Acciones</TableHead>

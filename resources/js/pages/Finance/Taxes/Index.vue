@@ -39,6 +39,8 @@ const searchQuery = ref('');
 const isLoading = ref(false);
 const DEFAULT_FILTER_VALUE = 'all';
 const statusFilter = ref(DEFAULT_FILTER_VALUE);
+const sortBy = ref<string>('name');
+const sortDir = ref<'asc' | 'desc'>('asc');
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_FILTER_VALUE);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
@@ -87,9 +89,26 @@ async function handleDialogSubmit(taxData: any) {
     }
 }
 
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'asc';
+    }
+
+    void fetchTaxes(1, searchQuery.value);
+}
+
 async function fetchTaxes(page = 1, search = '') {
     isLoading.value = true;
-    const params: Record<string, any> = { page, per_page: itemsPerPage.value, search };
+    const params: Record<string, any> = {
+        page,
+        per_page: itemsPerPage.value,
+        search,
+        sort_by: sortBy.value,
+        sort_direction: sortDir.value,
+    };
     if (statusFilter.value !== DEFAULT_FILTER_VALUE) {
         params.status = statusFilter.value;
     }
@@ -161,8 +180,24 @@ onMounted(() => fetchTaxes());
                     <TableHeader>
                         <TableRow>
                             <TableHead>N° Impuesto</TableHead>
-                            <TableHead>Nombre</TableHead>
-                            <TableHead>Porcentaje</TableHead>
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('name')">
+                                <span class="inline-flex items-center gap-1">
+                                    Nombre
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'name'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                        <template v-else><span class="opacity-30">↕</span></template>
+                                    </span>
+                                </span>
+                            </TableHead>
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('percentage')">
+                                <span class="inline-flex items-center gap-1">
+                                    Porcentaje
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'percentage'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                        <template v-else><span class="opacity-30">↕</span></template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>

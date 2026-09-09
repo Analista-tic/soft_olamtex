@@ -77,8 +77,8 @@ const voidReason = ref('');
 const voidReasonError = ref('');
 const isVoiding = ref(false);
 const voidTarget = ref<ExpenseVoucherListItem | null>(null);
-
-
+const sortBy = ref<string>('');
+const sortDir = ref<'asc' | 'desc'>('desc');
 
 async function fetchExpenseVouchers(page = 1): Promise<void> {
     isLoading.value = true;
@@ -91,6 +91,8 @@ async function fetchExpenseVouchers(page = 1): Promise<void> {
             status: statusFilter.value ?? undefined,
             date_from: createdDateFilter.value || undefined,
             date_to: createdDateFilter.value || undefined,
+            sort_by: sortBy.value || undefined,
+            sort_direction: sortBy.value ? sortDir.value : undefined,
         });
         rows.value = response.data;
         totalItems.value = Number(response.total ?? 0);
@@ -102,6 +104,17 @@ async function fetchExpenseVouchers(page = 1): Promise<void> {
     } finally {
         isLoading.value = false;
     }
+}
+
+function toggleSort(column: string) {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+
+    void fetchExpenseVouchers(1);
 }
 
 
@@ -311,14 +324,46 @@ onBeforeUnmount(() => window.clearTimeout(searchDebounce));
                 <Table>
                     <TableHeader>
                         <TableRow :class="uiPatterns.typography.tableHead">
-                            <TableHead>Número</TableHead>
-                            <TableHead>Contacto</TableHead>
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('voucher_number')">
+                                <span class="inline-flex items-center gap-1">
+                                    Número
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'voucher_number'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                        <template v-else><span class="opacity-30">↕</span></template>
+                                    </span>
+                                </span>
+                            </TableHead>
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('supplier_name')">
+                                <span class="inline-flex items-center gap-1">
+                                    Contacto
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'supplier_name'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                        <template v-else><span class="opacity-30">↕</span></template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Detalles</TableHead>
-                            <TableHead>Creado</TableHead>
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('payment_date')">
+                                <span class="inline-flex items-center gap-1">
+                                    Creado
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'payment_date'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                        <template v-else><span class="opacity-30">↕</span></template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Cuenta</TableHead>
                             <TableHead>Conciliado</TableHead>
                             <TableHead>Estado</TableHead>
-                            <TableHead>Monto</TableHead>
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('total_applied')">
+                                <span class="inline-flex items-center gap-1">
+                                    Monto
+                                    <span class="text-muted-foreground">
+                                        <template v-if="sortBy === 'total_applied'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
+                                        <template v-else><span class="opacity-30">↕</span></template>
+                                    </span>
+                                </span>
+                            </TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
