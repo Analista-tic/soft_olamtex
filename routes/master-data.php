@@ -23,6 +23,7 @@ Route::prefix('catalogos/categorias')->name('catalogos.categorias.')->group(func
 Route::prefix('categorias')->name('categorias.')->middleware('permission:ver categorias')->group(function () {
     Route::get('grupos', [CategoryGroupController::class, 'getData'])->name('groups.getData');
     Route::post('grupos', [CategoryGroupController::class, 'store'])->name('groups.store')->middleware('permission:crear categorias');
+    Route::put('grupos/{group}', [CategoryGroupController::class, 'update'])->name('groups.update')->middleware('permission:editar categorias');
     Route::get('subgrupos', [CategorySubGroupController::class, 'index'])->name('subgroups.create');
     Route::get('subgrupos-data', [CategorySubGroupController::class, 'getData'])->name('subgroups.getData');
     Route::post('subgrupos', [CategorySubGroupController::class, 'store'])->name('subgroups.store')->middleware('permission:crear categorias');

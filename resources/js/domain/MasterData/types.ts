@@ -51,15 +51,21 @@ export interface Contact extends Timestamps {
 
 export type AdditionalFieldType = 'text' | 'number' | 'decimal' | 'textarea' | 'date' | 'boolean' | 'select';
 
+export type AdditionalFieldSourceType = 'list' | 'catalog';
+
 export interface AdditionalField extends MaybeId {
     name: string;
     field_type: AdditionalFieldType;
     options?: string[];
+    source_type?: AdditionalFieldSourceType;
+    catalog_key?: string | null;
     default_value?: string | null;
     description?: string;
     is_required: boolean;
     status: boolean;
     position?: number;
+    category_sub_group_ids?: number[];
+    category_sub_groups?: Named[];
 }
 
 export interface AdditionalFieldPayload {
@@ -67,22 +73,29 @@ export interface AdditionalFieldPayload {
     label?: string;
     field_type: AdditionalFieldType;
     options?: string[];
+    source_type?: AdditionalFieldSourceType;
+    catalog_key?: string | null;
     default_value?: string | null;
     is_required: boolean;
     status: boolean;
     position?: number;
     key?: string;
+    category_sub_group_ids?: number[];
 }
 
 export type AdditionalFieldDialogFormState = Omit<AdditionalField, 'default_value'> & {
     default_value: string;
 };
 
-export type CategoryGroup = Named;
+export interface CategoryGroup extends Named {
+    code?: string | null;
+}
 
 export interface CategorySubGroup extends Named {
     category_group_id: number | null;
     category_group?: CategoryGroup;
+    material_kind?: 'fabric' | 'yarn' | null;
+    code?: string | null;
 }
 
 export interface Item extends Timestamps {
@@ -96,6 +109,7 @@ export interface Item extends Timestamps {
     name: string;
     code: string;
     reference: string;
+    legacy_code?: string | null;
     img?: string;
     img_url?: string;
     stock_min: number;

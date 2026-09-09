@@ -15,10 +15,11 @@ import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { CategoryGroup, CategorySubGroup } from '@/domain/MasterData';
 import type { BreadcrumbItem, Option } from '@/domain/shared'; // Importar los tipos centralizados
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch, onBeforeUnmount } from 'vue';
+import GroupDialog from './GroupDialog.vue';
 import SubGroupDialog from './SubGroupDialog.vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -77,6 +78,29 @@ const groupOptions = computed<Option[]>(() => [
 ]);
 
 const normalizedGroupId = computed<Option['id'] | null>(() => (selectedGroup.value === '' || selectedGroup.value == null ? null : selectedGroup.value));
+
+// ── Editar grupo (código, nombre) ───────────────────────────────────────────
+// El grupo a editar es el que esté elegido en el filtro "Grupo" — no hay una tabla
+// de grupos aparte; se reutiliza el mismo selector para no duplicar UI.
+const isGroupDialogOpen = ref(false);
+const groupBeingEdited = ref<CategoryGroup | null>(null);
+const canEditGroup = computed(() => normalizedGroupId.value != null);
+
+function openEditGroupDialog(): void {
+    const group = props.groups.find((g) => String(g.id) === String(normalizedGroupId.value));
+    if (!group) return;
+    groupBeingEdited.value = group;
+    isGroupDialogOpen.value = true;
+}
+
+function closeGroupDialog(): void {
+    isGroupDialogOpen.value = false;
+}
+
+function handleGroupSaved(): void {
+    isGroupDialogOpen.value = false;
+    router.reload({ only: ['groups'] });
+}
 
 function openDialog(type: 'create' | 'edit', subGroup: CategorySubGroup | null = null): void {
     dialogType.value = type;
@@ -250,14 +274,17 @@ onBeforeUnmount(() => {
                     </div>
                 </FilterField>
                 <FilterField label="Grupo" :active="isGroupFilterActive" class="min-w-[200px]">
-                    <SelectField
-                        v-model="selectedGroup"
-                        :options="groupOptions"
-                        label=""
-                        placeholder="Grupo"
-                        :button-class="groupFilterButtonClasses"
-                        :clearable="true"
-                    />
+                    <div class="flex items-center gap-1">
+                        <SelectField
+                            v-model="selectedGroup"
+                            :options="groupOptions"
+                            label=""
+                            placeholder="Grupo"
+                            :button-class="groupFilterButtonClasses"
+                            :clearable="true"
+                        />
+                        <EditButton v-if="canEditGroup" title="Editar el grupo seleccionado (nombre, código)" :onClick="openEditGroupDialog" />
+                    </div>
                 </FilterField>
             </FilterBar>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
@@ -321,6 +348,15 @@ onBeforeUnmount(() => {
             </div>
         </div>
     </AppLayout>
+
+    <!-- Dialog para editar un grupo (nombre, código) -->
+    <GroupDialog
+        :is-open="isGroupDialogOpen"
+        dialog-type="edit"
+        :group-data="groupBeingEdited ?? undefined"
+        @close="closeGroupDialog"
+        @saved="handleGroupSaved"
+    />
 
     <!-- Dialog para Crear/Editar Subgrupo -->
     <SubGroupDialog

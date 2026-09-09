@@ -7,6 +7,7 @@ use App\Http\Requests\MasterData\StoreCategorySubGroupRequest;
 use App\Http\Requests\MasterData\UpdateCategorySubGroupRequest;
 use App\Models\MasterData\CategoryGroup;
 use App\Models\MasterData\CategorySubGroup;
+use App\Support\MasterData\MaterialClassifier;
 use App\Support\TextNormalizer;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -50,7 +51,11 @@ class CategorySubGroupController extends Controller
         $subgroup->update([
             'name' => $normalizedName,
             'category_group_id' => $groupId,
+            'material_kind' => $request->validated('material_kind'),
+            'code' => $request->validated('code'),
         ]);
+
+        MaterialClassifier::forgetCache();
 
         return response()->json([
             'success' => true,
@@ -61,7 +66,7 @@ class CategorySubGroupController extends Controller
 
     public function getData(Request $request)
     {
-        $query = CategorySubGroup::select('id', 'name', 'category_group_id')
+        $query = CategorySubGroup::select('id', 'name', 'category_group_id', 'material_kind')
             ->with('categoryGroup:id,name');
 
         if ($request->has('search') && $request->search) {
@@ -91,6 +96,9 @@ class CategorySubGroupController extends Controller
 
         $subgroups = $query->paginate($request->get('per_page', 10)); // Manejar paginación
 
+        // material_kind ya viene directo de la columna (Fase 3 del refactor de
+        // materiales) — antes se recalculaba aquí contra config('master_data.*').
+
         return response()->json([
             'data' => $subgroups->items(), // Datos de la página actual
             'total' => $subgroups->total(), // Total de registros
@@ -103,6 +111,7 @@ class CategorySubGroupController extends Controller
     {
         try {
             $subgroup->delete();
+            MaterialClassifier::forgetCache();
 
             return response()->json([
                 'success' => true,
@@ -110,7 +119,7 @@ class CategorySubGroupController extends Controller
             ]);
         } catch (\Throwable $e) {
             // Registrar el error en el log y devolver respuesta JSON con estado 500
-            logger()->error('Error eliminando subgrupo: ' . $e->getMessage(), [
+            logger()->error('Error eliminando subgrupo: '.$e->getMessage(), [
                 'id' => $subgroup->id ?? null,
             ]);
 
@@ -122,7 +131,7 @@ class CategorySubGroupController extends Controller
     }
 
     /**
-     * @param array<int, array{name?: mixed}> $subgroups
+     * @param  array<int, array{name?: mixed}>  $subgroups
      * @return array<int, array{name: string}>
      */
     private function normalizeIncomingSubgroups(array $subgroups): array
@@ -152,7 +161,7 @@ class CategorySubGroupController extends Controller
     }
 
     /**
-     * @param array<int, array{name: string}> $subgroups
+     * @param  array<int, array{name: string}>  $subgroups
      */
     private function ensureSubgroupsDoNotExist(int $groupId, array $subgroups): void
     {

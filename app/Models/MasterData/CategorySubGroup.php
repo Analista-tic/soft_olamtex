@@ -2,12 +2,12 @@
 
 namespace App\Models\MasterData;
 
+use App\Contracts\HasAuditLabel;
 use Illuminate\Database\Eloquent\Model;
 
-
-class CategorySubGroup extends Model implements \App\Contracts\HasAuditLabel
+class CategorySubGroup extends Model implements HasAuditLabel
 {
-    protected $fillable = ['name', 'category_group_id']; // Ejemplo: "Materia Prima"
+    protected $fillable = ['name', 'category_group_id', 'material_kind', 'code']; // Ejemplo: "Materia Prima"
 
     public static function auditLabel(): string
     {

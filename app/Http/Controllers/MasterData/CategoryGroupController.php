@@ -5,24 +5,44 @@ namespace App\Http\Controllers\MasterData;
 use App\Http\Controllers\Controller;
 use App\Models\MasterData\CategoryGroup;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class CategoryGroupController extends Controller
 {
-
     public function store(Request $request)
     {
         $request->validate([
             'name' => 'required|string|max:255|unique:category_groups,name',
+            'code' => 'nullable|string|max:2|unique:category_groups,code',
         ]);
 
-        $group = CategoryGroup::create($request->only('name'));
+        $group = CategoryGroup::create($request->only('name', 'code'));
 
         return response()->json($group, 201);
     }
 
+    /**
+     * No existía update() para grupos — se agrega en la Fase 13 del refactor de
+     * materiales, principalmente para poder asignarle `code` a los grupos existentes
+     * (necesario para la referencia automática de ítems); de paso permite corregir
+     * el nombre, algo que tampoco era posible antes.
+     */
+    public function update(Request $request, CategoryGroup $group)
+    {
+        $request->validate([
+            'name' => ['required', 'string', 'max:255', Rule::unique('category_groups', 'name')->ignore($group->id)],
+            'code' => ['nullable', 'string', 'max:2', Rule::unique('category_groups', 'code')->ignore($group->id)],
+        ]);
+
+        $group->update($request->only('name', 'code'));
+
+        return response()->json($group);
+    }
+
     public function getData()
     {
-        $groups = CategoryGroup::all(['id', 'name']); // Seleccionar solo los campos necesarios
+        $groups = CategoryGroup::all(['id', 'name', 'code']); // Seleccionar solo los campos necesarios
+
         return response()->json($groups);
     }
 
