@@ -16,11 +16,14 @@ class InventoryMovementController extends Controller
     ) {}
 
     /**
-     * Mostrar listado de movimientos de inventario.
+     * Mostrar listado de movimientos de inventario. Acepta `fabric_items_only=1` en la
+     * URL para abrir ya filtrado a ítems de tela (atajo usado desde Kardex de Telas).
      */
-    public function index(): Response
+    public function index(Request $request): Response
     {
-        return Inertia::render('Inventory/Movements/Index');
+        return Inertia::render('Inventory/Movements/Index', [
+            'initialFabricItemsOnly' => $request->boolean('fabric_items_only'),
+        ]);
     }
 
     /**

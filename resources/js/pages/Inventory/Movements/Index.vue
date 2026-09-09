@@ -18,14 +18,22 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { useWarehousesStore } from '@/stores/inventory/warehouses';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Search } from 'lucide-vue-next';
+import { Search, X } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
+
+const props = withDefaults(
+    defineProps<{
+        initialFabricItemsOnly?: boolean;
+    }>(),
+    { initialFabricItemsOnly: false },
+);
 
 const breadcrumbs = [
     { title: 'Inventario', href: '/inventario' },
     { title: 'Movimientos de Inventario', href: '/movimientos-inventario' },
 ];
 
+const fabricItemsOnly = ref(props.initialFabricItemsOnly);
 const movements = ref<InventoryMovement[]>([]);
 const totalItems = ref(0);
 const searchQuery = ref('');
@@ -162,6 +170,7 @@ async function fetchMovements(page = 1, search = '') {
 
     if (typeFilter.value != null) params.type = typeFilter.value;
     if (typeof warehouseFilter.value === 'number') params.warehouse_id = warehouseFilter.value;
+    if (fabricItemsOnly.value) params.fabric_items_only = 1;
     if (dateFilter.value) {
         params.date_from = dateFilter.value;
         params.date_to = dateFilter.value;
@@ -204,10 +213,14 @@ async function fetchWarehouses() {
 // openDetailDialog removed — no action button in list
 
 // Watchers para filtros principales
-watch([typeFilter, warehouseFilter, dateFilter], () => {
+watch([typeFilter, warehouseFilter, dateFilter, fabricItemsOnly], () => {
     currentPage.value = 1;
     fetchMovements(1, searchQuery.value);
 });
+
+function clearFabricItemsOnlyFilter() {
+    fabricItemsOnly.value = false;
+}
 
 watch(searchQuery, (newQuery) => {
     currentPage.value = 1;
@@ -240,6 +253,22 @@ onMounted(() => {
                         módulos.
                     </p>
                 </div>
+            </div>
+
+            <div v-if="fabricItemsOnly" class="flex items-center gap-2">
+                <span
+                    class="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
+                >
+                    Filtrado a: Telas
+                    <button
+                        type="button"
+                        class="rounded-full p-0.5 hover:bg-primary/20"
+                        title="Quitar filtro"
+                        @click="clearFabricItemsOnlyFilter"
+                    >
+                        <X class="h-3 w-3" />
+                    </button>
+                </span>
             </div>
 
             <FilterBar align="start">
