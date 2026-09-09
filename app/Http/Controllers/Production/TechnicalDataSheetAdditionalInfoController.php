@@ -79,13 +79,10 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
 
     private function resolveRollColors(ProductionOrder $order, ?TechnicalSheet $sheet = null): array
     {
-        if ($sheet !== null) {
-            $snapshot = $sheet->rollsSnapshot()->select(['id', 'technical_sheet_id', 'lines'])->first();
-            $lines = $snapshot ? (is_array($snapshot->lines) ? array_values($snapshot->lines) : []) : [];
-        } else {
-            $payload = $this->rollsStore->read($order->id);
-            $lines = is_array($payload['lines'] ?? null) ? $payload['lines'] : [];
-        }
+        // Fase 15: las líneas de rollos ya no viven en rollsSnapshot()->lines (JSON) —
+        // siempre pasar por el store, que lee fabric_roll_programming_lines.
+        $payload = $this->rollsStore->read($order->id);
+        $lines = is_array($payload['lines'] ?? null) ? $payload['lines'] : [];
 
         $seen = [];
         $colors = [];

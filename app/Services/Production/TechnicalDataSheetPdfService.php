@@ -443,9 +443,10 @@ class TechnicalDataSheetPdfService
 
     private function buildCutFabricLinesFromSnapshots(TechnicalSheet $sheet, array $consumptionLines): array
     {
-        // 1. Leer rollsSnapshot (datos actuales de rollos y metros asignados)
-        $rollSnapshot = $sheet->rollsSnapshot()->first();
-        $rollLines    = is_array($rollSnapshot?->lines) ? array_values($rollSnapshot->lines) : [];
+        // 1. Leer líneas de rollos (Fase 15: fabric_roll_programming_lines vía el store,
+        // ya no rollsSnapshot()->lines directamente — ese JSON dejó de actualizarse).
+        $rollsPayload = $this->rollsStore->read($sheet->production_order_id);
+        $rollLines = is_array($rollsPayload['lines'] ?? null) ? $rollsPayload['lines'] : [];
 
         if (empty($rollLines)) {
             return $this->enrichTrazoUidFallback($consumptionLines, $sheet);
@@ -556,11 +557,11 @@ class TechnicalDataSheetPdfService
 
     private function enrichTrazoUidFallback(array $lines, TechnicalSheet $sheet): array
     {
-        // Mapa: technical_roll_id → rawMaterialUid (desde rollsSnapshot)
+        // Mapa: technical_roll_id → rawMaterialUid (Fase 15: vía el store, ya no rollsSnapshot()->lines)
         $techIdToRawUid = [];
-        $rollSnapshot = $sheet->rollsSnapshot()->first();
-        if ($rollSnapshot && is_array($rollSnapshot->lines)) {
-            foreach ($rollSnapshot->lines as $rl) {
+        $rollLines = $this->rollsStore->read($sheet->production_order_id)['lines'] ?? [];
+        if (is_array($rollLines)) {
+            foreach ($rollLines as $rl) {
                 $id     = trim((string) ($rl['id'] ?? ''));
                 $rawUid = trim((string) ($rl['rawMaterialUid'] ?? ''));
                 if ($id !== '' && $rawUid !== '') {
