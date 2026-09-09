@@ -7,8 +7,10 @@ use App\Models\MasterData\CategoryGroup;
 use App\Models\MasterData\CategorySubGroup;
 use App\Models\MasterData\Color;
 use App\Models\MasterData\Item;
+use App\Models\Production\FabricBase;
 use App\Models\Production\ProductionOrder;
 use App\Models\Production\ProductSheet;
+use App\Models\Production\YarnBase;
 use App\Services\Settings\SettingService;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
@@ -100,12 +102,12 @@ class FinishedProductCatalogItemService
         $subGroupName = mb_strtoupper((string) array_shift($parts), 'UTF-8');
         $extraFields = [];
 
-        $fabricBase = $this->resolveCatalogOptionName('fabric_bases', $productSheet->fabric_base_id ?? null);
+        $fabricBase = $this->resolveFabricBaseName($productSheet->fabric_base_id ?? null);
         if ($fabricBase !== '') {
             $extraFields['Base'] = mb_strtoupper($fabricBase, 'UTF-8');
         }
 
-        $yarnBase = $this->resolveCatalogOptionName('yarn_bases', $productSheet->yarn_base_id ?? null);
+        $yarnBase = $this->resolveYarnBaseName($productSheet->yarn_base_id ?? null);
         if ($yarnBase !== '') {
             $extraFields['Base Hilaza'] = mb_strtoupper($yarnBase, 'UTF-8');
         }
@@ -128,6 +130,28 @@ class FinishedProductCatalogItemService
         ]);
 
         return [$subGroupName, $extraFields];
+    }
+
+    private function resolveFabricBaseName(int|string|null $fabricBaseId): string
+    {
+        if ($fabricBaseId === null || $fabricBaseId === '') {
+            return '';
+        }
+
+        $fabricBase = FabricBase::find((int) $fabricBaseId);
+
+        return $fabricBase ? $this->normalizeText($fabricBase->nombre) : '';
+    }
+
+    private function resolveYarnBaseName(int|string|null $yarnBaseId): string
+    {
+        if ($yarnBaseId === null || $yarnBaseId === '') {
+            return '';
+        }
+
+        $yarnBase = YarnBase::find((int) $yarnBaseId);
+
+        return $yarnBase ? $this->normalizeText($yarnBase->nombre) : '';
     }
 
     private function resolveCatalogOptionName(string $catalogKey, int|string|null $optionId): string

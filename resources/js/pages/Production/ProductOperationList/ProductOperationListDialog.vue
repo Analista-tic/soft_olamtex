@@ -158,7 +158,9 @@ const selectedSheetFabricFactor = computed(() => {
     const id = selectedSheetFabricBaseId.value;
     if (id == null) return 1.0;
     const opt = fabricBasesList.value.find((f) => idsMatch(f.id, id));
-    const factor = opt?.factor ?? opt?.factor_base ?? opt?.factor_base_tela ?? null;
+    // `factor_base` y `factor_base_tela` eran las formas que tenía el JSON de settings
+    // antes de que las bases pasaran a la tabla fabric_bases, que expone solo `factor`.
+    const factor = opt?.factor ?? null;
     const num = Number(factor);
     return Number.isFinite(num) && num > 0 ? num : 1.0;
 });

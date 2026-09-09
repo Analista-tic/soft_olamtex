@@ -139,9 +139,7 @@ class TechnicalDataSheetController extends Controller
                 continue;
             }
 
-            $data[$canonicalKey] = $canonicalKey === 'fabric_colors'
-                ? $this->settingService->getCatalogOptionsWithCode($canonicalKey)->values()->all()
-                : $this->settingService->getCatalogOptions($canonicalKey)->values()->all();
+            $data[$canonicalKey] = $this->settingService->getCatalogOptions($canonicalKey)->values()->all();
         }
 
         return response()->json(['data' => $data]);

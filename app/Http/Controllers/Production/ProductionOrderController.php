@@ -6,7 +6,9 @@ use App\Helpers\MonthLabel;
 use App\Helpers\SeasonParser;
 use App\Http\Controllers\Controller;
 use App\Models\Production\ProductionOrder;
+use App\Services\Production\FabricBaseService;
 use App\Services\Production\ProductionOrderService;
+use App\Services\Production\YarnBaseService;
 use App\Services\Settings\SettingService;
 use Illuminate\Http\JsonResponse;
 use Inertia\Inertia;
@@ -17,6 +19,8 @@ class ProductionOrderController extends Controller
     public function __construct(
         private SettingService $settingService,
         private ProductionOrderService $productionOrderService,
+        private FabricBaseService $fabricBaseService,
+        private YarnBaseService $yarnBaseService,
     ) {
     }
 
@@ -49,8 +53,8 @@ class ProductionOrderController extends Controller
         $groups = $this->settingService->getCatalogOptions('groups')->keyBy('id');
         $brands = $this->settingService->getCatalogOptions('brands')->keyBy('id');
         $worlds = $this->settingService->getCatalogOptions('worlds')->keyBy('id');
-        $fabricBases = $this->settingService->getCatalogOptions('fabric_bases')->keyBy('id');
-        $yarnBases = $this->settingService->getCatalogOptions('yarn_bases')->keyBy('id');
+        $fabricBases = $this->fabricBaseService->options()->keyBy('id');
+        $yarnBases = $this->yarnBaseService->options()->keyBy('id');
 
         $destination = $destinations->get($order->destination_id, [
             'id' => $order->destination_id,

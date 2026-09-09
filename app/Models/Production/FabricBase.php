@@ -3,9 +3,11 @@
 namespace App\Models\Production;
 
 use App\Models\Concerns\HasAuditLabel;
+use App\Models\MasterData\FabricName;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class FabricBase extends Model
@@ -32,6 +34,11 @@ class FabricBase extends Model
     public function productSheets()
     {
         return $this->hasMany(ProductSheet::class, 'fabric_base_id');
+    }
+
+    public function fabricNames(): HasMany
+    {
+        return $this->hasMany(FabricName::class);
     }
 
     public function scopeActive(Builder $query): Builder

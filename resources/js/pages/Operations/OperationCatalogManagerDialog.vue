@@ -38,25 +38,19 @@ export type ManagedMachine = {
     usage_count: number;
 };
 
-export type ManagedFabricBase = {
-    id: number;
-    codigo: string;
-    nombre: string;
-    factor: number;
-    is_active: boolean;
-    usage_count: number;
-};
-
 const props = defineProps<{
     open: boolean;
 }>();
 
 const emit = defineEmits<{
     (e: 'close'): void;
-    (e: 'catalogs-updated', payload: { sections: ManagedSection[]; actions: string[]; garmentParts: string[]; machines: ManagedMachine[]; fabricBases: ManagedFabricBase[] }): void;
+    (e: 'catalogs-updated', payload: { sections: ManagedSection[]; actions: string[]; garmentParts: string[]; machines: ManagedMachine[] }): void;
 }>();
 
-type TabKey = 'sections' | 'actions' | 'garment-parts' | 'machines' | 'fabric-bases';
+// Las bases de tela/hilaza (antes 'fabric-bases'/'yarn-bases') se gestionan ahora
+// desde Datos Maestros → Catálogo de materiales (una sola pantalla, en vez de este
+// diálogo + la pantalla de nombres por separado). Ver enlace al final de este diálogo.
+type TabKey = 'sections' | 'actions' | 'garment-parts' | 'machines';
 type StatusValue = '1' | '0';
 
 const localOpen = ref(props.open);
@@ -72,7 +66,6 @@ const sections = ref<ManagedSection[]>([]);
 const actions = ref<ManagedCatalogOption[]>([]);
 const garmentParts = ref<ManagedCatalogOption[]>([]);
 const machines = ref<ManagedMachine[]>([]);
-const fabricBases = ref<ManagedFabricBase[]>([]);
 
 const form = ref({
     id: null as number | null,
@@ -81,10 +74,6 @@ const form = ref({
     type: 'confeccion' as 'confeccion' | 'presentacion',
     supplement_factor: 1,
     is_active: '1' as StatusValue,
-    // fabric-bases
-    codigo: '',
-    nombre: '',
-    factor: 1.0,
 });
 
 watch(
@@ -133,11 +122,6 @@ const tabLabels: Record<TabKey, { title: string; singular: string; empty: string
         singular: 'máquina',
         empty: 'No hay máquinas registradas.',
     },
-    'fabric-bases': {
-        title: 'Bases de tela',
-        singular: 'base de tela',
-        empty: 'No hay bases de tela registradas.',
-    },
 };
 
 const typeOptions = [
@@ -154,7 +138,6 @@ const currentItems = computed(() => {
     if (activeTab.value === 'sections') return sections.value;
     if (activeTab.value === 'actions') return actions.value;
     if (activeTab.value === 'garment-parts') return garmentParts.value;
-    if (activeTab.value === 'fabric-bases') return fabricBases.value;
     return machines.value;
 });
 
@@ -180,9 +163,6 @@ function resetForm() {
         type: 'confeccion',
         supplement_factor: 1,
         is_active: '1',
-        codigo: '',
-        nombre: '',
-        factor: 1.0,
     };
 }
 
@@ -192,7 +172,6 @@ function emitCatalogOptions() {
         actions: actions.value.filter((item) => item.is_active).map((item) => item.name),
         garmentParts: garmentParts.value.filter((item) => item.is_active).map((item) => item.name),
         machines: machines.value.filter((item) => item.is_active),
-        fabricBases: fabricBases.value.filter((item) => item.is_active),
     });
 }
 
@@ -208,7 +187,6 @@ async function fetchCatalogs(preserveAlerts = false) {
         actions.value = data?.data?.actions ?? [];
         garmentParts.value = data?.data?.garment_parts ?? [];
         machines.value = data?.data?.machines ?? [];
-        fabricBases.value = data?.data?.fabric_bases ?? [];
         emitCatalogOptions();
         resetForm();
     } catch (error: any) {
@@ -222,22 +200,7 @@ function startCreate() {
     resetForm();
 }
 
-function startEdit(item: ManagedSection | ManagedCatalogOption | ManagedMachine | ManagedFabricBase) {
-    if (activeTab.value === 'fabric-bases') {
-        const fb = item as ManagedFabricBase;
-        form.value = {
-            id: fb.id,
-            code: '',
-            name: '',
-            type: 'confeccion',
-            supplement_factor: 1,
-            is_active: fb.is_active ? '1' : '0',
-            codigo: fb.codigo,
-            nombre: fb.nombre,
-            factor: Number(fb.factor),
-        };
-        return;
-    }
+function startEdit(item: ManagedSection | ManagedCatalogOption | ManagedMachine) {
     form.value = {
         id: item.id,
         code: 'code' in item ? String((item as ManagedMachine).code) : '',
@@ -245,9 +208,6 @@ function startEdit(item: ManagedSection | ManagedCatalogOption | ManagedMachine 
         type: 'type' in item ? (item as ManagedSection).type : 'confeccion',
         supplement_factor: 'supplement_factor' in item ? Number((item as ManagedMachine).supplement_factor) : 1,
         is_active: item.is_active ? '1' : '0',
-        codigo: '',
-        nombre: '',
-        factor: 1.0,
     };
 }
 
@@ -278,21 +238,6 @@ async function saveItem() {
         payload.code = form.value.code.trim().toUpperCase();
         payload.name = form.value.name.trim().toUpperCase();
         payload.supplement_factor = Number(form.value.supplement_factor ?? 0);
-    } else if (activeTab.value === 'fabric-bases') {
-        const nombre = form.value.nombre.trim().toUpperCase();
-        const factor = Number(form.value.factor ?? 1.0);
-        if (!nombre) {
-            errorMessage.value = 'El nombre de la base tela es obligatorio.';
-            isSaving.value = false;
-            return;
-        }
-        if (factor <= 0) {
-            errorMessage.value = 'El factor debe ser mayor que cero.';
-            isSaving.value = false;
-            return;
-        }
-        payload.nombre = nombre;
-        payload.factor = factor;
     } else {
         const name = form.value.name.trim().toUpperCase();
         if (!name) {
@@ -358,13 +303,19 @@ async function confirmDelete() {
             <div class="flex-1 overflow-y-auto px-5 py-4" style="scrollbar-width: thin">
                 <AlertStack :success-message="successMessage" :error-message="errorMessage" @close-success="successMessage = ''" @close-error="errorMessage = ''" />
 
+                <p class="rounded-md border border-dashed bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                    Las bases y nombres de tela/hilaza se gestionan ahora en
+                    <a :href="route('nombres-materiales.index')" class="font-medium text-primary underline underline-offset-2">
+                        Datos Maestros → Catálogo de materiales
+                    </a>.
+                </p>
+
                 <Tabs v-model="activeTab" class="space-y-4">
-                    <TabsList class="grid w-full grid-cols-5">
+                    <TabsList class="grid w-full grid-cols-4">
                         <TabsTrigger value="sections">Secciones</TabsTrigger>
                         <TabsTrigger value="actions">Acciones</TabsTrigger>
                         <TabsTrigger value="garment-parts">Partes de prenda</TabsTrigger>
                         <TabsTrigger value="machines">Máquinas</TabsTrigger>
-                        <TabsTrigger value="fabric-bases">Base Tela</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="sections" class="mt-0">
@@ -667,93 +618,6 @@ async function confirmDelete() {
                         </div>
                     </TabsContent>
 
-                    <TabsContent value="fabric-bases" class="mt-0">
-                        <div class="grid grid-cols-1 gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
-                            <section class="space-y-4 rounded-lg border bg-card p-4">
-                                <div>
-                                    <p class="text-sm font-semibold">{{ isEditing ? 'Editar base tela' : 'Nueva base tela' }}</p>
-                                    <p class="text-xs text-muted-foreground">Administra nombre y factor de la tela.</p>
-                                </div>
-
-                                <div class="space-y-3">
-                                    <InputField v-model="form.nombre" label="Nombre" placeholder="Ej: DENIM" required />
-                                    <div class="flex flex-col gap-1">
-                                        <label class="text-sm font-medium">Factor <span class="text-red-500">*</span></label>
-                                        <input
-                                            v-model.number="form.factor"
-                                            type="number"
-                                            step="0.01"
-                                            min="0.01"
-                                            class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                            placeholder="1.00"
-                                        />
-                                        <p class="text-xs text-muted-foreground">1.0 = neutro. 1.15 = +15% al SAM.</p>
-                                    </div>
-                                    <SelectField v-model="form.is_active" label="Estado" :options="statusOptions" required />
-                                </div>
-
-                                <div class="flex flex-wrap gap-2 pt-1">
-                                    <Button :disabled="isSaving" @click="saveItem">
-                                        <Save class="mr-1 h-4 w-4" />
-                                        {{ isEditing ? 'Actualizar' : 'Guardar' }}
-                                    </Button>
-                                    <Button variant="outline" :disabled="isSaving" @click="resetForm">
-                                        <X class="mr-1 h-4 w-4" /> Cancelar
-                                    </Button>
-                                </div>
-                            </section>
-
-                            <section class="rounded-lg border bg-card p-4">
-                                <div class="mb-3 flex items-center justify-between gap-2">
-                                    <div>
-                                        <p class="text-sm font-semibold">{{ currentLabel.title }}</p>
-                                        <p class="text-xs text-muted-foreground">El factor afecta el SAM de las operaciones de cada ficha técnica.</p>
-                                    </div>
-                                </div>
-                                <div class="overflow-x-auto">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Código</TableHead>
-                                                <TableHead>Nombre</TableHead>
-                                                <TableHead class="text-center">Factor</TableHead>
-                                                <TableHead class="text-center">Uso</TableHead>
-                                                <TableHead class="text-center">Estado</TableHead>
-                                                <TableHead class="text-center">Acciones</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            <TableRow v-if="isLoading">
-                                                <TableCell colspan="6" class="py-10 text-center text-sm text-muted-foreground">Cargando bases de tela…</TableCell>
-                                            </TableRow>
-                                            <TableRow v-else-if="fabricBases.length === 0">
-                                                <TableCell colspan="6" class="py-10 text-center text-sm text-muted-foreground">{{ currentLabel.empty }}</TableCell>
-                                            </TableRow>
-                                            <TableRow v-for="item in fabricBases" v-else :key="item.id">
-                                                <TableCell class="font-mono text-xs">{{ item.codigo }}</TableCell>
-                                                <TableCell class="font-medium">{{ item.nombre }}</TableCell>
-                                                <TableCell class="text-center font-mono text-xs">{{ Number(item.factor).toFixed(2) }}</TableCell>
-                                                <TableCell class="text-center font-mono text-xs">{{ item.usage_count }}</TableCell>
-                                                <TableCell class="text-center">
-                                                    <TableStatusBadge :label="item.is_active ? 'Activo' : 'Inactivo'" :tone="item.is_active ? 'green' : 'red'" />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div class="flex items-center justify-center gap-1">
-                                                        <Button variant="ghost" size="icon" class="h-8 w-8" @click="startEdit(item)">
-                                                            <Pencil class="h-4 w-4" />
-                                                        </Button>
-                                                        <Button variant="ghost" size="icon" class="h-8 w-8 text-destructive hover:text-destructive" @click="askDelete(item.id)">
-                                                            <Trash2 class="h-4 w-4" />
-                                                        </Button>
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
-                                        </TableBody>
-                                    </Table>
-                                </div>
-                            </section>
-                        </div>
-                    </TabsContent>
                 </Tabs>
             </div>
 

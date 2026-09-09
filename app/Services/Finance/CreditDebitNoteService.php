@@ -8,6 +8,7 @@ use App\Models\Expenses\PurchaseDocumentItem;
 use App\Services\Expenses\PurchaseDocumentInvoiceService;
 use App\Services\Expenses\PurchaseDocumentService;
 use App\Services\Settings\SettingService;
+use App\Support\MasterData\MaterialClassifier;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -44,10 +45,8 @@ class CreditDebitNoteService
         private PurchaseDocumentService $documentService,
         private PurchaseDocumentInvoiceService $invoiceService,
         private SettingService $settingService,
-        private \App\Services\Finance\AccountingPostingService $accountingPostingService,
-    )
-    {
-    }
+        private AccountingPostingService $accountingPostingService,
+    ) {}
 
     public function paginate(array $filters = []): LengthAwarePaginator
     {
@@ -62,27 +61,38 @@ class CreditDebitNoteService
             ])
             ->whereIn('document_type', $allowedTypes);
 
-        if (!empty($filters['document_type']) && in_array($filters['document_type'], $allowedTypes, true)) {
+        if (! empty($filters['document_type']) && in_array($filters['document_type'], $allowedTypes, true)) {
             $query->where('document_type', $filters['document_type']);
         }
 
-        if (!empty($filters['contact_id'])) {
+        if (! empty($filters['contact_id'])) {
             $query->where('contact_id', $filters['contact_id']);
         }
 
-        if (!empty($filters['parent_document_id'])) {
+        if (! empty($filters['parent_document_id'])) {
             $query->where('parent_document_id', $filters['parent_document_id']);
         }
 
-        if (!empty($filters['date_from'])) {
+        if (! empty($filters['date_from'])) {
             $query->whereDate('date', '>=', $filters['date_from']);
         }
 
-        if (!empty($filters['date_to'])) {
+        if (! empty($filters['date_to'])) {
             $query->whereDate('date', '<=', $filters['date_to']);
         }
 
-        return $query->orderByDesc('date')->orderByDesc('id')->paginate($perPage);
+        $sortBy = in_array($filters['sort_by'] ?? '', ['date', 'document_number', 'status'], true)
+            ? $filters['sort_by']
+            : null;
+        $direction = strtolower((string) ($filters['sort_direction'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        if ($sortBy !== null) {
+            $query->orderBy($sortBy, $direction);
+        } else {
+            $query->orderByDesc('date');
+        }
+
+        return $query->orderByDesc('id')->paginate($perPage);
     }
 
     public function getNextDocumentNumberPreview(?string $documentType): string
@@ -201,7 +211,7 @@ class CreditDebitNoteService
 
         if (
             array_key_exists('parent_document_id', $payload)
-            && !empty($note->parent_document_id)
+            && ! empty($note->parent_document_id)
             && (int) $payload['parent_document_id'] !== (int) $note->parent_document_id
         ) {
             throw ValidationException::withMessages([
@@ -287,7 +297,7 @@ class CreditDebitNoteService
         $prefixedQuery = PurchaseDocument::withTrashed()
             ->where('document_type', $documentType)
             ->whereNotNull('document_number')
-            ->where('document_number', 'like', $prefix . '-%');
+            ->where('document_number', 'like', $prefix.'-%');
 
         if ($lockForUpdate) {
             $prefixedQuery->lockForUpdate();
@@ -337,10 +347,10 @@ class CreditDebitNoteService
     private function extractSequenceFromDocumentNumber(string $documentNumber, string $prefix): ?int
     {
         $normalized = strtoupper(trim($documentNumber));
-        $expectedPrefix = strtoupper($prefix) . '-';
+        $expectedPrefix = strtoupper($prefix).'-';
 
-        if (!str_starts_with($normalized, $expectedPrefix)) {
-            if (!preg_match('/(\d+)$/', $normalized, $matches)) {
+        if (! str_starts_with($normalized, $expectedPrefix)) {
+            if (! preg_match('/(\d+)$/', $normalized, $matches)) {
                 return null;
             }
 
@@ -348,7 +358,7 @@ class CreditDebitNoteService
         }
 
         $sequencePart = substr($normalized, strlen($expectedPrefix));
-        if ($sequencePart === '' || !ctype_digit($sequencePart)) {
+        if ($sequencePart === '' || ! ctype_digit($sequencePart)) {
             return null;
         }
 
@@ -367,7 +377,7 @@ class CreditDebitNoteService
 
     private function ensureScopeIsExpenses(array $payload): void
     {
-        if (!array_key_exists('scope', $payload)) {
+        if (! array_key_exists('scope', $payload)) {
             return;
         }
 
@@ -380,7 +390,7 @@ class CreditDebitNoteService
 
     private function ensureAllowedType(?string $documentType): void
     {
-        if (!in_array((string) $documentType, $this->allowedTypes, true)) {
+        if (! in_array((string) $documentType, $this->allowedTypes, true)) {
             throw ValidationException::withMessages([
                 'document_type' => 'Tipo de nota no permitido.',
             ]);
@@ -389,7 +399,7 @@ class CreditDebitNoteService
 
     private function ensureNoteType(PurchaseDocument $note): void
     {
-        if (!in_array($note->document_type, $this->allowedTypes, true)) {
+        if (! in_array($note->document_type, $this->allowedTypes, true)) {
             throw ValidationException::withMessages([
                 'note' => 'El documento no corresponde a una nota de crédito/débito de compras.',
             ]);
@@ -398,7 +408,7 @@ class CreditDebitNoteService
 
     private function ensureItemsPayload(array $payload): void
     {
-        if (!array_key_exists('items', $payload) || !is_array($payload['items'])) {
+        if (! array_key_exists('items', $payload) || ! is_array($payload['items'])) {
             throw ValidationException::withMessages([
                 'items' => 'El payload debe incluir items como arreglo.',
             ]);
@@ -409,7 +419,7 @@ class CreditDebitNoteService
     {
         $parent = PurchaseDocument::query()->find($parentId);
 
-        if (!$parent) {
+        if (! $parent) {
             throw ValidationException::withMessages([
                 'parent_document_id' => 'La factura base especificada no existe.',
             ]);
@@ -421,7 +431,7 @@ class CreditDebitNoteService
             ]);
         }
 
-        if (!$this->isEligibleParentInvoiceStatus((string) $parent->status)) {
+        if (! $this->isEligibleParentInvoiceStatus((string) $parent->status)) {
             throw ValidationException::withMessages([
                 'parent_document_id' => 'La factura seleccionada no esta en un estado valido para registrar una nota.',
             ]);
@@ -484,12 +494,12 @@ class CreditDebitNoteService
     private function isFabricInvoice(PurchaseDocument $invoice): bool
     {
         return $invoice->items->contains(function (PurchaseDocumentItem $item): bool {
-            $subgroupName = mb_strtolower(trim((string) ($item->item?->categorySubGroup?->name ?? '')));
-            if ($subgroupName !== '') {
-                return str_contains($subgroupName, 'tela');
+            if ($item->item?->categorySubGroup) {
+                return MaterialClassifier::isFabricPurchaseDocumentItem($item);
             }
 
             $fallbackName = mb_strtolower(trim((string) ($item->item_name ?? $item->item?->name ?? '')));
+
             return $fallbackName !== '' && str_contains($fallbackName, 'tela');
         });
     }
@@ -502,6 +512,7 @@ class CreditDebitNoteService
         }
 
         $normalized = trim((string) $rawReasonCode);
+
         return $normalized !== '' ? $normalized : null;
     }
 
@@ -526,7 +537,7 @@ class CreditDebitNoteService
             ->filter(fn (string $value) => $value !== '')
             ->all();
 
-        if (!in_array($reasonCode, $allowedCodes, true)) {
+        if (! in_array($reasonCode, $allowedCodes, true)) {
             throw ValidationException::withMessages([
                 'reason_code' => 'El motivo seleccionado no pertenece al catálogo configurado para este tipo de nota.',
             ]);
@@ -543,5 +554,4 @@ class CreditDebitNoteService
             ]);
         }
     }
-
 }

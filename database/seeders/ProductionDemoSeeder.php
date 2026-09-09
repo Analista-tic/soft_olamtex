@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Production\FabricBase;
 use App\Models\Production\ProductionOrder;
 use App\Models\Production\ProductSheet;
 use App\Services\Production\ProductionOrderService;
@@ -120,6 +121,8 @@ class ProductionDemoSeeder extends Seeder
 
     public function run(): void
     {
+        $this->ensureFabricBases();
+
         $service = $this->resolveProductionOrderService();
 
         DB::transaction(function () use ($service) {
@@ -127,6 +130,30 @@ class ProductionDemoSeeder extends Seeder
                 $this->seedSheetWithOrders($definition['sheet'], $definition['orders'], $service);
             }
         });
+    }
+
+    /**
+     * Las fichas demo referencian fabric_base_id fijos. La tabla fabric_bases
+     * ya no se puebla desde settings (ver migración 2026_06_03_000002), así
+     * que en una instalación nueva se garantizan aquí para no romper la FK.
+     */
+    private function ensureFabricBases(): void
+    {
+        $fabricBaseIds = collect(self::SHEETS)
+            ->pluck('sheet.fabric_base_id')
+            ->unique();
+
+        foreach ($fabricBaseIds as $id) {
+            FabricBase::query()->firstOrCreate(
+                ['id' => $id],
+                [
+                    'codigo' => 'BT-' . str_pad((string) $id, 3, '0', STR_PAD_LEFT),
+                    'nombre' => 'BASE TELA DEMO ' . $id,
+                    'factor' => 1.0,
+                    'is_active' => true,
+                ],
+            );
+        }
     }
 
     private function seedSheetWithOrders(array $sheetData, array $orders, ?ProductionOrderService $service): void

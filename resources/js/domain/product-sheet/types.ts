@@ -122,8 +122,6 @@ export interface FabricBaseOption {
     codigo?: string;
     code?: string;
     factor?: number;
-    factor_base?: number;
-    factor_base_tela?: number;
 }
 
 export interface ProductOperationListRow {

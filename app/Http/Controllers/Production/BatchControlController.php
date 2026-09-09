@@ -18,7 +18,9 @@ use App\Models\Production\TechnicalSheetOperationHistory;
 use App\Models\Textil\FabricRoll;
 use App\Models\Textil\FabricRollAdjustment;
 use App\Services\Inventory\InventoryMovementService;
+use App\Services\Production\FabricBaseService;
 use App\Services\Production\FinishedProductCatalogItemService;
+use App\Services\Production\TechnicalDataSheetRollsStore;
 use App\Services\Production\TechnicalSheetService;
 use App\Services\Production\OperationCatalogService;
 use App\Services\Production\MachineService;
@@ -117,6 +119,8 @@ class BatchControlController extends Controller
         private OperationCatalogService $operationCatalogService,
         private MachineService $machineService,
         private TechnicalSheetService $technicalSheetService,
+        private FabricBaseService $fabricBaseService,
+        private TechnicalDataSheetRollsStore $rollsStore,
     ) {
     }
 
@@ -623,8 +627,10 @@ class BatchControlController extends Controller
         $sheet = $order->technicalSheet;
         $rollLines = [];
         if ($sheet) {
-            $snapshot = $sheet->rollsSnapshot()->first();
-            $rollLines = is_array($snapshot?->lines) ? array_values($snapshot->lines) : [];
+            // Fase 15: líneas de rollos vía el store (fabric_roll_programming_lines),
+            // ya no rollsSnapshot()->lines directamente.
+            $rollsPayload = $this->rollsStore->read($order->id);
+            $rollLines = is_array($rollsPayload['lines'] ?? null) ? $rollsPayload['lines'] : [];
         }
 
         // Curvas desde TechnicalSheetSize — usa todas las tallas definidas en la ficha
@@ -1520,10 +1526,10 @@ class BatchControlController extends Controller
                 'name'              => $m->name ?? '',
                 'supplement_factor' => $m->supplement_factor !== null ? (float) $m->supplement_factor : 1.0,
             ])->values()->all(),
-            'fabric_bases' => $this->settingService->getFabricBasesWithFactor()->map(fn ($f) => [
+            'fabric_bases' => $this->fabricBaseService->options()->map(fn ($f) => [
                 'id'     => $f['id'],
-                'name'   => $f['name'] ?? $f['nombre'] ?? $f['codigo'] ?? (string) $f['id'],
-                'factor' => $f['factor'] ?? $f['factor_base'] ?? $f['factor_base_tela'] ?? 1.0,
+                'name'   => $f['name'],
+                'factor' => $f['factor'],
             ])->values()->all(),
             'actions' => $this->operationCatalogService->actionOptions()->values()->all(),
             'garmentParts' => $this->operationCatalogService->garmentPartOptions()->values()->all(),
@@ -1646,15 +1652,7 @@ class BatchControlController extends Controller
             return 1.0;
         }
 
-        $option = $this->settingService->getCatalogOptionById('fabric_bases', $fabricBaseId);
-        if (! $option) {
-            return 1.0;
-        }
-
-        $factor = $option['factor'] ?? $option['factor_base'] ?? $option['factor_base_tela'] ?? null;
-        $value  = is_numeric($factor) ? (float) $factor : 1.0;
-
-        return $value > 0 ? $value : 1.0;
+        return $this->fabricBaseService->getFactorById((int) $fabricBaseId);
     }
 
     // ─── Notificaciones de Novedades ──────────────────────
