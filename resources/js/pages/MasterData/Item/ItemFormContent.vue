@@ -26,6 +26,7 @@ import { DialogFooter } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 import AdditionalFieldDialog from '@/pages/MasterData/AdditionalFields/AdditionalFieldDialog.vue';
@@ -33,7 +34,6 @@ import WarehouseLocationDialog from '@/pages/Inventory/WarehouseLocation/Warehou
 import ColorPickerSelect from '@/components/ColorPickerSelect.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import ExtraFieldsForm from '@/pages/MasterData/Item/ExtraFieldsForm.vue';
-import GroupDialog from '@/pages/MasterData/Category/GroupDialog.vue';
 
 import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
 import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
@@ -130,6 +130,8 @@ type ItemColorSource = {
 type ItemFormSource = Partial<Item> & {
     color_id?: number | string | null;
     color?: ItemColorSource | null;
+    fabric_name_id?: number | string | null;
+    yarn_name_id?: number | string | null;
     tax?: ItemTaxRelation | null; // compat backend
     warehouse_stocks?: ItemWarehouseStockSource[] | null;
     warehouse_items?: ItemWarehouseStockSource[] | null;
@@ -140,6 +142,8 @@ type ItemForm = Omit<Partial<Item>, 'tax_id' | 'category_sub_group_id'> & {
     category_sub_group_id?: number | string;
     color_id?: number | string | null;
     color?: ItemColorSource | null;
+    fabric_name_id?: number | string | null;
+    yarn_name_id?: number | string | null;
 };
 
 const normalizeItemType = (value?: string | null): ItemType => (value === 'service' ? 'service' : 'product');
@@ -170,6 +174,12 @@ function mapItemToFormState(source: ItemFormSource): ItemForm {
                 ? Number(source.color_id)
                 : null,
         color: source.color ?? null,
+        fabric_name_id: source.fabric_name_id !== undefined && source.fabric_name_id !== null && String(source.fabric_name_id).trim() !== ''
+                ? Number(source.fabric_name_id)
+                : null,
+        yarn_name_id: source.yarn_name_id !== undefined && source.yarn_name_id !== null && String(source.yarn_name_id).trim() !== ''
+                ? Number(source.yarn_name_id)
+                : null,
         reference: source.reference || '',
         bar_code: source.bar_code ?? '',
         tax_id: resolvedTaxId,
@@ -193,8 +203,16 @@ const warehouseLocations = ref<{ id: number; name: string }[]>([]);
 const categorySubGroups = ref<CategorySubGroup[]>([]);
 const categoryGroups = ref<CategoryGroup[]>([]);
 
+type MaterialNameOption = { id: number; nombre: string; base_nombre: string | null; factor?: number | null };
+const fabricNameOptions = ref<MaterialNameOption[]>([]);
+const yarnNameOptions = ref<MaterialNameOption[]>([]);
+
 const selectedGroupId = ref<string | null>(null);
 const isInitializing = ref(true);
+
+// Referencia automática/manual — solo aplica al crear (editar conserva la referencia
+// tal como quedó, sea cual sea el origen; ver ItemController::prepareItemPayload()).
+const referenceMode = ref<'manual' | 'auto'>('manual');
 
 const imageFile = ref<File | null>(null);
 const imagePreview = ref<string | undefined>(undefined);
@@ -240,7 +258,6 @@ const taxForm = ref<TaxDialogForm>({ name: '', percentage: 0, status: true });
 const additionalFieldDialogOpen = ref(false);
 const additionalFieldDialogLoading = ref(false);
 
-const isGroupDialogOpen = ref(false);
 const isLocationDialogOpen = ref(false);
 const pendingLocationRowIdx = ref<number | null>(null);
 
@@ -285,6 +302,30 @@ const colorModel = computed<number | null>({
         localForm.value.color_id = value ?? null;
     },
 });
+const fabricNameModel = computed<number | null>({
+    get: () => {
+        const raw = localForm.value.fabric_name_id;
+        if (raw === undefined || raw === null || String(raw).trim() === '') return null;
+
+        const parsed = Number(raw);
+        return Number.isFinite(parsed) ? parsed : null;
+    },
+    set: (value) => {
+        localForm.value.fabric_name_id = value ?? null;
+    },
+});
+const yarnNameModel = computed<number | null>({
+    get: () => {
+        const raw = localForm.value.yarn_name_id;
+        if (raw === undefined || raw === null || String(raw).trim() === '') return null;
+
+        const parsed = Number(raw);
+        return Number.isFinite(parsed) ? parsed : null;
+    },
+    set: (value) => {
+        localForm.value.yarn_name_id = value ?? null;
+    },
+});
 const canCreateCategories = computed(() => authStore.can('crear categorias'));
 const canCreateTaxes = computed(() => authStore.can('crear impuestos'));
 const canCreateAdditionalFields = computed(() => authStore.can('crear campos adicionales'));
@@ -310,6 +351,37 @@ const subGroupOptions = computed(() =>
 );
 
 const currentSubGroup = computed(() => categorySubGroups.value.find((sg) => String(sg.id) === String(localForm.value.category_sub_group_id)));
+
+const materialKind = computed(() => currentSubGroup.value?.material_kind ?? null);
+
+const selectedFabricNameOption = computed(() => fabricNameOptions.value.find((option) => option.id === fabricNameModel.value));
+const selectedYarnNameOption = computed(() => yarnNameOptions.value.find((option) => option.id === yarnNameModel.value));
+
+// El factor afecta el costeo (SAM) y es información de Diseño, no de quien solo
+// selecciona una tela al crear un ítem — se oculta para cualquier otro rol.
+const canSeeMaterialFactor = computed(() => authStore.can('ver factor material'));
+
+function materialNameOptionLabel(option: MaterialNameOption): string {
+    return option.base_nombre ? `${option.nombre} (${option.base_nombre})` : option.nombre;
+}
+
+// `name` incluye la base sin paréntesis para que la búsqueda encuentre "MILE" o
+// "ALGODÓN"; `label` es lo que se muestra ("MILE (ALGODÓN)") — ver SelectField.vue,
+// que ahora busca en ambos.
+const fabricNameSelectOptions = computed(() =>
+    fabricNameOptions.value.map((option) => ({
+        id: option.id,
+        name: `${option.nombre} ${option.base_nombre ?? ''}`.trim(),
+        label: materialNameOptionLabel(option),
+    })),
+);
+const yarnNameSelectOptions = computed(() =>
+    yarnNameOptions.value.map((option) => ({
+        id: option.id,
+        name: `${option.nombre} ${option.base_nombre ?? ''}`.trim(),
+        label: materialNameOptionLabel(option),
+    })),
+);
 
 const currentGroup = computed(() => {
     if (currentSubGroup.value?.category_group) return currentSubGroup.value.category_group;
@@ -443,6 +515,9 @@ const HIDDEN_EXTRA_FIELD_KEYS = new Set([
     'origin_type',
     'imported_at',
     'source_reference',
+    // Histórico de valores ya migrados a una FK real (ej. 'Base tela' →
+    // fabric_name_id). Se conserva el dato pero no se muestra como campo editable.
+    '_legacy',
 ]);
 
 const UNIT_MEASURE_EXTRA_FIELD_KEYS = new Set(['medida', 'unidad de medida', 'unit_measure', 'unit measure']);
@@ -483,6 +558,30 @@ function fillExtraFields(obj: unknown) {
     });
 }
 
+// Espejo de ItemService::appendNameSegment() en el backend: agrega un segmento al
+// nombre evitando duplicar texto ya presente en lo acumulado (case-insensitive).
+function appendNameSegment(name: string, segment: string): string {
+    const trimmedSegment = segment.trim();
+    if (!trimmedSegment) return name;
+    if (!name) return trimmedSegment;
+    if (name.toLowerCase().includes(trimmedSegment.toLowerCase())) return name;
+    return `${name} ${trimmedSegment}`.trim();
+}
+
+// Espejo de ItemService::buildMaterialNameSegment(): "{base} {nombre}", ej. "ALGODÓN
+// MILE". Un ítem es tela o hilaza, nunca ambas.
+function materialNameSegment(): string {
+    if (materialKind.value === 'fabric' && selectedFabricNameOption.value) {
+        return `${selectedFabricNameOption.value.base_nombre ?? ''} ${selectedFabricNameOption.value.nombre}`.trim();
+    }
+    if (materialKind.value === 'yarn' && selectedYarnNameOption.value) {
+        return `${selectedYarnNameOption.value.base_nombre ?? ''} ${selectedYarnNameOption.value.nombre}`.trim();
+    }
+    return '';
+}
+
+// Espejo de ItemService::buildName() (backend): subgrupo + material + extras + color.
+// Debe producir exactamente el mismo resultado — cubierto por un test de paridad.
 function updateNameField(orderedFields?: Record<string, string>): void {
     const subGroup = categorySubGroups.value.find((sg) => String(sg.id) === String(localForm.value.category_sub_group_id));
 
@@ -501,11 +600,18 @@ function updateNameField(orderedFields?: Record<string, string>): void {
                 .map((key) => [key, String(extraFields.value[key])]),
         );
 
-    const extras = Object.values(extrasObj).join(' ');
-    const baseName = [subGroup?.name ?? '', extras].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
-    nameField.value = selectedColorName.value && !baseName.includes(selectedColorName.value)
-        ? [baseName, selectedColorName.value].filter(Boolean).join(' ').trim()
-        : baseName;
+    const extras = Object.values(extrasObj).join(' ').replace(/\s+/g, ' ').trim();
+
+    let name = '';
+    name = appendNameSegment(name, subGroup?.name ?? '');
+    name = appendNameSegment(name, materialNameSegment());
+    name = appendNameSegment(name, extras);
+    name = appendNameSegment(name, selectedColorName.value ?? '');
+
+    // El backend siempre persiste el nombre en mayúsculas (buildName() hace
+    // mb_strtoupper); se replica aquí para que el preview coincida con lo que
+    // realmente se va a guardar.
+    nameField.value = name.toLocaleUpperCase('es');
     localForm.value.name = nameField.value;
 }
 
@@ -527,6 +633,7 @@ function syncGroupFromSubgroup() {
 
 function applyFormData(source: ItemFormSource) {
     localForm.value = mapItemToFormState(source);
+    referenceMode.value = 'manual';
     unitMeasure.value = getInitialUnitMeasure(source);
     selectedColorName.value = source.color?.name ? String(source.color.name).trim() : '';
     fillExtraFields(source.extra_fields);
@@ -617,6 +724,19 @@ async function fetchCategorySubGroups(force = false) {
     }
 }
 
+async function fetchMaterialNameOptions() {
+    try {
+        const [fabricResponse, yarnResponse] = await Promise.all([
+            axios.get(route('nombres-tela.options')),
+            axios.get(route('nombres-hilaza.options')),
+        ]);
+        fabricNameOptions.value = Array.isArray(fabricResponse.data) ? fabricResponse.data : [];
+        yarnNameOptions.value = Array.isArray(yarnResponse.data) ? yarnResponse.data : [];
+    } catch (error) {
+        console.error('Error al obtener los nombres de tela/hilaza:', error);
+    }
+}
+
 async function fetchTaxes(force = false) {
     try {
         const raw: Tax[] =
@@ -652,9 +772,14 @@ async function fetchAccountingAccounts() {
 }
 
 function applyAdditionalFields(normalizedFields: AdditionalField[]) {
+    const currentSubGroupId = currentSubGroup.value?.id ?? null;
     const fields = normalizedFields.filter((f) => {
         const normalizedName = String(f.name ?? '').trim().toLowerCase();
-        return normalizedName !== 'color' && !isUnitMeasureExtraField(normalizedName);
+        if (normalizedName === 'color' || isUnitMeasureExtraField(normalizedName)) return false;
+
+        const scopedTo = f.category_sub_group_ids ?? [];
+        if (scopedTo.length === 0) return true;
+        return currentSubGroupId !== null && scopedTo.includes(currentSubGroupId);
     });
     extraFieldNames.value = fields.map((f) => f.name);
     additionalFieldsMeta.value = fields;
@@ -690,6 +815,9 @@ async function fetchAdditionalFields(force = false) {
                     is_required: Boolean(field?.is_required) && String(field?.name ?? '').toUpperCase() !== 'MEDIDA',
                     status: field?.status ?? true,
                     position: typeof field?.position === 'number' ? field.position : null,
+                    category_sub_group_ids: Array.isArray(field?.category_sub_group_ids)
+                        ? field.category_sub_group_ids.map((id: any) => Number(id))
+                        : [],
                     created_at: field?.created_at,
                     updated_at: field?.updated_at,
                 } as AdditionalField;
@@ -846,15 +974,6 @@ async function handleCreateGroupInline(name: string): Promise<Option> {
 function onGroupCreated(option: Option) {
     selectedGroupId.value = String(option.id);
     localForm.value.category_sub_group_id = undefined;
-}
-
-function handleGroupCreated(created: Partial<CategoryGroup>) {
-    const idStr = created?.id ? String(created.id) : '';
-    if (idStr) {
-        selectedGroupId.value = idStr;
-        localForm.value.category_sub_group_id = undefined;
-    }
-    isGroupDialogOpen.value = false;
 }
 
 async function handleCreateSubGroupInline(name: string): Promise<Option> {
@@ -1077,7 +1196,12 @@ function redirectToAdvancedForm() {
 }
 
 async function checkDuplicateName(): Promise<string | null> {
-    const reference = (localForm.value.reference ?? '').trim();
+    // El backend solo usa `reference` como campo obligatorio de la petición — la
+    // verificación real es por nombre (ver ItemService::duplicateStatus()). En modo
+    // automático todavía no hay referencia (la genera el servidor al guardar), así
+    // que se manda un valor de relleno solo para poder seguir chequeando el nombre.
+    const isAutoReference = props.dialogType === 'create' && referenceMode.value === 'auto';
+    const reference = isAutoReference ? '__referencia_automatica__' : (localForm.value.reference ?? '').trim();
     const subGroupId = localForm.value.category_sub_group_id;
     if (!reference || !subGroupId) return null;
 
@@ -1120,6 +1244,14 @@ function mapFormStateToPayload(orderedExtraFields: Record<string, string>): Reco
             localForm.value.color_id !== undefined && localForm.value.color_id !== null && String(localForm.value.color_id).trim() !== ''
                 ? Number(localForm.value.color_id)
                 : '',
+        fabric_name_id:
+            localForm.value.fabric_name_id !== undefined && localForm.value.fabric_name_id !== null && String(localForm.value.fabric_name_id).trim() !== ''
+                ? Number(localForm.value.fabric_name_id)
+                : '',
+        yarn_name_id:
+            localForm.value.yarn_name_id !== undefined && localForm.value.yarn_name_id !== null && String(localForm.value.yarn_name_id).trim() !== ''
+                ? Number(localForm.value.yarn_name_id)
+                : '',
         tax_id: resolvedTaxId !== undefined && resolvedTaxId !== null && String(resolvedTaxId) !== '' ? Number(resolvedTaxId) : undefined,
         tax: Number.isFinite(selectedTaxPercentage) ? selectedTaxPercentage : 0,
         negative_movement: localForm.value.negative_movement,
@@ -1160,7 +1292,8 @@ async function handleSubmit() {
 
     if (props.showAdvancedSections && !localForm.value.income_account_id) requiredErrors.push('Cuenta de ingreso');
 
-    if (!localForm.value.reference || String(localForm.value.reference).trim() === '') {
+    const isAutoReference = props.dialogType === 'create' && referenceMode.value === 'auto';
+    if (!isAutoReference && (!localForm.value.reference || String(localForm.value.reference).trim() === '')) {
         requiredErrors.push('Referencia');
     }
 
@@ -1236,6 +1369,8 @@ async function handleSubmit() {
         'tax_id',
         'category_sub_group_id',
         'color_id',
+        'fabric_name_id',
+        'yarn_name_id',
         'img',
         'income_account_id',
         'inventory_account_id',
@@ -1300,6 +1435,10 @@ async function handleSubmit() {
             }
 
             for (const key of scalarFields) {
+                // En modo automático la referencia la genera el servidor — no se envía
+                // la del formulario (queda vacía porque el input ni se muestra).
+                if (key === 'reference' && isCreate && referenceMode.value === 'auto') continue;
+
                 const v = cleanForm[key];
                 if (v === undefined || v === null) continue;
 
@@ -1336,6 +1475,7 @@ async function handleSubmit() {
 
             formData.append('warehouses', JSON.stringify(warehousesPayload));
 
+            if (isCreate) formData.append('reference_mode', referenceMode.value);
             if (isEdit) formData.append('_method', 'PUT');
 
             await axios.post(url, formData);
@@ -1429,13 +1569,38 @@ watch(
         if (subGroup?.category_group_id) {
             selectedGroupId.value = String(subGroup.category_group_id);
         }
+
+        const kind = subGroup?.material_kind ?? null;
+        if (kind !== 'fabric') {
+            localForm.value.fabric_name_id = null;
+        }
+        if (kind !== 'yarn') {
+            localForm.value.yarn_name_id = null;
+        }
     },
 );
 
 watch(
-    [() => localForm.value.category_sub_group_id, () => localForm.value.color_id, () => extraFieldNames.value.map((key) => extraFields.value[key]).join('|')],
+    [
+        () => localForm.value.category_sub_group_id,
+        () => localForm.value.color_id,
+        () => localForm.value.fabric_name_id,
+        () => localForm.value.yarn_name_id,
+        () => extraFieldNames.value.map((key) => extraFields.value[key]).join('|'),
+    ],
     () => updateNameField(),
     { immediate: true },
+);
+
+// Recalcula qué campos adicionales aplican al reasignar el subgrupo (campos con category_sub_group_ids
+// asociados solo se muestran en ese subgrupo; sin asociación = global, siempre visible).
+watch(
+    () => localForm.value.category_sub_group_id,
+    () => {
+        if (cachedAdditionalFields) {
+            applyAdditionalFields(cachedAdditionalFields);
+        }
+    },
 );
 
 function triggerFileInput() {
@@ -1529,6 +1694,7 @@ onMounted(async () => {
     }
     await authStore.fetchUser();
     await fetchCategorySubGroups();
+    void fetchMaterialNameOptions();
     // nextTick para asegurar que syncGroupFromSubgroup ya corrió
     await nextTick();
     isInitializing.value = false;
@@ -1582,7 +1748,7 @@ onBeforeUnmount(() => {
                 />
 
                 <fieldset v-if="canRenderForm" :disabled="isViewMode" class="space-y-4">
-                    <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+                    <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_260px]">
                         <div class="flex min-w-0 flex-col gap-3">
                             <div>
                                 <div class="mb-1.5 flex items-center gap-1">
@@ -1716,20 +1882,107 @@ onBeforeUnmount(() => {
                                         </template>
                                     </SelectField>
 
-                                    <InputField v-model="localForm.reference" label="Referencia" required />
+                                    <div class="flex flex-col gap-1">
+                                        <div class="flex items-center justify-between gap-2">
+                                            <Label>Referencia</Label>
+                                            <Tabs v-if="props.dialogType === 'create'" v-model="referenceMode" class="shrink-0">
+                                                <TabsList class="h-7 p-0.5">
+                                                    <TabsTrigger value="manual" class="h-6 px-2.5 text-xs">Manual</TabsTrigger>
+                                                    <TabsTrigger value="auto" class="h-6 px-2.5 text-xs">Automática</TabsTrigger>
+                                                </TabsList>
+                                            </Tabs>
+                                        </div>
+                                        <InputField
+                                            v-if="referenceMode === 'manual' || props.dialogType !== 'create'"
+                                            v-model="localForm.reference"
+                                            label=""
+                                            required
+                                        />
+                                        <p v-else class="rounded-md border border-dashed bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                                            Se generará al guardar (consecutivo + grupo + subgrupo + color).
+                                        </p>
+                                    </div>
                                 </template>
+
+                                <div v-if="localForm.legacy_code" class="flex flex-col gap-1">
+                                    <Label>Código sistema anterior</Label>
+                                    <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
+                                        {{ localForm.legacy_code }}
+                                    </div>
+                                </div>
                             </div>
 
+                        <!-- Slot de material siempre presente en el grid (aunque no aplique a este
+                        subgrupo): cambiar de subgrupo solo cambia el contenido de adentro, nunca la
+                        cantidad de elementos del grid — evita que el resto del formulario salte
+                        verticalmente cada vez que se elige/cambia el subgrupo. -->
+                        <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
+                            <template v-if="materialKind === 'fabric'">
+                                <template v-if="isViewMode">
+                                    <div class="flex flex-col gap-1">
+                                        <Label>Nombre de tela</Label>
+                                        <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                            {{ selectedFabricNameOption ? materialNameOptionLabel(selectedFabricNameOption) : '-' }}
+                                        </div>
+                                    </div>
+                                </template>
+                                <template v-else>
+                                    <div class="flex flex-col gap-1 md:col-span-2">
+                                        <SelectField
+                                            v-model="fabricNameModel"
+                                            label="Nombre de tela"
+                                            :options="fabricNameSelectOptions"
+                                            :get-option-label="(o) => (o as any).label"
+                                            placeholder="Selecciona un nombre de tela"
+                                            searchable
+                                            search-placeholder="Buscar..."
+                                            :show-placeholder-option="false"
+                                        />
+                                        <!-- El factor solo lo ve Diseño (permiso "ver factor material"): afecta el
+                                        costeo (SAM), no es información de quien solo selecciona una tela. -->
+                                        <p v-if="selectedFabricNameOption && canSeeMaterialFactor" class="text-xs text-muted-foreground">
+                                            Base: {{ selectedFabricNameOption.base_nombre ?? '-' }}
+                                            · Factor: {{ selectedFabricNameOption.factor != null ? Number(selectedFabricNameOption.factor).toFixed(2) : '-' }}
+                                        </p>
+                                    </div>
+                                </template>
+                            </template>
+
+                            <template v-else-if="materialKind === 'yarn'">
+                                <template v-if="isViewMode">
+                                    <div class="flex flex-col gap-1">
+                                        <Label>Nombre de hilaza</Label>
+                                        <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                            {{ selectedYarnNameOption ? materialNameOptionLabel(selectedYarnNameOption) : '-' }}
+                                        </div>
+                                    </div>
+                                </template>
+                                <template v-else>
+                                    <div class="flex flex-col gap-1 md:col-span-2">
+                                        <SelectField
+                                            v-model="yarnNameModel"
+                                            label="Nombre de hilaza"
+                                            :options="yarnNameSelectOptions"
+                                            :get-option-label="(o) => (o as any).label"
+                                            placeholder="Selecciona un nombre de hilaza"
+                                            searchable
+                                            search-placeholder="Buscar..."
+                                            :show-placeholder-option="false"
+                                        />
+                                    </div>
+                                </template>
+                            </template>
+                        </div>
                         </div>
 
-                        <div class="min-w-0">
-                            <Label class="mb-1.5 block text-left text-sm font-medium">Imagen</Label>
+                        <div class="flex min-w-0 flex-col gap-1.5">
+                            <Label class="text-sm font-medium">Imagen</Label>
                             <input ref="fileInputRef" type="file" accept="image/*" class="hidden" :disabled="isViewMode" @change="handleFileChange" />
 
                             <div
                                 :class="[
-                                    'group relative flex h-36 w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-muted/50 transition-all duration-200',
-                                    isViewMode ? 'cursor-default opacity-100' : 'cursor-pointer hover:border-primary hover:shadow-md',
+                                    'group relative flex aspect-[4/5] w-full flex-col items-stretch justify-center overflow-hidden rounded-lg border-2 border-dashed bg-muted/40 transition-all duration-200',
+                                    isViewMode ? 'cursor-default opacity-100' : 'cursor-pointer hover:border-primary hover:bg-muted/60',
                                 ]"
                                 @click="!isViewMode && triggerFileInput()"
                             >
@@ -2108,9 +2361,6 @@ onBeforeUnmount(() => {
             </DialogFooter>
         </form>
     </div>
-
-    <!-- TODO: eliminar cuando se migre el módulo de Categorías -->
-    <GroupDialog v-model:isOpen="isGroupDialogOpen" @created="handleGroupCreated" @close="isGroupDialogOpen = false" />
 
     <WarehouseLocationDialog
         :open="isLocationDialogOpen"

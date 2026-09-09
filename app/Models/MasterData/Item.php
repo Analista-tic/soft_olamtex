@@ -28,6 +28,7 @@ class Item extends Model implements \App\Contracts\HasAuditLabel
         'extra_fields',
         'name',
         'reference',
+        'legacy_code',
         'item_type',
         'tracks_inventory',
         'status',
@@ -40,6 +41,8 @@ class Item extends Model implements \App\Contracts\HasAuditLabel
         'inventory_account_id',
         'cost_of_sale_account_id',
         'color_id',
+        'fabric_name_id',
+        'yarn_name_id',
     ];
 
     protected $casts = [
@@ -171,5 +174,25 @@ class Item extends Model implements \App\Contracts\HasAuditLabel
     public function color(): BelongsTo
     {
         return $this->belongsTo(Color::class);
+    }
+
+    public function fabricName(): BelongsTo
+    {
+        return $this->belongsTo(FabricName::class);
+    }
+
+    public function yarnName(): BelongsTo
+    {
+        return $this->belongsTo(YarnName::class);
+    }
+
+    public function isFabric(): bool
+    {
+        return \App\Support\MasterData\MaterialClassifier::isFabricItem($this);
+    }
+
+    public function isYarn(): bool
+    {
+        return \App\Support\MasterData\MaterialClassifier::isYarnItem($this);
     }
 }

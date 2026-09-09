@@ -17,8 +17,6 @@ abstract class BaseProductSheetRequest extends FormRequest
         'groups' => 'Grupo',
         'brands' => 'Marca',
         'worlds' => 'Mundo',
-        'fabric_bases' => 'Base',
-        'yarn_bases' => 'Base de hilaza',
         'operational_lists' => 'Listado operacional',
     ];
 
@@ -61,7 +59,7 @@ abstract class BaseProductSheetRequest extends FormRequest
             'yarn_base_id' => array_filter([
                 $this->requiresYarnBase() ? 'required' : 'nullable',
                 'integer',
-                $this->catalogRule('yarn_bases'),
+                Rule::exists('yarn_bases', 'id'),
             ]),
             'type' => ['required', 'string', Rule::in([self::TYPE_PRODUCT, self::TYPE_SAMPLE])],
             'garment_type' => ['nullable', 'string', Rule::in(['superior', 'inferior'])],

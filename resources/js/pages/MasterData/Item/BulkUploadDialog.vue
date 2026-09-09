@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Button from '@/components/ui/button/Button.vue';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import axios from 'axios';
 import { ClipboardList, CloudUpload, Download } from 'lucide-vue-next';
@@ -35,10 +36,46 @@ const recommendations = [
 const selectedFileLabel = computed(() => bulkUploadFile.value?.name ?? 'Ningún archivo seleccionado');
 const hasFile = computed(() => Boolean(bulkUploadFile.value));
 
+// Campos que la carga masiva reconoce (mismo listado que valida el backend en
+// ItemService::BULK_UPDATE_FIELD_GROUPS) — solo aplica a filas que actualizan un
+// ítem ya existente (por N° ITEM o Código sistema anterior); las filas nuevas
+// siempre se crean con todos los datos del Excel, sin restricción.
+const updatableFieldOptions: { key: string; label: string }[] = [
+    { key: 'tipo_item', label: 'Tipo de ítem' },
+    { key: 'grupo_subgrupo', label: 'Grupo / Subgrupo' },
+    { key: 'impuesto', label: 'Impuesto' },
+    { key: 'bodega_stock', label: 'Bodega, precio y cantidades' },
+    { key: 'unidad_medida', label: 'Unidad de medida' },
+    { key: 'codigo_barras', label: 'Código de barras' },
+    { key: 'referencia', label: 'Referencia' },
+    { key: 'codigo_sistema_anterior', label: 'Código sistema anterior' },
+    { key: 'descripcion', label: 'Descripción' },
+    { key: 'movimiento_negativo', label: 'Movimiento negativo' },
+    { key: 'campos_adicionales', label: 'Campos adicionales' },
+    { key: 'color', label: 'Color' },
+    { key: 'base_tela_hilaza', label: 'Base tela / hilaza' },
+    { key: 'estado', label: 'Estado' },
+];
+
+const restrictUpdateFields = ref(false);
+const selectedUpdateFields = ref<string[]>([]);
+
+function toggleUpdateField(key: string, checked: boolean) {
+    if (checked) {
+        if (!selectedUpdateFields.value.includes(key)) {
+            selectedUpdateFields.value.push(key);
+        }
+    } else {
+        selectedUpdateFields.value = selectedUpdateFields.value.filter((k) => k !== key);
+    }
+}
+
 function close() {
     isOpen.value = false;
     emit('close');
     bulkUploadFile.value = null;
+    restrictUpdateFields.value = false;
+    selectedUpdateFields.value = [];
     if (fileInputRef.value) {
         fileInputRef.value.value = '';
     }
@@ -52,6 +89,10 @@ async function handleBulkUpload() {
     isUploading.value = true;
     const formData = new FormData();
     formData.append('file', bulkUploadFile.value);
+    if (restrictUpdateFields.value) {
+        formData.append('restrict_fields_to_update', '1');
+        selectedUpdateFields.value.forEach((key) => formData.append('fields_to_update[]', key));
+    }
     try {
         const response = await axios.post('/item/carga-masiva', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
@@ -155,6 +196,29 @@ function preventDrag(event: DragEvent) {
                                         <Button variant="outline" size="sm" class="mt-3" @click="openFileDialog"> Seleccionar archivo </Button>
                                         <p class="text-sm text-muted-foreground">{{ selectedFileLabel }}</p>
                                     </div>
+                                </div>
+                            </div>
+
+                            <div class="border-t pt-4">
+                                <label class="flex items-start gap-2 text-sm">
+                                    <Checkbox :model-value="restrictUpdateFields" @update:model-value="(v) => (restrictUpdateFields = Boolean(v))" />
+                                    <span>
+                                        <span class="font-semibold text-foreground">Restringir qué se actualiza en ítems ya existentes</span>
+                                        <p class="text-xs text-muted-foreground">
+                                            Solo aplica a filas que coincidan con un ítem existente (por N° ITEM o Código sistema anterior). Los
+                                            ítems nuevos siempre se crean con todos los datos del Excel.
+                                        </p>
+                                    </span>
+                                </label>
+
+                                <div v-if="restrictUpdateFields" class="mt-3 grid grid-cols-1 gap-2 rounded-xl border border-muted bg-muted/30 p-3 sm:grid-cols-2">
+                                    <label v-for="option in updatableFieldOptions" :key="option.key" class="flex items-center gap-2 text-sm">
+                                        <Checkbox
+                                            :model-value="selectedUpdateFields.includes(option.key)"
+                                            @update:model-value="(v) => toggleUpdateField(option.key, Boolean(v))"
+                                        />
+                                        <span>{{ option.label }}</span>
+                                    </label>
                                 </div>
                             </div>
 

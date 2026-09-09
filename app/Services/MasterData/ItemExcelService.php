@@ -7,7 +7,9 @@ use App\Models\Inventory\Warehouse;
 use App\Models\Inventory\WarehouseItem;
 use App\Models\MasterData\CategoryGroup;
 use App\Models\MasterData\CategorySubGroup;
+use App\Models\MasterData\FabricName;
 use App\Models\MasterData\Item;
+use App\Models\MasterData\YarnName;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
@@ -57,7 +59,10 @@ class ItemExcelService
             'CAMPOS ADICIONALES',
             'VALORES ADICIONALES',
             'COLOR',
+            'BASE TELA',
+            'BASE HILAZA',
             'ESTADO',
+            'CODIGO SISTEMA ANTERIOR',
         ];
     }
 
@@ -131,7 +136,7 @@ class ItemExcelService
     {
         // Eager loading: warehouseItems.warehouse evita N+1.
         // No se carga 'warehouses' porque esa relación es hasManyThrough (sin pivot usable).
-        $items = Item::with(['categorySubGroup.categoryGroup', 'tax', 'warehouseItems.warehouse', 'color'])->get();
+        $items = Item::with(['categorySubGroup.categoryGroup', 'tax', 'warehouseItems.warehouse', 'color', 'fabricName', 'yarnName'])->get();
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
@@ -264,7 +269,29 @@ class ItemExcelService
 
         $unitMeasures = $this->loadUnitMeasureOptionsForTemplate();
 
-        return compact('groups', 'subGroups', 'taxes', 'warehouses', 'unitMeasures');
+        $fabricNames = FabricName::with('fabricBase')
+            ->active()
+            ->orderBy('nombre')
+            ->get()
+            ->map(fn($f) => [
+                'id' => $f->id,
+                'nombre' => $f->nombre,
+                'base' => optional($f->fabricBase)->nombre ?? '',
+            ])
+            ->toArray();
+
+        $yarnNames = YarnName::with('yarnBase')
+            ->active()
+            ->orderBy('nombre')
+            ->get()
+            ->map(fn($y) => [
+                'id' => $y->id,
+                'nombre' => $y->nombre,
+                'base' => optional($y->yarnBase)->nombre ?? '',
+            ])
+            ->toArray();
+
+        return compact('groups', 'subGroups', 'taxes', 'warehouses', 'unitMeasures', 'fabricNames', 'yarnNames');
     }
 
     /**
@@ -280,6 +307,8 @@ class ItemExcelService
         $taxes = $catalogData['taxes'];
         $warehouses = $catalogData['warehouses'];
         $unitMeasures = $catalogData['unitMeasures'];
+        $fabricNames = $catalogData['fabricNames'];
+        $yarnNames = $catalogData['yarnNames'];
 
         // Hoja Subgrupos
         $subGroupSheet = $spreadsheet->createSheet();
@@ -361,10 +390,37 @@ class ItemExcelService
         $listSheet->fromArray($listRows, null, 'A2');
         $listLastRow = count($listRows) + 1;
 
+        // Hoja Telas (nombres de tela válidos para BASE TELA, con su base de origen)
+        $fabricSheet = $spreadsheet->createSheet();
+        $fabricSheet->setTitle('Telas');
+        $fabricSheet->fromArray(['ID', 'Nombre', 'Base tela'], null, 'A1');
+        if (!empty($fabricNames)) {
+            $fabricSheet->fromArray(
+                array_map(fn($f) => [$f['id'], $f['nombre'], $f['base']], $fabricNames),
+                null,
+                'A2'
+            );
+        }
+        $fabricNameLastRow = count($fabricNames) + 1;
+
+        // Hoja Hilazas (nombres de hilaza válidos para BASE HILAZA, con su base de origen)
+        $yarnSheet = $spreadsheet->createSheet();
+        $yarnSheet->setTitle('Hilazas');
+        $yarnSheet->fromArray(['ID', 'Nombre', 'Base hilaza'], null, 'A1');
+        if (!empty($yarnNames)) {
+            $yarnSheet->fromArray(
+                array_map(fn($y) => [$y['id'], $y['nombre'], $y['base']], $yarnNames),
+                null,
+                'A2'
+            );
+        }
+        $yarnNameLastRow = count($yarnNames) + 1;
+
         return compact(
             'groups', 'subGroupLastRow', 'groupLastRow',
             'unitLastRow', 'taxes', 'taxLastRow',
-            'warehouses', 'warehouseLastRow', 'listLastRow'
+            'warehouses', 'warehouseLastRow', 'listLastRow',
+            'fabricNameLastRow', 'yarnNameLastRow'
         );
     }
 
@@ -431,6 +487,24 @@ class ItemExcelService
             "'Listas'!B2:B{$sheetData['listLastRow']}",
             $maxValidationRow, true
         );
+
+        // Base tela (solo aplica a ítems del subgrupo Tela; columna opcional en el resto)
+        if ($sheetData['fabricNameLastRow'] >= 2) {
+            $this->applyListValidationToSheet(
+                $mainSheet, $headers, 'BASE TELA',
+                "'Telas'!B2:B{$sheetData['fabricNameLastRow']}",
+                $maxValidationRow, true
+            );
+        }
+
+        // Base hilaza (solo aplica a ítems del subgrupo Hilaza; columna opcional en el resto)
+        if ($sheetData['yarnNameLastRow'] >= 2) {
+            $this->applyListValidationToSheet(
+                $mainSheet, $headers, 'BASE HILAZA',
+                "'Hilazas'!B2:B{$sheetData['yarnNameLastRow']}",
+                $maxValidationRow, true
+            );
+        }
     }
 
     private function applyUnitValidationToSheet(
@@ -566,7 +640,10 @@ class ItemExcelService
             $fieldsCol,
             $valuesCol,
             optional($item->color)->name ?? '',
+            optional($item->fabricName)->nombre ?? '',
+            optional($item->yarnName)->nombre ?? '',
             $statusLabel,
+            $item->legacy_code,
         ];
     }
 
@@ -664,8 +741,9 @@ class ItemExcelService
             $note = $sheet->getComment($col);
             $note->getText()->createTextRun(
                 "Escribe los nombres de los campos separados por punto y coma (;).\n" .
-                "Ejemplo: BASE TELA;COLOR;TALLA\n\n" .
-                "Debe tener el mismo número de valores que la columna VALORES ADICIONALES."
+                "Ejemplo: MARCA;TALLA\n\n" .
+                "Debe tener el mismo número de valores que la columna VALORES ADICIONALES.\n" .
+                "BASE TELA y BASE HILAZA ya NO van aquí: tienen su propia columna dedicada (ver más adelante)."
             );
             $note->setWidth('300pt');
             $note->setHeight('80pt');
@@ -759,10 +837,13 @@ class ItemExcelService
             ['REFERENCIA',            'NO',  'Texto alfanumérico',                            'REF-2024-001',      'Código interno de referencia del ítem.'],
             ['DESCRIPCION',           'NO',  'Texto libre en MAYÚSCULAS',                     'TELA BASE RIB',     'Descripción del ítem.'],
             ['MOVIMIENTO NEGATIVO',   'NO',  'SI / NO',                                       'NO',                'Indica si el ítem puede tener stock negativo.'],
-            ['CAMPOS ADICIONALES',    'NO',  'Nombres separados por punto y coma (;)',         'BASE TELA;COLOR',   'Debe tener el mismo número de valores que VALORES ADICIONALES.'],
-            ['VALORES ADICIONALES',   'NO',  'Valores separados por punto y coma (;)',         'RIB;Mocca',         'El orden debe coincidir exactamente con CAMPOS ADICIONALES.'],
+            ['CAMPOS ADICIONALES',    'NO',  'Nombres separados por punto y coma (;)',         'MARCA;TALLA',       'Debe tener el mismo número de valores que VALORES ADICIONALES. BASE TELA y BASE HILAZA tienen su propia columna, no van aquí.'],
+            ['VALORES ADICIONALES',   'NO',  'Valores separados por punto y coma (;)',         'Nike;S',            'El orden debe coincidir exactamente con CAMPOS ADICIONALES.'],
             ['COLOR',                 'NO',  'Debe existir en el sistema',                    'Negro',             'Color principal del ítem.'],
+            ['BASE TELA',             'NO',  'Ver lista desplegable (▼), hoja "Telas"',       'JERSEY 24',         'Solo aplica a ítems del subgrupo Tela. Si no coincide con ningún nombre registrado en Datos Maestros → Nombres de tela, la fila se rechaza.'],
+            ['BASE HILAZA',           'NO',  'Ver lista desplegable (▼), hoja "Hilazas"',     'HILAZA 30/1',       'Solo aplica a ítems del subgrupo Hilaza. Si no coincide con ningún nombre registrado en Datos Maestros → Nombres de hilaza, la fila se rechaza.'],
             ['ESTADO',                'NO',  'Activo / Inactivo',                             'Activo',            'Si se deja vacío se asigna Activo por defecto.'],
+            ['CODIGO SISTEMA ANTERIOR', 'NO', 'Texto libre (código del sistema anterior)',    'OLD-00123',         'Trazabilidad con el sistema anterior. Si coincide con un ítem ya importado, esa fila se usa para actualizarlo en vez de crear uno nuevo.'],
         ];
 
         foreach ($columns as $i => $col) {
@@ -793,9 +874,8 @@ class ItemExcelService
         $row++;
 
         $examples = [
-            ['BASE TELA;COLOR',       'RIB;Mocca',    'BASE TELA = RIB  |  COLOR = Mocca'],
             ['TALLA;MEDIDA',          'S;7X2.5',      'TALLA = S  |  MEDIDA = 7X2.5'],
-            ['BASE TELA;COLOR;TALLA', 'RIB;Negro;M',  'BASE TELA = RIB  |  COLOR = Negro  |  TALLA = M'],
+            ['MARCA;TALLA',           'Nike;M',       'MARCA = Nike  |  TALLA = M'],
             ['MARCA',                 'Nike',         'MARCA = Nike'],
         ];
 

@@ -4,16 +4,19 @@ namespace App\Http\Controllers\MasterData;
 
 use App\Http\Controllers\Concerns\HandlesValidationErrors;
 use App\Http\Controllers\Controller;
+use App\Models\MasterData\CategorySubGroup;
 use App\Models\MasterData\Color;
 use App\Models\MasterData\Item;
 use App\Services\MasterData\ItemExcelService;
+use App\Services\MasterData\ItemReferenceSequenceService;
 use App\Services\MasterData\ItemService;
+use App\Support\MasterData\MaterialClassifier;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class ItemController extends Controller
@@ -23,6 +26,7 @@ class ItemController extends Controller
     public function __construct(
         protected ItemService $service,
         protected ItemExcelService $excelService,
+        protected ItemReferenceSequenceService $referenceSequenceService,
     ) {}
 
     public function index()
@@ -36,7 +40,7 @@ class ItemController extends Controller
 
     public function show($id)
     {
-        $item = $this->service->findWithRelations($id, ['categorySubGroup', 'tax', 'warehouseItems.warehouse']);
+        $item = $this->service->findWithRelations($id, ['categorySubGroup', 'tax', 'warehouseItems.warehouse', 'fabricName', 'yarnName']);
         $item->setAttribute('warehouse_stocks', $this->normalizeWarehouseStocks($item));
 
         return $item;
@@ -45,7 +49,7 @@ class ItemController extends Controller
     public function store(Request $request)
     {
         try {
-            $data = $request->validate($this->itemValidationRules());
+            $data = $request->validate($this->itemValidationRules(false, null, $request));
         } catch (ValidationException $e) {
             return $this->validationErrorResponse($e);
         } catch (\Throwable $e) {
@@ -62,7 +66,7 @@ class ItemController extends Controller
         $item = $this->service->find($id);
 
         try {
-            $data = $request->validate($this->itemValidationRules(true, $item));
+            $data = $request->validate($this->itemValidationRules(true, $item, $request));
         } catch (ValidationException $e) {
             return $this->validationErrorResponse($e);
         } catch (\Throwable $e) {
@@ -82,6 +86,7 @@ class ItemController extends Controller
 
         try {
             $this->service->delete($item);
+
             return response()->noContent();
         } catch (\RuntimeException $e) {
             return response()->json([
@@ -94,7 +99,7 @@ class ItemController extends Controller
     {
         $filters = $request->only([
             'search', 'status', 'item_type', 'warehouse_id',
-            'origin_type', 'category_sub_group_id', 'category_group_id', 'sort_by', 'sort_dir'
+            'origin_type', 'category_sub_group_id', 'category_group_id', 'sort_by', 'sort_dir',
         ]);
         $perPage = $request->input('per_page', 10);
         $items = $this->service->paginate($filters, $perPage);
@@ -119,6 +124,8 @@ class ItemController extends Controller
             'reference' => 'required|string',
             'category_sub_group_id' => 'required|integer',
             'color_id' => 'nullable|integer|exists:colors,id',
+            'fabric_name_id' => 'nullable|integer|exists:fabric_names,id',
+            'yarn_name_id' => 'nullable|integer|exists:yarn_names,id',
             'extra_fields' => 'nullable',
             'item_id' => 'nullable|integer',
             'unit_measure' => 'nullable|string',
@@ -126,9 +133,11 @@ class ItemController extends Controller
 
         $extraFields = $this->service->normalizeExtraFields($request->input('extra_fields') ?? []);
         $subGroupId = (int) $data['category_sub_group_id'];
-        $colorId = !empty($data['color_id']) ? (int) $data['color_id'] : null;
+        $colorId = ! empty($data['color_id']) ? (int) $data['color_id'] : null;
         $unitMeasure = $data['unit_measure'] ?? null;
-        $name = $this->service->computeName($subGroupId, $extraFields, $colorId, $unitMeasure);
+        $fabricNameId = ! empty($data['fabric_name_id']) ? (int) $data['fabric_name_id'] : null;
+        $yarnNameId = ! empty($data['yarn_name_id']) ? (int) $data['yarn_name_id'] : null;
+        $name = $this->service->computeName($subGroupId, $extraFields, $colorId, $unitMeasure, $fabricNameId, $yarnNameId);
         $excludeId = $data['item_id'] ?? null;
 
         $status = $this->service->duplicateStatus($data['reference'], $name, $excludeId);
@@ -144,7 +153,10 @@ class ItemController extends Controller
     public function bulkUpload(Request $request)
     {
         $request->validate([
-            'file' => 'required|file|mimes:xlsx,xls'
+            'file' => 'required|file|mimes:xlsx,xls',
+            'restrict_fields_to_update' => 'nullable|boolean',
+            'fields_to_update' => 'nullable|array',
+            'fields_to_update.*' => 'string',
         ]);
 
         $file = $request->file('file');
@@ -152,26 +164,38 @@ class ItemController extends Controller
         $sheet = $spreadsheet->getActiveSheet();
         $rows = $sheet->toArray(null, true, true, true);
 
-        $result = $this->service->processBulkUploadArray($rows);
+        // null = sin restricción (comportamiento de siempre: actualiza todos los campos
+        // reconocidos). Si el usuario activó la restricción sin marcar ningún campo, se
+        // envía [] explícito: no tocar ningún campo en las filas que actualizan un ítem
+        // existente (las filas nuevas se siguen creando con todos los datos igual).
+        $fieldsToUpdate = $request->boolean('restrict_fields_to_update')
+            ? ($request->input('fields_to_update') ?? [])
+            : null;
+
+        $result = $this->service->processBulkUploadArray($rows, $fieldsToUpdate);
 
         $inserted = $result['inserted'] ?? 0;
-        $updated  = $result['updated']  ?? 0;
+        $updated = $result['updated'] ?? 0;
 
-        if ($inserted === 0 && $updated === 0 && !empty($result['errors'])) {
+        if ($inserted === 0 && $updated === 0 && ! empty($result['errors'])) {
             return response()->json([
-                'message' => 'No se pudo procesar ningún ítem. Errores: ' . implode('; ', $result['errors'])
+                'message' => 'No se pudo procesar ningún ítem. Errores: '.implode('; ', $result['errors']),
             ], 422);
         }
 
         $parts = [];
-        if ($inserted > 0) $parts[] = "{$inserted} ítem(s) creado(s)";
-        if ($updated  > 0) $parts[] = "{$updated} ítem(s) actualizado(s)";
+        if ($inserted > 0) {
+            $parts[] = "{$inserted} ítem(s) creado(s)";
+        }
+        if ($updated > 0) {
+            $parts[] = "{$updated} ítem(s) actualizado(s)";
+        }
 
         return response()->json([
-            'message' => 'Carga masiva completada. ' . implode(', ', $parts),
-            'errors'   => $result['errors'] ?? [],
+            'message' => 'Carga masiva completada. '.implode(', ', $parts),
+            'errors' => $result['errors'] ?? [],
             'inserted' => $inserted,
-            'updated'  => $updated,
+            'updated' => $updated,
         ]);
     }
 
@@ -222,9 +246,9 @@ class ItemController extends Controller
 
     public function search(Request $request)
     {
-        $q      = trim($request->input('q', ''));
-        $limit  = min((int) $request->input('limit', 30), 100);
-        $group  = $request->input('group');
+        $q = trim($request->input('q', ''));
+        $limit = min((int) $request->input('limit', 30), 100);
+        $group = $request->input('group');
         $status = $request->input('status');
 
         $query = Item::query()
@@ -246,16 +270,16 @@ class ItemController extends Controller
 
         $items = $query->orderBy('name')->limit($limit)->get();
 
-        return response()->json($items->map(fn($item) => [
-            'id'           => $item->id,
-            'name'         => $item->name,
-            'reference'    => $item->reference,
-            'label'        => $item->reference
+        return response()->json($items->map(fn ($item) => [
+            'id' => $item->id,
+            'name' => $item->name,
+            'reference' => $item->reference,
+            'label' => $item->reference
                                  ? "{$item->name} ({$item->reference})"
                                  : $item->name,
             'unit_measure' => $item->unit_measure,
-            'item_type'    => $item->item_type,
-            'img_url'      => $item->img ? asset("storage/{$item->img}") : null,
+            'item_type' => $item->item_type,
+            'img_url' => $item->img ? asset("storage/{$item->img}") : null,
         ]));
     }
 
@@ -265,23 +289,46 @@ class ItemController extends Controller
         return $this->service->resolveWarehousePayload($request->input('warehouses'));
     }
 
-    private function prepareItemPayload(Request $request, array $data, Item $item = null): array
+    private function prepareItemPayload(Request $request, array $data, ?Item $item = null): array
     {
         $extraFields = $this->service->normalizeExtraFields(
             $request->input('extra_fields') ?? ($item?->extra_fields ?? [])
         );
         $data['extra_fields'] = $extraFields;
         $data['color_id'] = $request->filled('color_id') ? (int) $request->input('color_id') : null;
+        $data['fabric_name_id'] = $request->filled('fabric_name_id') ? (int) $request->input('fabric_name_id') : null;
+        $data['yarn_name_id'] = $request->filled('yarn_name_id') ? (int) $request->input('yarn_name_id') : null;
 
         $subGroupId = $request->has('category_sub_group_id')
             ? (int) $request->input('category_sub_group_id')
             : ($item?->category_sub_group_id ?? null);
 
-        $reference = trim($data['reference'] ?? '');
-        $data['reference'] = $reference;
+        $this->assertMaterialNameMatchesSubgroup($subGroupId, $data['fabric_name_id'], $data['yarn_name_id']);
 
-        $colorId = !empty($data['color_id']) ? (int) $data['color_id'] : null;
-        $itemName = $this->service->computeName((int) ($subGroupId ?? 0), $extraFields, $colorId);
+        $colorId = ! empty($data['color_id']) ? (int) $data['color_id'] : null;
+
+        // La referencia automática es exclusiva de la creación: en edición, aunque
+        // llegara reference_mode=auto por error, no se regenera — cada regeneración
+        // consumiría un consecutivo nuevo y reemplazaría una referencia ya en uso
+        // (en compras, movimientos de inventario, etc.).
+        $referenceMode = ! $item && $request->input('reference_mode', 'manual') === 'auto' ? 'auto' : 'manual';
+        if ($referenceMode === 'auto') {
+            // La referencia la genera el servicio, sin importar lo que haya llegado en
+            // el payload — el frontend no debería enviar nada en modo automático, pero
+            // si lo hace, se ignora para no dejar una referencia manual "colada".
+            $reference = $this->referenceSequenceService->generate($subGroupId, $colorId);
+        } else {
+            $reference = trim($data['reference'] ?? '');
+        }
+        $data['reference'] = $reference;
+        $itemName = $this->service->computeName(
+            (int) ($subGroupId ?? 0),
+            $extraFields,
+            $colorId,
+            null,
+            $data['fabric_name_id'],
+            $data['yarn_name_id'],
+        );
         $this->service->assertUniqueReferenceAndName($reference, $itemName, $item?->id);
 
         $itemType = ($data['item_type'] ?? ($item?->item_type ?? 'product')) === 'service'
@@ -312,7 +359,7 @@ class ItemController extends Controller
             ]);
         }
 
-        if (!$tracksInventory) {
+        if (! $tracksInventory) {
             $data['negative_movement'] = false;
         }
 
@@ -325,20 +372,43 @@ class ItemController extends Controller
         ];
     }
 
-    private function itemValidationRules(bool $isUpdate = false, $item = null): array
+    private function assertMaterialNameMatchesSubgroup(?int $subGroupId, ?int $fabricNameId, ?int $yarnNameId): void
+    {
+        if (! $fabricNameId && ! $yarnNameId) {
+            return;
+        }
+
+        $subGroup = $subGroupId ? CategorySubGroup::find($subGroupId) : null;
+
+        if ($fabricNameId && ! MaterialClassifier::isFabricSubgroup($subGroup)) {
+            throw ValidationException::withMessages([
+                'fabric_name_id' => ['El nombre de tela solo aplica a ítems del subgrupo Tela.'],
+            ]);
+        }
+
+        if ($yarnNameId && ! MaterialClassifier::isYarnSubgroup($subGroup)) {
+            throw ValidationException::withMessages([
+                'yarn_name_id' => ['El nombre de hilaza solo aplica a ítems del subgrupo Hilaza.'],
+            ]);
+        }
+    }
+
+    private function itemValidationRules(bool $isUpdate = false, $item = null, ?Request $request = null): array
     {
         $rules = [
-            'category_sub_group_id' => ($isUpdate ? 'sometimes' : 'required') . '|integer',
+            'category_sub_group_id' => ($isUpdate ? 'sometimes' : 'required').'|integer',
             'img' => 'nullable|string',
             'image' => 'nullable|file|image',
             'color_id' => 'nullable|integer|exists:colors,id',
+            'fabric_name_id' => 'nullable|integer|exists:fabric_names,id',
+            'yarn_name_id' => 'nullable|integer|exists:yarn_names,id',
             'tax_id' => 'nullable|integer',
-            'tax' => ($isUpdate ? 'sometimes' : 'required') . '|numeric',
+            'tax' => ($isUpdate ? 'sometimes' : 'required').'|numeric',
             'bar_code' => 'nullable|string',
             'negative_movement' => $isUpdate ? 'sometimes' : 'required',
-            'description' => ($isUpdate ? 'sometimes' : 'required') . '|string',
+            'description' => ($isUpdate ? 'sometimes' : 'required').'|string',
             'extra_fields' => 'nullable',
-            'reference' => ['required', 'string'],
+            'reference_mode' => ['nullable', 'string', 'in:auto,manual'],
             'status' => 'sometimes|boolean',
             'item_type' => 'required|string|in:product,service,draft',
             'tracks_inventory' => 'sometimes|boolean',
@@ -348,12 +418,22 @@ class ItemController extends Controller
             'cost_of_sale_account_id' => 'nullable|integer|exists:accounting_accounts,id',
         ];
 
-        // Reference unique rule: ignore current item on update
-        $uniqueRule = Rule::unique('items', 'reference')->whereNull('deleted_at');
-        if ($isUpdate && $item) {
-            $uniqueRule = $uniqueRule->ignore($item->id);
+        // En modo automático la referencia la genera el servidor — no se le exige al
+        // cliente, y si igual llega algo se ignora en prepareItemPayload(). En modo
+        // manual conserva la misma validación de siempre: obligatoria y única. Solo
+        // aplica en creación — igual que en prepareItemPayload(), en edición nunca se
+        // trata como automática aunque llegue reference_mode=auto por error.
+        $referenceMode = ! $isUpdate && $request?->input('reference_mode', 'manual') === 'auto' ? 'auto' : 'manual';
+
+        if ($referenceMode === 'auto') {
+            $rules['reference'] = ['nullable', 'string'];
+        } else {
+            $uniqueRule = Rule::unique('items', 'reference')->whereNull('deleted_at');
+            if ($isUpdate && $item) {
+                $uniqueRule = $uniqueRule->ignore($item->id);
+            }
+            $rules['reference'] = ['required', 'string', $uniqueRule];
         }
-        $rules['reference'] = ['required', 'string', $uniqueRule];
 
         return $rules;
     }
@@ -387,11 +467,6 @@ class ItemController extends Controller
             ]);
     }
 
-
-
-
-
-
     private function unexpectedErrorResponse()
     {
         return response()->json([
@@ -399,5 +474,4 @@ class ItemController extends Controller
             'errors' => [],
         ], 500);
     }
-
 }
