@@ -223,12 +223,12 @@ class ItemService
         });
     }
 
-    public function update(Item $item, array $data, ?array $warehouses = null): Item
+    public function update(Item $item, array $data, ?array $warehouses = null, bool $replaceWarehouses = true): Item
     {
         $payload = $this->buildUpdatePayload($item, $data);
         $item->update($payload);
         if ($warehouses !== null) {
-            $this->syncWarehouses($item, $warehouses, true);
+            $this->syncWarehouses($item, $warehouses, $replaceWarehouses);
         }
 
         return $item;
@@ -714,7 +714,11 @@ class ItemService
                             continue;
                         }
                         [$updateData, $updateWarehouses] = $this->filterItemDataForBulkUpdate($itemData, $warehouses, $fieldsToUpdate);
-                        $this->update($existingItem, $updateData, $updateWarehouses ?: null);
+                        // false: cada fila trae como máximo una bodega (ver
+                        // buildWarehousePayloadFromRow) — reemplazar el set completo
+                        // borraría el stock de las bodegas puestas por otras filas del
+                        // mismo ítem (una fila por ítem+bodega es el patrón esperado).
+                        $this->update($existingItem, $updateData, $updateWarehouses ?: null, false);
                         $updated++;
 
                         continue;
@@ -727,7 +731,7 @@ class ItemService
                     $existingByLegacyCode = Item::where('legacy_code', $legacyCodeValue)->first();
                     if ($existingByLegacyCode) {
                         [$updateData, $updateWarehouses] = $this->filterItemDataForBulkUpdate($itemData, $warehouses, $fieldsToUpdate);
-                        $this->update($existingByLegacyCode, $updateData, $updateWarehouses ?: null);
+                        $this->update($existingByLegacyCode, $updateData, $updateWarehouses ?: null, false);
                         $updated++;
 
                         continue;

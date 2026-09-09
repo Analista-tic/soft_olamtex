@@ -170,6 +170,44 @@ it('does not touch warehouse stock on update when bodega_stock is excluded from 
     expect((float) $warehouseItem->quantity)->toBe(10.0);
 });
 
+it('accumulates warehouse stock across rows for the same item instead of replacing it', function () {
+    $this->actingAs(App\Models\Settings\User::factory()->create());
+
+    $warehouseA = Warehouse::create(['name' => 'Bodega A Bulk Legacy Test', 'observation' => '']);
+    $warehouseB = Warehouse::create(['name' => 'Bodega B Bulk Legacy Test', 'observation' => '']);
+
+    $firstRow = buildBulkImportRows([
+        'SUBGRUPO' => $this->subGroup->name,
+        'REFERENCIA' => 'REF-MULTI-BODEGA',
+        'BODEGA' => $warehouseA->name,
+        'CANTIDAD' => '10',
+        'PRECIO' => '100',
+        'CODIGO SISTEMA ANTERIOR' => 'OLD-600',
+    ]);
+    $firstResult = app(ItemService::class)->processBulkUploadArray($firstRow);
+    expect($firstResult['inserted'])->toBe(1)->and($firstResult['errors'])->toBe([]);
+
+    // Misma fila del histórico, otra bodega: mismo legacy_code hace match por
+    // actualización — no debe borrar el stock que la primera fila dejó en Bodega A.
+    $secondRow = buildBulkImportRows([
+        'SUBGRUPO' => $this->subGroup->name,
+        'REFERENCIA' => 'REF-MULTI-BODEGA',
+        'BODEGA' => $warehouseB->name,
+        'CANTIDAD' => '5',
+        'PRECIO' => '50',
+        'CODIGO SISTEMA ANTERIOR' => 'OLD-600',
+    ]);
+    $secondResult = app(ItemService::class)->processBulkUploadArray($secondRow);
+    expect($secondResult['updated'])->toBe(1)->and($secondResult['errors'])->toBe([]);
+
+    $item = Item::where('legacy_code', 'OLD-600')->firstOrFail();
+    $stockByWarehouse = WarehouseItem::where('item_id', $item->id)->pluck('quantity', 'warehouse_id');
+
+    expect($stockByWarehouse)->toHaveCount(2)
+        ->and((float) $stockByWarehouse[$warehouseA->id])->toBe(10.0)
+        ->and((float) $stockByWarehouse[$warehouseB->id])->toBe(5.0);
+});
+
 it('an empty fields_to_update list means no field is applied to a matched update', function () {
     $item = Item::create([
         'category_sub_group_id' => $this->subGroup->id,
