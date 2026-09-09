@@ -98,10 +98,19 @@ class TechnicalSheet extends Model
         return $this->hasMany(TechnicalSheetProcess::class)->orderBy('sequence');
     }
 
-    /** Snapshot de rollos (params + lines). */
+    /** Snapshot de rollos (params + lines) — se mantiene junto a rollProgrammingLines()
+     * (Fase 15): `params` (trazo/defaultExtra) sigue viviendo aquí, solo `lines` se
+     * normalizó a la tabla nueva.
+     */
     public function rollsSnapshot()
     {
         return $this->hasOne(TechnicalSheetRoll::class);
+    }
+
+    /** Líneas de rollos programados por Diseño (Fase 15 — reemplaza rollsSnapshot()->lines). */
+    public function rollProgrammingLines()
+    {
+        return $this->hasMany(FabricRollProgrammingLine::class);
     }
 
     /** Snapshot de hilos (params + lines). */
