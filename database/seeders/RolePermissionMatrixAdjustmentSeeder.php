@@ -57,6 +57,10 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'eliminar telas rollos',
             'ver descargue telas orden',
             'crear descargue telas orden',
+            'editar descargue telas orden',
+            'eliminar descargue telas orden',
+            'descargar telas orden',
+            'corregir descargue telas orden',
             'aprobar recepcion tela',
             'rechazar recepcion tela',
         ];
@@ -149,6 +153,10 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'eliminar telas rollos',
             'ver descargue telas orden',
             'crear descargue telas orden',
+            'editar descargue telas orden',
+            'eliminar descargue telas orden',
+            'descargar telas orden',
+            'corregir descargue telas orden',
             'aprobar recepcion tela',
             'rechazar recepcion tela',
         ];
@@ -333,6 +341,31 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
                 'ver auditoria',
             ]
         ));
+
+        // Diseño programa/edita/elimina rollos pero NO descarga. Reutiliza el rol
+        // DISEÑO ya existente (hoy usado para el catálogo de materiales/bases de
+        // tela, ver MaterialCatalogPermissionSeeder) — se le suman permisos de
+        // rollos con givePermissionTo() (aditivo) para no perder los que ya tenía.
+        $diseno = Role::firstOrCreate(['name' => 'DISEÑO', 'guard_name' => 'web']);
+        $diseno->givePermissionTo([
+            'ver telas rollos',
+            'ver descargue telas orden',
+            'crear descargue telas orden',
+            'editar descargue telas orden',
+            'eliminar descargue telas orden',
+        ]);
+
+        // Corte descarga y corrige descargues pero NO programa/edita/elimina
+        // programación. El rol "corte" ya existe con permisos genéricos heredados
+        // (RolesAndPermissionsSeeder); se suman aquí los de rollos/descargue sin
+        // tocar los que ya tenía.
+        $corte = Role::firstOrCreate(['name' => 'corte', 'guard_name' => 'web']);
+        $corte->givePermissionTo([
+            'ver telas rollos',
+            'ver descargue telas orden',
+            'descargar telas orden',
+            'corregir descargue telas orden',
+        ]);
 
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
     }

@@ -10,13 +10,12 @@ import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
+import { useContactsCatalog } from '@/composables/useContactsCatalog';
 import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import { mapToCreateSalesInvoiceDto, type SalesInvoice, type SalesInvoiceItem, type SalesInvoiceWithholding, type SalesOrder } from '@/domain/Income';
-import type { Contact } from '@/domain/MasterData';
 import PurchaseInvoiceWithholdingsTable from '@/pages/Expenses/PurchaseInvoices/PurchaseInvoiceWithholdingsTable.vue';
 import QuoteItemsTable from '@/pages/Income/Quotes/QuoteItemsTable.vue';
 import { useIncomeStore } from '@/stores/income/income';
-import axios from 'axios';
 import { Plus } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
@@ -36,7 +35,7 @@ const incomeStore = useIncomeStore();
 const { company, logoUrl } = useCompanyInfo();
 
 const isSaving = ref(false);
-const contacts = ref<Contact[]>([]);
+const { contacts, fetch: fetchContactsCatalog } = useContactsCatalog();
 const localSalesInvoice = ref<Partial<SalesInvoice>>(createDefaultSalesInvoice());
 const originOrder = ref<SalesOrder | null>(null);
 const successMessage = ref('');
@@ -234,8 +233,7 @@ function formatCurrency(value: number): string {
 }
 
 async function fetchContacts() {
-    const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
-    contacts.value = response.data.data ?? [];
+    await fetchContactsCatalog();
 }
 
 function preloadFromOrder(order: SalesOrder) {

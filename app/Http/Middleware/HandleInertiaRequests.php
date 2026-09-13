@@ -2,12 +2,12 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\Settings\CompanySetting;
+use App\Services\Settings\CompanySettingsService;
+use Closure;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use Tighten\Ziggy\Ziggy;
-use Closure; 
 
 class HandleInertiaRequests extends Middleware
 {
@@ -19,6 +19,8 @@ class HandleInertiaRequests extends Middleware
      * @var string
      */
     protected $rootView = 'app';
+
+    public function __construct(protected CompanySettingsService $companySettingsService) {}
 
     // 🟢 CAMBIO NUEVO AQUÍ: Este es el bloque entero que soluciona el error del JSON al duplicar pestaña
     /**
@@ -66,31 +68,41 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'name' => config('app.name'),
             'quote' => ['message' => trim($message), 'author' => trim($author)],
-            'auth' => [
-                'user' => fn () => $request->user()
-                    ? (function () use ($request) {
-                        $user = $request->user()->fresh(['roles.permissions']);
-                        if (!$user) {
-                            return null;
-                        }
+            // Un único closure perezoso para todo el árbol 'auth': en un partial reload
+            // de Inertia que no pida 'auth', esto no se evalúa (0 queries). Se calculan
+            // 'roles'/'permissions' aquí mismo (con getAllPermissions(), que incluye
+            // permisos directos y por rol) para que el frontend pueda leerlos de las
+            // props compartidas sin tener que golpear GET /user aparte — antes ese
+            // endpoint recalculaba exactamente esto mismo en un round-trip HTTP extra.
+            'auth' => function () use ($request) {
+                $user = $request->user();
+                if (! $user) {
+                    return ['user' => null, 'roles' => [], 'permissions' => []];
+                }
 
-                        return [
-                            ...$user->append('avatar_url')->makeHidden([
-                                'area_id',
-                                'created_at',
-                                'updated_at',
-                            ])->toArray(),
-                            'theme_appearance' => $user->theme_appearance,
-                            'theme_color' => $user->theme_color,
-                        ];
-                    })()
-                    : null,
-            ],
+                if (! $user->relationLoaded('roles') || ! $user->relationLoaded('permissions')) {
+                    $user->load('roles.permissions', 'permissions');
+                }
+
+                return [
+                    'user' => [
+                        ...$user->append('avatar_url')->makeHidden([
+                            'area_id',
+                            'created_at',
+                            'updated_at',
+                        ])->toArray(),
+                        'theme_appearance' => $user->theme_appearance,
+                        'theme_color' => $user->theme_color,
+                    ],
+                    'roles' => $user->roles->pluck('name'),
+                    'permissions' => $user->getAllPermissions()->pluck('name'),
+                ];
+            },
             'ziggy' => [
                 ...(new Ziggy)->toArray(),
                 'location' => $request->url(),
             ],
-            'company' => CompanySetting::first(),
+            'company' => $this->companySettingsService->get(),
         ];
     }
 }

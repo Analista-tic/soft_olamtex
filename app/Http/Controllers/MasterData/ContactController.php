@@ -28,8 +28,11 @@ class ContactController extends Controller
             $sortDirection = 'asc';
         }
 
+        // El frontend (MasterData/Contact/Index.vue) trae los contactos paginados vía
+        // getData() en su propio onMounted() — nunca declaró 'contacts' como prop, así
+        // que enviar Contact::all() aquí era una consulta completa de la tabla en cada
+        // carga de la página que ni siquiera se usaba.
         return Inertia::render('MasterData/Contact/Index', [
-            'contacts' => Contact::all(),
             'filters' => [
                 'sort_by' => $sortBy,
                 'sort_direction' => $sortDirection,

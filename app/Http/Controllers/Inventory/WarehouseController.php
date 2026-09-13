@@ -11,9 +11,10 @@ class WarehouseController extends Controller
 {
     public function index()
     {
-        return Inertia::render('Inventory/Warehouse/Index', [
-            'warehouses' => Warehouse::all(),
-        ]);
+        // El frontend (Inventory/Warehouse/Index.vue) no declara ningún prop y trae
+        // las bodegas vía getData() en su propio onMounted() — Warehouse::all() aquí
+        // era una consulta completa de la tabla en cada carga, sin usarse.
+        return Inertia::render('Inventory/Warehouse/Index');
     }
 
     public function store(Request $request)

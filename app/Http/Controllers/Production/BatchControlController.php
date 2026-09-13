@@ -1101,8 +1101,10 @@ class BatchControlController extends Controller
                 if ($isFirstCut && $programmedForThisOp > 0.001) {
                     // Primer descargue: liberar la reserva parcial de esta OP
                     $newPartial = round(max(0.0, $currentPartial - $programmedForThisOp), 2);
+                    $actualOutputBefore = (float) $roll->actual_output;
+                    $newActualOutput = max(0.0, round($actualOutputBefore + $delta, 6));
                     $roll->update([
-                        'actual_output'  => max(0.0, round((float) $roll->actual_output + $delta, 6)),
+                        'actual_output'  => $newActualOutput,
                         'partial_output' => $newPartial,
                     ]);
 
@@ -1116,6 +1118,8 @@ class BatchControlController extends Controller
                             'quantity_after'  => $roll->quantity,
                             'partial_before'  => $currentPartial,
                             'partial_after'   => $newPartial,
+                            'actual_output_before' => $actualOutputBefore,
+                            'actual_output_after'  => $newActualOutput,
                             'reason'          => "Novedad descargue corte: {$newMeters}m consumidos vs {$programmedForThisOp}m programados — OP {$order->op_code}",
                             'reference'       => "cut_consumption::{$order->id}",
                         ]);

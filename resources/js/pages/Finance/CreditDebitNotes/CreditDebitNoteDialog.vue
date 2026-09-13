@@ -10,6 +10,8 @@ import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } fr
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAlertStack } from '@/composables/useAlert';
+import { useContactsCatalog } from '@/composables/useContactsCatalog';
+import { useItemsCatalog } from '@/composables/useItemsCatalog';
 import type { CreditDebitNote, CreditDebitNoteItem, CreditDebitNotePayload, CreditDebitNoteType, NoteKind } from '@/domain/Finance';
 import { create as createCreditDebitNote, update as updateCreditDebitNote } from '@/domain/Finance';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
@@ -44,13 +46,6 @@ type InvoiceOption = {
 type ItemOption = {
     id: number;
     name: string;
-};
-
-type ContactOption = {
-    id: number;
-    full_name: string;
-    id_number?: string | null;
-    phone?: string | null;
 };
 
 type SettingParameterOption = {
@@ -129,7 +124,8 @@ const DEFAULT_SCOPE = 'expenses'; // (sin cambiar comportamiento actual)
 const dialogOpen = ref(props.open);
 const isSubmitting = ref(false);
 
-const contacts = ref<ContactOption[]>([]);
+const { contacts, fetch: fetchContactsCatalog } = useContactsCatalog();
+const { fetch: fetchItemsCatalogData } = useItemsCatalog();
 const itemsCatalog = ref<ItemOption[]>([]);
 const invoiceOptions = ref<InvoiceOption[]>([]);
 const parentSummary = ref<ParentSummary | null>(null);
@@ -461,17 +457,23 @@ async function safeGet<T = any>(url: string, config?: any): Promise<T | null> {
 }
 
 async function fetchContacts(): Promise<void> {
-    const data = await safeGet<any>('/contactos/data', { params: { per_page: 1000 } });
-    contacts.value = Array.isArray(data?.data) ? data.data : [];
+    try {
+        await fetchContactsCatalog();
+    } catch {
+        contacts.value = [];
+    }
 }
 
 async function fetchItemsCatalog(): Promise<void> {
-    const data = await safeGet<any>('/item/data', { params: { per_page: 1000 } });
-    const rows = Array.isArray(data?.data) ? data.data : [];
-    itemsCatalog.value = rows.map((row: { id: number | string; name?: string }) => ({
-        id: asNumber(row.id),
-        name: String(row.name ?? `Item #${row.id}`),
-    }));
+    try {
+        const rows = await fetchItemsCatalogData();
+        itemsCatalog.value = rows.map((row) => ({
+            id: asNumber(row.id),
+            name: String(row.name ?? `Item #${row.id}`),
+        }));
+    } catch {
+        itemsCatalog.value = [];
+    }
 }
 
 function ensureCurrentReasonOption(): void {

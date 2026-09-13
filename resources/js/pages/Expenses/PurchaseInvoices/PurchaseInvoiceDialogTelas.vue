@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
+import { useContactsCatalog } from '@/composables/useContactsCatalog';
 import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import type { PurchaseInvoice } from '@/domain/Expenses';
 import type { Contact } from '@/domain/MasterData';
@@ -44,6 +45,7 @@ const dialogOpen = ref(props.isOpen);
 type PurchaseInvoiceWithProviderName = Partial<PurchaseInvoice> & { provider_name?: string | null };
 const localForm = ref<PurchaseInvoiceWithProviderName>(createDefaultForm());
 const contacts = ref<Contact[]>([]);
+const { fetch: fetchContactsCatalog } = useContactsCatalog();
 const isLoading = ref(false);
 const isSubmittingDialog = ref(false);
 const isSendingMail = ref(false);
@@ -249,15 +251,11 @@ watch(
 
 async function fetchContacts() {
     try {
-        const [res1, res2] = await Promise.all([
-            axios.get<{ data: Contact[] }>('/contactos/data', {
-                params: { contact_type: 'proveedor', per_page: 1000 },
-            }),
-            axios.get<{ data: Contact[] }>('/contactos/data', {
-                params: { contact_type: 'cliente_proveedor', per_page: 1000 },
-            }),
+        const [proveedores, clienteProveedores] = await Promise.all([
+            fetchContactsCatalog({ contact_type: 'proveedor' }),
+            fetchContactsCatalog({ contact_type: 'cliente_proveedor' }),
         ]);
-        contacts.value = [...res1.data.data, ...res2.data.data];
+        contacts.value = [...proveedores, ...clienteProveedores];
     } catch {
         contacts.value = [];
     }

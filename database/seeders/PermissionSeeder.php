@@ -103,6 +103,10 @@ class PermissionSeeder extends Seeder
             'rechazar recepcion tela',
             'ver descargue telas orden',
             'crear descargue telas orden',
+            'editar descargue telas orden',
+            'eliminar descargue telas orden',
+            'descargar telas orden',
+            'corregir descargue telas orden',
 
             'anular comprobantes egreso',
             'ver movimientos cuenta contable',

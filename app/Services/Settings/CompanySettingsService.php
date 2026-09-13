@@ -3,14 +3,22 @@
 namespace App\Services\Settings;
 
 use App\Models\Settings\CompanySetting;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 
 class CompanySettingsService
 {
+    private const CACHE_KEY = 'company_setting';
+
+    /**
+     * Se lee en cada navegación Inertia (ver HandleInertiaRequests::share()), así que
+     * se cachea sin expiración: cambia únicamente cuando update() lo guarda, momento
+     * en que se invalida explícitamente.
+     */
     public function get(): ?CompanySetting
     {
-        return CompanySetting::first();
+        return Cache::rememberForever(self::CACHE_KEY, fn () => CompanySetting::first());
     }
 
     public function update(array $data, ?UploadedFile $logo = null): array
@@ -31,6 +39,10 @@ class CompanySettingsService
         if ($company->isDirty() || $logo) {
             $company->save();
             $saved = true;
+        }
+
+        if ($saved) {
+            Cache::forget(self::CACHE_KEY);
         }
 
         return [

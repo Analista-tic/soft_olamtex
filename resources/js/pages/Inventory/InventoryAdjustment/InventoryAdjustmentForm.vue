@@ -13,6 +13,7 @@ import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
+import { useItemsCatalog } from '@/composables/useItemsCatalog';
 import type { Tax } from '@/domain/Finance';
 import type { Item } from '@/domain/MasterData';
 import type { Warehouse } from '@/domain/Inventory';
@@ -46,6 +47,7 @@ type Line = {
 
 const defaultMovementReason: 'entrada' | 'salida' = 'entrada';
 const { company, logoUrl } = useCompanyInfo();
+const { fetch: fetchItemsCatalogData } = useItemsCatalog();
 
 const adjustmentTypeOptions = [
     { id: 'entrada', name: 'Entrada', direction: 'entrada' },
@@ -127,8 +129,12 @@ async function fetchTaxes() {
 
 async function fetchItems() {
     try {
-        const { data } = await axios.get('/item/data', { params: { per_page: 1000, status: 1, item_type: 'product' } });
-        items.value = Array.isArray(data?.data) ? data.data : [];
+        const allItems = await fetchItemsCatalogData({ status: 1, item_type: 'product' });
+        // Un ítem de tipo Tela no tiene inventario propio: su disponibilidad depende de
+        // los rollos vinculados, no de una cantidad en bodega. Ajustarlo aquí no tendría
+        // forma de saber qué rollo afectar — ese ajuste se hace desde Ajustes de rollos.
+        // El backend rechaza esto también (InventoryAdjustmentController::validateAdjustment()).
+        items.value = allItems.filter((item) => item.category_sub_group?.material_kind !== 'fabric');
     } catch (e) {
         console.error('Error cargando ítems', e);
         items.value = [];
@@ -571,7 +577,14 @@ async function handleSubmit() {
                             >
                                 <TableHeader>
                                     <TableRow class="border-b border-border/60">
-                                        <TableHead class="min-w-[150px] text-left">Item <span class="text-destructive">*</span></TableHead>
+                                        <TableHead class="min-w-[150px] text-left">
+                                            <span class="inline-flex items-center gap-1">
+                                                Item <span class="text-destructive">*</span>
+                                                <HelpTooltip
+                                                    text="Los ítems de tipo Tela no aparecen aquí: su disponibilidad depende de los rollos vinculados, no de un inventario propio. Ajústalos desde Kardex de Telas → Inventario tela por rollos."
+                                                />
+                                            </span>
+                                        </TableHead>
                                         <TableHead class="min-w-[160px] text-left">Tipo de ajuste <span class="text-destructive">*</span></TableHead>
                                         <TableHead class="min-w-[160px] text-left"> Descripcion <span class="text-destructive">*</span> </TableHead>
                                         <TableHead class="min-w-[120px] text-left"

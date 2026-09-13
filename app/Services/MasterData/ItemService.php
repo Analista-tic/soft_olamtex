@@ -64,7 +64,7 @@ class ItemService
             'category_sub_group_id',
             'color_id',
         ])->with([
-            'categorySubGroup:id,name,category_group_id',
+            'categorySubGroup:id,name,category_group_id,material_kind',
             'categorySubGroup.categoryGroup:id,name',
             'tax:id,name,percentage',
             'color:id,name,rgb',

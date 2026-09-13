@@ -5,6 +5,7 @@ import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useItemsCatalog } from '@/composables/useItemsCatalog';
 import type { PurchaseInvoiceItem } from '@/domain/Expenses';
 import type { Tax } from '@/domain/Finance';
 import type { Item } from '@/domain/MasterData';
@@ -15,10 +16,12 @@ import axios from 'axios';
 import { AlertTriangle } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 
-// Caché a nivel de módulo — persiste entre montajes del componente
-let cachedItems: Item[] | null = null;
+// Caché de ítems: ver useItemsCatalog.ts (módulo .ts real, compartido entre componentes).
+const itemsCatalogParams = { status: true, per_page: 2000 };
+const { fetch: fetchItemsCatalogData, invalidate: invalidateItemsCatalog } = useItemsCatalog();
+
+// Caché de impuestos a nivel de módulo — persiste entre montajes del componente
 let cachedTaxes: Tax[] | null = null;
-let itemsFetchPromise: Promise<void> | null = null;
 let taxesFetchPromise: Promise<void> | null = null;
 
 const props = defineProps<{
@@ -202,33 +205,11 @@ watch(
 );
 
 async function fetchItems() {
-    // Si ya hay caché, usar instantáneamente
-    if (cachedItems !== null) {
-        catalogItems.value = cachedItems;
-        return;
+    try {
+        catalogItems.value = await fetchItemsCatalogData(itemsCatalogParams);
+    } catch (err) {
+        console.error('Error cargando ítems:', err);
     }
-    // Si ya hay una petición en curso, esperar esa misma
-    if (itemsFetchPromise) {
-        await itemsFetchPromise;
-        if (cachedItems !== null) {
-            catalogItems.value = cachedItems;
-        }
-        return;
-    }
-    // Primera carga real
-    itemsFetchPromise = axios
-        .get('/item/data', { params: { per_page: 2000, status: true } })
-        .then((res) => {
-            cachedItems = res.data.data;
-            catalogItems.value = cachedItems!;
-        })
-        .catch((err) => {
-            console.error('Error cargando ítems:', err);
-        })
-        .finally(() => {
-            itemsFetchPromise = null;
-        });
-    await itemsFetchPromise;
 }
 
 async function fetchTaxes() {
@@ -303,7 +284,7 @@ function openItemDialog(targetRowIdx: number | null = null) {
 async function handleItemDialogRefresh() {
     const previousIds = [...itemCatalogSnapshotBeforeCreate.value];
     pendingItemDialogRefresh.value = (async () => {
-        cachedItems = null;
+        invalidateItemsCatalog(itemsCatalogParams);
         await fetchItems();
         createdItemCandidateId.value = detectCreatedItemId(previousIds, catalogItems.value);
     })();

@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Support\MasterData\MaterialClassifier;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -146,5 +147,22 @@ class CategorySeeder extends Seeder
         ];
 
         DB::table('category_sub_groups')->insert($subGroups);
+
+        // TELA/HILAZA llevan material_kind desde el alta: son los subgrupos que
+        // ItemFormContent.vue usa para decidir si el ítem selecciona una base de tela
+        // o de hilaza. Va aparte del insert masivo de arriba porque mezclar filas con
+        // distintas claves en un solo insert() rompe el conteo de columnas de la
+        // consulta generada. Antes esto se backfillaba en una migración por id
+        // hardcodeado, que corre antes de que este seeder exista y nunca aplicaba.
+        DB::table('category_sub_groups')
+            ->where('category_group_id', $groupIds['MATERIA PRIMA'])
+            ->where('name', 'TELA')
+            ->update(['material_kind' => 'fabric']);
+        DB::table('category_sub_groups')
+            ->where('category_group_id', $groupIds['MATERIA PRIMA'])
+            ->where('name', 'HILAZA')
+            ->update(['material_kind' => 'yarn']);
+
+        MaterialClassifier::forgetCache();
     }
 }

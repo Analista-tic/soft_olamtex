@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Inventory;
 use App\Http\Controllers\Concerns\HandlesValidationErrors;
 use App\Http\Controllers\Controller;
 use App\Models\Inventory\InventoryAdjustment;
+use App\Models\MasterData\Item;
 use App\Services\Inventory\InventoryAdjustmentService;
+use App\Support\MasterData\MaterialClassifier;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -216,7 +218,17 @@ class InventoryAdjustmentController extends Controller
             'iva' => 'nullable|numeric',
             'total' => 'nullable|numeric',
             'lines' => 'required|array|min:1',
-            'lines.*.item_id' => 'required|integer|exists:items,id',
+            'lines.*.item_id' => [
+                'required',
+                'integer',
+                'exists:items,id',
+                function ($attribute, $value, $fail) {
+                    $item = Item::select('id', 'name', 'category_sub_group_id')->find($value);
+                    if ($item && MaterialClassifier::isFabricItem($item)) {
+                        $fail("El ítem \"{$item->name}\" es de tipo Tela: su disponibilidad depende de los rollos, no de un inventario propio. Ajústalo desde Kardex de Telas → Inventario tela por rollos, no desde Ajuste de inventario.");
+                    }
+                },
+            ],
             'lines.*.warehouse_id' => 'nullable|integer|exists:warehouses,id',
             'lines.*.price' => 'required|numeric|min:0',
             'lines.*.tax' => 'nullable|numeric|min:0',
