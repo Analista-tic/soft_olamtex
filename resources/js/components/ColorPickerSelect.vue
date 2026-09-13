@@ -5,13 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { hexToRgb } from '@/lib/colorUtils';
 import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom';
-import {
-    Combobox,
-    ComboboxButton,
-    ComboboxInput,
-    ComboboxOption,
-    ComboboxOptions,
-} from '@headlessui/vue';
+import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions } from '@headlessui/vue';
 import { Check, ChevronDown, Copy, Plus } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
@@ -55,10 +49,7 @@ const colorHexInputId = `color-hex-${Math.random().toString(36).slice(2)}`;
 
 const NO_APLICA_ID = '';
 
-const colorOptions = computed(() => [
-    { id: NO_APLICA_ID, name: 'No aplica' },
-    ...colors.value.map((c) => ({ id: String(c.id), name: c.name })),
-]);
+const colorOptions = computed(() => [{ id: NO_APLICA_ID, name: 'No aplica' }, ...colors.value.map((c) => ({ id: String(c.id), name: c.name }))]);
 
 const filteredOptions = computed(() => {
     const term = searchTerm.value.trim().toLowerCase();
@@ -67,19 +58,13 @@ const filteredOptions = computed(() => {
 });
 
 const selectedColorData = computed<ColorOption | null>(() => {
-    if (
-        props.modelValue === null ||
-        props.modelValue === undefined ||
-        String(props.modelValue).trim() === ''
-    ) return null;
+    if (props.modelValue === null || props.modelValue === undefined || String(props.modelValue).trim() === '') return null;
     return colors.value.find((c) => String(c.id) === String(props.modelValue)) ?? null;
 });
 
 const comboboxValue = computed(() => {
     if (!props.modelValue) return colorOptions.value[0] ?? null;
-    return colorOptions.value.find(
-        (o) => o.id !== NO_APLICA_ID && o.id === String(props.modelValue)
-    ) ?? colorOptions.value[0] ?? null;
+    return colorOptions.value.find((o) => o.id !== NO_APLICA_ID && o.id === String(props.modelValue)) ?? colorOptions.value[0] ?? null;
 });
 
 function handleComboboxChange(option: { id: string; name: string } | null) {
@@ -99,8 +84,12 @@ function handleInput(event: Event) {
     searchTerm.value = (event.target as HTMLInputElement).value;
 }
 
-function colorStyle(rgb: string | null) {
-    return { backgroundColor: rgb ? `rgb(${rgb})` : '#9ca3af' };
+function colorStyle(color: Pick<ColorOption, 'rgb' | 'hexadecimal'> | null) {
+    if (color?.rgb) {
+        return { backgroundColor: `rgb(${color.rgb})` };
+    }
+
+    return { backgroundColor: color?.hexadecimal || '#9ca3af' };
 }
 
 const createPreviewRgb = computed(() => hexToRgb(createHex.value));
@@ -118,17 +107,27 @@ function hexToRgbValues(hex: string): { r: number; g: number; b: number } | null
 }
 
 function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: number } {
-    const rn = r / 255, gn = g / 255, bn = b / 255;
-    const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn);
-    let h = 0, s = 0;
+    const rn = r / 255,
+        gn = g / 255,
+        bn = b / 255;
+    const max = Math.max(rn, gn, bn),
+        min = Math.min(rn, gn, bn);
+    let h = 0,
+        s = 0;
     const l = (max + min) / 2;
     if (max !== min) {
         const d = max - min;
         s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
         switch (max) {
-            case rn: h = ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6; break;
-            case gn: h = ((bn - rn) / d + 2) / 6; break;
-            case bn: h = ((rn - gn) / d + 4) / 6; break;
+            case rn:
+                h = ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6;
+                break;
+            case gn:
+                h = ((bn - rn) / d + 2) / 6;
+                break;
+            case bn:
+                h = ((rn - gn) / d + 4) / 6;
+                break;
         }
     }
     return {
@@ -139,21 +138,17 @@ function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: n
 }
 
 function parseRgbString(value: string): string | null {
-    const match = value.trim().match(
-        /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i
-    );
+    const match = value.trim().match(/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i);
     if (!match) return null;
-    const r = parseInt(match[1]), g = parseInt(match[2]), b = parseInt(match[3]);
+    const r = parseInt(match[1]),
+        g = parseInt(match[2]),
+        b = parseInt(match[3]);
     if (r > 255 || g > 255 || b > 255) return null;
-    return '#' + [r, g, b]
-        .map((v) => v.toString(16).padStart(2, '0'))
-        .join('');
+    return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
 }
 
 function parseHslString(value: string): string | null {
-    const match = value.trim().match(
-        /^hsl\(\s*(\d{1,3})\s*,\s*(\d{1,3})%\s*,\s*(\d{1,3})%\s*\)$/i
-    );
+    const match = value.trim().match(/^hsl\(\s*(\d{1,3})\s*,\s*(\d{1,3})%\s*,\s*(\d{1,3})%\s*\)$/i);
     if (!match) return null;
     const h = parseInt(match[1]) / 360;
     const s = parseInt(match[2]) / 100;
@@ -176,9 +171,16 @@ function parseHslString(value: string): string | null {
         g = hue2rgb(p, q, h);
         b = hue2rgb(p, q, h - 1 / 3);
     }
-    return '#' + [r, g, b]
-        .map((v) => Math.round(v * 255).toString(16).padStart(2, '0'))
-        .join('');
+    return (
+        '#' +
+        [r, g, b]
+            .map((v) =>
+                Math.round(v * 255)
+                    .toString(16)
+                    .padStart(2, '0'),
+            )
+            .join('')
+    );
 }
 
 function handleColorInput(event: Event) {
@@ -214,11 +216,7 @@ const colorFormattedValue = computed(() => {
     return `hsl(${hsl.h}, ${hsl.s}%, ${hsl.l}%)`;
 });
 
-const triggerColorStyle = computed(() => ({
-    backgroundColor: selectedColorData.value?.rgb
-        ? `rgb(${selectedColorData.value.rgb})`
-        : '#9ca3af',
-}));
+const triggerColorStyle = computed(() => colorStyle(selectedColorData.value));
 
 async function fetchColors() {
     isLoading.value = true;
@@ -236,8 +234,30 @@ async function fetchColors() {
     }
 }
 
+watch(
+    () => props.preloadedColors,
+    (preloadedColors) => {
+        if (preloadedColors && preloadedColors.length > 0) {
+            colors.value = [...preloadedColors];
+        } else if (colors.value.length === 0 && !isLoading.value) {
+            void fetchColors();
+        }
+    },
+    { immediate: true, deep: true },
+);
+
+watch(
+    selectedColorData,
+    (color) => {
+        emit('selected-color', color);
+    },
+    { immediate: true },
+);
+
 onMounted(() => {
-    void fetchColors();
+    if (colors.value.length === 0) {
+        void fetchColors();
+    }
 });
 
 function openInlineCreate() {
@@ -283,9 +303,7 @@ async function submitInlineCreate() {
             name: createName.value.trim(),
             rgb,
             hexadecimal: createHex.value.toUpperCase(),
-            ...(createDescription.value.trim()
-                ? { description: createDescription.value.trim() }
-                : {}),
+            ...(createDescription.value.trim() ? { description: createDescription.value.trim() } : {}),
         });
         await fetchColors();
         isCreating.value = false;
@@ -300,8 +318,7 @@ async function submitInlineCreate() {
         const created = colors.value.find((c) => c.id === newId) ?? null;
         emit('selected-color', created);
     } catch (error: any) {
-        createError.value =
-            error?.response?.data?.message || 'No se pudo crear el color.';
+        createError.value = error?.response?.data?.message || 'No se pudo crear el color.';
     } finally {
         isSaving.value = false;
     }
@@ -346,12 +363,12 @@ async function updateFloatingPosition() {
 
 function startFloatingUpdates() {
     if (floatingCleanup || !triggerRef.value || !floatingRef.value) return;
-    floatingCleanup = autoUpdate(
-        triggerRef.value,
-        floatingRef.value,
-        updateFloatingPosition,
-        { ancestorScroll: true, ancestorResize: true, elementResize: true, animationFrame: true },
-    );
+    floatingCleanup = autoUpdate(triggerRef.value, floatingRef.value, updateFloatingPosition, {
+        ancestorScroll: true,
+        ancestorResize: true,
+        elementResize: true,
+        animationFrame: true,
+    });
     void updateFloatingPosition();
 }
 
@@ -362,10 +379,13 @@ function stopFloatingUpdates() {
     }
 }
 
-watch(() => floatingRef.value, (el) => {
-    if (el && triggerRef.value) nextTick(startFloatingUpdates);
-    else stopFloatingUpdates();
-});
+watch(
+    () => floatingRef.value,
+    (el) => {
+        if (el && triggerRef.value) nextTick(startFloatingUpdates);
+        else stopFloatingUpdates();
+    },
+);
 
 onBeforeUnmount(stopFloatingUpdates);
 </script>
@@ -374,12 +394,7 @@ onBeforeUnmount(stopFloatingUpdates);
     <div class="grid w-full items-center gap-1.5">
         <Label>{{ label }}</Label>
 
-        <Combobox
-            :modelValue="comboboxValue"
-            :disabled="disabled"
-            by="id"
-            @update:modelValue="handleComboboxChange"
-        >
+        <Combobox :modelValue="comboboxValue" :disabled="disabled" by="id" @update:modelValue="handleComboboxChange">
             <template #default="{ open }">
                 <div ref="triggerRef" class="relative">
                     <ComboboxInput
@@ -402,26 +417,16 @@ onBeforeUnmount(stopFloatingUpdates);
 
                     <span
                         v-if="selectedColorData"
-                        class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 inline-block h-4 w-4 shrink-0 rounded-full border border-slate-200"
+                        class="pointer-events-none absolute left-3 top-1/2 inline-block h-4 w-4 shrink-0 -translate-y-1/2 rounded-full border border-slate-200"
                         :style="triggerColorStyle"
                     />
 
-                    <ComboboxButton
-                        class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70"
-                        :disabled="disabled || isCreating"
-                    >
+                    <ComboboxButton class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70" :disabled="disabled || isCreating">
                         <ChevronDown class="h-4 w-4" />
                     </ComboboxButton>
 
                     <Teleport to="body">
-                        <div
-                            v-if="open || isCreating"
-                            ref="floatingRef"
-                            :style="floatingStyles"
-                            class="z-[99999]"
-                            @pointerdown.stop
-                            @click.stop
-                        >
+                        <div v-if="open || isCreating" ref="floatingRef" :style="floatingStyles" class="z-[99999]" @pointerdown.stop @click.stop>
                             <ComboboxOptions
                                 v-show="!isCreating"
                                 static
@@ -440,61 +445,34 @@ onBeforeUnmount(stopFloatingUpdates);
                                     </button>
                                 </div>
 
-                                <ComboboxOption
-                                    v-for="option in filteredOptions"
-                                    :key="option.id"
-                                    :value="option"
-                                >
+                                <ComboboxOption v-for="option in filteredOptions" :key="option.id" :value="option">
                                     <template #default="{ active, selected }">
                                         <div
                                             class="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm transition-colors"
-                                            :class="active
-                                                ? 'bg-accent text-accent-foreground'
-                                                : 'text-popover-foreground'"
+                                            :class="active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground'"
                                         >
                                             <span
                                                 v-if="option.id !== ''"
                                                 class="inline-block h-4 w-4 shrink-0 rounded-full border border-slate-200"
-                                                :style="colorStyle(
-                                                    colors.find(c => String(c.id) === option.id)?.rgb ?? null
-                                                )"
+                                                :style="colorStyle(colors.find((c) => String(c.id) === option.id) ?? null)"
                                             />
-                                            <span
-                                                v-else
-                                                class="inline-block h-4 w-4 shrink-0"
-                                            />
+                                            <span v-else class="inline-block h-4 w-4 shrink-0" />
                                             <span class="flex-1 truncate">{{ option.name }}</span>
-                                            <Check
-                                                v-if="selected"
-                                                class="h-4 w-4 shrink-0"
-                                            />
+                                            <Check v-if="selected" class="h-4 w-4 shrink-0" />
                                         </div>
                                     </template>
                                 </ComboboxOption>
 
-                                <div
-                                    v-if="isLoading"
-                                    class="px-3 py-2 text-sm text-muted-foreground"
-                                >
-                                    Cargando colores...
-                                </div>
-                                <div
-                                    v-else-if="filteredOptions.length === 1 && searchTerm"
-                                    class="px-3 py-2 text-sm text-muted-foreground"
-                                >
+                                <div v-if="isLoading" class="px-3 py-2 text-sm text-muted-foreground">Cargando colores...</div>
+                                <div v-else-if="filteredOptions.length === 1 && searchTerm" class="px-3 py-2 text-sm text-muted-foreground">
                                     No se encontraron colores.
                                 </div>
                             </ComboboxOptions>
 
-                            <div
-                                v-if="isCreating"
-                                class="rounded-md border border-border bg-popover text-popover-foreground shadow-2xl"
-                            >
+                            <div v-if="isCreating" class="rounded-md border border-border bg-popover text-popover-foreground shadow-2xl">
                                 <div class="space-y-3 px-3 py-3">
                                     <div class="grid gap-1.5">
-                                        <Label :for="colorNameInputId" class="text-xs">
-                                            Nombre
-                                        </Label>
+                                        <Label :for="colorNameInputId" class="text-xs"> Nombre </Label>
                                         <input
                                             :id="colorNameInputId"
                                             ref="inlineInputRef"
@@ -538,13 +516,11 @@ onBeforeUnmount(stopFloatingUpdates);
                                             />
                                         </label>
 
-                                        <div
-                                            class="flex items-center gap-0 overflow-hidden rounded-b-md border border-input shadow-sm"
-                                        >
+                                        <div class="flex items-center gap-0 overflow-hidden rounded-b-md border border-input shadow-sm">
                                             <input
                                                 type="text"
                                                 :value="colorFormattedValue"
-                                                class="flex-1 min-w-0 bg-background px-3 py-2 font-mono text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+                                                class="min-w-0 flex-1 bg-background px-3 py-2 font-mono text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
                                                 :disabled="isSaving"
                                                 spellcheck="false"
                                                 autocomplete="off"

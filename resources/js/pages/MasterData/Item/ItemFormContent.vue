@@ -2,9 +2,13 @@
 import type { Tax as CachedTax } from '@/domain/Finance';
 import type { AdditionalField as CachedAdditionalField, CategorySubGroup as CachedCategorySubGroup } from '@/domain/MasterData';
 
+type CachedMaterialNameOption = { id: number; nombre: string; base_nombre: string | null; factor?: number | null };
+
 let cachedCategorySubGroups: CachedCategorySubGroup[] | null = null;
 let cachedTaxes: CachedTax[] | null = null;
 let cachedAdditionalFields: CachedAdditionalField[] | null = null;
+let cachedFabricNameOptions: CachedMaterialNameOption[] | null = null;
+let cachedYarnNameOptions: CachedMaterialNameOption[] | null = null;
 </script>
 
 <script setup lang="ts">
@@ -28,11 +32,11 @@ import Label from '@/components/ui/label/Label.vue';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
-import AdditionalFieldDialog from '@/pages/MasterData/AdditionalFields/AdditionalFieldDialog.vue';
-import WarehouseLocationDialog from '@/pages/Inventory/WarehouseLocation/WarehouseLocationDialog.vue';
 import ColorPickerSelect from '@/components/ColorPickerSelect.vue';
 import TextareaField from '@/components/TextareaField.vue';
+import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
+import WarehouseLocationDialog from '@/pages/Inventory/WarehouseLocation/WarehouseLocationDialog.vue';
+import AdditionalFieldDialog from '@/pages/MasterData/AdditionalFields/AdditionalFieldDialog.vue';
 import ExtraFieldsForm from '@/pages/MasterData/Item/ExtraFieldsForm.vue';
 
 import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
@@ -96,7 +100,8 @@ const authStore = useAuthStore();
 const isCatalogBootstrapLoading = ref(false);
 const isItemHydrationLoading = ref(false);
 const isSecondaryLoading = ref(false);
-const isBlockingLoading = computed(() => isCatalogBootstrapLoading.value || isItemHydrationLoading.value);
+const isInitializing = ref(true);
+const isBlockingLoading = computed(() => isInitializing.value || isCatalogBootstrapLoading.value || isItemHydrationLoading.value);
 const canRenderForm = computed(() => !isBlockingLoading.value);
 
 type ItemType = 'product' | 'service';
@@ -170,14 +175,14 @@ function mapItemToFormState(source: ItemFormSource): ItemForm {
             source.category_sub_group_id !== undefined && source.category_sub_group_id !== null && String(source.category_sub_group_id).trim() !== ''
                 ? String(source.category_sub_group_id)
                 : undefined,
-        color_id: source.color_id !== undefined && source.color_id !== null && String(source.color_id).trim() !== ''
-                ? Number(source.color_id)
-                : null,
+        color_id: source.color_id !== undefined && source.color_id !== null && String(source.color_id).trim() !== '' ? Number(source.color_id) : null,
         color: source.color ?? null,
-        fabric_name_id: source.fabric_name_id !== undefined && source.fabric_name_id !== null && String(source.fabric_name_id).trim() !== ''
+        fabric_name_id:
+            source.fabric_name_id !== undefined && source.fabric_name_id !== null && String(source.fabric_name_id).trim() !== ''
                 ? Number(source.fabric_name_id)
                 : null,
-        yarn_name_id: source.yarn_name_id !== undefined && source.yarn_name_id !== null && String(source.yarn_name_id).trim() !== ''
+        yarn_name_id:
+            source.yarn_name_id !== undefined && source.yarn_name_id !== null && String(source.yarn_name_id).trim() !== ''
                 ? Number(source.yarn_name_id)
                 : null,
         reference: source.reference || '',
@@ -208,7 +213,6 @@ const fabricNameOptions = ref<MaterialNameOption[]>([]);
 const yarnNameOptions = ref<MaterialNameOption[]>([]);
 
 const selectedGroupId = ref<string | null>(null);
-const isInitializing = ref(true);
 
 // Referencia automática/manual — solo aplica al crear (editar conserva la referencia
 // tal como quedó, sea cual sea el origen; ver ItemController::prepareItemPayload()).
@@ -283,8 +287,7 @@ const unitMeasures = unitMeasureGroups.flatMap((group) => group.options.map((opt
 const serviceUnitId = 'servicio';
 const defaultProductUnitValue = String(unitMeasures[0]?.id ?? 'unidad');
 
-const getInitialUnitMeasure = (form: Partial<Item>): string =>
-    form.unit_measure ?? (props.dialogType === 'create' ? '' : defaultProductUnitValue);
+const getInitialUnitMeasure = (form: Partial<Item>): string => form.unit_measure ?? (props.dialogType === 'create' ? '' : defaultProductUnitValue);
 
 const unitMeasure = ref(getInitialUnitMeasure(props.form));
 
@@ -523,11 +526,17 @@ const HIDDEN_EXTRA_FIELD_KEYS = new Set([
 const UNIT_MEASURE_EXTRA_FIELD_KEYS = new Set(['medida', 'unidad de medida', 'unit_measure', 'unit measure']);
 
 function isUnitMeasureExtraField(fieldName: string): boolean {
-    return UNIT_MEASURE_EXTRA_FIELD_KEYS.has(String(fieldName ?? '').trim().toLowerCase());
+    return UNIT_MEASURE_EXTRA_FIELD_KEYS.has(
+        String(fieldName ?? '')
+            .trim()
+            .toLowerCase(),
+    );
 }
 
 function shouldExposeExtraField(fieldName: string): boolean {
-    const normalized = String(fieldName ?? '').trim().toLowerCase();
+    const normalized = String(fieldName ?? '')
+        .trim()
+        .toLowerCase();
     if (!normalized) return false;
     if (HIDDEN_EXTRA_FIELD_KEYS.has(normalized)) return false;
     if (isUnitMeasureExtraField(normalized)) return false;
@@ -623,9 +632,7 @@ function syncGroupFromSubgroup() {
     const subGroupId = String(localForm.value.category_sub_group_id ?? '');
     if (!subGroupId) return;
 
-    const found = categorySubGroups.value.find(
-        (sg) => String(sg.id) === subGroupId
-    );
+    const found = categorySubGroups.value.find((sg) => String(sg.id) === subGroupId);
     if (found && found.category_group_id) {
         selectedGroupId.value = String(found.category_group_id);
     }
@@ -699,7 +706,7 @@ async function fetchCategorySubGroups(force = false) {
     try {
         const raw: any[] =
             !force && props.preloadedSubGroups && props.preloadedSubGroups.length > 0
-                  ? props.preloadedSubGroups
+                ? props.preloadedSubGroups
                 : !force && cachedCategorySubGroups
                   ? cachedCategorySubGroups
                   : (
@@ -724,14 +731,22 @@ async function fetchCategorySubGroups(force = false) {
     }
 }
 
-async function fetchMaterialNameOptions() {
+async function fetchMaterialNameOptions(force = false) {
+    if (!force && cachedFabricNameOptions && cachedYarnNameOptions) {
+        fabricNameOptions.value = cachedFabricNameOptions;
+        yarnNameOptions.value = cachedYarnNameOptions;
+        return;
+    }
+
     try {
         const [fabricResponse, yarnResponse] = await Promise.all([
             axios.get(route('nombres-tela.options')),
             axios.get(route('nombres-hilaza.options')),
         ]);
-        fabricNameOptions.value = Array.isArray(fabricResponse.data) ? fabricResponse.data : [];
-        yarnNameOptions.value = Array.isArray(yarnResponse.data) ? yarnResponse.data : [];
+        cachedFabricNameOptions = Array.isArray(fabricResponse.data) ? fabricResponse.data : [];
+        cachedYarnNameOptions = Array.isArray(yarnResponse.data) ? yarnResponse.data : [];
+        fabricNameOptions.value = cachedFabricNameOptions;
+        yarnNameOptions.value = cachedYarnNameOptions;
     } catch (error) {
         console.error('Error al obtener los nombres de tela/hilaza:', error);
     }
@@ -741,7 +756,7 @@ async function fetchTaxes(force = false) {
     try {
         const raw: Tax[] =
             !force && props.preloadedTaxes && props.preloadedTaxes.length > 0
-                  ? props.preloadedTaxes
+                ? props.preloadedTaxes
                 : !force && cachedTaxes
                   ? cachedTaxes
                   : (await axios.get(catalogLookupRoutes.taxes, { params: { per_page: 100, status: true } })).data.data;
@@ -774,7 +789,9 @@ async function fetchAccountingAccounts() {
 function applyAdditionalFields(normalizedFields: AdditionalField[]) {
     const currentSubGroupId = currentSubGroup.value?.id ?? null;
     const fields = normalizedFields.filter((f) => {
-        const normalizedName = String(f.name ?? '').trim().toLowerCase();
+        const normalizedName = String(f.name ?? '')
+            .trim()
+            .toLowerCase();
         if (normalizedName === 'color' || isUnitMeasureExtraField(normalizedName)) return false;
 
         const scopedTo = f.category_sub_group_ids ?? [];
@@ -863,7 +880,7 @@ let catalogsLoadPromise: Promise<void> | null = null;
 function loadFormCatalogs(): Promise<void> {
     if (!catalogsLoadPromise) {
         isCatalogBootstrapLoading.value = true;
-        catalogsLoadPromise = Promise.all([fetchCategorySubGroups(), fetchTaxes(), fetchAdditionalFields()])
+        catalogsLoadPromise = Promise.all([fetchCategorySubGroups(), fetchTaxes(), fetchAdditionalFields(), fetchMaterialNameOptions()])
             .then(() => undefined)
             .finally(() => {
                 isCatalogBootstrapLoading.value = false;
@@ -876,11 +893,7 @@ function loadFormCatalogs(): Promise<void> {
 async function loadSecondaryFormData(itemId?: number): Promise<void> {
     isSecondaryLoading.value = true;
     try {
-        await Promise.all([
-            fetchWarehouses(),
-            fetchWarehouseLocations(),
-            ...(props.showAdvancedSections ? [fetchAccountingAccounts()] : []),
-        ]);
+        await Promise.all([fetchWarehouses(), fetchWarehouseLocations(), ...(props.showAdvancedSections ? [fetchAccountingAccounts()] : [])]);
     } finally {
         isSecondaryLoading.value = false;
     }
@@ -905,9 +918,12 @@ async function hydrateOpenForm() {
 
     isItemHydrationLoading.value = true;
     try {
-        await loadFormCatalogs();
-        await loadItemDetails(itemId);
-        await loadSecondaryFormData(itemId);
+        // Las tres peticiones son independientes entre sí (loadItemDetails no depende
+        // de que los catálogos ya estén cargados: applyFormData() tolera que
+        // categorySubGroups/taxes todavía estén vacíos, y el formulario no se
+        // renderiza hasta que las tres terminan). Antes se esperaban en serie, lo que
+        // triplicaba el tiempo de apertura del formulario al editar un ítem.
+        await Promise.all([loadFormCatalogs(), loadItemDetails(itemId), loadSecondaryFormData(itemId)]);
     } finally {
         isItemHydrationLoading.value = false;
     }
@@ -919,23 +935,22 @@ async function hydrateOpenForm() {
 function normalizeWarehouseStocksFromSource(source: ItemFormSource | null | undefined): WarehouseStockEntry[] {
     if (!source) return [];
 
-    const rows = Array.isArray(source.warehouse_stocks) && source.warehouse_stocks.length > 0
-        ? source.warehouse_stocks
-        : Array.isArray(source.warehouse_items)
-          ? source.warehouse_items
-          : [];
+    const rows =
+        Array.isArray(source.warehouse_stocks) && source.warehouse_stocks.length > 0
+            ? source.warehouse_stocks
+            : Array.isArray(source.warehouse_items)
+              ? source.warehouse_items
+              : [];
 
     return rows
         .map((row) => {
             const warehouseId = row.warehouse_id ?? row.warehouse?.id ?? null;
-            const parsedWarehouseId = warehouseId !== null && warehouseId !== undefined && String(warehouseId).trim() !== ''
-                ? Number(warehouseId)
-                : null;
+            const parsedWarehouseId =
+                warehouseId !== null && warehouseId !== undefined && String(warehouseId).trim() !== '' ? Number(warehouseId) : null;
 
             const rawLocationId = row.location_id ?? null;
-            const parsedLocationId = rawLocationId !== null && rawLocationId !== undefined && String(rawLocationId).trim() !== ''
-                ? Number(rawLocationId)
-                : null;
+            const parsedLocationId =
+                rawLocationId !== null && rawLocationId !== undefined && String(rawLocationId).trim() !== '' ? Number(rawLocationId) : null;
 
             return {
                 warehouse_id: Number.isFinite(parsedWarehouseId) ? parsedWarehouseId : null,
@@ -1233,9 +1248,8 @@ function mapFormStateToPayload(orderedExtraFields: Record<string, string>): Reco
     const selectedTaxPercentage = selectedTax ? Number(selectedTax.percentage) : 0;
     const normalizedItemType = normalizeItemType(localForm.value.item_type);
     const shouldTrackInventory =
-        normalizedItemType !== 'service' && (localForm.value.negative_movement === 1 || localForm.value.negative_movement === true
-            ? true
-            : (localForm.value.tracks_inventory ?? true));
+        normalizedItemType !== 'service' &&
+        (localForm.value.negative_movement === 1 || localForm.value.negative_movement === true ? true : (localForm.value.tracks_inventory ?? true));
 
     return {
         ...localForm.value,
@@ -1245,7 +1259,9 @@ function mapFormStateToPayload(orderedExtraFields: Record<string, string>): Reco
                 ? Number(localForm.value.color_id)
                 : '',
         fabric_name_id:
-            localForm.value.fabric_name_id !== undefined && localForm.value.fabric_name_id !== null && String(localForm.value.fabric_name_id).trim() !== ''
+            localForm.value.fabric_name_id !== undefined &&
+            localForm.value.fabric_name_id !== null &&
+            String(localForm.value.fabric_name_id).trim() !== ''
                 ? Number(localForm.value.fabric_name_id)
                 : '',
         yarn_name_id:
@@ -1403,7 +1419,8 @@ async function handleSubmit() {
                 quantity: Number(w.quantity),
                 stock_min: Number(w.stock_min),
                 stock_max: Number(w.stock_max),
-                location_id: w.location_id !== null && w.location_id !== undefined && String(w.location_id).trim() !== '' ? Number(w.location_id) : null,
+                location_id:
+                    w.location_id !== null && w.location_id !== undefined && String(w.location_id).trim() !== '' ? Number(w.location_id) : null,
             };
             if (isCreate) {
                 return {
@@ -1693,8 +1710,7 @@ onMounted(async () => {
         window.addEventListener(INVENTORY_ADJUSTMENT_SAVED_EVENT, handleInventoryAdjustmentSaved);
     }
     await authStore.fetchUser();
-    await fetchCategorySubGroups();
-    void fetchMaterialNameOptions();
+    await Promise.all([fetchCategorySubGroups(), fetchMaterialNameOptions()]);
     // nextTick para asegurar que syncGroupFromSubgroup ya corrió
     await nextTick();
     isInitializing.value = false;
@@ -1710,13 +1726,9 @@ onBeforeUnmount(() => {
 
 <template>
     <div class="flex flex-col">
-        <AlertStack
-            :error-message="errorMessage"
-            :error-type="errorType"
-            @close-error="errorMessage = ''"
-        />
+        <AlertStack :error-message="errorMessage" :error-type="errorType" @close-error="errorMessage = ''" />
 
-            <form class="flex flex-col" @submit.prevent="handleSubmit">
+        <form class="flex flex-col" @submit.prevent="handleSubmit">
             <FormHeader
                 v-if="!props.isFullPage"
                 class="shrink-0 border-b px-5 py-4 pr-12"
@@ -1735,7 +1747,7 @@ onBeforeUnmount(() => {
                 :class="[
                     'relative px-5 py-4 pr-4',
                     !props.isFullPage ? 'overflow-y-auto scroll-smooth' : 'overflow-visible',
-                    { 'min-h-[160px] flex items-center justify-center': isBlockingLoading },
+                    { 'flex min-h-[160px] items-center justify-center': isBlockingLoading },
                 ]"
                 :style="props.isFullPage ? {} : { maxHeight: '65vh', scrollbarWidth: 'thin' }"
             >
@@ -1912,67 +1924,69 @@ onBeforeUnmount(() => {
                                 </div>
                             </div>
 
-                        <!-- Slot de material siempre presente en el grid (aunque no aplique a este
+                            <!-- Slot de material siempre presente en el grid (aunque no aplique a este
                         subgrupo): cambiar de subgrupo solo cambia el contenido de adentro, nunca la
                         cantidad de elementos del grid — evita que el resto del formulario salte
                         verticalmente cada vez que se elige/cambia el subgrupo. -->
-                        <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
-                            <template v-if="materialKind === 'fabric'">
-                                <template v-if="isViewMode">
-                                    <div class="flex flex-col gap-1">
-                                        <Label>Nombre de tela</Label>
-                                        <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                                            {{ selectedFabricNameOption ? materialNameOptionLabel(selectedFabricNameOption) : '-' }}
+                            <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
+                                <template v-if="materialKind === 'fabric'">
+                                    <template v-if="isViewMode">
+                                        <div class="flex flex-col gap-1">
+                                            <Label>Nombre de tela</Label>
+                                            <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                                {{ selectedFabricNameOption ? materialNameOptionLabel(selectedFabricNameOption) : '-' }}
+                                            </div>
                                         </div>
-                                    </div>
-                                </template>
-                                <template v-else>
-                                    <div class="flex flex-col gap-1 md:col-span-2">
-                                        <SelectField
-                                            v-model="fabricNameModel"
-                                            label="Nombre de tela"
-                                            :options="fabricNameSelectOptions"
-                                            :get-option-label="(o) => (o as any).label"
-                                            placeholder="Selecciona un nombre de tela"
-                                            searchable
-                                            search-placeholder="Buscar..."
-                                            :show-placeholder-option="false"
-                                        />
-                                        <!-- El factor solo lo ve Diseño (permiso "ver factor material"): afecta el
+                                    </template>
+                                    <template v-else>
+                                        <div class="flex flex-col gap-1 md:col-span-2">
+                                            <SelectField
+                                                v-model="fabricNameModel"
+                                                label="Nombre de tela"
+                                                :options="fabricNameSelectOptions"
+                                                :get-option-label="(o) => (o as any).label"
+                                                placeholder="Selecciona un nombre de tela"
+                                                searchable
+                                                search-placeholder="Buscar..."
+                                                :show-placeholder-option="false"
+                                            />
+                                            <!-- El factor solo lo ve Diseño (permiso "ver factor material"): afecta el
                                         costeo (SAM), no es información de quien solo selecciona una tela. -->
-                                        <p v-if="selectedFabricNameOption && canSeeMaterialFactor" class="text-xs text-muted-foreground">
-                                            Base: {{ selectedFabricNameOption.base_nombre ?? '-' }}
-                                            · Factor: {{ selectedFabricNameOption.factor != null ? Number(selectedFabricNameOption.factor).toFixed(2) : '-' }}
-                                        </p>
-                                    </div>
-                                </template>
-                            </template>
-
-                            <template v-else-if="materialKind === 'yarn'">
-                                <template v-if="isViewMode">
-                                    <div class="flex flex-col gap-1">
-                                        <Label>Nombre de hilaza</Label>
-                                        <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                                            {{ selectedYarnNameOption ? materialNameOptionLabel(selectedYarnNameOption) : '-' }}
+                                            <p v-if="selectedFabricNameOption && canSeeMaterialFactor" class="text-xs text-muted-foreground">
+                                                Base: {{ selectedFabricNameOption.base_nombre ?? '-' }} · Factor:
+                                                {{
+                                                    selectedFabricNameOption.factor != null ? Number(selectedFabricNameOption.factor).toFixed(2) : '-'
+                                                }}
+                                            </p>
                                         </div>
-                                    </div>
+                                    </template>
                                 </template>
-                                <template v-else>
-                                    <div class="flex flex-col gap-1 md:col-span-2">
-                                        <SelectField
-                                            v-model="yarnNameModel"
-                                            label="Nombre de hilaza"
-                                            :options="yarnNameSelectOptions"
-                                            :get-option-label="(o) => (o as any).label"
-                                            placeholder="Selecciona un nombre de hilaza"
-                                            searchable
-                                            search-placeholder="Buscar..."
-                                            :show-placeholder-option="false"
-                                        />
-                                    </div>
+
+                                <template v-else-if="materialKind === 'yarn'">
+                                    <template v-if="isViewMode">
+                                        <div class="flex flex-col gap-1">
+                                            <Label>Nombre de hilaza</Label>
+                                            <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                                {{ selectedYarnNameOption ? materialNameOptionLabel(selectedYarnNameOption) : '-' }}
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <template v-else>
+                                        <div class="flex flex-col gap-1 md:col-span-2">
+                                            <SelectField
+                                                v-model="yarnNameModel"
+                                                label="Nombre de hilaza"
+                                                :options="yarnNameSelectOptions"
+                                                :get-option-label="(o) => (o as any).label"
+                                                placeholder="Selecciona un nombre de hilaza"
+                                                searchable
+                                                search-placeholder="Buscar..."
+                                                :show-placeholder-option="false"
+                                            />
+                                        </div>
+                                    </template>
                                 </template>
-                            </template>
-                        </div>
+                            </div>
                         </div>
 
                         <div class="flex min-w-0 flex-col gap-1.5">
@@ -2017,160 +2031,195 @@ onBeforeUnmount(() => {
                                 </template>
                             </div>
                         </div>
-                    <div v-if="currentItemType !== 'service'" class="lg:col-span-2 rounded-lg border border-sidebar-border/70 bg-muted/30 p-3">
-                        <div class="mb-2 flex items-center justify-between">
-                            <p class="flex items-center gap-1 text-sm font-semibold">
-                                <span>Detalle de Inventario</span>
-                                <HelpTooltip
-                                    text="Selecciona las bodegas y cantidades donde se almacenará este ítem para llevar control de stock."
-                                />
-                            </p>
-
-                            <button
-                                v-if="!isViewMode"
-                                type="button"
-                                class="rounded-full p-1 transition hover:bg-muted"
-                                :class="isSecondaryLoading || availableWarehouses().length === 0 ? 'cursor-not-allowed opacity-50' : ''"
-                                :disabled="isSecondaryLoading"
-                                @click="handleAddWarehouseStock"
-                                title="Agregar Bodega"
-                            >
-                                <Plus class="h-5 w-5 text-primary" />
-                            </button>
-                        </div>
-
-                        <div v-for="(ws, idx) in warehouseStocks" :key="idx" class="mb-2 rounded-md bg-muted/50 p-2">
-                            <div
-                                :class="[
-                                    'grid grid-cols-1 gap-2 sm:items-end',
-                                    props.dialogType === 'create'
-                                        ? 'sm:grid-cols-[minmax(140px,1.2fr)_repeat(2,minmax(70px,1fr))_minmax(110px,1fr)_minmax(100px,1fr)_minmax(120px,1fr)_auto]'
-                                        : 'sm:grid-cols-[minmax(160px,1.2fr)_repeat(3,minmax(80px,1fr))_minmax(140px,1fr)_auto]',
-                                ]"
-                            >
-                                <div class="space-y-1">
-                                    <Label class="text-xs">Bodega</Label>
-                                    <SelectField
-                                        v-model="ws.warehouse_id"
-                                        label=""
-                                        :options="
-                                            availableWarehouses(idx).map((w) => ({
-                                                id: String(w.id ?? ''),
-                                                name: w.name,
-                                            }))
-                                        "
-                                        @change="updateWarehouseName(idx)"
-                                        class="w-full"
-                                        placeholder="Bodega"
-                                        :searchable="false"
-                                    >
-                                        <template v-if="canCreateWarehouses" #header>
-                                            <Button
-                                                type="button"
-                                                size="sm"
-                                                variant="outline"
-                                                class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
-                                                @click.stop="openCatalog('warehouse')"
-                                            >
-                                                <Plus class="h-3 w-3" />
-                                                Nueva bodega
-                                            </Button>
-                                        </template>
-                                    </SelectField>
-                                </div>
-
-                                <div class="space-y-1">
-                                    <Label class="text-xs">Cantidad</Label>
-                                    <InputIntegerField
-                                        v-model="ws.quantity"
-                                        label=""
-                                        type="number"
-                                        class="w-full"
-                                        placeholder="Cantidad"
-                                        :allowNegative="true"
-                                        :allowDecimal="true"
-                                        @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }"
+                        <div v-if="currentItemType !== 'service'" class="rounded-lg border border-sidebar-border/70 bg-muted/30 p-3 lg:col-span-2">
+                            <div class="mb-2 flex items-center justify-between">
+                                <p class="flex items-center gap-1 text-sm font-semibold">
+                                    <span>Detalle de Inventario</span>
+                                    <HelpTooltip
+                                        text="Selecciona las bodegas y cantidades donde se almacenará este ítem para llevar control de stock."
                                     />
-                                </div>
+                                </p>
 
-                                <template v-if="props.dialogType === 'create'">
+                                <button
+                                    v-if="!isViewMode"
+                                    type="button"
+                                    class="rounded-full p-1 transition hover:bg-muted"
+                                    :class="isSecondaryLoading || availableWarehouses().length === 0 ? 'cursor-not-allowed opacity-50' : ''"
+                                    :disabled="isSecondaryLoading"
+                                    @click="handleAddWarehouseStock"
+                                    title="Agregar Bodega"
+                                >
+                                    <Plus class="h-5 w-5 text-primary" />
+                                </button>
+                            </div>
+
+                            <div v-for="(ws, idx) in warehouseStocks" :key="idx" class="mb-2 rounded-md bg-muted/50 p-2">
+                                <div
+                                    :class="[
+                                        'grid grid-cols-1 gap-2 sm:items-end',
+                                        props.dialogType === 'create'
+                                            ? 'sm:grid-cols-[minmax(140px,1.2fr)_repeat(2,minmax(70px,1fr))_minmax(110px,1fr)_minmax(100px,1fr)_minmax(120px,1fr)_auto]'
+                                            : 'sm:grid-cols-[minmax(160px,1.2fr)_repeat(3,minmax(80px,1fr))_minmax(140px,1fr)_auto]',
+                                    ]"
+                                >
                                     <div class="space-y-1">
-                                        <Label class="text-xs">
-                                            Costo unitario inicial
-                                            <span v-if="ws.quantity > 0" class="text-destructive">*</span>
-                                        </Label>
+                                        <Label class="text-xs">Bodega</Label>
+                                        <SelectField
+                                            v-model="ws.warehouse_id"
+                                            label=""
+                                            :options="
+                                                availableWarehouses(idx).map((w) => ({
+                                                    id: String(w.id ?? ''),
+                                                    name: w.name,
+                                                }))
+                                            "
+                                            @change="updateWarehouseName(idx)"
+                                            class="w-full"
+                                            placeholder="Bodega"
+                                            :searchable="false"
+                                        >
+                                            <template v-if="canCreateWarehouses" #header>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="outline"
+                                                    class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
+                                                    @click.stop="openCatalog('warehouse')"
+                                                >
+                                                    <Plus class="h-3 w-3" />
+                                                    Nueva bodega
+                                                </Button>
+                                            </template>
+                                        </SelectField>
+                                    </div>
+
+                                    <div class="space-y-1">
+                                        <Label class="text-xs">Cantidad</Label>
                                         <InputIntegerField
-                                            v-model="ws.unit_price"
+                                            v-model="ws.quantity"
                                             label=""
                                             type="number"
                                             class="w-full"
-                                            placeholder="$0"
+                                            placeholder="Cantidad"
+                                            :allowNegative="true"
                                             :allowDecimal="true"
-                                            :currency="true"
-                                            @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '$0' || el.value === '0') el.value = '' }"
+                                            @focus="
+                                                (e: FocusEvent) => {
+                                                    const el = e.target as HTMLInputElement;
+                                                    if (el.value === '0') el.value = '';
+                                                }
+                                            "
                                         />
-                                        <p v-if="ws.quantity > 0 && !(ws.unit_price && ws.unit_price > 0)" class="text-xs text-destructive">
-                                            Requerido si cantidad &gt; 0
-                                        </p>
                                     </div>
-                                </template>
 
-                                <div class="space-y-1">
-                                    <Label class="text-xs">Cantidad Min</Label>
-                                    <InputIntegerField v-model="ws.stock_min" label="" type="number" class="w-full" placeholder="Min" :allowDecimal="true" @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }" />
-                                </div>
+                                    <template v-if="props.dialogType === 'create'">
+                                        <div class="space-y-1">
+                                            <Label class="text-xs">
+                                                Costo unitario inicial
+                                                <span v-if="ws.quantity > 0" class="text-destructive">*</span>
+                                            </Label>
+                                            <InputIntegerField
+                                                v-model="ws.unit_price"
+                                                label=""
+                                                type="number"
+                                                class="w-full"
+                                                placeholder="$0"
+                                                :allowDecimal="true"
+                                                :currency="true"
+                                                @focus="
+                                                    (e: FocusEvent) => {
+                                                        const el = e.target as HTMLInputElement;
+                                                        if (el.value === '$0' || el.value === '0') el.value = '';
+                                                    }
+                                                "
+                                            />
+                                            <p v-if="ws.quantity > 0 && !(ws.unit_price && ws.unit_price > 0)" class="text-xs text-destructive">
+                                                Requerido si cantidad &gt; 0
+                                            </p>
+                                        </div>
+                                    </template>
 
-                                <div class="space-y-1">
-                                    <Label class="text-xs">Cantidad Max</Label>
-                                    <InputIntegerField v-model="ws.stock_max" label="" type="number" class="w-full" placeholder="Max" :allowDecimal="true" @focus="(e: FocusEvent) => { const el = e.target as HTMLInputElement; if (el.value === '0') el.value = '' }" />
-                                </div>
+                                    <div class="space-y-1">
+                                        <Label class="text-xs">Cantidad Min</Label>
+                                        <InputIntegerField
+                                            v-model="ws.stock_min"
+                                            label=""
+                                            type="number"
+                                            class="w-full"
+                                            placeholder="Min"
+                                            :allowDecimal="true"
+                                            @focus="
+                                                (e: FocusEvent) => {
+                                                    const el = e.target as HTMLInputElement;
+                                                    if (el.value === '0') el.value = '';
+                                                }
+                                            "
+                                        />
+                                    </div>
 
-                                <div class="space-y-1">
-                                    <Label class="text-xs">Ubicación</Label>
-                                    <SelectField
-                                        v-model="ws.location_id"
-                                        label=""
-                                        :options="warehouseLocations.map((l) => ({ id: String(l.id), name: l.name }))"
-                                        placeholder="Sin ubicación"
-                                        :searchable="true"
-                                        search-placeholder="Buscar ubicación..."
-                                        :show-placeholder-option="true"
-                                        :disabled="isViewMode"
-                                        class="w-full"
-                                    >
-                                        <template v-if="!isViewMode" #header>
-                                            <Button
-                                                type="button"
-                                                size="sm"
-                                                variant="outline"
-                                                class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
-                                                @click.stop="openLocationDialog(idx)"
-                                            >
-                                                <Plus class="h-3 w-3" />
-                                                Nueva ubicación
-                                            </Button>
-                                        </template>
-                                    </SelectField>
-                                </div>
+                                    <div class="space-y-1">
+                                        <Label class="text-xs">Cantidad Max</Label>
+                                        <InputIntegerField
+                                            v-model="ws.stock_max"
+                                            label=""
+                                            type="number"
+                                            class="w-full"
+                                            placeholder="Max"
+                                            :allowDecimal="true"
+                                            @focus="
+                                                (e: FocusEvent) => {
+                                                    const el = e.target as HTMLInputElement;
+                                                    if (el.value === '0') el.value = '';
+                                                }
+                                            "
+                                        />
+                                    </div>
 
-                                <div class="flex items-end justify-end">
-                                    <button
-                                        v-if="!isViewMode"
-                                        type="button"
-                                        class="rounded-full p-2 transition hover:bg-red-100 dark:hover:bg-red-900"
-                                        @click="removeWarehouseStock(idx)"
-                                        title="Quitar"
-                                    >
-                                        <Trash class="h-4 w-4 text-red-500" />
-                                    </button>
+                                    <div class="space-y-1">
+                                        <Label class="text-xs">Ubicación</Label>
+                                        <SelectField
+                                            v-model="ws.location_id"
+                                            label=""
+                                            :options="warehouseLocations.map((l) => ({ id: String(l.id), name: l.name }))"
+                                            placeholder="Sin ubicación"
+                                            :searchable="true"
+                                            search-placeholder="Buscar ubicación..."
+                                            :show-placeholder-option="true"
+                                            :disabled="isViewMode"
+                                            class="w-full"
+                                        >
+                                            <template v-if="!isViewMode" #header>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="outline"
+                                                    class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
+                                                    @click.stop="openLocationDialog(idx)"
+                                                >
+                                                    <Plus class="h-3 w-3" />
+                                                    Nueva ubicación
+                                                </Button>
+                                            </template>
+                                        </SelectField>
+                                    </div>
+
+                                    <div class="flex items-end justify-end">
+                                        <button
+                                            v-if="!isViewMode"
+                                            type="button"
+                                            class="rounded-full p-2 transition hover:bg-red-100 dark:hover:bg-red-900"
+                                            @click="removeWarehouseStock(idx)"
+                                            title="Quitar"
+                                        >
+                                            <Trash class="h-4 w-4 text-red-500" />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
+
+                            <div v-if="isSecondaryLoading" class="px-2 py-1 text-xs text-muted-foreground">Cargando bodegas e inventario...</div>
+                            <div v-else-if="warehouseStocks.length === 0" class="px-2 py-1 text-xs text-gray-400">No hay bodegas asociadas.</div>
                         </div>
-
-                        <div v-if="isSecondaryLoading" class="px-2 py-1 text-xs text-muted-foreground">Cargando bodegas e inventario...</div>
-                        <div v-else-if="warehouseStocks.length === 0" class="px-2 py-1 text-xs text-gray-400">No hay bodegas asociadas.</div>
-                    </div>
-
                     </div>
 
                     <!-- SEGUNDA SECCIÓN -->
@@ -2208,12 +2257,8 @@ onBeforeUnmount(() => {
                             <InputField v-model="localForm.bar_code" label="Código de Barras" />
                         </div>
 
-
-
                         <div class="md:col-span-1">
-                            <Label class="mb-2 block text-sm font-medium">
-                                Movimiento Negativo
-                            </Label>
+                            <Label class="mb-2 block text-sm font-medium"> Movimiento Negativo </Label>
                             <div class="flex items-center gap-2 pt-1">
                                 <Switch
                                     :checked="negativeMovementBool"
@@ -2241,7 +2286,7 @@ onBeforeUnmount(() => {
                     <div>
                         <template v-if="isViewMode">
                             <Label>Descripción</Label>
-                            <div class="mt-1 min-h-[60px] rounded-md border bg-muted px-3 py-2 text-sm whitespace-pre-wrap">
+                            <div class="mt-1 min-h-[60px] whitespace-pre-wrap rounded-md border bg-muted px-3 py-2 text-sm">
                                 {{ localForm.description && localForm.description !== 'N/A' ? localForm.description : '-' }}
                             </div>
                         </template>
@@ -2362,11 +2407,7 @@ onBeforeUnmount(() => {
         </form>
     </div>
 
-    <WarehouseLocationDialog
-        :open="isLocationDialogOpen"
-        @update:open="isLocationDialogOpen = $event"
-        @created="handleLocationCreated"
-    />
+    <WarehouseLocationDialog :open="isLocationDialogOpen" @update:open="isLocationDialogOpen = $event" @created="handleLocationCreated" />
 
     <TaxDialog
         v-model:open="isTaxDialogOpen"

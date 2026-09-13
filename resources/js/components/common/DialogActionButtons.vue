@@ -11,6 +11,7 @@ const props = withDefaults(
         disabled?: boolean;
         showSubmit?: boolean;
         submitVariant?: 'default' | 'destructive';
+        buttonSize?: 'default' | 'sm' | 'md' | 'lg' | 'icon' | 'pill';
     }>(),
     {
         cancelLabel: 'Cancelar',
@@ -20,6 +21,7 @@ const props = withDefaults(
         disabled: false,
         showSubmit: true,
         submitVariant: 'default',
+        buttonSize: 'pill',
     },
 );
 
@@ -33,13 +35,13 @@ const effectiveSubmitLabel = computed(() => (props.loading ? props.loadingLabel 
 
 <template>
     <div class="flex items-center justify-end gap-2">
-        <Button variant="outline" size="pill" :disabled="props.loading" @click="emit('cancel')">
+        <Button variant="outline" :size="props.buttonSize" :disabled="props.loading" @click="emit('cancel')">
             {{ props.cancelLabel }}
         </Button>
         <Button
             v-if="props.showSubmit"
             :variant="props.submitVariant"
-            size="pill"
+            :size="props.buttonSize"
             class="shadow-sm"
             :disabled="props.disabled || props.loading"
             @click="emit('submit')"

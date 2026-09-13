@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { ref, watch, computed, onBeforeUnmount, nextTick } from 'vue';
-import { Combobox, ComboboxInput, ComboboxButton, ComboboxOptions, ComboboxOption } from '@headlessui/vue';
-import { Label } from '@/components/ui/label';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import type { Option } from '@/domain/shared';
-import { ChevronDown, Check, Plus, X } from 'lucide-vue-next';
-import { computePosition, offset, flip, shift, autoUpdate } from '@floating-ui/dom';
-import { onMounted } from 'vue';
+import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom';
+import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions } from '@headlessui/vue';
+import { Check, ChevronDown, Plus, X } from 'lucide-vue-next';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 // Copiado desde SelectField.vue porque el flujo de creacion inline necesita
 // reemplazar el contenido del dropdown y controlar su cierre sin modificar el componente base.
@@ -582,7 +581,7 @@ defineExpose({ closeInlineFromParent });
                         <ComboboxInput
                             v-bind="$attrs"
                             ref="inputRef"
-                            class="h-10 min-h-[42px] w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm text-foreground shadow-sm transition placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60"
+                            class="h-9 min-h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 pr-10 text-sm text-foreground shadow-sm transition placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60"
                             :class="[
                                 !isSearchEnabled ? 'cursor-default' : '',
                                 buttonClass,
@@ -597,7 +596,13 @@ defineExpose({ closeInlineFromParent });
                             @input="handleInput"
                         />
                         <button
-                            v-if="clearable && localModelValue !== null && localModelValue !== undefined && localModelValue !== '' && !(Array.isArray(localModelValue) && localModelValue.length === 0)"
+                            v-if="
+                                clearable &&
+                                localModelValue !== null &&
+                                localModelValue !== undefined &&
+                                localModelValue !== '' &&
+                                !(Array.isArray(localModelValue) && localModelValue.length === 0)
+                            "
                             type="button"
                             class="pointer-events-auto absolute right-7 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground/70 transition hover:text-destructive"
                             :class="[disabled ? 'pointer-events-none opacity-60' : '']"
@@ -614,14 +619,7 @@ defineExpose({ closeInlineFromParent });
                             <ChevronDown class="h-4 w-4" />
                         </ComboboxButton>
                         <Teleport :to="teleportTarget">
-                            <div
-                                v-if="open || isCreating"
-                                ref="floatingRef"
-                                :style="floatingStyles"
-                                class="z-[99999]"
-                                @pointerdown.stop
-                                @click.stop
-                            >
+                            <div v-if="open || isCreating" ref="floatingRef" :style="floatingStyles" class="z-[99999]" @pointerdown.stop @click.stop>
                                 <ComboboxOptions
                                     v-show="!isCreating"
                                     static
@@ -629,11 +627,11 @@ defineExpose({ closeInlineFromParent });
                                 >
                                     <div
                                         v-if="createButtonLabel && creatable && !disabled"
-                                        class="relative isolate z-20 sticky top-0 border-b border-border bg-popover px-3 py-2 shadow-sm"
+                                        class="relative sticky top-0 isolate z-20 border-b border-border bg-popover px-3 py-1.5 shadow-sm"
                                     >
                                         <button
                                             type="button"
-                                            class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-input bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                                            class="inline-flex h-8 w-full items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-1 text-sm font-medium text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                                             @mousedown.prevent
                                             @click.stop.prevent="openInlineCreateFromButton"
                                         >
@@ -644,7 +642,7 @@ defineExpose({ closeInlineFromParent });
                                     <div
                                         v-if="hasAction"
                                         :class="[
-                                            'relative isolate z-20 border-b border-border bg-popover px-3 py-2 shadow-sm',
+                                            'relative isolate z-20 border-b border-border bg-popover px-3 py-1.5 shadow-sm',
                                             actionSticky ? 'sticky top-0' : '',
                                         ]"
                                     >
@@ -669,7 +667,7 @@ defineExpose({ closeInlineFromParent });
                                         <template #default="{ active }">
                                             <div
                                                 :class="[
-                                                    'relative cursor-pointer select-none py-2 pl-3 pr-9 transition-colors',
+                                                    'relative cursor-pointer select-none py-1.5 pl-3 pr-9 text-sm transition-colors',
                                                     active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
                                                 ]"
                                             >
@@ -692,7 +690,7 @@ defineExpose({ closeInlineFromParent });
                                         v-if="!multiple && showPlaceholderOption"
                                         :value="null"
                                         disabled
-                                        class="relative cursor-default select-none bg-muted/30 py-2 pl-3 pr-9 text-muted-foreground"
+                                        class="relative cursor-default select-none bg-muted/30 py-1.5 pl-3 pr-9 text-sm text-muted-foreground"
                                     >
                                         {{ placeholderText }}
                                     </ComboboxOption>
@@ -708,7 +706,7 @@ defineExpose({ closeInlineFromParent });
                                                 <template #default="{ active }">
                                                     <div
                                                         :class="[
-                                                            'relative cursor-pointer select-none py-2 pl-3 pr-9 transition-colors',
+                                                            'relative cursor-pointer select-none py-1.5 pl-3 pr-9 text-sm transition-colors',
                                                             active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
                                                         ]"
                                                     >
@@ -729,23 +727,21 @@ defineExpose({ closeInlineFromParent });
                                             </ComboboxOption>
                                         </template>
                                     </template>
-                                    <div v-if="loading" class="px-3 py-2 text-sm text-muted-foreground/70">
-                                        Buscando...
-                                    </div>
+                                    <div v-if="loading" class="px-3 py-2 text-sm text-muted-foreground/70">Buscando...</div>
                                     <div
                                         v-else-if="filteredOptions.length === 0 && !customOption && !showCreateAction"
                                         class="px-3 py-2 text-sm text-muted-foreground/70"
                                     >
                                         <slot name="empty" :search-term="normalizedSearchTerm"> No se encontraron opciones. </slot>
                                     </div>
-                                    <div v-if="showCreateAction" class="border-t border-border bg-popover px-2 py-2">
+                                    <div v-if="showCreateAction" class="border-t border-border bg-popover px-2 py-1.5">
                                         <button
                                             type="button"
-                                            class="inline-flex w-full items-center justify-start rounded-md px-2 py-2 text-sm font-medium text-foreground transition hover:bg-accent hover:text-accent-foreground"
+                                            class="inline-flex min-h-8 w-full min-w-0 items-center justify-start rounded-md px-2 py-1 text-left text-sm font-medium leading-tight text-foreground transition hover:bg-accent hover:text-accent-foreground"
                                             @mousedown.prevent
                                             @click.stop.prevent="openInlineCreate"
                                         >
-                                            {{ createActionText }}
+                                            <span class="min-w-0 break-words">{{ createActionText }}</span>
                                         </button>
                                     </div>
                                     <div v-if="$slots.footer" class="border-t border-border/70 bg-popover px-2 pb-2 pt-2">
@@ -754,9 +750,9 @@ defineExpose({ closeInlineFromParent });
                                 </ComboboxOptions>
                                 <div
                                     v-if="isCreating"
-                                    class="rounded-md border border-border bg-popover text-popover-foreground shadow-2xl"
+                                    class="box-border w-full min-w-0 overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-2xl"
                                 >
-                                    <div class="px-3 py-2">
+                                    <div class="min-w-0 space-y-2 p-3">
                                         <input
                                             ref="inlineInputRef"
                                             v-model="inlineValue"
@@ -769,14 +765,15 @@ defineExpose({ closeInlineFromParent });
                                             @keydown.esc.prevent="cancelInlineCreate"
                                         />
                                         <slot name="inline-extra" :loading="inlineLoading" />
-                                        <p v-if="inlineError" class="mt-1 text-xs text-destructive">
+                                        <p v-if="inlineError" class="break-words text-xs leading-tight text-destructive">
                                             {{ inlineError }}
                                         </p>
-                                        <div class="flex items-center justify-end gap-2 mt-3 p-2">
+                                        <div class="flex flex-wrap items-center justify-end gap-2 pt-1">
                                             <Button
                                                 type="button"
                                                 variant="outline-primary"
-                                                size="pill"
+                                                size="sm"
+                                                class="min-w-0 max-w-full flex-1 px-3 text-xs sm:flex-none"
                                                 :disabled="inlineLoading"
                                                 @mousedown.prevent
                                                 @click.stop.prevent="cancelInlineCreate"
@@ -786,7 +783,8 @@ defineExpose({ closeInlineFromParent });
                                             <Button
                                                 type="button"
                                                 variant="default"
-                                                size="pill"
+                                                size="sm"
+                                                class="min-w-0 max-w-full flex-1 px-3 text-xs sm:flex-none"
                                                 :disabled="inlineLoading || !inlineValue.trim()"
                                                 @mousedown.prevent
                                                 @click.stop.prevent="submitInlineCreate"

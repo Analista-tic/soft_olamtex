@@ -1115,14 +1115,18 @@ watch(
 // se tecleaba). Quitarlo elimina ese trabajo redundante sin cambiar el valor final.
 
 const autoDescription = computed(() => {
-    const section = sectionOptions.value.find(s => Number(s.id) === Number(form.value.section_id))?.name ?? '';
-    const world   = worldOptions.value.find(w => Number(w.id) === Number(form.value.world_id))?.name ?? '';
+    const section = sectionOptions.value.find((s) => Number(s.id) === Number(form.value.section_id))?.name ?? '';
+    const world = worldOptions.value.find((w) => Number(w.id) === Number(form.value.world_id))?.name ?? '';
     return [section, world].filter(Boolean).join(' ').toUpperCase();
 });
 
-watch(autoDescription, (val) => {
-    form.value.description = val;
-}, { immediate: true });
+watch(
+    autoDescription,
+    (val) => {
+        form.value.description = val;
+    },
+    { immediate: true },
+);
 
 watch(
     () => form.value.woven_product,
@@ -1720,7 +1724,12 @@ function handleClose() {
                                                 <div class="flex items-center gap-2">
                                                     <Label class="text-sm font-medium">Ref 2. Producto</Label>
                                                 </div>
-                                                <InputField v-model="form.product_reference_2" label="" placeholder="ej: 4002" :disabled="isReadonly" />
+                                                <InputField
+                                                    v-model="form.product_reference_2"
+                                                    label=""
+                                                    placeholder="ej: 4002"
+                                                    :disabled="isReadonly"
+                                                />
                                             </div>
                                         </div>
                                     </div>
@@ -1885,7 +1894,9 @@ function handleClose() {
                                     <div
                                         class="grid gap-4"
                                         :class="
-                                            form.woven_product ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
+                                            form.woven_product
+                                                ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4'
+                                                : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
                                         "
                                     >
                                         <div class="flex w-auto flex-col gap-1">
@@ -1974,7 +1985,9 @@ function handleClose() {
                                 <section>
                                     <div class="mb-3 flex items-center gap-2 border-b border-border/70 pb-1.5">
                                         <ListChecks class="h-4 w-4 text-muted-foreground" />
-                                        <h3 class="text-[0.8rem] font-semibold uppercase tracking-wide text-muted-foreground">Procesos de producción</h3>
+                                        <h3 class="text-[0.8rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                                            Procesos de producción
+                                        </h3>
                                         <HelpTooltip :text="tooltips.processes" aria-label="Ayuda sobre Procesos" />
                                     </div>
 
@@ -1992,7 +2005,9 @@ function handleClose() {
                                         <template v-else>
                                             <TableStatusBadge
                                                 :tone="hasSampleOperationalList ? 'success' : 'warning'"
-                                                :label="hasSampleOperationalList ? 'Listado operacional: configurado' : 'Listado operacional: pendiente'"
+                                                :label="
+                                                    hasSampleOperationalList ? 'Listado operacional: configurado' : 'Listado operacional: pendiente'
+                                                "
                                             />
                                             <HelpTooltip :text="tooltips.operationalList" aria-label="Ayuda sobre Listado operacional" />
                                             <Button
@@ -2056,7 +2071,13 @@ function handleClose() {
                                             <div class="flex items-center gap-2">
                                                 <Label class="text-sm font-medium">Precio venta</Label>
                                             </div>
-                                            <InputField v-model="form.selling_price" type="currency" label="" placeholder="$ 0" :disabled="isReadonly" />
+                                            <InputField
+                                                v-model="form.selling_price"
+                                                type="currency"
+                                                label=""
+                                                placeholder="$ 0"
+                                                :disabled="isReadonly"
+                                            />
                                         </div>
                                     </div>
                                 </section>
@@ -2144,7 +2165,8 @@ function handleClose() {
                     <Button
                         v-if="showConvertButton"
                         variant="ghost"
-                        class="rounded-full border border-dashed border-primary/60 px-5 py-2 text-sm font-semibold text-primary"
+                        size="sm"
+                        class="rounded-md border border-dashed border-primary/60 px-3 text-xs font-semibold text-primary"
                         :disabled="isBlockingLoading"
                         @click="openConvertDialog"
                     >
@@ -2155,6 +2177,7 @@ function handleClose() {
                         :submit-label="isEditMode ? 'Actualizar' : 'Guardar'"
                         :loading="isBlockingLoading"
                         :show-submit="!isViewMode"
+                        button-size="sm"
                         @cancel="handleClose"
                         @submit="saveProductSheet"
                     />
@@ -2179,15 +2202,20 @@ function handleClose() {
         @submit="handleSizesParameterSubmit"
     />
 
-    <Dialog :open="fabricBaseFactorDialogOpen" @update:open="(value) => { if (!value) cancelFabricBaseFactorDialog(); }">
-        <FormDialogContent class="max-w-sm">
-            <DialogHeader>
+    <Dialog
+        :open="fabricBaseFactorDialogOpen"
+        @update:open="
+            (value) => {
+                if (!value) cancelFabricBaseFactorDialog();
+            }
+        "
+    >
+        <FormDialogContent size="lg" class="max-w-xl overflow-hidden p-0">
+            <DialogHeader class="border-b px-6 py-4 text-left">
                 <DialogTitle>Nueva base de tela: {{ fabricBaseFactorDialogName }}</DialogTitle>
-                <DialogDescription>
-                    Indica el factor que afecta el cálculo del SAM para esta base. 1.0 = neutro.
-                </DialogDescription>
+                <DialogDescription> Indica el factor que afecta el cálculo del SAM para esta base. 1.0 = neutro. </DialogDescription>
             </DialogHeader>
-            <div class="flex flex-col gap-1 py-2">
+            <div class="flex flex-col gap-2 px-6 py-6">
                 <Label for="fabric-base-factor-input">Factor</Label>
                 <InputField
                     id="fabric-base-factor-input"
@@ -2196,12 +2224,12 @@ function handleClose() {
                     step="0.01"
                     min="0.01"
                     label=""
-                    @keyup.enter="confirmFabricBaseFactorDialog"
+                    @keydown.enter.prevent="confirmFabricBaseFactorDialog"
                 />
             </div>
-            <DialogFooter>
-                <Button variant="outline" @click="cancelFabricBaseFactorDialog">Cancelar</Button>
-                <Button @click="confirmFabricBaseFactorDialog">Crear</Button>
+            <DialogFooter class="flex flex-wrap items-center justify-end gap-2 border-t px-6 py-4">
+                <Button variant="outline" size="sm" @click="cancelFabricBaseFactorDialog">Cancelar</Button>
+                <Button size="sm" @click="confirmFabricBaseFactorDialog">Crear</Button>
             </DialogFooter>
         </FormDialogContent>
     </Dialog>

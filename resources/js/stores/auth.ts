@@ -1,3 +1,5 @@
+import type { SharedData } from '@/domain/shared/types';
+import { usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { defineStore } from 'pinia';
 
@@ -12,6 +14,18 @@ export const useAuthStore = defineStore('auth', {
         async fetchUser() {
             if (this.user) return;
             if (this._fetchPromise) return this._fetchPromise;
+
+            // HandleInertiaRequests::share() ya manda auth.user/roles/permissions en
+            // cada navegación — si ya están en la página actual, usarlos evita un
+            // round-trip HTTP extra a GET /user que repetiría exactamente lo mismo.
+            const sharedAuth = usePage<SharedData>().props.auth;
+            if (sharedAuth?.user) {
+                this.user = sharedAuth.user;
+                this.roles = sharedAuth.roles ?? [];
+                this.permissions = sharedAuth.permissions ?? [];
+                return;
+            }
+
             this._fetchPromise = axios
                 .get('/user')
                 .then(({ data }) => {

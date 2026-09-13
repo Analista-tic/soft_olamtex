@@ -1,23 +1,23 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import ColorSwatch from '@/components/common/ColorSwatch.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
-import ServerPagination from '@/components/common/ServerPagination.vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { hexToRgb } from '@/lib/colorUtils';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { hexToRgb } from '@/lib/colorUtils';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import ColorDialog from './ColorDialog.vue';
-import ColorSwatch from '@/components/common/ColorSwatch.vue';
 
 type Color = {
     id: number;
@@ -38,16 +38,22 @@ function rgbToHex(rgb: string | null): string {
     if (!rgb) return '#9ca3af';
     const parts = rgb.split(',').map(Number);
     if (parts.length !== 3) return '#9ca3af';
-    return '#' + parts
-        .map((v) => Math.round(v).toString(16).padStart(2, '0'))
-        .join('');
+    return '#' + parts.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+}
+
+function colorToHex(color?: Partial<Color>): string {
+    if (color?.hexadecimal && /^#[0-9a-fA-F]{6}$/.test(color.hexadecimal)) {
+        return color.hexadecimal.toUpperCase();
+    }
+
+    return rgbToHex(color?.rgb ?? null);
 }
 
 function createColorForm(color?: Partial<Color>): ColorForm {
     return {
         id: color?.id ?? null,
         name: color?.name ?? '',
-        hex: rgbToHex(color?.rgb ?? null),
+        hex: colorToHex(color),
         description: color?.description ?? '',
     };
 }
@@ -169,9 +175,7 @@ async function handleDialogSubmit(formData: ColorForm) {
         closeDialog();
     } catch (error: any) {
         errorType.value = 'warning';
-        errorMessage.value =
-            error?.response?.data?.message ||
-            'No se pudo guardar el color.';
+        errorMessage.value = error?.response?.data?.message || 'No se pudo guardar el color.';
     } finally {
         isSubmitting.value = false;
     }
@@ -186,9 +190,7 @@ async function deleteColor() {
         await fetchColors();
     } catch (error: any) {
         errorType.value = 'error';
-        errorMessage.value =
-            error?.response?.data?.message ||
-            'No se pudo eliminar el color.';
+        errorMessage.value = error?.response?.data?.message || 'No se pudo eliminar el color.';
     } finally {
         isDeleteDialogOpen.value = false;
         colorToDelete.value = null;
@@ -220,10 +222,7 @@ onMounted(() => {
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
                     <h1 class="text-lg font-bold">Gestión de colores</h1>
-                    <p class="text-sm text-muted-foreground">
-                        Administra los colores disponibles para asignar
-                        a los ítems del catálogo.
-                    </p>
+                    <p class="text-sm text-muted-foreground">Administra los colores disponibles para asignar a los ítems del catálogo.</p>
                 </div>
                 <Button
                     variant="default"
@@ -239,12 +238,7 @@ onMounted(() => {
             <FilterBar align="start" gap="gap-4">
                 <FilterField label="Buscar color" :active="isSearchActive" class="min-w-[240px] flex-1 p-0">
                     <div class="relative w-full">
-                        <Input
-                            id="search_color"
-                            v-model="searchQuery"
-                            placeholder="Buscar por nombre"
-                            class="h-10 w-full pl-10"
-                        />
+                        <Input id="search_color" v-model="searchQuery" placeholder="Buscar por nombre" class="h-10 w-full pl-10" />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                             <Search :size="20" class="text-muted-foreground" />
                         </span>
@@ -299,11 +293,7 @@ onMounted(() => {
                                 <TableCell class="font-medium">{{ color.id }}</TableCell>
                                 <TableCell class="font-medium">{{ color.name }}</TableCell>
                                 <TableCell>
-                                    <ColorSwatch
-                                        :rgb="color.rgb"
-                                        :hex="color.hexadecimal"
-                                        :name="color.name"
-                                    />
+                                    <ColorSwatch :rgb="color.rgb" :hex="color.hexadecimal" :name="color.name" />
                                 </TableCell>
                                 <TableCell>{{ color.description || '-' }}</TableCell>
                                 <TableCell class="flex justify-center gap-1">

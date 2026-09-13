@@ -173,9 +173,7 @@ const filteredOptions = computed(() => {
     // ambas son el mismo texto, así que no cambia nada para los usos existentes.
     // Con getOptionLabel (ej. "MILE (ALGODÓN)" con name="MILE"), antes buscar
     // "algodón" no encontraba nada porque solo se comparaba contra name.
-    return props.options.filter(
-        (option) => option.name.toLowerCase().includes(term) || labelOf(option).toLowerCase().includes(term),
-    );
+    return props.options.filter((option) => option.name.toLowerCase().includes(term) || labelOf(option).toLowerCase().includes(term));
 });
 
 const groupedOptions = computed(() => {
@@ -462,7 +460,15 @@ watch(
                             <ChevronDown class="h-4 w-4" />
                         </ComboboxButton>
                         <Teleport to="body">
-                            <div v-if="open" ref="floatingRef" :style="floatingStyles" class="z-50" @pointerdown.stop @click.stop @scroll.capture.passive="handleScrollCapture">
+                            <div
+                                v-if="open"
+                                ref="floatingRef"
+                                :style="floatingStyles"
+                                class="z-50"
+                                @pointerdown.stop
+                                @click.stop
+                                @scroll.capture.passive="handleScrollCapture"
+                            >
                                 <ComboboxOptions
                                     class="relative max-h-52 overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-2xl focus:outline-none"
                                 >
@@ -494,7 +500,7 @@ watch(
                                         <template #default="{ active }">
                                             <div
                                                 :class="[
-                                                    'relative cursor-pointer select-none py-2 pl-3 pr-9 transition-colors',
+                                                    'relative cursor-pointer select-none py-2 pl-3 pr-9 text-sm transition-colors',
                                                     active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
                                                 ]"
                                             >
@@ -517,7 +523,7 @@ watch(
                                         v-if="!multiple && showPlaceholderOption"
                                         :value="null"
                                         disabled
-                                        class="relative cursor-default select-none bg-muted/30 py-2 pl-3 pr-9 text-muted-foreground"
+                                        class="relative cursor-default select-none bg-muted/30 py-2 pl-3 pr-9 text-sm text-muted-foreground"
                                     >
                                         {{ placeholderText }}
                                     </ComboboxOption>
@@ -533,11 +539,11 @@ watch(
                                                 <template #default="{ active }">
                                                     <div
                                                         :class="[
-                                                            'relative cursor-pointer select-none py-2 pl-3 pr-9 transition-colors',
+                                                            'relative cursor-pointer select-none py-2 pl-3 pr-9 text-sm transition-colors',
                                                             active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
                                                         ]"
                                                     >
-                                                        <slot v-if="$slots.option" name="option" :option="(option as any)" :active="active" />
+                                                        <slot v-if="$slots.option" name="option" :option="option as any" :active="active" />
                                                         <span v-else>
                                                             {{ labelOf(option) }}
                                                         </span>

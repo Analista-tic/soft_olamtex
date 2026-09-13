@@ -68,7 +68,7 @@ export interface CompanyInfo {
 export interface SharedData extends PageProps {
     name: string;
     quote: { message: string; author: string };
-    auth: { user: unknown };
+    auth: { user: unknown; roles: string[]; permissions: string[] };
     ziggy: Config & { location: string };
     company?: CompanyInfo | null;
 }
