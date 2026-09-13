@@ -16,6 +16,8 @@ class FabricRollAdjustment extends Model
         'quantity_after',
         'partial_before',
         'partial_after',
+        'actual_output_before',
+        'actual_output_after',
         'reason',
         'reference',
         'inventory_movement_id',
@@ -26,6 +28,8 @@ class FabricRollAdjustment extends Model
         'quantity_after' => 'decimal:2',
         'partial_before' => 'decimal:2',
         'partial_after' => 'decimal:2',
+        'actual_output_before' => 'decimal:2',
+        'actual_output_after' => 'decimal:2',
     ];
 
     public function roll()

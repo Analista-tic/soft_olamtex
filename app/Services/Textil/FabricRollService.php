@@ -302,6 +302,8 @@ class FabricRollService
                 (float) $fabricRoll->quantity,
                 'Cambio de ítem vinculado (anterior: '.($previousItemId ?? 'ninguno').', nuevo: '.$itemId.')',
                 inventoryMovementId: $inventoryMovementId,
+                actualOutputBefore: (float) $fabricRoll->actual_output,
+                actualOutputAfter: (float) $fabricRoll->actual_output,
             );
 
             return $fabricRoll;
@@ -476,7 +478,16 @@ class FabricRollService
                 $inventoryMovementId = $movement->id;
             }
 
-            $this->recordAdjustmentWithMovement($roll, 'correction', $currentQty, $newQuantity, $reason, inventoryMovementId: $inventoryMovementId);
+            $this->recordAdjustmentWithMovement(
+                $roll,
+                'correction',
+                $currentQty,
+                $newQuantity,
+                $reason,
+                inventoryMovementId: $inventoryMovementId,
+                actualOutputBefore: $newActualOutput,
+                actualOutputAfter: $newActualOutput,
+            );
 
             return $roll;
         });
@@ -503,6 +514,7 @@ class FabricRollService
                 }
 
                 $quantityBefore = (float) $roll->quantity;
+                $actualOutputBefore = (float) $roll->actual_output;
 
                 $movement = $this->recordConsumptionAndCreateMovement($roll, $quantity, $productionOrderId);
                 $roll->increment('actual_output', $quantity);
@@ -510,7 +522,17 @@ class FabricRollService
 
                 $movementId = $movement?->id;
 
-                $this->recordAdjustmentWithMovement($roll, 'salida', $quantityBefore, (float) $roll->quantity, $reason, reference: $reference, inventoryMovementId: $movementId);
+                $this->recordAdjustmentWithMovement(
+                    $roll,
+                    'salida',
+                    $quantityBefore,
+                    (float) $roll->quantity,
+                    $reason,
+                    reference: $reference,
+                    inventoryMovementId: $movementId,
+                    actualOutputBefore: $actualOutputBefore,
+                    actualOutputAfter: (float) $roll->actual_output,
+                );
             } else {
                 // entrada: incrementa cantidad del rollo y crea movimiento de inventario
                 $quantityBefore = (float) $roll->quantity;
@@ -544,7 +566,17 @@ class FabricRollService
                 $roll->increment('quantity', $quantity);
                 $roll->refresh();
 
-                $this->recordAdjustmentWithMovement($roll, 'entrada', $quantityBefore, (float) $roll->quantity, $reason, reference: $reference, inventoryMovementId: $inventoryMovementId);
+                $this->recordAdjustmentWithMovement(
+                    $roll,
+                    'entrada',
+                    $quantityBefore,
+                    (float) $roll->quantity,
+                    $reason,
+                    reference: $reference,
+                    inventoryMovementId: $inventoryMovementId,
+                    actualOutputBefore: (float) $roll->actual_output,
+                    actualOutputAfter: (float) $roll->actual_output,
+                );
             }
 
             return $roll;
@@ -593,17 +625,12 @@ class FabricRollService
     {
         $roll = FabricRoll::lockForUpdate()->findOrFail($fabricRollId);
 
-        /** @var ManualRollProgramming $line */
-        $line = ManualRollProgramming::withTrashed()->firstOrNew([
-            'fabric_roll_id' => $fabricRollId,
-            'manual_order_code' => $manualOrderCode,
-        ]);
-
-        $oldProgrammed = $line->exists ? (float) $line->programmed_meters : 0.0;
-        $delta = round($programmedMeters - $oldProgrammed, 6);
-
+        // Cada llamada crea una línea propia: un mismo rollo puede programarse más de
+        // una vez bajo el mismo código de orden (p. ej. en dos lotes de corte
+        // distintos), sin que la segunda programación sobrescriba ni fusione la
+        // cantidad de la primera.
         $currentPartial = (float) $roll->partial_output;
-        $newPartial = round(max(0.0, $currentPartial + $delta), 2);
+        $newPartial = round($currentPartial + $programmedMeters, 2);
         $realCeiling = (float) $roll->quantity - (float) $roll->actual_output;
 
         if ($newPartial > $realCeiling + 0.001) {
@@ -616,15 +643,14 @@ class FabricRollService
         $roll->partial_output = $newPartial;
         $roll->save();
 
-        $line->fabric_roll_id = $fabricRollId;
-        $line->manual_order_code = $manualOrderCode;
-        $line->programmed_meters = $programmedMeters;
-        $line->notes = $notes;
-        $line->created_by_user_id = $line->created_by_user_id ?? Auth::id();
-        if ($line->trashed()) {
-            $line->restore();
-        }
-        $line->save();
+        /** @var ManualRollProgramming $line */
+        $line = ManualRollProgramming::create([
+            'fabric_roll_id' => $fabricRollId,
+            'manual_order_code' => $manualOrderCode,
+            'programmed_meters' => $programmedMeters,
+            'notes' => $notes,
+            'created_by_user_id' => Auth::id(),
+        ]);
 
         $this->recordAdjustmentWithMovement(
             $roll,
@@ -635,9 +661,68 @@ class FabricRollService
             reference: "manual_programming::{$line->id}",
             partialBefore: $currentPartial,
             partialAfter: $newPartial,
+            actualOutputBefore: (float) $roll->actual_output,
+            actualOutputAfter: (float) $roll->actual_output,
         );
 
         return $line;
+    }
+
+    /**
+     * Edita una línea de programación manual ya creada (cantidad y/o notas),
+     * reajustando la reserva física del rollo por el delta exacto de ESTA línea.
+     * No permite bajar la cantidad por debajo de lo ya consumido en la propia línea.
+     *
+     * @throws ValidationException
+     */
+    public function updateManualProgram(ManualRollProgramming $manualRollProgramming, float $newProgrammedMeters, ?string $notes): ManualRollProgramming
+    {
+        return DB::transaction(function () use ($manualRollProgramming, $newProgrammedMeters, $notes) {
+            $line = ManualRollProgramming::lockForUpdate()->findOrFail($manualRollProgramming->id);
+            $roll = FabricRoll::lockForUpdate()->findOrFail($line->fabric_roll_id);
+
+            if ($newProgrammedMeters < (float) $line->consumed_meters - 0.001) {
+                throw ValidationException::withMessages([
+                    'programmed_meters' => ['La cantidad programada no puede ser menor que lo ya consumido ('.$line->consumed_meters.' m).'],
+                ]);
+            }
+
+            $oldProgrammed = (float) $line->programmed_meters;
+            $delta = round($newProgrammedMeters - $oldProgrammed, 6);
+
+            $currentPartial = (float) $roll->partial_output;
+            $newPartial = round(max(0.0, $currentPartial + $delta), 2);
+            $realCeiling = (float) $roll->quantity - (float) $roll->actual_output;
+
+            if ($newPartial > $realCeiling + 0.001) {
+                $available = round(max(0.0, $realCeiling - $currentPartial + $oldProgrammed), 2);
+                throw ValidationException::withMessages([
+                    'programmed_meters' => ["Rollo {$roll->roll_number}: disponibilidad insuficiente ({$available} m disponibles)."],
+                ]);
+            }
+
+            $roll->partial_output = $newPartial;
+            $roll->save();
+
+            $line->programmed_meters = $newProgrammedMeters;
+            $line->notes = $notes;
+            $line->save();
+
+            $this->recordAdjustmentWithMovement(
+                $roll,
+                'correction',
+                (float) $roll->quantity,
+                (float) $roll->quantity,
+                "Edición de programación manual {$line->manual_order_code}: {$oldProgrammed} m -> {$newProgrammedMeters} m",
+                reference: "manual_programming::{$line->id}",
+                partialBefore: $currentPartial,
+                partialAfter: $newPartial,
+                actualOutputBefore: (float) $roll->actual_output,
+                actualOutputAfter: (float) $roll->actual_output,
+            );
+
+            return $line->refresh();
+        });
     }
 
     /**
@@ -661,7 +746,8 @@ class FabricRollService
                 ]);
             }
 
-            $newActualOutput = (float) $roll->actual_output + $quantity;
+            $actualOutputBefore = (float) $roll->actual_output;
+            $newActualOutput = $actualOutputBefore + $quantity;
             if ($newActualOutput > (float) $roll->quantity + 0.001) {
                 throw ValidationException::withMessages([
                     'quantity' => ['La cantidad de salida no puede superar la disponibilidad real del rollo.'],
@@ -694,9 +780,131 @@ class FabricRollService
                 inventoryMovementId: $movement?->id,
                 partialBefore: $currentPartial,
                 partialAfter: $newPartial,
+                actualOutputBefore: $actualOutputBefore,
+                actualOutputAfter: (float) $roll->actual_output,
             );
 
             return $line->refresh();
+        });
+    }
+
+    /**
+     * Corrige la cantidad de un descargue YA registrado (un evento individual del
+     * historial, no la programación). Identificado por su FabricRollAdjustment
+     * (type='salida', reference="manual_programming::{lineId}"); la cantidad original
+     * de ESE evento se deriva de actual_output_after - actual_output_before del propio
+     * registro (no existe una columna "quantity" separada), lo que permite corregir
+     * exactamente ese evento sin afectar otros descargues de la misma línea.
+     *
+     * El movimiento de inventario original no se edita en sitio (los movimientos son
+     * inmutables, ver InventoryMovementService::delete()): se revierte con
+     * reverseMovement() y se crea uno nuevo por la cantidad corregida — mismo patrón
+     * que ya usa el resto del sistema para corregir movimientos.
+     *
+     * Limitación conocida: no ajusta el ProductionRollConsumption que creó el
+     * descargue original (no tiene una referencia directa a este FabricRollAdjustment
+     * para localizarlo con seguridad); ese registro queda como el consumo reportado en
+     * su momento para la orden de producción, y solo se corrigen rollo, línea de
+     * programación y movimiento de inventario.
+     *
+     * @throws ValidationException
+     */
+    public function correctManualDischarge(FabricRollAdjustment $fabricRollAdjustment, float $newQuantity): FabricRollAdjustment
+    {
+        return DB::transaction(function () use ($fabricRollAdjustment, $newQuantity) {
+            $adjustment = FabricRollAdjustment::lockForUpdate()->findOrFail($fabricRollAdjustment->id);
+
+            if ($adjustment->type !== 'salida' || ! str_starts_with((string) $adjustment->reference, 'manual_programming::')) {
+                throw ValidationException::withMessages([
+                    'discharge' => ['Este registro no corresponde a un descargue de programación manual.'],
+                ]);
+            }
+
+            $lineId = (int) str_replace('manual_programming::', '', (string) $adjustment->reference);
+            $line = ManualRollProgramming::lockForUpdate()->findOrFail($lineId);
+            $roll = FabricRoll::lockForUpdate()->findOrFail($line->fabric_roll_id);
+
+            $oldQuantity = round((float) $adjustment->actual_output_after - (float) $adjustment->actual_output_before, 6);
+            $delta = round($newQuantity - $oldQuantity, 6);
+
+            if (abs($delta) < 0.000001) {
+                return $adjustment;
+            }
+
+            $newConsumed = round((float) $line->consumed_meters + $delta, 6);
+            if ($newConsumed < -0.001) {
+                throw ValidationException::withMessages([
+                    'quantity' => ['La cantidad corregida no puede dejar el consumo total de la línea en negativo.'],
+                ]);
+            }
+            if ($newConsumed > (float) $line->programmed_meters + 0.001) {
+                throw ValidationException::withMessages([
+                    'quantity' => ["La cantidad corregida no puede superar lo programado ({$line->programmed_meters} m)."],
+                ]);
+            }
+
+            $actualOutputBefore = (float) $roll->actual_output;
+            $newActualOutput = round($actualOutputBefore + $delta, 6);
+            if ($newActualOutput > (float) $roll->quantity + 0.001 || $newActualOutput < -0.001) {
+                throw ValidationException::withMessages([
+                    'quantity' => ['La cantidad corregida no es válida para la disponibilidad real del rollo.'],
+                ]);
+            }
+
+            $currentPartial = (float) $roll->partial_output;
+            $newPartial = round(max(0.0, $currentPartial - $delta), 2);
+
+            $roll->actual_output = $newActualOutput;
+            $roll->partial_output = $newPartial;
+            $roll->save();
+
+            $line->consumed_meters = $newConsumed;
+            $line->save();
+
+            $newMovementId = null;
+            if ($adjustment->inventory_movement_id) {
+                $originalMovement = $this->movementService->find($adjustment->inventory_movement_id);
+                if ($originalMovement) {
+                    $this->movementService->reverseMovement(
+                        $originalMovement,
+                        "Reversión por corrección de descargue manual rollo #{$roll->roll_number}"
+                    );
+
+                    if ($newQuantity > 0) {
+                        $item = $roll->item ?? $roll->purchaseDocumentItem?->item;
+                        $warehouse = $item?->warehouses()->first();
+                        if ($item && $warehouse) {
+                            $unitPrice = $this->movementService->getCurrentWeightedPrice($item->id, $warehouse->id);
+                            $newMovement = $this->movementService->createMovement([
+                                'item_id' => $item->id,
+                                'warehouse_id' => $warehouse->id,
+                                'type' => 'salida',
+                                'quantity' => $newQuantity,
+                                'unit_price' => $unitPrice,
+                                'notes' => "Corrección de descargue manual rollo #{$roll->roll_number} — Código {$line->manual_order_code}",
+                                'created_by_user_id' => Auth::id(),
+                            ]);
+                            $newMovementId = $newMovement->id;
+                        }
+                    }
+                }
+            }
+
+            $this->recordAdjustmentWithMovement(
+                $roll,
+                'correction',
+                (float) $roll->quantity,
+                (float) $roll->quantity,
+                "Corrección de descargue #{$adjustment->id}: {$oldQuantity} m -> {$newQuantity} m",
+                reference: "manual_programming::{$line->id}",
+                inventoryMovementId: $newMovementId,
+                partialBefore: $currentPartial,
+                partialAfter: $newPartial,
+                actualOutputBefore: $actualOutputBefore,
+                actualOutputAfter: $newActualOutput,
+            );
+
+            return $adjustment->fresh();
         });
     }
 
@@ -730,6 +938,8 @@ class FabricRollService
                 reference: "manual_programming::{$line->id}",
                 partialBefore: $currentPartial,
                 partialAfter: $newPartial,
+                actualOutputBefore: (float) $roll->actual_output,
+                actualOutputAfter: (float) $roll->actual_output,
             );
 
             $line->delete();
@@ -769,6 +979,8 @@ class FabricRollService
         ?int $inventoryMovementId = null,
         ?float $partialBefore = null,
         ?float $partialAfter = null,
+        ?float $actualOutputBefore = null,
+        ?float $actualOutputAfter = null,
     ): FabricRollAdjustment {
         return FabricRollAdjustment::create([
             'fabric_roll_id' => $roll->id,
@@ -778,6 +990,8 @@ class FabricRollService
             'quantity_after' => $quantityAfter,
             'partial_before' => $partialBefore,
             'partial_after' => $partialAfter,
+            'actual_output_before' => $actualOutputBefore,
+            'actual_output_after' => $actualOutputAfter,
             'reason' => $reason,
             'reference' => $reference,
             'inventory_movement_id' => $inventoryMovementId,
@@ -1309,6 +1523,7 @@ class FabricRollService
 
                     $qtyBefore = (float) $lockedRoll->quantity;
                     $partialBefore = (float) $lockedRoll->partial_output;
+                    $actualOutputBefore = (float) $lockedRoll->actual_output;
                     $delta = round($newQty - $qtyBefore, 4);
 
                     $updateData = [
@@ -1365,6 +1580,8 @@ class FabricRollService
                         inventoryMovementId: $inventoryMovementId,
                         partialBefore: $partialBefore,
                         partialAfter: $newPartial,
+                        actualOutputBefore: $actualOutputBefore,
+                        actualOutputAfter: $newActual,
                     );
 
                     $updated++;

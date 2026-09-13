@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import type { ManualRollProgrammingHistoryEntry, ManualRollProgrammingLine } from '@/domain/Textil';
+import { useAuthStore } from '@/stores/auth';
+import { Pencil } from 'lucide-vue-next';
 
 const props = withDefaults(
     defineProps<{
@@ -22,6 +24,9 @@ const emit = defineEmits<{
     (event: 'success'): void;
 }>();
 
+const authStore = useAuthStore();
+const canCorrectDischarge = computed(() => authStore.can('corregir descargue telas orden'));
+
 const form = reactive({ quantity: '', reason: '' });
 const errors = reactive({ quantity: '', reason: '' });
 const alertMessage = ref('');
@@ -29,10 +34,51 @@ const isSubmitting = ref(false);
 const history = ref<ManualRollProgrammingHistoryEntry[]>([]);
 const isLoadingHistory = ref(false);
 
+const editingEntryId = ref<number | null>(null);
+const correctionQuantity = ref('');
+const correctionError = ref('');
+const isCorrecting = ref(false);
+
 const numFmt = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 const fmt = (v: number | null | undefined) => (v === null || v === undefined ? '-' : `${numFmt.format(v)} m`);
 
 const remaining = computed(() => props.line?.remaining_meters ?? 0);
+
+function startCorrection(entry: ManualRollProgrammingHistoryEntry) {
+    editingEntryId.value = entry.id;
+    correctionQuantity.value = String(entry.quantity ?? '');
+    correctionError.value = '';
+}
+
+function cancelCorrection() {
+    editingEntryId.value = null;
+    correctionQuantity.value = '';
+    correctionError.value = '';
+}
+
+async function saveCorrection(entry: ManualRollProgrammingHistoryEntry) {
+    if (!props.line || isCorrecting.value) return;
+
+    const quantity = Number(correctionQuantity.value);
+    if (!correctionQuantity.value || Number.isNaN(quantity) || quantity < 0) {
+        correctionError.value = 'Ingresa una cantidad válida (0 o mayor).';
+        return;
+    }
+
+    isCorrecting.value = true;
+    correctionError.value = '';
+
+    try {
+        await axios.patch(`/kardex-telas/descargue-orden/manual/${props.line.id}/descargues/${entry.id}`, { quantity });
+        editingEntryId.value = null;
+        await fetchHistory();
+        emit('success');
+    } catch (error: any) {
+        correctionError.value = error?.response?.data?.errors?.quantity?.[0] ?? error?.response?.data?.message ?? 'No se pudo corregir el descargue.';
+    } finally {
+        isCorrecting.value = false;
+    }
+}
 
 async function fetchHistory() {
     if (!props.line) return;
@@ -56,6 +102,9 @@ watch(
             errors.quantity = '';
             errors.reason = '';
             alertMessage.value = '';
+            editingEntryId.value = null;
+            correctionQuantity.value = '';
+            correctionError.value = '';
             void fetchHistory();
         }
     },
@@ -154,13 +203,39 @@ async function submitDischarge() {
                     <p class="text-xs font-semibold text-muted-foreground">Historial de descargues</p>
                     <div v-if="isLoadingHistory" class="text-xs text-muted-foreground">Cargando...</div>
                     <p v-else-if="history.length === 0" class="text-xs text-muted-foreground">Sin descargues registrados aún.</p>
-                    <div v-else class="max-h-40 divide-y divide-border overflow-y-auto rounded-md border border-border text-sm">
-                        <div v-for="entry in history" :key="entry.id" class="flex items-center justify-between px-3 py-2">
-                            <div class="min-w-0">
-                                <p class="truncate">{{ entry.reason || 'Sin motivo' }}</p>
-                                <p class="text-xs text-muted-foreground">{{ entry.user_name ?? '-' }} · {{ entry.created_at ? new Date(entry.created_at).toLocaleString('es-CO') : '-' }}</p>
+                    <div v-else class="max-h-52 divide-y divide-border overflow-y-auto rounded-md border border-border text-sm">
+                        <div v-for="entry in history" :key="entry.id" class="px-3 py-2">
+                            <div v-if="editingEntryId === entry.id" class="flex items-center gap-2">
+                                <Input
+                                    v-model="correctionQuantity"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    class="h-8 w-24"
+                                    :invalid="Boolean(correctionError)"
+                                />
+                                <Button size="sm" class="h-8" :disabled="isCorrecting" @click="saveCorrection(entry)">Guardar</Button>
+                                <Button size="sm" variant="outline" class="h-8" :disabled="isCorrecting" @click="cancelCorrection">Cancelar</Button>
                             </div>
-                            <span class="shrink-0 font-semibold">{{ fmt(entry.quantity) }}</span>
+                            <div v-else class="flex items-center justify-between gap-2">
+                                <div class="min-w-0">
+                                    <p class="truncate">{{ entry.reason || 'Sin motivo' }}</p>
+                                    <p class="text-xs text-muted-foreground">{{ entry.user_name ?? '-' }} · {{ entry.created_at ? new Date(entry.created_at).toLocaleString('es-CO') : '-' }}</p>
+                                </div>
+                                <div class="flex shrink-0 items-center gap-1.5">
+                                    <span class="font-semibold">{{ fmt(entry.quantity) }}</span>
+                                    <button
+                                        v-if="canCorrectDischarge"
+                                        type="button"
+                                        class="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                                        title="Corregir cantidad de este descargue"
+                                        @click="startCorrection(entry)"
+                                    >
+                                        <Pencil class="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
+                            </div>
+                            <p v-if="editingEntryId === entry.id && correctionError" class="mt-1 text-xs text-destructive">{{ correctionError }}</p>
                         </div>
                     </div>
                 </div>

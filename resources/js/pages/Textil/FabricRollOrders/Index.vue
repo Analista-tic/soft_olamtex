@@ -10,12 +10,16 @@ import { useGlobalAlert } from '@/composables/useGlobalAlert';
 import type { ManualOrderCodeSummary } from '@/domain/Textil';
 import AppLayout from '@/layouts/AppLayout.vue';
 import ManualRollProgramDialog from '@/pages/Textil/FabricRollOrders/ManualRollProgramDialog.vue';
+import { useAuthStore } from '@/stores/auth';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { ArrowRight, Plus, Search } from 'lucide-vue-next';
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 const breadcrumbs = [{ title: 'Descargue de tela por orden', href: '/kardex-telas/descargue-orden' }];
+
+const authStore = useAuthStore();
+const canCreate = computed(() => authStore.can('crear descargue telas orden'));
 
 const { successMessage, errorMessage, error, success, clear } = useGlobalAlert();
 
@@ -37,7 +41,7 @@ async function fetchCodes() {
         codes.value = Array.isArray(data?.data) ? data.data : [];
     } catch {
         codes.value = [];
-        error('No se pudo cargar el listado de códigos de orden.');
+        error('No se pudo cargar el listado de rollos programados por orden.');
     } finally {
         isLoading.value = false;
     }
@@ -73,22 +77,22 @@ onMounted(fetchCodes);
                 <div class="flex flex-col gap-1">
                     <h1 class="text-lg font-bold">Descargue de tela por orden</h1>
                     <p class="text-sm text-muted-foreground">
-                        Programa y descarga metros de rollo por un código de orden escrito a mano, mientras no exista una orden de producción real en
-                        el sistema.
+                        Programa y descarga metros de rollo por número de orden de producción, mientras no exista una integración directa con el
+                        Programador.
                     </p>
                 </div>
-                <Button variant="default" class="shrink-0 gap-1.5 rounded-full" @click="isProgramDialogOpen = true">
+                <Button v-if="canCreate" variant="default" class="shrink-0 gap-1.5 rounded-full" @click="isProgramDialogOpen = true">
                     <Plus class="h-4 w-4" />
-                    Nuevo código
+                    Programar rollos
                 </Button>
             </div>
 
             <FilterBar>
-                <FilterField label="Buscar código" :active="searchQuery.trim().length > 0" class="min-w-[220px] flex-1 p-0">
+                <FilterField label="Buscar OP" :active="searchQuery.trim().length > 0" class="min-w-[220px] flex-1 p-0">
                     <div class="relative">
                         <Input
                             v-model="searchQuery"
-                            placeholder="Buscar código de orden"
+                            placeholder="Buscar número de orden de producción"
                             class="h-10 w-full rounded-md border border-input bg-background pl-10 text-sm focus:border-primary focus:ring-0"
                         />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
@@ -103,7 +107,7 @@ onMounted(fetchCodes);
                     <Table class="min-w-full text-[0.9rem]">
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Código de orden</TableHead>
+                                <TableHead>OP</TableHead>
                                 <TableHead class="text-right">Rollos</TableHead>
                                 <TableHead class="text-right">Programado</TableHead>
                                 <TableHead class="text-right">Consumido</TableHead>
@@ -121,7 +125,7 @@ onMounted(fetchCodes);
                             </template>
                             <TableRow v-else-if="codes.length === 0">
                                 <TableCell colspan="5" class="py-8 text-center text-sm text-muted-foreground">
-                                    No hay códigos de orden registrados todavía.
+                                    Todavía no se han programado rollos por orden de producción.
                                 </TableCell>
                             </TableRow>
                             <TableRow

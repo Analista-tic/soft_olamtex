@@ -112,6 +112,29 @@ it('still creates the adjustment and movement when the item has a warehouse (reg
     expect($adjustment->inventory_movement_id)->not->toBeNull();
 });
 
+it('records the actual_output before/after on a salida discharge so real availability changes are visible in history', function () {
+    $item = createRollTestItemWithoutWarehouse('actual-output');
+    $warehouse = Warehouse::create(['name' => 'Bodega Actual Output Test', 'observation' => 'Bodega de prueba']);
+    WarehouseItem::create(['warehouse_id' => $warehouse->id, 'item_id' => $item->id, 'quantity' => 1000]);
+
+    $roll = FabricRoll::create([
+        'roll_number' => 'RL-AO-1',
+        'item_id' => $item->id,
+        'quantity' => 50,
+        'actual_output' => 5,
+        'entry_date' => now()->toDateString(),
+        'approval_status' => FabricRoll::APPROVAL_APPROVED,
+    ]);
+
+    $this->service->discharge($roll, 'salida', 10, 'salida real de prueba', null, null);
+
+    $adjustment = FabricRollAdjustment::where('fabric_roll_id', $roll->id)->firstOrFail();
+
+    expect((float) $adjustment->quantity_before)->toBe((float) $adjustment->quantity_after)
+        ->and((float) $adjustment->actual_output_before)->toBe(5.0)
+        ->and((float) $adjustment->actual_output_after)->toBe(15.0);
+});
+
 it('eager loads the linked inventory movement in the adjustments history report', function () {
     $user = User::factory()->create();
     $user->givePermissionTo(Permission::findOrCreate('ver telas rollos', 'web'));

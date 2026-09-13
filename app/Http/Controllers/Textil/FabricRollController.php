@@ -12,9 +12,11 @@ use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\MasterData\FabricName;
 use App\Models\MasterData\Item;
+use App\Http\Requests\Textil\CorrectManualDischargeRequest;
 use App\Http\Requests\Textil\DischargeManualRollRequest;
 use App\Http\Requests\Textil\ProgramManualRollBatchRequest;
 use App\Http\Requests\Textil\ProgramManualRollRequest;
+use App\Http\Requests\Textil\UpdateManualRollProgramRequest;
 use App\Models\Production\FabricRollProgrammingLine;
 use App\Models\Production\ManualRollProgramming;
 use App\Models\Production\ProductionOrder;
@@ -342,21 +344,36 @@ class FabricRollController extends Controller
     {
         $lines = ManualRollProgramming::query()
             ->where('manual_order_code', $manualOrderCode)
-            ->with('fabricRoll:id,roll_number,location,quantity,actual_output,item_id')
+            ->with([
+                'fabricRoll:id,roll_number,location,quantity,actual_output,item_id,description,internal_color_name,batch',
+                'fabricRoll.item:id,fabric_name_id,color_id,category_sub_group_id',
+                'fabricRoll.item.fabricName:id,nombre',
+                'fabricRoll.item.color:id,name',
+                'fabricRoll.item.categorySubGroup:id,name',
+            ])
             ->orderByDesc('created_at')
             ->get()
-            ->map(fn (ManualRollProgramming $line) => [
-                'id' => $line->id,
-                'fabric_roll_id' => $line->fabric_roll_id,
-                'roll_number' => $line->fabricRoll?->roll_number,
-                'location' => $line->fabricRoll?->location,
-                'manual_order_code' => $line->manual_order_code,
-                'programmed_meters' => (float) $line->programmed_meters,
-                'consumed_meters' => (float) $line->consumed_meters,
-                'remaining_meters' => $line->remaining_meters,
-                'notes' => $line->notes,
-                'has_item' => $line->fabricRoll?->item_id !== null,
-            ]);
+            ->map(function (ManualRollProgramming $line) {
+                $roll = $line->fabricRoll;
+                $item = $roll?->item;
+
+                return [
+                    'id' => $line->id,
+                    'fabric_roll_id' => $line->fabric_roll_id,
+                    'roll_number' => $roll?->roll_number,
+                    'location' => $roll?->location,
+                    'manual_order_code' => $line->manual_order_code,
+                    'fabric_name' => $item?->fabricName?->nombre ?? $roll?->description,
+                    'color' => $item?->color?->name ?? $roll?->internal_color_name,
+                    'type' => $item?->categorySubGroup?->name,
+                    'batch' => $roll?->batch,
+                    'programmed_meters' => (float) $line->programmed_meters,
+                    'consumed_meters' => (float) $line->consumed_meters,
+                    'remaining_meters' => $line->remaining_meters,
+                    'notes' => $line->notes,
+                    'has_item' => $item !== null,
+                ];
+            });
 
         return response()->json(['data' => $lines]);
     }
@@ -429,6 +446,26 @@ class FabricRollController extends Controller
         ]);
     }
 
+    public function updateManualRoll(UpdateManualRollProgramRequest $request, ManualRollProgramming $manualRollProgramming): JsonResponse
+    {
+        $data = $request->validated();
+
+        try {
+            $line = $this->service->updateManualProgram(
+                $manualRollProgramming,
+                (float) $data['programmed_meters'],
+                $data['notes'] ?? null,
+            );
+        } catch (ValidationException $e) {
+            return response()->json(['message' => $e->getMessage(), 'errors' => $e->errors()], 422);
+        }
+
+        return response()->json([
+            'message' => 'Programación actualizada correctamente.',
+            'data' => $line,
+        ]);
+    }
+
     public function destroyManualRoll(ManualRollProgramming $manualRollProgramming): JsonResponse
     {
         try {
@@ -447,11 +484,33 @@ class FabricRollController extends Controller
                 'id' => $adjustment->id,
                 'created_at' => $adjustment->created_at?->toIso8601String(),
                 'user_name' => $adjustment->user?->name,
-                'quantity' => $adjustment->inventoryMovement?->quantity !== null ? (float) $adjustment->inventoryMovement->quantity : null,
+                // Se deriva de actual_output_after - actual_output_before del propio
+                // registro, no de inventoryMovement->quantity: un rollo sin ítem
+                // vinculado no crea movimiento de inventario y antes quedaba en null.
+                'quantity' => round((float) $adjustment->actual_output_after - (float) $adjustment->actual_output_before, 6),
                 'reason' => $adjustment->reason,
             ]);
 
         return response()->json(['data' => $history]);
+    }
+
+    public function correctManualDischarge(CorrectManualDischargeRequest $request, ManualRollProgramming $manualRollProgramming, FabricRollAdjustment $fabricRollAdjustment): JsonResponse
+    {
+        $data = $request->validated();
+
+        try {
+            $adjustment = $this->service->correctManualDischarge(
+                $fabricRollAdjustment,
+                (float) $data['quantity'],
+            );
+        } catch (ValidationException $e) {
+            return response()->json(['message' => $e->getMessage(), 'errors' => $e->errors()], 422);
+        }
+
+        return response()->json([
+            'message' => 'Descargue corregido correctamente.',
+            'data' => $adjustment,
+        ]);
     }
 
     public function inventoryRollsData(Request $request): JsonResponse
@@ -1714,32 +1773,23 @@ class FabricRollController extends Controller
     public function importFromCsv(Request $request): JsonResponse
     {
         $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt', 'max:10240'],
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx,xls', 'max:10240'],
         ]);
 
         /** @var UploadedFile $file */
         $file = $request->file('file');
+        $extension = strtolower($file->getClientOriginalExtension());
 
-        $contents = file_get_contents($file->getPathname());
-        if ($contents === false) {
-            return response()->json(['message' => 'No se pudo leer el archivo.'], 422);
-        }
-
-        // Quitar BOM UTF-8
-        $contents = preg_replace('/^\xEF\xBB\xBF/', '', $contents) ?? $contents;
-
-        $lines = preg_split('/\r\n|\r|\n/', trim($contents)) ?: [];
-        if (count($lines) < 2) {
-            return response()->json(['message' => 'El archivo no tiene datos.'], 422);
-        }
-
-        // Omitir cabecera (primera fila)
-        $rows = [];
-        foreach (array_slice($lines, 1) as $line) {
-            if (trim($line) === '') {
-                continue;
+        if (in_array($extension, ['xlsx', 'xls'], true)) {
+            $rows = $this->readLegacyRollRowsFromExcel($file);
+            if ($rows === null) {
+                return response()->json(['message' => 'No se pudo abrir el archivo Excel.'], 422);
             }
-            $rows[] = str_getcsv($line, ',');
+        } else {
+            $rows = $this->readLegacyRollRowsFromCsv($file);
+            if ($rows === null) {
+                return response()->json(['message' => 'No se pudo leer el archivo.'], 422);
+            }
         }
 
         if (empty($rows)) {
@@ -1759,6 +1809,100 @@ class FabricRollController extends Controller
             'errors' => array_values($result['errors']),
             'message' => $message,
         ], $status);
+    }
+
+    private const LEGACY_ROLL_COLUMN_COUNT = 15;
+
+    /**
+     * Lee el CSV/TXT histórico de rollos (15 columnas posicionales). El delimitador
+     * se detecta a partir del encabezado en vez de asumir uno fijo: hay archivos
+     * exportados con "," y otros con ";" (un mismo archivo nunca mezcla ambos).
+     *
+     * @return array<int, array<int, string>>|null null si el archivo no se pudo leer.
+     */
+    protected function readLegacyRollRowsFromCsv(UploadedFile $file): ?array
+    {
+        $contents = file_get_contents($file->getPathname());
+        if ($contents === false) {
+            return null;
+        }
+
+        // Quitar BOM UTF-8
+        $contents = preg_replace('/^\xEF\xBB\xBF/', '', $contents) ?? $contents;
+
+        $lines = preg_split('/\r\n|\r|\n/', trim($contents)) ?: [];
+        if (count($lines) < 2) {
+            return [];
+        }
+
+        $delimiter = $this->detectCsvDelimiter($lines[0]);
+
+        $rows = [];
+        foreach (array_slice($lines, 1) as $line) {
+            if (trim($line) === '') {
+                continue;
+            }
+            $rows[] = str_getcsv($line, $delimiter);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Decide el delimitador probando "," y ";" sobre el encabezado y quedándose con
+     * el que produce más columnas (el correcto separa las 15 columnas esperadas; el
+     * incorrecto las deja todas pegadas en una sola).
+     */
+    protected function detectCsvDelimiter(string $headerLine): string
+    {
+        $commaColumns = count(str_getcsv($headerLine, ','));
+        $semicolonColumns = count(str_getcsv($headerLine, ';'));
+
+        return $semicolonColumns > $commaColumns ? ';' : ',';
+    }
+
+    /**
+     * Lee el histórico de rollos desde Excel (.xlsx/.xls) con el mismo formato
+     * posicional de 15 columnas que el CSV histórico. La fecha se normaliza a Y-m-d
+     * con normalizeImportDate() porque PhpSpreadsheet formatea las celdas de fecha
+     * como m/d/Y (mes primero), distinto del d/m/Y que espera
+     * FabricRollService::parseCsvDate() para el CSV histórico — sin esta conversión
+     * previa, día y mes quedarían invertidos en silencio.
+     *
+     * @return array<int, array<int, string>>|null null si el archivo no se pudo abrir.
+     */
+    protected function readLegacyRollRowsFromExcel(UploadedFile $file): ?array
+    {
+        try {
+            $spreadsheet = IOFactory::load($file->getPathname());
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $sheet = $spreadsheet->getActiveSheet();
+        $rawRows = $sheet->toArray('', true, true, false);
+
+        if (count($rawRows) < 2) {
+            return [];
+        }
+
+        $rows = [];
+        foreach (array_slice($rawRows, 1) as $line) {
+            $line = is_array($line) ? array_values($line) : [];
+            $line = array_pad($line, self::LEGACY_ROLL_COLUMN_COUNT, '');
+            $line = array_slice($line, 0, self::LEGACY_ROLL_COLUMN_COUNT);
+
+            $hasValues = collect($line)->contains(fn ($value): bool => trim((string) $value) !== '');
+            if (! $hasValues) {
+                continue;
+            }
+
+            $line[14] = $this->normalizeImportDate($line[14] ?? null) ?? '';
+
+            $rows[] = $line;
+        }
+
+        return $rows;
     }
 
     // ─── Reportes ─────────────────────────────────────────────────────────────

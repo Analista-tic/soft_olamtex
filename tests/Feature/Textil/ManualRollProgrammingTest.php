@@ -9,7 +9,12 @@ use App\Models\Production\ManualRollProgramming;
 use App\Models\Production\ProductionRollConsumption;
 use App\Models\Settings\User;
 use App\Models\Textil\FabricRoll;
+use App\Models\Textil\FabricRollAdjustment;
+use Database\Seeders\PermissionSeeder;
+use Database\Seeders\RolePermissionMatrixAdjustmentSeeder;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 
 /**
  * Programación/descargue de rollos por un código de orden escrito a mano — mientras
@@ -23,6 +28,10 @@ beforeEach(function () {
     $user->givePermissionTo(Permission::findOrCreate('editar telas rollos', 'web'));
     $user->givePermissionTo(Permission::findOrCreate('ver descargue telas orden', 'web'));
     $user->givePermissionTo(Permission::findOrCreate('crear descargue telas orden', 'web'));
+    $user->givePermissionTo(Permission::findOrCreate('editar descargue telas orden', 'web'));
+    $user->givePermissionTo(Permission::findOrCreate('eliminar descargue telas orden', 'web'));
+    $user->givePermissionTo(Permission::findOrCreate('descargar telas orden', 'web'));
+    $user->givePermissionTo(Permission::findOrCreate('corregir descargue telas orden', 'web'));
     $this->actingAs($user);
 });
 
@@ -106,8 +115,8 @@ it('rejects programming more than what is physically available', function () {
     expect((float) $roll->partial_output)->toEqual(35.0);
 });
 
-it('updates the delta of an existing manual line instead of duplicating it', function () {
-    $roll = makeManualRoll('RL-MANUAL-3', 100);
+it('creates a new independent line when the same roll is programmed again under the same order, instead of overwriting the total', function () {
+    $roll = makeManualRoll('RL-MANUAL-3', 200);
 
     $this->postJson(route('kardex-telas.descargue-orden.manual.store'), [
         'fabric_roll_id' => $roll->id,
@@ -122,8 +131,14 @@ it('updates the delta of an existing manual line instead of duplicating it', fun
     ])->assertCreated();
 
     $roll->refresh();
-    expect((float) $roll->partial_output)->toEqual(60.0);
-    expect(ManualRollProgramming::count())->toBe(1);
+    // Las dos programaciones se suman (40 + 60 = 100), no se sobrescriben: un mismo
+    // rollo puede programarse más de una vez bajo la misma orden.
+    expect((float) $roll->partial_output)->toEqual(100.0);
+    expect(ManualRollProgramming::where('fabric_roll_id', $roll->id)->count())->toBe(2);
+
+    $lines = ManualRollProgramming::where('fabric_roll_id', $roll->id)->orderBy('id')->get();
+    expect((float) $lines[0]->programmed_meters)->toEqual(40.0)
+        ->and((float) $lines[1]->programmed_meters)->toEqual(60.0);
 });
 
 it('partially discharges a manual line, releases partial_output proportionally and creates a movement', function () {
@@ -273,13 +288,13 @@ it('discharges a manual line on a roll with no item linked, without creating an 
         ->and((float) $line->consumed_meters)->toEqual(15.0)
         ->and(ProductionRollConsumption::where('fabric_roll_id', $roll->id)->exists())->toBeTrue();
 
-    $adjustment = \App\Models\Textil\FabricRollAdjustment::where('reference', "manual_programming::{$line->id}")
+    $adjustment = FabricRollAdjustment::where('reference', "manual_programming::{$line->id}")
         ->where('type', 'salida')
         ->firstOrFail();
     expect($adjustment->inventory_movement_id)->toBeNull();
 
     // El evento de "programar" queda como 'correction', nunca como 'salida'.
-    expect(\App\Models\Textil\FabricRollAdjustment::where('reference', "manual_programming::{$line->id}")->where('type', 'correction')->exists())->toBeTrue();
+    expect(FabricRollAdjustment::where('reference', "manual_programming::{$line->id}")->where('type', 'correction')->exists())->toBeTrue();
 });
 
 it('excludes the programming event from the discharge history, even without an item linked', function () {
@@ -343,4 +358,247 @@ it('reconciles the item real inventory to the net availability once linked after
     // 100 (quantity) - 30 (actual_output ya consumido sin ítem) = 70 de disponibilidad
     // neta real, que es exactamente lo que debe entrar al inventario del ítem.
     expect((float) $warehouseItem->quantity)->toEqual(70.0);
+});
+
+// ─── Editar y eliminar una programación ya creada ──────────────────────────────
+
+it('edits a manual programming line and adjusts partial_output by the delta', function () {
+    $roll = makeManualRoll('RL-EDIT-1', 100);
+
+    $this->postJson(route('kardex-telas.descargue-orden.manual.store'), [
+        'fabric_roll_id' => $roll->id,
+        'manual_order_code' => 'OP-EDIT-1',
+        'programmed_meters' => 40,
+    ])->assertCreated();
+
+    $line = ManualRollProgramming::first();
+
+    $response = $this->patchJson(route('kardex-telas.descargue-orden.manual.update', $line->id), [
+        'programmed_meters' => 70,
+        'notes' => 'Corrección de cantidad',
+    ]);
+
+    $response->assertOk();
+    $roll->refresh();
+    $line->refresh();
+
+    expect((float) $roll->partial_output)->toEqual(70.0)
+        ->and((float) $line->programmed_meters)->toEqual(70.0)
+        ->and($line->notes)->toBe('Corrección de cantidad');
+});
+
+it('rejects editing a manual programming line below what has already been consumed', function () {
+    $roll = makeManualRoll('RL-EDIT-2', 100);
+
+    $this->postJson(route('kardex-telas.descargue-orden.manual.store'), [
+        'fabric_roll_id' => $roll->id,
+        'manual_order_code' => 'OP-EDIT-2',
+        'programmed_meters' => 40,
+    ])->assertCreated();
+
+    $line = ManualRollProgramming::first();
+    $this->patchJson(route('kardex-telas.descargue-orden.manual.discharge', $line->id), ['quantity' => 25])->assertOk();
+
+    $this->patchJson(route('kardex-telas.descargue-orden.manual.update', $line->id), [
+        'programmed_meters' => 20,
+    ])->assertStatus(422);
+
+    $line->refresh();
+    expect((float) $line->programmed_meters)->toEqual(40.0);
+});
+
+it('requires the editar permission to update a manual programming line', function () {
+    $limitedUser = User::factory()->create();
+    $limitedUser->givePermissionTo(Permission::findOrCreate('ver telas rollos', 'web'));
+    $limitedUser->givePermissionTo(Permission::findOrCreate('ver descargue telas orden', 'web'));
+    $limitedUser->givePermissionTo(Permission::findOrCreate('crear descargue telas orden', 'web'));
+    $this->actingAs($limitedUser);
+
+    $roll = makeManualRoll('RL-EDIT-3', 100);
+
+    $this->postJson(route('kardex-telas.descargue-orden.manual.store'), [
+        'fabric_roll_id' => $roll->id,
+        'manual_order_code' => 'OP-EDIT-3',
+        'programmed_meters' => 40,
+    ])->assertCreated();
+
+    $line = ManualRollProgramming::first();
+
+    $this->patchJson(route('kardex-telas.descargue-orden.manual.update', $line->id), [
+        'programmed_meters' => 60,
+    ])->assertStatus(403);
+});
+
+it('requires the eliminar permission to delete a manual programming line', function () {
+    $limitedUser = User::factory()->create();
+    $limitedUser->givePermissionTo(Permission::findOrCreate('ver telas rollos', 'web'));
+    $limitedUser->givePermissionTo(Permission::findOrCreate('ver descargue telas orden', 'web'));
+    $limitedUser->givePermissionTo(Permission::findOrCreate('crear descargue telas orden', 'web'));
+    $this->actingAs($limitedUser);
+
+    $roll = makeManualRoll('RL-DEL-1', 100);
+
+    $this->postJson(route('kardex-telas.descargue-orden.manual.store'), [
+        'fabric_roll_id' => $roll->id,
+        'manual_order_code' => 'OP-DEL-1',
+        'programmed_meters' => 40,
+    ])->assertCreated();
+
+    $line = ManualRollProgramming::first();
+
+    $this->deleteJson(route('kardex-telas.descargue-orden.manual.destroy', $line->id))->assertStatus(403);
+
+    expect(ManualRollProgramming::find($line->id))->not->toBeNull();
+});
+
+it('deletes a manual programming line when the user has the eliminar permission', function () {
+    $roll = makeManualRoll('RL-DEL-2', 100);
+
+    $this->postJson(route('kardex-telas.descargue-orden.manual.store'), [
+        'fabric_roll_id' => $roll->id,
+        'manual_order_code' => 'OP-DEL-2',
+        'programmed_meters' => 40,
+    ])->assertCreated();
+
+    $line = ManualRollProgramming::first();
+
+    $this->deleteJson(route('kardex-telas.descargue-orden.manual.destroy', $line->id))->assertOk();
+
+    $roll->refresh();
+    expect((float) $roll->partial_output)->toEqual(0.0);
+    expect(ManualRollProgramming::find($line->id))->toBeNull();
+});
+
+// ─── Corregir un descargue ya registrado (evento individual del historial) ─────
+
+it('corrects an already-registered discharge and adjusts the roll and the line accordingly', function () {
+    $roll = makeManualRoll('RL-CORRECT-1', 100);
+
+    $this->postJson(route('kardex-telas.descargue-orden.manual.store'), [
+        'fabric_roll_id' => $roll->id,
+        'manual_order_code' => 'OP-CORRECT-1',
+        'programmed_meters' => 40,
+    ])->assertCreated();
+
+    $line = ManualRollProgramming::first();
+    $this->patchJson(route('kardex-telas.descargue-orden.manual.discharge', $line->id), ['quantity' => 15])->assertOk();
+
+    $discharge = FabricRollAdjustment::where('reference', "manual_programming::{$line->id}")->where('type', 'salida')->firstOrFail();
+
+    $response = $this->patchJson(
+        route('kardex-telas.descargue-orden.manual.discharge.correct', [$line->id, $discharge->id]),
+        ['quantity' => 20]
+    );
+
+    $response->assertOk();
+    $roll->refresh();
+    $line->refresh();
+
+    // Delta = 20 - 15 = +5: actual_output sube a 20, partial_output baja a 20
+    // (40 programado - 20 consumido), y el consumo de la línea refleja la corrección.
+    expect((float) $roll->actual_output)->toEqual(20.0)
+        ->and((float) $roll->partial_output)->toEqual(20.0)
+        ->and((float) $line->consumed_meters)->toEqual(20.0);
+});
+
+it('rejects a discharge correction that would exceed what is programmed', function () {
+    $roll = makeManualRoll('RL-CORRECT-2', 100);
+
+    $this->postJson(route('kardex-telas.descargue-orden.manual.store'), [
+        'fabric_roll_id' => $roll->id,
+        'manual_order_code' => 'OP-CORRECT-2',
+        'programmed_meters' => 20,
+    ])->assertCreated();
+
+    $line = ManualRollProgramming::first();
+    $this->patchJson(route('kardex-telas.descargue-orden.manual.discharge', $line->id), ['quantity' => 10])->assertOk();
+
+    $discharge = FabricRollAdjustment::where('reference', "manual_programming::{$line->id}")->where('type', 'salida')->firstOrFail();
+
+    $this->patchJson(
+        route('kardex-telas.descargue-orden.manual.discharge.correct', [$line->id, $discharge->id]),
+        ['quantity' => 25]
+    )->assertStatus(422);
+
+    $line->refresh();
+    expect((float) $line->consumed_meters)->toEqual(10.0);
+});
+
+it('requires the corregir descargue permission to correct a discharge', function () {
+    $limitedUser = User::factory()->create();
+    $limitedUser->givePermissionTo(Permission::findOrCreate('ver telas rollos', 'web'));
+    $limitedUser->givePermissionTo(Permission::findOrCreate('ver descargue telas orden', 'web'));
+    $limitedUser->givePermissionTo(Permission::findOrCreate('crear descargue telas orden', 'web'));
+    $limitedUser->givePermissionTo(Permission::findOrCreate('descargar telas orden', 'web'));
+
+    $roll = makeManualRoll('RL-CORRECT-3', 100);
+    $this->postJson(route('kardex-telas.descargue-orden.manual.store'), [
+        'fabric_roll_id' => $roll->id,
+        'manual_order_code' => 'OP-CORRECT-3',
+        'programmed_meters' => 40,
+    ])->assertCreated();
+
+    $line = ManualRollProgramming::first();
+    $this->patchJson(route('kardex-telas.descargue-orden.manual.discharge', $line->id), ['quantity' => 15])->assertOk();
+    $discharge = FabricRollAdjustment::where('reference', "manual_programming::{$line->id}")->where('type', 'salida')->firstOrFail();
+
+    $this->actingAs($limitedUser);
+
+    $this->patchJson(
+        route('kardex-telas.descargue-orden.manual.discharge.correct', [$line->id, $discharge->id]),
+        ['quantity' => 20]
+    )->assertStatus(403);
+});
+
+it('reports the correct discharge quantity in history even without an item linked (regression for null quantity)', function () {
+    $roll = makeManualRoll('RL-CORRECT-4', 100);
+
+    $this->postJson(route('kardex-telas.descargue-orden.manual.store'), [
+        'fabric_roll_id' => $roll->id,
+        'manual_order_code' => 'OP-CORRECT-4',
+        'programmed_meters' => 40,
+    ])->assertCreated();
+
+    $line = ManualRollProgramming::first();
+    $this->patchJson(route('kardex-telas.descargue-orden.manual.discharge', $line->id), ['quantity' => 12])->assertOk();
+
+    $history = $this->getJson(route('kardex-telas.descargue-orden.manual.history', $line->id));
+    $history->assertOk();
+    expect((float) $history->json('data')[0]['quantity'])->toEqual(12.0);
+});
+
+// ─── Roles Diseño/Corte: separación entre programar/editar/eliminar y descargar ──
+
+it('assigns the DISEÑO role permissions to program/edit/delete but not to discharge or correct', function () {
+    // RolePermissionMatrixAdjustmentSeeder es un ajuste sobre una base ya sembrada:
+    // referencia permisos ("ver empresa", etc.) que solo crea el bootstrap original.
+    $this->seed(RolesAndPermissionsSeeder::class);
+    $this->seed(PermissionSeeder::class);
+    $this->seed(RolePermissionMatrixAdjustmentSeeder::class);
+
+    $role = Role::findByName('DISEÑO', 'web');
+
+    $permissions = $role->permissions->pluck('name');
+    expect($permissions)->toContain('crear descargue telas orden')
+        ->toContain('editar descargue telas orden')
+        ->toContain('eliminar descargue telas orden')
+        ->not->toContain('descargar telas orden')
+        ->not->toContain('corregir descargue telas orden');
+});
+
+it('assigns the corte role permissions to discharge and correct but not to program/edit/delete', function () {
+    // RolePermissionMatrixAdjustmentSeeder es un ajuste sobre una base ya sembrada:
+    // referencia permisos ("ver empresa", etc.) que solo crea el bootstrap original.
+    $this->seed(RolesAndPermissionsSeeder::class);
+    $this->seed(PermissionSeeder::class);
+    $this->seed(RolePermissionMatrixAdjustmentSeeder::class);
+
+    $role = Role::findByName('corte', 'web');
+
+    $permissions = $role->permissions->pluck('name');
+    expect($permissions)->toContain('descargar telas orden')
+        ->toContain('corregir descargue telas orden')
+        ->not->toContain('crear descargue telas orden')
+        ->not->toContain('editar descargue telas orden')
+        ->not->toContain('eliminar descargue telas orden');
 });

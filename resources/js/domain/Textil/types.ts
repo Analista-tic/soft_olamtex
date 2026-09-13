@@ -79,6 +79,10 @@ export interface ManualRollProgrammingLine {
     roll_number: string | null;
     location: string | null;
     manual_order_code: string;
+    fabric_name: string | null;
+    color: string | null;
+    type: string | null;
+    batch: string | null;
     programmed_meters: number;
     consumed_meters: number;
     remaining_meters: number;

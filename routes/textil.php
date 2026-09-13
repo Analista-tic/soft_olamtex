@@ -77,10 +77,16 @@ Route::prefix('kardex-telas')->name('kardex-telas.')->middleware('permission:ver
         ->middleware('permission:crear descargue telas orden')
         ->name('descargue-orden.manual.store-batch');
     Route::patch('/descargue-orden/manual/{manualRollProgramming}/descargar', [FabricRollController::class, 'dischargeManualRoll'])
-        ->middleware('permission:crear descargue telas orden')
+        ->middleware('permission:descargar telas orden')
         ->name('descargue-orden.manual.discharge');
+    Route::patch('/descargue-orden/manual/{manualRollProgramming}/descargues/{fabricRollAdjustment}', [FabricRollController::class, 'correctManualDischarge'])
+        ->middleware('permission:corregir descargue telas orden')
+        ->name('descargue-orden.manual.discharge.correct');
+    Route::patch('/descargue-orden/manual/{manualRollProgramming}', [FabricRollController::class, 'updateManualRoll'])
+        ->middleware('permission:editar descargue telas orden')
+        ->name('descargue-orden.manual.update');
     Route::delete('/descargue-orden/manual/{manualRollProgramming}', [FabricRollController::class, 'destroyManualRoll'])
-        ->middleware('permission:crear descargue telas orden')
+        ->middleware('permission:eliminar descargue telas orden')
         ->name('descargue-orden.manual.destroy');
     Route::get('/descargue-orden/{manualOrderCode}/lineas', [FabricRollController::class, 'manualOrderLines'])
         ->middleware('permission:ver descargue telas orden')

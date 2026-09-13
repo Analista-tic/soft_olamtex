@@ -337,7 +337,7 @@ async function handleQuantityImportCompleted(payload: { message: string; updated
 
 async function handleCsvImported(payload: { inserted: number; skipped: number; errors: { row: number | null; message: string }[] }) {
     isCsvImportDialogOpen.value = false;
-    successMessage.value = `CSV importado. Insertados: ${payload.inserted}. Omitidos: ${payload.skipped}.`;
+    successMessage.value = `Archivo importado. Insertados: ${payload.inserted}. Omitidos: ${payload.skipped}.`;
     if (payload.errors.length > 0) {
         errorType.value = 'warning';
         errorMessage.value = payload.errors.slice(0, 3).map((e) => e.message).join(' | ');
@@ -396,7 +396,7 @@ async function handleCsvImported(payload: { inserted: number; skipped: number; e
                             </DropdownMenuItem>
 
                             <DropdownMenuItem v-if="canEditRolls" class="cursor-pointer gap-2" @click="isCsvImportDialogOpen = true">
-                                <Upload class="h-4 w-4" /> Importar CSV histórico
+                                <Upload class="h-4 w-4" /> Importar histórico de rollos
                             </DropdownMenuItem>
 
                             <DropdownMenuItem class="cursor-pointer gap-2" @click="exportFabricRollsExcel">

@@ -108,7 +108,7 @@ function closeDialog() {
 }
 
 function validateForm(): boolean {
-    errors.manual_order_code = form.manualOrderCode.trim() ? '' : 'El código de orden es obligatorio.';
+    errors.manual_order_code = form.manualOrderCode.trim() ? '' : 'El número de orden de producción es obligatorio.';
     errors.lines = selectedLines.value.length > 0 ? '' : 'Agrega al menos un rollo.';
 
     let linesOk = true;
@@ -162,19 +162,20 @@ async function submitProgram() {
             <AlertBox v-if="alertMessage" type="error" :message="alertMessage" @close="alertMessage = ''" />
 
             <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
-                <DialogTitle>Programar rollos por código de orden</DialogTitle>
+                <DialogTitle>Programar rollos por orden de producción</DialogTitle>
                 <DialogDescription>
-                    Busca y agrega los rollos que necesites para este código, indicando cuántos metros usar de cada uno.
+                    Busca y agrega los rollos que necesites para esta orden, indicando cuántos metros usar de cada uno. Un mismo rollo puede
+                    programarse más de una vez si el proceso lo requiere.
                 </DialogDescription>
             </DialogHeader>
 
             <div class="flex-1 space-y-5 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div class="space-y-1">
-                        <p class="text-xs font-semibold text-muted-foreground">Código de orden <span class="text-destructive">*</span></p>
+                        <p class="text-xs font-semibold text-muted-foreground">N° de orden de producción <span class="text-destructive">*</span></p>
                         <Input
                             v-model="form.manualOrderCode"
-                            placeholder="Ej. OP-A-MANO-001"
+                            placeholder="Ej. OP-001"
                             :disabled="Boolean(props.manualOrderCode)"
                             :invalid="Boolean(errors.manual_order_code)"
                             :error-message="errors.manual_order_code"

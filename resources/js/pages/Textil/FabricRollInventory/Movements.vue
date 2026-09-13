@@ -27,6 +27,8 @@ type RollAdjustment = {
     quantity_after: string;
     partial_before: string | null;
     partial_after: string | null;
+    actual_output_before: string | null;
+    actual_output_after: string | null;
     reason: string;
     reference: string | null;
     created_at: string;
@@ -71,6 +73,16 @@ function fmtNum(v: string | number | null | undefined) {
     if (v === null || v === undefined || v === '') return '-';
     const n = Number(v);
     return Number.isNaN(n) ? String(v) : numFmt.format(n);
+}
+
+// Disponibilidad real = cantidad del rollo - salida real (actual_output), la misma
+// fórmula que FabricRoll::getAvailableQuantityAttribute() en backend.
+function fmtRealAvailability(quantity: string | null | undefined, actualOutput: string | null | undefined) {
+    if (actualOutput === null || actualOutput === undefined) return '-';
+    const q = Number(quantity ?? 0);
+    const a = Number(actualOutput);
+    if (Number.isNaN(q) || Number.isNaN(a)) return '-';
+    return numFmt.format(q - a);
 }
 
 function fmtDate(v: string | null | undefined) {
@@ -158,6 +170,8 @@ onMounted(() => fetchAdjustments(1));
                                 <TableHead>Cant. después</TableHead>
                                 <TableHead>Parc. antes</TableHead>
                                 <TableHead>Parc. después</TableHead>
+                                <TableHead>Disp. real antes</TableHead>
+                                <TableHead>Disp. real después</TableHead>
                                 <TableHead>Razón</TableHead>
                                 <TableHead>Referencia</TableHead>
                                 <TableHead>Usuario</TableHead>
@@ -167,13 +181,13 @@ onMounted(() => fetchAdjustments(1));
                         <TableBody>
                             <template v-if="adjLoading">
                                 <TableRow v-for="i in 5" :key="`adj-sk-${i}`">
-                                    <TableCell v-for="col in 10" :key="`adj-sk-${i}-${col}`" class="px-4 py-3">
+                                    <TableCell v-for="col in 12" :key="`adj-sk-${i}-${col}`" class="px-4 py-3">
                                         <Skeleton class="h-4 w-full" />
                                     </TableCell>
                                 </TableRow>
                             </template>
                             <TableRow v-else-if="adjustments.length === 0">
-                                <TableCell colspan="10" class="py-8 text-center text-sm text-muted-foreground">
+                                <TableCell colspan="12" class="py-8 text-center text-sm text-muted-foreground">
                                     No hay registros de ajustes.
                                 </TableCell>
                             </TableRow>
@@ -191,6 +205,8 @@ onMounted(() => fetchAdjustments(1));
                                 <TableCell class="text-sm">{{ fmtNum(adj.quantity_after) }}</TableCell>
                                 <TableCell class="text-sm">{{ fmtNum(adj.partial_before) }}</TableCell>
                                 <TableCell class="text-sm">{{ fmtNum(adj.partial_after) }}</TableCell>
+                                <TableCell class="text-sm">{{ fmtRealAvailability(adj.quantity_before, adj.actual_output_before) }}</TableCell>
+                                <TableCell class="text-sm">{{ fmtRealAvailability(adj.quantity_after, adj.actual_output_after) }}</TableCell>
                                 <TableCell class="max-w-[200px] truncate text-sm" :title="adj.reason">{{ adj.reason }}</TableCell>
                                 <TableCell class="text-sm">{{ adj.reference ?? '-' }}</TableCell>
                                 <TableCell class="text-sm">{{ adj.user?.name ?? '-' }}</TableCell>
