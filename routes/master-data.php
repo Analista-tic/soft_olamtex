@@ -37,6 +37,9 @@ Route::get('contactos/data', [ContactController::class, 'getData'])->name('conta
 Route::get('contactos/list', [ContactController::class, 'list'])->name('contactos.list');
 
 Route::prefix('contactos')->name('contactos.')->middleware('permission:ver contactos')->group(function () {
+    Route::get('/descargar-plantilla', [ContactController::class, 'downloadTemplate'])->name('descargar-plantilla');
+    Route::get('/exportar-excel', [ContactController::class, 'exportExcel'])->name('exportar-excel')->middleware('permission:exportar contactos');
+    Route::post('/carga-masiva', [ContactController::class, 'bulkUpload'])->name('carga-masiva')->middleware('permission:carga masiva contactos');
     Route::get('/', [ContactController::class, 'index'])->name('index');
     Route::post('/', [ContactController::class, 'store'])->name('store')->middleware('permission:crear contactos');
     Route::get('/{contact}', [ContactController::class, 'show'])->name('show');

@@ -6,14 +6,70 @@ use App\Helpers\NitHelper;
 use App\Http\Controllers\Controller;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\MasterData\Contact;
+use App\Services\MasterData\ContactBulkImportService;
+use App\Services\MasterData\ContactExcelService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class ContactController extends Controller
 {
+    public function __construct(
+        protected ContactExcelService $excelService,
+        protected ContactBulkImportService $bulkImportService,
+    ) {}
+
+    public function downloadTemplate()
+    {
+        return $this->excelService->downloadTemplate();
+    }
+
+    public function exportExcel()
+    {
+        return $this->excelService->exportAll();
+    }
+
+    public function bulkUpload(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls',
+        ]);
+
+        $file = $request->file('file');
+        $spreadsheet = IOFactory::load($file->getPathname());
+        $sheet = $spreadsheet->getActiveSheet();
+        $rows = $sheet->toArray(null, true, true, true);
+
+        $result = $this->bulkImportService->processBulkUploadArray($rows);
+
+        $inserted = $result['inserted'] ?? 0;
+        $updated = $result['updated'] ?? 0;
+
+        if ($inserted === 0 && $updated === 0 && ! empty($result['errors'])) {
+            return response()->json([
+                'message' => 'No se pudo procesar ningún contacto. Errores: '.implode('; ', $result['errors']),
+            ], 422);
+        }
+
+        $parts = [];
+        if ($inserted > 0) {
+            $parts[] = "{$inserted} contacto(s) creado(s)";
+        }
+        if ($updated > 0) {
+            $parts[] = "{$updated} contacto(s) actualizado(s)";
+        }
+
+        return response()->json([
+            'message' => 'Carga masiva completada. '.implode(', ', $parts),
+            'errors' => $result['errors'] ?? [],
+            'inserted' => $inserted,
+            'updated' => $updated,
+        ]);
+    }
+
     public function index(Request $request)
     {
         $sortBy = $request->input('sort_by', 'id');

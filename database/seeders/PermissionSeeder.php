@@ -115,6 +115,8 @@ class PermissionSeeder extends Seeder
             'crear contactos',
             'editar contactos',
             'eliminar contactos',
+            'carga masiva contactos',
+            'exportar contactos',
 
             'activar desactivar item',
             'carga masiva items',
