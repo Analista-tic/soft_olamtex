@@ -29,6 +29,9 @@ class DatabaseSeeder extends Seeder
             TaxesSeeder::class,
             WarehousesSeeder::class,
             AccountingAccountSeeder::class,
+            FabricBaseSeeder::class,
+            FabricNameSeeder::class,
+            CollectionSeeder::class,
 
             // === PARAMETRIZACIÓN DE OPERACIONES ===
             OperationSeeder::class,
@@ -37,6 +40,7 @@ class DatabaseSeeder extends Seeder
             ColorsSeeder::class,
             LegacyItemsSeeder::class,
             LegacyContactsSeeder::class,
+            ContactsProductionBackupSeeder::class,
             LegacyFabricRollsSeeder::class,
         ]);
 

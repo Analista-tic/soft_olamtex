@@ -29,12 +29,16 @@ class DevelopmentSeeder extends Seeder
             TaxesSeeder::class,
             WarehousesSeeder::class,
             AccountingAccountSeeder::class,
+            FabricBaseSeeder::class,
+            FabricNameSeeder::class,
+            CollectionSeeder::class,
 
             // === PARAMETRIZACIÓN DE OPERACIONES ===
             OperationSeeder::class,
 
             // === DATOS HISTÓRICOS ===
             LegacyItemsSeeder::class,
+            ContactsProductionBackupSeeder::class,
             FabricRollsLegacySeeder::class,
 
             // === DATOS DE EJEMPLO (DESARROLLO SOLO) ===
