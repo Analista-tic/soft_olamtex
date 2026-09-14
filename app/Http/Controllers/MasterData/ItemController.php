@@ -161,7 +161,11 @@ class ItemController extends Controller
 
         $file = $request->file('file');
         $spreadsheet = IOFactory::load($file->getPathname());
-        $sheet = $spreadsheet->getActiveSheet();
+        // La plantilla mueve "Instrucciones" al frente y la deja como hoja activa
+        // (moveInstructionsToFirst()), así que un Excel guardado sin cambiar de
+        // pestaña reabre en "Instrucciones" — buscar la hoja de datos por nombre
+        // evita leer esa hoja en vez de "items".
+        $sheet = $spreadsheet->getSheetByName('items') ?? $spreadsheet->getActiveSheet();
         $rows = $sheet->toArray(null, true, true, true);
 
         // null = sin restricción (comportamiento de siempre: actualiza todos los campos
