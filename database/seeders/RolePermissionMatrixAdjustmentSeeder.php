@@ -92,6 +92,8 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'crear contactos',
             'editar contactos',
             'eliminar contactos',
+            'carga masiva contactos',
+            'exportar contactos',
             'ver parametros',
             'editar parametros',
             'ver campos adicionales',
@@ -303,6 +305,10 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
                 'eliminar transferencias bodegas',
                 'ver todos transferencias bodegas',
                 'recibir factura compra',
+                // Producción ya tenía esto habilitado; se preserva para no
+                // regresionar el flujo real al desplegar esta matriz.
+                'crear facturas compra',
+                'editar facturas compra',
             ]
         ));
 

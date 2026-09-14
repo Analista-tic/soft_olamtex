@@ -27,6 +27,10 @@ class CategorySeeder extends Seeder
             ['name' => 'SERVICIOS',        'created_at' => $now, 'updated_at' => $now],
             ['name' => 'MAQUINARIA',       'created_at' => $now, 'updated_at' => $now],
             ['name' => 'PRODUCTO TERMINADO', 'created_at' => $now, 'updated_at' => $now],
+            // Agregado manualmente en producción el 2026-04-21 (no estaba en el
+            // seed inicial); se replica aquí para que instalaciones nuevas queden
+            // alineadas con el catálogo real.
+            ['name' => 'MANTENIMIENTO',    'created_at' => $now, 'updated_at' => $now],
         ];
 
         DB::table('category_groups')->insert($groups);
@@ -144,6 +148,10 @@ class CategorySeeder extends Seeder
             ['name' => 'BUZO',     'category_group_id' => $groupIds['PRODUCTO TERMINADO'], 'created_at' => $now, 'updated_at' => $now],
             ['name' => 'CHALECO',  'category_group_id' => $groupIds['PRODUCTO TERMINADO'], 'created_at' => $now, 'updated_at' => $now],
             ['name' => 'PANTALÓN', 'category_group_id' => $groupIds['PRODUCTO TERMINADO'], 'created_at' => $now, 'updated_at' => $now],
+
+            // ─── MANTENIMIENTO ────────────────────────────────────────────
+            ['name' => 'TECNOLÓGICO', 'category_group_id' => $groupIds['MANTENIMIENTO'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'HARDWARE',    'category_group_id' => $groupIds['MANTENIMIENTO'], 'created_at' => $now, 'updated_at' => $now],
         ];
 
         DB::table('category_sub_groups')->insert($subGroups);

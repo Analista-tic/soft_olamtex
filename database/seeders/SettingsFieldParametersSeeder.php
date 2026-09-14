@@ -144,7 +144,7 @@ class SettingsFieldParametersSeeder extends Seeder
                     'label' => 'Grupo',
                     'description' => 'Catálogo de grupos',
                     'value' => $this->mapNames([
-                        'LÍNEA', 'MODA',
+                        'LÍNEA', 'MODA', 'FULLMODA',
                     ]),
                     'status' => true,
                 ],
@@ -219,6 +219,13 @@ class SettingsFieldParametersSeeder extends Seeder
                         ['name' => 'SHORT',     'garment_type' => 'inferior'],
                         ['name' => 'TOP',       'garment_type' => 'superior'],
                         ['name' => 'VESTIDO',   'garment_type' => 'ambos'],
+                        // Estas 4 ya existen en producción (agregadas manualmente vía la
+                        // app) con allowed_garment_type "ambos" — se replica ese valor
+                        // real en vez de inferir uno nuevo.
+                        ['name' => 'FALDASHORT', 'garment_type' => 'ambos'],
+                        ['name' => 'SUDADERA',  'garment_type' => 'ambos'],
+                        ['name' => 'CAMISA',    'garment_type' => 'ambos'],
+                        ['name' => 'BLUSA',     'garment_type' => 'ambos'],
                     ]),
                     'status' => true,
                 ],
@@ -229,7 +236,7 @@ class SettingsFieldParametersSeeder extends Seeder
                 'data' => [
                     'label' => 'Marcas',
                     'value' => $this->mapNames([
-                        'EVA CASTILLO', 'AMERICAN EAST', 'HERPO', 'PASSARO', 'LOHARY', 'ATUENDOS', 'LAXO', 'THE ANSWER',
+                        'EVA CASTILLO', 'AMERICAN EAST', 'HERPO', 'PASSARO', 'LOHARY', 'FULLWEAR', 'LAXO', 'THE ANSWER',
                     ]),
                     'status' => true,
                 ],
