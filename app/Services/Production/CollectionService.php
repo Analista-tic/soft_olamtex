@@ -5,6 +5,7 @@ namespace App\Services\Production;
 use App\Models\Production\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection as SupportCollection;
+use Illuminate\Validation\ValidationException;
 
 class CollectionService
 {
@@ -26,7 +27,17 @@ class CollectionService
 
     public function create(array $data): Collection
     {
-        return Collection::create($data);
+        $name = trim((string) ($data['name'] ?? ''));
+
+        if ($name === '') {
+            throw ValidationException::withMessages(['name' => 'El nombre es obligatorio.']);
+        }
+
+        if (Collection::where('name', $name)->exists()) {
+            throw ValidationException::withMessages(['name' => 'Ya existe una colección con ese nombre.']);
+        }
+
+        return Collection::create([...$data, 'name' => $name]);
     }
 
     public function update(Collection $collection, array $data): Collection

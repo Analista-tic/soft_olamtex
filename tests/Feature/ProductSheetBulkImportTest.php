@@ -12,6 +12,16 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
  * Tests de humo para la carga masiva de sábanas de producto (ProductSheetBulkImportService).
  * Requieren BD de pruebas MySQL real (mismo patrón que ProductSheetOperationTest).
  */
+function productSheetBulkImportTestFabricBaseName(): string
+{
+    return FabricBase::create([
+        'codigo' => 'BT-TEST-' . uniqid(),
+        'nombre' => 'TELA TEST ' . uniqid(),
+        'factor' => 1.0,
+        'is_active' => true,
+    ])->nombre;
+}
+
 function productSheetBulkImportTestColumns(): array
 {
     $settingService = app(SettingService::class);
@@ -197,4 +207,127 @@ test('bulk import reports an error for a row with an unknown section without abo
     expect($result['inserted'])->toBe(0);
     expect($result['updated'])->toBe(0);
     expect($result['errors'])->not->toBe([]);
+});
+
+test('bulk import auto-creates a brand that has no close match in the catalog', function () {
+    $brand = $this->settingService->getCatalogOptions('brands')->first();
+    $section = $this->settingService->getCatalogOptions('sections')->first();
+    $group = $this->settingService->getCatalogOptions('groups')->first();
+    $world = $this->settingService->getCatalogOptions('worlds')->first();
+
+    if (!$brand || !$section || !$group || !$world) {
+        expect(true)->toBeTrue();
+        return;
+    }
+
+    $newBrandName = 'MARCA NUEVA GENUINA ' . uniqid();
+    $productRef = 'TESTBRAND-' . uniqid();
+
+    $rows = productSheetBulkImportTestRows([
+        [
+            'TIPO *' => 'producto',
+            'SECCIÓN *' => $section['name'],
+            'GRUPO *' => $group['name'],
+            'MARCA *' => $newBrandName,
+            'MUNDO *' => $world['name'],
+            'ES TEJIDO *' => 'NO',
+            'BASE TEJIDO' => productSheetBulkImportTestFabricBaseName(),
+            'REF. PRODUCTO' => $productRef,
+            'PRECIO VENTA *' => '50000',
+            'DESCRIPCIÓN *' => 'Producto con marca nueva',
+        ],
+    ]);
+
+    $result = $this->service->processBulkUploadArray($rows);
+
+    expect($result['errors'])->toBe([]);
+    expect($result['inserted'])->toBe(1);
+    expect($result['created_catalog_entries'])->toContain("MARCA: '{$newBrandName}'");
+
+    $brands = $this->settingService->getCatalogOptions('brands');
+    expect($brands->pluck('name'))->toContain($newBrandName);
+});
+
+test('bulk import rejects a brand name that looks like a typo of an existing one instead of creating a duplicate', function () {
+    $brand = $this->settingService->getCatalogOptions('brands')->first();
+    $section = $this->settingService->getCatalogOptions('sections')->first();
+    $group = $this->settingService->getCatalogOptions('groups')->first();
+    $world = $this->settingService->getCatalogOptions('worlds')->first();
+
+    if (!$brand || !$section || !$group || !$world) {
+        expect(true)->toBeTrue();
+        return;
+    }
+
+    // Un typo de una letra sobre una marca real ya existente.
+    $typo = $brand['name'] . 'X';
+
+    $rows = productSheetBulkImportTestRows([
+        [
+            'TIPO *' => 'producto',
+            'SECCIÓN *' => $section['name'],
+            'GRUPO *' => $group['name'],
+            'MARCA *' => $typo,
+            'MUNDO *' => $world['name'],
+            'ES TEJIDO *' => 'NO',
+            'REF. PRODUCTO' => 'TESTTYPO-' . uniqid(),
+            'PRECIO VENTA *' => '50000',
+            'DESCRIPCIÓN *' => 'Producto con typo de marca',
+        ],
+    ]);
+
+    $countBefore = $this->settingService->getCatalogOptions('brands')->count();
+    $result = $this->service->processBulkUploadArray($rows);
+    $countAfter = $this->settingService->getCatalogOptions('brands')->count();
+
+    expect($result['inserted'])->toBe(0);
+    expect($countAfter)->toBe($countBefore);
+    expect(collect($result['errors'])->contains(fn ($e) => str_contains($e, $typo) && str_contains($e, $brand['name'])))->toBeTrue();
+});
+
+test('bulk import reuses a newly created catalog value across multiple rows in the same file', function () {
+    $section = $this->settingService->getCatalogOptions('sections')->first();
+    $group = $this->settingService->getCatalogOptions('groups')->first();
+    $world = $this->settingService->getCatalogOptions('worlds')->first();
+
+    if (!$section || !$group || !$world) {
+        expect(true)->toBeTrue();
+        return;
+    }
+
+    $newBrandName = 'MARCA REPETIDA ' . uniqid();
+
+    $rows = productSheetBulkImportTestRows([
+        [
+            'TIPO *' => 'producto',
+            'SECCIÓN *' => $section['name'],
+            'GRUPO *' => $group['name'],
+            'MARCA *' => $newBrandName,
+            'MUNDO *' => $world['name'],
+            'ES TEJIDO *' => 'NO',
+            'BASE TEJIDO' => productSheetBulkImportTestFabricBaseName(),
+            'REF. PRODUCTO' => 'TESTREUSE1-' . uniqid(),
+            'PRECIO VENTA *' => '50000',
+            'DESCRIPCIÓN *' => 'Fila 1',
+        ],
+        [
+            'TIPO *' => 'producto',
+            'SECCIÓN *' => $section['name'],
+            'GRUPO *' => $group['name'],
+            'MARCA *' => $newBrandName,
+            'MUNDO *' => $world['name'],
+            'ES TEJIDO *' => 'NO',
+            'BASE TEJIDO' => productSheetBulkImportTestFabricBaseName(),
+            'REF. PRODUCTO' => 'TESTREUSE2-' . uniqid(),
+            'PRECIO VENTA *' => '50000',
+            'DESCRIPCIÓN *' => 'Fila 2',
+        ],
+    ]);
+
+    $result = $this->service->processBulkUploadArray($rows);
+
+    expect($result['inserted'])->toBe(2);
+    expect(
+        collect($result['created_catalog_entries'])->filter(fn ($e) => $e === "MARCA: '{$newBrandName}'")->count()
+    )->toBe(1);
 });

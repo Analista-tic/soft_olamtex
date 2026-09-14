@@ -431,19 +431,26 @@ class ProductSheetController extends Controller
         ]);
 
         $spreadsheet = IOFactory::load($request->file('file')->getPathname());
-        $rows = $spreadsheet->getActiveSheet()->toArray(null, true, true, true);
+        // La plantilla mueve "Instrucciones" al frente y la deja como hoja activa
+        // (moveInstructionsToFirst()), así que un Excel guardado sin cambiar de
+        // pestaña reabre en "Instrucciones" — buscar la hoja de datos por nombre
+        // evita leer esa hoja en vez de "Sábanas".
+        $sheet = $spreadsheet->getSheetByName('Sábanas') ?? $spreadsheet->getActiveSheet();
+        $rows = $sheet->toArray(null, true, true, true);
 
         $result = $this->productSheetBulkImportService->processBulkUploadArray($rows);
 
         $inserted = $result['inserted'] ?? 0;
         $updated = $result['updated'] ?? 0;
         $errors = $result['errors'] ?? [];
+        $createdCatalogEntries = $result['created_catalog_entries'] ?? [];
 
         if ($inserted === 0 && $updated === 0 && ! empty($errors)) {
             return response()->json([
                 'success' => false,
                 'message' => 'No se pudo procesar ninguna fila. Errores: '.implode('; ', $errors),
                 'errors' => $errors,
+                'created_catalog_entries' => $createdCatalogEntries,
             ], 422);
         }
 
@@ -454,13 +461,22 @@ class ProductSheetController extends Controller
         if ($updated > 0) {
             $parts[] = "{$updated} sábana(s) actualizada(s)";
         }
+        if (! empty($createdCatalogEntries)) {
+            $parts[] = count($createdCatalogEntries).' valor(es) nuevo(s) agregado(s) a catálogos';
+        }
+
+        $message = 'Carga masiva completada. '.implode(', ', $parts).(! empty($errors) ? '. Revisa las filas con advertencias.' : '.');
+        if (! empty($createdCatalogEntries)) {
+            $message .= ' Se agregaron: '.implode('; ', $createdCatalogEntries).'. Revísalos por si alguno era un typo.';
+        }
 
         return response()->json([
             'success' => true,
-            'message' => 'Carga masiva completada. '.implode(', ', $parts).(! empty($errors) ? '. Revisa las filas con advertencias.' : '.'),
+            'message' => $message,
             'inserted' => $inserted,
             'updated' => $updated,
             'errors' => $errors,
+            'created_catalog_entries' => $createdCatalogEntries,
         ]);
     }
 
