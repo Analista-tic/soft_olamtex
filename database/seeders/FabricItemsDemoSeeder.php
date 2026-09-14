@@ -278,7 +278,9 @@ class FabricItemsDemoSeeder extends Seeder
                 'description' => 'Factura de compra tela - Recepción CAMARBU RIB SUPER y PIQUE MESH',
                 'created_by_user_id' => $userId,
                 'executed_by_user_id' => $userId,
-                'status' => 'received',
+                // 'received' ya no es un valor válido del enum status desde la migración
+                // 2026_05_24_200000_add_partially_invoiced_status_to_purchase_documents.
+                'status' => 'invoiced',
                 'supplier_invoice_number' => 'FAC-CAM-2026-001',
                 'invoiced_at' => $now->copy()->subDays(3),
                 'created_at' => $now,
