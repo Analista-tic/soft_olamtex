@@ -299,9 +299,19 @@ class ItemController extends Controller
             $request->input('extra_fields') ?? ($item?->extra_fields ?? [])
         );
         $data['extra_fields'] = $extraFields;
-        $data['color_id'] = $request->filled('color_id') ? (int) $request->input('color_id') : null;
-        $data['fabric_name_id'] = $request->filled('fabric_name_id') ? (int) $request->input('fabric_name_id') : null;
-        $data['yarn_name_id'] = $request->filled('yarn_name_id') ? (int) $request->input('yarn_name_id') : null;
+        // Si el campo no viene en el request (p.ej. una actualización parcial que no
+        // toca el color), se conserva el valor actual del ítem en vez de nulearlo —
+        // antes se forzaba a null siempre que no llegara "filled", incluso en
+        // ediciones que ni mostraban ese campo.
+        $data['color_id'] = $request->has('color_id')
+            ? ($request->filled('color_id') ? (int) $request->input('color_id') : null)
+            : ($item->color_id ?? null);
+        $data['fabric_name_id'] = $request->has('fabric_name_id')
+            ? ($request->filled('fabric_name_id') ? (int) $request->input('fabric_name_id') : null)
+            : ($item->fabric_name_id ?? null);
+        $data['yarn_name_id'] = $request->has('yarn_name_id')
+            ? ($request->filled('yarn_name_id') ? (int) $request->input('yarn_name_id') : null)
+            : ($item->yarn_name_id ?? null);
 
         $subGroupId = $request->has('category_sub_group_id')
             ? (int) $request->input('category_sub_group_id')
