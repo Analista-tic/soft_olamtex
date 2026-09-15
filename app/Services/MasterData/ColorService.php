@@ -5,6 +5,7 @@ namespace App\Services\MasterData;
 use App\Models\MasterData\Color;
 use App\Models\MasterData\Item;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ColorService
@@ -15,14 +16,41 @@ class ColorService
             ->orderBy('name')->get();
     }
 
+    /**
+     * `code` no se pide en ningún formulario (ni el alta rápida desde el ítem ni la
+     * pantalla de Configuración > Colores) — se asigna aquí de forma automática y
+     * consecutiva. Sin esto el color queda con `code` null y
+     * ItemReferenceSequenceService::generate() falla al construir la referencia
+     * automática de un ítem que use ese color recién creado.
+     */
     public function create(array $data): Color
     {
-        return Color::create($this->normalizeColorValues($data));
+        return DB::transaction(function () use ($data) {
+            $normalized = $this->normalizeColorValues($data);
+            $normalized['code'] = $this->nextCode();
+
+            return Color::create($normalized);
+        });
+    }
+
+    private function nextCode(): string
+    {
+        $maxCode = (int) Color::query()->lockForUpdate()->max('code');
+        $next = $maxCode + 1;
+
+        if ($next > 999) {
+            throw ValidationException::withMessages([
+                'code' => 'Se alcanzó el máximo de códigos de color disponibles (999).',
+            ]);
+        }
+
+        return str_pad((string) $next, 3, '0', STR_PAD_LEFT);
     }
 
     public function update(Color $color, array $data): Color
     {
         $color->update($this->normalizeColorValues($data));
+
         return $color->fresh();
     }
 
@@ -80,7 +108,7 @@ class ColorService
 
             throw new \RuntimeException(
                 "No se puede eliminar el color \"{$color->name}\" porque tiene {$label}. "
-                . "Reasigne o quite el color de esos ítems antes de eliminarlo."
+                .'Reasigne o quite el color de esos ítems antes de eliminarlo.'
             );
         }
 
