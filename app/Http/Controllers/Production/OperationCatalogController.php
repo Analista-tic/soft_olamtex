@@ -87,7 +87,10 @@ class OperationCatalogController extends Controller
             match ($catalog) {
                 'sections' => [
                     'name' => ['required', 'string', 'max:255'],
-                    'type' => ['required', 'string', 'in:PREPARACION,ENSAMBLE,TERMINACION,confeccion,presentacion'],
+                    // El enum de operation_sections.type ya no acepta confeccion/presentacion
+                    // (ver migración update_operation_sections_enum_type) — aceptarlos aquí solo
+                    // producía el error "Data truncated for column 'type'" al insertar.
+                    'type' => ['required', 'string', 'in:PREPARACION,ENSAMBLE,TERMINACION'],
                     'is_active' => ['sometimes', 'boolean'],
                 ],
                 'machines' => [

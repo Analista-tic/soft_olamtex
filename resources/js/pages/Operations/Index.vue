@@ -20,7 +20,7 @@ import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { ChevronLeft, ChevronRight, Database, Eye, Pencil, Plus, Search, Settings2, Trash2 } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import OperationCatalogManagerDialog, { type ManagedMachine, type ManagedSection } from './OperationCatalogManagerDialog.vue';
+import OperationCatalogManagerDialog, { type ManagedMachine, type ManagedSection, type SectionType } from './OperationCatalogManagerDialog.vue';
 import OperationDetailDialog from './OperationDetailDialog.vue';
 import OperationFormDialog from './OperationFormDialog.vue';
 
@@ -81,7 +81,7 @@ const localSections = ref<ManagedSection[]>(
     (page.props.sections || []).map((section) => ({
         id: Number(section.id),
         name: section.name,
-        type: (section.type ?? 'confeccion') as 'confeccion' | 'presentacion',
+        type: (section.type ?? 'PREPARACION') as SectionType,
         is_active: true,
         usage_count: 0,
     })),

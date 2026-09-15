@@ -56,10 +56,11 @@ const form = ref({
 });
 
 const sectionOptions = [
-    { id: 'confeccion', label: 'Confección' },
-    { id: 'presentacion', label: 'Presentación' },
+    { id: 'PREPARACION', label: 'Preparación' },
+    { id: 'ENSAMBLE', label: 'Ensamble' },
+    { id: 'TERMINACION', label: 'Terminación' },
 ] as const;
-const selectedSectionType = ref<(typeof sectionOptions)[number]['id']>('confeccion');
+const selectedSectionType = ref<(typeof sectionOptions)[number]['id']>('PREPARACION');
 
 const entityLabels = {
     section: { title: 'Nueva sección', description: 'Completa los datos para registrar una sección nueva.', button: 'Registrar sección' },
@@ -151,7 +152,7 @@ async function submitForm() {
         successMessage.value = response?.data?.message || 'Elemento creado correctamente.';
         errorMessage.value = '';
         form.value = { name: '', code: '', machine_name: '' };
-        selectedSectionType.value = 'confeccion';
+        selectedSectionType.value = 'PREPARACION';
         setTimeout(() => {
             closeDialog();
             clearSuccessMessage();
