@@ -89,17 +89,25 @@ class FinishedProductCatalogItemService
      */
     private function extractSubGroupAndExtraFields(string $productName, ProductSheet $productSheet): array
     {
-        $parts = preg_split('/\s+/u', $productName) ?: [];
-        $parts = array_values(array_filter(array_map(
-            fn ($part) => $this->normalizeText($part),
-            $parts
-        )));
-
-        if ($parts === []) {
-            throw new \RuntimeException('No fue posible descomponer el nombre del producto para generar el subgrupo.');
+        // El subgrupo sale de la Sección estructurada de la sábana, no del
+        // nombre libre del producto — el nombre puede ser cualquier texto
+        // que escriba el usuario (ver ProductSheetDialog.vue) y ya no tiene
+        // por qué empezar con la sección.
+        $subGroupName = $this->resolveCatalogOptionName('sections', $productSheet->section_id ?? null);
+        if ($subGroupName === '') {
+            // Caso borde: la opción de sección se borró/renombró en Settings
+            // después de crear la sábana. section_id es NOT NULL + required,
+            // así que esto no debería pasar en el flujo normal (y la capa de
+            // prevención en ParameterUsageService lo bloquea desde el origen),
+            // pero se degrada con gracia en vez de reventar la recepción de
+            // bodega por un catálogo desactualizado.
+            $subGroupName = $this->firstWordFallback($productName);
         }
+        if ($subGroupName === '') {
+            throw new \RuntimeException('No fue posible determinar el subgrupo del producto.');
+        }
+        $subGroupName = mb_strtoupper($subGroupName, 'UTF-8');
 
-        $subGroupName = mb_strtoupper((string) array_shift($parts), 'UTF-8');
         $extraFields = [];
 
         $fabricBase = $this->resolveFabricBaseName($productSheet->fabric_base_id ?? null);
@@ -120,6 +128,8 @@ class FinishedProductCatalogItemService
         Log::info('finished_product_catalog_item.extra_fields_resolved', [
             'product_sheet_id' => $productSheet->id,
             'product_name' => $productName,
+            'section_id' => $productSheet->section_id,
+            'sub_group' => $subGroupName,
             'fabric_base_id' => $productSheet->fabric_base_id,
             'fabric_base' => $fabricBase,
             'yarn_base_id' => $productSheet->yarn_base_id,
@@ -130,6 +140,22 @@ class FinishedProductCatalogItemService
         ]);
 
         return [$subGroupName, $extraFields];
+    }
+
+    /**
+     * Respaldo del comportamiento anterior: primera palabra del nombre del
+     * producto. Solo se usa si la Sección de la sábana no se pudo resolver
+     * contra el catálogo (ver comentario arriba).
+     */
+    private function firstWordFallback(string $productName): string
+    {
+        $parts = preg_split('/\s+/u', $productName) ?: [];
+        $parts = array_values(array_filter(array_map(
+            fn ($part) => $this->normalizeText($part),
+            $parts
+        )));
+
+        return $parts === [] ? '' : mb_strtoupper((string) $parts[0], 'UTF-8');
     }
 
     private function resolveFabricBaseName(int|string|null $fabricBaseId): string
@@ -323,7 +349,11 @@ class FinishedProductCatalogItemService
                 $talla       = mb_strtoupper(trim((string) $key), 'UTF-8');
                 $colorSuffix = $colorCode3 ?? Str::upper(Str::limit($colorName, 6, ''));
                 $reference   = mb_strtoupper("{$productRef}{$colorSuffix}{$talla}", 'UTF-8');
-                $name        = mb_strtoupper(trim("{$subGroupName} {$talla} {$colorName}"), 'UTF-8');
+                // Color antes que talla, igual que el reference de arriba
+                // (nomenclatura de la empresa) — sin mezclar el código
+                // numérico de referencia en el nombre, que sigue siendo texto
+                // legible (Sección + color + talla).
+                $name        = mb_strtoupper(trim("{$subGroupName} {$colorName} {$talla}"), 'UTF-8');
 
                 $extraFields          = $baseExtraFields;
                 $extraFields['TALLA'] = $talla;

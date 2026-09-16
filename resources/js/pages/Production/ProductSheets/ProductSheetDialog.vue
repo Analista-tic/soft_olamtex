@@ -131,6 +131,7 @@ const processAliases: Record<string, string> = {
     Sublimado: 'Estampado',
 };
 const hasAppliedDefaultSampleProcess = ref(false);
+const hasUserEditedDescription = ref(false);
 const mandatoryProcesses = ['Muestras', 'Confección', 'Terminación', 'Bodega'];
 const flatSketchRef = ref<InstanceType<typeof ImageUploadViewer> | null>(null);
 
@@ -1120,13 +1121,26 @@ const autoDescription = computed(() => {
     return [section, world].filter(Boolean).join(' ').toUpperCase();
 });
 
+// Sugerencia de "Sección + Mundo" solo en creación y solo mientras el usuario
+// no haya escrito su propio nombre — una vez que lo edita, el campo queda
+// 100% en sus manos (ver descriptionModel más abajo).
 watch(
     autoDescription,
     (val) => {
-        form.value.description = val;
+        if (isCreateMode.value && !hasUserEditedDescription.value) {
+            form.value.description = val;
+        }
     },
     { immediate: true },
 );
+
+const descriptionModel = computed({
+    get: () => form.value.description,
+    set: (val: string) => {
+        hasUserEditedDescription.value = true;
+        form.value.description = val;
+    },
+});
 
 watch(
     () => form.value.woven_product,
@@ -1575,6 +1589,7 @@ function resetForm() {
     localCuttingPieces.value = [];
     closeConvertDialog();
     hasAppliedDefaultSampleProcess.value = false;
+    hasUserEditedDescription.value = false;
     hasSampleOperationalList.value = true;
     checkingSampleOperationalList.value = false;
     selectedTemplateId.value = null;
@@ -2093,9 +2108,10 @@ function handleClose() {
                                         @error="setError"
                                     />
 
-                                    <!-- Nombre del producto (auto-generado: sección + mundo) — se
-                                    muestra aquí, junto a la imagen, como una vista previa de lo
-                                    que resulta de la Clasificación elegida a la izquierda. -->
+                                    <!-- Nombre del producto: en creación se sugiere "Sección + Mundo"
+                                    como punto de partida, pero es editable — apenas el usuario
+                                    escribe encima, el campo queda en sus manos y ya no se
+                                    sobreescribe (ver descriptionModel/hasUserEditedDescription). -->
                                     <div class="flex flex-col gap-1">
                                         <div class="flex items-center gap-2">
                                             <Label class="text-sm font-medium">Nombre del producto<span class="text-red-500">*</span></Label>
@@ -2107,11 +2123,11 @@ function handleClose() {
                                             </span>
                                         </div>
                                         <InputField
-                                            v-model="form.description"
+                                            v-model="descriptionModel"
                                             label=""
                                             type="text"
-                                            placeholder="Se genera automáticamente"
-                                            :disabled="true"
+                                            placeholder="Escribe el nombre del producto"
+                                            :disabled="isReadonly"
                                             :error="showFieldErrors ? fieldErrors.description : undefined"
                                         />
                                     </div>
