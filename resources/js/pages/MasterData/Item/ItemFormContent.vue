@@ -187,6 +187,7 @@ function mapItemToFormState(source: ItemFormSource): ItemForm {
                 : null,
         reference: source.reference || '',
         bar_code: source.bar_code ?? '',
+        legacy_code: source.legacy_code ?? '',
         tax_id: resolvedTaxId,
         item_type: normalizeItemType(source.item_type),
         export_tariff_code: source.export_tariff_code ?? '',
@@ -1807,7 +1808,7 @@ onBeforeUnmount(() => {
                                 <Input v-model="nameField" label="Nombre" readonly class="mt-1" placeholder="Nombre autocompletado" />
                             </div>
 
-                            <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
+                            <div class="grid grid-cols-1 gap-3 md:grid-cols-5">
                                 <template v-if="isViewMode">
                                     <div class="flex flex-col gap-1">
                                         <Label>Grupo</Label>
@@ -1932,8 +1933,8 @@ onBeforeUnmount(() => {
                                     <InputField
                                         v-else
                                         v-model="localForm.legacy_code"
-                                        label="Código sistema anterior (Avansis)"
-                                        placeholder="Opcional"
+                                        label="Código sistema anterior"
+                                        placeholder="Avansis (opcional)"
                                     />
                                 </div>
                             </div>
