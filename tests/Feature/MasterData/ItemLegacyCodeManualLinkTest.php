@@ -20,7 +20,7 @@ beforeEach(function () {
     );
 
     $user = User::factory()->create();
-    foreach (['ver inventario telas', 'crear inventario telas', 'editar inventario telas'] as $permission) {
+    foreach (['ver inventario telas', 'crear inventario telas', 'editar inventario telas', 'crear referencia manual item'] as $permission) {
         $user->givePermissionTo(Permission::findOrCreate($permission, 'web'));
     }
     $this->actingAs($user);
@@ -31,6 +31,7 @@ it('saves a manually entered legacy_code when creating an item', function () {
         'category_sub_group_id' => $this->subGroup->id,
         'legacy_code' => 'AVS-12345',
         'reference' => 'REF-LEGACY-'.uniqid(),
+        'reference_mode' => 'manual',
         'description' => 'Item con codigo Avansis manual',
         'tax' => 0,
         'negative_movement' => false,

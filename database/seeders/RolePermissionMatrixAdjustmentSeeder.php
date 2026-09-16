@@ -64,6 +64,7 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'aprobar recepcion tela',
             'rechazar recepcion tela',
             'habilitar item',
+            'crear referencia manual item',
         ];
 
         foreach ($permissions as $permissionName) {
@@ -351,6 +352,10 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
                 // $commonMasterDataAndCore) — deshabilitar sigue siendo libre,
                 // habilitar queda reservado a un rol de mayor jerarquía.
                 'habilitar item',
+                // La referencia de un ítem nuevo se genera automática por defecto;
+                // asignarla a mano queda reservado a un rol de mayor jerarquía, igual
+                // que 'habilitar item'.
+                'crear referencia manual item',
             ]
         ));
 

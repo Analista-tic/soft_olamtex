@@ -29,7 +29,7 @@ beforeEach(function () {
     $this->color = Color::create(['name' => 'ROJO AUTO REF TEST', 'code' => '77']);
 
     $user = User::factory()->create();
-    foreach (['ver inventario telas', 'crear inventario telas', 'editar inventario telas'] as $permission) {
+    foreach (['ver inventario telas', 'crear inventario telas', 'editar inventario telas', 'crear referencia manual item'] as $permission) {
         $user->givePermissionTo(Permission::findOrCreate($permission, 'web'));
     }
     $this->user = $user;
@@ -183,4 +183,45 @@ it('generates an automatic reference for an item using a color just created inli
 
     expect($reference)->toHaveLength(12);
     expect(substr($reference, 9, 3))->toBe(Color::find($newColorId)->code);
+});
+
+it('rejects a manual reference from a user without the manual-reference permission', function () {
+    $userWithoutPermission = User::factory()->create();
+    foreach (['ver inventario telas', 'crear inventario telas'] as $permission) {
+        $userWithoutPermission->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+    }
+    $this->actingAs($userWithoutPermission);
+
+    $response = $this->postJson(route('item.store'), [
+        'category_sub_group_id' => $this->subGroup->id,
+        'color_id' => $this->color->id,
+        'reference' => 'REF-MANUAL-SIN-PERMISO-'.uniqid(),
+        'reference_mode' => 'manual',
+        'description' => 'Item de prueba sin permiso',
+        'tax' => 0,
+        'negative_movement' => false,
+        'item_type' => 'product',
+    ]);
+
+    $response->assertStatus(422);
+    expect($response->json('errors.reference_mode.0'))->toContain('permiso');
+});
+
+it('defaults to automatic reference when reference_mode is omitted, even for a user with manual permission', function () {
+    $response = $this->postJson(route('item.store'), [
+        'category_sub_group_id' => $this->subGroup->id,
+        'color_id' => $this->color->id,
+        'description' => 'Item sin reference_mode explicito',
+        'tax' => 0,
+        'negative_movement' => false,
+        'item_type' => 'product',
+    ]);
+
+    $response->assertCreated();
+    $reference = $response->json('reference');
+
+    expect($reference)->toHaveLength(12)
+        ->and(substr($reference, 5, 2))->toBe('09')
+        ->and(substr($reference, 7, 2))->toBe('05')
+        ->and(substr($reference, 9, 3))->toBe('077');
 });

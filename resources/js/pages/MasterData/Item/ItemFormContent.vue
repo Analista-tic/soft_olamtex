@@ -217,7 +217,9 @@ const selectedGroupId = ref<string | null>(null);
 
 // Referencia automática/manual — solo aplica al crear (editar conserva la referencia
 // tal como quedó, sea cual sea el origen; ver ItemController::prepareItemPayload()).
-const referenceMode = ref<'manual' | 'auto'>('manual');
+// Automática es el default: manual requiere el permiso 'crear referencia manual
+// item' (ver canCreateManualReference más abajo).
+const referenceMode = ref<'manual' | 'auto'>('auto');
 
 const imageFile = ref<File | null>(null);
 const imagePreview = ref<string | undefined>(undefined);
@@ -332,6 +334,7 @@ const yarnNameModel = computed<number | null>({
 });
 const canCreateCategories = computed(() => authStore.can('crear categorias'));
 const canCreateTaxes = computed(() => authStore.can('crear impuestos'));
+const canCreateManualReference = computed(() => authStore.can('crear referencia manual item'));
 const canCreateAdditionalFields = computed(() => authStore.can('crear campos adicionales'));
 const canCreateWarehouses = computed(() => authStore.can('crear bodegas'));
 
@@ -644,7 +647,7 @@ function syncGroupFromSubgroup() {
 
 function applyFormData(source: ItemFormSource) {
     localForm.value = mapItemToFormState(source);
-    referenceMode.value = 'manual';
+    referenceMode.value = 'auto';
     unitMeasure.value = getInitialUnitMeasure(source);
     selectedColorName.value = source.color?.name ? String(source.color.name).trim() : '';
     fillExtraFields(source.extra_fields);
@@ -1902,7 +1905,11 @@ onBeforeUnmount(() => {
                                     <div class="flex flex-col gap-1">
                                         <div class="flex items-center justify-between gap-2">
                                             <Label>Referencia</Label>
-                                            <Tabs v-if="props.dialogType === 'create'" v-model="referenceMode" class="shrink-0">
+                                            <Tabs
+                                                v-if="props.dialogType === 'create' && canCreateManualReference"
+                                                v-model="referenceMode"
+                                                class="shrink-0"
+                                            >
                                                 <TabsList class="h-7 p-0.5">
                                                     <TabsTrigger value="manual" class="h-6 px-2.5 text-xs">Manual</TabsTrigger>
                                                     <TabsTrigger value="auto" class="h-6 px-2.5 text-xs">Automática</TabsTrigger>

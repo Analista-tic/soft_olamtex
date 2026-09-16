@@ -42,7 +42,7 @@ beforeEach(function () {
     $this->color = Color::create(['name' => 'AZUL REY']);
 
     $user = User::factory()->create();
-    foreach (['ver inventario telas', 'crear inventario telas', 'editar inventario telas'] as $permission) {
+    foreach (['ver inventario telas', 'crear inventario telas', 'editar inventario telas', 'crear referencia manual item'] as $permission) {
         $user->givePermissionTo(Permission::findOrCreate($permission, 'web'));
     }
     $this->actingAs($user);
@@ -54,6 +54,7 @@ it('includes the material base and name between the subgroup and the color', fun
         'fabric_name_id' => $this->fabricName->id,
         'color_id' => $this->color->id,
         'reference' => 'REF-NAME-'.uniqid(),
+        'reference_mode' => 'manual',
         'description' => 'Item de prueba',
         'tax' => 0,
         'negative_movement' => false,
@@ -71,6 +72,7 @@ it('keeps the previous name shape for an item of an unrelated subgroup', functio
         'category_sub_group_id' => $this->otherSubGroup->id,
         'color_id' => $this->color->id,
         'reference' => 'REF-NAME-OTHER-'.uniqid(),
+        'reference_mode' => 'manual',
         'description' => 'Item de prueba',
         'tax' => 0,
         'negative_movement' => false,

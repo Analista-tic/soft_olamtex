@@ -328,6 +328,39 @@ class ItemController extends Controller
         return $this->service->resolveWarehousePayload($request->input('warehouses'));
     }
 
+    /**
+     * La referencia automática es exclusiva de la creación: en edición, aunque
+     * llegara reference_mode=auto por error, no se regenera — cada regeneración
+     * consumiría un consecutivo nuevo y reemplazaría una referencia ya en uso (en
+     * compras, movimientos de inventario, etc.).
+     *
+     * Por defecto la referencia de un ítem nuevo es siempre automática; asignarla
+     * a mano requiere el permiso 'crear referencia manual item' (reservado a un rol
+     * de mayor jerarquía, igual que 'habilitar item'). Se llama tanto desde
+     * itemValidationRules() (para saber si `reference` es obligatoria) como desde
+     * prepareItemPayload() (para decidir si se genera o se respeta la enviada) —
+     * ambas deben resolver siempre lo mismo, así que viven en un solo lugar.
+     */
+    private function resolveReferenceMode(Request $request, bool $isUpdate): string
+    {
+        if ($isUpdate) {
+            return 'manual';
+        }
+
+        $wantsManual = $request->input('reference_mode', 'auto') === 'manual';
+        if (! $wantsManual) {
+            return 'auto';
+        }
+
+        if (! $request->user()?->can('crear referencia manual item')) {
+            throw ValidationException::withMessages([
+                'reference_mode' => ['No tienes permiso para asignar una referencia manual. La referencia se genera automáticamente.'],
+            ]);
+        }
+
+        return 'manual';
+    }
+
     private function prepareItemPayload(Request $request, array $data, ?Item $item = null): array
     {
         $extraFields = $this->service->normalizeExtraFields(
@@ -369,11 +402,7 @@ class ItemController extends Controller
 
         $colorId = ! empty($data['color_id']) ? (int) $data['color_id'] : null;
 
-        // La referencia automática es exclusiva de la creación: en edición, aunque
-        // llegara reference_mode=auto por error, no se regenera — cada regeneración
-        // consumiría un consecutivo nuevo y reemplazaría una referencia ya en uso
-        // (en compras, movimientos de inventario, etc.).
-        $referenceMode = ! $item && $request->input('reference_mode', 'manual') === 'auto' ? 'auto' : 'manual';
+        $referenceMode = $this->resolveReferenceMode($request, $item !== null);
         if ($referenceMode === 'auto') {
             // La referencia la genera el servicio, sin importar lo que haya llegado en
             // el payload — el frontend no debería enviar nada en modo automático, pero
@@ -486,7 +515,7 @@ class ItemController extends Controller
         // manual conserva la misma validación de siempre: obligatoria y única. Solo
         // aplica en creación — igual que en prepareItemPayload(), en edición nunca se
         // trata como automática aunque llegue reference_mode=auto por error.
-        $referenceMode = ! $isUpdate && $request?->input('reference_mode', 'manual') === 'auto' ? 'auto' : 'manual';
+        $referenceMode = $request ? $this->resolveReferenceMode($request, $isUpdate) : 'manual';
 
         if ($referenceMode === 'auto') {
             $rules['reference'] = ['nullable', 'string'];

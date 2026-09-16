@@ -52,7 +52,7 @@ beforeEach(function () {
     ]);
 
     $user = User::factory()->create();
-    foreach (['ver inventario telas', 'crear inventario telas', 'editar inventario telas'] as $permission) {
+    foreach (['ver inventario telas', 'crear inventario telas', 'editar inventario telas', 'crear referencia manual item'] as $permission) {
         $user->givePermissionTo(Permission::findOrCreate($permission, 'web'));
     }
     $this->actingAs($user);
@@ -63,6 +63,7 @@ function baseValidationItemPayload(int $subGroupId): array
     return [
         'category_sub_group_id' => $subGroupId,
         'reference' => 'REF-VALID-'.uniqid(),
+        'reference_mode' => 'manual',
         'description' => 'Item de prueba validacion',
         'tax' => 0,
         'negative_movement' => false,
