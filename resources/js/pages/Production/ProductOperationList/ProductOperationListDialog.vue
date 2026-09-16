@@ -23,7 +23,7 @@ import type {
     ProductOperationPayload,
     ProductSheetDialogOption,
 } from '@/domain/product-sheet/types';
-import { CornerDownLeft, GripVertical, Pencil, Plus, PlusCircle, X } from 'lucide-vue-next';
+import { CornerDownLeft, GripVertical, Lightbulb, Pencil, Plus, PlusCircle, X } from 'lucide-vue-next';
 import { computed, PropType, ref, watch } from 'vue';
 import AddNew from './AddNew.vue';
 
@@ -178,6 +178,25 @@ function isSectionPreparacion(sectionId: number | string | null): boolean {
     return (section?.type ?? '').toLowerCase() === 'preparacion';
 }
 
+/**
+ * Sugiere un grupo de preparación existente a partir del garment_part de la
+ * operación (ej. "MANGA LARGA" -> "MANGA" si ese grupo ya existe). Nunca crea
+ * un grupo nuevo aquí: si no hay coincidencia exacta o de palabra completa,
+ * devuelve null y el usuario elige/crea uno manualmente, igual que hoy — así
+ * se evita generar grupos casi-duplicados a partir de texto libre.
+ */
+function suggestPreparationGroup(garmentPart: string | null | undefined, groups: string[]): string | null {
+    const normalized = String(garmentPart ?? '').trim().toUpperCase().replace(/\s+/g, ' ');
+    if (!normalized) return null;
+
+    const tokens = normalized.split(' ');
+
+    return groups.find((g) => {
+        const groupNorm = g.trim().toUpperCase();
+        return groupNorm !== '' && (groupNorm === normalized || tokens.includes(groupNorm));
+    }) ?? null;
+}
+
 const createEmptyRow = (): ProductOperationDialogRow => ({
     row_key: buildRowKey('new'),
     id: null,
@@ -291,8 +310,12 @@ watch(
         const samTotal = Number(op.sam_base ?? 0);
         currentRow.value.sam_total_base = Number.isFinite(samTotal) ? samTotal : 0;
         currentRow.value.optimal_time = currentRow.value.sam_total_base.toFixed(2);
-        // Reset grupo_preparacion if section is not PREPARACION
-        if (!isSectionPreparacion(currentRow.value.section_id)) {
+        // Grupo de preparación: se sugiere desde garment_part si la sección
+        // es PREPARACION y hay una coincidencia confiable; si no, se limpia
+        // para que el usuario elija/cree uno manualmente (como hoy).
+        if (isSectionPreparacion(currentRow.value.section_id)) {
+            currentRow.value.grupo_preparacion = suggestPreparationGroup(op.garment_part, preparationGroupsList.value);
+        } else {
             currentRow.value.grupo_preparacion = null;
         }
 
@@ -315,6 +338,11 @@ watch(
 );
 
 const isEditMode = computed(() => props.mode === 'edit');
+
+/** True cuando la fila en alta necesita un grupo de preparación y no se pudo sugerir uno automáticamente. */
+const needsManualPreparationGroup = computed(
+    () => isSectionPreparacion(currentRow.value.section_id) && !currentRow.value.grupo_preparacion,
+);
 
 const availableProductSheets = computed(() => {
     const excluded = new Set((props.excludedProductSheetIds ?? []).map((id) => normalizeComparableId(id as number | string | null | undefined)));
@@ -783,8 +811,10 @@ function resetForm() {
                             <HelpTooltip text="SAM total unitario: (SAM base / F.op.) × suplemento máq. × factor base tela." />
                         </div>
                         <div class="col-span-3 flex items-center gap-1">
-                            Grupo prep.
-                            <HelpTooltip text="Solo para secciones de tipo PREPARACIÓN. Reagrupa operaciones dentro de la sección." />
+                            Grupo prep.<span v-if="needsManualPreparationGroup" class="text-red-500">*</span>
+                            <HelpTooltip
+                                text="Solo para secciones de tipo PREPARACIÓN. Se sugiere desde la parte de prenda de la operación; si no hay coincidencia, elige o crea uno."
+                            />
                         </div>
                         <div class="col-span-1"></div>
                     </div>
@@ -864,6 +894,16 @@ function resetForm() {
                                 class="h-7 w-full rounded-md border border-input bg-transparent px-2 text-xs text-muted-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
                                 @keydown.enter.prevent="handleEnterAddOperation"
                             />
+                        </div>
+                        <div
+                            v-if="needsManualPreparationGroup"
+                            class="col-span-12 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700"
+                        >
+                            <Lightbulb class="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            <span>
+                                Esta operación es de sección PREPARACIÓN y no se pudo sugerir un grupo automáticamente desde su parte de
+                                prenda — elige uno existente o escribe uno nuevo (ej. Cuello, Manga, Bolsillo) para poder añadirla.
+                            </span>
                         </div>
                     </div>
 
