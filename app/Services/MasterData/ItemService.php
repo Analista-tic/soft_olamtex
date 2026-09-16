@@ -1515,10 +1515,11 @@ class ItemService
     }
 
     /**
-     * Arma el nombre del ítem: subgrupo + material (base + nombre) + extras + color.
-     * "TELA ALGODÓN MILE AZUL REY" — sin paréntesis, esos viven solo en el selector.
-     * Cada segmento se agrega evitando duplicar texto ya presente en lo acumulado
-     * (antes esa deduplicación solo aplicaba al color).
+     * Arma el nombre del ítem: subgrupo + material + extras + color.
+     * Para tela: "TELA MILE (ALGODÓN) AZUL REY" — nombre de tela con la base entre
+     * paréntesis. Para hilaza (y el resto de materiales) se mantiene "base nombre"
+     * sin paréntesis, ej. "ALGODÓN MILE". Cada segmento se agrega evitando duplicar
+     * texto ya presente en lo acumulado (antes esa deduplicación solo aplicaba al color).
      */
     protected function buildName(
         ?int $subGroupId,
@@ -1542,16 +1543,20 @@ class ItemService
     }
 
     /**
-     * "{base} {nombre}" — ej. "ALGODÓN MILE". Un ítem es tela o hilaza, nunca ambas
-     * (fabric_name_id/yarn_name_id se validan como mutuamente excluyentes según el
-     * subgrupo), así que basta con probar fabric primero.
+     * Tela: "{nombre} ({base})" — ej. "MILE (ALGODÓN)". Hilaza: "{base} {nombre}" —
+     * ej. "ALGODÓN MILE". Un ítem es tela o hilaza, nunca ambas (fabric_name_id/
+     * yarn_name_id se validan como mutuamente excluyentes según el subgrupo), así
+     * que basta con probar fabric primero.
      */
     protected function buildMaterialNameSegment(?int $fabricNameId, ?int $yarnNameId): string
     {
         if ($fabricNameId) {
             $fabricName = FabricName::with('fabricBase')->find($fabricNameId);
             if ($fabricName) {
-                return trim(($fabricName->fabricBase->nombre ?? '').' '.$fabricName->nombre);
+                $baseName = trim($fabricName->fabricBase->nombre ?? '');
+                $fabricNombre = trim($fabricName->nombre);
+
+                return $baseName !== '' ? "{$fabricNombre} ({$baseName})" : $fabricNombre;
             }
         }
 

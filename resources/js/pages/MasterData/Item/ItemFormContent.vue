@@ -577,11 +577,14 @@ function appendNameSegment(name: string, segment: string): string {
     return `${name} ${trimmedSegment}`.trim();
 }
 
-// Espejo de ItemService::buildMaterialNameSegment(): "{base} {nombre}", ej. "ALGODÓN
-// MILE". Un ítem es tela o hilaza, nunca ambas.
+// Espejo de ItemService::buildMaterialNameSegment(): tela → "{nombre} ({base})", ej.
+// "MILE (ALGODÓN)". Hilaza → "{base} {nombre}", ej. "ALGODÓN MILE". Un ítem es tela o
+// hilaza, nunca ambas.
 function materialNameSegment(): string {
     if (materialKind.value === 'fabric' && selectedFabricNameOption.value) {
-        return `${selectedFabricNameOption.value.base_nombre ?? ''} ${selectedFabricNameOption.value.nombre}`.trim();
+        const baseName = (selectedFabricNameOption.value.base_nombre ?? '').trim();
+        const fabricNombre = (selectedFabricNameOption.value.nombre ?? '').trim();
+        return baseName !== '' ? `${fabricNombre} (${baseName})` : fabricNombre;
     }
     if (materialKind.value === 'yarn' && selectedYarnNameOption.value) {
         return `${selectedYarnNameOption.value.base_nombre ?? ''} ${selectedYarnNameOption.value.nombre}`.trim();
