@@ -6,6 +6,9 @@
 - En tareas complejas, esperar pasos numerados antes de ejecutar.
 - Deshabilitar MCP no necesarios.
 - Respuestas breves, directas y sin contexto innecesario.
+- Para exploración amplia del código (buscar dónde vive algo, entender un flujo que cruza varios archivos, más de ~3 búsquedas encadenadas), delegar al agente `Explore` en vez de encadenar múltiples Glob/Grep/Read manuales en el contexto principal.
+- Para tareas grandes y bien delimitadas que no requieren supervisión paso a paso, delegar a un subagente (`Agent`) en lugar de ejecutarlas inline, para no llenar el contexto principal con resultados intermedios.
+- Antes de invocar una tool diferida (listada solo por nombre en un system-reminder), usar `ToolSearch` para cargar su definición en vez de adivinar el schema o leer documentación externa.
 
 ## Reglas de ingeniería del proyecto
 
