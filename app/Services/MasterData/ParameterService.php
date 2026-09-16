@@ -13,8 +13,7 @@ class ParameterService
 {
     public function __construct(
         protected ParameterUsageService $usageService,
-    ) {
-    }
+    ) {}
 
     public function list(array $filters = []): Collection
     {
@@ -57,6 +56,10 @@ class ParameterService
 
         if (array_key_exists('value', $data)) {
             $data['value'] = $this->normalizeValue($data['value']);
+
+            if (is_array($data['value'])) {
+                $this->usageService->assertNoRemovedOptionsInUse($setting, $data['value']);
+            }
         }
 
         $setting->fill($data);
@@ -120,6 +123,7 @@ class ParameterService
         if ($this->isNamedChipList($value)) {
             $normalized = [];
             $seen = [];
+            $nextId = $this->nextAvailableOptionId($value);
 
             foreach ($value as $entry) {
                 if (! is_array($entry)) {
@@ -134,10 +138,21 @@ class ParameterService
                 }
 
                 $seen[$semanticKey] = true;
-                $normalized[] = [
+                $normalizedEntry = [
                     ...$entry,
                     'name' => $display,
                 ];
+
+                // Una opción sin id numérico (recién agregada desde el chip input, que
+                // solo maneja strings) se queda sin identidad estable: cualquier consumidor
+                // que guarde su id como FK (ej. product_sheets.section_id) terminaría
+                // guardando el nombre. Se le asigna aquí el siguiente id disponible.
+                if (! isset($normalizedEntry['id']) || ! is_numeric($normalizedEntry['id'])) {
+                    $normalizedEntry['id'] = $nextId;
+                    $nextId++;
+                }
+
+                $normalized[] = $normalizedEntry;
             }
 
             return $normalized;
@@ -163,6 +178,19 @@ class ParameterService
         }
 
         return $value;
+    }
+
+    private function nextAvailableOptionId(array $value): int
+    {
+        $max = 0;
+
+        foreach ($value as $entry) {
+            if (is_array($entry) && isset($entry['id']) && is_numeric($entry['id'])) {
+                $max = max($max, (int) $entry['id']);
+            }
+        }
+
+        return $max + 1;
     }
 
     private function isNamedChipList(array $value): bool

@@ -9,7 +9,7 @@ import InputField from '@/components/InputField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { mapParameterToDialogForm } from '@/domain/MasterData';
 import type { ParameterDialogFormState } from '@/domain/MasterData';
-import { normalizeUniqueChipList } from '@/lib/textNormalizer';
+import { normalizeChipKey, normalizeUniqueChipList } from '@/lib/textNormalizer';
 import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { computed, nextTick, ref, watch } from 'vue';
 
@@ -42,6 +42,11 @@ const localForm = ref<ParameterDialogModel>({
     ...mapParameterToDialogForm(props.form),
 });
 const valueList = ref<string[]>([]);
+// Entradas originales (id + campos extra como allowed_garment_type/code) del catálogo
+// tal como llegaron del backend. ChipInputField solo trabaja con strings — sin esto,
+// guardar volvería a escribir cada opción como {name} sin id, perdiendo la relación
+// con lo que ya la referencia (ej. product_sheets.section_id) y sus campos extra.
+const originalEntries = ref<Record<string, unknown>[]>([]);
 const isInitializingDialog = ref(false);
 const isViewMode = computed(() => props.dialogType === 'view');
 const shouldEmitLoadingState = computed(() => props.open && isInitializingDialog.value);
@@ -56,11 +61,15 @@ watch(
         if (!value) {
             localForm.value = { ...defaultForm };
             valueList.value = [];
+            originalEntries.value = [];
             return;
         }
 
         localForm.value = mapParameterToDialogForm(value);
         valueList.value = normalizeUniqueChipList(parseValueList(localForm.value.value), undefined, 'title-case');
+        originalEntries.value = Array.isArray(localForm.value.value)
+            ? (localForm.value.value as unknown[]).filter((entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null)
+            : [];
     },
     { immediate: true },
 );
@@ -79,6 +88,7 @@ watch(
             if (props.dialogType === 'create' && !props.form) {
                 localForm.value = { ...defaultForm };
                 valueList.value = [];
+                originalEntries.value = [];
             }
         } finally {
             isInitializingDialog.value = false;
@@ -141,7 +151,12 @@ function displayEntry(entry: unknown): string {
 }
 
 function buildPayloadValue() {
-    return valueList.value.map((entry) => ({ name: entry }));
+    return valueList.value.map((entry) => {
+        const entryKey = normalizeChipKey(entry);
+        const original = originalEntries.value.find((candidate) => normalizeChipKey(displayEntry(candidate)) === entryKey);
+
+        return original ? { ...original, name: entry } : { name: entry };
+    });
 }
 
 function handleClose() {

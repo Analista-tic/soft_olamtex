@@ -2,12 +2,29 @@
 
 namespace App\Services\MasterData;
 
+use App\Exceptions\MasterData\ParameterInUseException;
+use App\Models\Production\ProductSheet;
 use App\Models\Settings\Setting;
 use App\Models\Settings\User;
 use App\Services\Settings\SettingService;
 
 class ParameterUsageService
 {
+    /**
+     * Catálogos cuyas opciones se referencian por id crudo desde columnas de
+     * product_sheets (sin relación Eloquent — ver comentario en el modelo
+     * ProductSheet). Si una opción en uso se quita de la lista, esas sábanas
+     * quedarían apuntando a un id fantasma.
+     *
+     * @var array<string, string>
+     */
+    private const OPTION_USAGE_COLUMN = [
+        'sections' => 'section_id',
+        'groups' => 'group_id',
+        'brands' => 'brand_id',
+        'worlds' => 'world_id',
+    ];
+
     /**
      * @var array<string, array<int, string>>
      */
@@ -141,5 +158,61 @@ class ParameterUsageService
         }
 
         return $usages;
+    }
+
+    /**
+     * Impide quitar una opción de un catálogo (sections/groups/brands/worlds)
+     * mientras alguna ProductSheet todavía la referencie por id. Se revisa
+     * antes de guardar la lista nueva completa (así se edita hoy el catálogo
+     * desde Parámetros): todo o nada, igual que el borrado de un parámetro
+     * completo.
+     *
+     * @param  array<int, mixed>  $newValue
+     *
+     * @throws ParameterInUseException
+     */
+    public function assertNoRemovedOptionsInUse(Setting $parameter, array $newValue): void
+    {
+        $canonicalKey = $this->settingService->canonicalKey((string) $parameter->key);
+        $column = self::OPTION_USAGE_COLUMN[$canonicalKey] ?? null;
+        if ($column === null) {
+            return;
+        }
+
+        $oldOptions = is_array($parameter->value) ? $parameter->value : [];
+
+        $oldIds = collect($oldOptions)
+            ->filter(fn ($option) => is_array($option) && isset($option['id']))
+            ->pluck('id')
+            ->map(fn ($id) => (string) $id);
+
+        $newIds = collect($newValue)
+            ->filter(fn ($option) => is_array($option) && isset($option['id']))
+            ->pluck('id')
+            ->map(fn ($id) => (string) $id);
+
+        $removedIds = $oldIds->diff($newIds);
+        if ($removedIds->isEmpty()) {
+            return;
+        }
+
+        foreach ($removedIds as $removedId) {
+            $count = ProductSheet::where($column, $removedId)->count();
+            if ($count === 0) {
+                continue;
+            }
+
+            $removedOption = collect($oldOptions)
+                ->first(fn ($option) => is_array($option) && (string) ($option['id'] ?? null) === $removedId);
+            $optionName = is_array($removedOption) ? ($removedOption['name'] ?? $removedId) : $removedId;
+
+            throw new ParameterInUseException([
+                'can_delete' => false,
+                'title' => 'No se puede quitar esta opción',
+                'message' => "No se puede quitar '{$optionName}' del catálogo: {$count} sábana(s) de producto la usan. "
+                    . 'Reasígnalas primero o desactiva la opción en vez de eliminarla.',
+                'suggested_action' => 'deactivate',
+            ]);
+        }
     }
 }

@@ -45,7 +45,11 @@ class ParameterController extends Controller
 
     public function update(UpdateParameterRequest $request, $id)
     {
-        $parameter = $this->service->update((int) $id, $request->validated());
+        try {
+            $parameter = $this->service->update((int) $id, $request->validated());
+        } catch (ParameterInUseException $exception) {
+            return response()->json($exception->context(), 409);
+        }
 
         return response()->json($parameter);
     }
