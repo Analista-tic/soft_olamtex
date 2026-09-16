@@ -352,6 +352,19 @@ class ItemController extends Controller
             ? (int) $request->input('category_sub_group_id')
             : ($item?->category_sub_group_id ?? null);
 
+        // fabric_name_id/yarn_name_id heredados arriba (no vinieron en el request):
+        // si el subgrupo nuevo ya no es compatible con ese valor heredado, se limpia
+        // en silencio en vez de bloquear la actualización — el cliente no está
+        // tocando ese campo, así que no tiene sentido exigirle que también lo limpie
+        // a mano solo porque cambió el subgrupo.
+        $subGroupForMaterialCheck = $subGroupId ? CategorySubGroup::find($subGroupId) : null;
+        if (! $request->has('fabric_name_id') && $data['fabric_name_id'] && ! MaterialClassifier::isFabricSubgroup($subGroupForMaterialCheck)) {
+            $data['fabric_name_id'] = null;
+        }
+        if (! $request->has('yarn_name_id') && $data['yarn_name_id'] && ! MaterialClassifier::isYarnSubgroup($subGroupForMaterialCheck)) {
+            $data['yarn_name_id'] = null;
+        }
+
         $this->assertMaterialNameMatchesSubgroup($subGroupId, $data['fabric_name_id'], $data['yarn_name_id']);
 
         $colorId = ! empty($data['color_id']) ? (int) $data['color_id'] : null;
