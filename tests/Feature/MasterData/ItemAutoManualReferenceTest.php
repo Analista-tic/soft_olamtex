@@ -32,6 +32,7 @@ beforeEach(function () {
     foreach (['ver inventario telas', 'crear inventario telas', 'editar inventario telas'] as $permission) {
         $user->givePermissionTo(Permission::findOrCreate($permission, 'web'));
     }
+    $this->user = $user;
     $this->actingAs($user);
 });
 
@@ -154,4 +155,32 @@ it('never regenerates the reference on update even if reference_mode=auto is sen
 
     $response->assertOk();
     expect($item->fresh()->reference)->toBe('REF-YA-EXISTE');
+});
+
+it('generates an automatic reference for an item using a color just created inline (no code sent by the client)', function () {
+    foreach (['ver colores', 'crear colores'] as $permission) {
+        $this->user->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+    }
+
+    $colorResponse = $this->postJson('/colors', [
+        'name' => 'VERDE RECIEN CREADO TEST',
+    ]);
+    $colorResponse->assertCreated();
+    $newColorId = $colorResponse->json('id');
+
+    $response = $this->postJson(route('item.store'), [
+        'category_sub_group_id' => $this->subGroup->id,
+        'color_id' => $newColorId,
+        'reference_mode' => 'auto',
+        'description' => 'Item con color recien creado',
+        'tax' => 0,
+        'negative_movement' => false,
+        'item_type' => 'product',
+    ]);
+
+    $response->assertCreated();
+    $reference = $response->json('reference');
+
+    expect($reference)->toHaveLength(12);
+    expect(substr($reference, 9, 3))->toBe(Color::find($newColorId)->code);
 });
