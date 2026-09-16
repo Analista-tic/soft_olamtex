@@ -454,6 +454,7 @@ class ItemController extends Controller
             'tax_id' => 'nullable|integer',
             'tax' => ($isUpdate ? 'sometimes' : 'required').'|numeric',
             'bar_code' => 'nullable|string',
+            'legacy_code' => 'nullable|string|max:255',
             'negative_movement' => $isUpdate ? 'sometimes' : 'required',
             'description' => ($isUpdate ? 'sometimes' : 'required').'|string',
             'extra_fields' => 'nullable',

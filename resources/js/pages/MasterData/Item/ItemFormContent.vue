@@ -1378,6 +1378,7 @@ async function handleSubmit() {
         'reference',
         'description',
         'bar_code',
+        'legacy_code',
         'unit_measure',
         'item_type',
         'extra_fields',
@@ -1459,8 +1460,8 @@ async function handleSubmit() {
                 const v = cleanForm[key];
                 if (v === undefined || v === null) continue;
 
-                // Skip empty description/bar_code
-                if (key === 'description' || key === 'bar_code') {
+                // Skip empty description/bar_code/legacy_code
+                if (key === 'description' || key === 'bar_code' || key === 'legacy_code') {
                     if (typeof v === 'string' && v.trim() === '') continue;
                 }
 
@@ -1916,11 +1917,21 @@ onBeforeUnmount(() => {
                                     </div>
                                 </template>
 
-                                <div v-if="localForm.legacy_code" class="flex flex-col gap-1">
-                                    <Label>Código sistema anterior</Label>
-                                    <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
-                                        {{ localForm.legacy_code }}
-                                    </div>
+                                <div class="flex flex-col gap-1">
+                                    <template v-if="isViewMode">
+                                        <template v-if="localForm.legacy_code">
+                                            <Label>Código sistema anterior</Label>
+                                            <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
+                                                {{ localForm.legacy_code }}
+                                            </div>
+                                        </template>
+                                    </template>
+                                    <InputField
+                                        v-else
+                                        v-model="localForm.legacy_code"
+                                        label="Código sistema anterior (Avansis)"
+                                        placeholder="Opcional"
+                                    />
                                 </div>
                             </div>
 
