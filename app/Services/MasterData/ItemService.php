@@ -262,6 +262,26 @@ class ItemService
         return $item->status;
     }
 
+    /**
+     * Habilita/deshabilita varios ítems a la vez. Guarda uno por uno (en vez de un
+     * update masivo) para que el observer de auditoría siga registrando cada
+     * cambio individualmente, igual que el toggle de un solo ítem.
+     *
+     * @param  array<int, int>  $ids
+     */
+    public function bulkSetStatus(array $ids, bool $status): int
+    {
+        $updated = 0;
+
+        Item::query()->whereIn('id', $ids)->where('status', ! $status)->each(function (Item $item) use ($status, &$updated) {
+            $item->status = $status;
+            $item->save();
+            $updated++;
+        });
+
+        return $updated;
+    }
+
     public function orderedAdditionalFieldNames(): array
     {
         if ($this->orderedAdditionalFieldNamesCache === []) {

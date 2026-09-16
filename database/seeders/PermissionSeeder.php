@@ -119,6 +119,7 @@ class PermissionSeeder extends Seeder
             'exportar contactos',
 
             'activar desactivar item',
+            'habilitar item',
             'carga masiva items',
             'exportar items',
 
@@ -140,6 +141,6 @@ class PermissionSeeder extends Seeder
             Permission::findOrCreate($permission, 'web');
         }
 
-        $this->command->info('PermissionSeeder ejecutado: ' . count($newPermissions) . ' permisos procesados.');
+        $this->command->info('PermissionSeeder ejecutado: '.count($newPermissions).' permisos procesados.');
     }
 }

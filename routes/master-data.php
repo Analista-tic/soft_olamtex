@@ -65,6 +65,7 @@ Route::prefix('item')->name('item.')->middleware('permission:ver inventario tela
     Route::put('/{id}', [ItemController::class, 'update'])->name('update')->middleware('permission:editar inventario telas');
     Route::delete('/{id}', [ItemController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar inventario telas');
     Route::post('/{id}/toggle-status', [ItemController::class, 'toggleStatus'])->name('toggle-status')->middleware('permission:activar desactivar item');
+    Route::post('/bulk-toggle-status', [ItemController::class, 'bulkToggleStatus'])->name('bulk-toggle-status')->middleware('permission:activar desactivar item');
 });
 
 Route::middleware(['auth', 'permission:ver colores'])->group(function () {

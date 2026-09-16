@@ -107,14 +107,49 @@ class ItemController extends Controller
         return response()->json($items);
     }
 
-    public function togglestatus($id)
+    public function togglestatus(Request $request, $id)
     {
         $item = $this->service->find($id);
+
+        // Deshabilitar sigue abierto a 'activar desactivar item' (ya lo exige la
+        // ruta). Habilitar un ítem que estaba inactivo requiere además 'habilitar
+        // item' — permiso más restringido, reservado a admin/gerencia.
+        if (! $item->status && ! $request->user()?->can('habilitar item')) {
+            return response()->json([
+                'message' => 'No tienes permiso para habilitar ítems.',
+            ], 403);
+        }
+
         $status = $this->service->toggleStatus($item);
 
         return response()->json([
             'status' => $status,
             'message' => $status ? 'item habilitado' : 'item deshabilitado',
+        ]);
+    }
+
+    public function bulkToggleStatus(Request $request)
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:items,id'],
+            'status' => ['required', 'boolean'],
+        ]);
+
+        if ($data['status'] && ! $request->user()?->can('habilitar item')) {
+            return response()->json([
+                'message' => 'No tienes permiso para habilitar ítems.',
+            ], 403);
+        }
+
+        $updated = $this->service->bulkSetStatus($data['ids'], (bool) $data['status']);
+
+        return response()->json([
+            'status' => $data['status'],
+            'updated' => $updated,
+            'message' => $data['status']
+                ? "{$updated} ítem(s) habilitado(s)"
+                : "{$updated} ítem(s) deshabilitado(s)",
         ]);
     }
 

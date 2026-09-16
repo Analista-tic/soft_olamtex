@@ -63,6 +63,7 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'corregir descargue telas orden',
             'aprobar recepcion tela',
             'rechazar recepcion tela',
+            'habilitar item',
         ];
 
         foreach ($permissions as $permissionName) {
@@ -345,6 +346,11 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             [
                 'aprobar orden compra',
                 'ver auditoria',
+                // Habilitar un ítem deshabilitado requiere este permiso aparte de
+                // 'activar desactivar item' (que ya tienen todos los roles vía
+                // $commonMasterDataAndCore) — deshabilitar sigue siendo libre,
+                // habilitar queda reservado a un rol de mayor jerarquía.
+                'habilitar item',
             ]
         ));
 
