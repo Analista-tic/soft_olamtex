@@ -81,7 +81,7 @@ const props = withDefaults(
 
 const { company, logoUrl } = useCompanyInfo();
 
-const { successMessage, errorMessage, errorType, showError, clearError, clearSuccess } = useAlertStack();
+const { successMessage, errorMessage, errorType, showSuccess, showError, clearError, clearSuccess } = useAlertStack();
 
 const mode = computed<FormMode>(() => props.mode ?? 'create');
 
@@ -424,13 +424,13 @@ async function handleContactDialogSubmit(contactData: Partial<DomainContact>): P
         const response = await axios.post('/contactos', contactData);
 
         closeContactDialog();
-        await fetchContacts();
 
-        const createdContactId = response.data?.data?.id ?? response.data?.id;
-
-        if (createdContactId) {
-            localForm.value.contact_id = Number(createdContactId);
+        const created = response.data?.data;
+        if (created?.id) {
+            contacts.value = [created, ...contacts.value.filter((c) => Number(c.id) !== Number(created.id))];
+            localForm.value.contact_id = Number(created.id);
         }
+        showSuccess(response.data?.message || 'Contacto creado correctamente.');
     } catch (error: unknown) {
         contactDialogError.value = getAxiosValidationMessage(error, 'Ocurrió un error al guardar el contacto.');
     }

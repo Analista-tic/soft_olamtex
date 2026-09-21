@@ -56,7 +56,7 @@ const isSubmittingDialog = ref(false);
 const nextOrderId = ref<number | null>(null);
 const isLoadingOrderId = ref(false);
 const isSendingMail = ref(false);
-const { successMessage, errorMessage, errorType, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
+const { successMessage, errorMessage, errorType, showSuccess, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const originalFormSnapshot = ref<string>('');
 const itemsTableRef = ref<{ addItem: () => void; openItemDialog: () => void; validateFabricFields: () => string | null; itemTypedNames: Record<number, string> } | null>(null);
 const { isBootstrapping, isHydrating, isBlockingLoading, canRenderForm, startLoadingRun, isCurrentLoadingRun, cancelLoadingRun } =
@@ -384,18 +384,15 @@ function handleContactFormUpdate(updatedContact: Partial<Contact>) {
 
 async function handleContactDialogSubmit(contactData: Partial<Contact>) {
     try {
-        const previousIds = contacts.value
-            .map((c) => Number(c.id))
-            .filter((id) => Number.isFinite(id));
-
-        await axios.post('/contactos', contactData);
+        const { data } = await axios.post('/contactos', contactData);
         isContactDialogOpen.value = false;
-        await fetchContacts();
 
-        const newContact = contacts.value.find((c) => !previousIds.includes(Number(c.id)));
-        if (newContact?.id) {
-            localForm.value.contact_id = Number(newContact.id);
+        const created = data?.data;
+        if (created?.id) {
+            contacts.value = [created, ...contacts.value.filter((c) => Number(c.id) !== Number(created.id))];
+            localForm.value.contact_id = Number(created.id);
         }
+        showSuccess(data?.message || 'Contacto creado correctamente.');
     } catch (error: any) {
         const validationErrors = error?.response?.data?.errors;
         if (validationErrors) {

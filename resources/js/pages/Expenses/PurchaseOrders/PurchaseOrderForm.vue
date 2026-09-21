@@ -10,7 +10,7 @@ import Label from '@/components/ui/label/Label.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import PurchaseOrderItemsTable from './PurchaseOrderItemsTable.vue';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-vue-next';
+import { Lightbulb, Plus, PlusCircle } from 'lucide-vue-next';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue';
@@ -19,7 +19,7 @@ import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useSmartLoading } from '@/composables/useSmartLoading';
 import { useAuthStore } from '@/stores/auth';
 
-const { successMessage, errorMessage, errorType, showError, clearError, clearSuccess } = useAlertStack();
+const { successMessage, errorMessage, errorType, showSuccess, showError, clearError, clearSuccess } = useAlertStack();
 const { company, logoUrl } = useCompanyInfo();
 const authStore = useAuthStore();
 const canSeeAllRequests = computed(() => authStore.can('ver todos ordenes compra'));
@@ -286,10 +286,13 @@ async function fetchNextDocumentNumber() {
     }
 }
 
-function openContactDialog() {
-    contactDialogForm.value = { groups: [] };
+function openContactDialog(prefillName = '') {
+    contactDialogForm.value = { groups: [], ...(prefillName ? { full_name: prefillName } : {}) };
     isContactDialogOpen.value = true;
 }
+
+// Proveedor escrito en la solicitud que aún no existe como contacto.
+const suggestedProviderName = ref('');
 
 function handleContactFormUpdate(updatedContact: Partial<any>) {
     contactDialogForm.value = updatedContact;
@@ -297,16 +300,16 @@ function handleContactFormUpdate(updatedContact: Partial<any>) {
 
 async function handleContactDialogSubmit(contactData: Partial<any>) {
     try {
-        const previousIds = contacts.value.map((c) => Number(c.id)).filter((id) => Number.isFinite(id));
-
-        await axios.post('/contactos', contactData);
+        const { data } = await axios.post('/contactos', contactData);
         isContactDialogOpen.value = false;
-        await fetchContacts();
 
-        const newContact = contacts.value.find((c) => !previousIds.includes(Number(c.id)));
-        if (newContact?.id) {
-            localForm.value.contact_id = Number(newContact.id);
+        const created = data?.data;
+        if (created?.id) {
+            contacts.value = [created, ...contacts.value.filter((c: any) => Number(c.id) !== Number(created.id))];
+            localForm.value.contact_id = Number(created.id);
+            suggestedProviderName.value = '';
         }
+        showSuccess(data?.message || 'Contacto creado correctamente.');
     } catch (error: any) {
         const validationErrors = error?.response?.data?.errors;
         if (validationErrors) {
@@ -499,6 +502,7 @@ async function loadRequestToOrder(requestId: number) {
             : null;
 
         localForm.value.contact_id = foundContact ? Number(foundContact.id) : null;
+        suggestedProviderName.value = !foundContact && request.provider_name ? String(request.provider_name).trim() : '';
         localForm.value.description = request.description || '';
         localForm.value.purchase_request_id = Number(requestId);
         localForm.value.buyer_user_id = request.buyer_user_id || null;
@@ -534,6 +538,7 @@ watch(selectedRequestValue, (val) => {
 watch(selectedRequestId, async (id) => {
     if (!id) {
         selectedPurchaseRequest.value = null;
+        suggestedProviderName.value = '';
         localForm.value = createDefaultForm();
     } else {
         await loadRequestToOrder(id);
@@ -591,7 +596,7 @@ watch(myRequestsOnly, () => {
                             :clearable="true"
                             @search="handlePurchaseRequestSearch"
                         >
-                            <template #option="{ option }">
+                            <template #option="{ option, active }">
                                 <div class="flex flex-col gap-0.5 py-0.5">
                                     <div class="flex items-center gap-2">
                                         <span class="font-medium text-sm">{{ option.name }}</span>
@@ -599,11 +604,16 @@ watch(myRequestsOnly, () => {
                                             v-if="option.created_at"
                                             :class="[
                                                 'text-xs font-normal',
-                                                daysAgo(option.created_at).urgent ? 'text-amber-600' : 'text-muted-foreground',
+                                                active
+                                                    ? 'text-accent-foreground/80'
+                                                    : daysAgo(option.created_at).urgent ? 'text-amber-600' : 'text-muted-foreground',
                                             ]"
                                         >· {{ daysAgo(option.created_at).label }}</span>
                                     </div>
-                                    <span v-if="option.requester_name" class="text-xs text-muted-foreground truncate">
+                                    <span
+                                        v-if="option.requester_name"
+                                        :class="['text-xs truncate', active ? 'text-accent-foreground/80' : 'text-muted-foreground']"
+                                    >
                                         {{ option.requester_name }}
                                     </span>
                                 </div>
@@ -694,11 +704,33 @@ watch(myRequestsOnly, () => {
                                 :action-label="'Nuevo contacto'"
                                 :action-disabled="false"
                                 :clearable="true"
-                                @action="openContactDialog"
+                                @action="openContactDialog()"
                                 @load-more="loadMoreContacts"
                                 @search="handleContactSearch"
                                 required
                             />
+                            <div
+                                v-if="suggestedProviderName && !localForm.contact_id"
+                                class="mt-1 flex items-center justify-between gap-2"
+                            >
+                                <button
+                                    type="button"
+                                    class="flex min-w-0 flex-1 items-center gap-1 rounded px-1 py-0.5 text-left text-xs text-muted-foreground transition hover:bg-accent hover:text-accent-foreground"
+                                    title="Buscar este proveedor en contactos"
+                                    @click="handleContactSearch(suggestedProviderName)"
+                                >
+                                    <Lightbulb class="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                                    <span class="min-w-0 flex-1 truncate">{{ suggestedProviderName }}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-primary transition hover:bg-accent hover:text-accent-foreground"
+                                    title="Nuevo contacto"
+                                    @click="openContactDialog(suggestedProviderName)"
+                                >
+                                    <PlusCircle class="h-4 w-4" />
+                                </button>
+                            </div>
                         </div>
                         <div>
                             <InputField label="Teléfono" :modelValue="contactPhone" readonly />

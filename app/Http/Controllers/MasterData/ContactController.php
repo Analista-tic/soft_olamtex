@@ -188,9 +188,9 @@ class ContactController extends Controller
             $validated['groups'] = $validated['groups'] ?? [];
             $validated['branches'] = $validated['branches'] ?? [];
 
-            Contact::create($validated);
+            $contact = Contact::create($validated);
 
-            return response()->json(['message' => 'Contacto creado exitosamente.']);
+            return response()->json(['message' => 'Contacto creado exitosamente.', 'id' => $contact->id, 'data' => $contact]);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Error al crear el contacto.', 'errors' => $e->getMessage()], 500);
         }

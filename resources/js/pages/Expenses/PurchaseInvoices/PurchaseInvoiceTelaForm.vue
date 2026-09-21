@@ -20,7 +20,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { Plus } from 'lucide-vue-next';
 
 const { company, logoUrl } = useCompanyInfo();
-const { successMessage, errorMessage, errorType, showError, clearError, clearSuccess } = useAlertStack();
+const { successMessage, errorMessage, errorType, showSuccess, showError, clearError, clearSuccess } = useAlertStack();
 
 const props = withDefaults(defineProps<{ mode?: 'create' | 'edit'; form?: any }>(), { mode: 'create', form: null });
 const mode = computed(() => props.mode || 'create');
@@ -222,12 +222,14 @@ function handlePurchaseOrderSearch(term: string) {
 function handleContactFormUpdate(updatedContact: Partial<any>) { contactDialogForm.value = updatedContact; }
 async function handleContactDialogSubmit(contactData: Partial<any>) {
     try {
-        const previousIds = contacts.value.map((c) => Number(c.id)).filter((id) => Number.isFinite(id));
-        await axios.post('/contactos', contactData);
+        const { data } = await axios.post('/contactos', contactData);
         isContactDialogOpen.value = false;
-        await fetchContacts();
-        const newContact = contacts.value.find((c) => !previousIds.includes(Number(c.id)));
-        if (newContact?.id) localForm.value.contact_id = Number(newContact.id);
+        const created = data?.data;
+        if (created?.id) {
+            contacts.value = [created, ...contacts.value.filter((c: any) => Number(c.id) !== Number(created.id))];
+            localForm.value.contact_id = Number(created.id);
+        }
+        showSuccess(data?.message || 'Contacto creado correctamente.');
     } catch (error: any) {
         const validationErrors = error?.response?.data?.errors;
         if (validationErrors) {
