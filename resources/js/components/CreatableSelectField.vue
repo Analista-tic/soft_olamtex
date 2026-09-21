@@ -334,6 +334,20 @@ function handleInput(event: Event) {
     searchTerm.value = target.value;
 }
 
+// Con allowCustom el texto escrito a mano se confirma al salir del campo (sin exigir elegir "Usar ...").
+// Se difiere para no pisar el click sobre una opción del dropdown, que limpia searchTerm al seleccionar.
+function commitTypedValue() {
+    if (!props.allowCustom || props.multiple || isCreating.value) return;
+    setTimeout(() => {
+        const typed = normalizedSearchTerm.value;
+        if (!typed) return;
+        const term = typed.toLowerCase();
+        const match = props.options.find((option) => option.name.toLowerCase() === term);
+        localModelValue.value = match ? match.id : typed;
+        searchTerm.value = '';
+    }, 150);
+}
+
 const hasLabel = computed(() => Boolean(props.label?.trim()));
 const hasAction = computed(() => Boolean(props.actionLabel?.trim()));
 const actionButtonClass = computed(() => {
@@ -594,6 +608,7 @@ defineExpose({ closeInlineFromParent });
                             :display-value="displayValueForInput"
                             :disabled="disabled || isCreating"
                             @input="handleInput"
+                            @blur="commitTypedValue"
                         />
                         <button
                             v-if="
