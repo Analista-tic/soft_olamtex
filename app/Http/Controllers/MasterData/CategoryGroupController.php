@@ -4,19 +4,21 @@ namespace App\Http\Controllers\MasterData;
 
 use App\Http\Controllers\Controller;
 use App\Models\MasterData\CategoryGroup;
+use App\Services\MasterData\CategoryGroupService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class CategoryGroupController extends Controller
 {
+    public function __construct(private CategoryGroupService $service) {}
+
     public function store(Request $request)
     {
-        $request->validate([
+        $data = $request->validate([
             'name' => 'required|string|max:255|unique:category_groups,name',
-            'code' => 'nullable|string|max:2|unique:category_groups,code',
         ]);
 
-        $group = CategoryGroup::create($request->only('name', 'code'));
+        $group = $this->service->create($data);
 
         return response()->json($group, 201);
     }

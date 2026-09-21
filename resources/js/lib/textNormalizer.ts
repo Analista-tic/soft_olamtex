@@ -1,6 +1,6 @@
 const DEFAULT_LOCALE = 'es-CO';
 
-export type ChipCaseMode = 'preserve' | 'title-case';
+export type ChipCaseMode = 'preserve' | 'title-case' | 'upper-case';
 
 export function normalizeChipDisplay(value: unknown): string {
     return String(value ?? '')
@@ -18,6 +18,18 @@ export function normalizeChipTitleCaseDisplay(value: unknown, locale = DEFAULT_L
     return normalizeTitleCaseWords(normalized, locale);
 }
 
+export function normalizeChipCaseDisplay(value: unknown, caseMode: ChipCaseMode = 'preserve', locale = DEFAULT_LOCALE): string {
+    if (caseMode === 'title-case') {
+        return normalizeChipTitleCaseDisplay(value, locale);
+    }
+
+    if (caseMode === 'upper-case') {
+        return normalizeUpperCaseWords(value, locale);
+    }
+
+    return normalizeChipDisplay(value);
+}
+
 export function normalizeChipKey(value: unknown, locale = DEFAULT_LOCALE): string {
     return normalizeChipDisplay(value)
         .normalize('NFD')
@@ -26,9 +38,7 @@ export function normalizeChipKey(value: unknown, locale = DEFAULT_LOCALE): strin
 }
 
 export function appendUniqueChip(list: string[], rawValue: unknown, locale = DEFAULT_LOCALE, caseMode: ChipCaseMode = 'preserve'): string[] {
-    const candidate = caseMode === 'title-case'
-        ? normalizeChipTitleCaseDisplay(rawValue, locale)
-        : normalizeChipDisplay(rawValue);
+    const candidate = normalizeChipCaseDisplay(rawValue, caseMode, locale);
 
     if (!candidate) {
         return list;
@@ -50,16 +60,6 @@ export function normalizeUniqueChipList(values: Iterable<unknown>, locale = DEFA
     return normalized;
 }
 
-export function normalizeTitleCaseWords(value: unknown, locale = DEFAULT_LOCALE): string {
-    const text = String(value ?? '')
-        .trim()
-        .replace(/\s+/g, ' ');
-
-    if (!text) {
-        return '';
-    }
-
-    return text
 export function normalizeUpperCaseWords(value: unknown, locale = DEFAULT_LOCALE): string {
     return normalizeChipDisplay(value).toLocaleUpperCase(locale);
 }
@@ -149,6 +149,16 @@ export function capitalizeFirst(value: unknown, locale = DEFAULT_LOCALE): string
     return text.charAt(0).toLocaleUpperCase(locale) + text.slice(1);
 }
 
+export function normalizeTitleCaseWords(value: unknown, locale = DEFAULT_LOCALE): string {
+    const text = String(value ?? '')
+        .trim()
+        .replace(/\s+/g, ' ');
+
+    if (!text) {
+        return '';
+    }
+
+    return text
         .toLocaleLowerCase(locale)
         .replace(/(^|\s)(\p{L})/gu, (_, separator: string, letter: string) => separator + letter.toLocaleUpperCase(locale));
 }

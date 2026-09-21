@@ -713,6 +713,10 @@ function handleLocationCreated(location: { id: number; name: string }) {
 
 async function fetchCategorySubGroups(force = false) {
     try {
+        // Los grupos vienen de su propio endpoint (no se derivan de los subgrupos):
+        // así un grupo recién creado y aún sin subgrupos aparece de inmediato.
+        const groupsRequest = axios.get<CategoryGroup[]>(catalogLookupRoutes.categoryGroups);
+
         const raw: any[] =
             !force && props.preloadedSubGroups && props.preloadedSubGroups.length > 0
                 ? props.preloadedSubGroups
@@ -727,12 +731,7 @@ async function fetchCategorySubGroups(force = false) {
         cachedCategorySubGroups = raw;
 
         categorySubGroups.value = [...raw];
-
-        const seen = new Set<number>();
-        categoryGroups.value = (raw as any[])
-            .map((sg: any) => sg.category_group)
-            .filter((g: any) => g && !seen.has(g.id) && seen.add(g.id))
-            .sort((a: any, b: any) => a.name.localeCompare(b.name));
+        categoryGroups.value = [...(await groupsRequest).data].sort((a, b) => a.name.localeCompare(b.name));
 
         syncGroupFromSubgroup();
     } catch (error) {
@@ -886,10 +885,14 @@ async function refreshWarehouseStocksForCurrentItem(itemId?: number) {
 
 let catalogsLoadPromise: Promise<void> | null = null;
 
-function loadFormCatalogs(): Promise<void> {
+function loadFormCatalogs(forceCategories = false): Promise<void> {
+    if (forceCategories) {
+        catalogsLoadPromise = null;
+    }
+
     if (!catalogsLoadPromise) {
         isCatalogBootstrapLoading.value = true;
-        catalogsLoadPromise = Promise.all([fetchCategorySubGroups(), fetchTaxes(), fetchAdditionalFields(), fetchMaterialNameOptions()])
+        catalogsLoadPromise = Promise.all([fetchCategorySubGroups(forceCategories),fetchTaxes(), fetchAdditionalFields(), fetchMaterialNameOptions()])
             .then(() => undefined)
             .finally(() => {
                 isCatalogBootstrapLoading.value = false;
@@ -914,7 +917,8 @@ async function hydrateOpenForm() {
 
     if (!shouldLoadItemDetails) {
         applyFormData(props.form);
-        await loadFormCatalogs();
+        // Refetch en cada apertura: grupos/subgrupos pueden haber cambiado en otra pantalla.
+        await loadFormCatalogs(true);
         warehouseStocks.value = [];
         if (currentItemType.value !== 'service') {
             addWarehouseStock();
@@ -932,7 +936,7 @@ async function hydrateOpenForm() {
         // categorySubGroups/taxes todavía estén vacíos, y el formulario no se
         // renderiza hasta que las tres terminan). Antes se esperaban en serie, lo que
         // triplicaba el tiempo de apertura del formulario al editar un ítem.
-        await Promise.all([loadFormCatalogs(), loadItemDetails(itemId), loadSecondaryFormData(itemId)]);
+        await Promise.all([loadFormCatalogs(true), loadItemDetails(itemId), loadSecondaryFormData(itemId)]);
     } finally {
         isItemHydrationLoading.value = false;
     }
@@ -1006,14 +1010,16 @@ async function handleCreateSubGroupInline(name: string): Promise<Option> {
         throw new Error('Debes seleccionar un grupo antes de crear un subgrupo');
     }
 
-    await axios.post('/categorias/subgrupos', {
-        name,
+    const response = await axios.post<{ data: CategorySubGroup[] }>('/categorias/subgrupos', {
+        subgroups: [{ name }],
         category_group_id: Number(groupId),
     });
 
+    // El backend normaliza el nombre (MAYÚSCULAS): se usa el registro devuelto, no una búsqueda por nombre.
+    const created = response.data.data?.[0];
+    if (!created) throw new Error('El servidor no devolvió el subgrupo creado.');
+
     await fetchCategorySubGroups(true);
-    const created = categorySubGroups.value.find((sg) => sg.name === name && String(sg.category_group_id) === groupId);
-    if (!created) throw new Error('Subgrupo no encontrado tras creación');
     return { id: String(created.id), name: created.name };
 }
 

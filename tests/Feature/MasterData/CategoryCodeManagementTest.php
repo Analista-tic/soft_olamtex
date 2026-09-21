@@ -18,14 +18,16 @@ beforeEach(function () {
     $this->actingAs($user);
 });
 
-it('creates a group with a code', function () {
-    $response = $this->postJson(route('categorias.groups.store'), [
-        'name' => 'Grupo Con Codigo Test',
-        'code' => '21',
-    ]);
+it('assigns a consecutive two-digit code automatically when creating a group', function () {
+    // El código ya no se pide en el alta: CategoryGroupService lo asigna (consecutivo, 2 dígitos).
+    $this->postJson(route('categorias.groups.store'), ['name' => 'Grupo Con Codigo Test'])->assertCreated();
+    $this->postJson(route('categorias.groups.store'), ['name' => 'Grupo Con Codigo Test 2'])->assertCreated();
 
-    $response->assertCreated();
-    expect(CategoryGroup::where('name', 'Grupo Con Codigo Test')->first()->code)->toBe('21');
+    $first = CategoryGroup::where('name', 'Grupo Con Codigo Test')->first()->code;
+    $second = CategoryGroup::where('name', 'Grupo Con Codigo Test 2')->first()->code;
+
+    expect($first)->toMatch('/^\d{2}$/')
+        ->and($second)->toBe(str_pad((string) ((int) $first + 1), 2, '0', STR_PAD_LEFT));
 });
 
 it('updates a group name and code — there was no update endpoint for groups before this phase', function () {

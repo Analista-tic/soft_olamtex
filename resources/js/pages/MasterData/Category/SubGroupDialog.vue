@@ -11,7 +11,7 @@ import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import type { CategoryGroup, CategorySubGroup } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared/types';
-import { normalizeTitleCaseWords } from '@/lib/textNormalizer';
+import { normalizeUpperCaseWords } from '@/lib/textNormalizer';
 import axios from 'axios';
 import { nextTick, ref, watch } from 'vue';
 
@@ -99,7 +99,7 @@ async function initializeDialog() {
         form.value = { ...props.subGroupData };
         subGroupValues.value = [];
         subGroupName.value = props.dialogType === 'edit'
-            ? normalizeTitleCaseWords(props.subGroupData.name)
+            ? normalizeUpperCaseWords(props.subGroupData.name)
             : '';
     } finally {
         isInitializingDialog.value = false;
@@ -108,7 +108,7 @@ async function initializeDialog() {
 
 function submitForm() {
     if (props.dialogType === 'edit') {
-        emit('submit', { ...form.value, name: normalizeTitleCaseWords(subGroupName.value) });
+        emit('submit', { ...form.value, name: normalizeUpperCaseWords(subGroupName.value) });
         return;
     }
 
@@ -165,7 +165,7 @@ function submitForm() {
                             placeholder="Escribe el nombre del subgrupo"
                             empty-text="Sin subgrupos agregados."
                             :required="true"
-                            case-mode="title-case"
+                            case-mode="upper-case"
                         />
 
                         <InputField
