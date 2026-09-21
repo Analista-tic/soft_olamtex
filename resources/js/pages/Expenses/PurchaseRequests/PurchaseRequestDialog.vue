@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import CreatableSelectField from '@/components/CreatableSelectField.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
@@ -24,6 +25,7 @@ type PurchaseRequestDialogForm = Omit<PurchaseRequestForm, 'items' | 'estimated_
     items?: PurchaseRequestItem[];
     estimated_amount?: number | null;
     requester?: { name?: string };
+    buyer?: { id?: number; name?: string } | null;
     solicited_to?: 'gerencia' | 'logistica' | null;
     buyer_user_id?: number | null;
 };
@@ -184,8 +186,6 @@ const solicitadoAOptions = [
     { id: 'logistica', name: 'Logística' },
 ];
 
-const canSelectRequester = computed(() => authStore.can('ver todos solicitudes compra'));
-
 const currentRequesterName = computed(() => {
     if (localForm.value.requester?.name) {
         return localForm.value.requester.name;
@@ -194,12 +194,20 @@ const currentRequesterName = computed(() => {
     return user?.name ?? '';
 });
 
-const userOptions = computed(() =>
-    users.value.map((u) => ({
+const userOptions = computed(() => {
+    const options = users.value.map((u) => ({
         id: u.id,
         name: u.area_name ? `${u.name} — ${u.area_name}` : u.name,
-    })),
-);
+    }));
+
+    // El encargado vigente siempre debe tener etiqueta, aunque la búsqueda lo excluya.
+    const buyer = localForm.value.buyer;
+    if (buyer?.id && buyer.name && !options.some((o) => o.id === buyer.id)) {
+        options.push({ id: buyer.id, name: buyer.name });
+    }
+
+    return options;
+});
 
 async function fetchUsers(search = ''): Promise<void> {
     isLoadingUsers.value = true;
@@ -213,6 +221,30 @@ async function fetchUsers(search = ''): Promise<void> {
         users.value = [];
     } finally {
         isLoadingUsers.value = false;
+    }
+}
+
+const providerOptions = ref<{ id: string; name: string }[]>([]);
+const isLoadingProviders = ref(false);
+
+// Sugerencias de proveedor desde Contactos; el texto libre sigue permitido (provider_name es string).
+async function fetchProviders(search = ''): Promise<void> {
+    isLoadingProviders.value = true;
+    try {
+        const params = { per_page: 20, ...(search.trim() ? { search: search.trim() } : {}) };
+        const [providers, both] = await Promise.all([
+            axios.get('/contactos/data', { params: { ...params, contact_type: 'proveedor' } }),
+            axios.get('/contactos/data', { params: { ...params, contact_type: 'cliente_proveedor' } }),
+        ]);
+        const names = [...(providers.data?.data ?? []), ...(both.data?.data ?? [])]
+            .map((contact: { full_name?: string }) => String(contact.full_name ?? '').trim())
+            .filter(Boolean);
+        providerOptions.value = [...new Set(names)].sort((a, b) => a.localeCompare(b)).map((name) => ({ id: name, name }));
+    } catch (err) {
+        console.error('Error cargando proveedores:', err);
+        providerOptions.value = [];
+    } finally {
+        isLoadingProviders.value = false;
     }
 }
 
@@ -299,7 +331,7 @@ async function initializeDialog() {
         await authStore.fetchUser();
         resetForm();
 
-        await fetchUsers();
+        await Promise.all([fetchUsers(), fetchProviders()]);
 
         if (props.dialogType === 'edit' && props.form?.id) {
             const { data } = await axios.get(`${PURCHASE_REQUESTS_BASE_URL}/${props.form.id}`);
@@ -309,10 +341,6 @@ async function initializeDialog() {
         }
 
         if (props.dialogType === 'create') {
-            const user = authStore.user as any;
-            if (user?.id && !localForm.value.requester_user_id) {
-                localForm.value.requester_user_id = user.id;
-            }
             nextRequestId.value = null;
             await fetchNextRequestId();
         }
@@ -603,25 +631,11 @@ watch(dialogOpen, (isOpen) => {
                                         <div class="flex items-center gap-2">
                                             <Label class="text-sm font-medium">Solicitante</Label>
                                             <HelpTooltip
-                                                text="Persona que realiza la solicitud de compra."
+                                                text="Es la persona que crea la solicitud (tú)."
                                                 aria-label="Ayuda sobre solicitante"
                                             />
                                         </div>
-                                        <SelectField
-                                            v-if="canSelectRequester"
-                                            label=""
-                                            v-model="localForm.requester_user_id"
-                                            :options="userOptions"
-                                            :searchable="true"
-                                            :loading="isLoadingUsers"
-                                            :disabled="isReadOnly"
-                                            option-label="name"
-                                            option-value="id"
-                                            placeholder="Selecciona un usuario"
-                                            @search="(t) => fetchUsers(t)"
-                                        />
                                         <InputField
-                                            v-else
                                             label=""
                                             :model-value="currentRequesterName"
                                             :readonly="true"
@@ -680,13 +694,22 @@ watch(dialogOpen, (isOpen) => {
                                                 aria-label="Ayuda sobre proveedor"
                                             />
                                         </div>
-                                        <InputField
+                                        <CreatableSelectField
                                             dusk="input-proveedor"
                                             label=""
-                                            :model-value="localForm.provider_name ?? ''"
-                                            @update:model-value="localForm.provider_name = $event || null"
-                                            placeholder="Escribe el nombre del proveedor"
-                                            :readonly="isReadOnly"
+                                            :model-value="localForm.provider_name ?? null"
+                                            @update:model-value="localForm.provider_name = $event ? String($event) : null"
+                                            :options="providerOptions"
+                                            :loading="isLoadingProviders"
+                                            searchable
+                                            clearable
+                                            allow-custom
+                                            custom-option-label='Usar "{value}"'
+                                            search-placeholder="Buscar proveedor..."
+                                            placeholder="Busca o escribe el nombre del proveedor"
+                                            :button-class="'w-full'"
+                                            :disabled="isReadOnly"
+                                            @search="fetchProviders"
                                         />
                                     </div>
 

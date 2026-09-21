@@ -468,22 +468,51 @@ async function loadRequestToOrder(requestId: number) {
 
     // Aplicar automáticamente los datos de la solicitud
     if (!contacts.value.length) await fetchContacts();
-    applyRequestSuggestion();
+    await applyRequestSuggestion();
 
     selectedPurchaseRequestId.value = Number(requestId);
 }
 
-function applyRequestSuggestion() {
+const normalizeContactName = (value: unknown) => String(value ?? '').toLowerCase().trim();
+
+// El proveedor puede no estar en la página de contactos ya cargada: se busca puntualmente por nombre.
+async function findProviderContact(providerName: string): Promise<Contact | null> {
+    const target = normalizeContactName(providerName);
+    if (!target) return null;
+
+    const loaded = contacts.value.find((c) => normalizeContactName(c.full_name) === target);
+    if (loaded) return loaded;
+
+    try {
+        const responses = await Promise.all(
+            ['proveedor', 'cliente_proveedor'].map((contact_type) =>
+                axios.get('/contactos/data', { params: { contact_type, search: providerName.trim(), per_page: 20 } }),
+            ),
+        );
+        const found = responses
+            .flatMap((res) => (res.data?.data ?? []) as Contact[])
+            .find((c) => normalizeContactName(c.full_name) === target);
+
+        if (found && !contacts.value.some((c) => c.id === found.id)) {
+            contacts.value = [...contacts.value, found];
+        }
+
+        return found ?? null;
+    } catch (e) {
+        console.error('Error buscando el proveedor de la solicitud:', e);
+        return null;
+    }
+}
+
+async function applyRequestSuggestion() {
     if (!selectedPurchaseRequest.value) return;
 
     const request = selectedPurchaseRequest.value;
 
-    // Buscar contacto por nombre del proveedor
-    const providerName = request.provider_name || '';
-    let foundContact = null;
-    if (providerName) {
-        foundContact = contacts.value.find((c) => c.full_name?.toLowerCase().trim() === providerName.toLowerCase().trim());
-    }
+    const foundContact = await findProviderContact(request.provider_name || '');
+
+    // La solicitud pudo cambiar mientras se buscaba el contacto
+    if (selectedPurchaseRequest.value !== request) return;
 
     // Aplicar datos de la solicitud al formulario
     if (foundContact) {

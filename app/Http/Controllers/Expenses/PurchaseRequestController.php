@@ -149,7 +149,7 @@ class PurchaseRequestController extends Controller
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         } catch (\Exception $e) {
-            \Log::error('Error enviando solicitud a aprobacion: ' . $e->getMessage(), [
+            \Log::error('Error enviando solicitud a aprobación:' . $e->getMessage(), [
                 'exception' => $e,
                 'request_id' => $purchaseRequest->id,
                 'trace' => $e->getTraceAsString(),

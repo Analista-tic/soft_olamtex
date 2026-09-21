@@ -182,6 +182,15 @@ const customOption = computed<Option | null>(() => {
     return { id: normalizedSearchTerm.value, name: label };
 });
 
+// Recuerda todas las opciones vistas: si una búsqueda reemplaza `options` y la seleccionada
+// desaparece, se sigue mostrando su nombre en vez del ID.
+const knownOptions = new Map<string, Option>();
+watch(
+    () => props.options,
+    (options) => options.forEach((option) => knownOptions.set(String(option.id), option)),
+    { immediate: true },
+);
+
 const customSelection = computed<Option | null>(() => {
     if (props.multiple) return null;
     const modelValue = localModelValue.value;
@@ -193,6 +202,10 @@ const customSelection = computed<Option | null>(() => {
     if (pendingCreatedOption.value && pendingCreatedOption.value.id == modelValue) {
         return pendingCreatedOption.value;
     }
+    const known = knownOptions.get(String(modelValue));
+    if (known) return known;
+    // Sin allowCustom un valor sin opción asociada es un ID: mejor vacío que mostrar el número.
+    if (!props.allowCustom) return null;
     const label = String(modelValue);
     return label ? { id: modelValue, name: label } : null;
 });
@@ -230,7 +243,9 @@ const comboboxValue = computed<Option | Option[] | null>(() => {
         if (!isLocalModelArray(modelValue)) {
             return [];
         }
-        return props.options.filter((option) => modelValue.some((selectedId) => selectedId == option.id));
+        return modelValue
+            .map((selectedId) => props.options.find((option) => option.id == selectedId) ?? knownOptions.get(String(selectedId)))
+            .filter((option): option is Option => Boolean(option));
     }
     const modelValue = localModelValue.value;
     if (modelValue === null || isLocalModelArray(modelValue)) {
@@ -473,20 +488,15 @@ function cancelInlineCreate() {
 }
 
 function resolveCreateErrorMessage(error: unknown) {
-    const responseMessage =
-        typeof error === 'object' &&
-        error !== null &&
-        'response' in error &&
-        typeof error.response === 'object' &&
-        error.response !== null &&
-        'data' in error.response &&
-        typeof error.response.data === 'object' &&
-        error.response.data !== null &&
-        'message' in error.response.data &&
-        typeof error.response.data.message === 'string'
-            ? error.response.data.message
-            : '';
+    const data = (error as { response?: { data?: { message?: unknown; errors?: Record<string, unknown> } } } | null)?.response?.data;
 
+    // Laravel 422: el detalle real viene en `errors.<campo>[0]`; `message` es genérico.
+    const firstFieldError = Object.values(data?.errors ?? {})
+        .flat()
+        .find((entry): entry is string => typeof entry === 'string' && entry.trim() !== '');
+    if (firstFieldError) return firstFieldError.trim();
+
+    const responseMessage = typeof data?.message === 'string' ? data.message : '';
     if (responseMessage.trim()) return responseMessage.trim();
 
     const message = error instanceof Error ? error.message.trim() : '';
