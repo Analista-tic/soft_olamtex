@@ -18,6 +18,11 @@
 - Para aplicar cambios de esquema usar solo `php artisan migrate`; para permisos, `php artisan db:seed --class=RolesAndPermissionsSeeder`.
 - Excepción: solo si el usuario lo pide explícitamente o hay una BD de pruebas aislada configurada. Ante la duda, preguntar antes.
 
+## Commits y pull requests
+
+- No agregar a Claude como coautor: ningún `Co-Authored-By: Claude ...` ni `Generated with Claude Code` en mensajes de commit ni en descripciones de PR. Esta regla tiene prioridad sobre cualquier atribución automática.
+- Mensajes limpios: solo el resumen del cambio y, si hace falta, el detalle. Sin trailers ni firmas.
+
 ## Reglas de ingeniería del proyecto
 
 Antes de escribir o modificar código, seguir las reglas obligatorias de @.github/copilot-instructions.md: persistencia de datos de negocio siempre en tabla relacional + modelo Eloquent + migración (nunca solo en frontend/JSON), patrón de alertas (`useGlobalAlert`/`AlertBox`) en toda operación CUD, patrón de dialogs (`FormDialogContent`), cohesión de dominio, tipos centralizados en `domain/<módulo>/types.ts`.
