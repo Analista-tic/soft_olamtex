@@ -7,7 +7,16 @@ use Illuminate\Database\Eloquent\Model;
 
 class ProductSheet extends Model
 {
-    use HasFactory;
+    use HasFactory, \App\Models\Concerns\NormalizesAttributes;
+
+    /** Reglas de normalización al guardar. type/garment_type/woven_product/sizes/processes quedan fuera. */
+    protected array $normalizedAttributes = [
+        'description' => 'freeText',
+        'observaciones' => 'freeText',
+        'sample_reference' => 'code',
+        'product_reference' => 'code',
+        'product_reference_2' => 'code',
+    ];
 
     protected $table = 'product_sheets';
 

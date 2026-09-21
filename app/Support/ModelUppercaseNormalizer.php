@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Concerns\NormalizesAttributes;
 use Illuminate\Database\Eloquent\Model;
 
 class ModelUppercaseNormalizer
@@ -54,6 +55,11 @@ class ModelUppercaseNormalizer
 
     public static function apply(Model $model): void
     {
+        // Los modelos que declaran sus reglas (trait NormalizesAttributes) no usan el hook global.
+        if (in_array(NormalizesAttributes::class, class_uses_recursive($model), true)) {
+            return;
+        }
+
         foreach ($model->getAttributes() as $key => $value) {
             if (!is_string($value) || !self::shouldNormalize($model, $key)) {
                 continue;
@@ -77,7 +83,7 @@ class ModelUppercaseNormalizer
             }
         }
 
-        $castType = strtolower((string) $model->getCasts()[$key] ?? '');
+        $castType = strtolower((string) ($model->getCasts()[$key] ?? ''));
         if ($castType !== '' && in_array($castType, self::EXCLUDED_CAST_TYPES, true)) {
             return false;
         }

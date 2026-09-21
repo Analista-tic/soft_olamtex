@@ -124,7 +124,7 @@ defineExpose({
 
         <div v-for="(contact, index) in internalContacts" :key="index" class="p-2">
             <div class="flex items-center gap-4">
-                <InputField v-model="contact.name" label="Nombre del contacto" placeholder="Nombre" required :error="contactErrors[index]?.name" />
+                <InputField v-model="contact.name" data-no-uppercase label="Nombre del contacto" placeholder="Nombre" required :error="contactErrors[index]?.name" />
                 <InputField
                     v-model="contact.email"
                     label="Correo electrónico"

@@ -391,7 +391,7 @@ defineExpose({ addItem });
                         <TableCell class="p-1 text-left" style="width: 160px">
                             <InputField
                                 :dusk="`item-${idx}-descripcion`"
-                                v-model="item.description"
+                                v-model="item.description" data-no-uppercase
                                 label=""
                                 class="h-10 w-full"
                                 :readonly="props.readonly"

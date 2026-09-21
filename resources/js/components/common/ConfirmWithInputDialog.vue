@@ -89,7 +89,7 @@ function handleCancel() {
       </AlertDialogHeader>
 
       <div class="px-1 pb-2">
-        <TextareaField
+        <TextareaField data-no-uppercase
           v-model="inputValue"
           :label="props.inputLabel"
           :placeholder="props.inputPlaceholder"

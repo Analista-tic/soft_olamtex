@@ -17,6 +17,7 @@ import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmart
 import type { Contact, ContactType } from '@/domain/MasterData';
 import type { BreadcrumbItem } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { formatPersonNameDisplay } from '@/lib/textNormalizer';
 import { useContactsStore } from '@/stores/masterData/contacts';
 import { Head } from '@inertiajs/vue3';
 import axios, { type AxiosError } from 'axios';
@@ -544,7 +545,7 @@ onBeforeUnmount(() => {
                             <TableRow v-for="(contact, index) in contacts" :key="contact.id ?? `contact-${index}`">
                                 <TableCell class="font-medium">{{ contact.id }}</TableCell>
                                 <TableCell>{{ formatContactType(contact.contact_type) }}</TableCell>
-                                <TableCell class="font-medium">{{ contact.full_name }}</TableCell>
+                                <TableCell class="font-medium">{{ formatPersonNameDisplay(contact.full_name, contact.person_type) }}</TableCell>
                                 <TableCell>{{ contact.id_number }}</TableCell>
                                 <TableCell>{{ contact.phone }}</TableCell>
                                 <TableCell class="flex justify-center gap-1">

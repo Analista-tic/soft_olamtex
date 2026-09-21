@@ -438,7 +438,7 @@ const metricCards = computed(() => {
                             </div>
                             <div class="space-y-1">
                                 <p class="text-xs font-semibold text-muted-foreground">Motivo <span class="text-destructive">*</span></p>
-                                <Input
+                                <Input data-no-uppercase
                                     v-model="quantityReason"
                                     class="h-9"
                                     placeholder="Ej: Error de medición en recepción"

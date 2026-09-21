@@ -259,7 +259,7 @@ async function submitDischarge() {
                             <p class="text-xs font-semibold text-muted-foreground">
                                 Motivo <span class="text-destructive">*</span>
                             </p>
-                            <Input
+                            <Input data-no-uppercase
                                 v-model="form.reason"
                                 placeholder="Describe el motivo del ajuste"
                                 :invalid="Boolean(errors.reason)"

@@ -932,7 +932,7 @@ onMounted(async () => {
                             <div class="md:col-span-3">
                                 <p :class="['mb-1', uiPatterns.typography.fieldLabel]">Nota de egreso</p>
                                 <Textarea
-                                    v-model="form.notes"
+                                    v-model="form.notes" data-no-uppercase
                                     :disabled="submitting"
                                     rows="2"
                                     placeholder="Nota de egreso"

@@ -223,7 +223,7 @@ watch(
                                         <template v-if="resolvingNoveltyId === event.id">
                                             <div class="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50/40 p-3">
                                                 <p class="text-[11px] font-medium text-emerald-700">Notas de resolución (opcional)</p>
-                                                <Textarea
+                                                <Textarea data-no-uppercase
                                                     :model-value="resolveNotes"
                                                     placeholder="Describe cómo se resolvió el problema..."
                                                     :rows="2"

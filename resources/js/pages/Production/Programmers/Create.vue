@@ -890,7 +890,7 @@ watch(
                                         </td>
 
                                         <td class="border border-border/60 px-3 py-2" style="min-width: 220px">
-                                            <InputField
+                                            <InputField data-no-uppercase
                                                 v-model="lot.notes"
                                                 label=""
                                                 placeholder="Nota opcional"

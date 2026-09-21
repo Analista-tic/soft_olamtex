@@ -92,7 +92,7 @@ function saveProfileInfo() {
 
         <div class="space-y-2">
             <label class="text-sm font-medium text-foreground">Correo electrónico</label>
-            <Input v-model="profileInfo.email" placeholder="correo@dominio.com" />
+            <Input v-model="profileInfo.email" data-no-uppercase placeholder="correo@dominio.com" />
         </div>
 
         <div class="flex flex-wrap items-center justify-between gap-3 border-t pt-4">

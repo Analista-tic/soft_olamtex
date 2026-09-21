@@ -936,7 +936,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                             />
                         </TableCell>
                         <TableCell class="w-[160px] p-1 text-left align-top">
-                            <InputField :dusk="`orden-item-${idx}-descripcion`" v-model="item.description" label="" class="h-10 w-full" :disabled="isReadOnly" />
+                            <InputField data-no-uppercase :dusk="`orden-item-${idx}-descripcion`" v-model="item.description" label="" class="h-10 w-full" :disabled="isReadOnly" />
                         </TableCell>
                         <TableCell v-if="isTela(item)" class="w-[120px] p-1 text-left align-top">
                             <InputField

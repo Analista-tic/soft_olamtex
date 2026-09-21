@@ -562,7 +562,7 @@ async function handleSubmit() {
                                         text="Describe el motivo del ajuste (ej. pérdida, conteo físico, rotura) para facilitar auditorías."
                                     />
                                 </Label>
-                                <Input v-model="observation" class="mt-1" placeholder="Ingrese una observación" />
+                                <Input data-no-uppercase v-model="observation" class="mt-1" placeholder="Ingrese una observación" />
                             </div>
                         </div>
                         <div class="mt-4 pb-4">

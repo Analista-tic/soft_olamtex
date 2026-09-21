@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatPersonNameDisplay } from '@/lib/textNormalizer';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
@@ -169,7 +170,7 @@ const canVoid = computed(() => props.mode === 'view' && ['issued', 'partial'].in
 const hasOriginOrder = computed(() => Boolean(originOrder.value?.id || localSalesInvoice.value.parent_document_id));
 const disableClientField = computed(() => isReadOnly.value || hasOriginOrder.value);
 
-const contactOptions = computed(() => contacts.value.map((contact) => ({ id: contact.id, name: contact.full_name })));
+const contactOptions = computed(() => contacts.value.map((contact) => ({ id: contact.id, name: formatPersonNameDisplay(contact.full_name, contact.person_type) })));
 const paymentTermOptions = [
     { id: 'cash', name: 'Contado' },
     { id: 'credit', name: 'Crédito' },
@@ -652,7 +653,7 @@ watch(
                     </div>
 
                     <TextareaField
-                        :model-value="localSalesInvoice.description ?? undefined"
+                        :model-value="localSalesInvoice.description ?? undefined" data-no-uppercase
                         label="Notas"
                         placeholder="Agrega observaciones para la factura"
                         :disabled="isReadOnly"

@@ -93,7 +93,7 @@ async function handleSubmit() {
                         placeholder="Ej: EST-A3 (opcional)"
                     />
                     <InputField
-                        v-model="form.description"
+                        v-model="form.description" data-no-uppercase
                         label="Descripción"
                         placeholder="Descripción corta (opcional)"
                     />

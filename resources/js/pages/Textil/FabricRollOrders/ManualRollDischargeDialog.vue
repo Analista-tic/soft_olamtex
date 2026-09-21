@@ -196,7 +196,7 @@ async function submitDischarge() {
 
                 <div class="space-y-1">
                     <p class="text-xs font-semibold text-muted-foreground">Motivo</p>
-                    <Input v-model="form.reason" placeholder="Opcional" />
+                    <Input data-no-uppercase v-model="form.reason" placeholder="Opcional" />
                 </div>
 
                 <div class="space-y-1">

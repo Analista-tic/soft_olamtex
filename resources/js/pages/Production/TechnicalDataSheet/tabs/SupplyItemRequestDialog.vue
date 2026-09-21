@@ -378,7 +378,7 @@ function formatCurrency(value: number): string {
 
                                 <div class="grid gap-1.5">
                                     <Label for="supply-provider">Proveedor sugerido</Label>
-                                    <Input
+                                    <Input data-no-uppercase
                                         id="supply-provider"
                                         v-model="form.provider_name"
                                         placeholder="Nombre del proveedor o referencia comercial"
@@ -388,7 +388,7 @@ function formatCurrency(value: number): string {
 
                                 <div class="grid gap-1.5 md:col-span-3">
                                     <Label for="supply-description">Descripción técnica</Label>
-                                    <Textarea
+                                    <Textarea data-no-uppercase
                                         id="supply-description"
                                         v-model="form.description"
                                         placeholder="Detalle material, color, acabado, medidas, composición o especificaciones del insumo..."
@@ -467,7 +467,7 @@ function formatCurrency(value: number): string {
 
                             <div class="grid gap-1.5">
                                 <Label for="supply-obs">Observaciones para logística</Label>
-                                <Textarea
+                                <Textarea data-no-uppercase
                                     id="supply-obs"
                                     v-model="form.observation"
                                     placeholder="Ej: validar tono, confirmar existencia con proveedor, entregar muestra física, etc."

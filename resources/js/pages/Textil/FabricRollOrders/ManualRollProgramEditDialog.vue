@@ -114,7 +114,7 @@ async function submitEdit() {
                 </div>
                 <div class="space-y-1">
                     <p class="text-xs font-semibold text-muted-foreground">Notas</p>
-                    <Input v-model="form.notes" placeholder="Opcional" />
+                    <Input data-no-uppercase v-model="form.notes" placeholder="Opcional" />
                 </div>
             </div>
 

@@ -203,7 +203,7 @@ async function handleReject() {
                         Las notas son obligatorias al rechazar.
                     </p>
                     <TextareaField
-                        v-model="approvalNotes"
+                        v-model="approvalNotes" data-no-uppercase
                         label="Notas de decisión"
                         placeholder="Escribe las notas de tu decisión (obligatorio al rechazar)..."
                         :rows="3"

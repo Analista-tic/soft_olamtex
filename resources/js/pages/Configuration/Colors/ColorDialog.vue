@@ -265,7 +265,7 @@ function submit() {
                     <div class="space-y-1.5">
                         <Label for="color-description">Descripción</Label>
                         <Input
-                            id="color-description"
+                            id="color-description" data-no-uppercase
                             v-model="internalForm.description"
                             placeholder="Descripción"
                         />

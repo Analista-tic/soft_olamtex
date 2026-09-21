@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatPersonNameDisplay } from '@/lib/textNormalizer';
 import AccountingDateRangePicker from '@/components/AccountingDateRangePicker.vue';
 import AccountMovementsComparisonChart from '@/components/AccountMovementsComparisonChart.vue';
 import FilterField from '@/components/FilterField.vue';
@@ -245,7 +246,7 @@ async function fetchAccounts(): Promise<void> {
 async function fetchContacts(): Promise<void> {
     try {
         await contactsStore.fetchContacts();
-        contactOptions.value = contactsStore.items.map((row) => ({ id: row.id, name: row.full_name }));
+        contactOptions.value = contactsStore.items.map((row) => ({ id: row.id, name: formatPersonNameDisplay(row.full_name, row.person_type) }));
     } catch (err) {
         contactOptions.value = [];
         console.error('Error al cargar terceros', err);

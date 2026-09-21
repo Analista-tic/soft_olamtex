@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatPersonNameDisplay } from '@/lib/textNormalizer';
 import DateField from '@/components/DateField.vue';
 import DifferenceDialog from '@/components/DifferenceDialog.vue';
 import FormDialogBody from '@/components/FormDialogBody.vue';
@@ -764,7 +765,7 @@ watch(dialogOpen, (isOpen) => {
                                             <SelectField
                                                 v-model="localForm.contact_id"
                                                 label=""
-                                                :options="contacts.map((c) => ({ id: Number(c.id), name: c.full_name }))"
+                                                :options="contacts.map((c) => ({ id: Number(c.id), name: formatPersonNameDisplay(c.full_name, c.person_type) }))"
                                                 :disabled="isReadOnly"
                                                 :searchable="true"
                                                 required
@@ -911,7 +912,7 @@ watch(dialogOpen, (isOpen) => {
                                         </div>
                                     </div>
                                     <div>
-                                        <TextareaField v-model="localForm.description" label="Observación" :disabled="isReadOnly" />
+                                        <TextareaField data-no-uppercase v-model="localForm.description" label="Observación" :disabled="isReadOnly" />
                                     </div>
                                 </div>
                             </fieldset>

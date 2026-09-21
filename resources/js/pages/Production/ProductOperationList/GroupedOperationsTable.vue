@@ -192,7 +192,7 @@ function handleDrop(target: number) {
                                                 class="mt-0.5 block truncate text-[9px] italic text-muted-foreground/50"
                                                 :title="row.row_notes"
                                             >{{ row.row_notes }}</span>
-                                            <input
+                                            <input data-no-uppercase
                                                 v-if="isEditingRow(row.originalIndex) && editRow"
                                                 v-model="editRow.row_notes"
                                                 type="text"
@@ -355,7 +355,7 @@ function handleDrop(target: number) {
                                         class="mt-0.5 block truncate text-[9px] italic text-muted-foreground/50"
                                         :title="row.row_notes"
                                     >{{ row.row_notes }}</span>
-                                    <input
+                                    <input data-no-uppercase
                                         v-if="isEditingRow(row.originalIndex) && editRow"
                                         v-model="editRow.row_notes"
                                         type="text"

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatPersonNameDisplay } from '@/lib/textNormalizer';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
@@ -148,7 +149,7 @@ const canConvert = computed(() => props.mode === 'view' && ['accepted', 'sent'].
 const contactOptions = computed(() =>
     contacts.value.map((contact) => ({
         id: contact.id,
-        name: contact.full_name,
+        name: formatPersonNameDisplay(contact.full_name, contact.person_type),
     })),
 );
 
@@ -533,7 +534,7 @@ watch(
                     </div>
 
                     <TextareaField
-                        :model-value="localQuote.description ?? undefined"
+                        :model-value="localQuote.description ?? undefined" data-no-uppercase
                         label="Notas"
                         placeholder="Agrega observaciones para la cotización"
                         :disabled="isReadOnly"

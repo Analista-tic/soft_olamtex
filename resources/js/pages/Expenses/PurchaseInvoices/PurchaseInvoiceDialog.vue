@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatPersonNameDisplay } from '@/lib/textNormalizer';
 import DateField from '@/components/DateField.vue';
 import DifferenceDialog from '@/components/DifferenceDialog.vue';
 import FormDialogBody from '@/components/FormDialogBody.vue';
@@ -904,7 +905,7 @@ watch(dialogOpen, (isOpen) => {
                                             v-model="localForm.contact_id"
                                             dusk="factura-select-proveedor"
                                             label=""
-                                            :options="contacts.map((c) => ({ id: Number(c.id), name: c.full_name }))"
+                                            :options="contacts.map((c) => ({ id: Number(c.id), name: formatPersonNameDisplay(c.full_name, c.person_type) }))"
                                             :disabled="isReadOnly"
                                             :searchable="true"
                                             :loading="isLoadingContacts"
@@ -1082,7 +1083,7 @@ watch(dialogOpen, (isOpen) => {
                                 <div class="flex flex-col gap-1">
                                     <label class="text-sm font-medium">Observación</label>
                                     <TextareaField
-                                        v-model="localForm.description"
+                                        v-model="localForm.description" data-no-uppercase
                                         label=""
                                         placeholder="Agrega aquí observaciones adicionales para la factura de compra"
                                         :disabled="isReadOnly"

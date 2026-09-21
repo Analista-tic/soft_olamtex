@@ -13,7 +13,15 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Item extends Model implements \App\Contracts\HasAuditLabel
 {
-    use \App\Models\Concerns\HasAuditLabel, SoftDeletes;
+    use \App\Models\Concerns\HasAuditLabel, SoftDeletes, \App\Models\Concerns\NormalizesAttributes;
+
+    /** Reglas de normalización al guardar (ver NormalizesAttributes). */
+    protected array $normalizedAttributes = [
+        'reference' => 'code',
+        'legacy_code' => 'code',
+        'bar_code' => 'code',
+        'description' => 'freeText',
+    ];
 
     public const ORIGIN_SYSTEM = 'system';
     public const ORIGIN_MIGRATION = 'migration';

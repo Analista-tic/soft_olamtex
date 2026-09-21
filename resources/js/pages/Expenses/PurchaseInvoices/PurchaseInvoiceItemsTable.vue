@@ -684,7 +684,7 @@ defineExpose({ addItem });
                         <TableCell v-if="!props.telaMode" class="p-1 text-left align-top" style="width: 160px">
                             <div class="flex flex-col">
                                 <InputField
-                                    v-model="item.description"
+                                    v-model="item.description" data-no-uppercase
                                     label=""
                                     class="h-10 w-full"
                                     :readonly="isReadOnly"

@@ -215,7 +215,7 @@ function handleSubmit() {
                             case-mode="title-case"
                         />
                         <TextareaField
-                            v-model="localForm.description"
+                            v-model="localForm.description" data-no-uppercase
                             label="Descripción"
                             placeholder="Opcional"
                             :rows="3"

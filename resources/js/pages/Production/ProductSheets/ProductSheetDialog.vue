@@ -2135,7 +2135,7 @@ function handleClose() {
                                     <!-- Observaciones -->
                                     <div class="flex flex-col gap-1">
                                         <Label class="text-sm font-medium">Observaciones</Label>
-                                        <TextareaField
+                                        <TextareaField data-no-uppercase
                                             v-model="form.observaciones"
                                             label=""
                                             placeholder="Observaciones internas del producto..."

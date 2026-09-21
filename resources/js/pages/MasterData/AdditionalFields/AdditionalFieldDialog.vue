@@ -390,7 +390,7 @@ function handleSubmit() {
 
                             <div class="my-2 h-px bg-slate-100" />
 
-                            <TextareaField label="Descripción" placeholder="Opcional" :rows="3" v-model="localForm.description" />
+                            <TextareaField data-no-uppercase label="Descripción" placeholder="Opcional" :rows="3" v-model="localForm.description" />
 
                             <div class="grid grid-cols-2 gap-5 pt-2">
                                 <div class="flex flex-col gap-2">

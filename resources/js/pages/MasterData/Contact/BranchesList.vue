@@ -126,8 +126,8 @@ defineExpose({
 
         <div v-for="(branch, index) in internalBranches" :key="index" class="p-2">
             <div class="flex items-center gap-4">
-                <InputField v-model="branch.name" label="Nombre de la sucursal" placeholder="Nombre" required :error="branchErrors[index]?.name" />
-                <InputField v-model="branch.address" label="Dirección" placeholder="Dirección" required :error="branchErrors[index]?.address" />
+                <InputField v-model="branch.name" data-no-uppercase label="Nombre de la sucursal" placeholder="Nombre" required :error="branchErrors[index]?.name" />
+                <InputField v-model="branch.address" data-no-uppercase label="Dirección" placeholder="Dirección" required :error="branchErrors[index]?.address" />
                 <InputField v-model="branch.phone" label="Teléfono" placeholder="Teléfono" required :error="branchErrors[index]?.phone" />
                 <div class="text-right">
                     <DeleteButton @click="removeBranch(index)">Eliminar sucursal</DeleteButton>

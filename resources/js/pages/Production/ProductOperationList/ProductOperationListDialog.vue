@@ -887,7 +887,7 @@ function resetForm() {
                             </Button>
                         </div>
                         <div class="col-span-12">
-                            <input
+                            <input data-no-uppercase
                                 v-model="currentRow.row_notes"
                                 type="text"
                                 placeholder="Nota de la operación (opcional)"
@@ -980,7 +980,7 @@ function resetForm() {
                                                 class="mt-0.5 block truncate text-[10px] italic text-muted-foreground/60"
                                                 :title="row.row_notes"
                                             >{{ row.row_notes }}</span>
-                                            <input
+                                            <input data-no-uppercase
                                                 v-if="isEditingRow(index) && editRow"
                                                 v-model="editRow.row_notes"
                                                 type="text"

@@ -9,7 +9,17 @@ use Illuminate\Database\Eloquent\Model;
 
 class FabricRoll extends Model
 {
-    use HasFactory;
+    use HasFactory, \App\Models\Concerns\NormalizesAttributes;
+
+    /** Reglas de normalización al guardar. movement_type/approval_status (enums) quedan fuera. */
+    protected array $normalizedAttributes = [
+        'roll_number' => 'code',
+        'batch' => 'code',
+        'location' => 'code',
+        'internal_color_name' => 'catalogName',
+        'internal_color_code' => 'code',
+        'description' => 'freeText',
+    ];
 
     public const APPROVAL_APPROVED = 'approved';
     public const APPROVAL_PENDING = 'pending_approval';

@@ -468,7 +468,7 @@ onMounted(() => {
                                         />
                                     </TableCell>
                                     <TableCell class="min-w-[180px]">
-                                        <Input
+                                        <Input data-no-uppercase
                                             :model-value="row.supplier ?? ''"
                                             placeholder="Proveedor"
                                             :disabled="isSaving || (row.isFixed && !canEditDefaultProcesses)"

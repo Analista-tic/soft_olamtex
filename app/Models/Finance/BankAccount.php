@@ -9,7 +9,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BankAccount extends Model
 {
-    use HasFactory;
+    use HasFactory, \App\Models\Concerns\NormalizesAttributes;
+
+    /** Reglas de normalización al guardar (ver NormalizesAttributes). */
+    protected array $normalizedAttributes = [
+        'description' => 'freeText',
+    ];
 
     protected $table = 'bank_accounts';
 

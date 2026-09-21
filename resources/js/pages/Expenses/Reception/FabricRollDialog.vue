@@ -618,7 +618,7 @@ watch(dialogOpen, (value) => {
                             </div>
 
                             <TextareaField
-                                v-model="form.description"
+                                v-model="form.description" data-no-uppercase
                                 label="Observaciones"
                                 :rows="2"
                                 placeholder="Opcional"

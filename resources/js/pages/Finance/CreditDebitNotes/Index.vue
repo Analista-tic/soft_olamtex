@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatPersonNameDisplay } from '@/lib/textNormalizer';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
@@ -156,7 +157,7 @@ const searchPlaceholder = computed(() =>
 );
 
 const providerOptions = computed(() => [
-    ...contactsStore.items.map((p) => ({ id: String(p.id), name: p.full_name })),
+    ...contactsStore.items.map((p) => ({ id: String(p.id), name: formatPersonNameDisplay(p.full_name, p.person_type) })),
 ]);
 
 const typeOptions = computed(() => [

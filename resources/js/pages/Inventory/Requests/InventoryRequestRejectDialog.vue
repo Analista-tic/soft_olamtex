@@ -100,7 +100,7 @@ watch(dialogOpen, (isOpen) => {
             <div class="space-y-1.5 px-6 py-5">
                 <label class="text-sm font-medium text-foreground">Motivo <span class="text-destructive">*</span></label>
                 <Textarea
-                    v-model="reason"
+                    v-model="reason" data-no-uppercase
                     placeholder="Describe el motivo del rechazo"
                     class="min-h-28 resize-none"
                 />

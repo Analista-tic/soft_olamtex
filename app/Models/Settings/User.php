@@ -15,6 +15,17 @@ class User extends Authenticatable implements \App\Contracts\HasAuditLabel
     use HasFactory, Notifiable, HasRoles;
 
     use \App\Models\Concerns\HasAuditLabel;
+    use \App\Models\Concerns\NormalizesAttributes;
+
+    /**
+     * Reglas de normalización al guardar (ver NormalizesAttributes).
+     *
+     * @var array<string, string>
+     */
+    protected array $normalizedAttributes = [
+        'name' => 'personName',
+        'email' => 'email',
+    ];
 
     /**
      * The attributes that are mass assignable.

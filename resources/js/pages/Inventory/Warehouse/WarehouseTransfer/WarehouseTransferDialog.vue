@@ -495,7 +495,7 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
                                         <HelpTooltip text="Agrega información adicional sobre el traslado." ariaLabel="Ayuda sobre observaciones" />
                                     </div>
                                     <TextareaField
-                                        v-model="transferForm.observation"
+                                        v-model="transferForm.observation" data-no-uppercase
                                         label=""
                                         placeholder="Observaciones adicionales"
                                         :rows="7"

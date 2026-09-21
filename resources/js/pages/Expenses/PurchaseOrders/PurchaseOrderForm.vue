@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatPersonNameDisplay } from '@/lib/textNormalizer';
 import AppLayout from '@/layouts/AppLayout.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
@@ -695,7 +696,7 @@ watch(myRequestsOnly, () => {
                             <SelectField
                                 v-model="localForm.contact_id"
                                 label="Proveedor"
-                                :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
+                                :options="contacts.map((c) => ({ id: c.id, name: formatPersonNameDisplay(c.full_name, c.person_type) }))"
                                 :searchable="true"
                                 :server-search="true"
                                 :loading="isLoadingContacts"
@@ -783,7 +784,7 @@ watch(myRequestsOnly, () => {
                 <!-- Zona inferior: Observación + Totales -->
                 <div class="flex items-start justify-between gap-6">
                     <div class="flex-1">
-                        <TextareaField v-model="localForm.description" label="Observación" />
+                        <TextareaField data-no-uppercase v-model="localForm.description" label="Observación" />
                     </div>
                     <div class="shrink-0 rounded-lg border border-sidebar-border/70" style="min-width: 420px; width: auto">
                         <div class="flex justify-between" style="padding: 12px 20px; font-size: 14px">

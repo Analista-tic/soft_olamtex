@@ -191,7 +191,7 @@ function submitForm() {
                                 <Label class="text-sm font-medium"> Nombre<span class="text-destructive">*</span> </Label>
                                 <HelpTooltip text="Nombre completo del usuario que tendrá acceso al sistema." aria-label="Ayuda sobre nombre" />
                             </div>
-                            <InputField v-model="form.name" label="" placeholder="Nombre del usuario" required :readonly="isView" />
+                            <InputField v-model="form.name" data-no-uppercase label="" placeholder="Nombre del usuario" required :readonly="isView" />
                         </div>
                         <div class="flex flex-col gap-1">
                             <div class="flex items-center gap-2">

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatPersonNameDisplay } from '@/lib/textNormalizer';
 import AlertStack from '@/components/common/AlertStack.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
@@ -754,7 +755,7 @@ function onFabricRollSuccess() {
                             label=""
                             :options="[
                                 { id: 'all', name: 'Todos los proveedores' },
-                                ...contactsStore.items.map((prov) => ({ id: String(prov.id), name: prov.full_name })),
+                                ...contactsStore.items.map((prov) => ({ id: String(prov.id), name: formatPersonNameDisplay(prov.full_name, prov.person_type) })),
                             ]"
                             :button-class="providerButtonClasses"
                         />

@@ -80,7 +80,7 @@ const emit = defineEmits<{
                 <!-- Observaciones -->
                 <div class="space-y-1.5">
                     <label class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Observaciones <span class="lowercase">(opcional)</span></label>
-                    <Textarea
+                    <Textarea data-no-uppercase
                         :model-value="deliverObservations"
                         placeholder="Estado del proceso, novedades o lo que el siguiente responsable debe saber..."
                         :rows="4"

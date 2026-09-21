@@ -713,7 +713,7 @@ onBeforeUnmount(() => {
                                             Nombre <span class="text-red-500">*</span>
                                         </label>
                                         <Input
-                                            id="legal-name"
+                                            id="legal-name" data-no-uppercase
                                             v-model="companyInfo.name"
                                             :class="isFieldMissing('name') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
                                         />
@@ -736,14 +736,14 @@ onBeforeUnmount(() => {
                                             Correo corporativo <span class="text-red-500">*</span>
                                         </label>
                                         <Input
-                                            id="email"
+                                            id="email" data-no-uppercase
                                             v-model="companyInfo.email"
                                             :class="isFieldMissing('email') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
                                         />
                                     </div>
                                     <div class="space-y-2">
                                         <label for="accounting-email" class="text-sm font-medium text-card-foreground">Correo contable</label>
-                                        <Input id="accounting-email" v-model="companyInfo.accounting_email" />
+                                        <Input id="accounting-email" data-no-uppercase v-model="companyInfo.accounting_email" />
                                     </div>
                                     <div class="space-y-2">
                                         <label for="phone" class="text-sm font-medium text-card-foreground">
@@ -757,7 +757,7 @@ onBeforeUnmount(() => {
                                     </div>
                                     <div class="space-y-2">
                                         <label for="website" class="text-sm font-medium text-card-foreground">Sitio web</label>
-                                        <Input id="website" v-model="companyInfo.website" />
+                                        <Input id="website" data-no-uppercase v-model="companyInfo.website" />
                                     </div>
                                 </div>
 
@@ -767,7 +767,7 @@ onBeforeUnmount(() => {
                                             Dirección <span class="text-red-500">*</span>
                                         </label>
                                         <Input
-                                            id="address"
+                                            id="address" data-no-uppercase
                                             v-model="companyInfo.address"
                                             :class="isFieldMissing('address') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
                                         />
@@ -789,7 +789,7 @@ onBeforeUnmount(() => {
 
                                 <div class="space-y-2">
                                     <label for="description" class="text-sm font-medium text-card-foreground">Descripción</label>
-                                    <Textarea id="description" rows="4" v-model="companyInfo.description" />
+                                    <Textarea id="description" data-no-uppercase rows="4" v-model="companyInfo.description" />
                                 </div>
 
                                 <div class="mt-6 rounded-2xl border border-dashed border-border bg-card p-4">

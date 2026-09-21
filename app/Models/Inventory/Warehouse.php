@@ -9,7 +9,12 @@ use Illuminate\Database\Eloquent\Model;
 
 class Warehouse extends Model implements \App\Contracts\HasAuditLabel
 {
-    use HasFactory;
+    use HasFactory, \App\Models\Concerns\NormalizesAttributes;
+
+    /** Reglas de normalización al guardar (ver NormalizesAttributes). */
+    protected array $normalizedAttributes = [
+        'observation' => 'freeText',
+    ];
 
     public static function auditLabel(): string
     {

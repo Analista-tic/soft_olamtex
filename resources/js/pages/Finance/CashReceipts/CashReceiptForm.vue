@@ -269,7 +269,7 @@ onMounted(async () => {
 
                         <div class="md:col-span-3">
                             <p :class="['mb-1', uiPatterns.typography.fieldLabel]">Nota de ingreso</p>
-                            <Textarea v-model="form.notes" :disabled="submitting" rows="2" placeholder="Nota de ingreso" />
+                            <Textarea data-no-uppercase v-model="form.notes" :disabled="submitting" rows="2" placeholder="Nota de ingreso" />
                         </div>
                         <p v-if="loadingDocuments" :class="['md:col-span-3', uiPatterns.typography.helperText]">
                             Cargando documentos pendientes...

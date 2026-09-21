@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatPersonNameDisplay } from '@/lib/textNormalizer';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
@@ -178,7 +179,7 @@ const disableClientField = computed(() => isReadOnly.value || hasOriginQuote.val
 const contactOptions = computed(() =>
     contactsStore.items.map((contact) => ({
         id: contact.id,
-        name: contact.full_name,
+        name: formatPersonNameDisplay(contact.full_name, contact.person_type),
     })),
 );
 
@@ -593,7 +594,7 @@ watch(
                     </div>
 
                     <TextareaField
-                        :model-value="localSalesOrder.description ?? undefined"
+                        :model-value="localSalesOrder.description ?? undefined" data-no-uppercase
                         label="Notas"
                         placeholder="Agrega observaciones para el pedido"
                         :disabled="isReadOnly"

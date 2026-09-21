@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatPersonNameDisplay } from '@/lib/textNormalizer';
 import AlertStack from '@/components/common/AlertStack.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputDate from '@/components/InputDate.vue';
@@ -185,7 +186,7 @@ function toDocumentType(noteType: NoteKind): RuntimeDocumentType {
 /**
  * Computeds de formulario / selección
  */
-const contactOptions = computed(() => contacts.value.map((c) => ({ id: c.id, name: c.full_name })));
+const contactOptions = computed(() => contacts.value.map((c) => ({ id: c.id, name: formatPersonNameDisplay(c.full_name, c.person_type) })));
 
 const selectedContact = computed(() => {
     const contactId = asNumber(localForm.value.contact_id, 0);
@@ -927,7 +928,7 @@ onMounted(async () => {
                 </section>
 
                 <TextareaField
-                    :modelValue="String(localForm.description ?? '')"
+                    :modelValue="String(localForm.description ?? '')" data-no-uppercase
                     @update:modelValue="(value) => (localForm.description = String(value ?? ''))"
                     label="Observación general"
                     placeholder="Agrega una observación para la nota"

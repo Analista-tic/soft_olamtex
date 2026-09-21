@@ -467,7 +467,7 @@ onBeforeUnmount(() => window.clearTimeout(searchDebounce));
                 </label>
                 <Textarea
                     id="void-reason"
-                    v-model="voidReason"
+                    v-model="voidReason" data-no-uppercase
                     rows="3"
                     :disabled="isVoiding"
                     placeholder="Describe el motivo de la anulación"

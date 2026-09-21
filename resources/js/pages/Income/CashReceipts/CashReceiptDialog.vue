@@ -520,7 +520,7 @@ watch(
                     </div>
 
                     <TextareaField
-                        :model-value="localReceipt.notes ?? undefined"
+                        :model-value="localReceipt.notes ?? undefined" data-no-uppercase
                         label="Notas"
                         placeholder="Observaciones del cobro"
                         :disabled="isReadOnly"

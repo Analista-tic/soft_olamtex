@@ -78,7 +78,7 @@ const retentionTypeOptions = [
                         @update:modelValue="(value) => (localForm.percent = Number(value) || 0)"
                     />
                     <SelectField v-model="localForm.type" label="Tipo" :options="retentionTypeOptions" required />
-                    <InputField label="Descripción" v-model="localForm.description" placeholder="Descripción" />
+                    <InputField data-no-uppercase label="Descripción" v-model="localForm.description" placeholder="Descripción" />
                     <SelectField
                         v-model="localForm.status"
                         label="Estado"

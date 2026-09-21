@@ -265,7 +265,7 @@ defineExpose({ addItem });
                         }}
                     </TableCell>
                     <TableCell class="p-2 text-left">
-                        <InputField v-model="item.description" label="" :readonly="isReadOnly" @input="emitItems" />
+                        <InputField data-no-uppercase v-model="item.description" label="" :readonly="isReadOnly" @input="emitItems" />
                     </TableCell>
                     <TableCell v-if="!isReadOnly" class="p-2 text-center">
                         <div class="flex justify-center">

@@ -483,7 +483,7 @@ const todayFormatted = new Date().toLocaleDateString('es-CO', {
 
                     <!-- Row 4: Description -->
                     <InputField
-                        v-model="form.description"
+                        v-model="form.description" data-no-uppercase
                         label="Descripción"
                         placeholder="Notas adicionales sobre esta cuenta"
                     />

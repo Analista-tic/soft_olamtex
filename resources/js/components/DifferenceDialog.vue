@@ -243,7 +243,7 @@ function handleSave() {
 
             <div class="flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
                 <div class="space-y-4">
-                    <TextareaField v-model="reason" label="Motivo de la diferencia" :rows="4" class="min-h-[100px] resize-y" required />
+                    <TextareaField data-no-uppercase v-model="reason" label="Motivo de la diferencia" :rows="4" class="min-h-[100px] resize-y" required />
 
                     <div class="space-y-2 text-sm">
                         <label class="block font-semibold">

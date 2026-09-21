@@ -12,7 +12,12 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class FabricName extends Model
 {
-    use HasAuditLabel, HasFactory, SoftDeletes;
+    use HasAuditLabel, HasFactory, SoftDeletes, \App\Models\Concerns\NormalizesAttributes;
+
+    /** Reglas de normalización al guardar (ver NormalizesAttributes). */
+    protected array $normalizedAttributes = [
+        'nombre' => 'catalogName',
+    ];
 
     protected $table = 'fabric_names';
 

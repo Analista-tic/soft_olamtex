@@ -89,7 +89,7 @@ function handleSubmit() {
                                     aria-label="Ayuda sobre observación"
                                 />
                             </div>
-                            <InputField v-model="observationValue" label="" placeholder="Agrega una observación" />
+                            <InputField data-no-uppercase v-model="observationValue" label="" placeholder="Agrega una observación" />
                         </div>
                     </div>
                 </TooltipProvider>

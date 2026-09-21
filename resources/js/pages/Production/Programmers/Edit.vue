@@ -647,7 +647,7 @@ watch(
 
                                 <div class="flex flex-col gap-1 md:col-span-2">
                                     <Label class="text-sm font-medium">Nota</Label>
-                                    <InputField
+                                    <InputField data-no-uppercase
                                         v-model="programmer.notes"
                                         label=""
                                         placeholder="Nota de programación"
