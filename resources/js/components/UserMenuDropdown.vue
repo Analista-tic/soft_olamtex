@@ -59,7 +59,7 @@ function logout() {
             <button
                 type="button"
                 class="inline-flex h-9 max-w-[12rem] shrink-0 items-center gap-2 rounded-md border border-transparent bg-transparent px-1.5 text-sm font-medium leading-none text-foreground transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                aria-label="Menu de usuario"
+                aria-label="Menú de usuario"
             >
                 <Avatar class="h-6 w-6 shrink-0 overflow-hidden rounded-full">
                     <AvatarImage v-if="showAvatar" :key="user.avatar_url ?? 'no-avatar'" :src="avatarSrc" :alt="user.name" />
@@ -91,14 +91,14 @@ function logout() {
 
             <DropdownMenuItem class="cursor-pointer" @select="goConfig">
                 <Settings class="mr-2 h-4 w-4" />
-                <span>Configuracion</span>
+                <span>Configuración</span>
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />
 
             <DropdownMenuItem class="cursor-pointer text-destructive focus:text-destructive" @select.prevent="logout">
                 <LogOut class="mr-2 h-4 w-4" />
-                <span>Cerrar sesion</span>
+                <span>Cerrar sesión</span>
             </DropdownMenuItem>
         </DropdownMenuContent>
     </DropdownMenu>

@@ -127,7 +127,7 @@ const modules: ConfigurationModule[] = [
             { name: 'Categorías', href: '/categorias/subgrupos' },
             { name: 'Bodegas', href: '/bodegas' },
             { name: 'Campos adicionales', href: '/campos-adicionales' },
-            { name: 'Parametros', href: '/parametros' },
+            { name: 'Parámetros', href: '/parametros' },
             { name: 'Colores', href: '/colores' },
             { name: 'Catálogo de materiales', href: route('nombres-materiales.index') },
         ],

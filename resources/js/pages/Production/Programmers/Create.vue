@@ -716,7 +716,7 @@ watch(
                                 <InputField
                                     v-model="lotsCountModel"
                                     label=""
-                                    placeholder="Numero de lotes"
+                                    placeholder="Número de lotes"
                                     type="number"
                                     min="1"
                                     step="1"

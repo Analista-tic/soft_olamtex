@@ -73,7 +73,7 @@ function todayDate(): string {
 /**
  * UI / layout
  */
-const breadcrumbs = [{ title: 'Notas credito/debito', href: '/notas-credito-debito' }];
+const breadcrumbs = [{ title: 'Notas crédito/débito', href: '/notas-credito-debito' }];
 
 /**
  * Data state
@@ -142,17 +142,17 @@ function hasBackendRouteByUri(targetUri: string): boolean {
 
 const salesInvoiceDataEndpointAvailable = computed(() => hasBackendRouteByUri('ingresos/facturas-venta/data'));
 
-const pageTitle = computed(() => (context.value === 'sale' ? 'Notas credito/debito de ventas' : 'Notas credito/debito de compras'));
+const pageTitle = computed(() => (context.value === 'sale' ? 'Notas crédito/débito de ventas' : 'Notas crédito/débito de compras'));
 const pageDescription = computed(() =>
     context.value === 'sale'
-        ? 'Registra notas de credito y debito asociadas a facturas de venta.'
-        : 'Registra notas de credito y debito asociadas a facturas de compra.',
+        ? 'Registra notas de crédito y débito asociadas a facturas de venta.'
+        : 'Registra notas de crédito y débito asociadas a facturas de compra.',
 );
 const counterpartLabel = computed(() => (context.value === 'sale' ? 'Cliente' : 'Proveedor'));
 const counterpartAllLabel = computed(() => (context.value === 'sale' ? 'Todos los clientes' : 'Todos los proveedores'));
 const baseInvoiceLabel = computed(() => (context.value === 'sale' ? 'Factura venta base' : 'Factura base'));
 const searchPlaceholder = computed(() =>
-    context.value === 'sale' ? 'Buscar por numero, tipo, cliente o factura base' : 'Buscar por numero, tipo, proveedor o factura base',
+    context.value === 'sale' ? 'Buscar por número, tipo, cliente o factura base' : 'Buscar por número, tipo, proveedor o factura base',
 );
 
 const providerOptions = computed(() => [
@@ -160,8 +160,8 @@ const providerOptions = computed(() => [
 ]);
 
 const typeOptions = computed(() => [
-    { id: toContextDocumentType('credit'), name: 'Nota credito' },
-    { id: toContextDocumentType('debit'), name: 'Nota debito' },
+    { id: toContextDocumentType('credit'), name: 'Nota crédito' },
+    { id: toContextDocumentType('debit'), name: 'Nota débito' },
 ]);
 
 /**
@@ -174,8 +174,8 @@ function noteKindFromDocumentType(documentType: CreditDebitNoteType): NoteKind {
 
 function formatType(type: CreditDebitNoteType | string): string {
     const normalized = String(type || '').toLowerCase();
-    if (normalized.includes('credit')) return 'Nota credito';
-    if (normalized.includes('debit')) return 'Nota debito';
+    if (normalized.includes('credit')) return 'Nota crédito';
+    if (normalized.includes('debit')) return 'Nota débito';
     return '-';
 }
 
@@ -330,7 +330,7 @@ async function fetchNotes(pageNumber = 1): Promise<void> {
     } catch {
         notes.value = [];
         totalItems.value = 0;
-        showError('No se pudo cargar el listado de notas de credito/debito.');
+        showError('No se pudo cargar el listado de notas de crédito/débito.');
     } finally {
         isLoading.value = false;
     }
@@ -409,7 +409,7 @@ async function openEditDialog(note: CreditDebitNote) {
         selectedNoteType.value = noteKindFromDocumentType(fullNote.document_type);
         isDialogOpen.value = true;
     } catch {
-        showError('No se pudo cargar la nota para edicion.');
+        showError('No se pudo cargar la nota para edición.');
     }
 }
 
@@ -456,7 +456,7 @@ async function handleDialogRefresh(message?: string) {
 }
 
 function handleDialogError(message?: string) {
-    showError(message || 'No se pudo guardar la nota de credito/debito.');
+    showError(message || 'No se pudo guardar la nota de crédito/débito.');
 }
 
 /**
@@ -574,8 +574,8 @@ onMounted(async () => {
                     </DropdownMenuTrigger>
 
                     <DropdownMenuContent align="end" class="w-44">
-                        <DropdownMenuItem class="cursor-pointer gap-2" @select="() => openDialog('credit')"> Nota credito </DropdownMenuItem>
-                        <DropdownMenuItem class="cursor-pointer gap-2" @select="() => openDialog('debit')"> Nota debito </DropdownMenuItem>
+                        <DropdownMenuItem class="cursor-pointer gap-2" @select="() => openDialog('credit')"> Nota crédito </DropdownMenuItem>
+                        <DropdownMenuItem class="cursor-pointer gap-2" @select="() => openDialog('debit')"> Nota débito </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>
@@ -688,8 +688,8 @@ onMounted(async () => {
 
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"
-            title="Confirmar eliminacion"
-            description="Esta accion eliminara la nota de credito/debito seleccionada."
+            title="Confirmar eliminación"
+            description="Esta acción eliminará la nota de crédito/débito seleccionada."
             confirm-text="Eliminar"
             cancel-text="Cancelar"
             :destructive="true"

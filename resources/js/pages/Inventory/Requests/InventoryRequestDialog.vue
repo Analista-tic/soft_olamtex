@@ -517,8 +517,8 @@ watch(dialogOpen, (isOpen) => {
                             </InventoryDetailTableLayout>
 
                             <TextareaField
-                                v-model="safeObservation"
-                                label="Observacion / Motivo"
+                                v-model="safeObservation" data-no-uppercase
+                                label="Observación / Motivo"
                                 placeholder="Describe el motivo de la solicitud"
                                 tooltipText="Resume qué necesitas y por qué; así quien aprueba entiende el contexto y puede dar prioridad."
                                 :required="true"

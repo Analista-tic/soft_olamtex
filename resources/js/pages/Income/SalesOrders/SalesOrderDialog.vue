@@ -184,7 +184,7 @@ const contactOptions = computed(() =>
 
 const paymentTermOptions = [
     { id: 'cash', name: 'Contado' },
-    { id: 'credit', name: 'Credito' },
+    { id: 'credit', name: 'Crédito' },
 ];
 
 const salesOrderItems = computed(() => normalizeItems(localSalesOrder.value.items));
@@ -206,7 +206,7 @@ const totalAmount = computed(() => roundCurrency(subtotalAmount.value - discount
 
 const originLabel = computed(() => {
     const number = originQuote.value?.document_number || localSalesOrder.value.parent?.document_number;
-    return number ? `Generado desde cotizacion ${number}` : 'Directo';
+    return number ? `Generado desde cotización ${number}` : 'Directo';
 });
 
 const dialogTitle = computed(() => {
@@ -223,14 +223,14 @@ const dialogTitle = computed(() => {
 
 const dialogDescription = computed(() => {
     if (isReadOnly.value && props.mode !== 'view') {
-        return 'El pedido esta bloqueado para edicion por su estado actual.';
+        return 'El pedido está bloqueado para edición por su estado actual.';
     }
 
     if (props.mode === 'view') {
-        return 'Consulta la informacion general y el detalle del pedido.';
+        return 'Consulta la información general y el detalle del pedido.';
     }
 
-    return 'Completa los datos del cliente y los items del pedido de venta.';
+    return 'Completa los datos del cliente y los ítems del pedido de venta.';
 });
 
 function formatCurrency(value: number): string {
@@ -295,7 +295,7 @@ async function loadDialogData() {
                 preloadFromQuote(quote);
             } catch (error: any) {
                 if (isCurrentLoadingRun(currentRun)) {
-                    setError(normalizeErrorMessage(error, 'No se pudo cargar la cotizacion de origen.'));
+                    setError(normalizeErrorMessage(error, 'No se pudo cargar la cotización de origen.'));
                 }
             } finally {
                 if (isCurrentLoadingRun(currentRun)) {
@@ -308,7 +308,7 @@ async function loadDialogData() {
     }
 
     if (!props.salesOrderId) {
-        setError('No se recibio el identificador del pedido de venta.');
+        setError('No se recibió el identificador del pedido de venta.');
         return;
     }
 
@@ -348,7 +348,7 @@ function validateForm(): boolean {
     if (localSalesOrder.value.payment_terms !== 'credit') {
         localSalesOrder.value.payment_days = null;
     } else if ((localSalesOrder.value.payment_days ?? 0) < 0) {
-        setError('Los dias de credito no pueden ser negativos.', 'warning');
+        setError('Los días de crédito no pueden ser negativos.', 'warning');
         return false;
     }
 
@@ -360,7 +360,7 @@ function validateForm(): boolean {
 
     const invalidItem = items.find((item) => !item.item_id || Number(item.quantity) < 0.01 || Number(item.unit_price) < 0);
     if (invalidItem) {
-        setError('Cada item debe tener producto, cantidad valida y precio unitario valido.', 'warning');
+        setError('Cada ítem debe tener producto, cantidad válida y precio unitario válido.', 'warning');
         return false;
     }
 
@@ -530,16 +530,16 @@ watch(
                                 <div :class="localSalesOrder.payment_terms === 'credit' ? 'w-1/2' : 'w-full'">
                                     <SelectField
                                         v-model="localSalesOrder.payment_terms"
-                                        label="Condicion de pago"
+                                        label="Condición de pago"
                                         :options="paymentTermOptions"
-                                        placeholder="Selecciona una condicion"
+                                        placeholder="Selecciona una condición"
                                         :disabled="isReadOnly"
                                     />
                                 </div>
                                 <div v-if="localSalesOrder.payment_terms === 'credit'" class="w-1/2">
                                     <InputField
                                         v-model="localSalesOrder.payment_days"
-                                        label="Dias de credito"
+                                        label="Días de crédito"
                                         type="number"
                                         placeholder="0"
                                         :disabled="isReadOnly"
@@ -552,7 +552,7 @@ watch(
                     <section class="space-y-3">
                         <div class="flex items-center justify-between">
                             <div>
-                                <h3 class="text-sm font-semibold text-foreground">Items</h3>
+                                <h3 class="text-sm font-semibold text-foreground">Ítems</h3>
                                 <p class="text-xs text-muted-foreground">Agrega los productos o servicios del pedido.</p>
                             </div>
                             <Button
@@ -646,7 +646,7 @@ watch(
     <ConfirmDialog
         :open="confirmConvertOpen"
         title="Convertir pedido a factura"
-        description="Se creara una factura de venta con los datos actuales del pedido."
+        description="Se creará una factura de venta con los datos actuales del pedido."
         confirm-text="Convertir"
         cancel-text="Cancelar"
         @update:open="confirmConvertOpen = $event"

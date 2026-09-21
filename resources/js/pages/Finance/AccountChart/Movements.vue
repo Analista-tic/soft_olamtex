@@ -468,11 +468,11 @@ onBeforeUnmount(() => {
                         <TableRow :class="uiPatterns.typography.tableHead">
                             <TableHead>Fecha</TableHead>
                             <TableHead>Documento</TableHead>
-                            <TableHead>Numero / referencia</TableHead>
+                            <TableHead>Número / referencia</TableHead>
                             <TableHead>Asiento</TableHead>
                             <TableHead>Tercero</TableHead>
-                            <TableHead class="text-right">Debito</TableHead>
-                            <TableHead class="text-right">Credito</TableHead>
+                            <TableHead class="text-right">Débito</TableHead>
+                            <TableHead class="text-right">Crédito</TableHead>
                             <TableHead class="text-right">Saldo acumulado</TableHead>
                             <TableHead class="w-[72px] text-right">Acciones</TableHead>
                         </TableRow>
@@ -503,7 +503,7 @@ onBeforeUnmount(() => {
                             <TableCell>
                                 <div class="flex flex-col">
                                     <span class="text-sm font-medium text-foreground">{{ row.document_type_label }}</span>
-                                    <span class="text-xs text-muted-foreground">{{ row.description || 'Sin descripcion' }}</span>
+                                    <span class="text-xs text-muted-foreground">{{ row.description || 'Sin descripción' }}</span>
                                 </div>
                             </TableCell>
                             <TableCell class="font-medium">{{ row.reference || '-' }}</TableCell>
@@ -616,20 +616,20 @@ onBeforeUnmount(() => {
                             <p class="text-sm font-semibold text-foreground">{{ formatCurrency(selectedMovement.running_balance) }}</p>
                         </div>
                         <div class="space-y-1">
-                            <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Debito</p>
+                            <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Débito</p>
                             <p class="text-sm font-medium text-emerald-700 dark:text-emerald-400">
                                 {{ formatCurrency(selectedMovement.debit) }}
                             </p>
                         </div>
                         <div class="space-y-1">
-                            <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Credito</p>
+                            <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Crédito</p>
                             <p class="text-sm font-medium text-rose-700 dark:text-rose-400">
                                 {{ formatCurrency(selectedMovement.credit) }}
                             </p>
                         </div>
                         <div class="space-y-1 md:col-span-2">
-                            <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Descripcion</p>
-                            <p class="text-sm text-foreground">{{ selectedMovement.description || 'Sin descripcion registrada' }}</p>
+                            <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Descripción</p>
+                            <p class="text-sm text-foreground">{{ selectedMovement.description || 'Sin descripción registrada' }}</p>
                         </div>
                     </div>
                 </div>

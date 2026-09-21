@@ -218,7 +218,7 @@ onMounted(() => {
             <FilterBar align="start">
                 <FilterField label="Buscar" :active="isSearchActive" class="min-w-[220px] flex-1">
                     <div class="relative">
-                        <Input v-model="search" class="h-10 w-full pl-10" placeholder="Buscar numero, cliente o referencia" />
+                        <Input v-model="search" class="h-10 w-full pl-10" placeholder="Buscar número, cliente o referencia" />
                         <span class="absolute inset-y-0 left-0 flex items-center px-3 text-muted-foreground">
                             <Search class="h-4 w-4" />
                         </span>
@@ -249,7 +249,7 @@ onMounted(() => {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead :class="uiPatterns.typography.tableHead">Numero</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Número</TableHead>
                             <TableHead :class="uiPatterns.typography.tableHead">Cliente</TableHead>
                             <TableHead :class="uiPatterns.typography.tableHead">Fecha</TableHead>
                             <TableHead :class="uiPatterns.typography.tableHead">Forma de pago</TableHead>
@@ -319,10 +319,10 @@ onMounted(() => {
 
                 <div class="space-y-4">
                     <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                        Esta accion elimina el recibo y restaura el saldo pendiente de las facturas afectadas.
+                        Esta acción elimina el recibo y restaura el saldo pendiente de las facturas afectadas.
                     </div>
 
-                    <TextareaField v-model="voidReason" label="Razon de anulacion" placeholder="Motivo de la anulacion (opcional)" />
+                    <TextareaField data-no-uppercase v-model="voidReason" label="Razón de anulación" placeholder="Motivo de la anulación (opcional)" />
                 </div>
 
                 <DialogFooter class="gap-2">

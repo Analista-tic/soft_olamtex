@@ -170,8 +170,8 @@ const canEmit = computed(() => !isViewMode.value && noteStatus.value === 'draft'
 const canVoid = computed(() => props.mode === 'view' && noteStatus.value === 'issued');
 const isInvoiceLocked = computed(() => Boolean(props.fromInvoiceId) || isReadOnly.value);
 const noteTypeOptions = [
-    { id: 'credit', name: 'Nota de credito' },
-    { id: 'debit', name: 'Nota de debito' },
+    { id: 'credit', name: 'Nota de crédito' },
+    { id: 'debit', name: 'Nota de débito' },
 ];
 
 const salesNoteItems = computed(() => normalizeItems(localNote.value.items));
@@ -183,12 +183,12 @@ const totalAmount = computed(() => roundCurrency(subtotalAmount.value + taxesAmo
 
 const dialogTitle = computed(() => {
     if (props.mode === 'create') return 'Nueva nota de venta';
-    if (props.mode === 'view') return 'Ver Nota de Credito/Debito';
+    if (props.mode === 'view') return 'Ver Nota de Crédito/Débito';
     return 'Editar nota de venta';
 });
 
 const dialogDescription = computed(() => {
-    if (props.mode === 'view') return 'Consulta la informacion comercial y contable de la nota.';
+    if (props.mode === 'view') return 'Consulta la información comercial y contable de la nota.';
     return 'Relaciona la nota con una factura emitida y registra los conceptos a ajustar.';
 });
 
@@ -302,7 +302,7 @@ async function loadDialogData() {
     }
 
     if (!props.noteId) {
-        setError('No se recibio el identificador de la nota.');
+        setError('No se recibió el identificador de la nota.');
         return;
     }
 
@@ -337,7 +337,7 @@ function validateForm(): boolean {
     if (!items.length) return (setError('Debes agregar al menos un item.', 'warning'), false);
 
     const invalidItem = items.find((item) => !item.item_id || Number(item.quantity) < 0.01 || Number(item.unit_price) < 0);
-    if (invalidItem) return (setError('Cada item debe tener producto, cantidad valida y precio unitario valido.', 'warning'), false);
+    if (invalidItem) return (setError('Cada ítem debe tener producto, cantidad válida y precio unitario válido.', 'warning'), false);
 
     localNote.value.items = items;
     return true;
@@ -544,7 +544,7 @@ watch(
                     <section class="space-y-3">
                         <div class="flex items-center justify-between">
                             <div>
-                                <h3 class="text-sm font-semibold text-foreground">Items</h3>
+                                <h3 class="text-sm font-semibold text-foreground">Ítems</h3>
                                 <p class="text-xs text-muted-foreground">Agrega los conceptos que ajustan la factura referenciada.</p>
                             </div>
                             <Button
@@ -578,8 +578,8 @@ watch(
                     </div>
 
                     <TextareaField
-                        :model-value="localNote.description ?? undefined"
-                        label="Motivo / descripcion"
+                        :model-value="localNote.description ?? undefined" data-no-uppercase
+                        label="Motivo / descripción"
                         placeholder="Describe el ajuste de la nota"
                         :disabled="isReadOnly"
                         @update:modelValue="localNote.description = $event"
@@ -629,7 +629,7 @@ watch(
     <ConfirmDialog
         :open="confirmEmitOpen"
         title="Emitir nota de venta"
-        description="Se guardara el documento si hace falta y se generara el asiento contable correspondiente."
+        description="Se guardará el documento si hace falta y se generará el asiento contable correspondiente."
         confirm-text="Emitir"
         cancel-text="Cancelar"
         @update:open="confirmEmitOpen = $event"
@@ -640,10 +640,10 @@ watch(
         <DialogContent class="max-w-md border border-border p-8">
             <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle>Anular nota de venta</DialogTitle>
-                <DialogDescription>Registra la razon de anulacion antes de reversar el asiento.</DialogDescription>
+                <DialogDescription>Registra la razón de anulación antes de reversar el asiento.</DialogDescription>
             </DialogHeader>
 
-            <TextareaField v-model="voidReason" label="Razon" placeholder="Motivo de anulacion" />
+            <TextareaField data-no-uppercase v-model="voidReason" label="Razón" placeholder="Motivo de anulación" />
 
             <DialogFooter class="justify-end gap-2">
                 <Button variant="outline" size="pill" @click="confirmVoidOpen = false">Cancelar</Button>

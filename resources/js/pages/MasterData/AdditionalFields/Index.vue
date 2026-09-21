@@ -30,9 +30,9 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 const fieldTypeLabels: Record<string, string> = {
     text: 'Texto',
-    number: 'Numero',
+    number: 'Número',
     select: 'Lista de opciones',
-    textarea: 'Area de texto',
+    textarea: 'Área de texto',
     date: 'Fecha',
 };
 
@@ -412,7 +412,7 @@ onBeforeUnmount(() => {
             :success-message="successMessage"
             :error-message="errorMessage"
             :error-type="errorType"
-            success-title="Operacion exitosa"
+            success-title="Operación exitosa"
             error-title="Aviso"
             @close-success="successMessage = ''"
             @close-error="errorMessage = ''"
@@ -546,8 +546,8 @@ onBeforeUnmount(() => {
 
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"
-            title="Confirmar eliminacion"
-            description="Estas seguro de que deseas eliminar este campo adicional? Esta accion no se puede deshacer."
+            title="Confirmar eliminación"
+            description="¿Estás seguro de que deseas eliminar este campo adicional? Esta acción no se puede deshacer."
             confirm-text="Eliminar"
             cancel-text="Cancelar"
             :destructive="true"

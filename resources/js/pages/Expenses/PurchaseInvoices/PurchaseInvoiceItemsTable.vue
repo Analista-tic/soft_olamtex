@@ -517,7 +517,7 @@ defineExpose({ addItem });
                 <TableHeader>
                     <TableRow class="border-b border-border/60">
                         <TableHead :class="[props.telaMode === true ? 'min-w-[220px]' : 'min-w-[150px]', 'text-left']"
-                            >Item <span class="text-red-600">*</span></TableHead
+                            >Ítem <span class="text-red-600">*</span></TableHead
                         >
                         <TableHead :class="[props.telaMode === true ? 'min-w-[150px]' : 'min-w-[120px]', 'text-left']"
                             >Precio SIN Impuesto <span class="text-red-600">*</span></TableHead
@@ -558,10 +558,10 @@ defineExpose({ addItem });
                                     v-model="item.item_id"
                                     :options="itemOptions"
                                     label=""
-                                    placeholder="Selecciona item"
+                                    placeholder="Selecciona ítem"
                                     :disabled="isReadOnly"
                                     class="h-10 w-full"
-                                    :action-label="!isReadOnly ? 'Nuevo item' : undefined"
+                                    :action-label="!isReadOnly ? 'Nuevo ítem' : undefined"
                                     :action-disabled="isReadOnly"
                                     @action="() => openItemDialog(idx)"
                                     :dusk="`factura-item-${idx}-item`"

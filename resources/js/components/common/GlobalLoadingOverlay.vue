@@ -3,7 +3,7 @@ import { useSmartLoading } from '@/composables/useSmartLoading';
 import { computed } from 'vue';
 
 const smartLoading = useSmartLoading();
-const overlayLabel = computed(() => smartLoading.label.value || 'Cargando informacion...');
+const overlayLabel = computed(() => smartLoading.label.value || 'Cargando información...');
 </script>
 
 <template>

@@ -57,13 +57,13 @@ watch(
         <DialogContent class="max-w-5xl p-0">
             <div class="flex flex-col" style="max-height: 90dvh;">
                 <DialogHeader class="flex-none px-6 pt-6 pr-14">
-                    <DialogTitle>Resumen de Ficha Tecnica</DialogTitle>
-                    <DialogDescription class="sr-only">Resumen completo de ficha tecnica y datos de produccion.</DialogDescription>
+                    <DialogTitle>Resumen de Ficha Técnica</DialogTitle>
+                    <DialogDescription class="sr-only">Resumen completo de ficha técnica y datos de producción.</DialogDescription>
                 </DialogHeader>
 
                 <div class="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
                     <div v-if="isLoading" class="py-12 text-center">
-                        <p class="text-muted-foreground">Cargando informacion...</p>
+                        <p class="text-muted-foreground">Cargando información...</p>
                     </div>
 
                     <div v-else-if="loadError" class="py-12 text-center">

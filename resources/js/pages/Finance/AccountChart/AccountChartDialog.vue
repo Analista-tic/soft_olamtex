@@ -103,7 +103,7 @@ const dialogTitle = computed(() => {
 const dialogDescription = computed(() => {
     if (isSubcreate.value) return 'Crea una nueva subcuenta dentro del arbol contable actual.';
     if (isCreate.value) return 'Registra una nueva cuenta contable sin salir del catalogo.';
-    if (isEdit.value) return 'Actualiza la configuracion de la cuenta contable seleccionada.';
+    if (isEdit.value) return 'Actualiza la configuración de la cuenta contable seleccionada.';
     return 'Consulta los datos de la cuenta contable.';
 });
 
@@ -242,7 +242,7 @@ function validateForm(): boolean {
     const errors: Record<string, string> = {};
 
     if (!form.value.code.trim()) {
-        errors.code = 'El codigo es obligatorio.';
+        errors.code = 'El código es obligatorio.';
     }
 
     if (!form.value.name.trim()) {
@@ -334,7 +334,7 @@ function handleCancel(): void {
                     {{ dialogDescription }}
                 </DialogDescription>
                 <p v-if="isSubcreate && parentContextLabel" class="pt-1 text-xs leading-5 text-muted-foreground">
-                    Se creara como una subcuenta de {{ parentContextLabel }}.
+                    Se creará como una subcuenta de {{ parentContextLabel }}.
                 </p>
             </DialogHeader>
 
@@ -371,7 +371,7 @@ function handleCancel(): void {
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div class="space-y-1.5">
                             <Label class="text-sm font-medium text-foreground/90">
-                                Codigo <span class="text-destructive">*</span>
+                                Código <span class="text-destructive">*</span>
                             </Label>
                             <Input
                                 v-model="form.code"
@@ -435,10 +435,10 @@ function handleCancel(): void {
                     </div>
 
                     <div class="space-y-1.5">
-                        <Label class="text-sm font-medium text-foreground/90">Descripcion</Label>
+                        <Label class="text-sm font-medium text-foreground/90">Descripción</Label>
                         <Textarea
-                            v-model="form.description"
-                            placeholder="Descripcion opcional de la cuenta"
+                            v-model="form.description" data-no-uppercase
+                            placeholder="Descripción opcional de la cuenta"
                             rows="6"
                             :disabled="isBusy || isReadOnly"
                             class="min-h-[144px] rounded-2xl border border-border/60 bg-background px-3.5 py-3 text-sm leading-6 shadow-none focus-visible:ring-2 focus-visible:ring-ring/35"

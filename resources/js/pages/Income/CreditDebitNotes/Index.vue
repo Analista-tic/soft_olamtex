@@ -76,8 +76,8 @@ const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const customerButtonClasses = useFilterButtonClasses(isCustomerFilterActive);
 
 const typeOptions = [
-    { id: 'credit', name: 'Notas credito' },
-    { id: 'debit', name: 'Notas debito' },
+    { id: 'credit', name: 'Notas crédito' },
+    { id: 'debit', name: 'Notas débito' },
 ];
 
 const statusOptions = [
@@ -108,7 +108,7 @@ const canEmit = (note: SaleCreditDebitNote) => note.status === 'draft';
 const canVoid = (note: SaleCreditDebitNote) => note.status === 'issued';
 
 function getTypeLabel(note: SaleCreditDebitNote): string {
-    return note.note_type === 'debit' ? 'Nota debito' : 'Nota credito';
+    return note.note_type === 'debit' ? 'Nota débito' : 'Nota crédito';
 }
 
 function getTypeClass(note: SaleCreditDebitNote): string {
@@ -288,7 +288,7 @@ onMounted(() => {
         <div :class="uiPatterns.pageIndex.page">
             <div class="flex items-center justify-between gap-4">
                 <div :class="uiPatterns.pageIndex.header">
-                    <h1 :class="uiPatterns.pageIndex.title">Notas credito / debito</h1>
+                    <h1 :class="uiPatterns.pageIndex.title">Notas crédito / débito</h1>
                     <p :class="uiPatterns.pageIndex.subtitle">Ajusta el saldo de facturas emitidas con trazabilidad comercial y contable.</p>
                 </div>
 
@@ -301,8 +301,8 @@ onMounted(() => {
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" class="w-48">
-                        <DropdownMenuItem class="cursor-pointer gap-2" @click="openCreateDialog('credit')">Nota credito</DropdownMenuItem>
-                        <DropdownMenuItem class="cursor-pointer gap-2" @click="openCreateDialog('debit')">Nota debito</DropdownMenuItem>
+                        <DropdownMenuItem class="cursor-pointer gap-2" @click="openCreateDialog('credit')">Nota crédito</DropdownMenuItem>
+                        <DropdownMenuItem class="cursor-pointer gap-2" @click="openCreateDialog('debit')">Nota débito</DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>
@@ -310,7 +310,7 @@ onMounted(() => {
             <FilterBar align="start">
                 <FilterField label="Buscar" :active="isSearchActive" class="min-w-[220px] flex-1">
                     <div class="relative">
-                        <Input v-model="search" class="h-10 w-full pl-10" placeholder="Buscar numero, cliente o factura" />
+                        <Input v-model="search" class="h-10 w-full pl-10" placeholder="Buscar número, cliente o factura" />
                         <span class="absolute inset-y-0 left-0 flex items-center px-3 text-muted-foreground">
                             <Search class="h-4 w-4" />
                         </span>
@@ -351,7 +351,7 @@ onMounted(() => {
                             <TableHead :class="uiPatterns.typography.tableHead">Tipo</TableHead>
                             <TableHead :class="`${uiPatterns.typography.tableHead} cursor-pointer select-none whitespace-nowrap`" @click="toggleSort('document_number')">
                                 <span class="inline-flex items-center gap-1">
-                                    Numero
+                                    Número
                                     <span class="text-muted-foreground">
                                         <template v-if="sortBy === 'document_number'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
                                         <template v-else><span class="opacity-30">↕</span></template>
@@ -475,7 +475,7 @@ onMounted(() => {
         <ConfirmDialog
             :open="isDeleteDialogOpen"
             title="Eliminar nota de venta"
-            description="Solo las notas en borrador pueden eliminarse. Esta accion no se puede deshacer."
+            description="Solo las notas en borrador pueden eliminarse. Esta acción no se puede deshacer."
             confirm-text="Eliminar"
             cancel-text="Cancelar"
             @update:open="isDeleteDialogOpen = $event"
@@ -485,7 +485,7 @@ onMounted(() => {
         <ConfirmDialog
             :open="isEmitDialogOpen"
             title="Emitir nota de venta"
-            description="Se generara el asiento contable y la nota quedara aplicada sobre la factura referenciada."
+            description="Se generará el asiento contable y la nota quedará aplicada sobre la factura referenciada."
             confirm-text="Emitir"
             cancel-text="Cancelar"
             @update:open="isEmitDialogOpen = $event"

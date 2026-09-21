@@ -40,7 +40,7 @@ const contactTypeOptions = [
 ];
 
 const idTypeOptions = [
-    { id: 'nit', name: 'NIT - Numero de identificacion tributaria' },
+    { id: 'nit', name: 'NIT - Número de identificación tributaria' },
     { id: 'cc', name: 'CC - Cedula de ciudadania' },
     { id: 'nit_otro_pais', name: 'NIT de otro pais' },
     { id: 'pp', name: 'PP - Pasaporte' },
@@ -50,7 +50,7 @@ const idTypeOptions = [
     { id: 'te', name: 'TE - Tarjeta de extranjeria' },
     { id: 'ti', name: 'TI - Tarjeta de identidad' },
     { id: 'rc', name: 'RC - Registro civil' },
-    { id: 'nuip', name: 'NUIP - Numero unico de identificacion personal' },
+    { id: 'nuip', name: 'NUIP - Número único de identificación personal' },
     { id: 'ppt', name: 'PPT - Permiso de proteccion temporal' },
 ];
 
@@ -227,9 +227,9 @@ const validateField = (field: string) => {
         />
         <GroupSelect
             v-model="internalForm.groups"
-            label="Categoria proveedor/cliente"
+            label="Categoría proveedor/cliente"
             :options="masterDataStore.groups"
-            placeholder="Selecciona categorias"
+            placeholder="Selecciona categorías"
             required
             :searchable="true"
             :error="errors.groups?.[0]"
@@ -244,7 +244,7 @@ const validateField = (field: string) => {
         />
         <div class="grid grid-cols-5 gap-4">
             <div :class="internalForm.id_type === 'nit' ? 'col-span-4' : 'col-span-5'">
-                <InputField v-model="internalForm.id_number" label="Numero de identificacion" required placeholder="Numero de identificacion" />
+                <InputField v-model="internalForm.id_number" label="Número de identificación" required placeholder="Número de identificación" />
             </div>
             <div v-if="internalForm.id_type === 'nit'" class="col-span-1">
                 <div class="grid w-full items-center gap-1.5">
@@ -269,7 +269,7 @@ const validateField = (field: string) => {
             :searchable="false"
             @input="validateField('person_type')"
         />
-        <InputField v-model="internalForm.full_name" label="Nombre completo o razon social" required placeholder="Nombre completo" />
+        <InputField v-model="internalForm.full_name" data-no-uppercase label="Nombre completo o razón social" required placeholder="Nombre completo" />
         <div class="md:col-span-2">
             <SelectField
                 v-model="locationValue"
@@ -290,17 +290,17 @@ const validateField = (field: string) => {
             />
         </div>
         <div class="col-span-full grid grid-cols-3 gap-4">
-            <InputField v-model="internalForm.address" label="Direccion" placeholder="Direccion" />
+            <InputField v-model="internalForm.address" data-no-uppercase label="Dirección" placeholder="Dirección" />
             <InputField
                 v-model="internalForm.email"
-                label="Correo electronico"
+                label="Correo electrónico"
                 type="email"
                 required
-                placeholder="Correo electronico"
+                placeholder="Correo electrónico"
                 :error="!!errors.email?.[0]"
                 @input="validateField('email')"
             />
-            <InputField v-model="internalForm.phone" label="Telefono" placeholder="Telefono" />
+            <InputField v-model="internalForm.phone" label="Teléfono" placeholder="Teléfono" />
         </div>
     </div>
 </template>

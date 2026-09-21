@@ -109,16 +109,16 @@ const typeOptions = [
 ];
 
 const tooltips = {
-    type: 'Define si esta referencia es una muestra (desarrollo/prueba) o un producto listo para produccion y venta.',
+    type: 'Define si esta referencia es una muestra (desarrollo/prueba) o un producto listo para producción y venta.',
     section: 'Indica el tipo de prenda al que pertenece la referencia.',
-    group: 'Clasifica la referencia segun su forma de produccion: lineas continuas, lotes periodicos o desarrollos especificos.',
+    group: 'Clasifica la referencia según su forma de producción: líneas continuas, lotes periódicos o desarrollos específicos.',
     world: 'Define el publico o tipo de mercado al que va dirigida la referencia.',
     wovenProduct: 'Indica si la prenda se fabrica a partir de tejido.',
     base: 'Material base principal de la prenda.',
     yarnBase: 'Define la hilaza base usada cuando la prenda se fabrica en tejido.',
-    operationalList: 'Define las operaciones detalladas necesarias para el desarrollo o fabricacion de esta referencia.',
+    operationalList: 'Define las operaciones detalladas necesarias para el desarrollo o fabricación de esta referencia.',
     processes: 'Etapas que seguira la referencia para el control y seguimiento de los lotes.',
-    flatSketch: 'Boceto tecnico de la referencia con medidas, detalles y observaciones para produccion.',
+    flatSketch: 'Boceto técnico de la referencia con medidas, detalles y observaciones para producción.',
 } as const;
 
 const normalizeTypeValue = (value?: string) => normalizeProductSheetType(value);
@@ -1632,7 +1632,7 @@ function handleClose() {
                 <DialogHeader class="shrink-0 border-b px-6 py-4 pr-12 text-left">
                     <div class="flex items-start justify-between gap-4">
                         <div class="min-w-0 flex-1">
-                            <DialogTitle> {{ isViewMode ? 'Ver' : isEditMode ? 'Editar' : 'Crear' }} Sabana de Productos </DialogTitle>
+                            <DialogTitle> {{ isViewMode ? 'Ver' : isEditMode ? 'Editar' : 'Crear' }} Sábana de Productos </DialogTitle>
                             <DialogDescription>
                                 {{
                                     isViewMode
@@ -1759,8 +1759,8 @@ function handleClose() {
                                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
                                         <div class="flex flex-col gap-1">
                                             <div class="flex items-center gap-2">
-                                                <Label class="text-sm font-medium">Seccion<span class="text-red-500">*</span></Label>
-                                                <HelpTooltip :text="tooltips.section" aria-label="Ayuda sobre Seccion" />
+                                                <Label class="text-sm font-medium">Sección<span class="text-red-500">*</span></Label>
+                                                <HelpTooltip :text="tooltips.section" aria-label="Ayuda sobre Sección" />
                                             </div>
                                             <CreatableSelectField
                                                 ref="sectionSelectRef"
@@ -2065,7 +2065,7 @@ function handleClose() {
                                     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                                         <div class="flex flex-col gap-1">
                                             <div class="flex items-center gap-2">
-                                                <Label class="text-sm font-medium">Precio facturacion</Label>
+                                                <Label class="text-sm font-medium">Precio facturación</Label>
                                             </div>
                                             <InputField
                                                 v-model="form.billing_price"

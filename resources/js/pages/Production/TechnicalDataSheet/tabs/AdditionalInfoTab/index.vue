@@ -69,7 +69,7 @@ const stampingProcessGuide = ref<{ supplier: string | null; price: number | null
 
 const stampingDisplayName = computed(() => 'Estampado');
 const stampingDisplayNameLower = computed(() => 'estampado');
-const stampingDialogDisplayName = computed(() => (activeStampingDialogSection.value === 'laundry' ? 'Lavanderia' : 'Estampado'));
+const stampingDialogDisplayName = computed(() => (activeStampingDialogSection.value === 'laundry' ? 'Lavandería' : 'Estampado'));
 
 const cuttingData = computed<AdditionalInfo['cutting']>({
     get: () => data.value.cutting,
@@ -322,7 +322,7 @@ async function persist(section: SectionKey): Promise<void> {
     try {
         const saved = await saveOpAdditionalInfo(props.opId, payload);
         applyData(saved);
-        success('Informacion guardada correctamente.');
+        success('Información guardada correctamente.');
     } catch (err) {
         console.error('Error al guardar informacion adicional:', err);
         applyData(payload);
@@ -347,7 +347,7 @@ async function loadAdditionalInfo(): Promise<void> {
     } catch (err) {
         console.error('Error al cargar informacion adicional:', err);
         applyData(createDefaultAdditionalInfo());
-        showError('No se pudo cargar la informacion adicional.');
+        showError('No se pudo cargar la información adicional.');
     } finally {
         isLoading.value = false;
     }
@@ -452,11 +452,11 @@ watch(
         />
 
         <div class="p-2">
-            <h2 class="text-lg font-semibold text-foreground">Informacion adicional</h2>
+            <h2 class="text-lg font-semibold text-foreground">Información adicional</h2>
             <p class="text-sm text-muted-foreground">Registro de corte, {{ stampingDisplayNameLower }} y lavanderia.</p>
         </div>
 
-        <div v-if="isLoading" class="rounded-lg border border-border px-4 py-6 text-sm text-muted-foreground">Cargando informacion adicional...</div>
+        <div v-if="isLoading" class="rounded-lg border border-border px-4 py-6 text-sm text-muted-foreground">Cargando información adicional...</div>
 
         <template v-else>
             <div
@@ -545,7 +545,7 @@ watch(
                     </div>
 
                     <div class="mt-4 flex-1">
-                        <p class="text-sm font-semibold text-foreground">Lavanderia</p>
+                        <p class="text-sm font-semibold text-foreground">Lavandería</p>
                         <p class="mt-1 text-xs text-muted-foreground">Tipo de lavado e instrucciones.</p>
                     </div>
 

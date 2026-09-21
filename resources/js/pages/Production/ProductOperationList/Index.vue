@@ -34,7 +34,7 @@ const page = usePage<ProductOperationListPageProps>();
 const costParameters = computed(() => page.props.costParameters ?? { operation_cost: 406, yarn_cost: 0 });
 
 const breadcrumbs = [
-    { title: 'Sabana de Productos', href: '/produccion/sabana-productos' },
+    { title: 'Sábana de Productos', href: '/produccion/sabana-productos' },
     { title: 'Listados operacionales', href: '/produccion/listados-operacionales' },
 ];
 
@@ -667,7 +667,7 @@ watch(productSheets, () => {
                                 </TableRow>
                                 <TableRow v-else-if="paginatedSummaries.length === 0">
                                     <TableCell colspan="6" class="text-center text-sm text-muted-foreground"
-                                        >Aun no se han guardado operaciones.</TableCell
+                                        >Aún no se han guardado operaciones.</TableCell
                                     >
                                 </TableRow>
                                 <TableRow v-for="summary in paginatedSummaries" :key="summary.product_sheet_id" class="text-sm">

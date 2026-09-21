@@ -329,7 +329,7 @@ onMounted(async () => {
                         </span>
                     </div>
                 </FilterField>
-                <FilterField label="Area" :active="isAreaFilterActive" class="min-w-[200px]">
+                <FilterField label="Área" :active="isAreaFilterActive" class="min-w-[200px]">
                     <SelectField
                         v-model="selectedAreaId"
                         label=""
@@ -345,7 +345,7 @@ onMounted(async () => {
                         <TableRow>
                             <TableHead class="text-center">Nombre</TableHead>
                             <TableHead class="text-center">Email</TableHead>
-                            <TableHead class="text-center">Area</TableHead>
+                            <TableHead class="text-center">Área</TableHead>
                             <TableHead class="text-center">Roles</TableHead>
                             <TableHead class="text-center">Acciones</TableHead>
                         </TableRow>

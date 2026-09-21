@@ -510,7 +510,7 @@ onBeforeUnmount(() => {
                             <TableHead>Nombre</TableHead>
                             <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('id_number')">
                                 <span class="inline-flex items-center gap-1">
-                                    Numero de identificacion
+                                    Número de identificación
                                     <span class="text-muted-foreground">
                                         <template v-if="sortBy === 'id_number'">
                                             {{ sortDir === 'asc' ? '↑' : '↓' }}
@@ -521,7 +521,7 @@ onBeforeUnmount(() => {
                                     </span>
                                 </span>
                             </TableHead>
-                            <TableHead>Telefono</TableHead>
+                            <TableHead>Teléfono</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>

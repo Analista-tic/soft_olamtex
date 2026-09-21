@@ -105,12 +105,12 @@ watch(
 );
 
 const fieldLabels: Record<string, string> = {
-    email: 'Correo electronico',
-    id_number: 'Numero de identificacion',
+    email: 'Correo electrónico',
+    id_number: 'Número de identificación',
     contact_type: 'Tipo de contacto',
-    groups: 'Categoria proveedor/cliente',
+    groups: 'Categoría proveedor/cliente',
     id_type: 'Tipo de identificacion',
-    full_name: 'Nombre completo o razon social',
+    full_name: 'Nombre completo o razón social',
     person_type: 'Tipo de persona',
     department: 'Departamento',
     municipality: 'Municipio',
@@ -187,19 +187,19 @@ const translateValidationMessage = (field: string, msg: string): string => {
     const label = fieldLabels[field] || 'Campo';
 
     if (lower.includes('email') && lower.includes('already been taken')) {
-        return 'El correo electronico ya esta registrado.';
+        return 'El correo electrónico ya está registrado.';
     }
 
     if ((lower.includes('id') || lower.includes('number')) && lower.includes('already been taken')) {
-        return 'El numero de identificacion ya esta registrado.';
+        return 'El número de identificación ya está registrado.';
     }
 
     if (field === 'email' && lower.includes('unico')) {
-        return 'El correo electronico ya esta registrado.';
+        return 'El correo electrónico ya está registrado.';
     }
 
     if (field === 'id_number' && lower.includes('unico')) {
-        return 'El numero de identificacion ya esta registrado.';
+        return 'El número de identificación ya está registrado.';
     }
 
     if (lower.includes('required')) {
@@ -207,7 +207,7 @@ const translateValidationMessage = (field: string, msg: string): string => {
     }
 
     if (lower.includes('has already been taken')) {
-        return 'Este valor ya esta registrado.';
+        return 'Este valor ya está registrado.';
     }
 
     return msg;
@@ -390,7 +390,7 @@ const updateBranches = (branches: Branch[]) => {
                     <fieldset v-if="canRenderForm" :disabled="isBlockingLoading" class="space-y-3">
                         <Tabs default-value="basic-info" class="pt-1">
                             <TabsList class="flex justify-center space-x-4">
-                                <TabsTrigger value="basic-info" class="flex-1 py-2 text-center">Informacion basica</TabsTrigger>
+                                <TabsTrigger value="basic-info" class="flex-1 py-2 text-center">Información básica</TabsTrigger>
                                 <TabsTrigger value="additional-info" class="flex-1 py-2 text-center">Contactos adicionales</TabsTrigger>
                                 <TabsTrigger value="branches" class="flex-1 py-2 text-center">Sucursales</TabsTrigger>
                             </TabsList>

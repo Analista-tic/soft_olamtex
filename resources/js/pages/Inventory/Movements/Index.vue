@@ -321,7 +321,7 @@ onMounted(() => {
                                     </span>
                                 </span>
                             </TableHead>
-                            <TableHead>Item</TableHead>
+                            <TableHead>Ítem</TableHead>
                             <TableHead>Bodega</TableHead>
                             <TableHead>Tipo</TableHead>
                             <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('quantity')">

@@ -381,7 +381,7 @@ function appendItemsToFormData(formData: FormData, items: PurchaseRequestItem[])
 
 function validateForm() {
     if (!localForm.value.description || !String(localForm.value.description).trim()) {
-        setErrorMessage('La descripcion es obligatoria.', 'warning');
+        setErrorMessage('La descripción es obligatoria.', 'warning');
         return false;
     }
 
@@ -458,8 +458,8 @@ async function handleSubmit(sendToApproval: boolean = false) {
         if (sendToApproval) {
             const message =
                 props.dialogType === 'create'
-                    ? 'Solicitud creada y enviada a aprobacion correctamente.'
-                    : 'Solicitud actualizada y enviada a aprobacion correctamente.';
+                    ? 'Solicitud creada y enviada a aprobación correctamente.'
+                    : 'Solicitud actualizada y enviada a aprobación correctamente.';
             emit('refresh', message);
             showSuccess(message);
             dialogOpen.value = false;
@@ -568,8 +568,8 @@ watch(dialogOpen, (isOpen) => {
                                         <div class="flex items-center gap-2">
                                             <Label class="text-sm font-medium">N° Solicitud</Label>
                                             <HelpTooltip
-                                                text="Numero unico de la solicitud de compra."
-                                                aria-label="Ayuda sobre numero de solicitud"
+                                                text="Número único de la solicitud de compra."
+                                                aria-label="Ayuda sobre número de solicitud"
                                             />
                                         </div>
                                         <InputField
@@ -579,7 +579,7 @@ watch(dialogOpen, (isOpen) => {
                                             :readonly="true"
                                         />
                                         <span v-if="dialogType === 'create' && isLoadingRequestId" class="text-xs text-muted-foreground">
-                                            Generando numero...
+                                            Generando número...
                                         </span>
                                     </div>
 
@@ -633,7 +633,7 @@ watch(dialogOpen, (isOpen) => {
                                         <div class="flex items-center gap-2">
                                             <Label class="text-sm font-medium">Solicitado a</Label>
                                             <HelpTooltip
-                                                text="Area a quien va dirigida esta solicitud para aprobacion."
+                                                text="Área a quien va dirigida esta solicitud para aprobación."
                                                 aria-label="Ayuda sobre solicitado a"
                                             />
                                         </div>
@@ -644,7 +644,7 @@ watch(dialogOpen, (isOpen) => {
                                             :disabled="isReadOnly"
                                             option-label="name"
                                             option-value="id"
-                                            placeholder="Selecciona el area"
+                                            placeholder="Selecciona el área"
                                         />
                                     </div>
 
@@ -702,7 +702,7 @@ watch(dialogOpen, (isOpen) => {
                                             label=""
                                             :model-value="localForm.destination ?? ''"
                                             @update:model-value="localForm.destination = $event || null"
-                                            placeholder="Ej: Almacen, Produccion, etc."
+                                            placeholder="Ej: Almacén, Producción, etc."
                                             :readonly="isReadOnly"
                                         />
                                     </div>
@@ -710,10 +710,10 @@ watch(dialogOpen, (isOpen) => {
 
                                 <div class="flex flex-col gap-1.5">
                                     <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium">Descripcion <span class="text-red-500">*</span></Label>
+                                        <Label class="text-sm font-medium">Descripción <span class="text-red-500">*</span></Label>
                                         <HelpTooltip
                                             text="Describe brevemente la solicitud de compra y su proposito."
-                                            aria-label="Ayuda sobre descripcion"
+                                            aria-label="Ayuda sobre descripción"
                                         />
                                     </div>
                                     <TextareaField
@@ -721,7 +721,7 @@ watch(dialogOpen, (isOpen) => {
                                         label=""
                                         :model-value="localForm.description || ''"
                                         @update:model-value="localForm.description = $event"
-                                        placeholder="Agrega la descripcion y observaciones de la solicitud"
+                                        placeholder="Agrega la descripción y observaciones de la solicitud"
                                         :readonly="isReadOnly"
                                         :rows="3"
                                     />
@@ -733,8 +733,8 @@ watch(dialogOpen, (isOpen) => {
                             <div class="space-y-2">
                                 <div class="flex items-center justify-between">
                                     <div>
-                                        <h3 class="text-sm font-semibold">Items</h3>
-                                        <p class="text-xs text-muted-foreground">Agrega los items necesarios para esta solicitud</p>
+                                        <h3 class="text-sm font-semibold">Ítems</h3>
+                                        <p class="text-xs text-muted-foreground">Agrega los ítems necesarios para esta solicitud</p>
                                     </div>
                                     <Button
                                         v-if="!isReadOnly"
@@ -780,7 +780,7 @@ watch(dialogOpen, (isOpen) => {
                         :disabled="isLoading || isBlockingLoading"
                         @click="handleSubmitSafe(true)"
                     >
-                        {{ isLoading ? 'Guardando...' : 'Guardar y enviar a aprobacion' }}
+                        {{ isLoading ? 'Guardando...' : 'Guardar y enviar a aprobación' }}
                     </Button>
                 </DialogFooter>
             </div>

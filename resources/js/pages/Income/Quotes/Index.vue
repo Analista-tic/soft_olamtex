@@ -195,12 +195,12 @@ async function deleteQuote() {
 
     try {
         await incomeStore.deleteQuote(quoteToDelete.value.id);
-        successMessage.value = 'Cotizacion eliminada correctamente.';
+        successMessage.value = 'Cotización eliminada correctamente.';
         errorMessage.value = '';
         await fetchQuotes(currentPage.value);
     } catch (error: any) {
         errorType.value = 'error';
-        errorMessage.value = normalizeErrorMessage(error, 'No se pudo eliminar la cotizacion.');
+        errorMessage.value = normalizeErrorMessage(error, 'No se pudo eliminar la cotización.');
     } finally {
         quoteToDelete.value = null;
         isDeleteDialogOpen.value = false;
@@ -214,12 +214,12 @@ async function convertQuote() {
 
     try {
         await incomeStore.convertToOrder(quoteToConvert.value.id);
-        successMessage.value = 'Cotizacion convertida a pedido correctamente.';
+        successMessage.value = 'Cotización convertida a pedido correctamente.';
         errorMessage.value = '';
         await fetchQuotes(currentPage.value);
     } catch (error: any) {
         errorType.value = 'error';
-        errorMessage.value = normalizeErrorMessage(error, 'No se pudo convertir la cotizacion.');
+        errorMessage.value = normalizeErrorMessage(error, 'No se pudo convertir la cotización.');
     } finally {
         quoteToConvert.value = null;
         isConvertDialogOpen.value = false;
@@ -227,7 +227,7 @@ async function convertQuote() {
 }
 
 async function handleDialogSaved() {
-    successMessage.value = dialogMode.value === 'create' ? 'Cotizacion creada correctamente.' : 'Cotizacion actualizada correctamente.';
+    successMessage.value = dialogMode.value === 'create' ? 'Cotización creada correctamente.' : 'Cotización actualizada correctamente.';
     errorMessage.value = '';
     await fetchQuotes(currentPage.value);
 }
@@ -270,19 +270,19 @@ onMounted(() => {
             <div class="flex items-center justify-between gap-4">
                 <div :class="uiPatterns.pageIndex.header">
                     <h1 :class="uiPatterns.pageIndex.title">Cotizaciones</h1>
-                    <p :class="uiPatterns.pageIndex.subtitle">Gestiona propuestas comerciales, su seguimiento y conversion a pedidos.</p>
+                    <p :class="uiPatterns.pageIndex.subtitle">Gestiona propuestas comerciales, su seguimiento y conversión a pedidos.</p>
                 </div>
 
                 <Button size="pill" @click="openCreateDialog">
                     <PlusCircle class="mr-2 h-4 w-4" />
-                    Nueva cotizacion
+                    Nueva cotización
                 </Button>
             </div>
 
             <FilterBar align="start">
                 <FilterField label="Buscar" :active="isSearchActive" class="min-w-[220px] flex-1">
                     <div class="relative">
-                        <Input v-model="search" class="h-10 w-full pl-10" placeholder="Buscar numero, cliente o descripcion" />
+                        <Input v-model="search" class="h-10 w-full pl-10" placeholder="Buscar número, cliente o descripción" />
                         <span class="absolute inset-y-0 left-0 flex items-center px-3 text-muted-foreground">
                             <Search class="h-4 w-4" />
                         </span>
@@ -317,7 +317,7 @@ onMounted(() => {
                         <TableRow>
                             <TableHead :class="`${uiPatterns.typography.tableHead} cursor-pointer select-none whitespace-nowrap`" @click="toggleSort('document_number')">
                                 <span class="inline-flex items-center gap-1">
-                                    Numero
+                                    Número
                                     <span class="text-muted-foreground">
                                         <template v-if="sortBy === 'document_number'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
                                         <template v-else><span class="opacity-30">↕</span></template>
@@ -327,7 +327,7 @@ onMounted(() => {
                             <TableHead :class="uiPatterns.typography.tableHead">Cliente</TableHead>
                             <TableHead :class="`${uiPatterns.typography.tableHead} cursor-pointer select-none whitespace-nowrap`" @click="toggleSort('date')">
                                 <span class="inline-flex items-center gap-1">
-                                    Fecha emision
+                                    Fecha emisión
                                     <span class="text-muted-foreground">
                                         <template v-if="sortBy === 'date'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
                                         <template v-else><span class="opacity-30">↕</span></template>
@@ -411,8 +411,8 @@ onMounted(() => {
 
         <ConfirmDialog
             :open="isDeleteDialogOpen"
-            title="Eliminar cotizacion"
-            description="Solo las cotizaciones en borrador pueden eliminarse. Esta accion no se puede deshacer."
+            title="Eliminar cotización"
+            description="Solo las cotizaciones en borrador pueden eliminarse. Esta acción no se puede deshacer."
             confirm-text="Eliminar"
             cancel-text="Cancelar"
             @update:open="isDeleteDialogOpen = $event"
@@ -421,8 +421,8 @@ onMounted(() => {
 
         <ConfirmDialog
             :open="isConvertDialogOpen"
-            title="Convertir cotizacion"
-            description="Se creara un pedido de venta con los items y datos de la cotizacion."
+            title="Convertir cotización"
+            description="Se creará un pedido de venta con los ítems y datos de la cotización."
             confirm-text="Convertir"
             cancel-text="Cancelar"
             @update:open="isConvertDialogOpen = $event"

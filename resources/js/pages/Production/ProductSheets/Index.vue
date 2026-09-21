@@ -48,7 +48,7 @@ import ProductSheetDialog from './ProductSheetDialog.vue'; // Usar el componente
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Sabana de Productos',
+        title: 'Sábana de Productos',
         href: '/sabana-productos',
     },
 ];
@@ -501,7 +501,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <Head title="Sabana de Productos" />
+    <Head title="Sábana de Productos" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <AlertStack
@@ -512,7 +512,7 @@ onUnmounted(() => {
                 @close-error="clear"
             />
             <div class="flex items-center justify-between">
-                <h1 :class="uiPatterns.typography.pageTitle">Lista Sabana de Productos</h1>
+                <h1 :class="uiPatterns.typography.pageTitle">Lista Sábana de Productos</h1>
                 <div class="flex items-center gap-2">
                     <Button
                         v-if="canView"
@@ -559,8 +559,8 @@ onUnmounted(() => {
                     <FilterField label="Tipo" :active="typeFilter !== null" class="min-w-[220px] max-w-[220px]">
                         <SelectField v-model="typeFilter" :options="typeOptions" placeholder="Tipo" :clearable="true" />
                     </FilterField>
-                    <FilterField label="Seccion" :active="sectionFilter !== null" class="min-w-[220px] max-w-[220px]">
-                        <SelectField v-model="sectionFilter" :options="sectionOptions" placeholder="Filtrar por seccion" :clearable="true" />
+                    <FilterField label="Sección" :active="sectionFilter !== null" class="min-w-[220px] max-w-[220px]">
+                        <SelectField v-model="sectionFilter" :options="sectionOptions" placeholder="Filtrar por sección" :clearable="true" />
                     </FilterField>
                     <FilterField label="Mundo" :active="worldFilter !== null" class="min-w-[220px] max-w-[220px]">
                         <SelectField v-model="worldFilter" :options="worldOptions" placeholder="Filtrar por mundo" :clearable="true" />

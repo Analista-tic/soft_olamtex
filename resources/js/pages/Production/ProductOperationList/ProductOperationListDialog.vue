@@ -569,7 +569,7 @@ function addOperation() {
         return;
     }
     if (isSectionPreparacion(currentRow.value.section_id) && !currentRow.value.grupo_preparacion) {
-        const msg = 'Para operaciones de PREPARACION, debes seleccionar o crear un grupo de preparación.';
+        const msg = 'Para operaciones de PREPARACIÓN, debes seleccionar o crear un grupo de preparación.';
         setValidationError(msg);
         return;
     }
@@ -675,7 +675,7 @@ function saveOperations() {
         (row) => isSectionPreparacion(row.section_id) && !row.grupo_preparacion
     );
     if (missingPreparationGroup) {
-        const msg = 'Todas las operaciones de PREPARACION deben tener un grupo asignado. Edita las filas sin grupo.';
+        const msg = 'Todas las operaciones de PREPARACIÓN deben tener un grupo asignado. Edita las filas sin grupo.';
         setValidationError(msg);
         return;
     }

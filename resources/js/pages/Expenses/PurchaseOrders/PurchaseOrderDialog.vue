@@ -927,14 +927,14 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                     </div>
                                     <InputField
                                         :key="String(localForm.contact_id ?? '')"
-                                        label="Numero de identificacion"
+                                        label="Número de identificación"
                                         :modelValue="contactIdNumber"
                                         :disabled="isReadOnly"
                                         readonly
                                     />
                                     <InputField
                                         :key="String(localForm.contact_id ?? '') + '-phone'"
-                                        label="Numero de contacto"
+                                        label="Número de contacto"
                                         :modelValue="contactPhone"
                                         :disabled="isReadOnly"
                                         readonly

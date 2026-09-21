@@ -480,7 +480,7 @@ async function loadSupplies(): Promise<void> {
         });
     } catch (err) {
         console.error('Error al cargar insumos:', err);
-        setError('No se pudo cargar la informacion de insumos.');
+        setError('No se pudo cargar la información de insumos.');
         stageOptions.value = [...BASE_STAGE_OPTIONS];
         rows.value = [createRow('CONFECCION')];
         snapshot.value = JSON.stringify(buildSavePayload(rows.value));
@@ -984,7 +984,7 @@ watch(
                                 <TableHead class="w-[140px] min-w-[110px] text-right">Precio</TableHead>
                                 <TableHead class="w-[120px] text-right">Costo prenda</TableHead>
                                 <TableHead class="w-[70px] text-center">Imagen</TableHead>
-                                <TableHead class="w-[100px] text-center">Accion</TableHead>
+                                <TableHead class="w-[100px] text-center">Acción</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>

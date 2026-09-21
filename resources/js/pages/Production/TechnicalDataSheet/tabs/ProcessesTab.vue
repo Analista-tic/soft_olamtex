@@ -357,7 +357,7 @@ async function loadProcesses(): Promise<void> {
         applyData(response);
     } catch (err) {
         console.error('Error al cargar procesos:', err);
-        showError('No se pudo cargar la informacion de procesos.');
+        showError('No se pudo cargar la información de procesos.');
         data.value = null;
         rows.value = [];
         snapshot.value = [];
@@ -414,7 +414,7 @@ onMounted(() => {
         <template v-else-if="data">
             <div v-if="!hasOperationalList" class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                    <p>Esta OP no tiene listado operacional asignado. Asigna uno para calcular Confeccion y Terminacion.</p>
+                    <p>Esta OP no tiene listado operacional asignado. Asigna uno para calcular Confección y Terminación.</p>
                     <Button
                         type="button"
                         variant="outline"
@@ -450,7 +450,7 @@ onMounted(() => {
                                     <TableHead class="min-w-[180px] text-left">Proveedor</TableHead>
                                     <TableHead class="min-w-[140px] text-right">Precio</TableHead>
                                     <TableHead class="w-[120px] text-right">Costo prenda</TableHead>
-                                    <TableHead class="w-[80px] text-center">Accion</TableHead>
+                                    <TableHead class="w-[80px] text-center">Acción</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -556,7 +556,7 @@ onMounted(() => {
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>Eliminar proceso</AlertDialogTitle>
-                    <AlertDialogDescription> Esta accion eliminara el proceso seleccionado de la tabla. </AlertDialogDescription>
+                    <AlertDialogDescription> Esta acción eliminará el proceso seleccionado de la tabla. </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel as-child>

@@ -815,7 +815,7 @@ function onFabricRollSuccess() {
                                     </span>
                                 </TableHead>
                                 <TableHead>Estado</TableHead>
-                                <TableHead>Items</TableHead>
+                                <TableHead>Ítems</TableHead>
                                 <TableHead>Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -1005,7 +1005,7 @@ function onFabricRollSuccess() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow class="text-xs text-muted-foreground">
-                                            <TableHead class="py-2">Item</TableHead>
+                                            <TableHead class="py-2">Ítem</TableHead>
                                             <TableHead class="py-2">Código</TableHead>
                                             <TableHead class="py-2">Descripción</TableHead>
                                             <TableHead class="py-2">Proveedor</TableHead>

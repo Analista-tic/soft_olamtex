@@ -767,7 +767,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                 <TableHeader>
                     <TableRow class="border-b border-border/60 text-center">
                         <TableHead class="w-[52px]"></TableHead>
-                        <TableHead class="w-[320px] text-left">Item <span class="text-destructive">*</span></TableHead>
+                        <TableHead class="w-[320px] text-left">Ítem <span class="text-destructive">*</span></TableHead>
                         <TableHead class="w-[120px] text-left">Precio SIN Impuesto <span class="text-destructive">*</span></TableHead>
                         <TableHead class="w-[140px] text-left">Impuesto <span class="text-destructive">*</span></TableHead>
                         <TableHead class="w-[96px] text-left">{{ allItemsAreTela ? 'Longitud (mts)' : 'Cantidad' }} <span class="text-destructive">*</span></TableHead>
@@ -843,7 +843,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                                     :options="itemOptionsForRow(idx)"
                                     label=""
                                             :searchable="true"
-                                            placeholder="Selecciona item"
+                                            placeholder="Selecciona ítem"
                                             class="w-full"
                                             :disabled="isReadOnly"
                                             :loading="isLoadingItemsForRow(idx)"
@@ -859,7 +859,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                                             :options="itemOptionsForRow(idx)"
                                             label=""
                                             :searchable="true"
-                                            placeholder="Selecciona item"
+                                            placeholder="Selecciona ítem"
                                             class="w-full"
                                             :disabled="isReadOnly"
                                             :loading="isLoadingItemsForRow(idx)"

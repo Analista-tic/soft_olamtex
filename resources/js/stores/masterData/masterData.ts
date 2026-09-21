@@ -33,7 +33,7 @@ export const useMasterDataStore = defineStore('masterData', {
                 }));
                 this.groupsLoaded = true;
             } catch (error) {
-                this.groupsError = 'No se pudieron cargar las categorias proveedor/cliente.';
+                this.groupsError = 'No se pudieron cargar las categorías proveedor/cliente.';
                 console.error('Error cargando grupos:', error);
             } finally {
                 this.groupsLoading = false;

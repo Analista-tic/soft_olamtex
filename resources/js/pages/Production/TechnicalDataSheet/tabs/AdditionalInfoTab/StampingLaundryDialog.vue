@@ -218,8 +218,8 @@ const stampingProcess = computed(() => props.stampingProcessGuide ?? { supplier:
 const hasStampingProcess = computed(() => Boolean(stampingProcess.value.processType));
 const headerDescription = computed(() =>
     isLaundryMode.value
-        ? `Configura contexto, observaciones y guias visuales de ${displayNameLower.value}.`
-        : `Configura contexto, procesos, observaciones y guias visuales de ${displayNameLower.value}.`,
+        ? `Configura contexto, observaciones y guías visuales de ${displayNameLower.value}.`
+        : `Configura contexto, procesos, observaciones y guías visuales de ${displayNameLower.value}.`,
 );
 const colorSlots = computed<ColorSlot[]>(() => {
     const source = localData.value as Record<string, unknown>;

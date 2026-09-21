@@ -402,7 +402,7 @@ async function loadThreads(): Promise<void> {
         applyRows(Array.isArray(threadState.lines) ? threadState.lines : [], nextPrincipalColors, true);
     } catch (err) {
         console.error('Error al cargar hilos:', err);
-        error.value = 'No se pudo cargar la informacion de hilos.';
+        error.value = 'No se pudo cargar la información de hilos.';
         rows.value = [];
         hiddenLines.value = [];
         principalColors.value = [];

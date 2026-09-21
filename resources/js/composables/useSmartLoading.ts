@@ -26,7 +26,7 @@ interface InertiaLikeRouter {
 
 const DEFAULT_DELAY = 200;
 const DEFAULT_MIN_VISIBLE = 350;
-const DEFAULT_LABEL = 'Cargando informacion...';
+const DEFAULT_LABEL = 'Cargando información...';
 
 const tasks = new Map<SmartLoadingTaskId, SmartLoadingTask>();
 const isVisible = ref(false);
@@ -170,7 +170,7 @@ function bindSmartLoadingToInertia(inertiaRouter: InertiaLikeRouter = router as 
 
     const startNavigationLoading = () => {
         if (inertiaTaskId) return;
-        inertiaTaskId = start({ label: 'Cargando pagina...' });
+        inertiaTaskId = start({ label: 'Cargando página...' });
     };
 
     const stopNavigationLoading = () => {

@@ -43,9 +43,9 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => {
             <div class="max-w-lg space-y-3 rounded-xl border border-sidebar-border/70 p-6 text-center dark:border-sidebar-border">
                 <h1 class="text-2xl font-semibold">
                     <span v-if="moduleTitle">{{ moduleTitle }}</span>
-                    <span v-else>Modulo en desarrollo</span>
+                    <span v-else>Módulo en desarrollo</span>
                 </h1>
-                <p class="text-sm text-muted-foreground">Este modulo aun no esta disponible. Estamos trabajando para habilitarlo lo antes posible.</p>
+                <p class="text-sm text-muted-foreground">Este módulo aún no está disponible. Estamos trabajando para habilitarlo lo antes posible.</p>
             </div>
         </div>
     </AppLayout>

@@ -337,7 +337,7 @@ onMounted(() => {
             <FilterBar align="start">
                 <FilterField label="Buscar" :active="isSearchActive" class="min-w-[220px] flex-1">
                     <div class="relative">
-                        <Input v-model="search" class="h-10 w-full pl-10" placeholder="Buscar numero, cliente o referencia" />
+                        <Input v-model="search" class="h-10 w-full pl-10" placeholder="Buscar número, cliente o referencia" />
                         <span class="absolute inset-y-0 left-0 flex items-center px-3 text-muted-foreground">
                             <Search class="h-4 w-4" />
                         </span>
@@ -377,7 +377,7 @@ onMounted(() => {
                         <TableRow>
                             <TableHead :class="`${uiPatterns.typography.tableHead} cursor-pointer select-none whitespace-nowrap`" @click="toggleSort('document_number')">
                                 <span class="inline-flex items-center gap-1">
-                                    Numero
+                                    Número
                                     <span class="text-muted-foreground">
                                         <template v-if="sortBy === 'document_number'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template>
                                         <template v-else><span class="opacity-30">↕</span></template>
@@ -512,7 +512,7 @@ onMounted(() => {
         <ConfirmDialog
             :open="isDeleteDialogOpen"
             title="Eliminar factura de venta"
-            description="Solo las facturas en borrador pueden eliminarse. Esta accion no se puede deshacer."
+            description="Solo las facturas en borrador pueden eliminarse. Esta acción no se puede deshacer."
             confirm-text="Eliminar"
             cancel-text="Cancelar"
             @update:open="isDeleteDialogOpen = $event"
@@ -522,7 +522,7 @@ onMounted(() => {
         <ConfirmDialog
             :open="isEmitDialogOpen"
             title="Emitir factura de venta"
-            description="Se generara el asiento contable y la factura quedara disponible para cobro."
+            description="Se generará el asiento contable y la factura quedará disponible para cobro."
             confirm-text="Emitir"
             cancel-text="Cancelar"
             @update:open="isEmitDialogOpen = $event"

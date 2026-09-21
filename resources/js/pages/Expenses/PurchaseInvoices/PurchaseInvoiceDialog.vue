@@ -660,7 +660,7 @@ function validateForm(): boolean {
             Number(it.quantity) <= 0,
     );
     if (invalidItems.length > 0) {
-        errors.push('Cada item debe tener item, Precio SIN Impuesto y cantidad.');
+        errors.push('Cada ítem debe tener item, Precio SIN Impuesto y cantidad.');
     }
 
     if (errors.length) {

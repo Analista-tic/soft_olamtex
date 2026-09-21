@@ -326,7 +326,7 @@ defineExpose({ addItem });
                 <TableHeader>
                     <TableRow class="border-b border-border bg-muted/50">
                         <TableHead class="min-w-[200px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"
-                            >Item</TableHead
+                            >Ítem</TableHead
                         >
                         <TableHead class="min-w-[120px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"
                             >Cantidad</TableHead

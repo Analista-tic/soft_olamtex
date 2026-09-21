@@ -109,7 +109,7 @@ function goBackToSimpleForm() {
                         ← Volver al formulario simple
                     </button>
                 </div>
-                <p class="mb-4 text-sm text-muted-foreground">Aqui puedes completar todos los campos del item sin usar el modal.</p>
+                <p class="mb-4 text-sm text-muted-foreground">Aquí puedes completar todos los campos del ítem sin usar el modal.</p>
                 <div class="w-full">
                     <ItemFormContent
                         :is-open="true"

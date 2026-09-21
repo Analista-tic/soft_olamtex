@@ -294,7 +294,7 @@ async function loadDialogData() {
     }
 
     if (!props.receiptId) {
-        setError('No se recibio el identificador del recibo de caja.');
+        setError('No se recibió el identificador del recibo de caja.');
         return;
     }
 
@@ -347,7 +347,7 @@ function validateBeforeSubmit(): boolean {
     );
 
     if (invalidApplication) {
-        setError('Cada aplicacion debe tener un valor positivo y no puede superar el saldo pendiente.', 'warning');
+        setError('Cada aplicación debe tener un valor positivo y no puede superar el saldo pendiente.', 'warning');
         return false;
     }
 
@@ -478,7 +478,7 @@ watch(
                         class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700"
                     >
                         El recibo se esta generando desde una factura especifica. El cliente queda bloqueado para mantener consistencia en la
-                        aplicacion.
+                        aplicación.
                     </div>
 
                     <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -513,10 +513,10 @@ watch(
                             v-model="localReceipt.payment_method"
                             label="Forma de pago"
                             :options="paymentMethodOptions"
-                            placeholder="Selecciona un metodo"
+                            placeholder="Selecciona un método"
                             :disabled="isReadOnly"
                         />
-                        <InputField v-model="localReceipt.reference" label="Referencia" placeholder="Numero de referencia" :disabled="isReadOnly" />
+                        <InputField v-model="localReceipt.reference" label="Referencia" placeholder="Número de referencia" :disabled="isReadOnly" />
                     </div>
 
                     <TextareaField
@@ -548,7 +548,7 @@ watch(
                                         <TableHead>Total</TableHead>
                                         <TableHead>Saldo pendiente</TableHead>
                                         <TableHead>{{ isViewMode ? 'Monto aplicado' : 'Monto a aplicar' }}</TableHead>
-                                        <TableHead class="text-right">Accion</TableHead>
+                                        <TableHead class="text-right">Acción</TableHead>
                                     </TableRow>
                                 </TableHeader>
 
@@ -676,15 +676,15 @@ watch(
 
             <div class="space-y-4">
                 <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    Esta accion no se puede deshacer. Las facturas recuperaran su saldo pendiente previo al cobro.
+                    Esta acción no se puede deshacer. Las facturas recuperarán su saldo pendiente previo al cobro.
                 </div>
 
-                <TextareaField v-model="voidReason" label="Razon de anulacion" placeholder="Motivo de la anulacion (opcional)" />
+                <TextareaField data-no-uppercase v-model="voidReason" label="Razón de anulación" placeholder="Motivo de la anulación (opcional)" />
             </div>
 
             <DialogFooter class="gap-2">
                 <Button variant="outline" size="pill" @click="isVoidDialogOpen = false">Cancelar</Button>
-                <Button variant="destructive" size="pill" :disabled="isSaving" @click="voidReceipt">Confirmar anulacion</Button>
+                <Button variant="destructive" size="pill" :disabled="isSaving" @click="voidReceipt">Confirmar anulación</Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>

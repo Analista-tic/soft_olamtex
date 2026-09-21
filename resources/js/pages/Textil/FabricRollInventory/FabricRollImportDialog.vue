@@ -108,7 +108,7 @@ async function validateFile(selectedFile: File): Promise<string | null> {
     }
 
     if (selectedFile.size <= 0) {
-        return 'El archivo Excel esta vacio.';
+        return 'El archivo Excel está vacío.';
     }
 
     return null;
@@ -243,7 +243,7 @@ async function submitImport() {
             <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <div class="flex items-center gap-3">
                     <ClipboardList class="h-6 w-6 text-primary" />
-                    <DialogTitle class="text-lg font-semibold">Importacion de rollos</DialogTitle>
+                    <DialogTitle class="text-lg font-semibold">Importación de rollos</DialogTitle>
                 </div>
                 <p class="pb-5 text-sm text-muted-foreground">Sube un archivo Excel para registrar rollos de tela de forma masiva.</p>
             </DialogHeader>

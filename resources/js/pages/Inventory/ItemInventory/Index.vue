@@ -208,7 +208,7 @@ onMounted(() => {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead class="text-start">Item</TableHead>
+                            <TableHead class="text-start">Ítem</TableHead>
                             <TableHead>Referencia</TableHead>
                             <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('quantity')">
                                 <span class="inline-flex items-center gap-1">

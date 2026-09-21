@@ -157,8 +157,8 @@ const resolvedNoteType = computed<NoteKind>(() => {
 });
 
 const reasonParameterKey = computed(() => (resolvedNoteType.value === 'debit' ? 'debit_note_reason' : 'credit_note_reason'));
-const reasonLabel = computed(() => (resolvedNoteType.value === 'debit' ? 'Motivo nota debito' : 'Motivo nota credito'));
-const noteTypeLabel = computed(() => (resolvedNoteType.value === 'debit' ? 'Nota debito' : 'Nota credito'));
+const reasonLabel = computed(() => (resolvedNoteType.value === 'debit' ? 'Motivo nota débito' : 'Motivo nota crédito'));
+const noteTypeLabel = computed(() => (resolvedNoteType.value === 'debit' ? 'Nota débito' : 'Nota crédito'));
 
 const dialogTitle = computed(() => (props.dialogType === 'create' ? `Nueva ${noteTypeLabel.value}` : `Editar ${noteTypeLabel.value}`));
 
@@ -391,15 +391,15 @@ function validateForm(): boolean {
     for (const [index, item] of items.entries()) {
         const hasItemReference = asNumber(item.item_id, 0) > 0 || trimText(item.item_name).length > 0;
         if (!hasItemReference) {
-            showWarning(`El item ${index + 1} debe tener concepto o descripcion.`);
+            showWarning(`El ítem ${index + 1} debe tener concepto o descripción.`);
             return false;
         }
         if (asNumber(item.quantity, 0) <= 0) {
-            showWarning(`El item ${index + 1} debe tener cantidad mayor a 0.`);
+            showWarning(`El ítem ${index + 1} debe tener cantidad mayor a 0.`);
             return false;
         }
         if (asNumber(item.price, 0) < 0) {
-            showWarning(`El item ${index + 1} no puede tener precio negativo.`);
+            showWarning(`El ítem ${index + 1} no puede tener precio negativo.`);
             return false;
         }
     }
@@ -607,7 +607,7 @@ async function handleSubmit(): Promise<void> {
             emit('refresh', 'Nota creada correctamente.');
         } else {
             const noteId = asNumber(localForm.value.id, 0);
-            if (!noteId) throw new Error('No se encontro el identificador de la nota a actualizar.');
+            if (!noteId) throw new Error('No se encontró el identificador de la nota a actualizar.');
             await updateCreditDebitNote(noteId, payload);
             showSuccess('Nota actualizada correctamente.');
             emit('refresh', 'Nota actualizada correctamente.');
@@ -777,8 +777,8 @@ onMounted(async () => {
                             :options="contactOptions"
                             :placeholder="contactSelectPlaceholder"
                         />
-                        <InputField label="Identificacion" :modelValue="contactIdNumber" readonly />
-                        <InputField label="Telefono" :modelValue="contactPhone" readonly />
+                        <InputField label="Identificación" :modelValue="contactIdNumber" readonly />
+                        <InputField label="Teléfono" :modelValue="contactPhone" readonly />
                     </div>
 
                     <div class="space-y-3">
@@ -811,7 +811,7 @@ onMounted(async () => {
 
                 <section class="rounded-xl border border-sidebar-border/70 p-3 dark:border-sidebar-border">
                     <div class="mb-2 flex items-center justify-between">
-                        <h3 class="text-sm font-semibold">Items</h3>
+                        <h3 class="text-sm font-semibold">Ítems</h3>
                         <button
                             type="button"
                             class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/35 bg-background px-4 py-2 text-sm font-semibold text-primary shadow-sm transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
@@ -929,8 +929,8 @@ onMounted(async () => {
                 <TextareaField
                     :modelValue="String(localForm.description ?? '')"
                     @update:modelValue="(value) => (localForm.description = String(value ?? ''))"
-                    label="Observacion general"
-                    placeholder="Agrega una observacion para la nota"
+                    label="Observación general"
+                    placeholder="Agrega una observación para la nota"
                     :rows="3"
                 />
                 </div>

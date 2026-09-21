@@ -208,7 +208,7 @@ function formatWidth(ancho: number | null, anchoUnit: 'm' | 'cm' | null): string
 
 function formatSaveError(err: unknown): string {
     if (axios.isAxiosError(err) && err.response?.status === 419) {
-        return 'La sesion expiro. Recarga la pagina e intenta nuevamente.';
+        return 'La sesión expiró. Recarga la página e intenta nuevamente.';
     }
     if (!axios.isAxiosError(err) || !err.response?.data) return 'No se pudieron guardar los cambios.';
     const data = err.response.data as { message?: string; errors?: Record<string, string[]> };

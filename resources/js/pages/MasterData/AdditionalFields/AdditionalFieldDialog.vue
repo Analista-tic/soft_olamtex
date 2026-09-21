@@ -60,8 +60,8 @@ onMounted(() => {
 
 const fieldTypeOptions: Array<{ id: AdditionalFieldType; name: string }> = [
     { id: 'text', name: 'Texto' },
-    { id: 'number', name: 'Numero' },
-    { id: 'decimal', name: 'Numero decimal' },
+    { id: 'number', name: 'Número' },
+    { id: 'decimal', name: 'Número decimal' },
     { id: 'date', name: 'Fecha' },
     { id: 'boolean', name: 'Si/No' },
     { id: 'select', name: 'Lista de opciones' },

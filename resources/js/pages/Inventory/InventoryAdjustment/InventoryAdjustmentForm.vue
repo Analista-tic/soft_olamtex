@@ -374,11 +374,11 @@ async function handleSubmit() {
         requiredErrors.push('Bodega');
     }
     if (!lines.value.length) {
-        requiredErrors.push('Al menos una linea de detalle');
+        requiredErrors.push('Al menos una línea de detalle');
     } else {
         lines.value.forEach((line) => {
             if (!line.itemId) {
-                requiredErrors.push('Item');
+                requiredErrors.push('Ítem');
             }
             if (!line.warehouseId && !selectedWarehouseId.value) {
                 requiredErrors.push('Bodega');
@@ -586,7 +586,7 @@ async function handleSubmit() {
                                             </span>
                                         </TableHead>
                                         <TableHead class="min-w-[160px] text-left">Tipo de ajuste <span class="text-destructive">*</span></TableHead>
-                                        <TableHead class="min-w-[160px] text-left"> Descripcion <span class="text-destructive">*</span> </TableHead>
+                                        <TableHead class="min-w-[160px] text-left"> Descripción <span class="text-destructive">*</span> </TableHead>
                                         <TableHead class="min-w-[120px] text-left"
                                             >Precio SIN Impuesto <span class="text-destructive">*</span></TableHead
                                         >
@@ -622,7 +622,7 @@ async function handleSubmit() {
                                         </TableCell>
 
                                         <TableCell class="p-1">
-                                            <Input v-model="line.description" placeholder="Descripcion" required class="h-10 w-full" />
+                                            <Input data-no-uppercase v-model="line.description" placeholder="Descripción" required class="h-10 w-full" />
                                         </TableCell>
 
                                         <TableCell class="p-1">
@@ -682,7 +682,7 @@ async function handleSubmit() {
                                     </TableRow>
 
                                     <TableRow v-if="lines.length === 0">
-                                        <TableCell colspan="8" class="text-center text-gray-400"> No hay lineas agregadas. </TableCell>
+                                        <TableCell colspan="8" class="text-center text-gray-400"> No hay líneas agregadas. </TableCell>
                                     </TableRow>
                                 </TableBody>
                             </Table>

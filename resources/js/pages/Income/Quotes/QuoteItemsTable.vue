@@ -218,7 +218,7 @@ defineExpose({ addItem });
                     <TableHead class="min-w-[110px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Desc. %</TableHead>
                     <TableHead class="min-w-[160px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Impuesto</TableHead>
                     <TableHead class="min-w-[140px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Subtotal</TableHead>
-                    <TableHead class="min-w-[180px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Descripcion</TableHead>
+                    <TableHead class="min-w-[180px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Descripción</TableHead>
                     <TableHead v-if="!isReadOnly" class="w-[60px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"></TableHead>
                 </TableRow>
             </TableHeader>
