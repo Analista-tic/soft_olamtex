@@ -78,6 +78,8 @@ const props = withDefaults(
         // Cuando este componente se usa como página completa (no dialog/modal),
         // se debe evitar el scroll interno y dejar que la página haga el scroll.
         isFullPage?: boolean;
+        // Nombre del ítem que se está creando a partir de una solicitud (solo informativo).
+        requestedName?: string;
     }>(),
     {
         showAdvancedLink: true,
@@ -90,7 +92,7 @@ const props = withDefaults(
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'refresh'): void;
-    (e: 'saved', mode: SaveMode): void;
+    (e: 'saved', mode: SaveMode, id?: number | null): void;
     (e: 'error', message: string): void;
     (e: 'loading-state', value: boolean): void;
 }>();
@@ -1028,11 +1030,15 @@ function openTaxDialog() {
 async function handleTaxDialogSubmit(formData: TaxDialogSubmitPayload) {
     taxDialogLoading.value = true;
     try {
-        await axios.post('/impuestos', formData);
+        const { data: createdTax } = await axios.post('/impuestos', formData);
         await fetchTaxes(true);
         isTaxDialogOpen.value = false;
-    } catch (error) {
+        if (createdTax?.id) localForm.value.tax_id = createdTax.id;
+    } catch (error: any) {
         console.error('Error creando impuesto', error);
+        errorType.value = error?.response?.data?.errors ? 'warning' : 'error';
+        errorMessage.value = buildErrorMessage(error);
+        scrollDialogToTop();
     } finally {
         taxDialogLoading.value = false;
     }
@@ -1059,8 +1065,11 @@ async function handleAdditionalFieldDialogSubmit(field: AdditionalFieldPayload) 
         await axios.post('/campos-adicionales', payload);
         await fetchAdditionalFields(true);
         additionalFieldDialogOpen.value = false;
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error creando campo adicional', error);
+        errorType.value = error?.response?.data?.errors ? 'warning' : 'error';
+        errorMessage.value = buildErrorMessage(error);
+        scrollDialogToTop();
     } finally {
         additionalFieldDialogLoading.value = false;
     }
@@ -1445,6 +1454,7 @@ async function handleSubmit() {
 
     if (props.dialogType === 'view') return;
 
+    let savedId: number | null = null;
     try {
         if (isEdit && !hasImageUpload) {
             await axios.put(url, {
@@ -1503,12 +1513,14 @@ async function handleSubmit() {
             if (isCreate) formData.append('reference_mode', referenceMode.value);
             if (isEdit) formData.append('_method', 'PUT');
 
-            await axios.post(url, formData);
+            const response = await axios.post(url, formData);
+            const responseId = Number(response?.data?.id ?? response?.data?.data?.id);
+            savedId = Number.isFinite(responseId) && responseId > 0 ? responseId : null;
         }
 
         emit('refresh');
         emit('close');
-        emit('saved', props.dialogType);
+        emit('saved', props.dialogType, savedId);
     } catch (error: any) {
         console.error('Error al guardar el item:', error, error?.response?.data);
         const msg = buildErrorMessage(error);
@@ -1749,6 +1761,14 @@ onBeforeUnmount(() => {
                           : 'Visualice la información del ítem.'
                 "
             />
+
+            <div
+                v-if="props.requestedName && dialogType === 'create'"
+                class="flex shrink-0 items-center gap-2 border-b bg-amber-500/10 px-5 py-2 text-sm"
+            >
+                <span class="text-muted-foreground">Ítem solicitado:</span>
+                <strong class="min-w-0 truncate">{{ props.requestedName }}</strong>
+            </div>
 
             <div
                 ref="dialogInnerRef"

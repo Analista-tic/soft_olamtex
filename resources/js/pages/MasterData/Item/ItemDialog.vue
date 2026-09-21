@@ -16,6 +16,7 @@ const props = withDefaults(
         preloadedSubGroups?: any[];
         preloadedTaxes?: any[];
         preloadedColors?: any[];
+        requestedName?: string;
     }>(),
     {
         showAdvancedLink: true,
@@ -24,7 +25,7 @@ const props = withDefaults(
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'refresh'): void;
-    (e: 'saved', mode: SaveMode): void;
+    (e: 'saved', mode: SaveMode, id?: number | null): void;
     (e: 'error', message: string): void;
 }>();
 
@@ -42,8 +43,8 @@ function handleFormRefresh() {
     emit('refresh');
 }
 
-function handleFormSaved(mode: SaveMode) {
-    emit('saved', mode);
+function handleFormSaved(mode: SaveMode, id?: number | null) {
+    emit('saved', mode, id);
 }
 
 function handleFormError(message: string) {
@@ -67,6 +68,7 @@ function handleFormError(message: string) {
                 :preloaded-sub-groups="props.preloadedSubGroups ?? []"
                 :preloaded-taxes="props.preloadedTaxes ?? []"
                 :preloaded-colors="props.preloadedColors ?? []"
+                :requested-name="props.requestedName"
                 @close="handleFormClose"
                 @refresh="handleFormRefresh"
                 @saved="handleFormSaved"

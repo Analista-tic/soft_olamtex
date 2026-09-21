@@ -775,6 +775,8 @@ watch(myRequestsOnly, () => {
                         :suggested-items="requestItemsForTable"
                         :purchase-request-id="effectivePurchaseRequestId"
                         @update:items="(items) => (localForm.items = items)"
+                        @success="showSuccess"
+                        @error="(m: string) => showError(m)"
                     />
                 </InventoryDetailTableLayout>
 

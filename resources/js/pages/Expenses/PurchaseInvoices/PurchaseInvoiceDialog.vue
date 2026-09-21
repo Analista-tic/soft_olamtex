@@ -996,6 +996,8 @@ watch(dialogOpen, (isOpen) => {
                                         :isReadOnly="isReadOnly"
                                         :telaMode="false"
                                         @update:items="(items) => (localForm.items = items)"
+                                        @success="(m: string) => (successMessage = m)"
+                                        @error="(m: string) => (errorMessage = m)"
                                     />
                                 </InventoryDetailTableLayout>
 

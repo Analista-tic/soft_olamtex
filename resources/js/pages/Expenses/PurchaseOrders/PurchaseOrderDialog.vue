@@ -1024,6 +1024,8 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                         :purchase-request-id="effectivePurchaseRequestId"
                                         :readonly="isReadOnly"
                                         @update:items="(items) => (localForm.items = items)"
+                                        @success="showSuccess"
+                                        @error="(m: string) => showError(m)"
                                     />
                                 </InventoryDetailTableLayout>
 

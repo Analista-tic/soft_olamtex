@@ -1003,6 +1003,8 @@ onMounted(async () => {
                         :items="localForm.items || []"
                         :telaMode="false"
                         @update:items="(items) => (localForm.items = items)"
+                        @success="showSuccess"
+                        @error="(m: string) => showError(m)"
                     />
                 </InventoryDetailTableLayout>
 

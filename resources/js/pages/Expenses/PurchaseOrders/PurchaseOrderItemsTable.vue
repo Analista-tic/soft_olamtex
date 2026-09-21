@@ -22,7 +22,7 @@ const props = defineProps<{
     purchaseRequestId?: number | null;
     readonly?: boolean;
 }>();
-const emit = defineEmits(['update:items']);
+const emit = defineEmits(['update:items', 'success', 'error']);
 
 const localItems = ref<PurchaseOrderItem[]>([]);
 
@@ -295,8 +295,9 @@ function buildItemDialogForm(rowIdx: number): Partial<Item> {
     }
 
     const description = typeof suggestedItem.description === 'string' ? suggestedItem.description.trim() : '';
-    if (description) {
-        baseForm.description = description;
+    const label = getSuggestedItemLabel(rowIdx);
+    if (description || label) {
+        baseForm.description = description || label;
     }
 
     if (suggestedItem.image_url) {
@@ -315,6 +316,12 @@ function detectCreatedItemId(previousIds: number[], items: Item[]): number | nul
 
     return createdItems[0] ?? null;
 }
+
+const itemDialogRequestedName = computed(() => {
+    const rowIdx = itemDialogTargetRowIndex.value;
+    if (rowIdx == null) return '';
+    return getSuggestedItemLabel(rowIdx) || (itemTypedNames.value[rowIdx] ?? '').trim();
+});
 
 function openItemDialog(targetRowIdx: number | null = null, prefillFromRequest = false) {
     // Prepare quick-create dialog for item
@@ -340,8 +347,11 @@ async function handleTaxDialogSubmit(formData: TaxDialogForm) {
         await axios.post('/impuestos', formData);
         await fetchTaxes();
         isTaxDialogOpen.value = false;
-    } catch (error) {
+        emit('success', 'Impuesto creado correctamente.');
+    } catch (error: any) {
         console.error('Error creando impuesto', error);
+        const errors = error?.response?.data?.errors;
+        emit('error', errors ? Object.values(errors).flat().join(' ') : error?.response?.data?.message || 'No se pudo crear el impuesto.');
     } finally {
         taxDialogLoading.value = false;
     }
@@ -716,7 +726,7 @@ async function handleItemDialogRefresh() {
     pendingItemDialogRefresh.value = null;
 }
 
-async function handleItemDialogSaved(mode: 'create' | 'edit') {
+async function handleItemDialogSaved(mode: 'create' | 'edit', createdId?: number | null) {
     if (mode !== 'create') return;
 
     if (pendingItemDialogRefresh.value) {
@@ -724,6 +734,10 @@ async function handleItemDialogSaved(mode: 'create' | 'edit') {
     } else {
         await handleItemDialogRefresh();
     }
+
+    // El id devuelto por el servidor tiene prioridad sobre la detección por diferencia de catálogo.
+    if (createdId) createdItemCandidateId.value = Number(createdId);
+    emit('success', 'Ítem creado correctamente.');
 
     const rowIdx = itemDialogTargetRowIndex.value;
     if (rowIdx == null || rowIdx < 0 || rowIdx >= localItems.value.length || createdItemCandidateId.value == null) {
@@ -991,6 +1005,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
             dialog-type="create"
             :form="itemDialogForm"
             :show-advanced-link="true"
+            :requested-name="itemDialogRequestedName"
             @refresh="handleItemDialogRefresh"
             @saved="handleItemDialogSaved"
             @close="isItemDialogOpen = false"

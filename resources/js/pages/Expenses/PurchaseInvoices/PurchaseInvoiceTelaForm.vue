@@ -609,7 +609,7 @@ function handleDifferenceDialogOpenChange(isOpen: boolean): void {
                             </Button>
                         </div>
                     </template>
-                    <PurchaseInvoiceItemsTable ref="invoiceItemsTableRef" :items="localForm.items || []" :telaMode="true" @update:items="(items) => (localForm.items = items)" />
+                    <PurchaseInvoiceItemsTable ref="invoiceItemsTableRef" :items="localForm.items || []" :telaMode="true" @update:items="(items) => (localForm.items = items)" @success="showSuccess" @error="(m: string) => showError(m)" />
                 </InventoryDetailTableLayout>
 
                 <div class="flex items-start justify-between gap-6">

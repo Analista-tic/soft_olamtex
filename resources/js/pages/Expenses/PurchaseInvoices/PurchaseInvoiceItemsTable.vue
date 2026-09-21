@@ -30,7 +30,7 @@ const props = defineProps<{
     isReadOnly?: boolean;
     telaMode?: boolean | null;
 }>();
-const emit = defineEmits(['update:items']);
+const emit = defineEmits(['update:items', 'success', 'error']);
 
 const localItems = ref<PurchaseInvoiceItem[]>([]);
 const catalogItems = ref<Item[]>([]);
@@ -260,8 +260,11 @@ async function handleTaxDialogSubmit(formData: TaxDialogForm) {
         await axios.post('/impuestos', formData);
         await fetchTaxes();
         isTaxDialogOpen.value = false;
-    } catch (error) {
+        emit('success', 'Impuesto creado correctamente.');
+    } catch (error: any) {
         console.error('Error creando impuesto', error);
+        const errors = error?.response?.data?.errors;
+        emit('error', errors ? Object.values(errors).flat().join(' ') : error?.response?.data?.message || 'No se pudo crear el impuesto.');
     } finally {
         taxDialogLoading.value = false;
     }
@@ -292,7 +295,7 @@ async function handleItemDialogRefresh() {
     pendingItemDialogRefresh.value = null;
 }
 
-async function handleItemDialogSaved(mode: 'create' | 'edit') {
+async function handleItemDialogSaved(mode: 'create' | 'edit', createdId?: number | null) {
     if (mode !== 'create') return;
 
     if (pendingItemDialogRefresh.value) {
@@ -300,6 +303,10 @@ async function handleItemDialogSaved(mode: 'create' | 'edit') {
     } else {
         await handleItemDialogRefresh();
     }
+
+    // El id devuelto por el servidor tiene prioridad sobre la detección por diferencia de catálogo.
+    if (createdId) createdItemCandidateId.value = Number(createdId);
+    emit('success', 'Ítem creado correctamente.');
 
     const rowIdx = itemDialogTargetRowIndex.value;
     if (rowIdx == null || rowIdx < 0 || rowIdx >= localItems.value.length || createdItemCandidateId.value == null) return;
