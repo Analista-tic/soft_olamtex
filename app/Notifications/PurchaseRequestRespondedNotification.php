@@ -30,10 +30,13 @@ class PurchaseRequestRespondedNotification extends Notification
         ];
         $label = $actionLabels[$this->action] ?? $this->action;
 
+        $isRequester = (int) $notifiable->getKey() === (int) $this->purchaseRequest->requester_user_id;
+
         $body = sprintf(
-            '%s ha %s tu solicitud %s.',
+            '%s ha %s %s solicitud %s.',
             $this->responderName ?? 'Un usuario',
             $label,
+            $isRequester ? 'tu' : 'la',
             $number
         );
         if ($this->reason) {
@@ -50,7 +53,7 @@ class PurchaseRequestRespondedNotification extends Notification
             'user_name'       => $this->responderName ?? 'Usuario',
             'title'           => "Solicitud #{$number} {$label}",
             'body'            => $body,
-            'url'             => '/gastos/solicitudes-compra',
+            'url'             => '/gastos/solicitudes-compra?ver=' . $this->purchaseRequest->id,
         ];
     }
 }

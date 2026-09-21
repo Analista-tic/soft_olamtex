@@ -80,14 +80,13 @@ class PurchaseRequestService
     {
         $minimal = !empty($filters['minimal']);
 
-        $query = PurchaseRequest::with($minimal ? [] : ['requester']);
+        $query = PurchaseRequest::with($minimal ? [] : ['requester', 'buyer']);
 
         if ($minimal) {
             $query->select(['id', 'request_number', 'provider_name', 'date', 'status', 'description', 'estimated_amount', 'requester_user_id']);
         }
 
-        ScopeHelper::apply($query, $user, 'ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra', 'requester_user_id');
-        $this->applySolicitedToFilter($query, $user);
+        $this->applyVisibility($query, $user);
 
         if (!empty($filters['search'])) {
             $search = $filters['search'];
@@ -180,14 +179,13 @@ class PurchaseRequestService
 
     public function loadWithRelations(PurchaseRequest $purchaseRequest): PurchaseRequest
     {
-        return $purchaseRequest->load(['requester', 'approvedBy', 'rejectedBy', 'processor']);
+        return $purchaseRequest->load(['requester', 'buyer', 'approvedBy', 'rejectedBy', 'processor']);
     }
 
     public function findAccessibleOrFail(PurchaseRequest $purchaseRequest, ?User $user): PurchaseRequest
     {
         $query = PurchaseRequest::query()->whereKey($purchaseRequest->getKey());
-        ScopeHelper::apply($query, $user, 'ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra', 'requester_user_id');
-        $this->applySolicitedToFilter($query, $user);
+        $this->applyVisibility($query, $user);
 
         if (!$query->exists()) {
             throw new AuthorizationException('No tienes permisos para acceder a esta solicitud de compra.');
@@ -270,7 +268,11 @@ class PurchaseRequestService
         }
 
         $data['status'] = $data['status'] ?? 'draft';
-        $data['requester_user_id'] = $data['requester_user_id'] ?? Auth::id();
+        // El solicitante es siempre quien crea la solicitud; se ignora cualquier valor enviado por el cliente.
+        unset($data['requester_user_id']);
+        if (!$isUpdate) {
+            $data['requester_user_id'] = Auth::id();
+        }
 
         $items = null;
         if (isset($data['items'])) {
@@ -444,6 +446,22 @@ class PurchaseRequestService
         return $this->orderService->createOrder($data, $orderItems);
     }
 
+    /**
+     * Reglas de visibilidad (ver docs/compras/solicitudes-visibilidad.md):
+     *  1. Alcance normal por permisos (propios / area / todos) + filtro "solicitado a".
+     *  2. Los borradores solo los ve su solicitante (quien la creó).
+     */
+    private function applyVisibility(Builder $query, ?User $user): void
+    {
+        ScopeHelper::apply($query, $user, 'ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra', 'requester_user_id');
+        $this->applySolicitedToFilter($query, $user);
+
+        $userId = $user?->id ?? -1;
+        $query->where(function (Builder $q) use ($userId) {
+            $q->where('status', '!=', 'draft')->orWhere('requester_user_id', $userId);
+        });
+    }
+
     private function applySolicitedToFilter(Builder $query, ?User $user): void
     {
         if ($user === null) {
@@ -491,22 +509,10 @@ class PurchaseRequestService
 
     protected function notifySubmitted(PurchaseRequest $purchaseRequest): void
     {
-        $solicitedTo = $purchaseRequest->solicited_to;
-        if (!$solicitedTo) {
-            return;
-        }
-
-        // 'gerencia' no existe como rol Spatie; los gerentes están en 'admin'
-        $roleName = $solicitedTo === 'gerencia' ? 'admin' : $solicitedTo;
-
-        try {
-            $recipients = User::role($roleName)->get();
-        } catch (\Throwable $e) {
-            \Log::warning('notifySubmitted: rol no encontrado', ['role' => $roleName, 'error' => $e->getMessage()]);
-            return;
-        }
+        $recipients = $this->resolveSubmittedRecipients($purchaseRequest);
 
         if ($recipients->isEmpty()) {
+            \Log::info('notifySubmitted: sin destinatarios', ['purchase_request_id' => $purchaseRequest->id]);
             return;
         }
 
@@ -514,23 +520,45 @@ class PurchaseRequestService
         Notification::send($recipients, new PurchaseRequestSubmittedNotification($purchaseRequest, $requesterName));
     }
 
+    /**
+     * Destinatarios al enviar a aprobación: quienes pueden aprobar en el área destino
+     * ("solicited_to": gerencia -> rol admin, logistica -> rol logistica) Y tienen el permiso
+     * 'aprobar solicitudes compra'. Un auxiliar sin ese permiso no recibe el aviso.
+     * Nunca se notifica al propio solicitante. El encargado de compra se entera al responderse.
+     *
+     * @return Collection<int, User>
+     */
+    public function resolveSubmittedRecipients(PurchaseRequest $purchaseRequest): Collection
+    {
+        $solicitedTo = $purchaseRequest->solicited_to;
+        if (!$solicitedTo) {
+            return collect();
+        }
+
+        // 'gerencia' no existe como rol Spatie; los gerentes están en 'admin'
+        $roleName = $solicitedTo === 'gerencia' ? 'admin' : $solicitedTo;
+
+        try {
+            $recipients = User::role($roleName)->permission('aprobar solicitudes compra')->get();
+        } catch (\Throwable $e) {
+            \Log::warning('resolveSubmittedRecipients: rol o permiso no encontrado', ['role' => $roleName, 'error' => $e->getMessage()]);
+            return collect();
+        }
+
+        return $recipients->reject(fn (User $u) => $u->id === $purchaseRequest->requester_user_id)->values();
+    }
+
     protected function notifyResponded(PurchaseRequest $purchaseRequest, string $action, ?User $responder, ?string $reason): void
     {
-        $requesterId = $purchaseRequest->requester_user_id;
-        if (!$requesterId) {
+        // Solicitante y encargado de compra; nunca quien ejecuta la acción.
+        $recipients = User::whereIn('id', array_filter([$purchaseRequest->requester_user_id, $purchaseRequest->buyer_user_id]))
+            ->get()
+            ->reject(fn (User $u) => $responder && $u->id === $responder->id);
+
+        if ($recipients->isEmpty()) {
             return;
         }
 
-        $requester = User::find($requesterId);
-        if (!$requester) {
-            return;
-        }
-
-        // No notificar si quien responde es el mismo que creó la solicitud
-        if ($responder && $responder->id === $requesterId) {
-            return;
-        }
-
-        $requester->notify(new PurchaseRequestRespondedNotification($purchaseRequest, $action, $responder?->name, $reason));
+        Notification::send($recipients, new PurchaseRequestRespondedNotification($purchaseRequest, $action, $responder?->name, $reason));
     }
 }

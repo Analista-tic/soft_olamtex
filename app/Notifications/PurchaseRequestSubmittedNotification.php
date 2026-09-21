@@ -35,7 +35,7 @@ class PurchaseRequestSubmittedNotification extends Notification
                 $this->requesterName ?? 'Un usuario',
                 $number
             ),
-            'url'             => '/gastos/solicitudes-compra',
+            'url'             => '/gastos/solicitudes-compra?ver=' . $this->purchaseRequest->id,
         ];
     }
 }

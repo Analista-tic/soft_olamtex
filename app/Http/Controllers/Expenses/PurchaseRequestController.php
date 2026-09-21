@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class PurchaseRequestController extends Controller
@@ -67,6 +68,8 @@ class PurchaseRequestController extends Controller
             $purchaseRequest = $this->service->create($payload);
 
             return response()->json(['data' => $purchaseRequest], 201);
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (\Throwable $e) {
             Log::error('Error creando solicitud de compra', [
                 'message' => $e->getMessage(),
@@ -96,6 +99,8 @@ class PurchaseRequestController extends Controller
             $updated = $this->service->update($purchaseRequest, $payload);
 
             return response()->json(['data' => $updated]);
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (\Throwable $e) {
             Log::error('Error actualizando solicitud de compra', [
                 'purchase_request_id' => $purchaseRequest->id,
@@ -267,7 +272,6 @@ class PurchaseRequestController extends Controller
 
         $rules = [
             'provider_name' => 'nullable|string|max:255',
-            'requester_user_id' => 'nullable|exists:users,id',
             'solicited_to' => 'nullable|in:gerencia,logistica',
             'buyer_user_id' => 'nullable|exists:users,id',
             'date' => 'required|date',

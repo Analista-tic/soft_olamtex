@@ -20,7 +20,7 @@ import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import { useAuthStore } from '@/stores/auth';
 import type { PurchaseRequest } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { CheckCircle, Eye, MoreVertical, PlusCircle, Search, Send, X, XCircle } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -364,6 +364,26 @@ watch(searchQuery, () => {
 onMounted(() => {
     fetchRequests();
 });
+
+// Deep link desde una notificación: /gastos/solicitudes-compra?ver=<id> abre esa solicitud en el dialog.
+// Se observa la URL porque Inertia no vuelve a montar la página si ya estás en ella.
+const page = usePage();
+watch(
+    () => page.url,
+    async (url) => {
+        const id = Number(new URL(url, window.location.origin).searchParams.get('ver'));
+        if (!Number.isInteger(id) || id <= 0) return;
+
+        window.history.replaceState(window.history.state, '', window.location.pathname);
+        try {
+            const { data } = await axios.get(`/gastos/solicitudes-compra/${id}`);
+            viewRequest(data?.data ?? { id });
+        } catch {
+            showError('No se pudo abrir la solicitud. Puede que ya no exista o no tengas acceso.');
+        }
+    },
+    { immediate: true },
+);
 </script>
 
 <template>
