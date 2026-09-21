@@ -116,7 +116,7 @@ class PurchaseDocumentOrderService extends PurchaseDocumentService
         ?array $withholdings = null
     ): PurchaseDocument {
         if (! $order->isOrder()) {
-            throw new \InvalidArgumentException('Solo las ordenes de compra pueden convertirse a factura.');
+            throw new \InvalidArgumentException('Solo las órdenes de compra pueden convertirse a factura.');
         }
 
         return DB::transaction(function () use ($order, $invoiceData, $invoiceItems, $withholdings) {

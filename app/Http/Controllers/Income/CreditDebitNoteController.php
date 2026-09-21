@@ -169,7 +169,7 @@ class CreditDebitNoteController extends Controller
             SaleNoteType::CREDIT->value => SaleNoteType::CREDIT->documentType(),
             SaleNoteType::DEBIT->value => SaleNoteType::DEBIT->documentType(),
             default => throw ValidationException::withMessages([
-                'type' => 'El tipo de nota debe ser credito o debito.',
+                'type' => 'El tipo de nota debe ser crédito o débito.',
             ]),
         };
     }

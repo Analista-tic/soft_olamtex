@@ -412,7 +412,7 @@ class BatchControlController extends Controller
 
         $fromProcess = $this->normalizeBatchProcessName($order->current_process);
         if ($fromProcess === null) {
-            return response()->json(['message' => 'La orden no tiene un proceso actual valido.'], 422);
+            return response()->json(['message' => 'La orden no tiene un proceso actual válido.'], 422);
         }
 
         if ($toProcess === $fromProcess) {
@@ -536,7 +536,7 @@ class BatchControlController extends Controller
 
         $process = $this->normalizeBatchProcessName($request->input('process'));
         if ($process === null || !in_array($process, config('product-sheet.batch_control_processes', []), true)) {
-            return response()->json(['message' => 'El proceso no es valido.'], 422);
+            return response()->json(['message' => 'El proceso no es válido.'], 422);
         }
         $date = $request->input('estimated_date');
 

@@ -12,8 +12,8 @@ enum SaleNoteType: string
     public function label(): string
     {
         return match ($this) {
-            self::CREDIT => 'Nota credito',
-            self::DEBIT => 'Nota debito',
+            self::CREDIT => 'Nota crédito',
+            self::DEBIT => 'Nota débito',
         };
     }
 

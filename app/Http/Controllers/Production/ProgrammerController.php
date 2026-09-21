@@ -1123,13 +1123,13 @@ class ProgrammerController extends Controller
             $decoded = json_decode($value, true);
             if (json_last_error() !== JSON_ERROR_NONE) {
                 throw ValidationException::withMessages([
-                    'ecommerce_units' => 'El formato de ecommerce_units no es valido.',
+                    'ecommerce_units' => 'El formato de ecommerce_units no es válido.',
                 ]);
             }
 
             if ($decoded !== null && !is_array($decoded)) {
                 throw ValidationException::withMessages([
-                    'ecommerce_units' => 'El formato de ecommerce_units no es valido.',
+                    'ecommerce_units' => 'El formato de ecommerce_units no es válido.',
                 ]);
             }
 
@@ -1137,7 +1137,7 @@ class ProgrammerController extends Controller
         }
 
         throw ValidationException::withMessages([
-            'ecommerce_units' => 'El formato de ecommerce_units no es valido.',
+            'ecommerce_units' => 'El formato de ecommerce_units no es válido.',
         ]);
     }
 

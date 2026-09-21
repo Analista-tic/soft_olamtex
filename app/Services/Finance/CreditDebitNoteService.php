@@ -433,7 +433,7 @@ class CreditDebitNoteService
 
         if (! $this->isEligibleParentInvoiceStatus((string) $parent->status)) {
             throw ValidationException::withMessages([
-                'parent_document_id' => 'La factura seleccionada no esta en un estado valido para registrar una nota.',
+                'parent_document_id' => 'La factura seleccionada no está en un estado válido para registrar una nota.',
             ]);
         }
 

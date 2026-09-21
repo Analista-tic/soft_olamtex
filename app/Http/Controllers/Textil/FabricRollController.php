@@ -866,7 +866,7 @@ class FabricRollController extends Controller
         $file = $request->file('file');
         if (! $file instanceof UploadedFile || ! $file->isValid()) {
             return $this->importResponse(0, 0, [
-                $this->importError(null, 'Debes enviar un archivo Excel valido.'),
+                $this->importError(null, 'Debes enviar un archivo Excel válido.'),
             ], 422);
         }
 

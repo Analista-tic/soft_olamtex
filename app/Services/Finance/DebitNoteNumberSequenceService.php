@@ -18,7 +18,7 @@ class DebitNoteNumberSequenceService
                 ->first();
 
             if (! $sequence) {
-                throw new RuntimeException('No existe la secuencia para notas debito.');
+                throw new RuntimeException('No existe la secuencia para notas débito.');
             }
 
             $nextValue = (int) $sequence->current_value + 1;

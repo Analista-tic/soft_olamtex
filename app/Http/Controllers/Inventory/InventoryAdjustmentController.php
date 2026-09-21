@@ -119,7 +119,7 @@ class InventoryAdjustmentController extends Controller
             return $this->validationErrorResponse($e);
         } catch (\Throwable $e) {
             return response()->json([
-                'message' => 'Ocurrio un error al guardar el ajuste de inventario.',
+                'message' => 'Ocurrió un error al guardar el ajuste de inventario.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -149,7 +149,7 @@ class InventoryAdjustmentController extends Controller
             return $this->validationErrorResponse($e);
         } catch (\Throwable $e) {
             return response()->json([
-                'message' => 'Ocurrio un error al actualizar el ajuste de inventario.',
+                'message' => 'Ocurrió un error al actualizar el ajuste de inventario.',
                 'error' => $e->getMessage(),
             ], 500);
         }

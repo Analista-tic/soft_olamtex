@@ -33,7 +33,7 @@ class SectionController extends Controller
         $section = $this->service->create($validated);
 
         return response()->json([
-            'message' => 'Seccion creada correctamente.',
+            'message' => 'Sección creada correctamente.',
             'data' => $section,
         ], 201);
     }

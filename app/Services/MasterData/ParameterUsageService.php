@@ -33,38 +33,38 @@ class ParameterUsageService
             'Define las areas disponibles para usuarios, auditoria y solicitudes internas.',
         ],
         'sections' => [
-            'Se usa como catalogo de secciones en fichas de producto, batch control y operaciones.',
+            'Se usa como catálogo de secciones en fichas de producto, batch control y operaciones.',
         ],
         'groups' => [
-            'Se usa como catalogo de grupos en fichas de producto y catalogos operativos.',
+            'Se usa como catálogo de grupos en fichas de producto y catálogos operativos.',
         ],
         'brands' => [
-            'Se usa como catalogo de marcas en fichas de producto.',
+            'Se usa como catálogo de marcas en fichas de producto.',
         ],
         'worlds' => [
-            'Se usa como catalogo de mundos en fichas de producto.',
+            'Se usa como catálogo de mundos en fichas de producto.',
         ],
         // fabric_bases / yarn_bases se retiraron: sus catálogos viven en las tablas
         // dedicadas fabric_bases / yarn_bases, no en settings. Mantenerlos aquí hacía
         // que el sistema declarase "en uso" unas filas que ya nadie leía, impidiendo
         // borrarlas desde la pantalla de Parámetros.
         'sizes' => [
-            'Se usa como catalogo de tallas en fichas de producto y batch control.',
+            'Se usa como catálogo de tallas en fichas de producto y batch control.',
         ],
         'operational_lists' => [
-            'Se usa en la asignacion de listados operacionales.',
+            'Se usa en la asignación de listados operacionales.',
         ],
         'process_types' => [
-            'Se usa en la configuracion de procesos de ficha tecnica.',
+            'Se usa en la configuración de procesos de ficha técnica.',
         ],
         'unit_measures' => [
-            'Se usa en unidades de medida para insumos y formularios de produccion.',
+            'Se usa en unidades de medida para insumos y formularios de producción.',
         ],
         'thread_brands' => [
-            'Se usa en catalogos de marcas de hilo.',
+            'Se usa en catálogos de marcas de hilo.',
         ],
         'preparation_groups' => [
-            'Se usa para agrupar operaciones de preparacion.',
+            'Se usa para agrupar operaciones de preparación.',
         ],
         'credit_note_reason' => [
             'Se usa para validar los motivos permitidos de notas credito.',

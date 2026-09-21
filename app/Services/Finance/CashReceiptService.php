@@ -81,7 +81,7 @@ class CashReceiptService
 
         if ($normalizedApplications->isEmpty()) {
             throw ValidationException::withMessages([
-                'applications' => 'Debes registrar al menos una aplicacion para el recibo.',
+                'applications' => 'Debes registrar al menos una aplicación para el recibo.',
             ]);
         }
 
@@ -150,7 +150,7 @@ class CashReceiptService
 
             if (empty($affectedInvoiceIds)) {
                 throw ValidationException::withMessages([
-                    'applications' => 'El recibo no tiene aplicaciones validas para registrar.',
+                    'applications' => 'El recibo no tiene aplicaciones válidas para registrar.',
                 ]);
             }
 
@@ -291,7 +291,7 @@ class CashReceiptService
 
                 if (in_array($invoiceId, $seenInvoices, true)) {
                     throw ValidationException::withMessages([
-                        'applications' => 'No se puede aplicar la misma factura mas de una vez en el mismo recibo.',
+                        'applications' => 'No se puede aplicar la misma factura más de una vez en el mismo recibo.',
                     ]);
                 }
 

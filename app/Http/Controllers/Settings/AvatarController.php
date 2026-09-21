@@ -53,7 +53,7 @@ class AvatarController extends Controller
 
         if (!$imageData) {
             return response()->json([
-                'message' => 'Imagen invalida.',
+                'message' => 'Imagen inválida.',
             ], 422);
         }
 
@@ -65,7 +65,7 @@ class AvatarController extends Controller
 
         if (@getimagesizefromstring($imageData['data']) === false) {
             return response()->json([
-                'message' => 'Imagen invalida.',
+                'message' => 'Imagen inválida.',
             ], 422);
         }
 

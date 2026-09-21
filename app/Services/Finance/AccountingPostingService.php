@@ -411,7 +411,7 @@ class AccountingPostingService
         $invoiceNumber = trim((string) ($invoice->document_number ?: $invoiceId));
 
         if (! $invoice->isInvoice()) {
-            throw new InvalidArgumentException('El documento recibido no es una factura de venta valida.');
+            throw new InvalidArgumentException('El documento recibido no es una factura de venta válida.');
         }
 
         if (($invoice->status ?? null) !== 'issued') {
@@ -807,7 +807,7 @@ class AccountingPostingService
 
         if ($movementReason !== 'entry_regularization') {
             throw new InvalidArgumentException(
-                'Solo las regularizaciones positivas de inventario tienen politica contable definida en esta etapa.'
+                'Solo las regularizaciones positivas de inventario tienen política contable definida en esta etapa.'
             );
         }
 
@@ -1474,7 +1474,7 @@ class AccountingPostingService
         $noteNumber = trim((string) ($note->document_number ?: $noteId));
 
         if (! $note->isCreditDebitNote()) {
-            throw new InvalidArgumentException('El documento recibido no es una nota de venta valida.');
+            throw new InvalidArgumentException('El documento recibido no es una nota de venta válida.');
         }
 
         if (($note->status ?? null) !== 'issued') {
