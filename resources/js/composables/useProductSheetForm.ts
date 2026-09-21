@@ -5,7 +5,7 @@
  * funciones de normalización, y toda la lógica de construcción de payload para
  * crear/actualizar una sábana.
  */
-import type { OptionParams, ProductSheet } from '@/domain/Production';
+import type { ProductSheet } from '@/domain/Production';
 import {
     PRODUCT_SHEET_TYPE_PRODUCT,
     PRODUCT_SHEET_TYPE_SAMPLE,

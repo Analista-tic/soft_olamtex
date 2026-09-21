@@ -40,7 +40,7 @@ export interface FabricRoll {
     updated_at?: string | null;
 }
 
-export interface FabricRollView extends FabricRollViewDto {}
+export type FabricRollView = FabricRollViewDto;
 
 export interface FabricRollReceptionForm {
     location: string;

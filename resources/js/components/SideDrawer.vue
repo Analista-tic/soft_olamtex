@@ -2,7 +2,7 @@
 import { X } from 'lucide-vue-next';
 import { ref } from 'vue';
 
-const props = withDefaults(
+withDefaults(
     defineProps<{
         open: boolean;
         title: string;

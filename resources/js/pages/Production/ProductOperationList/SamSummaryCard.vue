@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-const props = withDefaults(
+withDefaults(
     defineProps<{
         totalSam: number;
         totalOperations?: number;

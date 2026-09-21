@@ -27,8 +27,6 @@ const emit = defineEmits<{
     (e: 'close'): void;
 }>();
 
-const editDatePart = computed(() => props.editingDate?.split('T')[0] ?? '');
-
 function parseComparableDate(value: string | null | undefined): Date | null {
     const raw = String(value ?? '').trim();
     if (!raw || raw === '-') return null;

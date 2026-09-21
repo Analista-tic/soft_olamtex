@@ -1,7 +1,6 @@
 import { mapContactDto, type Item } from '@/domain/MasterData';
 
 import type {
-    CashReceiptApplicationDto,
     CashReceiptDto,
     CreateCashReceiptDto,
     CreateQuoteDto,

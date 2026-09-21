@@ -97,6 +97,7 @@ function handleDrop(target: number) {
 </script>
 
 <template>
+<!-- eslint-disable vue/no-mutating-props -- editRow es un borrador de edición mutado a propósito por el padre -->
     <div v-if="operationList.length > 0" class="mt-5 space-y-4">
         <p v-if="!readonly" class="flex items-center gap-2 px-1 text-[11px] text-muted-foreground/80">
             <GripVertical class="h-3 w-3 shrink-0" />
@@ -104,7 +105,7 @@ function handleDrop(target: number) {
         </p>
 
         <!-- Cada sección -->
-        <div v-for="(sectionType, sectionIndex) in ['PREPARACION', 'ENSAMBLE', 'TERMINACION']" :key="sectionType">
+        <div v-for="sectionType in ['PREPARACION', 'ENSAMBLE', 'TERMINACION']" :key="sectionType">
             <div v-if="Object.keys(grouped[sectionType]).length > 0">
                 <!-- Encabezado de sección -->
                 <div class="mb-2 flex items-center gap-2 border-b-2 border-primary/30 px-2 py-1">
@@ -121,7 +122,7 @@ function handleDrop(target: number) {
 
                 <!-- Subgrupos para PREPARACION, operaciones directas para otros -->
                 <div v-if="sectionType === 'PREPARACION'" class="space-y-3">
-                    <div v-for="(grupoName, grupoIndex) in Object.keys(grouped[sectionType])" :key="`grupo-${grupoName}`">
+                    <div v-for="grupoName in Object.keys(grouped[sectionType])" :key="`grupo-${grupoName}`">
                         <!-- Encabezado de grupo -->
                         <div class="mb-1 ml-2 flex items-center gap-2 border-l-4 border-secondary/50 pl-2 text-xs">
                             <span class="font-medium text-secondary">{{ grupoName }}</span>

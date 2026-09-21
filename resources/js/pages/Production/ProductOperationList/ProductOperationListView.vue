@@ -197,7 +197,7 @@ async function fetchParameters() {
         const { data } = await axios.get('/produccion/parametros/data');
         const arr = Array.isArray(data?.data) ? data.data : [];
         parameters.value = Object.fromEntries(arr.map((p: { key?: string; value?: unknown }) => [p.key ?? '', p.value]));
-    } catch (e) {
+    } catch {
         parameters.value = {};
     }
 }

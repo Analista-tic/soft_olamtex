@@ -223,26 +223,6 @@ function normalizedText(value: unknown): string {
     return String(value ?? '').trim().toLowerCase();
 }
 
-function mapOption(source: unknown): Option | null {
-    if (!source || typeof source !== 'object') return null;
-    const option = source as Record<string, unknown>;
-    const rawId = option.id ?? option.value ?? option.code ?? null;
-    if (rawId === null || rawId === undefined || rawId === '') return null;
-
-    const id =
-        typeof rawId === 'string' || typeof rawId === 'number' || typeof rawId === 'boolean'
-            ? rawId
-            : String(rawId);
-
-    const rawName = option.name ?? option.label ?? option.description ?? id;
-    const name = String(rawName ?? '').trim();
-
-    return {
-        id,
-        name: name !== '' ? name : String(id),
-    };
-}
-
 function mergeFabricTypeOptions(options: Option[]): void {
     const merged = new Map<string, Option>();
     for (const option of fabricTypeOptions.value) {
@@ -429,13 +409,6 @@ function isRollOverAllocated(rollId: string, ownMeters: number): boolean {
     return current > baseline + partialAvail && ownMeters > 0;
 }
 
-function availabilityPercent(rollId: string, availableMeters: number | null): number {
-    const original = rollOriginalAvailability.value.get(rollId) ?? Number(availableMeters ?? 0);
-    if (original <= 0) return 100;
-    const current = rollTotalProgrammed.value.get(rollId) ?? 0;
-    return Math.min(100, Math.round((current / original) * 100));
-}
-
 const anyOverAllocation = computed(() =>
     trazos.value.some((t) =>
         t.lines.some((line) =>
@@ -453,10 +426,6 @@ function lineProgrammedMeters(line: FabricLine): number {
 
 function trazoProgrammedMeters(trazo: TrazoGroup): number {
     return trazo.lines.reduce((sum, l) => sum + lineProgrammedMeters(l), 0);
-}
-
-function trazoCost(trazo: TrazoGroup): number {
-    return trazo.lines.reduce((sum, l) => sum + l.assignedRolls.reduce((s, a) => s + toNumber(a.metersProgrammed) * toNumber(a.roll.pricePerMeter), 0), 0);
 }
 
 function lineCost(line: FabricLine): number {
@@ -602,12 +571,6 @@ function setRollMeters(rollId: string, value: string): void {
             line.assignedRolls.splice(existingIdx, 1);
         }
     }
-}
-
-function adjustMeters(rollId: string, delta: number): void {
-    const current = toNumber(getRollMeters(rollId));
-    const next = Math.max(0, Math.round((current + delta) * 100) / 100);
-    setRollMeters(rollId, next > 0 ? String(next) : '');
 }
 
 function useAllMetersForRoll(rollId: string): void {

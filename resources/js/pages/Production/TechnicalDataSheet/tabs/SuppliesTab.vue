@@ -123,11 +123,6 @@ function toCOP(value: number): string {
     }).format(Number(value || 0));
 }
 
-function toCOPOrEmpty(value: number): string {
-    const amount = Number(value || 0);
-    return amount > 0 ? toCOP(amount) : '';
-}
-
 function normalizeText(value: string | null | undefined): string | null {
     const text = String(value ?? '').trim();
     return text !== '' ? text : null;

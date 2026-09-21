@@ -31,6 +31,7 @@ interface NormalizedCollection<T> {
     lastPage: number;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- genéricos usados por los llamadores
 interface UseDocumentStoreOptions<TItem extends { id: number }, TDto, TFilters extends object, TCreate, TUpdate> {
     baseUrl: string;
     items: Ref<TItem[]>;

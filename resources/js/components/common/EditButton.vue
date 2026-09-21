@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { Pencil } from 'lucide-vue-next';
-const emit = defineEmits<{
+defineEmits<{
     (e: 'click'): void;
 }>();
 </script>

@@ -84,9 +84,6 @@ const subgroupFilter = ref<number | string | null>(null);
 const dateFilter = ref<Date | null>(null);
 const providers = ref<{ id: number; full_name: string }[]>([]);
 const subgroups = ref<{ id: number; name: string }[]>([]);
-const DEFAULT_STATUS_FILTER: string | null = null;
-const DEFAULT_PROVIDER_FILTER: string | null = null;
-const DEFAULT_SUBGROUP_FILTER: string | null = null;
 const statusOptions = [
     { id: 'status_pending', name: 'Pendiente' },
     { id: 'status_approved', name: 'Aprobado' },

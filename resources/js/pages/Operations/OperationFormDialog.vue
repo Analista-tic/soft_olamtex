@@ -103,6 +103,7 @@ function handleSubmit(payload: Record<string, unknown>) {
         error.value = String(payload.__error);
         return;
     }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- se descarta __error del payload
     const { __error: _, ...rest } = payload;
     isSaving.value = true;
     error.value = '';

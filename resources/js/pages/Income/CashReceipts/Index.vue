@@ -17,7 +17,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import {
     fetchIncomeCustomerOptions,
     normalizeErrorMessage,
-    watchIncomeDocumentFilters,
 } from '@/composables/Income/useIncomeDocument';
 import type { CashReceipt } from '@/domain/Income';
 import type { BreadcrumbItem, Option } from '@/domain/shared';
@@ -56,7 +55,6 @@ const contactId = ref<number | null>((incomeStore.cashReceiptFilters.contact_id 
 const dateFilter = ref<string | null>(incomeStore.cashReceiptFilters.date_from ?? incomeStore.cashReceiptFilters.date_to ?? null);
 
 const cashReceipts = computed(() => incomeStore.cashReceipts);
-const cashReceiptsMeta = computed(() => incomeStore.cashReceiptsMeta);
 const isCashReceiptsLoading = computed(() => incomeStore.cashReceiptsLoading);
 const itemsPerPage = ref(incomeStore.cashReceiptsMeta.perPage || 10);
 const totalItems = computed(() => Number(incomeStore.cashReceiptsMeta?.total ?? 0));

@@ -18,7 +18,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { ChevronLeft, ChevronRight, Database, Eye, Pencil, Plus, Search, Settings2, Trash2 } from 'lucide-vue-next';
+import { Database, Eye, Pencil, Plus, Search, Settings2, Trash2 } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import OperationCatalogManagerDialog, { type ManagedMachine, type ManagedSection, type SectionType } from './OperationCatalogManagerDialog.vue';
 import OperationDetailDialog from './OperationDetailDialog.vue';
@@ -240,12 +240,6 @@ async function fetchOperations(
             isRefreshingRecords.value = false;
         }
     }
-}
-
-function goToPage(p: number) {
-    if (p < 1 || p > pagination.value.last_page) return;
-    clearFetchDebounce();
-    fetchOperations(p, searchQuery.value, filterAction.value || null, filterSectionId.value || null);
 }
 
 const currentPage = computed({

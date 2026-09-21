@@ -1,20 +1,6 @@
 import type { NavItem } from '@/domain/shared';
 import { FileBarChart2, Settings, ShieldCheck } from 'lucide-vue-next';
 
-const toSlug = (value: string) =>
-    value
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)+/g, '');
-
-const underConstructionHref = (title: string) =>
-    route('under-construction', {
-        modulo: toSlug(title),
-        titulo: title,
-    });
-
 export const footerNavItems: NavItem[] = [
     {
         title: 'Informes',

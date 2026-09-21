@@ -57,7 +57,7 @@ let dialogPrepareToken = 0;
 let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 let dialogPrepareFinishTimer: ReturnType<typeof setTimeout> | null = null;
 let dialogPreparationLoadingId: SmartLoadingTaskId | null = null;
-const smartLoading = useSmartLoading();
+useSmartLoading();
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
 const totalItems = ref(0);
@@ -225,7 +225,7 @@ async function openDialog(type: 'create' | 'edit', contact: Contact | null = nul
         try {
             const { data } = await axios.get(`/contactos/${contact.id}`);
             form.value = { ...data };
-        } catch (e) {
+        } catch {
             // Manejo de error opcional: podrías mostrar un mensaje si falla la carga
         }
     } else {

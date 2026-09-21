@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import FormDialogContent from '@/components/FormDialogContent.vue';
-import FormHeader from '@/components/FormHeader.vue';
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter } from '@/components/ui/dialog';
@@ -9,7 +8,6 @@ import type { OpBasicInfo } from '@/domain/Production/types';
 import { fetchOpBasicInfo, fetchOpRawMaterials } from '@/domain/Production/service';
 import type { ProductOperationPayload } from '@/domain/product-sheet/types';
 import { useListadoOperacionalEdit } from '@/composables/useListadoOperacionalEdit';
-import axios from 'axios';
 import { Box, ChevronDown, ChevronUp, ClipboardList, DollarSign, FilePlus2, Package, Pencil, Volleyball, Workflow } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import type { BatchControlRow } from '../../types';

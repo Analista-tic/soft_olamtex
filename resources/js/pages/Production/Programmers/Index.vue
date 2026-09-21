@@ -32,7 +32,7 @@ import axios, { AxiosError } from 'axios';
 import { format, isValid, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Badge from '@/components/ui/badge/Badge.vue';
-import { Calendar as CalendarIcon, Check, CheckCircle2, Eye, Pencil, SlidersHorizontal, Trash, TrendingDown, TrendingUp, X } from 'lucide-vue-next';
+import { Calendar as CalendarIcon, Check, CheckCircle2, Eye, Pencil, SlidersHorizontal, Trash, TrendingDown, X } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import CreateProgrammerDialog from './Create.vue';
 import EditProgrammerDialog from './Edit.vue';
@@ -117,11 +117,6 @@ function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning
     } else {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-}
-
-function clearAlert() {
-    successMessage.value = '';
-    errorMessage.value = '';
 }
 
 function handleProgrammerCreated(message?: string) {
@@ -826,34 +821,6 @@ function shouldHighlightRow(row: Programmer): boolean {
     return isAutoFromSheet(row) && isIncomplete(row);
 }
 
-function formatEstimatedDeliveryDate(raw: unknown): string {
-    if (raw === null || raw === undefined) {
-        return '-';
-    }
-
-    const text = String(raw).trim();
-    if (text === '' || text === '-') {
-        return '-';
-    }
-
-    if (text.toUpperCase() === 'N/A') {
-        return 'N/A';
-    }
-
-    const isoPrefixMatch = text.match(/^(\d{4}-\d{2}-\d{2})/);
-    if (isoPrefixMatch) {
-        const isoDate = isoPrefixMatch[1];
-        const parsedIso = parse(isoDate, 'yyyy-MM-dd', new Date());
-        return isValid(parsedIso) ? format(parsedIso, 'dd/MM/yyyy', { locale: es }) : '-';
-    }
-
-    const parsedSlash = parse(text, 'dd/MM/yyyy', new Date());
-    if (isValid(parsedSlash)) {
-        return format(parsedSlash, 'dd/MM/yyyy', { locale: es });
-    }
-
-    return '-';
-}
 </script>
 
 <template>

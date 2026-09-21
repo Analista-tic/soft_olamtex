@@ -104,7 +104,7 @@ async function handleBulkUpload() {
 
         // Cerrar el diálogo después de 1.5 segundos para que el usuario vea el mensaje
         close();
-    } catch (e: any) {
+    } catch {
         // Mostrar mensaje genérico para evitar exponer detalles de error
         emit('error', {
             message: 'Error al importar. Por favor verifica el archivo e intenta de nuevo.',

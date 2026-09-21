@@ -78,9 +78,6 @@ const currentPage = ref(1);
 const totalItems = ref(0);
 const itemsPerPage = ref(10);
 
-const DEFAULT_TYPE_FILTER = null;
-const DEFAULT_STATUS_FILTER = null;
-
 const typeOptions = computed(() => [
     ...Object.entries(fieldTypeLabels).map(([key, label]) => ({ id: key, name: label })),
 ]);

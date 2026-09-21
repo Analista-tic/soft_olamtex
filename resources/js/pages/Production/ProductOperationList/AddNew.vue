@@ -96,6 +96,7 @@ function handleOperationSubmit(payload: Record<string, unknown>) {
     isSubmitting.value = true;
     successMessage.value = '';
     errorMessage.value = '';
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- se descarta __error del payload
     const { __error: _, ...data } = payload;
     axios
         .post('/produccion/operaciones', {

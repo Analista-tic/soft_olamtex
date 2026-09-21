@@ -15,7 +15,6 @@ import { mapToCreateSalesOrderDto, type Quote, type SalesOrder, type SalesOrderI
 import QuoteItemsTable from '@/pages/Income/Quotes/QuoteItemsTable.vue';
 import { useIncomeStore } from '@/stores/income/income';
 import { useContactsStore } from '@/stores/masterData/contacts';
-import axios from 'axios';
 import { Plus } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 

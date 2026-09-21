@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { MoreVertical } from 'lucide-vue-next';
 import type { HTMLAttributes } from 'vue';
 
-const props = withDefaults(
+withDefaults(
     defineProps<{
         title?: string;
         triggerClass?: HTMLAttributes['class'];

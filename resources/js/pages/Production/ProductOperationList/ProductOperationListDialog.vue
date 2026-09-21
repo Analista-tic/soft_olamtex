@@ -18,7 +18,6 @@ import type {
     OperationSection,
     ProductOperationDialogInitialData,
     ProductOperationDialogRow,
-    ProductOperationDialogRowInput,
     ProductOperationEntityCreatedData,
     ProductOperationPayload,
     ProductSheetDialogOption,
@@ -395,8 +394,6 @@ function openAddNewDialog(entity: 'section' | 'operation' | 'machine') {
     addNewDialogOpen.value = true;
 }
 
-const openCreateDialog = () => openAddNewDialog('operation');
-
 function handleEntityCreated(data: ProductOperationEntityCreatedData) {
     if (addNewEntity.value === 'section') {
         sectionsList.value.push({ id: data.id, name: data.name ?? '', type: data.type ?? '' });
@@ -466,10 +463,6 @@ function getSupplementForRow(row: ProductOperationDialogRow): number {
     return typeof f === 'number' && f >= 1 ? f : 1;
 }
 
-function getSupplementPercentage(row: ProductOperationDialogRow): number {
-    return (getSupplementForRow(row) - 1) * 100;
-}
-
 /** SAM ajustado = SAM_base / (factor_operario / 100) */
 function getSamAjustado(row: ProductOperationDialogRow): number {
     const samBase = Number(row.sam_total_base ?? row.optimal_time ?? 0);
@@ -502,10 +495,6 @@ function getOpsPerHour(row: ProductOperationDialogRow): number {
     const samOp = getSamOperacion(row);
     if (samOp <= 0) return 0;
     return Math.floor(60 / samOp);
-}
-
-function getSectionName(id: number | null): string {
-    return sectionsList.value.find((s) => idsMatch(s.id, id))?.name ?? '-';
 }
 
 function getOperationName(id: number | null): string {

@@ -454,7 +454,7 @@ onMounted(() => {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                <TableRow v-for="(row, index) in rowsWithCost" :key="row.tempId" class="group transition-colors hover:bg-muted/30">
+                                <TableRow v-for="row in rowsWithCost" :key="row.tempId" class="group transition-colors hover:bg-muted/30">
                                     <TableCell class="w-[110px]">
                                         <span class="text-sm text-foreground">{{ row.label }}</span>
                                     </TableCell>

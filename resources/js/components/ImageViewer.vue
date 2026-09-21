@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { X, Edit3, ZoomIn } from 'lucide-vue-next';
+import { X, Edit3 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
 interface Props {

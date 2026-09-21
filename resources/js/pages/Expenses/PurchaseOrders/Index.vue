@@ -97,9 +97,6 @@ function toggleSort(column: string) {
     fetchOrders();
 }
 
-const DEFAULT_STATUS_FILTER: string | null = null;
-const DEFAULT_PROVIDER_FILTER: string | null = null;
-
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value != null);
 const isProviderFilterActive = computed(() => providerFilter.value != null);

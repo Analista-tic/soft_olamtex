@@ -57,16 +57,6 @@ function formatDate(value: string | null | undefined): string {
     return parsed.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-function formatCurrency(value: number | null | undefined): string {
-    if (value === null || value === undefined) return '-';
-    return new Intl.NumberFormat('es-CO', {
-        style: 'currency',
-        currency: 'COP',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-    }).format(value);
-}
-
 function formatNumber(value: number | null | undefined, decimals = 2): string {
     if (value === null || value === undefined || Number.isNaN(Number(value))) return '-';
     return Number(value).toLocaleString('es-CO', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
@@ -98,7 +88,6 @@ const cutPieces = computed(() => {
 });
 
 const suppliesConf = computed(() => props.supplies.filter((s) => String(s.stage ?? '').toUpperCase().includes('CONF')));
-const suppliesTerm = computed(() => props.supplies.filter((s) => String(s.stage ?? '').toUpperCase().includes('TERM')));
 const suppliesOther = computed(() =>
     props.supplies.filter((s) => {
         const stage = String(s.stage ?? '').toUpperCase();

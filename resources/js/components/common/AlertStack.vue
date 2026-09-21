@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import AlertBox from '@/components/AlertBox.vue';
-import { computed, Teleport } from 'vue';
+import { computed } from 'vue';
 
 const props = defineProps<{
     successMessage?: string;

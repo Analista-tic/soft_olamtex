@@ -218,21 +218,8 @@ function getProductReference2(sheet: ProductSheet): string {
         .toLocaleUpperCase('es-CO');
 }
 
-function getBrandName(sheet: ProductSheet): string {
-    const fromObject = typeof sheet.brand === 'object' && sheet.brand ? String((sheet.brand as { name?: string }).name ?? '') : '';
-    const fromString =
-        typeof (sheet as ProductSheet & { brand?: string }).brand === 'string'
-            ? String((sheet as ProductSheet & { brand?: string }).brand ?? '')
-            : '';
-    return (fromObject || fromString).trim().toLocaleUpperCase('es-CO');
-}
-
 function hasAnyMainReference(sheet: ProductSheet): boolean {
     return getSampleReference(sheet).length > 0 || getProductReference(sheet).length > 0;
-}
-
-function getSheetVersion(sheet: ProductSheet): number {
-    return Number((sheet as ProductSheet & { version?: number }).version ?? 1);
 }
 
 function buildProductSheetSelectLabel(sheet: ProductSheet): string {
@@ -502,35 +489,6 @@ function getDialogProductSheet(sheet: ProductSheet | null): { sizes: string | Re
         sizes: normalizeSizes(sheet?.sizes),
         reference: sheet ? getProductSheetLabel(sheet) : '',
     };
-}
-
-interface ProductSheetSavedPayload {
-    success?: boolean;
-    message?: string;
-    data?: ProductSheet;
-}
-
-function addProductSheet(response: ProductSheetSavedPayload) {
-    if (!response?.success || !response?.data?.id) {
-        console.error('El ProductSheet creado no es válido:', response);
-        setAlert('Hubo un problema al crear la ficha de producto. Intenta nuevamente.', 'error');
-        return;
-    }
-
-    const newProductSheet = response.data;
-
-    if (!hasAnyMainReference(newProductSheet)) {
-        setAlert('La sábana fue creada sin RefMuestra y sin RefProducto. No aparece en este selector.', 'info');
-        return;
-    }
-
-    if (!isProductSheetComplete(newProductSheet)) {
-        setAlert('La sábana fue creada como incompleta. Complétala antes de poder programarla.', 'warning');
-        return;
-    }
-
-    allProductSheets.value = [...allProductSheets.value, newProductSheet];
-    form.value.productSheetId = newProductSheet.id;
 }
 
 function buildLotsPayload() {

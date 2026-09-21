@@ -4,7 +4,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Activity, Archive, ClipboardCheck, ClipboardList, Eye, File, Flag, MessageSquareWarning, MoreVertical, PackageCheck, Scissors, Send, Shirt, Stamp } from 'lucide-vue-next';
 import type { BatchControlRow } from './types';
 
-const props = withDefaults(
+withDefaults(
     defineProps<{
         row: BatchControlRow;
         /** Proceso activo del tab en el que se renderiza esta fila */

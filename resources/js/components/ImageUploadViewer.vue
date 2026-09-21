@@ -2,7 +2,7 @@
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import ImageViewer from '@/components/ImageViewer.vue';
 import Label from '@/components/ui/label/Label.vue';
-import { Upload, Trash } from 'lucide-vue-next';
+import { Upload } from 'lucide-vue-next';
 import { computed, onUnmounted, ref } from 'vue';
 
 const props = defineProps<{
@@ -39,8 +39,6 @@ const visualUrl = computed<string | null>(() => {
     if (loadFailed.value) return null;
     return resolveStorageUrl(props.modelValue);
 });
-
-const canClear = computed(() => Boolean(file.value || props.modelValue));
 
 // Funciones
 function revokePreview(): void {
@@ -123,10 +121,6 @@ function clearImage(event?: MouseEvent): void {
     event?.stopPropagation();
     reset();
     emit('update:modelValue', '');
-}
-
-function handleImageError(): void {
-    if (!previewUrl.value) loadFailed.value = true;
 }
 
 function handleImageDelete(): void {

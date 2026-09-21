@@ -57,7 +57,6 @@ const deliveryRequestId = ref<number | null>(null);
 const isRejectDialogOpen = ref(false);
 const rejectRequestId = ref<number | null>(null);
 
-const DEFAULT_STATUS_FILTER = null;
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value != null);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);

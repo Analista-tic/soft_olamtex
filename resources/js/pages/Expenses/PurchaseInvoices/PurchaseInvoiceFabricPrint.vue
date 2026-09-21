@@ -9,7 +9,7 @@ useAccentColor();
 
 const page = usePage();
 const invoice = computed(() => (page.props as Record<string, any>).invoice || {});
-const { company, logoUrl } = useCompanyInfo();
+const { company } = useCompanyInfo();
 
 const fmtDate = (d: string) => {
     if (!d) return '—';

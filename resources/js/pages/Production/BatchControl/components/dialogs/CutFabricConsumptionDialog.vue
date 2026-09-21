@@ -220,10 +220,6 @@ function toNonNeg(value: string): number | null {
     const n = Number(value);
     return Number.isFinite(n) ? Math.max(0, n) : null;
 }
-function toNonNegInt(value: string): number | null {
-    const n = toNonNeg(value);
-    return n !== null ? Math.floor(n) : null;
-}
 
 function globalIndex(line: CutFabricConsumptionLine): number {
     return props.lines.indexOf(line);
@@ -341,15 +337,6 @@ const CURVE_LABELS: Record<keyof CutCurves, string> = {
     espiga: 'Espiga',
 };
 const curveRows: Array<keyof CutCurves> = ['principal', 'liquidacion', 'espiga'];
-
-function updateCurve(row: keyof CutCurves, size: string, value: string) {
-    if (props.viewOnly) return;
-    const n = value.trim() === '' ? null : Number(value);
-    emit('update:curves', {
-        ...props.curves,
-        [row]: { ...props.curves[row], [size]: Number.isFinite(n as number) ? n : null },
-    });
-}
 
 const unitsReport = computed<CutUnitsReportRow[]>(() => {
     const sizes = activeSizes.value;
