@@ -10,6 +10,14 @@
 - Para tareas grandes y bien delimitadas que no requieren supervisión paso a paso, delegar a un subagente (`Agent`) en lugar de ejecutarlas inline, para no llenar el contexto principal con resultados intermedios.
 - Antes de invocar una tool diferida (listada solo por nombre en un system-reminder), usar `ToolSearch` para cargar su definición en vez de adivinar el schema o leer documentación externa.
 
+## Protección de la base de datos
+
+- Nunca ejecutar `migrate:fresh`, `migrate:refresh`, `migrate:reset` ni `db:wipe` contra la BD de desarrollo/producción.
+- Pest y `php artisan test` SÍ se pueden ejecutar: `phpunit.xml` fuerza la BD aislada `testing` y `tests/TestCase.php` aborta si la BD no es de pruebas. No quitar ni debilitar esas dos protecciones.
+- Todo cambio de base de datos se hace con una migración Laravel nueva (nunca SQL manual ni editando/borrando migraciones existentes); para revertir algo, otra migración.
+- Para aplicar cambios de esquema usar solo `php artisan migrate`; para permisos, `php artisan db:seed --class=RolesAndPermissionsSeeder`.
+- Excepción: solo si el usuario lo pide explícitamente o hay una BD de pruebas aislada configurada. Ante la duda, preguntar antes.
+
 ## Reglas de ingeniería del proyecto
 
 Antes de escribir o modificar código, seguir las reglas obligatorias de @.github/copilot-instructions.md: persistencia de datos de negocio siempre en tabla relacional + modelo Eloquent + migración (nunca solo en frontend/JSON), patrón de alertas (`useGlobalAlert`/`AlertBox`) en toda operación CUD, patrón de dialogs (`FormDialogContent`), cohesión de dominio, tipos centralizados en `domain/<módulo>/types.ts`.
