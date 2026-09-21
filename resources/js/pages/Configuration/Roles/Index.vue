@@ -230,7 +230,7 @@ onMounted(async () => {
                 <div class="flex flex-col gap-1">
                     <h1 :class="uiPatterns.typography.pageTitle">Gestión de Roles</h1>
                     <p :class="uiPatterns.typography.pageSubtitle">
-                        Administra los roles y sus permisos para controlar el acceso a los modulos del sistema.
+                        Administra los roles y sus permisos para controlar el acceso a los módulos del sistema.
                     </p>
                 </div>
                 <Button

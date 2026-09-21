@@ -1,10 +1,17 @@
 /**
  * Fuente de verdad única para los módulos de permisos del sistema.
  *
+ * Convención de nombres (solo afecta lo visible, NUNCA las claves):
+ * - Las claves de `permissions` son los nombres técnicos guardados en BD y usados en `can()`.
+ *   No se renombran ni se traducen.
+ * - category / label: Title Case con tildes.
+ * - Etiqueta visible de cada permiso: ver `permissionLabel()`.
+ *
  * Cada entrada define:
  * - label:   Nombre visible en UI
  * - tokens:  Fragmentos del nombre del permiso que pertenecen a este módulo
- * - permissions: Lista exacta de permisos que aparecen en el dialog de edición
+ * - permissions: Claves exactas de los permisos del módulo (una clave solo puede estar en un módulo)
+ * - category: Categoría visible (Textil Pack se venderá por separado: agrupado en una sola categoría)
  *
  * El orden de este array determina el orden de aparición en el dialog y en los badges.
  * Para agregar un módulo nuevo: añadir una entrada aquí y en ningún otro lugar.
@@ -17,7 +24,7 @@ export interface PermissionModule {
 }
 
 export const PERMISSION_MODULES: PermissionModule[] = [
-    // ── Datos básicos ─────────────────────────────────────────────
+    // ── Configuración ──────────────────────────────────────────────
     {
         label: 'Datos Básicos',
         tokens: ['empresa', 'perfil', 'personalizacion'],
@@ -31,65 +38,73 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         ],
         category: 'Configuración',
     },
-
-    // ── Configuración del sistema ──────────────────────────────────
     {
         label: 'Usuarios',
         tokens: ['usuarios'],
-        permissions: [
-            'ver usuarios',
-            'crear usuarios',
-            'editar usuarios',
-            'eliminar usuarios',
-        ],
+        permissions: ['ver usuarios', 'crear usuarios', 'editar usuarios', 'eliminar usuarios'],
         category: 'Configuración',
     },
     {
         label: 'Roles',
         tokens: ['roles'],
-        permissions: [
-            'ver roles',
-            'crear roles',
-            'editar roles',
-            'eliminar roles',
-        ],
+        permissions: ['ver roles', 'crear roles', 'editar roles', 'eliminar roles'],
         category: 'Configuración',
     },
     {
         label: 'Auditoría',
         tokens: ['auditoria'],
-        permissions: [
-            'ver auditoria',
-        ],
+        permissions: ['ver auditoria'],
+        category: 'Configuración',
+    },
+    {
+        label: 'Parámetros',
+        tokens: ['parametros'],
+        permissions: ['ver parametros', 'editar parametros'],
+        category: 'Configuración',
+    },
+    {
+        label: 'Colores',
+        tokens: ['colores'],
+        permissions: ['ver colores', 'crear colores', 'editar colores', 'eliminar colores'],
+        category: 'Configuración',
+    },
+    {
+        label: 'Acceso a Secciones del Menú',
+        tokens: ['ver ingresos', 'ver gastos', 'ver financiero'],
+        permissions: ['ver ingresos', 'ver gastos', 'ver financiero'],
         category: 'Configuración',
     },
 
     // ── Producción ─────────────────────────────────────────────────
     {
         label: 'Programación de Producción',
-        tokens: ['programador'],
+        tokens: ['programador', 'programacion produccion'],
         permissions: [
             'ver programador',
             'crear programador',
             'editar programador',
             'eliminar programador',
+            'ver propios programacion produccion',
+            'ver area programacion produccion',
+            'ver todos programacion produccion',
         ],
         category: 'Producción',
     },
     {
-        label: 'Sábana Productos',
+        label: 'Sábana de Productos',
         tokens: ['sabana productos'],
         permissions: [
             'ver sabana productos',
             'crear sabana productos',
             'editar sabana productos',
             'eliminar sabana productos',
+            'carga masiva sabana productos',
         ],
         category: 'Producción',
     },
     {
         label: 'Listados Operacionales',
-        tokens: ['listados operacionales', 'listado desde muestra'],
+        tokens: ['listados operacionales', 'listado desde muestra', 'tiempo estandar operacion'],
         permissions: [
             'ver listados operacionales',
             'crear listados operacionales',
@@ -103,9 +118,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     {
         label: 'Ficha Técnica',
         tokens: ['ficha tecnica', 'procesos ficha'],
-        permissions: [
-            'editar procesos ficha tecnica',
-        ],
+        permissions: ['editar procesos ficha tecnica'],
         category: 'Producción',
     },
     {
@@ -113,6 +126,9 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         tokens: ['control lotes', 'lote produccion', 'novedad lote', 'consumo tela corte'],
         permissions: [
             'ver control lotes',
+            'ver propios control lotes',
+            'ver area control lotes',
+            'ver todos control lotes',
             'entregar lote produccion',
             'reportar novedad lote',
             'resolver novedad lote',
@@ -121,39 +137,31 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         category: 'Producción',
     },
 
-    // ── Inventario (Telas — TEXTIL PACK) ──────────────────────────
+    // ── Textil Pack (a futuro se comercializa como módulo aparte) ──
     {
-        label: 'Telas',
+        label: 'Catálogo de Telas',
         tokens: ['ver telas', 'crear telas', 'editar telas', 'eliminar telas'],
-        permissions: [
-            'ver telas',
-            'crear telas',
-            'editar telas',
-            'eliminar telas',
-        ],
-        category: 'TEXTIL PACK',
+        permissions: ['ver telas', 'crear telas', 'editar telas', 'eliminar telas'],
+        category: 'Textil Pack',
     },
     {
         label: 'Pedidos de Telas',
         tokens: ['pedidos telas'],
-        permissions: [
-            'ver pedidos telas',
-            'crear pedidos telas',
-            'editar pedidos telas',
-            'eliminar pedidos telas',
-        ],
-        category: 'TEXTIL PACK',
+        permissions: ['ver pedidos telas', 'crear pedidos telas', 'editar pedidos telas', 'eliminar pedidos telas'],
+        category: 'Textil Pack',
     },
     {
         label: 'Recepción de Telas',
-        tokens: ['recepcion telas'],
+        tokens: ['recepcion tela'],
         permissions: [
             'ver recepcion telas',
             'crear recepcion telas',
             'editar recepcion telas',
             'eliminar recepcion telas',
+            'aprobar recepcion tela',
+            'rechazar recepcion tela',
         ],
-        category: 'TEXTIL PACK',
+        category: 'Textil Pack',
     },
     {
         label: 'Inventario de Telas',
@@ -164,12 +172,10 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'editar inventario telas',
             'eliminar inventario telas',
         ],
-        category: 'TEXTIL PACK',
+        category: 'Textil Pack',
     },
-
-    // ── TEXTIL PACK ────────────────────────────────────────────────
     {
-        label: 'TEXTIL PACK — Rollos de Tela',
+        label: 'Rollos de Tela',
         tokens: ['telas rollos', 'fabric_rolls.import'],
         permissions: [
             'ver telas rollos',
@@ -178,25 +184,13 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'eliminar telas rollos',
             'fabric_rolls.import',
         ],
-        category: 'TEXTIL PACK',
+        category: 'Textil Pack',
     },
     {
-        label: 'TEXTIL PACK — Recepción de Telas',
-        tokens: ['recepcion tela'],
-        permissions: [
-            'aprobar recepcion tela',
-            'rechazar recepcion tela',
-        ],
-        category: 'TEXTIL PACK',
-    },
-    {
-        label: 'TEXTIL PACK — Descargue de Telas',
+        label: 'Descargue de Telas',
         tokens: ['descargue telas'],
-        permissions: [
-            'ver descargue telas orden',
-            'crear descargue telas orden',
-        ],
-        category: 'TEXTIL PACK',
+        permissions: ['ver descargue telas orden', 'crear descargue telas orden'],
+        category: 'Textil Pack',
     },
 
     // ── Inventario (Insumos) ───────────────────────────────────────
@@ -231,7 +225,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     },
     {
         label: 'Movimientos de Inventario',
-        tokens: ['movimientos inventario'],
+        tokens: ['movimientos inventario', 'movimiento inventario'],
         permissions: [
             'ver propios movimientos inventario',
             'ver todos movimientos inventario',
@@ -285,26 +279,19 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         category: 'Ingresos',
     },
     {
-        label: 'Notas Crédito/Débito Venta',
+        label: 'Notas Crédito/Débito de Venta',
         tokens: ['nota credito debito venta'],
-        permissions: [
-            'emitir nota credito debito venta',
-            'anular nota credito debito venta',
-        ],
+        permissions: ['emitir nota credito debito venta', 'anular nota credito debito venta'],
         category: 'Ingresos',
     },
     {
         label: 'Recibos de Caja',
         tokens: ['recibos caja', 'recibo caja'],
-        permissions: [
-            'ver propios recibos caja',
-            'ver todos recibos caja',
-            'anular recibo caja',
-        ],
+        permissions: ['ver propios recibos caja', 'ver todos recibos caja', 'anular recibo caja'],
         category: 'Ingresos',
     },
 
-    // ── Compras ────────────────────────────────────────────────────
+    // ── Gastos ─────────────────────────────────────────────────────
     {
         label: 'Solicitudes de Compra',
         tokens: ['solicitudes compra'],
@@ -323,27 +310,34 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     },
     {
         label: 'Órdenes de Compra',
-        tokens: ['ordenes compra'],
+        tokens: ['ordenes compra', 'orden compra'],
         permissions: [
             'ver ordenes compra',
             'crear ordenes compra',
             'editar ordenes compra',
             'eliminar ordenes compra',
+            'ver propios ordenes compra',
+            'ver area ordenes compra',
+            'ver todos ordenes compra',
             'aprobar orden compra',
         ],
         category: 'Gastos',
     },
     {
         label: 'Facturas de Compra',
-        tokens: ['facturas compra'],
+        tokens: ['facturas compra', 'factura compra'],
         permissions: [
             'ver facturas compra',
             'crear facturas compra',
             'editar facturas compra',
             'eliminar facturas compra',
+            'ver propios facturas compra',
+            'ver area facturas compra',
+            'ver todos facturas compra',
             'aprobar facturas compra',
             'recibir factura compra',
             'anular factura compra',
+            'gestionar diferencias factura compra',
         ],
         category: 'Gastos',
     },
@@ -354,6 +348,17 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'ver propios documentos compra',
             'ver area documentos compra',
             'ver todos documentos compra',
+        ],
+        category: 'Gastos',
+    },
+    {
+        label: 'Comprobantes de Egreso',
+        tokens: ['comprobantes egreso'],
+        permissions: [
+            'ver comprobantes egreso',
+            'crear comprobantes egreso',
+            'editar comprobantes egreso',
+            'anular comprobantes egreso',
         ],
         category: 'Gastos',
     },
@@ -371,18 +376,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         category: 'Financiero',
     },
     {
-        label: 'Comprobantes de Egreso',
-        tokens: ['comprobantes egreso'],
-        permissions: [
-            'ver comprobantes egreso',
-            'crear comprobantes egreso',
-            'editar comprobantes egreso',
-            'anular comprobantes egreso',
-        ],
-        category: 'Gastos',
-    },
-    {
-        label: 'Notas Crédito / Débito',
+        label: 'Notas Crédito/Débito',
         tokens: ['notas credito debito'],
         permissions: [
             'ver notas credito debito',
@@ -395,23 +389,13 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     {
         label: 'Impuestos',
         tokens: ['impuestos'],
-        permissions: [
-            'ver impuestos',
-            'crear impuestos',
-            'editar impuestos',
-            'eliminar impuestos',
-        ],
+        permissions: ['ver impuestos', 'crear impuestos', 'editar impuestos', 'eliminar impuestos'],
         category: 'Financiero',
     },
     {
         label: 'Retenciones',
         tokens: ['retenciones'],
-        permissions: [
-            'ver retenciones',
-            'crear retenciones',
-            'editar retenciones',
-            'eliminar retenciones',
-        ],
+        permissions: ['ver retenciones', 'crear retenciones', 'editar retenciones', 'eliminar retenciones'],
         category: 'Financiero',
     },
 
@@ -419,33 +403,19 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     {
         label: 'Contactos',
         tokens: ['contactos'],
-        permissions: [
-            'ver contactos',
-            'crear contactos',
-            'editar contactos',
-            'eliminar contactos',
-        ],
+        permissions: ['ver contactos', 'crear contactos', 'editar contactos', 'eliminar contactos'],
         category: 'Datos Maestros',
     },
     {
         label: 'Catálogo de Ítems',
         tokens: ['catalogo items', 'activar desactivar item', 'carga masiva items', 'exportar items'],
-        permissions: [
-            'activar desactivar item',
-            'carga masiva items',
-            'exportar items',
-        ],
+        permissions: ['activar desactivar item', 'carga masiva items', 'exportar items'],
         category: 'Datos Maestros',
     },
     {
         label: 'Categorías',
         tokens: ['categorias'],
-        permissions: [
-            'ver categorias',
-            'crear categorias',
-            'editar categorias',
-            'eliminar categorias',
-        ],
+        permissions: ['ver categorias', 'crear categorias', 'editar categorias', 'eliminar categorias'],
         category: 'Datos Maestros',
     },
     {
@@ -459,67 +429,13 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         ],
         category: 'Datos Maestros',
     },
-    {
-        label: 'Parámetros',
-        tokens: ['parametros'],
-        permissions: [
-            'ver parametros',
-            'editar parametros',
-        ],
-        category: 'Configuración',
-    },
-    {
-        label: 'Colores',
-        tokens: ['colores'],
-        permissions: [
-            'ver colores',
-            'crear colores',
-            'editar colores',
-            'eliminar colores',
-        ],
-        category: 'Configuración',
-    },
-
-    // ── Acceso por Módulo ──────────────────────────────────────────
-    {
-        label: 'Acceso a Secciones del Menú',
-        tokens: [
-            'ver ingresos', 'ver gastos', 'ver financiero',
-            'ver solicitudes compra', 'ver documentos compra',
-            'ver facturas compra', 'ver solicitudes insumos',
-            'ver inventario telas', 'ver programador',
-            'ver sabana productos', 'ver listados operacionales',
-            'ver telas rollos', 'ver descargue telas orden',
-        ],
-        permissions: [
-            // Ingresos
-            'ver ingresos',
-            // Gastos
-            'ver todos solicitudes compra',
-            'ver todos documentos compra',
-            'ver facturas compra',
-            // Financiero
-            'ver financiero',
-            // Inventarios
-            'ver solicitudes insumos',
-            'ver inventario telas',
-            // Producción
-            'ver programador',
-            'ver sabana productos',
-            'ver listados operacionales',
-            // TEXTIL PACK
-            'ver telas rollos',
-            'ver descargue telas orden',
-        ],
-        category: 'Configuración',
-    },
 ];
 
 export const PERMISSION_CATEGORIES: string[] = [
     'Configuración',
     'Datos Maestros',
     'Producción',
-    'TEXTIL PACK',
+    'Textil Pack',
     'Inventario',
     'Gastos',
     'Ingresos',
@@ -533,14 +449,93 @@ export const PERMISSIONS_BY_MODULE: Record<string, string[]> = Object.fromEntrie
     PERMISSION_MODULES.map((m) => [m.label, m.permissions]),
 );
 
+const normalize = (text: string): string =>
+    text
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '');
+
+/**
+ * Etiquetas visibles de permisos cuya acción sola sería ambigua dentro de su módulo.
+ * Clave = nombre técnico del permiso (sin cambios); valor = texto mostrado.
+ */
+const PERMISSION_LABEL_OVERRIDES: Record<string, string> = {
+    // Datos Básicos
+    'ver empresa': 'Ver empresa',
+    'editar empresa': 'Editar empresa',
+    'ver perfil': 'Ver perfil',
+    'editar perfil': 'Editar perfil',
+    'ver personalizacion': 'Ver personalización',
+    'editar personalizacion': 'Editar personalización',
+    // Acceso a secciones
+    'ver ingresos': 'Acceder a Ingresos',
+    'ver gastos': 'Acceder a Gastos',
+    'ver financiero': 'Acceder a Financiero',
+    // Producción
+    'generar listado desde muestra': 'Generar listado desde muestra',
+    'actualizar tiempo estandar operacion': 'Actualizar tiempo estándar de operación',
+    'editar procesos ficha tecnica': 'Editar procesos de ficha técnica',
+    'carga masiva sabana productos': 'Carga masiva',
+    'entregar lote produccion': 'Entregar lote a producción',
+    'reportar novedad lote': 'Reportar novedad de lote',
+    'resolver novedad lote': 'Resolver novedad de lote',
+    'registrar consumo tela corte': 'Registrar consumo de tela en corte',
+    // Textil Pack
+    'fabric_rolls.import': 'Importar rollos',
+    'ver descargue telas orden': 'Ver descargue por orden',
+    'crear descargue telas orden': 'Crear descargue por orden',
+    // Ingresos
+    'convertir cotizacion a pedido': 'Convertir a pedido',
+    'convertir pedido a factura venta': 'Convertir a factura',
+    // Gastos
+    'gestionar diferencias factura compra': 'Gestionar diferencias',
+    // Financiero
+    'ver movimientos cuenta contable': 'Ver movimientos contables',
+    // Datos maestros
+    'activar desactivar item': 'Activar / desactivar ítem',
+    'carga masiva items': 'Carga masiva de ítems',
+    'exportar items': 'Exportar ítems',
+};
+
+const STANDARD_ACTION = /^(ver|crear|editar|eliminar|aprobar|rechazar|anular|atender|entregar|cancelar|emitir|recibir)( propios| area| todos)?\s+\S/;
+
+const SCOPE_LABEL: Record<string, string> = {
+    propios: 'propios',
+    area: 'del área',
+    todos: 'todos',
+};
+
+/**
+ * Etiqueta visible de un permiso (el módulo ya es el encabezado, no se repite).
+ * "ver todos solicitudes compra" → "Ver todos"; "ver area cotizaciones" → "Ver del área".
+ * Solo presentación: la clave técnica nunca cambia.
+ */
+export function permissionLabel(permission: string): string {
+    const override = PERMISSION_LABEL_OVERRIDES[permission];
+    if (override) return override;
+
+    const match = normalize(permission).match(STANDARD_ACTION);
+    if (match) {
+        const action = match[1].charAt(0).toUpperCase() + match[1].slice(1);
+        const scope = match[2]?.trim();
+        return scope ? `${action} ${SCOPE_LABEL[scope]}` : action;
+    }
+
+    return permission.charAt(0).toUpperCase() + permission.slice(1);
+}
+
+const MODULE_BY_PERMISSION = new Map<string, string>(
+    PERMISSION_MODULES.flatMap((m) => m.permissions.map((p) => [normalize(p), m.label] as [string, string])),
+);
+
 /**
  * Resuelve el módulo al que pertenece un permiso, para los badges de la tabla.
  */
 export function resolvePermissionGroup(permission: string): string {
-    const normalized = permission
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '');
+    const normalized = normalize(permission);
+
+    const exact = MODULE_BY_PERMISSION.get(normalized);
+    if (exact) return exact;
 
     for (const module of PERMISSION_MODULES) {
         if (module.tokens.some((token) => normalized.includes(token))) {
