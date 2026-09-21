@@ -13,6 +13,14 @@ export interface Role {
 
 export type User = SharedUser;
 
+export interface Area {
+    id: number;
+    name: string;
+    is_active: boolean;
+    /** Usuarios con esta área asignada (viene de `withCount`). */
+    users_count?: number;
+}
+
 export interface AuthState {
     user: User | null;
     roles: string[];

@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Settings\Setting;
+use App\Models\Settings\Area;
 use App\Models\Settings\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -406,13 +406,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'editar solicitudes compra',
         ]);
 
-        // Obtener catalogo de areas desde settings (kind=parameter, key=areas)
-        $areasSetting = Setting::query()
-            ->where('kind', 'parameter')
-            ->where('key', 'areas')
-            ->first();
+        // Catálogo de áreas (tabla areas); se garantiza aquí porque este seeder puede correr solo.
+        $this->call(AreaSeeder::class);
 
-        $areas = is_array($areasSetting?->value) ? $areasSetting->value : [];
+        $areas = Area::query()->get(['id', 'name'])->map->only(['id', 'name'])->all();
 
         $usuariosEjemplo = [
             // GERENCIA

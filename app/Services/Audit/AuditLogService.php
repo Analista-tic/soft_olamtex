@@ -2,9 +2,8 @@
 
 namespace App\Services\Audit;
 
-use App\Models\MasterData\Parameter;
+use App\Models\Settings\Area;
 use App\Models\Settings\AuditLog;
-use App\Models\Settings\Setting;
 use App\Models\Settings\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -107,40 +106,7 @@ class AuditLogService
 
             if ($user) {
                 if ($user->area_id) {
-                    $area = null;
-
-                    if (Schema::hasTable('parameters')) {
-                        try {
-                            $param = Parameter::query()->where('nombre', 'areas')->first();
-                            if ($param && is_array($param->valor)) {
-                                $area = collect($param->valor)->firstWhere('id', $user->area_id);
-                            }
-                        } catch (\Throwable $e) {
-                            $area = null;
-                        }
-                    }
-
-                    if (!$area && Schema::hasTable('settings')) {
-                        $setting = Setting::parameters()
-                            ->where(static function (Builder $query) {
-                                $query->where('key', 'parameter_areas')
-                                    ->orWhere('key', 'areas')
-                                    ->orWhere('label', 'like', '%Area%')
-                                    ->orWhere('label', 'like', '%area%');
-                            })
-                            ->first();
-
-                        if ($setting) {
-                            $values = $setting->value ?? $setting->valor ?? null;
-                            if (is_array($values)) {
-                                $area = collect($values)->firstWhere('id', $user->area_id);
-                            }
-                        }
-                    }
-
-                    if ($area) {
-                        $log->user_area = $area['name'] ?? $area['nombre'] ?? null;
-                    }
+                    $log->user_area = Area::query()->whereKey($user->area_id)->value('name');
                 }
 
                 $roles = $user->getRoleNames();

@@ -110,18 +110,7 @@ class SettingsFieldParametersSeeder extends Seeder
                     'status' => true,
                 ],
             ],
-            [
-                'kind' => 'parameter',
-                'key' => 'areas',
-                'data' => [
-                    'label' => 'Áreas',
-                    'description' => 'Catálogo de áreas organizacionales',
-                    'value' => $this->mapNames([
-                        'Gerencia', 'Producción', 'Corte', 'Logística', 'Diseño', 'Marketing', 'Comercial', 'Tics', 'Recursos Humanos', 'Financiero', 'Desarrollo Organizacional', 'SST',
-                    ]),
-                    'status' => true,
-                ],
-            ],
+            // areas migrado a tabla dedicada — gestionado desde AreaService / AreaSeeder
             // fabric_bases migrado a tabla dedicada — gestionado desde FabricBaseService
             // yarn_bases migrado a tabla dedicada — gestionado desde YarnBaseService
             [

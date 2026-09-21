@@ -139,20 +139,7 @@ class InventoryRequestService
             return null;
         }
 
-        $areasSetting = \App\Models\Settings\Setting::query()
-            ->where('kind', 'parameter')
-            ->where('key', 'areas')
-            ->first();
-
-        $areas = is_array($areasSetting?->value) ? $areasSetting->value : [];
-
-        foreach ($areas as $area) {
-            if (is_array($area) && isset($area['id']) && (int) $area['id'] === $user->area_id) {
-                return $area['name'] ?? null;
-            }
-        }
-
-        return null;
+        return \App\Models\Settings\Area::query()->whereKey($user->area_id)->value('name');
     }
 
     /**

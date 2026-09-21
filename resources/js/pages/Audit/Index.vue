@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useAreas } from '@/composables/useAreas';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { BreadcrumbItem, PaginatedData, AuditLog as SharedAuditLog, SharedData } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -61,54 +62,11 @@ const filters = reactive({
     area: '',
 });
 // Opciones de área
-type AreaOption = { id: number; name: string };
-const areaOptions = ref<AreaOption[]>([]);
+const { areaOptions, fetchAreas } = useAreas();
 const areaSelectOptions = computed(() => [{ id: '', name: 'Todas las áreas' }, ...areaOptions.value]);
 const selectedAreaId = ref(filters.area ?? '');
 const isAreaFilterActive = computed(() => selectedAreaId.value !== '' && selectedAreaId.value !== null);
 const areaFilterButtonClasses = useFilterButtonClasses(isAreaFilterActive);
-
-function normalizeAreas(payload: unknown): AreaOption[] {
-    if (typeof payload === 'string') {
-        try {
-            return normalizeAreas(JSON.parse(payload));
-        } catch {
-            return [];
-        }
-    }
-    if (!Array.isArray(payload)) {
-        if (payload && typeof payload === 'object') {
-            const record = payload as Record<string, unknown>;
-            if ('data' in record) return normalizeAreas(record.data);
-            if ('valor' in record) return normalizeAreas(record.valor);
-        }
-        return [];
-    }
-    return payload
-        .map((area) => {
-            if (area && typeof area === 'object') {
-                const record = area as Record<string, unknown>;
-                const name = String(record.name ?? record.nombre ?? record.label ?? '').trim();
-                if (!name) return null;
-                const rawId = record.id;
-                const parsedId = typeof rawId === 'number' ? rawId : Number(rawId);
-                if (!Number.isFinite(parsedId)) return null;
-                return { id: parsedId, name };
-            }
-            return null;
-        })
-        .filter((area): area is AreaOption => Boolean(area));
-}
-
-async function fetchAreas() {
-    try {
-        const { data } = await axios.get('/api/parameters/areas');
-        areaOptions.value = normalizeAreas(data);
-    } catch (error) {
-        console.error('Error al cargar áreas:', error);
-        areaOptions.value = [];
-    }
-}
 
 onMounted(() => {
     fetchAreas();

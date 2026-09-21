@@ -1,6 +1,3 @@
 <?php
 
-use App\Http\Controllers\MasterData\ParameterController;
-use Illuminate\Support\Facades\Route;
-
-Route::get('/parameters/areas', [ParameterController::class, 'areas']);
+// Sin rutas API públicas por ahora. El catálogo de áreas se sirve autenticado en GET /areas/list (routes/settings.php).

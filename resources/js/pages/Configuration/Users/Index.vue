@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAlertStack } from '@/composables/useAlert';
+import { useAreas } from '@/composables/useAreas';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import { useSmartLoading } from '@/composables/useSmartLoading';
 import type { Role, User } from '@/domain/Settings/types'; // Importar los tipos centralizados
@@ -29,8 +30,9 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { useAuthStore } from '@/stores/auth';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { PlusCircle, Search } from 'lucide-vue-next';
+import { Building2, PlusCircle, Search } from 'lucide-vue-next';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import AreasDialog from './AreasDialog.vue';
 import UserDialog from './UserDialog.vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -73,8 +75,8 @@ const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isAreaFilterActive = computed(() => selectedAreaId.value !== '' && selectedAreaId.value !== null);
 const areaFilterButtonClasses = useFilterButtonClasses(isAreaFilterActive);
 
-type AreaOption = { id: number; name: string };
-const areaOptions = ref<AreaOption[]>([]);
+const { areas, areaOptions, fetchAreas } = useAreas();
+const isAreasDialogOpen = ref(false);
 const areaSelectOptions = computed(() => [{ id: '', name: 'Todas las areas' }, ...areaOptions.value]);
 const areaLookup = computed(() => {
     const map = new Map<number, string>();
@@ -82,48 +84,8 @@ const areaLookup = computed(() => {
     return map;
 });
 
-function normalizeAreas(payload: unknown): AreaOption[] {
-    if (typeof payload === 'string') {
-        try {
-            return normalizeAreas(JSON.parse(payload));
-        } catch {
-            return [];
-        }
-    }
-
-    if (!Array.isArray(payload)) {
-        if (payload && typeof payload === 'object') {
-            const record = payload as Record<string, unknown>;
-            if ('data' in record) return normalizeAreas(record.data);
-            if ('valor' in record) return normalizeAreas(record.valor);
-        }
-        return [];
-    }
-
-    return payload
-        .map((area) => {
-            if (area && typeof area === 'object') {
-                const record = area as Record<string, unknown>;
-                const name = String(record.name ?? record.nombre ?? record.label ?? '').trim();
-                if (!name) return null;
-                const rawId = record.id;
-                const parsedId = typeof rawId === 'number' ? rawId : Number(rawId);
-                if (!Number.isInteger(parsedId)) return null;
-                return { id: parsedId, name };
-            }
-            return null;
-        })
-        .filter((area): area is AreaOption => Boolean(area));
-}
-
-async function fetchAreas() {
-    try {
-        const { data } = await axios.get('/api/parameters/areas');
-        areaOptions.value = normalizeAreas(data);
-    } catch (error) {
-        console.error('Error al cargar areas:', error);
-        areaOptions.value = [];
-    }
+async function onAreasChanged() {
+    await Promise.all([fetchAreas(), fetchUsers(currentPage.value)]);
 }
 
 const authStore = useAuthStore();
@@ -215,12 +177,8 @@ async function submitForm(userData: UserFormData) {
             ...userData, // Usar los datos recibidos del componente hijo
             roles: rolesPayload,
         };
-        console.log(payload);
 
-        const response = await axios({ method, url, data: payload });
-        console.log(response);
-
-        console.log('Usuario guardado exitosamente:', response.data);
+        await axios({ method, url, data: payload });
         showSuccess(dialogType.value === 'create' ? 'Usuario creado correctamente.' : 'Usuario actualizado correctamente.');
         fetchUsers(); // Refrescar la lista de usuarios
         closeDialog();
@@ -311,14 +269,14 @@ onMounted(async () => {
                     <h1 class="text-lg font-bold">Gestión de Usuarios</h1>
                     <p class="text-sm text-muted-foreground">Administra los usuarios y sus roles para el acceso a las funciones del sistema.</p>
                 </div>
-                <Button
-                    v-if="canCreate"
-                    @click="openDialog('create')"
-                    size="pill"
-                    class="flex items-center gap-2 shadow-sm"
-                >
-                    <PlusCircle class="h-4 w-4" /> Crear Nuevo Usuario
-                </Button>
+                <div class="flex items-center gap-2">
+                    <Button v-if="canView" variant="outline" size="pill" class="flex items-center gap-2 shadow-sm" @click="isAreasDialogOpen = true">
+                        <Building2 class="h-4 w-4" /> Gestionar áreas
+                    </Button>
+                    <Button v-if="canCreate" @click="openDialog('create')" size="pill" class="flex items-center gap-2 shadow-sm">
+                        <PlusCircle class="h-4 w-4" /> Crear Nuevo Usuario
+                    </Button>
+                </div>
             </div>
             <FilterBar align="start">
                 <FilterField label="Buscar usuario" :active="isSearchActive" class="min-w-[220px] flex-1 p-0">
@@ -404,9 +362,13 @@ onMounted(async () => {
         :dialogType="dialogType"
         :userData="form"
         :roles="props.roles"
+        :areas="areas"
         @close="closeDialog"
         @submit="submitForm"
     />
+
+    <!-- Dialog para gestionar el catálogo de áreas -->
+    <AreasDialog v-model:isOpen="isAreasDialogOpen" :areas="areas" @changed="onAreasChanged" />
 
     <!-- Dialog para Confirmar Eliminación -->
     <ConfirmDialog

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Settings\AreaController;
 use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\AppearanceController;
 use App\Http\Controllers\Settings\AvatarController;
@@ -62,7 +63,23 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('permission:eliminar usuarios')
         ->name('usuarios.destroy');
 
-    Route::get('roles-data', [RoleController::class, 'getData'])
+    // Las áreas organizan usuarios: su gestión reutiliza los permisos de usuarios.
+    Route::get('areas/list', [AreaController::class, 'list'])
+        ->name('areas.list');
+
+    Route::post('areas', [AreaController::class, 'store'])
+        ->middleware('permission:crear usuarios')
+        ->name('areas.store');
+
+    Route::put('areas/{area}', [AreaController::class, 'update'])
+        ->middleware('permission:editar usuarios')
+        ->name('areas.update');
+
+    Route::delete('areas/{area}', [AreaController::class, 'destroy'])
+        ->middleware('permission:eliminar usuarios')
+        ->name('areas.destroy');
+
+    Route::get('roles-data',[RoleController::class, 'getData'])
         ->middleware('permission:ver roles')
         ->name('roles.getData');
 

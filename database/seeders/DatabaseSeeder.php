@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             // === CONFIGURACIÓN DEL SISTEMA ===
             CompanySettingSeeder::class,
             SettingsFieldParametersSeeder::class,
+            AreaSeeder::class,
             RolesAndPermissionsSeeder::class,
             PermissionSeeder::class,
             FabricRollImportPermissionSeeder::class,

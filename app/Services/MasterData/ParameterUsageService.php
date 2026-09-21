@@ -5,7 +5,6 @@ namespace App\Services\MasterData;
 use App\Exceptions\MasterData\ParameterInUseException;
 use App\Models\Production\ProductSheet;
 use App\Models\Settings\Setting;
-use App\Models\Settings\User;
 use App\Services\Settings\SettingService;
 
 class ParameterUsageService
@@ -29,9 +28,6 @@ class ParameterUsageService
      * @var array<string, array<int, string>>
      */
     private const SYSTEM_USAGE_BY_KEY = [
-        'areas' => [
-            'Define las areas disponibles para usuarios, auditoria y solicitudes internas.',
-        ],
         'sections' => [
             'Se usa como catálogo de secciones en fichas de producto, batch control y operaciones.',
         ],
@@ -89,10 +85,7 @@ class ParameterUsageService
      */
     public function inspect(Setting $parameter): array
     {
-        $usages = [
-            ...$this->resolveSystemUsages($parameter),
-            ...$this->resolveDataUsages($parameter),
-        ];
+        $usages = $this->resolveSystemUsages($parameter);
 
         $canDelete = $usages === [];
 
@@ -130,34 +123,6 @@ class ParameterUsageService
             ],
             $details,
         );
-    }
-
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    private function resolveDataUsages(Setting $parameter): array
-    {
-        $canonicalKey = $this->settingService->canonicalKey((string) $parameter->key);
-        $usages = [];
-
-        if ($canonicalKey === 'areas') {
-            $assignedUsers = User::query()
-                ->where('area_id', $parameter->id)
-                ->count();
-
-            if ($assignedUsers > 0) {
-                $usages[] = [
-                    'type' => 'record',
-                    'label' => 'Usuarios',
-                    'detail' => $assignedUsers === 1
-                        ? '1 usuario tiene esta area asignada.'
-                        : "{$assignedUsers} usuarios tienen esta area asignada.",
-                    'count' => $assignedUsers,
-                ];
-            }
-        }
-
-        return $usages;
     }
 
     /**

@@ -1666,30 +1666,33 @@ class BatchControlController extends Controller
         ProductionOrder $order,
         string $reporterName,
     ): void {
-        /**
-         * IDs de área según settings key=areas:
-         * 1=Gerencia, 2=Producción, 3=Logística, 4=Diseño, 5=Marketing,
-         * 6=Comercial, 7=Tics, 8=RR.HH, 9=Financiero, 10=Desarrollo Organizacional, 11=SST
-         */
+        // Las áreas se resuelven por nombre (tabla areas); los ids no son estables entre ambientes.
         $areasByProcess = [
-            'I&D'                     => [4],           // Diseño
-            'Tejido'                  => [2, 4],        // Producción, Diseño
-            'Corte'                   => [2, 3],        // Producción, Logística
-            'Logística'               => [2, 3],        // Producción, Logística
-            'Estampado'               => [2, 3],        // Producción, Logística
-            'Desarrollo de muestras'  => [2],           // Producción
-            'Muestras'                => [2],           // Producción
-            'Confección'              => [2],           // Producción
-            'Lavandería'              => [2, 3],        // Producción, Logística
-            'Terminación'             => [2, 6],        // Producción, Comercial
-            'Inspección y aprobación' => [2, 6],        // Producción, Comercial
-            'Bodega'                  => [6],           // Comercial
+            'I&D'                     => ['Diseño'],
+            'Tejido'                  => ['Producción', 'Diseño'],
+            'Corte'                   => ['Producción', 'Logística'],
+            'Logística'               => ['Producción', 'Logística'],
+            'Estampado'               => ['Producción', 'Logística'],
+            'Desarrollo de muestras'  => ['Producción'],
+            'Muestras'                => ['Producción'],
+            'Confección'              => ['Producción'],
+            'Lavandería'              => ['Producción', 'Logística'],
+            'Terminación'             => ['Producción', 'Comercial'],
+            'Inspección y aprobación' => ['Producción', 'Comercial'],
+            'Bodega'                  => ['Comercial'],
         ];
 
-        $areaIds = array_unique(array_merge(
-            $areasByProcess[$novelty->from_process] ?? [],
-            [10], // Desarrollo Organizacional — siempre
-        ));
+        $areaNames = array_map(
+            static fn (string $name): string => mb_strtoupper($name, 'UTF-8'),
+            array_unique(array_merge(
+                $areasByProcess[$novelty->from_process] ?? [],
+                ['Desarrollo Organizacional'], // siempre
+            )),
+        );
+
+        $areaIds = \App\Models\Settings\Area::query()
+            ->whereIn('name', $areaNames)
+            ->pluck('id');
 
         $notification = new BatchControlNoveltyNotification($novelty, $order, $reporterName);
 
