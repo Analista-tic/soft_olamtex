@@ -1351,6 +1351,11 @@ async function handleSubmit() {
         requiredErrors.push(`Campo adicional: ${fieldName}`);
     });
 
+    const hasWarehouseSelected = warehouseStocks.value.some((w) => Number(w.warehouse_id) > 0);
+    if (props.dialogType === 'create' && currentItemType.value !== 'service' && !hasWarehouseSelected) {
+        requiredErrors.push('Bodega');
+    }
+
     if (requiredErrors.length > 0) {
         errorType.value = 'warning';
         errorMessage.value = formatRequiredFieldsMessage('Por favor, completa todos los campos obligatorios', requiredErrors);
@@ -1942,7 +1947,12 @@ onBeforeUnmount(() => {
 
                                     <div class="flex flex-col gap-1">
                                         <div class="flex items-center justify-between gap-2">
-                                            <Label>Referencia</Label>
+                                            <Label>
+                                                Referencia
+                                                <span v-if="!(props.dialogType === 'create' && referenceMode === 'auto')" class="text-destructive"
+                                                    >*</span
+                                                >
+                                            </Label>
                                             <Tabs
                                                 v-if="props.dialogType === 'create' && canCreateManualReference"
                                                 v-model="referenceMode"
@@ -2123,7 +2133,10 @@ onBeforeUnmount(() => {
                                     ]"
                                 >
                                     <div class="space-y-1">
-                                        <Label class="text-xs">Bodega</Label>
+                                        <Label class="text-xs">
+                                            Bodega
+                                            <span v-if="props.dialogType === 'create'" class="text-destructive">*</span>
+                                        </Label>
                                         <SelectField
                                             v-model="ws.warehouse_id"
                                             label=""
