@@ -15,14 +15,15 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import Input from '@/components/ui/input/Input.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import { useAuthStore } from '@/stores/auth';
 import type { PurchaseRequest } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useAuthStore } from '@/stores/auth';
 import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { CheckCircle, Eye, MoreVertical, PlusCircle, Search, Send, X, XCircle } from 'lucide-vue-next';
+import { CheckCircle, Eye, MessageSquareWarning, MoreVertical, PlusCircle, Search, Send, X, XCircle } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseRequestDialog from './PurchaseRequestDialog.vue';
 
@@ -436,136 +437,152 @@ watch(
             </FilterBar>
 
             <div class="relative overflow-auto rounded-xl border border-sidebar-border/70">
-                <Table class="text-center">
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>N° Solicitud</TableHead>
-                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('date')">
-                                <span class="inline-flex items-center gap-1">
-                                    Fecha
-                                    <span class="text-muted-foreground">
-                                        <template v-if="sortBy === 'date'">
-                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
-                                        </template>
-                                        <template v-else>
-                                            <span class="opacity-30">↕</span>
-                                        </template>
-                                    </span>
-                                </span>
-                            </TableHead>
-                            <TableHead>Proveedor</TableHead>
-                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('total')">
-                                <span class="inline-flex items-center gap-1">
-                                    Total estimado
-                                    <span class="text-muted-foreground">
-                                        <template v-if="sortBy === 'total'">
-                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
-                                        </template>
-                                        <template v-else>
-                                            <span class="opacity-30">↕</span>
-                                        </template>
-                                    </span>
-                                </span>
-                            </TableHead>
-                            <TableHead>Descripción</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead class="text-center">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <template v-if="isLoading">
-                            <TableRow v-for="i in 5" :key="`request-skeleton-${i}`">
-                                <TableCell
-                                    v-for="col in 7"
-                                    :key="`request-skeleton-${i}-${col}`"
-                                    class="px-4 py-3"
-                                >
-                                    <Skeleton class="h-4 w-full" />
-                                </TableCell>
-                            </TableRow>
-                        </template>
-                        <template v-else-if="!requests.length">
+                <TooltipProvider>
+                    <Table class="text-center">
+                        <TableHeader>
                             <TableRow>
-                                <TableCell colspan="7">
-                                    <div class="py-6 text-center text-sm text-muted-foreground">No se encontraron solicitudes.</div>
-                                </TableCell>
+                                <TableHead>N° Solicitud</TableHead>
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('date')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Fecha
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'date'">
+                                                {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead>Proveedor</TableHead>
+                                <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('total')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Total estimado
+                                        <span class="text-muted-foreground">
+                                            <template v-if="sortBy === 'total'">
+                                                {{ sortDir === 'asc' ? '↑' : '↓' }}
+                                            </template>
+                                            <template v-else>
+                                                <span class="opacity-30">↕</span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </TableHead>
+                                <TableHead>Descripción</TableHead>
+                                <TableHead>Estado</TableHead>
+                                <TableHead class="text-center">Acciones</TableHead>
                             </TableRow>
-                        </template>
-                        <template v-else>
-                            <TableRow v-for="request in requests" :key="request.id" class="text-center">
-                                <TableCell class="font-medium">{{ request.request_number || request.id }}</TableCell>
-                                <TableCell>{{ formatDate(request.date) }}</TableCell>
-                                <TableCell class="max-w-[180px] truncate">{{ request.provider_name || '-' }}</TableCell>
-                                <TableCell>{{ formatCurrency(computeRequestTotal(request)) }}</TableCell>
-                                <TableCell class="max-w-[200px] truncate">{{ request.description || '-' }}</TableCell>
-                                <TableCell>
-                                    <TableStatusBadge
-                                        :dusk="`estado-solicitud-${request.id}`"
-                                        :label="getStatusLabel(request.status)"
-                                        :tone="getStatusTone(request.status)"
-                                    />
-                                </TableCell>
-                                <TableCell class="flex items-center justify-center gap-2">
-                                    <button
-                                        class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-primary"
-                                        @click="viewRequest(request)"
-                                        title="Ver detalles"
-                                    >
-                                        <Eye class="h-4 w-4" />
-                                    </button>
-                                    <EditButton v-if="canEditRequest(request)" :onClick="() => editRequest(request)" title="Editar solicitud" />
-                                    <DeleteButton
-                                        v-if="request.status === 'draft'"
-                                        @click="confirmDeleteRequest(request)"
-                                        title="Eliminar solicitud"
-                                    />
-                                    <DropdownMenu
-                                        v-if="canSendToApproval(request) || canApprove(request) || canReject(request) || canCancel(request)"
-                                    >
-                                        <DropdownMenuTrigger as-child>
-                                            <button
-                                                class="flex items-center text-gray-500 transition-colors duration-200 hover:text-gray-700"
-                                                title="Más acciones"
-                                            >
-                                                <MoreVertical class="h-4 w-4" />
-                                            </button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" class="w-48">
-                                            <DropdownMenuItem
-                                                v-if="canSendToApproval(request)"
-                                                class="cursor-pointer gap-2"
-                                                @click="handleSendToApproval(request)"
-                                            >
-                                                <Send class="h-4 w-4" /> Enviar a aprobación
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                v-if="canApprove(request)"
-                                                class="cursor-pointer gap-2 text-green-600"
-                                                @click="handleApprove(request)"
-                                            >
-                                                <CheckCircle class="h-4 w-4" /> Aprobar
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                v-if="canReject(request)"
-                                                class="cursor-pointer gap-2 text-red-600"
-                                                @click="confirmRejectRequest(request)"
-                                            >
-                                                <XCircle class="h-4 w-4" /> Rechazar
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                v-if="canCancel(request)"
-                                                class="cursor-pointer gap-2 text-orange-600"
-                                                @click="handleCancel(request)"
-                                            >
-                                                <X class="h-4 w-4" /> Cancelar
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </TableCell>
-                            </TableRow>
-                        </template>
-                    </TableBody>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            <template v-if="isLoading">
+                                <TableRow v-for="i in 5" :key="`request-skeleton-${i}`">
+                                    <TableCell v-for="col in 7" :key="`request-skeleton-${i}-${col}`" class="px-4 py-3">
+                                        <Skeleton class="h-4 w-full" />
+                                    </TableCell>
+                                </TableRow>
+                            </template>
+                            <template v-else-if="!requests.length">
+                                <TableRow>
+                                    <TableCell colspan="7">
+                                        <div class="py-6 text-center text-sm text-muted-foreground">No se encontraron solicitudes.</div>
+                                    </TableCell>
+                                </TableRow>
+                            </template>
+                            <template v-else>
+                                <TableRow v-for="request in requests" :key="request.id" class="text-center">
+                                    <TableCell class="font-medium">{{ request.request_number || request.id }}</TableCell>
+                                    <TableCell>{{ formatDate(request.date) }}</TableCell>
+                                    <TableCell class="max-w-[180px] truncate">{{ request.provider_name || '-' }}</TableCell>
+                                    <TableCell>{{ formatCurrency(computeRequestTotal(request)) }}</TableCell>
+                                    <TableCell class="max-w-[200px] truncate">{{ request.description || '-' }}</TableCell>
+                                    <TableCell>
+                                        <div class="flex items-center justify-center gap-1.5">
+                                            <TableStatusBadge
+                                                :dusk="`estado-solicitud-${request.id}`"
+                                                :label="getStatusLabel(request.status)"
+                                                :tone="getStatusTone(request.status)"
+                                            />
+                                            <Tooltip v-if="request.status === 'rejected'">
+                                                <TooltipTrigger as-child>
+                                                    <button
+                                                        type="button"
+                                                        class="flex items-center text-red-500 hover:text-red-600"
+                                                        aria-label="Ver motivo del rechazo"
+                                                        @click="viewRequest(request)"
+                                                    >
+                                                        <MessageSquareWarning class="h-4 w-4" />
+                                                    </button>
+                                                </TooltipTrigger>
+                                                <TooltipContent class="max-w-[260px]">
+                                                    <p class="font-semibold">Motivo del rechazo</p>
+                                                    <p>{{ request.rejection_reason || 'Sin motivo registrado.' }}</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell class="flex items-center justify-center gap-2">
+                                        <button
+                                            class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-primary"
+                                            @click="viewRequest(request)"
+                                            title="Ver detalles"
+                                        >
+                                            <Eye class="h-4 w-4" />
+                                        </button>
+                                        <EditButton v-if="canEditRequest(request)" :onClick="() => editRequest(request)" title="Editar solicitud" />
+                                        <DeleteButton
+                                            v-if="request.status === 'draft'"
+                                            @click="confirmDeleteRequest(request)"
+                                            title="Eliminar solicitud"
+                                        />
+                                        <DropdownMenu
+                                            v-if="canSendToApproval(request) || canApprove(request) || canReject(request) || canCancel(request)"
+                                        >
+                                            <DropdownMenuTrigger as-child>
+                                                <button
+                                                    class="flex items-center text-gray-500 transition-colors duration-200 hover:text-gray-700"
+                                                    title="Más acciones"
+                                                >
+                                                    <MoreVertical class="h-4 w-4" />
+                                                </button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" class="w-48">
+                                                <DropdownMenuItem
+                                                    v-if="canSendToApproval(request)"
+                                                    class="cursor-pointer gap-2"
+                                                    @click="handleSendToApproval(request)"
+                                                >
+                                                    <Send class="h-4 w-4" /> Enviar a aprobación
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    v-if="canApprove(request)"
+                                                    class="cursor-pointer gap-2 text-green-600"
+                                                    @click="handleApprove(request)"
+                                                >
+                                                    <CheckCircle class="h-4 w-4" /> Aprobar
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    v-if="canReject(request)"
+                                                    class="cursor-pointer gap-2 text-red-600"
+                                                    @click="confirmRejectRequest(request)"
+                                                >
+                                                    <XCircle class="h-4 w-4" /> Rechazar
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    v-if="canCancel(request)"
+                                                    class="cursor-pointer gap-2 text-orange-600"
+                                                    @click="handleCancel(request)"
+                                                >
+                                                    <X class="h-4 w-4" /> Cancelar
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </TableCell>
+                                </TableRow>
+                            </template>
+                        </TableBody>
+                    </Table>
+                </TooltipProvider>
                 <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
                     <ServerPagination
                         v-model:current-page="currentPage"

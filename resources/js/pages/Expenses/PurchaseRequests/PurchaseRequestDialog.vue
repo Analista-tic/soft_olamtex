@@ -17,7 +17,7 @@ import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import type { PurchaseRequestForm, PurchaseRequestItem } from '@/domain/Expenses';
 import { useAuthStore } from '@/stores/auth';
 import axios from 'axios';
-import { Plus } from 'lucide-vue-next';
+import { Plus, XCircle } from 'lucide-vue-next';
 import { computed, nextTick, ref, watch } from 'vue';
 import PurchaseRequestItemsTable from './PurchaseRequestItemsTable.vue';
 
@@ -28,6 +28,9 @@ type PurchaseRequestDialogForm = Omit<PurchaseRequestForm, 'items' | 'estimated_
     buyer?: { id?: number; name?: string } | null;
     solicited_to?: 'gerencia' | 'logistica' | null;
     buyer_user_id?: number | null;
+    rejected_by?: { name?: string };
+    rejected_at?: string | null;
+    rejection_reason?: string | null;
 };
 
 const props = defineProps<{
@@ -155,6 +158,17 @@ const canEdit = computed(() => {
 });
 
 const isReadOnly = computed(() => props.readonly || !canEdit.value);
+
+const isRejected = computed(() => localForm.value.status === 'rejected');
+const rejectedByName = computed(() => localForm.value.rejected_by?.name ?? 'Usuario');
+const rejectedAtFormatted = computed(() => {
+    const at = localForm.value.rejected_at;
+    if (!at) return '';
+    return new Date(at).toLocaleString('es-CO', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    });
+});
 
 const id = computed(() => {
     if (props.dialogType === 'edit') {
@@ -571,6 +585,21 @@ watch(dialogOpen, (isOpen) => {
                     @close-success="clearSuccess"
                     @close-error="clearError"
                 />
+
+                <div
+                    v-if="isRejected && canRenderForm"
+                    class="mx-4 mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30"
+                >
+                    <XCircle class="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+                    <div class="text-sm text-red-800 dark:text-red-300">
+                        <p class="font-semibold">Solicitud rechazada</p>
+                        <p>
+                            Rechazada por <strong>{{ rejectedByName }}</strong>
+                            <template v-if="rejectedAtFormatted"> el {{ rejectedAtFormatted }}</template>
+                        </p>
+                        <p class="mt-1 italic">{{ localForm.rejection_reason || 'Sin motivo registrado.' }}</p>
+                    </div>
+                </div>
 
                 <div
                     class="relative min-h-0 flex-1 overflow-y-auto scroll-smooth px-4 pr-2"
