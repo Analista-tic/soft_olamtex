@@ -101,6 +101,9 @@ Route::prefix('kardex-telas')->name('kardex-telas.')->middleware('permission:ver
         Route::get('/data', [FabricRollController::class, 'receptionData'])->name('data');
         Route::get('/facturas/{purchaseDocument}', [FabricRollController::class, 'receptionInvoice'])->name('invoice');
         Route::get('/{invoice}', [FabricRollController::class, 'receptionShow'])->name('show');
+        Route::patch('/{invoice}/registrar', [FabricRollController::class, 'registerGeneralReception'])
+            ->middleware('permission:aprobar recepcion tela')
+            ->name('register');
         Route::patch('/{invoice}/aprobar', [FabricRollController::class, 'approveReception'])
             ->middleware('permission:aprobar recepcion tela')
             ->name('approve');

@@ -1324,6 +1324,39 @@ class FabricRollController extends Controller
         ]);
     }
 
+    public function registerGeneralReception(Request $request, $invoiceId)
+    {
+        $validated = $request->validate([
+            'lines' => ['required', 'array', 'min:1'],
+            'lines.*.purchase_document_item_id' => ['required', 'integer'],
+            'lines.*.warehouse_id' => ['required', 'integer', 'exists:warehouses,id'],
+            'lines.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'lines.*.over_received_reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $invoice = $this->service->registerGeneralReception($invoiceId, $validated['lines']);
+
+            return response()->json([
+                'message' => 'Recepción registrada correctamente',
+                'data' => $invoice,
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'No se pudo registrar la recepción.',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'Factura no encontrada.',
+            ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error al registrar la recepción: '.$e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function approveReception($invoiceId)
     {
         try {

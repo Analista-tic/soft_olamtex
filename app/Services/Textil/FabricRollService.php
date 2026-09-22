@@ -4,6 +4,7 @@ namespace App\Services\Textil;
 
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
+use App\Models\Expenses\PurchaseDocumentItemReception;
 use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\WarehouseItem;
 use App\Models\MasterData\Item;
@@ -1257,6 +1258,110 @@ class FabricRollService
             ->whereColumn('quantity', '>', 'actual_output')
             ->orderBy('entry_date', 'desc')
             ->get();
+    }
+
+    /**
+     * Registra una ronda de recepción para líneas generales (no rollos de tela) de
+     * una factura de compra: crea el movimiento de inventario por línea en la
+     * bodega indicada, sin cambiar el estado de la factura. Se puede llamar varias
+     * veces sobre la misma factura (recepción parcial en varias rondas).
+     *
+     * @param  array<int, array{purchase_document_item_id: int, warehouse_id: int, quantity: float, over_received_reason?: string|null}>  $lines
+     */
+    public function registerGeneralReception($invoiceId, array $lines): PurchaseDocument
+    {
+        $invoice = PurchaseDocument::where('document_type', PurchaseDocument::TYPE_INVOICE)
+            ->findOrFail($invoiceId);
+
+        $this->ensureInvoiceReceptionAllowed($invoice);
+
+        return DB::transaction(function () use ($invoice, $lines) {
+            $lockedInvoice = PurchaseDocument::query()
+                ->where('document_type', PurchaseDocument::TYPE_INVOICE)
+                ->lockForUpdate()
+                ->findOrFail($invoice->id);
+
+            $lineIds = collect($lines)->pluck('purchase_document_item_id')->unique()->all();
+
+            $lockedLines = PurchaseDocumentItem::where('purchase_document_id', $lockedInvoice->id)
+                ->whereIn('id', $lineIds)
+                ->with('item')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
+            if ($lockedLines->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'lines' => ['Ninguna de las líneas enviadas pertenece a esta factura.'],
+                ]);
+            }
+
+            $documentNumber = trim((string) ($lockedInvoice->document_number ?? '')) !== ''
+                ? trim((string) $lockedInvoice->document_number)
+                : 'Factura #'.$lockedInvoice->id;
+            $responsibleUserId = Auth::id() ?? $lockedInvoice->approved_by_user_id ?? $lockedInvoice->created_by_user_id;
+
+            if (empty($responsibleUserId)) {
+                throw new \RuntimeException('No se pudo resolver el usuario responsable de la recepción.');
+            }
+
+            foreach ($lines as $payloadLine) {
+                $line = $lockedLines->get($payloadLine['purchase_document_item_id']);
+                if (! $line) {
+                    continue;
+                }
+
+                $item = $line->item;
+                if (! $item || ! $item->tracks_inventory) {
+                    continue;
+                }
+
+                $quantity = (float) $payloadLine['quantity'];
+                if ($quantity <= 0) {
+                    continue;
+                }
+
+                $previouslyReceived = (float) PurchaseDocumentItemReception::where('purchase_document_item_id', $line->id)->sum('quantity');
+                $reason = $payloadLine['over_received_reason'] ?? null;
+
+                if ($previouslyReceived + $quantity > (float) $line->quantity && empty(trim((string) $reason))) {
+                    throw ValidationException::withMessages([
+                        "lines.{$line->id}.over_received_reason" => ['Esta línea supera lo facturado — indica un motivo para la sobre-recepción.'],
+                    ]);
+                }
+
+                $warehouseId = $this->warehouseResolver->resolveWarehouseId($item, (int) $payloadLine['warehouse_id']);
+
+                $reception = PurchaseDocumentItemReception::create([
+                    'purchase_document_item_id' => $line->id,
+                    'warehouse_id' => $warehouseId,
+                    'quantity' => $quantity,
+                    'unit_price' => $line->price,
+                    'over_received_reason' => $reason,
+                    'received_by_user_id' => (int) $responsibleUserId,
+                    'received_at' => now(),
+                ]);
+
+                $movement = $this->movementService->createMovement([
+                    'document_number' => mb_substr($documentNumber.' [R'.$reception->id.']', 0, 50),
+                    'item_id' => $item->id,
+                    'warehouse_id' => $warehouseId,
+                    'type' => 'entrada',
+                    'quantity' => $quantity,
+                    'unit_price' => (float) $line->price,
+                    'date' => now()->toDateString(),
+                    'source_type' => PurchaseDocument::class,
+                    'source_id' => $lockedInvoice->id,
+                    'source_reference' => 'reception-'.$reception->id,
+                    'notes' => 'Recepción de "'.($item->name ?? $line->item_name).'" de factura '.$documentNumber,
+                    'created_by_user_id' => (int) $responsibleUserId,
+                ]);
+
+                $reception->update(['inventory_movement_id' => $movement->id]);
+            }
+
+            return $lockedInvoice->fresh();
+        });
     }
 
     public function approveReception($invoiceId)
