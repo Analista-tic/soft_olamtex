@@ -141,7 +141,3 @@ defineExpose({
         </div>
     </div>
 </template>
-
-<style scoped>
-/* Agregar estilos específicos si es necesario */
-</style>
