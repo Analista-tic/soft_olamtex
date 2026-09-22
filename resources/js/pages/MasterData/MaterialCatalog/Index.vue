@@ -199,7 +199,9 @@ async function fetchBaseOptions() {
     try {
         const { data } = await axios.get(baseOptionsEndpoint[activeTab.value]);
         const rows = Array.isArray(data) ? data : (data?.data ?? []);
-        currentBaseOptions.value = rows.map((b: { id: number; nombre?: string; name?: string }) => ({ id: b.id, name: b.nombre ?? b.name ?? '' }));
+        currentBaseOptions.value = rows
+            .map((b: { id: number; nombre?: string; name?: string }) => ({ id: b.id, name: b.nombre ?? b.name ?? '' }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
     } catch {
         currentBaseOptions.value = [];
     }

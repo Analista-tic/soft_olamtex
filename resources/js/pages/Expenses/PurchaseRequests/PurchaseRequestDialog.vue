@@ -220,7 +220,7 @@ const userOptions = computed(() => {
         options.push({ id: buyer.id, name: buyer.name });
     }
 
-    return options;
+    return options.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 });
 
 async function fetchUsers(search = ''): Promise<void> {

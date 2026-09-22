@@ -34,29 +34,29 @@ function calcularDV(nit: string): string {
 }
 
 const contactTypeOptions = [
-    { id: 'proveedor', name: 'Proveedor' },
     { id: 'cliente', name: 'Cliente' },
     { id: 'cliente_proveedor', name: 'Cliente y Proveedor' },
+    { id: 'proveedor', name: 'Proveedor' },
 ];
 
 const idTypeOptions = [
-    { id: 'nit', name: 'NIT - Número de identificación tributaria' },
     { id: 'cc', name: 'CC - Cedula de ciudadania' },
-    { id: 'nit_otro_pais', name: 'NIT de otro pais' },
-    { id: 'pp', name: 'PP - Pasaporte' },
-    { id: 'pep', name: 'PEP - Permiso especial de permanencia' },
-    { id: 'die', name: 'DIE - Documento de identificacion extranjero' },
     { id: 'ce', name: 'CE - Cedula de extranjeria' },
+    { id: 'die', name: 'DIE - Documento de identificacion extranjero' },
+    { id: 'nit', name: 'NIT - Número de identificación tributaria' },
+    { id: 'nit_otro_pais', name: 'NIT de otro pais' },
+    { id: 'nuip', name: 'NUIP - Número único de identificación personal' },
+    { id: 'pep', name: 'PEP - Permiso especial de permanencia' },
+    { id: 'pp', name: 'PP - Pasaporte' },
+    { id: 'ppt', name: 'PPT - Permiso de proteccion temporal' },
+    { id: 'rc', name: 'RC - Registro civil' },
     { id: 'te', name: 'TE - Tarjeta de extranjeria' },
     { id: 'ti', name: 'TI - Tarjeta de identidad' },
-    { id: 'rc', name: 'RC - Registro civil' },
-    { id: 'nuip', name: 'NUIP - Número único de identificación personal' },
-    { id: 'ppt', name: 'PPT - Permiso de proteccion temporal' },
 ];
 
 const personTypeOptions = [
-    { id: 'persona_natural', name: 'Persona natural' },
     { id: 'persona_juridica', name: 'Persona juridica' },
+    { id: 'persona_natural', name: 'Persona natural' },
 ];
 
 const props = defineProps<{
@@ -138,13 +138,15 @@ const emitUpdate = useDebounceFn(() => {
 
 watch(internalForm, emitUpdate, { deep: true });
 
-const allLocationOptions = colombiaData.flatMap((department: any) =>
-    (department.ciudades || []).map((municipality: string) => ({
-        id: `${municipality}||${department.departamento}`,
-        name: `${municipality}, ${department.departamento}`,
-        searchText: `${municipality.toLowerCase()} ${department.departamento.toLowerCase()}`,
-    })),
-);
+const allLocationOptions = colombiaData
+    .flatMap((department: any) =>
+        (department.ciudades || []).map((municipality: string) => ({
+            id: `${municipality}||${department.departamento}`,
+            name: `${municipality}, ${department.departamento}`,
+            searchText: `${municipality.toLowerCase()} ${department.departamento.toLowerCase()}`,
+        })),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 
 const locationOptions = ref(allLocationOptions.slice(0, 50));
 const isLoadingLocations = ref(false);

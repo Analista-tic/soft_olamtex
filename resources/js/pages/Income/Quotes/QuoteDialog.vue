@@ -147,10 +147,12 @@ const isReadOnly = computed(() => isViewMode.value || (props.mode === 'edit' && 
 const canConvert = computed(() => props.mode === 'view' && ['accepted', 'sent'].includes(quoteStatus.value));
 
 const contactOptions = computed(() =>
-    contacts.value.map((contact) => ({
-        id: contact.id,
-        name: formatPersonNameDisplay(contact.full_name, contact.person_type),
-    })),
+    contacts.value
+        .map((contact) => ({
+            id: contact.id,
+            name: formatPersonNameDisplay(contact.full_name, contact.person_type),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 );
 
 const paymentTermOptions = [

@@ -77,7 +77,10 @@ const areaFilterButtonClasses = useFilterButtonClasses(isAreaFilterActive);
 
 const { areas, areaOptions, fetchAreas } = useAreas();
 const isAreasDialogOpen = ref(false);
-const areaSelectOptions = computed(() => [{ id: '', name: 'Todas las areas' }, ...areaOptions.value]);
+const areaSelectOptions = computed(() => [
+    { id: '', name: 'Todas las areas' },
+    ...[...areaOptions.value].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+]);
 const areaLookup = computed(() => {
     const map = new Map<number, string>();
     areaOptions.value.forEach((area) => map.set(area.id, area.name));

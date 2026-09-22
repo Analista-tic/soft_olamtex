@@ -156,9 +156,11 @@ const searchPlaceholder = computed(() =>
     context.value === 'sale' ? 'Buscar por número, tipo, cliente o factura base' : 'Buscar por número, tipo, proveedor o factura base',
 );
 
-const providerOptions = computed(() => [
-    ...contactsStore.items.map((p) => ({ id: String(p.id), name: formatPersonNameDisplay(p.full_name, p.person_type) })),
-]);
+const providerOptions = computed(() =>
+    [...contactsStore.items.map((p) => ({ id: String(p.id), name: formatPersonNameDisplay(p.full_name, p.person_type) }))].sort((a, b) =>
+        a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }),
+    ),
+);
 
 const typeOptions = computed(() => [
     { id: toContextDocumentType('credit'), name: 'Nota crédito' },

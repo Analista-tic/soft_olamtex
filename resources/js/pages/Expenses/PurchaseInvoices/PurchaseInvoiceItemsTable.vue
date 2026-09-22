@@ -62,7 +62,8 @@ const taxOptions = computed(() => [
         .map((tax) => ({
             id: Number(tax.percentage) || 0,
             name: formatTaxOptionLabel(tax),
-        })),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 ]);
 
 const itemOptions = computed(() => {
@@ -91,7 +92,7 @@ const itemOptions = computed(() => {
             return true;
         });
 
-    return [...synthetic, ...baseOptions];
+    return [...synthetic, ...baseOptions].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 });
 
 const shouldShowFabricColumns = computed(() => {

@@ -377,12 +377,14 @@ const typeOptions = computed<Option[]>(() => {
     ];
 });
 
-const destinationOptions = computed<Option[]>(() => [
-    ...props.destinations.map((destination) => ({
-        id: String(destination.id),
-        name: destination.name,
-    })),
-]);
+const destinationOptions = computed<Option[]>(() =>
+    props.destinations
+        .map((destination) => ({
+            id: String(destination.id),
+            name: destination.name,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+);
 
 const yearOptions = computed<Option[]>(() => {
     const years = Array.from(

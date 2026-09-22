@@ -788,8 +788,9 @@ async function loadItemOptions(search = ''): Promise<void> {
     try {
         const options = await fetchRawMaterialCatalogOptions(search);
         if (requestId !== itemOptionsRequestCounter) return;
-        itemOptionsCache.set(normalizedSearch, options);
-        itemOptions.value = [...options];
+        const sortedOptions = [...options].sort((a, b) => String(a.name).localeCompare(String(b.name), 'es', { sensitivity: 'base' }));
+        itemOptionsCache.set(normalizedSearch, sortedOptions);
+        itemOptions.value = sortedOptions;
     } catch {
         itemOptions.value = [];
     } finally {

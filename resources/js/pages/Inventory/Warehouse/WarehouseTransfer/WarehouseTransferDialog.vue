@@ -89,9 +89,17 @@ const itemWarehouseStocks = ref<Record<number, Array<{ warehouse_id: number; qua
 
 const destinationWarehouses = computed(() => props.warehouses.filter((warehouse) => warehouse.id !== transferForm.value.originId));
 
-const warehouseOptions = computed<Option[]>(() => props.warehouses.map((warehouse) => ({ id: warehouse.id, name: warehouse.name })));
+const warehouseOptions = computed<Option[]>(() =>
+    props.warehouses
+        .map((warehouse) => ({ id: warehouse.id, name: warehouse.name }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+);
 
-const destinationOptions = computed<Option[]>(() => destinationWarehouses.value.map((warehouse) => ({ id: warehouse.id, name: warehouse.name })));
+const destinationOptions = computed<Option[]>(() =>
+    destinationWarehouses.value
+        .map((warehouse) => ({ id: warehouse.id, name: warehouse.name }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+);
 
 const availableOriginWarehouseIds = computed<Set<number>>(() => {
     const ids = new Set<number>();
@@ -288,10 +296,12 @@ watch(
 );
 
 const itemOptions = computed<Option[]>(() =>
-    catalogItems.value.map((item) => ({
-        id: item.id,
-        name: item.reference ? `${item.name} - ${item.reference}` : item.name,
-    })),
+    catalogItems.value
+        .map((item) => ({
+            id: item.id,
+            name: item.reference ? `${item.name} - ${item.reference}` : item.name,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 );
 
 async function ensureItemWarehouseStock(itemId: number | null) {

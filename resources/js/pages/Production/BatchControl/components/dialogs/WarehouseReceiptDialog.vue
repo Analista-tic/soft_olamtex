@@ -52,6 +52,10 @@ const warehouseId     = ref<number | null>(null);
 
 const NON_SIZE_KEYS = new Set(['color', 'color_code', 'total']);
 
+const sortedWarehouses = computed<WarehouseOption[]>(() =>
+    [...props.warehouses].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+);
+
 const dynamicSizes = computed<string[]>(() => {
     const source = props.receivedCurves[0]
         ?? props.savedReceipt?.remision_curves[0]
@@ -358,7 +362,7 @@ const textareaBase = 'w-full rounded-md border border-input bg-background px-3 p
                                         v-model="warehouseId"
                                     >
                                         <option :value="null" disabled>Seleccionar bodega…</option>
-                                        <option v-for="wh in warehouses" :key="wh.id" :value="wh.id">{{ wh.name }}</option>
+                                        <option v-for="wh in sortedWarehouses" :key="wh.id" :value="wh.id">{{ wh.name }}</option>
                                     </select>
                                     <p v-else class="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
                                         {{ warehouses.find(w => w.id === warehouseId)?.name ?? '—' }}

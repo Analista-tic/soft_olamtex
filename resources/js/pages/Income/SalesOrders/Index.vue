@@ -153,7 +153,7 @@ function toggleSort(column: string) {
 
 async function loadCustomerOptions(searchTerm = '') {
     const rows = await fetchIncomeCustomerOptions(searchTerm, searchTerm.trim() ? 30 : 100);
-    customerOptions.value = [...rows];
+    customerOptions.value = [...rows].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 }
 
 function openCreateDialog(quoteId?: number) {

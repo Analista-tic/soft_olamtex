@@ -71,7 +71,7 @@ function itemOptionsForRow(rowIdx: number): { id: number; name: string }[] {
         .map(([id, name]) => ({ id: Number(id), name: String(name || '').trim() }))
         .filter((o) => Number.isFinite(o.id) && o.id > 0 && o.name && !existingIds.has(o.id));
 
-    return [...persistedOptions, ...optionsFromSource];
+    return [...persistedOptions, ...optionsFromSource].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 }
 
 function onItemSearch(rowIdx: number, term: string) {
@@ -106,7 +106,8 @@ const taxOptions = computed(() => [
         .map((tax) => ({
             id: Number(tax.percentage) || 0,
             name: formatTaxOptionLabel(tax),
-        })),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 ]);
 const shouldShowFabricColumns = computed(() => localItems.value.some(isTela));
 const allItemsAreTela = computed(() => localItems.value.length > 0 && localItems.value.every(isTela));

@@ -177,7 +177,8 @@ async function loadRetentionOptions(): Promise<void> {
                 id: Number(r.id),
                 name: `${r.name} (${r.percent}%)`,
                 percent: Number(r.percent ?? 0),
-            }));
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
     } catch (error) {
         console.error(error);
         emit('error', 'No fue posible cargar el catálogo de retenciones.');

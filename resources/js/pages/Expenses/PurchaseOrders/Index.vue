@@ -365,7 +365,11 @@ function handleDialogError(message?: string) {
                     <SelectField
                         v-model="providerFilter"
                         label=""
-                        :options="providers.map((prov) => ({ id: String(prov.id), name: prov.full_name }))"
+                        :options="
+                            providers
+                                .map((prov) => ({ id: String(prov.id), name: prov.full_name }))
+                                .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
+                        "
                         placeholder="Proveedor"
                         :button-class="providerButtonClasses"
                         :clearable="true"

@@ -70,10 +70,12 @@ async function fetchRequest(id: number) {
 
 async function fetchWarehouses() {
     const { data } = await axios.get('/bodegas/data', { params: { per_page: 1000 } });
-    warehouses.value = (data.data || []).map((warehouse: any) => ({
-        id: Number(warehouse.id),
-        name: warehouse.name,
-    }));
+    warehouses.value = (data.data || [])
+        .map((warehouse: any) => ({
+            id: Number(warehouse.id),
+            name: warehouse.name,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 }
 
 async function ensureItemWarehouseStock(itemId: number | null) {

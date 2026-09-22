@@ -222,10 +222,12 @@ const isDirty = computed(() => {
 const canSave = computed(() => !isSaving.value && isDirty.value && !props.readonly);
 
 const itemOptions = computed<Option[]>(() => {
-    return catalogItems.value.map((item) => ({
-        id: item.id,
-        name: item.label,
-    }));
+    return catalogItems.value
+        .map((item) => ({
+            id: item.id,
+            name: item.label,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 });
 
 function getItemOptions(row: LocalSupplyRow): Option[] {

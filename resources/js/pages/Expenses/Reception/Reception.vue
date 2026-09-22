@@ -755,7 +755,9 @@ function onFabricRollSuccess() {
                             label=""
                             :options="[
                                 { id: 'all', name: 'Todos los proveedores' },
-                                ...contactsStore.items.map((prov) => ({ id: String(prov.id), name: formatPersonNameDisplay(prov.full_name, prov.person_type) })),
+                                ...contactsStore.items
+                                    .map((prov) => ({ id: String(prov.id), name: formatPersonNameDisplay(prov.full_name, prov.person_type) }))
+                                    .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
                             ]"
                             :button-class="providerButtonClasses"
                         />
@@ -766,7 +768,9 @@ function onFabricRollSuccess() {
                             label=""
                             :options="[
                                 { id: 'all', name: 'Todos los subgrupos' },
-                                ...subgroups.map((sub) => ({ id: String(sub.id), name: sub.name })),
+                                ...subgroups
+                                    .map((sub) => ({ id: String(sub.id), name: sub.name }))
+                                    .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
                             ]"
                             :button-class="subgroupButtonClasses"
                         />

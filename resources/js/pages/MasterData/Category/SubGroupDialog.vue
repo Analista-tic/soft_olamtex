@@ -34,8 +34,8 @@ const localGroups = ref<CategoryGroup[]>([...props.groups]);
 const subGroupName = ref('');
 const subGroupValues = ref<string[]>([]);
 const materialKindOptions: Option[] = [
-    { id: 'fabric', name: 'Tela' },
     { id: 'yarn', name: 'Hilaza' },
+    { id: 'fabric', name: 'Tela' },
 ];
 
 watch(
@@ -144,7 +144,7 @@ function submitForm() {
                             </div>
                             <CreatableSelectField
                                 label=""
-                                :options="localGroups.map((group: CategoryGroup) => ({ id: group.id, name: group.name }))"
+                                :options="localGroups.map((group: CategoryGroup) => ({ id: group.id, name: group.name })).sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))"
                                 v-model="form.category_group_id"
                                 required
                                 placeholder="Selecciona un grupo"

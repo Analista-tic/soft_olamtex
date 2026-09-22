@@ -80,7 +80,8 @@ const typeOptions = [
 const warehouseOptions = computed<Option[]>(() =>
     warehousesStore.items
         .filter((warehouse): warehouse is Warehouse & { id: number } => typeof warehouse.id === 'number')
-        .map((warehouse) => ({ id: warehouse.id, name: warehouse.name })),
+        .map((warehouse) => ({ id: warehouse.id, name: warehouse.name }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 );
 
 const typeLabelMap: Record<string, string> = {

@@ -353,10 +353,12 @@ const filteredSubGroups = computed(() => {
 });
 
 const subGroupOptions = computed(() =>
-    filteredSubGroups.value.map((sg) => ({
-        id: String(sg.id ?? ''),
-        name: sg.name,
-    })),
+    filteredSubGroups.value
+        .map((sg) => ({
+            id: String(sg.id ?? ''),
+            name: sg.name,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 );
 
 const currentSubGroup = computed(() => categorySubGroups.value.find((sg) => String(sg.id) === String(localForm.value.category_sub_group_id)));
@@ -378,18 +380,22 @@ function materialNameOptionLabel(option: MaterialNameOption): string {
 // "ALGODÓN"; `label` es lo que se muestra ("MILE (ALGODÓN)") — ver SelectField.vue,
 // que ahora busca en ambos.
 const fabricNameSelectOptions = computed(() =>
-    fabricNameOptions.value.map((option) => ({
-        id: option.id,
-        name: `${option.nombre} ${option.base_nombre ?? ''}`.trim(),
-        label: materialNameOptionLabel(option),
-    })),
+    fabricNameOptions.value
+        .map((option) => ({
+            id: option.id,
+            name: `${option.nombre} ${option.base_nombre ?? ''}`.trim(),
+            label: materialNameOptionLabel(option),
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label, 'es', { sensitivity: 'base' })),
 );
 const yarnNameSelectOptions = computed(() =>
-    yarnNameOptions.value.map((option) => ({
-        id: option.id,
-        name: `${option.nombre} ${option.base_nombre ?? ''}`.trim(),
-        label: materialNameOptionLabel(option),
-    })),
+    yarnNameOptions.value
+        .map((option) => ({
+            id: option.id,
+            name: `${option.nombre} ${option.base_nombre ?? ''}`.trim(),
+            label: materialNameOptionLabel(option),
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label, 'es', { sensitivity: 'base' })),
 );
 
 const currentGroup = computed(() => {
@@ -409,10 +415,12 @@ const taxOptions = computed<Option[]>(() => {
 
     return [
         baseOption,
-        ...nonDefaultTaxes.value.map((tax) => ({
-            id: tax.id,
-            name: formatTaxOptionLabel(tax),
-        })),
+        ...nonDefaultTaxes.value
+            .map((tax) => ({
+                id: tax.id,
+                name: formatTaxOptionLabel(tax),
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
     ];
 });
 
@@ -691,7 +699,9 @@ async function fetchWarehouses() {
 async function fetchWarehouseLocations() {
     try {
         const { data } = await axios.get(catalogLookupRoutes.warehouseLocations, { params: { per_page: 1000, status_active: true } });
-        warehouseLocations.value = (data.data ?? []).map((l: any) => ({ id: l.id, name: l.name }));
+        warehouseLocations.value = (data.data ?? [])
+            .map((l: any) => ({ id: l.id, name: l.name }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
     } catch (error) {
         console.error('Error al obtener las ubicaciones:', error);
     }
@@ -783,9 +793,10 @@ async function fetchAccountingAccounts() {
             params: { account_type: 'income,asset,cost', allows_entries: true },
         });
         const all: AccountingAccountOption[] = data.data ?? [];
-        accountingIncomeOptions.value = all.filter((a) => a.account_type === 'income');
-        accountingInventoryOptions.value = all.filter((a) => a.account_type === 'asset');
-        accountingCostOptions.value = all.filter((a) => a.account_type === 'cost');
+        const byName = (a: AccountingAccountOption, b: AccountingAccountOption) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
+        accountingIncomeOptions.value = all.filter((a) => a.account_type === 'income').sort(byName);
+        accountingInventoryOptions.value = all.filter((a) => a.account_type === 'asset').sort(byName);
+        accountingCostOptions.value = all.filter((a) => a.account_type === 'cost').sort(byName);
     } catch {
         // Endpoint puede no existir en todos los contextos — no bloquear el dialog
         accountingIncomeOptions.value = [];
@@ -1089,7 +1100,8 @@ function availableWarehouses(idx?: number) {
 
     return [...warehouses.value]
         .filter((w) => typeof w.id === 'number' && !usedIds.includes(String(w.id)))
-        .map((w) => ({ id: String(w.id), name: w.name }));
+        .map((w) => ({ id: String(w.id), name: w.name }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 }
 
 function addWarehouseStock() {

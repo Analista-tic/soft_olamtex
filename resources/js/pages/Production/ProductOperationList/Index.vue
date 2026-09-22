@@ -56,10 +56,12 @@ function buildProductSheetLabel(sheet: any): string {
 
 const productSheetOptions = computed(() => [
     { id: 'all', name: 'Todos' },
-    ...productSheets.value.map((sheet) => ({
-        id: sheet.id,
-        name: buildProductSheetLabel(sheet),
-    })),
+    ...productSheets.value
+        .map((sheet) => ({
+            id: sheet.id,
+            name: buildProductSheetLabel(sheet),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 ]);
 
 const bySheetId = computed(() => {

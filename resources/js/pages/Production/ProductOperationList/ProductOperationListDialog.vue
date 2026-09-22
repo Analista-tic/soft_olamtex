@@ -209,6 +209,10 @@ const createEmptyRow = (): ProductOperationDialogRow => ({
 });
 const currentRow = ref<ProductOperationDialogRow>(createEmptyRow());
 
+function sortGroupNames(groups: string[]): string[] {
+    return [...groups].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+}
+
 function syncListsFromProps() {
     sectionsList.value = Array.isArray(props.sections) ? [...props.sections] : [];
     const operationCatalog = Array.isArray(props.operations) ? [...props.operations] : [];
@@ -219,7 +223,7 @@ function syncListsFromProps() {
     machinesList.value = Array.isArray(props.machines) ? [...props.machines] : [];
     fabricBasesList.value = Array.isArray(props.fabricBases) ? [...props.fabricBases] : [];
     preparationGroupsList.value = Array.isArray(props.preparationGroups)
-        ? [...new Set(props.preparationGroups.map((g) => String(g ?? '').trim()).filter(Boolean))]
+        ? sortGroupNames([...new Set(props.preparationGroups.map((g) => String(g ?? '').trim()).filter(Boolean))])
         : [];
 }
 
@@ -245,7 +249,7 @@ function addPreparationGroupFromSelect(rawName?: string) {
         return;
     }
 
-    preparationGroupsList.value = [...preparationGroupsList.value, group];
+    preparationGroupsList.value = sortGroupNames([...preparationGroupsList.value, group]);
     currentRow.value.grupo_preparacion = group;
     preparationGroupSearchTerm.value = '';
     clearValidationError();
@@ -262,7 +266,7 @@ function addPreparationGroupFromEditRow(rawName?: string) {
 
     const existing = preparationGroupsList.value.find((g) => g.toLowerCase() === group.toLowerCase());
     if (!existing) {
-        preparationGroupsList.value = [...preparationGroupsList.value, group];
+        preparationGroupsList.value = sortGroupNames([...preparationGroupsList.value, group]);
     }
 
     if (editRow.value) {
@@ -741,7 +745,11 @@ function resetForm() {
                             <SelectField
                                 v-model="productSheetId"
                                 label="Sábana de producto"
-                                :options="availableProductSheets.map((s) => ({ id: s.id, name: buildProductSheetLabel(s) }))"
+                                :options="
+                                    availableProductSheets
+                                        .map((s) => ({ id: s.id, name: buildProductSheetLabel(s) }))
+                                        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
+                                "
                                 :disabled="isEditMode || readonly"
                                 required
                             />
@@ -811,7 +819,11 @@ function resetForm() {
                         <div class="col-span-3">
                             <SelectField
                                 v-model="currentRow.operation_id"
-                                :options="availableOperationOptions.map((o) => ({ id: o.id, name: getOperationOptionLabel(o) }))"
+                                :options="
+                                    availableOperationOptions
+                                        .map((o) => ({ id: o.id, name: getOperationOptionLabel(o) }))
+                                        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
+                                "
                                 placeholder="Buscar operación"
                                 class="h-9 w-full"
                                 @keydown.enter.prevent="handleEnterAddOperation"

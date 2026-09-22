@@ -27,10 +27,12 @@ const taxes = ref<Tax[]>([]);
 
 const isReadOnly = computed(() => Boolean(props.readonly));
 const itemOptions = computed(() =>
-    catalogItems.value.map((item) => ({
-        id: item.id,
-        name: item.name,
-    })),
+    catalogItems.value
+        .map((item) => ({
+            id: item.id,
+            name: item.name,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 );
 const taxById = computed(() => new Map<number, Tax>(taxes.value.map((tax) => [Number(tax.id), tax])));
 const taxOptions = computed(() => [
@@ -40,7 +42,8 @@ const taxOptions = computed(() => [
         .map((tax) => ({
             id: Number(tax.percentage) || 0,
             name: formatTaxOptionLabel(tax),
-        })),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 ]);
 
 function createEmptyItem(): DocumentItem {

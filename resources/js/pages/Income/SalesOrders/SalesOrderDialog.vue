@@ -176,10 +176,12 @@ const canConvert = computed(() => props.mode === 'view' && ['confirmed', 'in_pro
 const disableClientField = computed(() => isReadOnly.value || hasOriginQuote.value);
 
 const contactOptions = computed(() =>
-    contactsStore.items.map((contact) => ({
-        id: contact.id,
-        name: formatPersonNameDisplay(contact.full_name, contact.person_type),
-    })),
+    contactsStore.items
+        .map((contact) => ({
+            id: contact.id,
+            name: formatPersonNameDisplay(contact.full_name, contact.person_type),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 );
 
 const paymentTermOptions = [

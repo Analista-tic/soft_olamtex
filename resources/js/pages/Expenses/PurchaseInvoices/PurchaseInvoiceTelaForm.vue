@@ -555,7 +555,11 @@ function handleDifferenceDialogOpenChange(isOpen: boolean): void {
                             <SelectField
                                 v-model="localForm.contact_id"
                                 label="Proveedor"
-                                :options="contacts.map(c => ({ id: c.id, name: formatPersonNameDisplay(c.full_name, c.person_type) }))"
+                                :options="
+                                    contacts
+                                        .map(c => ({ id: c.id, name: formatPersonNameDisplay(c.full_name, c.person_type) }))
+                                        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
+                                "
                                 :searchable="true"
                                 :loading="isLoadingContacts"
                                 :has-more="contactsHasMore"

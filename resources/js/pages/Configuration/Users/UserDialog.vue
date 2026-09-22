@@ -49,7 +49,10 @@ const isView = computed(() => props.dialogType === 'view');
 
 // Solo áreas activas; se conserva la actual del usuario aunque esté desactivada para no perder su asignación.
 const areaOptions = computed(() =>
-    props.areas.filter((area) => area.is_active || area.id === form.value.area_id).map((area) => ({ id: area.id, name: area.name })),
+    props.areas
+        .filter((area) => area.is_active || area.id === form.value.area_id)
+        .map((area) => ({ id: area.id, name: area.name }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 );
 const getRoleKey = (role: Partial<Role>) => {
     if (role.id !== undefined && role.id !== null) return role.id;
@@ -61,9 +64,11 @@ const getRoleKey = (role: Partial<Role>) => {
 };
 
 const roleOptions = computed(() =>
-    props.roles.map((role) => {
-        return { id: getRoleKey(role), name: role.name };
-    }),
+    props.roles
+        .map((role) => {
+            return { id: getRoleKey(role), name: role.name };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 );
 const selectedRoles = ref<Array<number | string>>(form.value.roles?.map((role) => getRoleKey(role)).filter(Boolean) || []);
 

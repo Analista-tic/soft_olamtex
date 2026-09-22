@@ -76,7 +76,10 @@ const { successMessage, errorMessage, errorType, showSuccess, showError, clearSu
 
 // ---------- OPCIONES DE ÁREA ----------
 const { areaOptions, fetchAreas } = useAreas();
-const areaSelectOptions = computed(() => [{ id: '', name: 'Todas las áreas' }, ...areaOptions.value]);
+const areaSelectOptions = computed(() => [
+    { id: '', name: 'Todas las áreas' },
+    ...[...areaOptions.value].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+]);
 
 onMounted(() => {
     fetchAreas();

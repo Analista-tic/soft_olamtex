@@ -36,7 +36,9 @@ const catalogSourceOptions = ref<CatalogSourceOption[]>([]);
 async function fetchCategorySubGroupOptions() {
     try {
         const { data } = await axios.get(catalogLookupRoutes.categorySubGroups, { params: { per_page: 1000 } });
-        categorySubGroupOptions.value = (data.data ?? []).map((sg: any) => ({ id: sg.id, name: sg.name }));
+        categorySubGroupOptions.value = (data.data ?? [])
+            .map((sg: any) => ({ id: sg.id, name: sg.name }))
+            .sort((a: CategorySubGroupOption, b: CategorySubGroupOption) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
     } catch (error) {
         console.error('Error al obtener los subgrupos de categoría:', error);
         categorySubGroupOptions.value = [];
@@ -46,7 +48,9 @@ async function fetchCategorySubGroupOptions() {
 async function fetchCatalogSourceOptions() {
     try {
         const { data } = await axios.get(catalogLookupRoutes.additionalFieldCatalogSources);
-        catalogSourceOptions.value = data.data ?? [];
+        catalogSourceOptions.value = (data.data ?? []).sort((a: CatalogSourceOption, b: CatalogSourceOption) =>
+            a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }),
+        );
     } catch (error) {
         console.error('Error al obtener los catálogos disponibles:', error);
         catalogSourceOptions.value = [];
@@ -59,12 +63,12 @@ onMounted(() => {
 });
 
 const fieldTypeOptions: Array<{ id: AdditionalFieldType; name: string }> = [
-    { id: 'text', name: 'Texto' },
+    { id: 'date', name: 'Fecha' },
+    { id: 'select', name: 'Lista de opciones' },
     { id: 'number', name: 'Número' },
     { id: 'decimal', name: 'Número decimal' },
-    { id: 'date', name: 'Fecha' },
     { id: 'boolean', name: 'Si/No' },
-    { id: 'select', name: 'Lista de opciones' },
+    { id: 'text', name: 'Texto' },
 ];
 
 const originOptions: Array<{ id: 'list' | 'catalog'; name: string }> = [

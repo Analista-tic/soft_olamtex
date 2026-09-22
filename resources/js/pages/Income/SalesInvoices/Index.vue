@@ -172,7 +172,7 @@ function toggleSort(column: string) {
 
 async function loadCustomerOptions(searchTerm = '') {
     const options = await fetchIncomeCustomerOptions(searchTerm, searchTerm.trim() ? 30 : 100);
-    customerOptions.value = [...options];
+    customerOptions.value = [...options].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 }
 
 function openCreateDialog(orderId?: number) {

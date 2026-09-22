@@ -103,8 +103,12 @@ const typeOptions = [
 ];
 const actionButtonClass =
     'inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
-const sectionOptions = computed(() => props.sections);
-const worldOptions = computed(() => props.worlds);
+const sectionOptions = computed(() =>
+    [...props.sections].sort((a, b) => String(a.name).localeCompare(String(b.name), 'es', { sensitivity: 'base' })),
+);
+const worldOptions = computed(() =>
+    [...props.worlds].sort((a, b) => String(a.name).localeCompare(String(b.name), 'es', { sensitivity: 'base' })),
+);
 
 const authStore = useAuthStore();
 

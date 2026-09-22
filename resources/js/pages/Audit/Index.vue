@@ -63,7 +63,10 @@ const filters = reactive({
 });
 // Opciones de área
 const { areaOptions, fetchAreas } = useAreas();
-const areaSelectOptions = computed(() => [{ id: '', name: 'Todas las áreas' }, ...areaOptions.value]);
+const areaSelectOptions = computed(() => [
+    { id: '', name: 'Todas las áreas' },
+    ...[...areaOptions.value].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+]);
 const selectedAreaId = ref(filters.area ?? '');
 const isAreaFilterActive = computed(() => selectedAreaId.value !== '' && selectedAreaId.value !== null);
 const areaFilterButtonClasses = useFilterButtonClasses(isAreaFilterActive);

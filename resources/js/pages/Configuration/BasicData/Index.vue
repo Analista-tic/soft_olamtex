@@ -266,13 +266,15 @@ type LocationOption = {
     searchText: string;
 };
 
-const allLocationOptions: LocationOption[] = (colombiaData as Record<string, any>[]).flatMap((department) =>
-    (department.ciudades || []).map((municipality: string) => ({
-        id: `${municipality}||${department.departamento}`,
-        name: `${municipality}, ${department.departamento}`,
-        searchText: `${municipality.toLowerCase()} ${department.departamento.toLowerCase()}`,
-    })),
-);
+const allLocationOptions: LocationOption[] = (colombiaData as Record<string, any>[])
+    .flatMap((department) =>
+        (department.ciudades || []).map((municipality: string) => ({
+            id: `${municipality}||${department.departamento}`,
+            name: `${municipality}, ${department.departamento}`,
+            searchText: `${municipality.toLowerCase()} ${department.departamento.toLowerCase()}`,
+        })),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 
 const locationOptions = ref<LocationOption[]>(allLocationOptions.slice(0, 60));
 const isLoadingLocationOptions = ref(false);

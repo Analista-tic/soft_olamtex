@@ -68,9 +68,9 @@ const sortBy = ref(props.filters?.sort_by ?? 'id');
 const sortDir = ref<'asc' | 'desc'>(props.filters?.sort_direction ?? 'asc');
 
 const contactTypeOptions = [
-    { id: 'proveedor', name: 'Proveedor' },
     { id: 'cliente', name: 'Cliente' },
     { id: 'cliente_proveedor', name: 'Cliente y Proveedor' },
+    { id: 'proveedor', name: 'Proveedor' },
 ];
 
 const contactTypeLabels: Record<ContactType, string> = {

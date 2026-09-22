@@ -941,7 +941,11 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                             dusk="select-proveedor"
                                             v-model="localForm.contact_id"
                                             label=""
-                                            :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
+                                            :options="
+                                            contacts
+                                                .map((c) => ({ id: c.id, name: c.full_name }))
+                                                .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
+                                        "
                                             :disabled="isReadOnly || !canEdit"
                                             :searchable="true"
                                             :loading="isLoadingContacts"

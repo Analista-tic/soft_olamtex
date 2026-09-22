@@ -169,7 +169,9 @@ function handleGarmentPartChange(val: string | number | boolean | (string | numb
 
 // ── Options computadas ───────────────────────────────────────────────────────
 
-const sectionOptions = computed(() => props.sections.map((s) => ({ id: s.id, name: s.name })));
+const sectionOptions = computed(() =>
+    props.sections.map((s) => ({ id: s.id, name: s.name })).sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+);
 
 const actionOptions = computed(() => {
     const all = [...new Set(localActions.value.map((v) => v.trim().toUpperCase()).filter(Boolean))]
@@ -213,10 +215,12 @@ function buildMachineOptionLabel(machine: MachineOption): string {
 }
 
 const machineOptions = computed(() =>
-    (props.machines || []).map((m) => ({
-        id: m.id,
-        name: buildMachineOptionLabel(m),
-    })),
+    (props.machines || [])
+        .map((m) => ({
+            id: m.id,
+            name: buildMachineOptionLabel(m),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 );
 
 const generatedName = computed(() => {

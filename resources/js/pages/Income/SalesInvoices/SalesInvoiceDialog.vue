@@ -170,7 +170,11 @@ const canVoid = computed(() => props.mode === 'view' && ['issued', 'partial'].in
 const hasOriginOrder = computed(() => Boolean(originOrder.value?.id || localSalesInvoice.value.parent_document_id));
 const disableClientField = computed(() => isReadOnly.value || hasOriginOrder.value);
 
-const contactOptions = computed(() => contacts.value.map((contact) => ({ id: contact.id, name: formatPersonNameDisplay(contact.full_name, contact.person_type) })));
+const contactOptions = computed(() =>
+    contacts.value
+        .map((contact) => ({ id: contact.id, name: formatPersonNameDisplay(contact.full_name, contact.person_type) }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+);
 const paymentTermOptions = [
     { id: 'cash', name: 'Contado' },
     { id: 'credit', name: 'Crédito' },

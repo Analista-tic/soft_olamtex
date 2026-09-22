@@ -72,7 +72,7 @@ async function fetchItems() {
     if (!catalogItemsPromise) {
         catalogItemsPromise = axios
             .get('/item/data', { params: { per_page: 1000 } })
-            .then((res) => (res.data.data || []) as Item[])
+            .then((res) => ((res.data.data || []) as Item[]).sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })))
             .finally(() => {
                 catalogItemsPromise = null;
             });

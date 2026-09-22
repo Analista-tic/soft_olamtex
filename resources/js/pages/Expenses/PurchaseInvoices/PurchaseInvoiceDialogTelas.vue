@@ -765,7 +765,11 @@ watch(dialogOpen, (isOpen) => {
                                             <SelectField
                                                 v-model="localForm.contact_id"
                                                 label=""
-                                                :options="contacts.map((c) => ({ id: Number(c.id), name: formatPersonNameDisplay(c.full_name, c.person_type) }))"
+                                                :options="
+                                                    contacts
+                                                        .map((c) => ({ id: Number(c.id), name: formatPersonNameDisplay(c.full_name, c.person_type) }))
+                                                        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
+                                                "
                                                 :disabled="isReadOnly"
                                                 :searchable="true"
                                                 required

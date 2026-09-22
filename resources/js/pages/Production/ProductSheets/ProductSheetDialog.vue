@@ -296,8 +296,12 @@ const FABRIC_BASE_NA_OPTION: OptionParams = {
 
 const baseFabricOptions = ref<OptionParams[]>([]);
 
+function sortByName<T extends { name: unknown }>(options: T[]): T[] {
+    return [...options].sort((a, b) => String(a.name).localeCompare(String(b.name), 'es', { sensitivity: 'base' }));
+}
+
 const fabricBaseOptions = computed<OptionParams[]>(() => {
-    const bases = [...baseFabricOptions.value];
+    const bases = sortByName(baseFabricOptions.value);
 
     if (!form.value.woven_product) {
         return bases;
@@ -317,6 +321,14 @@ const fabricBaseOptions = computed<OptionParams[]>(() => {
 
     return [FABRIC_BASE_NA_OPTION, ...bases];
 });
+
+const sortedSectionOptions = computed(() => sortByName(sectionOptions.value));
+const sortedGroupOptions = computed(() => sortByName(groupOptions.value));
+const sortedBrandOptions = computed(() => sortByName(brandOptions.value));
+const sortedWorldOptions = computed(() => sortByName(worldOptions.value));
+const sortedYarnBaseOptions = computed(() => sortByName(yarnBaseOptions.value));
+const sortedCollectionOptions = computed(() => sortByName(collectionOptions.value));
+const sortedTemplateOptions = computed(() => sortByName(templateOptions.value));
 
 const selectCreationConfig = {
     sections: {
@@ -1653,7 +1665,7 @@ function handleClose() {
                             <SelectField
                                 v-model="selectedTemplateId"
                                 label=""
-                                :options="templateOptions"
+                                :options="sortedTemplateOptions"
                                 placeholder="Sin plantilla (nuevo)"
                                 :disabled="isCatalogBootstrapLoading"
                                 :loading="loadingTemplateSelect"
@@ -1766,7 +1778,7 @@ function handleClose() {
                                                 ref="sectionSelectRef"
                                                 v-model="form.section_id"
                                                 label=""
-                                                :options="sectionOptions"
+                                                :options="sortedSectionOptions"
                                                 :loading="loadingSectionSelect"
                                                 required
                                                 placeholder="Seleccione sección"
@@ -1792,7 +1804,7 @@ function handleClose() {
                                                 ref="groupSelectRef"
                                                 v-model="form.group_id"
                                                 label=""
-                                                :options="groupOptions"
+                                                :options="sortedGroupOptions"
                                                 :loading="loadingGroupSelect"
                                                 required
                                                 placeholder="Seleccione grupo"
@@ -1817,7 +1829,7 @@ function handleClose() {
                                                 ref="brandSelectRef"
                                                 v-model="form.brand_id"
                                                 label=""
-                                                :options="brandOptions"
+                                                :options="sortedBrandOptions"
                                                 :loading="loadingBrandSelect"
                                                 required
                                                 placeholder="Seleccione marca"
@@ -1844,7 +1856,7 @@ function handleClose() {
                                                 class="w-full"
                                                 v-model="form.world_id"
                                                 label=""
-                                                :options="worldOptions"
+                                                :options="sortedWorldOptions"
                                                 :loading="loadingWorldSelect"
                                                 required
                                                 placeholder="Seleccione mundo"
@@ -1960,7 +1972,7 @@ function handleClose() {
                                                 class="w-full"
                                                 v-model="form.yarn_base_id"
                                                 label=""
-                                                :options="yarnBaseOptions"
+                                                :options="sortedYarnBaseOptions"
                                                 :loading="loadingYarnBaseSelect"
                                                 required
                                                 placeholder="Seleccione base hilaza"
@@ -2151,7 +2163,7 @@ function handleClose() {
                                             ref="collectionSelectRef"
                                             v-model="form.collection_id"
                                             label=""
-                                            :options="collectionOptions"
+                                            :options="sortedCollectionOptions"
                                             :loading="loadingCollectionSelect || creatingCollection"
                                             placeholder="Sin colección"
                                             :disabled="isReadonly"

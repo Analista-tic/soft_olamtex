@@ -66,7 +66,7 @@ const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 
 const typeOptions = computed(() => {
     const types = Array.from(new Set(retentions.value.map((item) => item.type).filter(Boolean)));
-    return [...types.map((type) => ({ id: type, name: type }))];
+    return types.map((type) => ({ id: type, name: type })).sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 });
 
 function openDialog(type: 'create' | 'edit', retention: Retention | null = null) {

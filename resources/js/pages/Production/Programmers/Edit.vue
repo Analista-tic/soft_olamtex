@@ -181,7 +181,8 @@ const dialogDescription = computed(() =>
 const destinationOptions = computed<SelectOption[]>(() =>
     (props.destinations ?? [])
         .filter((d) => typeof d.id === 'number' || typeof d.id === 'string')
-        .map((d) => ({ id: d.id as string | number, name: d.name })),
+        .map((d) => ({ id: d.id as string | number, name: d.name }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 );
 
 const monthSelectOptions = computed<SelectOption[]>(() => {
@@ -206,7 +207,8 @@ const priorityOptions = computed<SelectOption[]>(() => PRIORITY_VALUES.map((v) =
 const productSheetOptions = computed<SelectOption[]>(() =>
     (props.productSheets ?? [])
         .map((sheet) => ({ id: getProductSheetValue(sheet), name: getProductSheetLabel(sheet) }))
-        .filter((opt) => opt.name !== ''),
+        .filter((opt) => opt.name !== '')
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 );
 
 const programmerUnits = computed<string | number>({

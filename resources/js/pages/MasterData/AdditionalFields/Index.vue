@@ -79,7 +79,9 @@ const totalItems = ref(0);
 const itemsPerPage = ref(10);
 
 const typeOptions = computed(() => [
-    ...Object.entries(fieldTypeLabels).map(([key, label]) => ({ id: key, name: label })),
+    ...Object.entries(fieldTypeLabels)
+        .map(([key, label]) => ({ id: key, name: label }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 ]);
 const statusOptions = [
     { id: 'active', name: 'Activo' },

@@ -186,7 +186,11 @@ function toDocumentType(noteType: NoteKind): RuntimeDocumentType {
 /**
  * Computeds de formulario / selección
  */
-const contactOptions = computed(() => contacts.value.map((c) => ({ id: c.id, name: formatPersonNameDisplay(c.full_name, c.person_type) })));
+const contactOptions = computed(() =>
+    contacts.value
+        .map((c) => ({ id: c.id, name: formatPersonNameDisplay(c.full_name, c.person_type) }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+);
 
 const selectedContact = computed(() => {
     const contactId = asNumber(localForm.value.contact_id, 0);
@@ -468,10 +472,12 @@ async function fetchContacts(): Promise<void> {
 async function fetchItemsCatalog(): Promise<void> {
     try {
         const rows = await fetchItemsCatalogData();
-        itemsCatalog.value = rows.map((row) => ({
-            id: asNumber(row.id),
-            name: String(row.name ?? `Item #${row.id}`),
-        }));
+        itemsCatalog.value = rows
+            .map((row) => ({
+                id: asNumber(row.id),
+                name: String(row.name ?? `Item #${row.id}`),
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
     } catch {
         itemsCatalog.value = [];
     }

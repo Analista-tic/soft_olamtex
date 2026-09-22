@@ -905,7 +905,11 @@ watch(dialogOpen, (isOpen) => {
                                             v-model="localForm.contact_id"
                                             dusk="factura-select-proveedor"
                                             label=""
-                                            :options="contacts.map((c) => ({ id: Number(c.id), name: formatPersonNameDisplay(c.full_name, c.person_type) }))"
+                                            :options="
+                                            contacts
+                                                .map((c) => ({ id: Number(c.id), name: formatPersonNameDisplay(c.full_name, c.person_type) }))
+                                                .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
+                                        "
                                             :disabled="isReadOnly"
                                             :searchable="true"
                                             :loading="isLoadingContacts"

@@ -128,7 +128,9 @@ const priorityOptions = computed<Option[]>(() =>
     Array.isArray(props.priorities) && props.priorities.length > 0 ? props.priorities : PRIORITIES_FALLBACK,
 );
 
-const destinationOptions = computed<Option[]>(() => props.destinations ?? []);
+const destinationOptions = computed<Option[]>(() =>
+    [...(props.destinations ?? [])].sort((a, b) => String(a.name).localeCompare(String(b.name), 'es', { sensitivity: 'base' })),
+);
 
 /** Normaliza un option “value” a su name (string) */
 function normalizeOptionToName(value: string | number | null | undefined, options: Option[]): string | null {
@@ -269,7 +271,8 @@ const productSheetOptions = computed<Option[]>(() =>
             id: getProductSheetValue(sheet),
             name: buildProductSheetSelectLabel(sheet),
         }))
-        .filter((opt) => opt.name !== ''),
+        .filter((opt) => opt.name !== '')
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 );
 
 const productSheetsById = computed(() => {

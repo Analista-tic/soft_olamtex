@@ -147,15 +147,17 @@ async function loadCustomerOptions(search = '') {
         params: { search, limit: 30 },
     });
 
-    customerOptions.value = (response.data.data ?? []).map((customer) => ({
-        id: customer.id,
-        name: customer.full_name ?? customer.name ?? `Cliente ${customer.id}`,
-    }));
+    customerOptions.value = (response.data.data ?? [])
+        .map((customer) => ({
+            id: customer.id,
+            name: customer.full_name ?? customer.name ?? `Cliente ${customer.id}`,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 }
 
 async function loadAccountOptions() {
     const response = await axios.get<{ data?: SelectOption[] }>('/finanzas/recibos-caja/accounts');
-    accountOptions.value = response.data.data ?? [];
+    accountOptions.value = (response.data.data ?? []).sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 }
 
 async function loadPaymentMethodOptions() {

@@ -144,7 +144,8 @@ async function fetchWarehouses() {
             .map((warehouse: Warehouse) => ({
                 id: warehouse.id!,
                 name: warehouse.name,
-            }));
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
     } catch (error) {
         console.error('Error al cargar bodegas', error);
     }

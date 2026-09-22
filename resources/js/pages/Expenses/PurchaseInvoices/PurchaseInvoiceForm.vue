@@ -940,7 +940,11 @@ onMounted(async () => {
                             <SelectField
                                 v-model="localForm.contact_id"
                                 label="Proveedor"
-                                :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
+                                :options="
+                                    contacts
+                                        .map((c) => ({ id: c.id, name: c.full_name }))
+                                        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
+                                "
                                 :searchable="true"
                                 :loading="isLoadingContacts"
                                 :has-more="contactsHasMore"

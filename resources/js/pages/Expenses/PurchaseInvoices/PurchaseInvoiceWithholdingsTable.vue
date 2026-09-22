@@ -37,7 +37,11 @@ const localWithholdings = ref<PurchaseInvoiceWithholding[]>(Array.isArray(props.
 
 const retentions = ref<Retention[]>([]);
 const isReadOnly = computed(() => !!props.isReadOnly);
-const retentionOptions = computed(() => retentions.value.map((r) => ({ id: r.name, name: `${r.name} (${r.percent}%)` })));
+const retentionOptions = computed(() =>
+    retentions.value
+        .map((r) => ({ id: r.name, name: `${r.name} (${r.percent}%)` }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+);
 
 const retentionDialogOpen = ref(false);
 const retentionDialogLoading = ref(false);

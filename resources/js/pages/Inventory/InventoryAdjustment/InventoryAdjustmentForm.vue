@@ -93,20 +93,24 @@ const lines = ref<Line[]>([
 ]);
 
 const itemSelectOptions = computed(() =>
-    items.value.map((item) => ({
-        id: item.id,
-        name: item.reference ? `${item.name} (${item.reference})` : item.name,
-    })),
+    items.value
+        .map((item) => ({
+            id: item.id,
+            name: item.reference ? `${item.name} (${item.reference})` : item.name,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 );
 
 const nonDefaultTaxes = computed(() => taxes.value.filter((tax): tax is Tax => !isDefaultTax(tax)));
 
 const taxSelectOptions = computed(() => [
     { id: 0, name: DEFAULT_TAX_LABEL },
-    ...nonDefaultTaxes.value.map((tax) => ({
-        id: tax.id,
-        name: formatTaxOptionLabel(tax),
-    })),
+    ...nonDefaultTaxes.value
+        .map((tax) => ({
+            id: tax.id,
+            name: formatTaxOptionLabel(tax),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 ]);
 
 const warehouseSelectOptions = computed(() =>
@@ -115,7 +119,8 @@ const warehouseSelectOptions = computed(() =>
         .map((w) => ({
             id: w.id,
             name: w.name,
-        })),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 );
 
 async function fetchTaxes() {

@@ -74,7 +74,9 @@ const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isGroupFilterActive = computed(() => selectedGroup.value !== '' && selectedGroup.value != null);
 const groupFilterButtonClasses = useFilterButtonClasses(isGroupFilterActive);
 const groupOptions = computed<Option[]>(() => [
-    ...props.groups.map((group) => ({ id: group.id, name: group.name })),
+    ...props.groups
+        .map((group) => ({ id: group.id, name: group.name }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 ]);
 
 const normalizedGroupId = computed<Option['id'] | null>(() => (selectedGroup.value === '' || selectedGroup.value == null ? null : selectedGroup.value));

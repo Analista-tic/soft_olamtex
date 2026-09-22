@@ -102,8 +102,15 @@ const localMachines = ref<ManagedMachine[]>(
 const sections = computed(() => localSections.value.filter((section) => section.is_active));
 const productSheets = computed(() => page.props.productSheets || []);
 const machines = computed(() => localMachines.value.filter((machine) => machine.is_active));
-const actionOptions = computed(() => localActions.value.map((a: string) => ({ id: a, name: a })));
-const sectionFilterOptions = computed(() => [{ id: '', name: 'Todas las secciones' }, ...sections.value.map((s) => ({ id: s.id, name: s.name }))]);
+const actionOptions = computed(() =>
+    localActions.value.map((a: string) => ({ id: a, name: a })).sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+);
+const sectionFilterOptions = computed(() => [
+    { id: '', name: 'Todas las secciones' },
+    ...sections.value
+        .map((s) => ({ id: s.id, name: s.name }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+]);
 
 const sortBy = ref<string>('');
 const sortDir = ref<'asc' | 'desc'>('asc');
