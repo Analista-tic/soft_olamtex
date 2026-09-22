@@ -20,8 +20,8 @@ export const useRetentionsStore = defineStore('retentions', {
         loaded: false,
     }),
     actions: {
-        async fetchRetentions(): Promise<void> {
-            if (this.loaded || this.loading) return;
+        async fetchRetentions(force = false): Promise<void> {
+            if (!force && (this.loaded || this.loading)) return;
             this.loading = true;
             try {
                 const response = await axios.get<RetentionsResponse>('/retenciones/list');

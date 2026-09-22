@@ -169,7 +169,7 @@ function getRetentionPercent(retentionId: number | null): number {
 async function loadRetentionOptions(): Promise<void> {
     loadingRetentions.value = true;
     try {
-        await retentionsStore.fetchRetentions();
+        await retentionsStore.fetchRetentions(true);
         retentionOptions.value = retentionsStore.items
             .filter((r): r is Retention & { id: number } => r.id != null)
             .filter((r) => r.status === 'active')
