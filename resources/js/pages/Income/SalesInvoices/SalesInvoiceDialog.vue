@@ -238,7 +238,7 @@ function formatCurrency(value: number): string {
 }
 
 async function fetchContacts() {
-    await fetchContactsCatalog();
+    await fetchContactsCatalog({}, true);
 }
 
 function preloadFromOrder(order: SalesOrder) {

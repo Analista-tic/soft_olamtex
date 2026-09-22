@@ -253,8 +253,8 @@ watch(
 async function fetchContacts() {
     try {
         const [proveedores, clienteProveedores] = await Promise.all([
-            fetchContactsCatalog({ contact_type: 'proveedor' }),
-            fetchContactsCatalog({ contact_type: 'cliente_proveedor' }),
+            fetchContactsCatalog({ contact_type: 'proveedor' }, true),
+            fetchContactsCatalog({ contact_type: 'cliente_proveedor' }, true),
         ]);
         contacts.value = [...proveedores, ...clienteProveedores];
     } catch {

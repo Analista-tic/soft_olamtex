@@ -463,7 +463,7 @@ async function safeGet<T = any>(url: string, config?: any): Promise<T | null> {
 
 async function fetchContacts(): Promise<void> {
     try {
-        await fetchContactsCatalog();
+        await fetchContactsCatalog({}, true);
     } catch {
         contacts.value = [];
     }
@@ -471,7 +471,7 @@ async function fetchContacts(): Promise<void> {
 
 async function fetchItemsCatalog(): Promise<void> {
     try {
-        const rows = await fetchItemsCatalogData();
+        const rows = await fetchItemsCatalogData({}, true);
         itemsCatalog.value = rows
             .map((row) => ({
                 id: asNumber(row.id),
