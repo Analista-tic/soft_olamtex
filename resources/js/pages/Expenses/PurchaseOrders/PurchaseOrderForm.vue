@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Lightbulb, Plus, PlusCircle } from 'lucide-vue-next';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useAlertStack } from '@/composables/useAlert';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useSmartLoading } from '@/composables/useSmartLoading';
@@ -466,7 +466,50 @@ onMounted(async () => {
         isLoading.value = false;
         smartLoading.stop(pageLoadTaskId);
     }
+    startContactsSync();
 });
+
+onUnmounted(() => {
+    stopContactsSync();
+});
+
+// Este formulario puede quedar abierto mucho tiempo sin cambiar de pestaña, así que un
+// refresco solo al volver de otra pestaña no basta: si el proveedor se crea desde otra
+// pestaña/dispositivo, esta nunca lo vería. Mismo patrón que Production/BatchControl/Index.vue.
+const CONTACTS_AWAY_THRESHOLD_MS = 30_000;
+const CONTACTS_FALLBACK_INTERVAL_MS = 5 * 60_000;
+let contactsHiddenAt: number | null = null;
+let contactsFallbackTimer: ReturnType<typeof setInterval> | null = null;
+
+function onContactsVisibilityChange() {
+    if (document.visibilityState === 'hidden') {
+        contactsHiddenAt = Date.now();
+        return;
+    }
+    if (contactsHiddenAt === null) return;
+    const awayMs = Date.now() - contactsHiddenAt;
+    contactsHiddenAt = null;
+    if (awayMs >= CONTACTS_AWAY_THRESHOLD_MS && !isContactDialogOpen.value) {
+        void fetchContacts().catch(() => {});
+    }
+}
+
+function startContactsSync() {
+    document.addEventListener('visibilitychange', onContactsVisibilityChange);
+    contactsFallbackTimer = setInterval(() => {
+        if (document.visibilityState === 'visible' && !isContactDialogOpen.value) {
+            void fetchContacts().catch(() => {});
+        }
+    }, CONTACTS_FALLBACK_INTERVAL_MS);
+}
+
+function stopContactsSync() {
+    document.removeEventListener('visibilitychange', onContactsVisibilityChange);
+    if (contactsFallbackTimer) {
+        clearInterval(contactsFallbackTimer);
+        contactsFallbackTimer = null;
+    }
+}
 
 watch(() => props.form, (newVal) => {
     if (mode.value === 'edit' && newVal) initializeFromForm();
@@ -491,7 +534,7 @@ watch(
 async function loadRequestToOrder(requestId: number) {
     isLoadingRequest.value = true;
     try {
-        if (!contacts.value.length) await fetchContacts();
+        await fetchContacts();
 
         const { data } = await axios.get(`/gastos/solicitudes-compra/${requestId}`);
         const request = data?.data;
