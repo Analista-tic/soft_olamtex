@@ -176,7 +176,7 @@ function toggleSort(column: string) {
 
 async function fetchProviders() {
     try {
-        await contactsStore.fetchContacts();
+        await contactsStore.fetchContacts(true);
     } catch (e: any) {
         console.warn('Error al cargar proveedores:', e);
     }

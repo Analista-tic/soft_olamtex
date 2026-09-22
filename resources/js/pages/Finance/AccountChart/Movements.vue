@@ -245,7 +245,7 @@ async function fetchAccounts(): Promise<void> {
 
 async function fetchContacts(): Promise<void> {
     try {
-        await contactsStore.fetchContacts();
+        await contactsStore.fetchContacts(true);
         contactOptions.value = contactsStore.items
             .map((row) => ({ id: row.id, name: formatPersonNameDisplay(row.full_name, row.person_type) }))
             .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));

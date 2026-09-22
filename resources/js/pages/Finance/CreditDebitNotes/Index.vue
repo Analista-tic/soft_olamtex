@@ -300,7 +300,7 @@ const filteredNotes = computed(() => {
  * Fetchers
  */
 async function fetchProviders(): Promise<void> {
-    await contactsStore.fetchContacts();
+    await contactsStore.fetchContacts(true);
 }
 
 async function fetchInvoiceReferences(): Promise<void> {

@@ -245,7 +245,7 @@ function formatCurrency(value: number): string {
 }
 
 async function fetchContacts() {
-    await contactsStore.fetchContacts();
+    await contactsStore.fetchContacts(true);
 }
 
 function preloadFromQuote(quote: Quote) {
