@@ -39,7 +39,7 @@ import type { BreadcrumbItem, SharedData } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 import { useAuthStore } from '@/stores/auth';
-import { Head } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Download, Eye, MoreVertical, Pencil, PlusCircle, Power, Repeat2, Search, Trash, Upload } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
@@ -452,7 +452,17 @@ async function loadProductSheetDialog(product: ProductSheet, mode: 'edit' | 'vie
     }
 }
 
+function reloadProductSheetCatalogs(): Promise<void> {
+    return new Promise((resolve) => {
+        router.reload({
+            only: ['sections', 'groups', 'brands', 'worlds', 'yarnBases', 'fabricBases'],
+            onFinish: () => resolve(),
+        });
+    });
+}
+
 async function openEditDialog(product: ProductSheet) {
+    await reloadProductSheetCatalogs();
     await loadProductSheetDialog(product, 'edit');
 }
 
@@ -460,7 +470,8 @@ async function viewProductSheet(product: ProductSheet) {
     await loadProductSheetDialog(product, 'view');
 }
 
-function openCreateDialog() {
+async function openCreateDialog() {
+    await reloadProductSheetCatalogs();
     editProductSheetData.value = undefined; // Asegurarse de que no haya datos de edición
     isViewMode.value = false; // Desactivar modo de solo lectura
     isEditDialogOpen.value = true; // Usar el mismo estado para abrir el diálogo
