@@ -204,7 +204,7 @@ async function fetchMovements(page = 1, search = '') {
 
 async function fetchWarehouses() {
     try {
-        await warehousesStore.fetchWarehouses();
+        await warehousesStore.fetchWarehouses(true);
     } catch (error) {
         console.error('Error al cargar bodegas:', error);
     }

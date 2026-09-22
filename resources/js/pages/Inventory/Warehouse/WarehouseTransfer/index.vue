@@ -383,7 +383,7 @@ onMounted(async () => {
     warehouseLoadError.value = null;
 
     try {
-        await warehousesStore.fetchWarehouses();
+        await warehousesStore.fetchWarehouses(true);
     } catch {
         warehouseLoadError.value = 'No se pudieron cargar las bodegas. Intenta nuevamente.';
     } finally {

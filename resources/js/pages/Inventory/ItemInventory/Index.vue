@@ -138,7 +138,7 @@ async function fetchItems(page = 1) {
 
 async function fetchWarehouses() {
     try {
-        await warehousesStore.fetchWarehouses();
+        await warehousesStore.fetchWarehouses(true);
         warehouses.value = warehousesStore.items
             .filter((warehouse: Warehouse) => warehouse.id != null)
             .map((warehouse: Warehouse) => ({

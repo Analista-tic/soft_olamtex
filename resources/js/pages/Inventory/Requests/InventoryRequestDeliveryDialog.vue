@@ -144,7 +144,7 @@ async function initializeDialog() {
     errorMessage.value = '';
     errorType.value = 'error';
     if (props.requestId) {
-        await Promise.all([fetchRequest(props.requestId), warehouses.value.length ? Promise.resolve() : fetchWarehouses()]);
+        await Promise.all([fetchRequest(props.requestId), fetchWarehouses()]);
     }
 }
 
