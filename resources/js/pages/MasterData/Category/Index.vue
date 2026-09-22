@@ -112,7 +112,12 @@ function openDialog(type: 'create' | 'edit', subGroup: CategorySubGroup | null =
         form.value = { id: undefined, name: '', category_group_id: undefined };
     }
 
-    isDialogOpen.value = true;
+    router.reload({
+        only: ['groups'],
+        onFinish: () => {
+            isDialogOpen.value = true;
+        },
+    });
 }
 
 function closeDialog(): void {
