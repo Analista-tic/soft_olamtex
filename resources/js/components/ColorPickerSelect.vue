@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useClipboard } from '@vueuse/core';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { useColorsCatalog } from '@/composables/useColorsCatalog';
 import { hexToRgb } from '@/lib/colorUtils';
 import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom';
 import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions } from '@headlessui/vue';
@@ -22,7 +23,6 @@ const props = withDefaults(
         modelValue: number | string | null;
         label?: string;
         disabled?: boolean;
-        preloadedColors?: ColorOption[];
     }>(),
     { label: 'Color', disabled: false },
 );
@@ -32,8 +32,7 @@ const emit = defineEmits<{
     (e: 'selected-color', value: ColorOption | null): void;
 }>();
 
-const colors = ref<ColorOption[]>([]);
-const isLoading = ref(false);
+const { colors, isLoading, fetch: fetchColorsCatalog } = useColorsCatalog();
 const searchTerm = ref('');
 
 const isCreating = ref(false);
@@ -218,34 +217,6 @@ const colorFormattedValue = computed(() => {
 
 const triggerColorStyle = computed(() => colorStyle(selectedColorData.value));
 
-async function fetchColors() {
-    isLoading.value = true;
-    try {
-        if (props.preloadedColors && props.preloadedColors.length > 0) {
-            colors.value = props.preloadedColors;
-            return;
-        }
-        const { data } = await axios.get('/colors');
-        colors.value = Array.isArray(data) ? data : [];
-    } catch {
-        colors.value = [];
-    } finally {
-        isLoading.value = false;
-    }
-}
-
-watch(
-    () => props.preloadedColors,
-    (preloadedColors) => {
-        if (preloadedColors && preloadedColors.length > 0) {
-            colors.value = [...preloadedColors];
-        } else if (colors.value.length === 0 && !isLoading.value) {
-            void fetchColors();
-        }
-    },
-    { immediate: true, deep: true },
-);
-
 watch(
     selectedColorData,
     (color) => {
@@ -255,9 +226,7 @@ watch(
 );
 
 onMounted(() => {
-    if (colors.value.length === 0) {
-        void fetchColors();
-    }
+    void fetchColorsCatalog(true);
 });
 
 function openInlineCreate() {
@@ -305,7 +274,7 @@ async function submitInlineCreate() {
             hexadecimal: createHex.value.toUpperCase(),
             ...(createDescription.value.trim() ? { description: createDescription.value.trim() } : {}),
         });
-        await fetchColors();
+        await fetchColorsCatalog(true);
         isCreating.value = false;
         createName.value = '';
         createHex.value = '#9ca3af';

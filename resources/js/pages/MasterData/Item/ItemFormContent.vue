@@ -74,7 +74,6 @@ const props = withDefaults(
         showInternalLoadingOverlay?: boolean;
         preloadedSubGroups?: any[];
         preloadedTaxes?: any[];
-        preloadedColors?: any[];
         // Cuando este componente se usa como página completa (no dialog/modal),
         // se debe evitar el scroll interno y dejar que la página haga el scroll.
         isFullPage?: boolean;
@@ -2321,7 +2320,6 @@ onBeforeUnmount(() => {
                                 v-model="colorModel"
                                 label="Color"
                                 :disabled="isViewMode"
-                                :preloaded-colors="props.preloadedColors ?? []"
                                 @selected-color="handleSelectedColor"
                             />
                         </div>

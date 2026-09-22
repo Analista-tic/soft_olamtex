@@ -31,14 +31,6 @@ import ItemDialog from './ItemDialog.vue';
 
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
-type PreloadedColor = {
-    id: number;
-    name: string;
-    rgb: string | null;
-    hexadecimal: string | null;
-    description: string | null;
-};
-
 const breadcrumbs = [{ title: 'Catálogo de ítem', href: '/inventario/item' }];
 
 type DialogType = 'create' | 'edit';
@@ -78,8 +70,7 @@ const form = ref<Partial<Item>>({});
 // Precarga de catálogos para el dialog de ítems
 const preloadedSubGroups = ref<any[]>([]);
 const preloadedTaxes = ref<any[]>([]);
-const page = usePage<{ preloadedColors?: PreloadedColor[]; auth?: { permissions?: string[] } }>();
-const preloadedColors = computed(() => page.props.preloadedColors ?? []);
+const page = usePage<{ auth?: { permissions?: string[] } }>();
 const canEnableItems = computed(() => (page.props.auth?.permissions ?? []).includes('habilitar item'));
 
 const isDeleteDialogOpen = ref(false);
@@ -710,7 +701,6 @@ onBeforeUnmount(() => {
             :form="form"
             :preloaded-sub-groups="preloadedSubGroups"
             :preloaded-taxes="preloadedTaxes"
-            :preloaded-colors="preloadedColors"
             @close="closeDialog"
             @refresh="handleDialogRefresh"
         />
