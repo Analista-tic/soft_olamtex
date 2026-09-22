@@ -21,8 +21,8 @@ export const useMasterDataStore = defineStore('masterData', {
         groupsLoading: false,
     }),
     actions: {
-        async fetchGroups(): Promise<void> {
-            if (this.groupsLoaded || this.groupsLoading) return;
+        async fetchGroups(force = false): Promise<void> {
+            if (!force && (this.groupsLoaded || this.groupsLoading)) return;
             this.groupsLoading = true;
             this.groupsError = null;
             try {
@@ -38,6 +38,9 @@ export const useMasterDataStore = defineStore('masterData', {
             } finally {
                 this.groupsLoading = false;
             }
+        },
+        invalidate(): void {
+            this.groupsLoaded = false;
         },
     },
 });

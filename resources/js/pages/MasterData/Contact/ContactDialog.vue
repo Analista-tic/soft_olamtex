@@ -142,7 +142,7 @@ async function bootstrapCatalogs() {
     isCatalogBootstrapLoading.value = true;
 
     try {
-        await masterDataStore.fetchGroups();
+        await masterDataStore.fetchGroups(true);
 
         if (masterDataStore.groupsError) {
             blockingLoadErrorMessage.value = masterDataStore.groupsError;
