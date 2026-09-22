@@ -22,7 +22,9 @@ import { computed, ref, watch } from 'vue';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-const props = defineProps<RangeCalendarRootProps & { class?: HTMLAttributes['class'] }>();
+const props = withDefaults(defineProps<RangeCalendarRootProps & { class?: HTMLAttributes['class'] }>(), {
+    locale: 'es-CO',
+});
 const emits = defineEmits<RangeCalendarRootEmits>();
 
 const delegatedProps = reactiveOmit(props, 'class', 'modelValue', 'placeholder', 'numberOfMonths', 'pagedNavigation');
