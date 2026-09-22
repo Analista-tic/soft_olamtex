@@ -737,8 +737,11 @@ class FabricRollController extends Controller
             abort(404);
         }
 
+        $invoice = $invoiceService->loadWithRelations($purchaseDocument);
+        $invoice->loadMissing('items.receptions.warehouse');
+
         return response()->json([
-            'data' => $invoiceService->loadWithRelations($purchaseDocument),
+            'data' => $invoice,
         ]);
     }
 

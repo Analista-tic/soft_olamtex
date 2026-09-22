@@ -48,6 +48,16 @@ export interface PurchaseInvoiceWithholding {
     base_amount?: number | null;
 }
 
+export interface PurchaseDocumentItemReception {
+    id: number;
+    warehouse_id: number;
+    warehouse?: { id: number; name: string };
+    quantity: number;
+    unit_price?: number | null;
+    over_received_reason?: string | null;
+    received_at?: string;
+}
+
 export interface PurchaseInvoiceItem {
     id?: number;
     purchase_invoice_id?: number;
@@ -64,6 +74,7 @@ export interface PurchaseInvoiceItem {
     supplier_color?: string;
     order_width?: string;
     original_order_item?: PurchaseOrderItem;
+    receptions?: PurchaseDocumentItemReception[];
 }
 
 export interface PurchaseInvoice {

@@ -50,4 +50,9 @@ class PurchaseDocumentItem extends Model
     {
         return $this->item();
     }
+
+    public function receptions()
+    {
+        return $this->hasMany(PurchaseDocumentItemReception::class, 'purchase_document_item_id');
+    }
 }

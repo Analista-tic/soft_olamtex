@@ -452,6 +452,7 @@ watch(currentPage, (newPage) => {
 onMounted(async () => {
     await fetchProviders();
     await fetchSubgroups();
+    void fetchWarehouseOptions();
 
     if (specificInvoiceId.value) {
         // Modo específico: cargar solo la factura solicitada
@@ -472,6 +473,27 @@ function isFabricItem(item: any): boolean {
     if (subgroup !== '') return subgroup.includes('tela');
     const name = (item?.item_name ?? item?.item?.name ?? '').toString().toLowerCase().trim();
     return name.includes('tela');
+}
+
+/** Ítem general (no rollo de tela) que controla inventario y debe recibirse en bodega. */
+function requiresGeneralReception(item: any): boolean {
+    return !isFabricItem(item) && Boolean(item?.item?.tracks_inventory) && Number(item?.quantity) > 0;
+}
+
+function receivedSoFar(item: any): number {
+    const receptions = Array.isArray(item?.receptions) ? item.receptions : [];
+    return receptions.reduce((sum: number, r: any) => sum + Number(r.quantity || 0), 0);
+}
+
+function pendingQuantity(item: any): number {
+    return Number(item?.quantity || 0) - receivedSoFar(item);
+}
+
+/** Bloquea la aprobación rápida desde la lista para facturas generales: siempre hay que abrir el detalle. */
+function generalReceptionBlockerFor(inv: PurchaseInvoice): string | null {
+    const items = inv.items || [];
+    const hasGeneral = items.some((item: any) => requiresGeneralReception(item));
+    return hasGeneral ? 'Abre el detalle de la factura para registrar la recepción.' : null;
 }
 
 function closeFabricRollDialog() {
@@ -578,10 +600,11 @@ function refreshBlockersForList() {
     pending.forEach((inv: PurchaseInvoice) => {
         const id = inv.id;
         if (id == null) return;
+        const generalBlocker = generalReceptionBlockerFor(inv);
         fetchBlockersForInvoice(inv).then((blockers) => {
             approvalBlockersByInvoiceId.value = {
                 ...approvalBlockersByInvoiceId.value,
-                [id]: blockers,
+                [id]: generalBlocker ? [generalBlocker, ...blockers] : blockers,
             };
         });
     });
@@ -598,6 +621,137 @@ watch(
     },
     { immediate: true },
 );
+
+// ── Recepción general (no tela): registrar en rondas + cerrar factura ──
+const warehouseOptions = ref<{ id: string; name: string }[]>([]);
+const roundWarehouseByLineId = ref<Record<number, string | null>>({});
+const roundQuantityByLineId = ref<Record<number, number | string>>({});
+const roundReasonByLineId = ref<Record<number, string>>({});
+const isRegisteringReception = ref(false);
+const isLoadingWarehouseSuggestions = ref(false);
+const isClosePendingConfirmOpen = ref(false);
+const invoiceToClose = ref<PurchaseInvoice | null>(null);
+
+async function fetchWarehouseOptions() {
+    try {
+        const { data } = await axios.get(catalogLookupRoutes.warehouses, { params: { per_page: 1000 } });
+        warehouseOptions.value = (data.data ?? []).map((w: any) => ({ id: String(w.id), name: w.name }));
+    } catch {
+        warehouseOptions.value = [];
+    }
+}
+
+function needsOverReceiveReason(item: any): boolean {
+    const roundQty = Number(roundQuantityByLineId.value[item.id] || 0);
+    return receivedSoFar(item) + roundQty > Number(item.quantity || 0);
+}
+
+async function prepareGeneralReceptionState(inv: PurchaseInvoice) {
+    const generalItems = (inv.items || []).filter((item: any) => requiresGeneralReception(item));
+    if (generalItems.length === 0) return;
+
+    isLoadingWarehouseSuggestions.value = true;
+    try {
+        await Promise.all(
+            generalItems.map(async (item: any) => {
+                if (roundQuantityByLineId.value[item.id] === undefined) {
+                    roundQuantityByLineId.value[item.id] = Math.max(pendingQuantity(item), 0);
+                }
+                if (roundWarehouseByLineId.value[item.id] !== undefined) return;
+                try {
+                    const { data } = await axios.get(`/bodegas/${item.item_id}/warehouses`);
+                    const rows = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+                    roundWarehouseByLineId.value[item.id] = rows.length === 1 ? String(rows[0].id) : null;
+                } catch {
+                    roundWarehouseByLineId.value[item.id] = null;
+                }
+            }),
+        );
+    } finally {
+        isLoadingWarehouseSuggestions.value = false;
+    }
+}
+
+watch(
+    selectedInvoice,
+    (inv) => {
+        if (inv) void prepareGeneralReceptionState(inv);
+    },
+    { immediate: true },
+);
+
+async function registerReception() {
+    const inv = selectedInvoice.value;
+    if (!inv?.id) return;
+
+    const lines = (inv.items || [])
+        .filter((item: any) => requiresGeneralReception(item))
+        .map((item: any) => ({
+            item,
+            purchase_document_item_id: item.id,
+            warehouse_id: roundWarehouseByLineId.value[item.id],
+            quantity: Number(roundQuantityByLineId.value[item.id] || 0),
+            over_received_reason: roundReasonByLineId.value[item.id] || undefined,
+        }))
+        .filter((line) => line.quantity > 0);
+
+    if (lines.length === 0) {
+        setAlert('Ingresa al menos una cantidad a recibir.', 'warning');
+        return;
+    }
+    if (lines.some((line) => !line.warehouse_id)) {
+        setAlert('Selecciona la bodega para cada línea con cantidad a recibir.', 'warning');
+        return;
+    }
+    if (lines.some((line) => needsOverReceiveReason(line.item) && !roundReasonByLineId.value[line.item.id]?.trim())) {
+        setAlert('Indica un motivo para las líneas que reciben más de lo facturado.', 'warning');
+        return;
+    }
+
+    isRegisteringReception.value = true;
+    try {
+        await axios.patch(`/kardex-telas/recepcion/${inv.id}/registrar`, {
+            lines: lines.map((line) => ({
+                purchase_document_item_id: line.purchase_document_item_id,
+                warehouse_id: line.warehouse_id,
+                quantity: line.quantity,
+                over_received_reason: line.over_received_reason,
+            })),
+        });
+        roundWarehouseByLineId.value = {};
+        roundQuantityByLineId.value = {};
+        roundReasonByLineId.value = {};
+        await fetchSpecificInvoice(inv.id as number);
+        setAlert('Recepción registrada correctamente.', 'success');
+    } catch (e: any) {
+        const detail = e?.response?.data?.message || 'Error al registrar la recepción.';
+        setAlert(String(detail), 'error');
+    } finally {
+        isRegisteringReception.value = false;
+    }
+}
+
+function invoiceHasPendingGeneralReception(inv: PurchaseInvoice | null | undefined): boolean {
+    if (!inv) return false;
+    return (inv.items || []).some((item: any) => requiresGeneralReception(item) && pendingQuantity(item) > 0.0001);
+}
+
+function handleCloseInvoiceClick(invoice: PurchaseInvoice) {
+    if (!isTelasList.value && invoiceHasPendingGeneralReception(invoice)) {
+        invoiceToClose.value = invoice;
+        isClosePendingConfirmOpen.value = true;
+        return;
+    }
+    void approveReception(invoice);
+}
+
+function confirmCloseWithPending() {
+    isClosePendingConfirmOpen.value = false;
+    if (invoiceToClose.value) {
+        void approveReception(invoiceToClose.value);
+    }
+    invoiceToClose.value = null;
+}
 
 // ── Tabs del detalle ────────────────────────────────────────────────────
 const detailTab = ref<'items' | 'rolls'>('items');
@@ -1019,6 +1173,13 @@ function onFabricRollSuccess() {
                                             <TableHead class="py-2">IVA</TableHead>
                                             <TableHead class="py-2">Total</TableHead>
                                             <TableHead v-if="isTelasList" class="w-24 py-2 text-center">Acciones</TableHead>
+                                            <template v-if="!isTelasList">
+                                                <TableHead class="py-2">Recibido</TableHead>
+                                                <TableHead class="py-2">Pendiente</TableHead>
+                                                <TableHead class="py-2 min-w-[140px]">Bodega</TableHead>
+                                                <TableHead class="py-2 min-w-[110px]">Cant. a recibir</TableHead>
+                                                <TableHead class="py-2 min-w-[160px]">Motivo (si sobre-recibe)</TableHead>
+                                            </template>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -1071,6 +1232,47 @@ function onFabricRollSuccess() {
                                                     </button>
                                                 </template>
                                             </TableCell>
+                                            <template v-if="!isTelasList">
+                                                <template v-if="requiresGeneralReception(item)">
+                                                    <TableCell class="py-2">{{ receivedSoFar(item).toFixed(2) }}</TableCell>
+                                                    <TableCell class="py-2" :class="pendingQuantity(item) > 0 ? '' : 'text-emerald-600'">
+                                                        {{ pendingQuantity(item).toFixed(2) }}
+                                                    </TableCell>
+                                                    <TableCell class="py-2">
+                                                        <SelectField
+                                                            v-model="roundWarehouseByLineId[item.id]"
+                                                            label=""
+                                                            :options="warehouseOptions"
+                                                            placeholder="Bodega"
+                                                            :searchable="false"
+                                                            :disabled="isInvoiceReceptionApproved(selectedInvoice)"
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell class="py-2">
+                                                        <Input
+                                                            v-model="roundQuantityByLineId[item.id]"
+                                                            type="number"
+                                                            min="0"
+                                                            class="h-9 w-24 text-center"
+                                                            :disabled="isInvoiceReceptionApproved(selectedInvoice)"
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell class="py-2">
+                                                        <Input
+                                                            v-if="needsOverReceiveReason(item)"
+                                                            v-model="roundReasonByLineId[item.id]"
+                                                            type="text"
+                                                            placeholder="Motivo de la sobre-recepción"
+                                                            class="h-9 w-full text-xs"
+                                                            :disabled="isInvoiceReceptionApproved(selectedInvoice)"
+                                                        />
+                                                        <span v-else class="text-muted-foreground">—</span>
+                                                    </TableCell>
+                                                </template>
+                                                <template v-else>
+                                                    <TableCell class="py-2 text-muted-foreground" colspan="5">—</TableCell>
+                                                </template>
+                                            </template>
                                         </TableRow>
                                     </TableBody>
                                 </Table>
@@ -1346,6 +1548,16 @@ function onFabricRollSuccess() {
                     <!-- Botones de acción compactos y fijos -->
                     <div class="sticky bottom-0 z-10 mt-4 flex justify-end gap-2 rounded-b-xl bg-background p-2 shadow-sm">
                         <template v-if="isInvoicePendingReceipt(selectedInvoice)">
+                            <Button
+                                v-if="!isTelasList && invoiceHasPendingGeneralReception(selectedInvoice)"
+                                variant="outline"
+                                size="sm"
+                                class="min-w-[160px]"
+                                :disabled="isRegisteringReception || isLoadingWarehouseSuggestions"
+                                @click="registerReception"
+                            >
+                                {{ isRegisteringReception ? 'Registrando...' : 'Registrar recepción' }}
+                            </Button>
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger as-child>
@@ -1355,9 +1567,9 @@ function onFabricRollSuccess() {
                                                 size="sm"
                                                 class="min-w-[120px]"
                                                 :disabled="approvalBlockersLoading || approvalBlockers.length > 0"
-                                                @click="approvalBlockers.length === 0 && approveReception(selectedInvoice)"
+                                                @click="approvalBlockers.length === 0 && handleCloseInvoiceClick(selectedInvoice)"
                                             >
-                                                <Check class="h-4 w-4" /> Aprobar
+                                                <Check class="h-4 w-4" /> {{ isTelasList ? 'Aprobar' : 'Cerrar factura' }}
                                             </Button>
                                             <span
                                                 v-if="approvalBlockers.length > 0"
@@ -1424,6 +1636,34 @@ function onFabricRollSuccess() {
                         </DialogClose>
                         <Button variant="destructive" class="rounded-full px-4 py-2 flex items-center gap-2" @click="confirmRejectReception">
                             <X class="h-4 w-4" /> Rechazar
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <!-- Diálogo de confirmación para cerrar factura general con saldo pendiente -->
+            <Dialog v-model:open="isClosePendingConfirmOpen">
+                <DialogContent class="sm:max-w-[440px] p-6">
+                    <div class="flex items-start pr-8">
+                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10 text-amber-600 mt-1 mr-4 shrink-0">
+                            <AlertTriangle class="h-5 w-5" />
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <DialogHeader class="p-0 text-left">
+                                <DialogTitle class="text-base font-semibold">Quedan unidades pendientes de recibir</DialogTitle>
+                            </DialogHeader>
+                            <DialogDescription class="mt-1 text-sm text-muted-foreground">
+                                Una o más líneas de esta factura no han recibido la cantidad completa facturada. ¿Cerrar la factura de todas
+                                formas? Lo que falte no volverá a poder recibirse por este medio.
+                            </DialogDescription>
+                        </div>
+                    </div>
+                    <DialogFooter class="mt-6 gap-2 sm:justify-end">
+                        <DialogClose as-child>
+                            <Button variant="outline" class="rounded-full px-4 py-2">Cancelar</Button>
+                        </DialogClose>
+                        <Button variant="default" class="rounded-full px-4 py-2 flex items-center gap-2" @click="confirmCloseWithPending">
+                            <Check class="h-4 w-4" /> Cerrar factura
                         </Button>
                     </DialogFooter>
                 </DialogContent>
