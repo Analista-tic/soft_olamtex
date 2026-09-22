@@ -134,7 +134,7 @@ async function fetchTaxes() {
 
 async function fetchItems() {
     try {
-        const allItems = await fetchItemsCatalogData({ status: 1, item_type: 'product' });
+        const allItems = await fetchItemsCatalogData({ status: 1, item_type: 'product' }, true);
         // Un ítem de tipo Tela no tiene inventario propio: su disponibilidad depende de
         // los rollos vinculados, no de una cantidad en bodega. Ajustarlo aquí no tendría
         // forma de saber qué rollo afectar — ese ajuste se hace desde Ajustes de rollos.
@@ -267,6 +267,7 @@ watch(
     async (open) => {
         if (!open) return;
         fetchTaxes();
+        fetchItems();
         fetchWarehouses();
         errorMessage.value = '';
         successMessage.value = '';
