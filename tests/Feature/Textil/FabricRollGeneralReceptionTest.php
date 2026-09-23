@@ -12,6 +12,7 @@ use App\Models\MasterData\Item;
 use App\Models\Settings\User;
 use App\Services\Textil\FabricRollService;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Permission;
 
 function createGeneralReceptionTestItem(string $suffix): Item
 {
@@ -136,4 +137,41 @@ it('does not create a movement for a service item that does not track inventory'
 
     expect(InventoryMovement::where('item_id', $item->id)->where('source_id', $invoice->id)->count())->toBe(0);
     expect(PurchaseDocumentItemReception::where('purchase_document_item_id', $line->id)->count())->toBe(0);
+});
+
+it('closes a general invoice with pending balance without blocking, same as today', function () {
+    $item = createGeneralReceptionTestItem('close-pending');
+    $warehouse = Warehouse::create(['name' => 'Bodega recepción close-pending', 'observation' => 'Test']);
+    [$invoice, $line] = createGeneralReceptionTestInvoice($item, quantity: 100);
+
+    $this->service->registerGeneralReception($invoice->id, [
+        ['purchase_document_item_id' => $line->id, 'warehouse_id' => $warehouse->id, 'quantity' => 40],
+    ]);
+
+    $closed = $this->service->approveReception($invoice->id);
+
+    expect($closed->status)->toBe('approved');
+    expect(WarehouseItem::where('item_id', $item->id)->where('warehouse_id', $warehouse->id)->first()->quantity)
+        ->toEqual(40.0);
+});
+
+it('rejects a warehouse that does not exist through the HTTP endpoint', function () {
+    $user = User::factory()->create();
+    // El grupo de rutas kardex-telas exige "ver telas rollos" en todo el grupo,
+    // además del permiso propio de la ruta.
+    $user->givePermissionTo(Permission::findOrCreate('ver telas rollos', 'web'));
+    $user->givePermissionTo(Permission::findOrCreate('aprobar recepcion tela', 'web'));
+    $this->actingAs($user);
+
+    $item = createGeneralReceptionTestItem('invalid-warehouse');
+    [$invoice, $line] = createGeneralReceptionTestInvoice($item, quantity: 10);
+
+    $response = $this->patchJson("/kardex-telas/recepcion/{$invoice->id}/registrar", [
+        'lines' => [
+            ['purchase_document_item_id' => $line->id, 'warehouse_id' => 999999, 'quantity' => 10],
+        ],
+    ]);
+
+    $response->assertStatus(422);
+    expect(InventoryMovement::where('item_id', $item->id)->where('source_id', $invoice->id)->count())->toBe(0);
 });
