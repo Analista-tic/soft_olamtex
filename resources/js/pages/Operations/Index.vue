@@ -9,6 +9,7 @@ import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -18,8 +19,9 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { ChevronLeft, ChevronRight, Database, Eye, Pencil, Plus, Search, Settings2, Trash2 } from 'lucide-vue-next';
+import { Database, Eye, Link2, Pencil, Plus, Search, Settings2, Trash2 } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import AssignProductSheetDialog from './AssignProductSheetDialog.vue';
 import OperationCatalogManagerDialog, { type ManagedMachine, type ManagedSection, type SectionType } from './OperationCatalogManagerDialog.vue';
 import OperationDetailDialog from './OperationDetailDialog.vue';
 import OperationFormDialog from './OperationFormDialog.vue';
@@ -44,6 +46,7 @@ type OperationRecord = {
     sam_base: number | null;
     factor_operario?: number | null;
     product_sheet_id_reference: number | null;
+    raw_product_sheet_reference?: string | null;
     machine_id_reference: number | null;
     is_active: boolean;
     created_at: string;
@@ -116,7 +119,7 @@ function toggleSort(column: string) {
         sortDir.value = 'asc';
     }
     clearFetchDebounce();
-    fetchOperations(1, searchQuery.value, filterAction.value || null, filterSectionId.value || null);
+    fetchOperations(1, searchQuery.value, filterAction.value || null, filterSectionId.value || null, filterSinFicha.value);
 }
 
 const isFetchingRecords = ref(false);
@@ -134,6 +137,7 @@ const pagination = ref<PaginationMeta>({
 const searchQuery = ref('');
 const filterAction = ref<string>('');
 const filterSectionId = ref<number | string>('');
+const filterSinFicha = ref(false);
 const fetchDebounceMs = 350;
 let fetchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let activeFetchController: AbortController | null = null;
@@ -149,6 +153,8 @@ const viewingOperation = ref<OperationRecord | null>(null);
 const isDeleteDialogOpen = ref(false);
 const operationToDelete = ref<OperationRecord | null>(null);
 const isCatalogDialogOpen = ref(false);
+const isAssignDialogOpen = ref(false);
+const operationToAssign = ref<OperationRecord | null>(null);
 
 function clearFetchDebounce() {
     if (fetchDebounceTimer) {
@@ -160,7 +166,7 @@ function clearFetchDebounce() {
 function scheduleFetch(pageNum = 1) {
     clearFetchDebounce();
     fetchDebounceTimer = setTimeout(() => {
-        fetchOperations(pageNum, searchQuery.value, filterAction.value, filterSectionId.value);
+        fetchOperations(pageNum, searchQuery.value, filterAction.value, filterSectionId.value, filterSinFicha.value);
     }, fetchDebounceMs);
 }
 
@@ -169,17 +175,20 @@ async function fetchOperations(
     search = '',
     action: string | null = null,
     sectionId: string | number | null = null,
+    sinFicha = false,
     options: { force?: boolean } = {},
 ) {
     const normalizedSearch = search.trim();
     const normalizedAction = action || '';
     const normalizedSection = sectionId || '';
+    const normalizedSinFicha = !!sinFicha;
     const queryKey = JSON.stringify({
         page: pageNum,
         per_page: pagination.value.per_page,
         search: normalizedSearch,
         action: normalizedAction,
         section_id: normalizedSection,
+        sin_ficha: normalizedSinFicha,
         sort_by: sortBy.value,
         sort_dir: sortDir.value,
     });
@@ -207,6 +216,7 @@ async function fetchOperations(
         if (normalizedSearch) params.search = normalizedSearch;
         if (action) params.action = action;
         if (sectionId) params.section_id = sectionId;
+        if (normalizedSinFicha) params.sin_ficha = 1;
         if (sortBy.value) {
             params.sort_by = sortBy.value;
             params.sort_dir = sortDir.value;
@@ -245,7 +255,7 @@ async function fetchOperations(
 function goToPage(p: number) {
     if (p < 1 || p > pagination.value.last_page) return;
     clearFetchDebounce();
-    fetchOperations(p, searchQuery.value, filterAction.value || null, filterSectionId.value || null);
+    fetchOperations(p, searchQuery.value, filterAction.value || null, filterSectionId.value || null, filterSinFicha.value);
 }
 
 const currentPage = computed({
@@ -265,10 +275,10 @@ const itemsPerPage = computed({
 function handleFetchData(pageNum?: number) {
     clearFetchDebounce();
     const targetPage = typeof pageNum === 'number' ? pageNum : pagination.value.current_page;
-    fetchOperations(targetPage, searchQuery.value, filterAction.value || null, filterSectionId.value || null);
+    fetchOperations(targetPage, searchQuery.value, filterAction.value || null, filterSectionId.value || null, filterSinFicha.value);
 }
 
-watch([filterAction, filterSectionId], () => scheduleFetch(1));
+watch([filterAction, filterSectionId, filterSinFicha], () => scheduleFetch(1));
 watch(searchQuery, () => scheduleFetch(1));
 
 function openCreateDialog() {
@@ -302,9 +312,16 @@ async function deleteOperation() {
         showSuccess(`Operación "${operationToDelete.value.name}" eliminada.`);
         isDeleteDialogOpen.value = false;
         operationToDelete.value = null;
-        fetchOperations(pagination.value.current_page, searchQuery.value, filterAction.value || null, filterSectionId.value || null, {
-            force: true,
-        });
+        fetchOperations(
+            pagination.value.current_page,
+            searchQuery.value,
+            filterAction.value || null,
+            filterSectionId.value || null,
+            filterSinFicha.value,
+            {
+                force: true,
+            },
+        );
     } catch (e: any) {
         const msg = e?.response?.data?.message ?? 'Error al eliminar la operación.';
         showError(msg);
@@ -318,9 +335,37 @@ function handleDialogSaved(payload?: { reused?: boolean; message?: string }) {
     } else {
         showSuccess(payload?.message || 'Operación guardada correctamente.');
     }
-    fetchOperations(pagination.value.current_page, searchQuery.value, filterAction.value || null, filterSectionId.value || null, {
-        force: true,
-    });
+    fetchOperations(
+        pagination.value.current_page,
+        searchQuery.value,
+        filterAction.value || null,
+        filterSectionId.value || null,
+        filterSinFicha.value,
+        {
+            force: true,
+        },
+    );
+}
+
+function openAssignDialog(op: OperationRecord) {
+    operationToAssign.value = op;
+    isAssignDialogOpen.value = true;
+}
+
+function handleAssignSaved(payload?: { message?: string }) {
+    isAssignDialogOpen.value = false;
+    operationToAssign.value = null;
+    showSuccess(payload?.message || 'Ficha asignada correctamente.');
+    fetchOperations(
+        pagination.value.current_page,
+        searchQuery.value,
+        filterAction.value || null,
+        filterSectionId.value || null,
+        filterSinFicha.value,
+        {
+            force: true,
+        },
+    );
 }
 
 function handleCatalogsUpdated(payload: { sections: ManagedSection[]; actions: string[]; garmentParts: string[]; machines: ManagedMachine[] }) {
@@ -398,6 +443,15 @@ onUnmounted(() => {
                 <FilterField label="Sección" :active="!!filterSectionId" class="min-w-[200px]">
                     <SelectField v-model="filterSectionId" placeholder="Todas" :options="sectionFilterOptions" />
                 </FilterField>
+                <FilterField label="Ficha" :active="filterSinFicha">
+                    <label class="flex h-10 cursor-pointer items-center gap-2 rounded-md border border-input px-3 text-sm">
+                        <Checkbox
+                            :model-value="filterSinFicha"
+                            @update:model-value="(v: boolean | 'indeterminate') => (filterSinFicha = v === true)"
+                        />
+                        Sin ficha asignada
+                    </label>
+                </FilterField>
             </FilterBar>
 
             <!-- Conteo -->
@@ -414,49 +468,86 @@ onUnmounted(() => {
                             <TableHeader>
                                 <TableRow class="text-xs">
                                     <TableHead class="w-24 cursor-pointer select-none" @click="toggleSort('codigo')">
-                                        <span class="inline-flex items-center gap-1">Código
-                                            <span class="text-muted-foreground"><template v-if="sortBy === 'codigo'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template><template v-else><span class="opacity-30">↕</span></template></span>
+                                        <span class="inline-flex items-center gap-1"
+                                            >Código
+                                            <span class="text-muted-foreground"
+                                                ><template v-if="sortBy === 'codigo'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template
+                                                ><template v-else><span class="opacity-30">↕</span></template></span
+                                            >
                                         </span>
                                     </TableHead>
                                     <TableHead class="cursor-pointer select-none text-center" @click="toggleSort('section_id')">
-                                        <span class="inline-flex items-center justify-center gap-1">Sección
-                                            <span class="text-muted-foreground"><template v-if="sortBy === 'section_id'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template><template v-else><span class="opacity-30">↕</span></template></span>
+                                        <span class="inline-flex items-center justify-center gap-1"
+                                            >Sección
+                                            <span class="text-muted-foreground"
+                                                ><template v-if="sortBy === 'section_id'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template
+                                                ><template v-else><span class="opacity-30">↕</span></template></span
+                                            >
                                         </span>
                                     </TableHead>
                                     <TableHead class="cursor-pointer select-none" @click="toggleSort('action')">
-                                        <span class="inline-flex items-center gap-1">Acción
-                                            <span class="text-muted-foreground"><template v-if="sortBy === 'action'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template><template v-else><span class="opacity-30">↕</span></template></span>
+                                        <span class="inline-flex items-center gap-1"
+                                            >Acción
+                                            <span class="text-muted-foreground"
+                                                ><template v-if="sortBy === 'action'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template
+                                                ><template v-else><span class="opacity-30">↕</span></template></span
+                                            >
                                         </span>
                                     </TableHead>
                                     <TableHead class="cursor-pointer select-none" @click="toggleSort('garment_part')">
-                                        <span class="inline-flex items-center gap-1">Parte
-                                            <span class="text-muted-foreground"><template v-if="sortBy === 'garment_part'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template><template v-else><span class="opacity-30">↕</span></template></span>
+                                        <span class="inline-flex items-center gap-1"
+                                            >Parte
+                                            <span class="text-muted-foreground"
+                                                ><template v-if="sortBy === 'garment_part'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template
+                                                ><template v-else><span class="opacity-30">↕</span></template></span
+                                            >
                                         </span>
                                     </TableHead>
                                     <TableHead class="w-16 cursor-pointer select-none text-right" @click="toggleSort('measure')">
-                                        <span class="inline-flex items-center justify-end gap-1">Medida (cm)
-                                            <span class="text-muted-foreground"><template v-if="sortBy === 'measure'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template><template v-else><span class="opacity-30">↕</span></template></span>
+                                        <span class="inline-flex items-center justify-end gap-1"
+                                            >Medida (cm)
+                                            <span class="text-muted-foreground"
+                                                ><template v-if="sortBy === 'measure'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template
+                                                ><template v-else><span class="opacity-30">↕</span></template></span
+                                            >
                                         </span>
                                     </TableHead>
                                     <TableHead class="w-16 cursor-pointer select-none text-right" @click="toggleSort('quantity')">
-                                        <span class="inline-flex items-center justify-end gap-1">Cant.
-                                            <span class="text-muted-foreground"><template v-if="sortBy === 'quantity'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template><template v-else><span class="opacity-30">↕</span></template></span>
+                                        <span class="inline-flex items-center justify-end gap-1"
+                                            >Cant.
+                                            <span class="text-muted-foreground"
+                                                ><template v-if="sortBy === 'quantity'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template
+                                                ><template v-else><span class="opacity-30">↕</span></template></span
+                                            >
                                         </span>
                                     </TableHead>
                                     <TableHead class="cursor-pointer select-none text-right" @click="toggleSort('sam_base')">
-                                        <span class="inline-flex items-center justify-end gap-1">SAM base (min)
-                                            <span class="text-muted-foreground"><template v-if="sortBy === 'sam_base'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template><template v-else><span class="opacity-30">↕</span></template></span>
+                                        <span class="inline-flex items-center justify-end gap-1"
+                                            >SAM base (min)
+                                            <span class="text-muted-foreground"
+                                                ><template v-if="sortBy === 'sam_base'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template
+                                                ><template v-else><span class="opacity-30">↕</span></template></span
+                                            >
                                         </span>
                                     </TableHead>
                                     <TableHead class="cursor-pointer select-none text-right" @click="toggleSort('factor_operario')">
-                                        <span class="inline-flex items-center justify-end gap-1">Factor op. %
-                                            <span class="text-muted-foreground"><template v-if="sortBy === 'factor_operario'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template><template v-else><span class="opacity-30">↕</span></template></span>
+                                        <span class="inline-flex items-center justify-end gap-1"
+                                            >Factor op. %
+                                            <span class="text-muted-foreground"
+                                                ><template v-if="sortBy === 'factor_operario'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template
+                                                ><template v-else><span class="opacity-30">↕</span></template></span
+                                            >
                                         </span>
                                     </TableHead>
                                     <TableHead>Descripción</TableHead>
+                                    <TableHead v-if="filterSinFicha" class="whitespace-nowrap">Código ficha original</TableHead>
                                     <TableHead class="w-20 cursor-pointer select-none text-center" @click="toggleSort('is_active')">
-                                        <span class="inline-flex items-center justify-center gap-1">Estado
-                                            <span class="text-muted-foreground"><template v-if="sortBy === 'is_active'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template><template v-else><span class="opacity-30">↕</span></template></span>
+                                        <span class="inline-flex items-center justify-center gap-1"
+                                            >Estado
+                                            <span class="text-muted-foreground"
+                                                ><template v-if="sortBy === 'is_active'">{{ sortDir === 'asc' ? '↑' : '↓' }}</template
+                                                ><template v-else><span class="opacity-30">↕</span></template></span
+                                            >
                                         </span>
                                     </TableHead>
                                     <TableHead class="w-28 text-center">Acciones</TableHead>
@@ -477,6 +568,7 @@ onUnmounted(() => {
                                         <TableCell><Skeleton class="ml-auto h-4 w-14" /></TableCell>
                                         <TableCell><Skeleton class="ml-auto h-4 w-14" /></TableCell>
                                         <TableCell><Skeleton class="h-4 w-32" /></TableCell>
+                                        <TableCell v-if="filterSinFicha"><Skeleton class="h-4 w-20" /></TableCell>
                                         <TableCell><Skeleton class="mx-auto h-4 w-12" /></TableCell>
                                         <TableCell><Skeleton class="mx-auto h-4 w-20" /></TableCell>
                                     </TableRow>
@@ -484,7 +576,7 @@ onUnmounted(() => {
 
                                 <!-- Empty -->
                                 <TableRow v-else-if="records.length === 0">
-                                    <TableCell colspan="13" class="py-16 text-center">
+                                    <TableCell :colspan="filterSinFicha ? 14 : 13" class="py-16 text-center">
                                         <div class="flex flex-col items-center gap-2">
                                             <Database class="h-10 w-10 text-muted-foreground/40" />
                                             <p :class="uiPatterns.typography.pageSubtitle">No se encontraron operaciones.</p>
@@ -521,11 +613,27 @@ onUnmounted(() => {
                                     >
                                         {{ (op.generated_description || '-').toUpperCase() }}
                                     </TableCell>
+                                    <TableCell v-if="filterSinFicha" class="font-mono text-xs text-amber-700">
+                                        {{ op.raw_product_sheet_reference || '-' }}
+                                    </TableCell>
                                     <TableCell class="text-center">
                                         <TableStatusBadge :label="op.is_active ? 'Activa' : 'Inactiva'" :tone="op.is_active ? 'green' : 'red'" />
                                     </TableCell>
                                     <TableCell>
                                         <div class="flex items-center justify-center gap-0.5">
+                                            <Tooltip v-if="!op.product_sheet_id_reference">
+                                                <TooltipTrigger as-child>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        class="h-7 w-7 text-primary hover:text-primary"
+                                                        @click="openAssignDialog(op)"
+                                                    >
+                                                        <Link2 class="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Asignar ficha</TooltipContent>
+                                            </Tooltip>
                                             <Tooltip>
                                                 <TooltipTrigger as-child>
                                                     <Button variant="ghost" size="icon" class="h-7 w-7" @click="openDetail(op)">
@@ -591,6 +699,14 @@ onUnmounted(() => {
         <OperationCatalogManagerDialog :open="isCatalogDialogOpen" @close="isCatalogDialogOpen = false" @catalogs-updated="handleCatalogsUpdated" />
 
         <OperationDetailDialog :open="isDetailOpen" :operation="viewingOperation" @close="isDetailOpen = false" @edit="handleEditFromDetail" />
+
+        <AssignProductSheetDialog
+            :open="isAssignDialogOpen"
+            :operation="operationToAssign"
+            :product-sheets="productSheets"
+            @close="isAssignDialogOpen = false"
+            @saved="handleAssignSaved"
+        />
 
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"

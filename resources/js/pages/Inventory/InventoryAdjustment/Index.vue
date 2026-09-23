@@ -1,24 +1,24 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
-import ServerPagination from '@/components/common/ServerPagination.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { getInventoryAdjustmentReasonLabel } from '@/lib/inventoryAdjustmentReasons';
+import { uiPatterns } from '@/lib/ui-patterns';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Mail, MoreVertical, PlusCircle, Printer, ReceiptText, Search } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
-import { getInventoryAdjustmentReasonLabel } from '@/lib/inventoryAdjustmentReasons';
-import { uiPatterns } from '@/lib/ui-patterns';
 import InventoryAdjustmentForm from './InventoryAdjustmentForm.vue';
 import InventoryAdjustmentPrintDialog from './InventoryAdjustmentPrintDialog.vue';
 
@@ -155,7 +155,6 @@ async function deleteAdjustment() {
     if (!adjustmentToDelete.value) return;
     try {
         await axios.delete(`/ajustes-inventario/${adjustmentToDelete.value.id}`);
-        isDeleteDialogOpen.value = false;
         fetchAdjustments(currentPage.value, searchQuery.value);
         successMessage.value = 'El ajuste se eliminó correctamente.';
         errorMessage.value = '';
@@ -237,11 +236,7 @@ onMounted(() => {
                     </p>
                 </div>
 
-                <Button
-                    size="pill"
-                    class="flex items-center gap-1 shadow-sm"
-                    @click="openCreateAdjustment"
-                >
+                <Button size="pill" class="flex items-center gap-1 shadow-sm" @click="openCreateAdjustment">
                     <PlusCircle class="h-4 w-4" /> Crear ajuste
                 </Button>
             </div>
@@ -281,10 +276,7 @@ onMounted(() => {
                     <TableHeader>
                         <TableRow>
                             <TableHead>N° Documento</TableHead>
-                            <TableHead
-                                class="cursor-pointer select-none whitespace-nowrap"
-                                @click="toggleSort('date')"
-                            >
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('date')">
                                 <span class="inline-flex items-center gap-1">
                                     Fecha
                                     <span class="text-muted-foreground">
@@ -299,10 +291,7 @@ onMounted(() => {
                             </TableHead>
                             <TableHead>Tipo</TableHead>
                             <TableHead>Observación</TableHead>
-                            <TableHead
-                                class="cursor-pointer select-none whitespace-nowrap"
-                                @click="toggleSort('total')"
-                            >
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('total')">
                                 <span class="inline-flex items-center gap-1">
                                     Total
                                     <span class="text-muted-foreground">
@@ -381,12 +370,12 @@ onMounted(() => {
                 </Table>
 
                 <div class="px-4 pb-2">
-                  <ServerPagination
-                    v-model:current-page="currentPage"
-                    v-model:page-size="itemsPerPage"
-                    :total-items="totalItems"
-                    @fetch-data="() => fetchAdjustments(currentPage, searchQuery)"
-                  />
+                    <ServerPagination
+                        v-model:current-page="currentPage"
+                        v-model:page-size="itemsPerPage"
+                        :total-items="totalItems"
+                        @fetch-data="() => fetchAdjustments(currentPage, searchQuery)"
+                    />
                 </div>
             </div>
         </div>
@@ -400,35 +389,13 @@ onMounted(() => {
         />
         <InventoryAdjustmentPrintDialog :is-open="isPrintDialogOpen" :adjustment="adjustmentToPrint" @close="isPrintDialogOpen = false" />
 
-        <Dialog v-model:open="isDeleteDialogOpen">
-            <DialogContent class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
-                <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
-                    <DialogTitle>Confirmar eliminación</DialogTitle>
-                    <DialogDescription> ¿Estás seguro de eliminar este ajuste? Esta acción no se puede deshacer. </DialogDescription>
-                </DialogHeader>
-                <DialogFooter class="mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
-                    <div class="w-full md:w-auto">
-                        <Button
-                            variant="outline"
-                            size="pill"
-                            class="mx-auto flex w-full max-w-[140px] justify-center"
-                            @click="isDeleteDialogOpen = false"
-                        >
-                            Cancelar
-                        </Button>
-                    </div>
-                    <div class="w-full md:w-auto">
-                        <Button
-                            variant="destructive"
-                            type="button"
-                            class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
-                            @click="deleteAdjustment"
-                        >
-                            Eliminar
-                        </Button>
-                    </div>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <ConfirmDialog
+            v-model:open="isDeleteDialogOpen"
+            title="Confirmar eliminación"
+            description="¿Estás seguro de eliminar este ajuste? Esta acción no se puede deshacer."
+            confirm-text="Eliminar"
+            :destructive="true"
+            @confirm="deleteAdjustment"
+        />
     </AppLayout>
 </template>

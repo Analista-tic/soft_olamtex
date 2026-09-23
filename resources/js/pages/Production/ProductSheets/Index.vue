@@ -8,16 +8,6 @@ import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import SelectField from '@/components/SelectField.vue';
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -284,17 +274,10 @@ async function submitRowConvertDialog(productReference: string, allowDuplicateRe
 async function confirmDuplicateConvert() {
     const productReference = pendingConvertReference.value.trim();
     if (!productReference) {
-        convertDuplicateDialogOpen.value = false;
         return;
     }
 
-    convertDuplicateDialogOpen.value = false;
     await submitRowConvertDialog(productReference, true);
-}
-
-function cancelDuplicateConvert() {
-    convertDuplicateDialogOpen.value = false;
-    pendingConvertReference.value = '';
 }
 
 async function handleToggleEnabled(product: ProductSheet) {
@@ -826,36 +809,15 @@ onUnmounted(() => {
         @confirm="submitRowConvertDialog"
     />
 
-    <AlertDialog v-model:open="convertDuplicateDialogOpen">
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>Referencia existente</AlertDialogTitle>
-                <AlertDialogDescription>
-                    La referencia ya existe. Si continúas, se registrará como versionado con la misma referencia.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter class="flex flex-col gap-2 md:flex-row md:justify-end">
-                <AlertDialogCancel asChild>
-                    <button
-                        type="button"
-                        class="mx-auto flex w-full max-w-[180px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                        @click="cancelDuplicateConvert"
-                    >
-                        Cancelar
-                    </button>
-                </AlertDialogCancel>
-                <AlertDialogAction asChild>
-                    <Button
-                        variant="default"
-                        class="mx-auto flex w-full max-w-[180px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
-                        @click="confirmDuplicateConvert"
-                    >
-                        Continuar como versión
-                    </Button>
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+        v-model:open="convertDuplicateDialogOpen"
+        title="Referencia existente"
+        description="La referencia ya existe. Si continúas, se registrará como versionado con la misma referencia."
+        confirm-text="Continuar como versión"
+        cancel-text="Cancelar"
+        :destructive="false"
+        @confirm="confirmDuplicateConvert"
+    />
 
     <ConfirmDialog
         v-model:open="isDeleteDialogOpen"

@@ -152,7 +152,11 @@ async function submitForm(subGroupData: Partial<CategorySubGroup>): Promise<void
         errorMessage.value = '';
     } catch (error) {
         console.error('Error al guardar el subgrupo:', error);
-        errorMessage.value = 'Error al guardar el subgrupo.';
+        const axiosErr = error as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } };
+        const validationErrors = axiosErr?.response?.data?.errors;
+        errorMessage.value = validationErrors
+            ? Object.values(validationErrors).flat().join('\n')
+            : (axiosErr?.response?.data?.message ?? 'Error al guardar el subgrupo.');
         successMessage.value = '';
     }
 }

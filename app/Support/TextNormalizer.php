@@ -32,4 +32,15 @@ class TextNormalizer
 
         return mb_convert_case($text, MB_CASE_TITLE, 'UTF-8');
     }
+
+    public static function upperCaseWords(mixed $value): string
+    {
+        $text = self::normalizeDisplayText($value);
+
+        if ($text === '') {
+            return '';
+        }
+
+        return mb_strtoupper($text, 'UTF-8');
+    }
 }

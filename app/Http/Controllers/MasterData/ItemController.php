@@ -465,10 +465,6 @@ class ItemController extends Controller
 
     private function assertMaterialNameMatchesSubgroup(?int $subGroupId, ?int $fabricNameId, ?int $yarnNameId): void
     {
-        if (! $fabricNameId && ! $yarnNameId) {
-            return;
-        }
-
         $subGroup = $subGroupId ? CategorySubGroup::find($subGroupId) : null;
 
         if ($fabricNameId && ! MaterialClassifier::isFabricSubgroup($subGroup)) {
@@ -480,6 +476,20 @@ class ItemController extends Controller
         if ($yarnNameId && ! MaterialClassifier::isYarnSubgroup($subGroup)) {
             throw ValidationException::withMessages([
                 'yarn_name_id' => ['El nombre de hilaza solo aplica a ítems del subgrupo Hilaza.'],
+            ]);
+        }
+
+        // Regla inversa: un subgrupo de tela/hilaza exige el nombre de material
+        // correspondiente — no basta con rechazar el que no aplica.
+        if (! $fabricNameId && MaterialClassifier::isFabricSubgroup($subGroup)) {
+            throw ValidationException::withMessages([
+                'fabric_name_id' => ['El nombre de tela es obligatorio para ítems de este subgrupo.'],
+            ]);
+        }
+
+        if (! $yarnNameId && MaterialClassifier::isYarnSubgroup($subGroup)) {
+            throw ValidationException::withMessages([
+                'yarn_name_id' => ['El nombre de hilaza es obligatorio para ítems de este subgrupo.'],
             ]);
         }
     }

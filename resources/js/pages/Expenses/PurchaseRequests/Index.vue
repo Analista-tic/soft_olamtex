@@ -342,6 +342,9 @@ async function fetchRequests(page = 1) {
             return request;
         });
 
+        totalItems.value = Number(payload?.total ?? 0);
+        currentPage.value = Number(payload?.current_page ?? page);
+
         clearError();
     } catch (error) {
         requests.value = [];

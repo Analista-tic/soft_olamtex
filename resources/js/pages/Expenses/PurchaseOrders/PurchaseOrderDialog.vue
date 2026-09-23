@@ -471,22 +471,50 @@ async function loadRequestToOrder(requestId: number) {
 
     // Aplicar automáticamente los datos de la solicitud
     if (!contacts.value.length) await fetchContacts();
-    applyRequestSuggestion();
+    await applyRequestSuggestion();
 
     selectedPurchaseRequestId.value = Number(requestId);
 }
 
-function applyRequestSuggestion() {
+async function findContactByExactName(providerName: string): Promise<Contact | null> {
+    const normalized = providerName.toLowerCase().trim();
+    if (!normalized) return null;
+
+    const localMatch = contacts.value.find((c) => c.full_name?.toLowerCase().trim() === normalized);
+    if (localMatch) return localMatch;
+
+    // El proveedor puede no estar entre los primeros resultados ya cargados
+    // (fetchContacts solo trae la primera página) — se busca puntualmente
+    // por nombre antes de darlo por no encontrado.
+    try {
+        const [res1, res2] = await Promise.all([
+            axios.get('/contactos/data', { params: { search: providerName, contact_type: 'proveedor', per_page: 10 } }),
+            axios.get('/contactos/data', { params: { search: providerName, contact_type: 'cliente_proveedor', per_page: 10 } }),
+        ]);
+        const found = [...(res1.data?.data ?? []), ...(res2.data?.data ?? [])].find(
+            (c: Contact) => c.full_name?.toLowerCase().trim() === normalized,
+        );
+        if (found) {
+            if (!contacts.value.some((c) => c.id === found.id)) {
+                contacts.value = [...contacts.value, found];
+            }
+            return found;
+        }
+    } catch (error) {
+        console.error('Error buscando proveedor por nombre:', error);
+    }
+
+    return null;
+}
+
+async function applyRequestSuggestion() {
     if (!selectedPurchaseRequest.value) return;
 
     const request = selectedPurchaseRequest.value;
 
     // Buscar contacto por nombre del proveedor
     const providerName = request.provider_name || '';
-    let foundContact = null;
-    if (providerName) {
-        foundContact = contacts.value.find((c) => c.full_name?.toLowerCase().trim() === providerName.toLowerCase().trim());
-    }
+    const foundContact = providerName ? await findContactByExactName(providerName) : null;
 
     // Aplicar datos de la solicitud al formulario
     if (foundContact) {

@@ -70,6 +70,7 @@ Route::prefix('item')->name('item.')->middleware('permission:ver inventario tela
 
 Route::middleware(['auth', 'permission:ver colores'])->group(function () {
     Route::get('/colors', [ColorController::class, 'index']);
+    Route::get('/colors/next-code', [ColorController::class, 'nextCode']);
     Route::post('/colors', [ColorController::class, 'store'])->middleware('permission:crear colores');
     Route::put('/colors/{color}', [ColorController::class, 'update'])->middleware('permission:editar colores');
     Route::delete('/colors/{color}', [ColorController::class, 'destroy'])->middleware('permission:eliminar colores');

@@ -459,21 +459,19 @@ function cancelInlineCreate() {
 }
 
 function resolveCreateErrorMessage(error: unknown) {
-    const responseMessage =
-        typeof error === 'object' &&
-        error !== null &&
-        'response' in error &&
-        typeof error.response === 'object' &&
-        error.response !== null &&
-        'data' in error.response &&
-        typeof error.response.data === 'object' &&
-        error.response.data !== null &&
-        'message' in error.response.data &&
-        typeof error.response.data.message === 'string'
-            ? error.response.data.message
-            : '';
+    const responseData =
+        typeof error === 'object' && error !== null && 'response' in error && typeof error.response === 'object' && error.response !== null && 'data' in error.response && typeof error.response.data === 'object' && error.response.data !== null
+            ? (error.response.data as { message?: string; errors?: Record<string, string[]> })
+            : null;
 
-    if (responseMessage.trim()) return responseMessage.trim();
+    const validationErrors = responseData?.errors;
+    if (validationErrors && typeof validationErrors === 'object') {
+        const flattened = Object.values(validationErrors).flat().join('\n').trim();
+        if (flattened) return flattened;
+    }
+
+    const responseMessage = typeof responseData?.message === 'string' ? responseData.message.trim() : '';
+    if (responseMessage) return responseMessage;
 
     const message = error instanceof Error ? error.message.trim() : '';
     if (message) return message;

@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormDialogFooter from '@/components/FormDialogFooter.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import FormDialogContent from '@/components/FormDialogContent.vue';
-import FormDialogFooter from '@/components/FormDialogFooter.vue';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ScrollArea from '@/components/ui/scroll-area/ScrollArea.vue';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -148,7 +149,6 @@ function openHistory(entry: ProductOperationViewEntry) {
     isHistoryOpen.value = true;
 }
 async function deleteOperation(entry: ProductOperationViewEntry) {
-    if (!confirm('¿Eliminar esta operación del lote?')) return;
     try {
         await axios.delete(route('produccion.listados-operacionales.destroy', { listItem: entry.id }));
         await fetchOperations();
@@ -161,6 +161,18 @@ async function deleteOperation(entry: ProductOperationViewEntry) {
                 : (err?.response?.data?.message ?? 'Error al eliminar la operación.');
         emit('delete-error', msg);
     }
+}
+const deleteConfirmOpen = ref(false);
+const deleteConfirmEntry = ref<ProductOperationViewEntry | null>(null);
+function confirmRemoveOperation(entry: ProductOperationViewEntry) {
+    deleteConfirmEntry.value = entry;
+    deleteConfirmOpen.value = true;
+}
+async function handleConfirmDelete() {
+    if (!deleteConfirmEntry.value) return;
+    const entry = deleteConfirmEntry.value;
+    deleteConfirmEntry.value = null;
+    await deleteOperation(entry);
 }
 function editOperation() {
     emit('edit');
@@ -252,7 +264,10 @@ const totalSamConfeccion = computed(() =>
     operations.value.reduce((s: number, e: ProductOperationViewEntry) => (getNormalizedSectionType(e) === 'confeccion' ? s + getSamValue(e) : s), 0),
 );
 const totalSamPresentacion = computed(() =>
-    operations.value.reduce((s: number, e: ProductOperationViewEntry) => (getNormalizedSectionType(e) === 'presentacion' ? s + getSamValue(e) : s), 0),
+    operations.value.reduce(
+        (s: number, e: ProductOperationViewEntry) => (getNormalizedSectionType(e) === 'presentacion' ? s + getSamValue(e) : s),
+        0,
+    ),
 );
 const costHilo = computed(() => Number(parameters.value['yarn_cost'] ?? parameters.value['costo hilo'] ?? 0) || 0);
 const costConfeccion = computed(() => totalSamConfeccion.value * operationCost.value);
@@ -391,31 +406,50 @@ watch(
                                             <TableRow class="text-[11px]">
                                                 <TableHead class="w-10 pl-4">#</TableHead>
                                                 <TableHead>
-                                                    <span class="inline-flex items-center gap-1">Operación <HelpTooltip text="Nombre de la operación." /></span>
+                                                    <span class="inline-flex items-center gap-1"
+                                                        >Operación <HelpTooltip text="Nombre de la operación."
+                                                    /></span>
                                                 </TableHead>
                                                 <TableHead class="text-center">
-                                                    <span class="inline-flex items-center justify-center gap-1">Máquina <HelpTooltip text="Código de la máquina asignada." /></span>
+                                                    <span class="inline-flex items-center justify-center gap-1"
+                                                        >Máquina <HelpTooltip text="Código de la máquina asignada."
+                                                    /></span>
                                                 </TableHead>
                                                 <TableHead class="w-14 text-right">
-                                                    <span class="inline-flex items-center justify-end gap-1">Cant. <HelpTooltip text="Cantidad de piezas en esta operación." /></span>
+                                                    <span class="inline-flex items-center justify-end gap-1"
+                                                        >Cant. <HelpTooltip text="Cantidad de piezas en esta operación."
+                                                    /></span>
                                                 </TableHead>
                                                 <TableHead class="text-right">
-                                                    <span class="inline-flex items-center justify-end gap-1">SAM base <HelpTooltip text="SAM base en minutos (del catálogo)." /></span>
+                                                    <span class="inline-flex items-center justify-end gap-1"
+                                                        >SAM base <HelpTooltip text="SAM base en minutos (del catálogo)."
+                                                    /></span>
                                                 </TableHead>
                                                 <TableHead class="text-right">
-                                                    <span class="inline-flex items-center justify-end gap-1">F. máq. <HelpTooltip text="Factor suplemento de la máquina (×)." /></span>
+                                                    <span class="inline-flex items-center justify-end gap-1"
+                                                        >F. máq. <HelpTooltip text="Factor suplemento de la máquina (×)."
+                                                    /></span>
                                                 </TableHead>
                                                 <TableHead class="text-right">
-                                                    <span class="inline-flex items-center justify-end gap-1">F. tela <HelpTooltip text="Factor de la base de tela." /></span>
+                                                    <span class="inline-flex items-center justify-end gap-1"
+                                                        >F. tela <HelpTooltip text="Factor de la base de tela."
+                                                    /></span>
                                                 </TableHead>
                                                 <TableHead class="text-right">
-                                                    <span class="inline-flex items-center justify-end gap-1">F. op. <HelpTooltip text="Factor operario (%)." /></span>
+                                                    <span class="inline-flex items-center justify-end gap-1"
+                                                        >F. op. <HelpTooltip text="Factor operario (%)."
+                                                    /></span>
                                                 </TableHead>
                                                 <TableHead class="text-right">
-                                                    <span class="inline-flex items-center justify-end gap-1">SAM op. <HelpTooltip text="Tiempo total (min): SAM base × F.máq. × F.tela × F.op. × cantidad." /></span>
+                                                    <span class="inline-flex items-center justify-end gap-1"
+                                                        >SAM op.
+                                                        <HelpTooltip text="Tiempo total (min): SAM base × F.máq. × F.tela × F.op. × cantidad."
+                                                    /></span>
                                                 </TableHead>
                                                 <TableHead class="text-right">
-                                                    <span class="inline-flex items-center justify-end gap-1">Op./h <HelpTooltip text="Operaciones por hora (60 ÷ SAM op.)." /></span>
+                                                    <span class="inline-flex items-center justify-end gap-1"
+                                                        >Op./h <HelpTooltip text="Operaciones por hora (60 ÷ SAM op.)."
+                                                    /></span>
                                                 </TableHead>
                                                 <TableHead class="w-24"></TableHead>
                                             </TableRow>
@@ -426,7 +460,10 @@ watch(
                                                 <template v-for="subGroup in group.subGroups" :key="subGroup.groupName">
                                                     <!-- Fila encabezado del sub-grupo -->
                                                     <TableRow class="bg-blue-50/50 hover:bg-blue-50/50 dark:bg-blue-950/20">
-                                                        <TableCell colspan="11" class="py-1.5 pl-8 text-[11px] font-semibold text-blue-700 dark:text-blue-300">
+                                                        <TableCell
+                                                            colspan="11"
+                                                            class="py-1.5 pl-8 text-[11px] font-semibold text-blue-700 dark:text-blue-300"
+                                                        >
                                                             <span class="inline-flex items-center gap-2">
                                                                 {{ subGroup.groupName }}
                                                                 <Badge variant="secondary" class="text-[9px]">{{ subGroup.items.length }}</Badge>
@@ -435,24 +472,63 @@ watch(
                                                     </TableRow>
                                                     <!-- Operaciones del sub-grupo -->
                                                     <TableRow v-for="entry in subGroup.items" :key="entry.id" class="text-sm">
-                                                        <TableCell class="pl-4 font-mono text-xs text-muted-foreground">{{ entry.sequence ?? '-' }}</TableCell>
+                                                        <TableCell class="pl-4 font-mono text-xs text-muted-foreground">{{
+                                                            entry.sequence ?? '-'
+                                                        }}</TableCell>
                                                         <TableCell>
                                                             {{ entry.operation?.name ?? '-' }}
-                                                            <span v-if="entry.notes" class="mt-0.5 block text-[10px] italic text-muted-foreground/60">{{ entry.notes }}</span>
+                                                            <span
+                                                                v-if="entry.notes"
+                                                                class="mt-0.5 block text-[10px] italic text-muted-foreground/60"
+                                                                >{{ entry.notes }}</span
+                                                            >
                                                         </TableCell>
-                                                        <TableCell class="text-center text-xs text-muted-foreground">{{ entry.machine?.code ?? '-' }}</TableCell>
+                                                        <TableCell class="text-center text-xs text-muted-foreground">{{
+                                                            entry.machine?.code ?? '-'
+                                                        }}</TableCell>
                                                         <TableCell class="text-right">{{ entry.quantity ?? 1 }}</TableCell>
                                                         <TableCell class="text-right font-mono">{{ fmt(getSamBaseValue(entry)) }}</TableCell>
-                                                        <TableCell class="text-right font-mono text-xs">{{ getMachineFactorDisplay(entry) }}</TableCell>
-                                                        <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getFabricFactorDisplay(entry) }}</TableCell>
-                                                        <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getOperatorPercentDisplay(entry) }}</TableCell>
-                                                        <TableCell class="text-right font-mono font-semibold">{{ fmt(getSamValue(entry)) }}</TableCell>
-                                                        <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getOpsPerHour(entry) }}</TableCell>
+                                                        <TableCell class="text-right font-mono text-xs">{{
+                                                            getMachineFactorDisplay(entry)
+                                                        }}</TableCell>
+                                                        <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
+                                                            getFabricFactorDisplay(entry)
+                                                        }}</TableCell>
+                                                        <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
+                                                            getOperatorPercentDisplay(entry)
+                                                        }}</TableCell>
+                                                        <TableCell class="text-right font-mono font-semibold">{{
+                                                            fmt(getSamValue(entry))
+                                                        }}</TableCell>
+                                                        <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
+                                                            getOpsPerHour(entry)
+                                                        }}</TableCell>
                                                         <TableCell class="py-1">
                                                             <div class="flex items-center justify-end gap-0.5">
-                                                                <Button variant="ghost" size="icon" class="h-7 w-7" title="Editar" @click="editOperation()"><Pencil class="h-3.5 w-3.5" /></Button>
-                                                                <Button variant="ghost" size="icon" class="h-7 w-7" title="Historial" @click="openHistory(entry)"><History class="h-3.5 w-3.5" /></Button>
-                                                                <Button variant="ghost" size="icon" class="h-7 w-7" title="Eliminar" @click="deleteOperation(entry)"><Trash2 class="h-3.5 w-3.5" /></Button>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    class="h-7 w-7"
+                                                                    title="Editar"
+                                                                    @click="editOperation()"
+                                                                    ><Pencil class="h-3.5 w-3.5"
+                                                                /></Button>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    class="h-7 w-7"
+                                                                    title="Historial"
+                                                                    @click="openHistory(entry)"
+                                                                    ><History class="h-3.5 w-3.5"
+                                                                /></Button>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    class="h-7 w-7"
+                                                                    title="Eliminar"
+                                                                    @click="confirmRemoveOperation(entry)"
+                                                                    ><Trash2 class="h-3.5 w-3.5"
+                                                                /></Button>
                                                             </div>
                                                         </TableCell>
                                                     </TableRow>
@@ -462,24 +538,57 @@ watch(
                                             <!-- Otras secciones: filas planas -->
                                             <template v-else>
                                                 <TableRow v-for="entry in group.items" :key="entry.id" class="text-sm">
-                                                    <TableCell class="pl-4 font-mono text-xs text-muted-foreground">{{ entry.sequence ?? '-' }}</TableCell>
+                                                    <TableCell class="pl-4 font-mono text-xs text-muted-foreground">{{
+                                                        entry.sequence ?? '-'
+                                                    }}</TableCell>
                                                     <TableCell>
                                                         {{ entry.operation?.name ?? '-' }}
-                                                        <span v-if="entry.notes" class="mt-0.5 block text-[10px] italic text-muted-foreground/60">{{ entry.notes }}</span>
+                                                        <span v-if="entry.notes" class="mt-0.5 block text-[10px] italic text-muted-foreground/60">{{
+                                                            entry.notes
+                                                        }}</span>
                                                     </TableCell>
-                                                    <TableCell class="text-center text-xs text-muted-foreground">{{ entry.machine?.code ?? '-' }}</TableCell>
+                                                    <TableCell class="text-center text-xs text-muted-foreground">{{
+                                                        entry.machine?.code ?? '-'
+                                                    }}</TableCell>
                                                     <TableCell class="text-right">{{ entry.quantity ?? 1 }}</TableCell>
                                                     <TableCell class="text-right font-mono">{{ fmt(getSamBaseValue(entry)) }}</TableCell>
                                                     <TableCell class="text-right font-mono text-xs">{{ getMachineFactorDisplay(entry) }}</TableCell>
-                                                    <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getFabricFactorDisplay(entry) }}</TableCell>
-                                                    <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getOperatorPercentDisplay(entry) }}</TableCell>
+                                                    <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
+                                                        getFabricFactorDisplay(entry)
+                                                    }}</TableCell>
+                                                    <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
+                                                        getOperatorPercentDisplay(entry)
+                                                    }}</TableCell>
                                                     <TableCell class="text-right font-mono font-semibold">{{ fmt(getSamValue(entry)) }}</TableCell>
-                                                    <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getOpsPerHour(entry) }}</TableCell>
+                                                    <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
+                                                        getOpsPerHour(entry)
+                                                    }}</TableCell>
                                                     <TableCell class="py-1">
                                                         <div class="flex items-center justify-end gap-0.5">
-                                                            <Button variant="ghost" size="icon" class="h-7 w-7" title="Editar" @click="editOperation()"><Pencil class="h-3.5 w-3.5" /></Button>
-                                                            <Button variant="ghost" size="icon" class="h-7 w-7" title="Historial" @click="openHistory(entry)"><History class="h-3.5 w-3.5" /></Button>
-                                                            <Button variant="ghost" size="icon" class="h-7 w-7" title="Eliminar" @click="deleteOperation(entry)"><Trash2 class="h-3.5 w-3.5" /></Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                class="h-7 w-7"
+                                                                title="Editar"
+                                                                @click="editOperation()"
+                                                                ><Pencil class="h-3.5 w-3.5"
+                                                            /></Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                class="h-7 w-7"
+                                                                title="Historial"
+                                                                @click="openHistory(entry)"
+                                                                ><History class="h-3.5 w-3.5"
+                                                            /></Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                class="h-7 w-7"
+                                                                title="Eliminar"
+                                                                @click="confirmRemoveOperation(entry)"
+                                                                ><Trash2 class="h-3.5 w-3.5"
+                                                            /></Button>
                                                         </div>
                                                     </TableCell>
                                                 </TableRow>
@@ -487,8 +596,12 @@ watch(
 
                                             <!-- Total de sección -->
                                             <TableRow class="border-t bg-muted/30">
-                                                <TableCell colspan="8" class="py-1.5 text-right text-xs font-bold">Total {{ group.sectionName }}</TableCell>
-                                                <TableCell class="py-1.5 text-right font-mono text-xs font-bold">{{ fmtOperationTime(group.totalSam) }}</TableCell>
+                                                <TableCell colspan="8" class="py-1.5 text-right text-xs font-bold"
+                                                    >Total {{ group.sectionName }}</TableCell
+                                                >
+                                                <TableCell class="py-1.5 text-right font-mono text-xs font-bold">{{
+                                                    fmtOperationTime(group.totalSam)
+                                                }}</TableCell>
                                                 <TableCell class="py-1.5"></TableCell>
                                                 <TableCell></TableCell>
                                             </TableRow>
@@ -578,16 +691,22 @@ watch(
                                             <TableCell class="text-xs">{{ resolveSectionName(entry) || '-' }}</TableCell>
                                             <TableCell>
                                                 {{ entry.operation?.name ?? '-' }}
-                                                <span v-if="entry.notes" class="mt-0.5 block text-[10px] italic text-muted-foreground/60">{{ entry.notes }}</span>
+                                                <span v-if="entry.notes" class="mt-0.5 block text-[10px] italic text-muted-foreground/60">{{
+                                                    entry.notes
+                                                }}</span>
                                             </TableCell>
                                             <TableCell class="text-center text-xs text-muted-foreground">{{ entry.machine?.code ?? '-' }}</TableCell>
                                             <TableCell class="text-right">{{ entry.quantity ?? 1 }}</TableCell>
                                             <TableCell class="text-right font-mono">{{ fmt(getSamBaseValue(entry)) }}</TableCell>
-                                            <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getMachineFactorDisplay(entry) }}</TableCell>
+                                            <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
+                                                getMachineFactorDisplay(entry)
+                                            }}</TableCell>
                                             <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
                                                 getFabricFactorDisplay(entry)
                                             }}</TableCell>
-                                            <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getOperatorPercentDisplay(entry) }}</TableCell>
+                                            <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
+                                                getOperatorPercentDisplay(entry)
+                                            }}</TableCell>
                                             <TableCell class="text-right font-mono font-semibold">{{ fmt(getSamValue(entry)) }}</TableCell>
                                             <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
                                                 getOpsPerHour(entry)
@@ -605,7 +724,7 @@ watch(
                                                         size="icon"
                                                         class="h-7 w-7"
                                                         title="Eliminar"
-                                                        @click="deleteOperation(entry)"
+                                                        @click="confirmRemoveOperation(entry)"
                                                         ><Trash2 class="h-3.5 w-3.5"
                                                     /></Button>
                                                 </div>
@@ -632,4 +751,11 @@ watch(
     </Dialog>
 
     <HistoryDialog :open="isHistoryOpen" :operation-id="historyOperationId" :operation-label="historyOperationLabel" @close="isHistoryOpen = false" />
+
+    <ConfirmDialog
+        v-model:open="deleteConfirmOpen"
+        title="Eliminar operación"
+        description="¿Eliminar esta operación del lote?"
+        @confirm="handleConfirmDelete"
+    />
 </template>

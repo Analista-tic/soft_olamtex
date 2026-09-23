@@ -22,20 +22,27 @@ class OperationService
         if ($value === null || $value === '') {
             return null;
         }
+
         return (int) $value;
     }
 
     private function normalizeFloat(float|int|string|null $value, int $precision = 4): ?string
     {
-        if ($value === null || $value === '' || !is_numeric((string) $value)) {
+        if ($value === null || $value === '' || ! is_numeric((string) $value)) {
             return null;
         }
+
         return number_format((float) $value, $precision, '.', '');
     }
 
     /**
      * Firma de unicidad para operación:
-     * sección + acción + parte + medida + cantidad + SAM base.
+     * sección + acción + parte + anexo + medida + cantidad + SAM base.
+     *
+     * Nota: `anexo` se incluye porque distingue operaciones legítimamente
+     * distintas que comparten el resto de la combinación (ej. "CERRAR TIRO"
+     * con ANEXO=DELANTERO vs ANEXO=TRASERO). Debe permanecer alineada con
+     * `Operation::buildUniquenessSignature()`.
      */
     private function buildOperationSignatureFromPayload(array $data): string
     {
@@ -48,6 +55,7 @@ class OperationService
             (string) ($sectionId ?? ''),
             $this->normalizeText($data['action'] ?? null),
             $this->normalizeText($data['garment_part'] ?? null),
+            $this->normalizeText($data['anexo'] ?? null),
             $measure,
             (string) $quantity,
             $samBase,
@@ -60,6 +68,7 @@ class OperationService
             'section_id' => $operation->section_id,
             'action' => $operation->action,
             'garment_part' => $operation->garment_part,
+            'anexo' => $operation->anexo,
             'measure' => $operation->measure,
             'quantity' => $operation->quantity,
             'sam_base' => $operation->sam_base,
@@ -140,6 +149,7 @@ class OperationService
                                 ->whereKey($row->id)
                                 ->update(['deleted_at' => now(), 'updated_at' => now()]);
                         }
+
                         continue;
                     }
 
@@ -188,7 +198,7 @@ class OperationService
      */
     private function generateCodigo(int $operationId): string
     {
-        return 'OP-' . str_pad($operationId, 4, '0', STR_PAD_LEFT);
+        return 'OP-'.str_pad($operationId, 4, '0', STR_PAD_LEFT);
     }
 
     private function buildDescription(
@@ -209,11 +219,11 @@ class OperationService
         }
 
         if ($measure !== null && $measure !== '' && is_numeric($measure)) {
-            $parts[] = rtrim(rtrim((string) $measure, '0'), '.') . ' CM';
+            $parts[] = rtrim(rtrim((string) $measure, '0'), '.').' CM';
         }
 
         if ($quantity !== null && $quantity !== '' && is_numeric($quantity)) {
-            $parts[] = 'X' . (string) (int) $quantity;
+            $parts[] = 'X'.(string) (int) $quantity;
         }
 
         return trim(implode(' ', $parts));
@@ -238,9 +248,9 @@ class OperationService
     {
         $user = auth()->user();
 
-        $description = 'Cambio de operación en campo ' . $field . '.';
-        if (!empty($motivo)) {
-            $description .= ' Motivo: ' . $motivo;
+        $description = 'Cambio de operación en campo '.$field.'.';
+        if (! empty($motivo)) {
+            $description .= ' Motivo: '.$motivo;
         }
 
         AuditLog::create([
@@ -303,7 +313,7 @@ class OperationService
 
     /**
      * Crea una nueva operación con validación de duplicados.
-        * Unicidad basada en: sección + acción + parte + medida + cantidad + SAM base.
+     * Unicidad basada en: sección + acción + parte + medida + cantidad + SAM base.
      */
     public function create(array $data): Operation
     {
@@ -375,7 +385,7 @@ class OperationService
 
         if (
             array_key_exists('product_sheet_id_reference', $data)
-            && !empty($operation->product_sheet_id_reference)
+            && ! empty($operation->product_sheet_id_reference)
             && (int) ($data['product_sheet_id_reference'] ?? 0) !== (int) $operation->product_sheet_id_reference
         ) {
             $data['product_sheet_id_reference'] = (int) $operation->product_sheet_id_reference;
@@ -553,7 +563,7 @@ class OperationService
             if (
                 array_key_exists('product_sheet_id_reference', $data)
                 && empty($existing->product_sheet_id_reference)
-                && !empty($data['product_sheet_id_reference'])
+                && ! empty($data['product_sheet_id_reference'])
             ) {
                 $updates['product_sheet_id_reference'] = (int) $data['product_sheet_id_reference'];
             }

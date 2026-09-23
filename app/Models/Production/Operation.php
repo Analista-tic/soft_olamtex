@@ -4,10 +4,10 @@ namespace App\Models\Production;
 
 use App\Models\Concerns\HasAuditLabel;
 use App\Models\Settings\AuditLog;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Catálogo maestro de operaciones de confección.
@@ -33,7 +33,7 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class Operation extends Model
 {
-    use HasFactory, SoftDeletes, HasAuditLabel;
+    use HasAuditLabel, HasFactory, SoftDeletes;
 
     protected $table = 'operations';
 
@@ -49,6 +49,7 @@ class Operation extends Model
         'sam_base',
         'factor_operario',
         'product_sheet_id_reference',
+        'raw_product_sheet_reference',
         'machine_id_reference',
         'is_active',
     ];
@@ -62,6 +63,7 @@ class Operation extends Model
         'sam_base' => 'float',
         'factor_operario' => 'float',
         'product_sheet_id_reference' => 'integer',
+        'raw_product_sheet_reference' => 'string',
         'machine_id_reference' => 'integer',
         'is_active' => 'boolean',
         'created_at' => 'datetime',
@@ -76,13 +78,13 @@ class Operation extends Model
     protected static function booted(): void
     {
         static::saving(function (self $operation) {
-            // Normalizar valores básicos  
+            // Normalizar valores básicos
             $samBase = is_numeric((string) $operation->sam_base) ? (float) $operation->sam_base : 0.0;
             $operation->sam_base = max(0, $samBase); // No negativo
-            
+
             $factorOperario = is_numeric((string) $operation->factor_operario) ? (float) $operation->factor_operario : 100.0;
             $operation->factor_operario = max(0.01, $factorOperario); // Validar es positivo
-            
+
             // Generar descripción
             $operation->description = $operation->composeDescription();
 
@@ -113,12 +115,23 @@ class Operation extends Model
             'section_id' => $this->section_id,
             'action' => $this->action,
             'garment_part' => $this->garment_part,
+            'anexo' => $this->anexo,
             'measure' => $this->measure,
             'quantity' => $this->quantity,
             'sam_base' => $this->sam_base,
         ]);
     }
 
+    /**
+     * Incluye `anexo` a propósito (a diferencia de la firma más gruesa que
+     * usa OperationService::buildOperationSignatureFromPayload() para su
+     * chequeo previo en el alta manual). Es un superconjunto de esa firma:
+     * nunca puede bloquear algo que OperationService ya dejó pasar, solo
+     * puede distinguir más — necesario para que el importador masivo
+     * (OperationImportService, que llama a Operation::create() directo, sin
+     * pasar por OperationService) pueda insertar operaciones que solo
+     * difieren en `anexo` sin que este guard las rechace como duplicadas.
+     */
     private function buildUniquenessSignatureFromAttributes(array $attributes): string
     {
         $sectionId = $this->normalizeInt($attributes['section_id'] ?? null);
@@ -130,6 +143,7 @@ class Operation extends Model
             (string) ($sectionId ?? ''),
             $this->normalizeText($attributes['action'] ?? null),
             $this->normalizeText($attributes['garment_part'] ?? null),
+            $this->normalizeText($attributes['anexo'] ?? null),
             $measure,
             (string) $quantity,
             $samBase,
@@ -152,7 +166,7 @@ class Operation extends Model
 
     private function normalizeFloat(float|int|string|null $value, int $precision = 4): ?string
     {
-        if ($value === null || $value === '' || !is_numeric((string) $value)) {
+        if ($value === null || $value === '' || ! is_numeric((string) $value)) {
             return null;
         }
 
@@ -172,11 +186,11 @@ class Operation extends Model
         }
 
         if ($this->measure !== null && is_numeric((string) $this->measure)) {
-            $parts[] = rtrim(rtrim((string) $this->measure, '0'), '.') . ' CM';
+            $parts[] = rtrim(rtrim((string) $this->measure, '0'), '.').' CM';
         }
 
         if ($this->quantity !== null && is_numeric((string) $this->quantity)) {
-            $parts[] = 'X' . (string) ((int) $this->quantity);
+            $parts[] = 'X'.(string) ((int) $this->quantity);
         }
 
         return trim(implode(' ', $parts));
@@ -213,13 +227,15 @@ class Operation extends Model
     public function getNameAttribute(): string
     {
         $base = trim("{$this->action} {$this->garment_part}");
+
         return $this->anexo ? "{$base} · {$this->anexo}" : $base;
     }
 
     public function getNormalizedNameAttribute(): string
     {
         $base = strtoupper(trim("{$this->action} {$this->garment_part}"));
-        return $this->anexo ? "{$base} · " . strtoupper(trim($this->anexo)) : $base;
+
+        return $this->anexo ? "{$base} · ".strtoupper(trim($this->anexo)) : $base;
     }
 
     /**

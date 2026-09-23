@@ -7,14 +7,15 @@ use App\Http\Requests\MasterData\StoreCategorySubGroupRequest;
 use App\Http\Requests\MasterData\UpdateCategorySubGroupRequest;
 use App\Models\MasterData\CategoryGroup;
 use App\Models\MasterData\CategorySubGroup;
+use App\Services\MasterData\CategorySubGroupService;
 use App\Support\MasterData\MaterialClassifier;
-use App\Support\TextNormalizer;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class CategorySubGroupController extends Controller
 {
+    public function __construct(private CategorySubGroupService $service) {}
+
     public function index()
     {
         return Inertia::render('MasterData/Category/Index', [
@@ -25,35 +26,26 @@ class CategorySubGroupController extends Controller
     public function store(StoreCategorySubGroupRequest $request)
     {
         $groupId = (int) $request->validated('category_group_id');
-        $subgroups = $this->normalizeIncomingSubgroups($request->validated('subgroups'));
-        $this->ensureSubgroupsDoNotExist($groupId, $subgroups);
-
-        foreach ($subgroups as $subgroupData) {
-            CategorySubGroup::create([
-                'name' => $subgroupData['name'],
-                'category_group_id' => $groupId,
-            ]);
-        }
+        $created = $this->service->create($groupId, $request->validated('subgroups'));
 
         return response()->json([
             'success' => true,
             'message' => 'Subgrupos creados exitosamente.',
+            'data' => $created->values(),
         ]);
     }
 
     public function update(UpdateCategorySubGroupRequest $request, CategorySubGroup $subgroup)
     {
         $groupId = (int) $request->validated('category_group_id');
-        $normalizedName = TextNormalizer::titleCaseWords($request->validated('name'));
 
-        $this->ensureSubgroupDoesNotExist($groupId, $normalizedName, $subgroup->id);
-
-        $subgroup->update([
-            'name' => $normalizedName,
-            'category_group_id' => $groupId,
-            'material_kind' => $request->validated('material_kind'),
-            'code' => $request->validated('code'),
-        ]);
+        $this->service->update(
+            $subgroup,
+            $groupId,
+            $request->validated('name'),
+            $request->validated('code'),
+            $request->validated('material_kind'),
+        );
 
         MaterialClassifier::forgetCache();
 
@@ -127,79 +119,6 @@ class CategorySubGroupController extends Controller
                 'success' => false,
                 'message' => 'Error eliminando subgrupo.',
             ], 500);
-        }
-    }
-
-    /**
-     * @param  array<int, array{name?: mixed}>  $subgroups
-     * @return array<int, array{name: string}>
-     */
-    private function normalizeIncomingSubgroups(array $subgroups): array
-    {
-        $normalized = [];
-        $seen = [];
-
-        foreach ($subgroups as $subgroup) {
-            $display = TextNormalizer::titleCaseWords($subgroup['name'] ?? null);
-            $semanticKey = TextNormalizer::semanticKey($display);
-
-            if ($display === '' || $semanticKey === '' || isset($seen[$semanticKey])) {
-                continue;
-            }
-
-            $seen[$semanticKey] = true;
-            $normalized[] = ['name' => $display];
-        }
-
-        if ($normalized === []) {
-            throw ValidationException::withMessages([
-                'subgroups' => ['Debe agregar al menos un subgrupo válido.'],
-            ]);
-        }
-
-        return $normalized;
-    }
-
-    /**
-     * @param  array<int, array{name: string}>  $subgroups
-     */
-    private function ensureSubgroupsDoNotExist(int $groupId, array $subgroups): void
-    {
-        $incomingKeys = array_map(
-            static fn (array $subgroup): string => TextNormalizer::semanticKey($subgroup['name']),
-            $subgroups,
-        );
-
-        $existing = CategorySubGroup::query()
-            ->where('category_group_id', $groupId)
-            ->get(['name']);
-
-        foreach ($existing as $subgroup) {
-            $existingKey = TextNormalizer::semanticKey($subgroup->name);
-
-            if ($existingKey !== '' && in_array($existingKey, $incomingKeys, true)) {
-                throw ValidationException::withMessages([
-                    'subgroups' => ['Uno o más subgrupos ya existen en el grupo seleccionado.'],
-                ]);
-            }
-        }
-    }
-
-    private function ensureSubgroupDoesNotExist(int $groupId, string $name, ?int $ignoreId = null): void
-    {
-        $candidateKey = TextNormalizer::semanticKey($name);
-
-        $existing = CategorySubGroup::query()
-            ->where('category_group_id', $groupId)
-            ->when($ignoreId !== null, static fn ($query) => $query->where('id', '<>', $ignoreId))
-            ->get(['id', 'name']);
-
-        foreach ($existing as $subgroup) {
-            if (TextNormalizer::semanticKey($subgroup->name) === $candidateKey) {
-                throw ValidationException::withMessages([
-                    'name' => ['Ya existe un subgrupo con ese nombre en el grupo seleccionado.'],
-                ]);
-            }
         }
     }
 }

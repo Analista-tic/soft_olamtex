@@ -125,6 +125,32 @@ it('accepts a yarn_name_id on an item whose subgroup is Hilaza', function () {
     expect($item->yarn_name_id)->toBe($this->yarnName->id);
 });
 
+it('requires a fabric_name_id when creating an item in a Tela subgroup', function () {
+    $payload = baseValidationItemPayload($this->fabricSubGroup->id);
+
+    $response = $this->postJson(route('item.store'), $payload);
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors(['fabric_name_id']);
+});
+
+it('requires a yarn_name_id when creating an item in a Hilaza subgroup', function () {
+    $payload = baseValidationItemPayload($this->yarnSubGroup->id);
+
+    $response = $this->postJson(route('item.store'), $payload);
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors(['yarn_name_id']);
+});
+
+it('does not require fabric_name_id nor yarn_name_id for an unrelated subgroup', function () {
+    $payload = baseValidationItemPayload($this->otherSubGroup->id);
+
+    $response = $this->postJson(route('item.store'), $payload);
+
+    $response->assertCreated();
+});
+
 it('clears fabric_name_id when an existing item changes to a non-fabric subgroup', function () {
     $item = Item::create([
         'category_sub_group_id' => $this->fabricSubGroup->id,

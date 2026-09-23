@@ -27,16 +27,62 @@ class ColorService
     {
         return DB::transaction(function () use ($data) {
             $normalized = $this->normalizeColorValues($data);
-            $normalized['code'] = $this->nextCode();
+            $normalized['code'] = $this->resolveCode($data['code'] ?? null);
 
             return Color::create($normalized);
         });
     }
 
+    /**
+     * Calcula el siguiente código consecutivo SIN reservarlo (sin lock, sin
+     * escribir nada). Se usa para precargar la sugerencia editable en el
+     * formulario de creación rápida; si dos usuarios lo abren a la vez pueden
+     * ver el mismo número sugerido, pero solo uno se lo queda: el que no lo
+     * modifique se resuelve por nextCode() con lock al momento de guardar.
+     */
+    public function previewNextCode(): string
+    {
+        return $this->buildNextCode(Color::query()->max('code'));
+    }
+
+    /**
+     * Resuelve el código a persistir: si el caller mandó uno manualmente lo
+     * valida (numérico, hasta 3 dígitos) y verifica unicidad antes de
+     * normalizarlo; si no, reserva el siguiente consecutivo con lock.
+     */
+    private function resolveCode(?string $code): string
+    {
+        $code = trim((string) ($code ?? ''));
+
+        if ($code === '') {
+            return $this->nextCode();
+        }
+
+        if (! preg_match('/^\d{1,3}$/', $code)) {
+            throw ValidationException::withMessages([
+                'code' => 'El código debe ser numérico de hasta 3 dígitos.',
+            ]);
+        }
+
+        $normalized = str_pad($code, 3, '0', STR_PAD_LEFT);
+
+        if (Color::query()->where('code', $normalized)->exists()) {
+            throw ValidationException::withMessages([
+                'code' => 'Ya existe un color con ese código.',
+            ]);
+        }
+
+        return $normalized;
+    }
+
     private function nextCode(): string
     {
-        $maxCode = (int) Color::query()->lockForUpdate()->max('code');
-        $next = $maxCode + 1;
+        return $this->buildNextCode(Color::query()->lockForUpdate()->max('code'));
+    }
+
+    private function buildNextCode(?string $max): string
+    {
+        $next = ((int) $max) + 1;
 
         if ($next > 999) {
             throw ValidationException::withMessages([

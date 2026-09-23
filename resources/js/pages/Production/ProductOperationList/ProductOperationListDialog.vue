@@ -18,7 +18,6 @@ import type {
     OperationSection,
     ProductOperationDialogInitialData,
     ProductOperationDialogRow,
-    ProductOperationDialogRowInput,
     ProductOperationEntityCreatedData,
     ProductOperationPayload,
     ProductSheetDialogOption,
@@ -100,9 +99,15 @@ function idsMatch(a: number | string | null | undefined, b: number | string | nu
 
 function buildProductSheetLabel(sheet: ProductSheetDialogOption): string {
     const parts = [
-        String(sheet.sample_reference ?? '').trim().toUpperCase(),
-        String(sheet.product_reference ?? '').trim().toUpperCase(),
-        String(sheet.product_reference_2 ?? '').trim().toUpperCase(),
+        String(sheet.sample_reference ?? '')
+            .trim()
+            .toUpperCase(),
+        String(sheet.product_reference ?? '')
+            .trim()
+            .toUpperCase(),
+        String(sheet.product_reference_2 ?? '')
+            .trim()
+            .toUpperCase(),
     ].filter(Boolean);
     const version = Number(sheet.version ?? 1);
     return (parts.length ? parts.join(' / ') : '-') + ` / v${version}`;
@@ -186,15 +191,20 @@ function isSectionPreparacion(sectionId: number | string | null): boolean {
  * se evita generar grupos casi-duplicados a partir de texto libre.
  */
 function suggestPreparationGroup(garmentPart: string | null | undefined, groups: string[]): string | null {
-    const normalized = String(garmentPart ?? '').trim().toUpperCase().replace(/\s+/g, ' ');
+    const normalized = String(garmentPart ?? '')
+        .trim()
+        .toUpperCase()
+        .replace(/\s+/g, ' ');
     if (!normalized) return null;
 
     const tokens = normalized.split(' ');
 
-    return groups.find((g) => {
-        const groupNorm = g.trim().toUpperCase();
-        return groupNorm !== '' && (groupNorm === normalized || tokens.includes(groupNorm));
-    }) ?? null;
+    return (
+        groups.find((g) => {
+            const groupNorm = g.trim().toUpperCase();
+            return groupNorm !== '' && (groupNorm === normalized || tokens.includes(groupNorm));
+        }) ?? null
+    );
 }
 
 const createEmptyRow = (): ProductOperationDialogRow => ({
@@ -340,13 +350,12 @@ watch(
 const isEditMode = computed(() => props.mode === 'edit');
 
 /** True cuando la fila en alta necesita un grupo de preparación y no se pudo sugerir uno automáticamente. */
-const needsManualPreparationGroup = computed(
-    () => isSectionPreparacion(currentRow.value.section_id) && !currentRow.value.grupo_preparacion,
-);
+const needsManualPreparationGroup = computed(() => isSectionPreparacion(currentRow.value.section_id) && !currentRow.value.grupo_preparacion);
 
 const availableProductSheets = computed(() => {
     const excluded = new Set((props.excludedProductSheetIds ?? []).map((id) => normalizeComparableId(id as number | string | null | undefined)));
-    const editingId = props.mode === 'edit' && props.initialData?.productSheetId != null ? normalizeComparableId(props.initialData.productSheetId) : null;
+    const editingId =
+        props.mode === 'edit' && props.initialData?.productSheetId != null ? normalizeComparableId(props.initialData.productSheetId) : null;
     return props.productSheets.filter((sheet) => {
         const sheetId = normalizeComparableId(sheet.id);
         return !excluded.has(sheetId) || sheetId === editingId;
@@ -380,9 +389,7 @@ const addNewDialogOpen = ref(false);
 
 const availableOperationOptions = computed(() => {
     const selectedOperationIds = new Set(
-        operationList.value
-            .map((row) => row.operation_id)
-            .filter((id): id is number => typeof id === 'number' && Number.isFinite(id)),
+        operationList.value.map((row) => row.operation_id).filter((id): id is number => typeof id === 'number' && Number.isFinite(id)),
     );
 
     return operationsList.value.filter((operation) => !selectedOperationIds.has(Number(operation.id)));
@@ -671,9 +678,7 @@ function saveOperations() {
         return;
     }
 
-    const missingPreparationGroup = operationList.value.find(
-        (row) => isSectionPreparacion(row.section_id) && !row.grupo_preparacion
-    );
+    const missingPreparationGroup = operationList.value.find((row) => isSectionPreparacion(row.section_id) && !row.grupo_preparacion);
     if (missingPreparationGroup) {
         const msg = 'Todas las operaciones de PREPARACION deben tener un grupo asignado. Edita las filas sin grupo.';
         setValidationError(msg);
@@ -742,10 +747,7 @@ function resetForm() {
             </DialogHeader>
 
             <TooltipProvider>
-                <div
-                    class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain scroll-smooth pr-1"
-                    style="scrollbar-width: thin"
-                >
+                <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain scroll-smooth pr-1" style="scrollbar-width: thin">
                     <!-- Datos generales -->
                     <div class="flex flex-wrap items-end gap-x-6 gap-y-3 px-1 pb-4" style="border-bottom: 1px solid hsl(var(--border) / 0.4)">
                         <div class="min-w-[220px] flex-1">
@@ -760,12 +762,19 @@ function resetForm() {
                         <div class="flex shrink-0 items-center gap-3 pb-1">
                             <div v-if="selectedGarmentType" class="flex items-center gap-1.5">
                                 <span class="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Tipo de prenda</span>
-                                <span :class="['inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold', selectedGarmentType === 'superior' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800']">{{ selectedGarmentType }}</span>
+                                <span
+                                    :class="[
+                                        'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
+                                        selectedGarmentType === 'superior' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800',
+                                    ]"
+                                    >{{ selectedGarmentType }}</span
+                                >
                             </div>
                             <div class="flex items-center gap-1.5">
                                 <span class="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Base tela</span>
                                 <span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-                                    {{ selectedSheetFabricBaseName }} <span class="ml-1 text-[10px] font-normal">(×{{ selectedSheetFabricFactor.toFixed(2) }})</span>
+                                    {{ selectedSheetFabricBaseName }}
+                                    <span class="ml-1 text-[10px] font-normal">(×{{ selectedSheetFabricFactor.toFixed(2) }})</span>
                                 </span>
                             </div>
                         </div>
@@ -775,7 +784,9 @@ function resetForm() {
                     <div v-if="!readonly" class="flex flex-wrap items-center justify-between gap-3 py-3">
                         <div>
                             <span class="text-sm font-medium text-foreground">Añadir operación</span>
-                            <p class="mt-0.5 text-xs text-muted-foreground/80">Selecciona una operación; máquina y factor operario se auto-rellenan.</p>
+                            <p class="mt-0.5 text-xs text-muted-foreground/80">
+                                Selecciona una operación; máquina y factor operario se auto-rellenan.
+                            </p>
                         </div>
                         <Button
                             variant="default"
@@ -803,12 +814,12 @@ function resetForm() {
                             <HelpTooltip text="SAM base: tiempo estándar en minutos por unidad (del catálogo)." />
                         </div>
                         <div class="col-span-1 flex items-center justify-end gap-1">
-                            F. op.
-                            <HelpTooltip text="Factor operario (%) de la operación. SAM ajust. = SAM base / (F.op. / 100)." />
+                            Factor operario (%)
+                            <HelpTooltip text="Factor operario (%) de la operación. SAM ajustado = SAM base / (Factor operario / 100)." />
                         </div>
                         <div class="col-span-1 flex items-center justify-end gap-1">
                             SAM total
-                            <HelpTooltip text="SAM total unitario: (SAM base / F.op.) × suplemento máq. × factor base tela." />
+                            <HelpTooltip text="SAM total unitario: (SAM base / Factor operario) × suplemento máquina × factor base tela." />
                         </div>
                         <div class="col-span-3 flex items-center gap-1">
                             Grupo prep.<span v-if="needsManualPreparationGroup" class="text-red-500">*</span>
@@ -832,9 +843,9 @@ function resetForm() {
                         <div class="col-span-2">
                             <div
                                 class="flex h-9 items-center truncate rounded-md bg-muted/30 px-2 text-xs text-muted-foreground"
-                                            :title="currentRow.operation_id ? getMachineDisplayWithSupplement(currentRow) : 'Se auto-rellena al elegir operación'"
+                                :title="currentRow.operation_id ? getMachineDisplayWithSupplement(currentRow) : 'Se auto-rellena al elegir operación'"
                             >
-                                            {{ currentRow.operation_id ? getMachineDisplayWithSupplement(currentRow) : '—' }}
+                                {{ currentRow.operation_id ? getMachineDisplayWithSupplement(currentRow) : '—' }}
                             </div>
                         </div>
                         <div class="col-span-1">
@@ -876,12 +887,7 @@ function resetForm() {
                             <div v-else class="flex h-9 items-center justify-center text-[10px] text-muted-foreground/50">—</div>
                         </div>
                         <div class="col-span-1">
-                            <Button
-                                size="sm"
-                                class="w-full gap-1"
-                                :disabled="!currentRow.operation_id"
-                                @click="addOperation"
-                            >
+                            <Button size="sm" class="w-full gap-1" :disabled="!currentRow.operation_id" @click="addOperation">
                                 <Plus class="h-4 w-4" />
                                 Añadir
                             </Button>
@@ -901,15 +907,18 @@ function resetForm() {
                         >
                             <Lightbulb class="mt-0.5 h-3.5 w-3.5 shrink-0" />
                             <span>
-                                Esta operación es de sección PREPARACIÓN y no se pudo sugerir un grupo automáticamente desde su parte de
-                                prenda — elige uno existente o escribe uno nuevo (ej. Cuello, Manga, Bolsillo) para poder añadirla.
+                                Esta operación es de sección PREPARACIÓN y no se pudo sugerir un grupo automáticamente desde su parte de prenda —
+                                elige uno existente o escribe uno nuevo (ej. Cuello, Manga, Bolsillo) para poder añadirla.
                             </span>
                         </div>
                     </div>
 
                     <!-- Lista de operaciones añadidas -->
                     <div v-if="operationList.length > 0" class="mt-5 overflow-hidden">
-                        <div v-if="!readonly" class="mb-2 flex items-center justify-between gap-2 rounded-md border border-border/50 bg-muted/20 px-3 py-2">
+                        <div
+                            v-if="!readonly"
+                            class="mb-2 flex items-center justify-between gap-2 rounded-md border border-border/50 bg-muted/20 px-3 py-2"
+                        >
                             <p class="flex items-center gap-2 text-[11px] text-muted-foreground/85">
                                 <GripVertical class="h-3 w-3 shrink-0" />
                                 Arrastra para reordenar · Edita notas y grupo de preparación
@@ -928,34 +937,47 @@ function resetForm() {
                                 </span>
                             </div>
                         </div>
-                        <div
-                            class="rounded-lg border border-border/60 bg-muted/10"
-                        >
+                        <div class="rounded-lg border border-border/60 bg-muted/10">
                             <table class="w-full table-fixed text-sm">
                                 <thead class="sticky top-0 z-10 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/85">
                                     <tr class="text-[11px] text-muted-foreground/90" style="border-bottom: 1px solid hsl(var(--border) / 0.5)">
                                         <th class="w-7 py-2.5"></th>
                                         <th class="w-7 px-3 py-2.5 text-left font-medium">#</th>
                                         <th class="w-[300px] px-3 py-2.5 text-left font-medium">
-                                            <span class="inline-flex items-center gap-1">Operación <HelpTooltip text="Nombre de la operación." /></span>
+                                            <span class="inline-flex items-center gap-1"
+                                                >Operación <HelpTooltip text="Nombre de la operación."
+                                            /></span>
                                         </th>
                                         <th class="w-52 px-3 py-2.5 text-left font-medium">
-                                            <span class="inline-flex items-center gap-1">Máquina <HelpTooltip text="Máquina de la operación (auto)." /></span>
+                                            <span class="inline-flex items-center gap-1"
+                                                >Máquina <HelpTooltip text="Máquina de la operación (auto)."
+                                            /></span>
                                         </th>
                                         <th class="w-16 px-3 py-2.5 text-right font-medium">
-                                            <span class="inline-flex items-center justify-end gap-1">SAM <HelpTooltip text="SAM base en minutos." /></span>
+                                            <span class="inline-flex items-center justify-end gap-1"
+                                                >SAM <HelpTooltip text="SAM base en minutos."
+                                            /></span>
                                         </th>
                                         <th class="w-14 px-3 py-2.5 text-right font-medium">
-                                            <span class="inline-flex items-center justify-end gap-1">F. op. <HelpTooltip text="Factor operario (%)." /></span>
+                                            <span class="inline-flex items-center justify-end gap-1"
+                                                >Factor operario (%) <HelpTooltip text="Factor operario (%)."
+                                            /></span>
                                         </th>
                                         <th class="w-20 px-3 py-2.5 text-right font-medium">
-                                            <span class="inline-flex items-center justify-end gap-1">SAM total <HelpTooltip text="SAM total unitario: (SAM / F.op.) × supl. máq. × factor tela." /></span>
+                                            <span class="inline-flex items-center justify-end gap-1"
+                                                >SAM total
+                                                <HelpTooltip text="SAM total unitario: (SAM / Factor operario) × suplemento máquina × factor tela."
+                                            /></span>
                                         </th>
                                         <th class="w-14 px-3 py-2.5 text-right font-medium">
-                                            <span class="inline-flex items-center justify-end gap-1">Op./h <HelpTooltip text="Operaciones por hora (60 ÷ SAM total)." /></span>
+                                            <span class="inline-flex items-center justify-end gap-1"
+                                                >Operaciones/hora <HelpTooltip text="Operaciones por hora (60 ÷ SAM total)."
+                                            /></span>
                                         </th>
                                         <th class="w-32 px-3 py-2.5 text-left font-medium">
-                                            <span class="inline-flex items-center gap-1">Grupo <HelpTooltip text="Grupo de preparación (solo secciones PREPARACIÓN)." /></span>
+                                            <span class="inline-flex items-center gap-1"
+                                                >Grupo <HelpTooltip text="Grupo de preparación (solo secciones PREPARACIÓN)."
+                                            /></span>
                                         </th>
                                         <th v-if="!readonly" class="w-16"></th>
                                     </tr>
@@ -979,7 +1001,8 @@ function resetForm() {
                                                 v-if="!isEditingRow(index) && row.row_notes"
                                                 class="mt-0.5 block truncate text-[10px] italic text-muted-foreground/60"
                                                 :title="row.row_notes"
-                                            >{{ row.row_notes }}</span>
+                                                >{{ row.row_notes }}</span
+                                            >
                                             <input
                                                 v-if="isEditingRow(index) && editRow"
                                                 v-model="editRow.row_notes"
@@ -994,14 +1017,13 @@ function resetForm() {
                                             <span
                                                 class="block truncate text-muted-foreground/90"
                                                 :title="`Suplemento: ×${getSupplementForRow(row).toFixed(2)}`"
-                                            >{{ getMachineDisplayWithSupplement(row) }}</span>
+                                                >{{ getMachineDisplayWithSupplement(row) }}</span
+                                            >
                                         </td>
                                         <td class="px-3 py-2.5 text-right font-mono text-xs text-muted-foreground/80">
                                             {{ (Number(row.optimal_time) || 0).toFixed(2) }}
                                         </td>
-                                        <td class="px-3 py-2.5 text-right font-mono text-xs text-muted-foreground/80">
-                                            {{ row.factor_operario }}%
-                                        </td>
+                                        <td class="px-3 py-2.5 text-right font-mono text-xs text-muted-foreground/80">{{ row.factor_operario }}%</td>
                                         <td class="px-3 py-2.5 text-right font-mono text-xs font-semibold text-primary">
                                             {{ getSamUnitario(row).toFixed(2) }}
                                         </td>
@@ -1028,7 +1050,8 @@ function resetForm() {
                                                 v-else-if="isSectionPreparacion(row.section_id) && row.grupo_preparacion"
                                                 class="block truncate text-muted-foreground/90"
                                                 :title="row.grupo_preparacion"
-                                            >{{ row.grupo_preparacion }}</span>
+                                                >{{ row.grupo_preparacion }}</span
+                                            >
                                             <span v-else class="text-muted-foreground/40">—</span>
                                         </td>
                                         <td v-if="!readonly" class="px-3 py-2">
@@ -1107,9 +1130,7 @@ function resetForm() {
                     @cancel="localOpen = false"
                     @submit="saveOperations"
                 />
-                <Button v-else variant="outline" @click="localOpen = false">
-                    Cerrar
-                </Button>
+                <Button v-else variant="outline" @click="localOpen = false"> Cerrar </Button>
             </FormDialogFooter>
         </FormDialogContent>
     </Dialog>

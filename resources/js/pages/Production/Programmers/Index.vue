@@ -1,18 +1,11 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
-import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import Badge from '@/components/ui/badge/Badge.vue';
 import Button from '@/components/ui/button/Button.vue';
 import { Calendar } from '@/components/ui/calendar';
 import Input from '@/components/ui/input/Input.vue';
@@ -25,19 +18,17 @@ import type { ProductSheet, Programmer } from '@/domain/Production';
 import type { BreadcrumbItem, Option } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { monthLabel } from '@/lib/months';
+import { uiPatterns } from '@/lib/ui-patterns';
 import { useAuthStore } from '@/stores/auth';
 import { Head } from '@inertiajs/vue3';
 import { getLocalTimeZone, parseDate, type DateValue } from '@internationalized/date';
 import axios, { AxiosError } from 'axios';
 import { format, isValid, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
-import Badge from '@/components/ui/badge/Badge.vue';
-import { Calendar as CalendarIcon, Check, CheckCircle2, Eye, Pencil, SlidersHorizontal, Trash, TrendingDown, TrendingUp, X } from 'lucide-vue-next';
+import { Calendar as CalendarIcon, Check, CheckCircle2, Eye, Pencil, SlidersHorizontal, Trash, TrendingDown, X } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import CreateProgrammerDialog from './Create.vue';
 import EditProgrammerDialog from './Edit.vue';
-import { uiPatterns } from '@/lib/ui-patterns';
-import ServerPagination from '@/components/common/ServerPagination.vue';
 
 const authStore = useAuthStore();
 
@@ -365,10 +356,7 @@ const sortedProgrammers = computed<Programmer[]>(() => {
 });
 
 function tableSortHeadClass(column: SortableColumn): string {
-    return [
-        'cursor-pointer select-none whitespace-nowrap',
-        sortColumn.value === column ? 'text-foreground' : 'text-muted-foreground',
-    ].join(' ');
+    return ['cursor-pointer select-none whitespace-nowrap', sortColumn.value === column ? 'text-foreground' : 'text-muted-foreground'].join(' ');
 }
 const activeFiltersCount = computed(() => {
     let count = 0;
@@ -428,7 +416,9 @@ function syncQuickEstimatedDates(rows: Programmer[]) {
 }
 
 function hasPriorityConfigured(programmer: Programmer): boolean {
-    const value = String(programmer.priority ?? '').trim().toUpperCase();
+    const value = String(programmer.priority ?? '')
+        .trim()
+        .toUpperCase();
     return value !== '' && value !== 'N/A';
 }
 
@@ -503,7 +493,6 @@ async function deleteProgrammer() {
                 : 'Programador eliminado correctamente.';
         setAlert(successText, 'success');
         programmerToDelete.value = null;
-        isDialogOpen.value = false;
     } catch (error) {
         console.error('Error al eliminar el programador:', error);
         setAlert('Hubo un error al eliminar el programador.', 'error');
@@ -527,14 +516,18 @@ async function fetchProgrammers(page = 1) {
                 per_page: itemsPerPage.value,
                 search: normalizedSearch === '' ? undefined : normalizedSearch,
                 season: normalizeMonthForApi(filters.value.season),
-                priority: !hasFilterValue(filters.value.priority) || filters.value.priority === DEFAULT_SELECT_VALUE ? undefined : filters.value.priority,
+                priority:
+                    !hasFilterValue(filters.value.priority) || filters.value.priority === DEFAULT_SELECT_VALUE ? undefined : filters.value.priority,
                 status: !hasFilterValue(filters.value.status) || filters.value.status === DEFAULT_SELECT_VALUE ? undefined : filters.value.status,
                 destination_id:
                     !hasFilterValue(filters.value.destination_id) || filters.value.destination_id === DEFAULT_SELECT_VALUE
                         ? undefined
                         : filters.value.destination_id,
                 estimated_delivery_date: filters.value.estimated_delivery_date.trim() === '' ? undefined : filters.value.estimated_delivery_date,
-                woven_product: !hasFilterValue(filters.value.woven_product) || filters.value.woven_product === DEFAULT_SELECT_VALUE ? undefined : filters.value.woven_product,
+                woven_product:
+                    !hasFilterValue(filters.value.woven_product) || filters.value.woven_product === DEFAULT_SELECT_VALUE
+                        ? undefined
+                        : filters.value.woven_product,
             },
             signal: controller.signal,
         });
@@ -571,7 +564,8 @@ async function fetchDistributionDashboard() {
         const response = await axios.get('/comercial/programmers/dashboard-distribucion', {
             params: {
                 season: normalizeMonthForApi(filters.value.season),
-                priority: !hasFilterValue(filters.value.priority) || filters.value.priority === DEFAULT_SELECT_VALUE ? undefined : filters.value.priority,
+                priority:
+                    !hasFilterValue(filters.value.priority) || filters.value.priority === DEFAULT_SELECT_VALUE ? undefined : filters.value.priority,
                 status: !hasFilterValue(filters.value.status) || filters.value.status === DEFAULT_SELECT_VALUE ? undefined : filters.value.status,
                 destination_id:
                     !hasFilterValue(filters.value.destination_id) || filters.value.destination_id === DEFAULT_SELECT_VALUE
@@ -904,7 +898,7 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                         <p class="text-sm font-semibold leading-none">Distribución por prioridad</p>
                         <p v-if="dashboard" class="mt-0.5 text-xs text-muted-foreground">
                             Total unidades programadas según filtro: {{ dashboard.total_units.toLocaleString() }}
-                            <Badge :variant="dashboard.balanced ? 'default' : 'destructive'" class="ml-2 text-[10px] px-1.5 py-0">
+                            <Badge :variant="dashboard.balanced ? 'default' : 'destructive'" class="ml-2 px-1.5 py-0 text-[10px]">
                                 {{ dashboard.balanced ? 'Balanceada' : 'Desbalanceada' }}
                             </Badge>
                         </p>
@@ -931,9 +925,7 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                         </div>
 
                         <!-- Big percentage -->
-                        <p class="text-2xl font-bold leading-none tracking-tight">
-                            {{ dashboard.breakdown?.[priority]?.percentage ?? 0 }}%
-                        </p>
+                        <p class="text-2xl font-bold leading-none tracking-tight">{{ dashboard.breakdown?.[priority]?.percentage ?? 0 }}%</p>
 
                         <!-- Progress bar -->
                         <div class="h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -1031,12 +1023,7 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                         />
                     </FilterField>
                     <FilterField label="Fabricación" :active="fabricacionIsActive" class="min-w-[160px]">
-                        <SelectField
-                            v-model="filters.woven_product"
-                            placeholder="Fabricación"
-                            :options="fabricacionOptions"
-                            clearable
-                        />
+                        <SelectField v-model="filters.woven_product" placeholder="Fabricación" :options="fabricacionOptions" clearable />
                     </FilterField>
                     <FilterField label="Fecha entrega" :active="deliveryDateIsActive" class="min-w-[220px]">
                         <div class="flex items-center gap-2">
@@ -1091,9 +1078,7 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                 <div class="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
                     <div class="flex items-center gap-2">
                         <span class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Edición masiva</span>
-                        <Badge variant="outline" class="text-[11px]">
-                            {{ selectedOrderIds.length }} seleccionados
-                        </Badge>
+                        <Badge variant="outline" class="text-[11px]"> {{ selectedOrderIds.length }} seleccionados </Badge>
                     </div>
                     <div class="flex items-center gap-2">
                         <Button
@@ -1104,12 +1089,7 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                         >
                             Prioridad
                         </Button>
-                        <Button
-                            type="button"
-                            size="sm"
-                            :variant="bulkEditMode === 'date' ? 'default' : 'outline'"
-                            @click="bulkEditMode = 'date'"
-                        >
+                        <Button type="button" size="sm" :variant="bulkEditMode === 'date' ? 'default' : 'outline'" @click="bulkEditMode = 'date'">
                             Fecha estimada
                         </Button>
                         <Button
@@ -1138,44 +1118,35 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                     </div>
 
                     <div v-else-if="bulkEditMode === 'date'" class="min-w-[220px]">
-                        <Input
-                            v-model="bulkEstimatedDeliveryDate"
-                            type="date"
-                            class="h-9 w-full"
-                        />
+                        <Input v-model="bulkEstimatedDeliveryDate" type="date" class="h-9 w-full" />
                     </div>
 
                     <template v-else>
                         <div class="min-w-[220px]">
-                            <SelectField
-                                v-model="bulkSeason"
-                                placeholder="Temporada (Mes Año)"
-                                :options="seasonBulkOptions"
-                            />
+                            <SelectField v-model="bulkSeason" placeholder="Temporada (Mes Año)" :options="seasonBulkOptions" />
                         </div>
                         <div class="min-w-[220px]">
-                            <SelectField
-                                v-model="bulkDispatchMonth"
-                                placeholder="Mes despacho (Mes Año)"
-                                :options="seasonBulkOptions"
-                                clearable
-                            />
+                            <SelectField v-model="bulkDispatchMonth" placeholder="Mes despacho (Mes Año)" :options="seasonBulkOptions" clearable />
                         </div>
                     </template>
 
-                    <Button type="button" :disabled="!bulkCanApply" @click="applyBulkEdit">
-                        Aplicar cambios
-                    </Button>
+                    <Button type="button" :disabled="!bulkCanApply" @click="applyBulkEdit"> Aplicar cambios </Button>
                 </div>
             </div>
 
-            <div class="relative mt-4 min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min overflow-x-auto">
+            <div
+                class="relative mt-4 min-h-0 flex-1 overflow-x-auto rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min"
+            >
                 <TooltipProvider>
                     <Table class="w-full min-w-min">
                         <TableHeader>
                             <TableRow>
                                 <TableHead class="w-12 text-center">
-                                    <input type="checkbox" :checked="allVisibleSelected" @change="toggleSelectAllVisible(($event.target as HTMLInputElement).checked)" />
+                                    <input
+                                        type="checkbox"
+                                        :checked="allVisibleSelected"
+                                        @change="toggleSelectAllVisible(($event.target as HTMLInputElement).checked)"
+                                    />
                                 </TableHead>
                                 <TableHead :class="tableSortHeadClass('op')" @click="toggleSort('op')">
                                     <span class="inline-flex items-center gap-1">
@@ -1358,7 +1329,9 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                                     :key="programmer.id"
                                     :class="[
                                         'text-center',
-                                        shouldHighlightRow(programmer) ? 'border-l-4 border-yellow-400 bg-yellow-50 dark:bg-yellow-900/30 dark:border-yellow-500' : '',
+                                        shouldHighlightRow(programmer)
+                                            ? 'border-l-4 border-yellow-400 bg-yellow-50 dark:border-yellow-500 dark:bg-yellow-900/30'
+                                            : '',
                                         'text-nowrap',
                                     ]"
                                 >
@@ -1375,11 +1348,13 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                                         <span
                                             v-if="programmer.product_sheet?.woven_product"
                                             class="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-800 dark:bg-violet-900/40 dark:text-violet-300"
-                                        >Tejido</span>
+                                            >Tejido</span
+                                        >
                                         <span
                                             v-else
                                             class="inline-flex items-center rounded-full bg-teal-100 px-2 py-0.5 text-[11px] font-medium text-teal-800 dark:bg-teal-900/40 dark:text-teal-300"
-                                        >Punto</span>
+                                            >Punto</span
+                                        >
                                     </TableCell>
                                     <TableCell>{{ monthLabel(programmer.season_display || programmer.season) }}</TableCell>
                                     <TableCell>{{ monthLabel(programmer.dispatch_month || '-') }}</TableCell>
@@ -1409,17 +1384,25 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                                                 size="icon"
                                                 variant="ghost"
                                                 class="h-8 w-8"
-                                                :disabled="isQuickDateSaving(programmer.id) || !quickEstimatedDates[programmer.id] || hasPriorityConfigured(programmer)"
+                                                :disabled="
+                                                    isQuickDateSaving(programmer.id) ||
+                                                    !quickEstimatedDates[programmer.id] ||
+                                                    hasPriorityConfigured(programmer)
+                                                "
                                                 @click="saveQuickEstimatedDate(programmer)"
                                             >
                                                 <Check class="h-4 w-4" />
                                             </Button>
                                         </div>
                                     </TableCell>
-                                    <TableCell class="max-w-[200px] truncate" :title="programmer.notes || ''">{{ programmer.notes || '-' }}</TableCell>
+                                    <TableCell class="max-w-[200px] truncate" :title="programmer.notes || ''">{{
+                                        programmer.notes || '-'
+                                    }}</TableCell>
                                     <TableCell>
                                         <TableStatusBadge
-                                            :title="(programmer.is_pending_completion ?? false) ? getPendingMessage(programmer) : 'Registro completo.'"
+                                            :title="
+                                                (programmer.is_pending_completion ?? false) ? getPendingMessage(programmer) : 'Registro completo.'
+                                            "
                                             :tone="(programmer.is_pending_completion ?? false) ? 'yellow' : 'green'"
                                             :label="(programmer.is_pending_completion ?? false) ? 'Pendiente' : 'Completo'"
                                         />
@@ -1475,44 +1458,21 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                         </TableBody>
                     </Table>
                 </TooltipProvider>
-                <ServerPagination 
-                  v-model:current-page="currentPage"
-                  v-model:page-size="itemsPerPage"
-                  :total-items="totalItems"
-                  @fetch-data="reloadCurrentPage"
+                <ServerPagination
+                    v-model:current-page="currentPage"
+                    v-model:page-size="itemsPerPage"
+                    :total-items="totalItems"
+                    @fetch-data="reloadCurrentPage"
                 />
             </div>
         </div>
     </AppLayout>
-    <AlertDialog v-model:open="isDialogOpen">
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>Confirmar eliminación</AlertDialogTitle>
-            </AlertDialogHeader>
-            <AlertDialogDescription>
-                ¿Estás seguro de que deseas eliminar este programador? Esta acción no se puede deshacer.
-            </AlertDialogDescription>
-            <AlertDialogFooter class="flex flex-col gap-2 md:flex-row md:justify-end">
-                <AlertDialogCancel asChild>
-                    <button
-                        type="button"
-                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                        @click="isDialogOpen = false"
-                    >
-                        Cancelar
-                    </button>
-                </AlertDialogCancel>
-                <AlertDialogAction asChild>
-                    <Button
-                        variant="destructive"
-                        class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
-                        @click="deleteProgrammer"
-                    >
-                        Eliminar
-                    </Button>
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+        v-model:open="isDialogOpen"
+        title="Confirmar eliminación"
+        description="¿Estás seguro de que deseas eliminar este programador? Esta acción no se puede deshacer."
+        confirm-text="Eliminar"
+        :destructive="true"
+        @confirm="deleteProgrammer"
+    />
 </template>
-

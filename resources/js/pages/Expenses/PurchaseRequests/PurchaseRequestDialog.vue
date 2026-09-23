@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import CreatableSelectField from '@/components/CreatableSelectField.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
@@ -14,6 +15,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
 import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import type { PurchaseRequestForm, PurchaseRequestItem } from '@/domain/Expenses';
+import type { Option } from '@/domain/shared';
 import { useAuthStore } from '@/stores/auth';
 import axios from 'axios';
 import { Plus } from 'lucide-vue-next';
@@ -216,6 +218,41 @@ async function fetchUsers(search = ''): Promise<void> {
     }
 }
 
+const providerOptions = ref<Option[]>([]);
+const isLoadingProviders = ref(false);
+
+const providerModelValue = computed<string | null>({
+    get: () => localForm.value.provider_name ?? null,
+    set: (value) => {
+        localForm.value.provider_name = typeof value === 'string' && value.trim() !== '' ? value : null;
+    },
+});
+
+async function fetchProviderOptions(search = ''): Promise<void> {
+    isLoadingProviders.value = true;
+    try {
+        const [res1, res2] = await Promise.all([
+            axios.get('/contactos/data', { params: { search, contact_type: 'proveedor', per_page: 20 } }),
+            axios.get('/contactos/data', { params: { search, contact_type: 'cliente_proveedor', per_page: 20 } }),
+        ]);
+        const rows = [...(res1.data?.data ?? []), ...(res2.data?.data ?? [])];
+        const seen = new Set<string>();
+        providerOptions.value = rows.reduce<Option[]>((options, contact: any) => {
+            const name = contact?.full_name?.trim();
+            if (name && !seen.has(name)) {
+                seen.add(name);
+                options.push({ id: name, name });
+            }
+            return options;
+        }, []);
+    } catch (err) {
+        console.error('Error cargando proveedores:', err);
+        providerOptions.value = [];
+    } finally {
+        isLoadingProviders.value = false;
+    }
+}
+
 function scrollToDialogTop() {
     const dialogEl = document.querySelector('[role="dialog"]');
     dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -300,6 +337,7 @@ async function initializeDialog() {
         resetForm();
 
         await fetchUsers();
+        void fetchProviderOptions();
 
         if (props.dialogType === 'edit' && props.form?.id) {
             const { data } = await axios.get(`${PURCHASE_REQUESTS_BASE_URL}/${props.form.id}`);
@@ -680,13 +718,26 @@ watch(dialogOpen, (isOpen) => {
                                                 aria-label="Ayuda sobre proveedor"
                                             />
                                         </div>
+                                        <CreatableSelectField
+                                            v-if="!isReadOnly"
+                                            data-testselect="input-proveedor"
+                                            label=""
+                                            v-model="providerModelValue"
+                                            :options="providerOptions"
+                                            :loading="isLoadingProviders"
+                                            :allow-custom="true"
+                                            custom-option-label='Usar "{value}"'
+                                            searchable
+                                            placeholder="Escribe el nombre del proveedor"
+                                            search-placeholder="Buscar proveedor..."
+                                            @search="fetchProviderOptions"
+                                        />
                                         <InputField
+                                            v-else
                                             dusk="input-proveedor"
                                             label=""
                                             :model-value="localForm.provider_name ?? ''"
-                                            @update:model-value="localForm.provider_name = $event || null"
-                                            placeholder="Escribe el nombre del proveedor"
-                                            :readonly="isReadOnly"
+                                            readonly
                                         />
                                     </div>
 

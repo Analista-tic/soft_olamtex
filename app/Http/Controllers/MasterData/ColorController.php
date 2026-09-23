@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\MasterData\Color;
 use App\Services\MasterData\ColorService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ColorController extends Controller
 {
@@ -16,16 +17,23 @@ class ColorController extends Controller
         return $this->service->getAll();
     }
 
+    public function nextCode()
+    {
+        return response()->json(['code' => $this->service->previewNextCode()]);
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate([
             'name' => 'required|string|max:100|unique:colors,name',
+            'code' => 'nullable|string|max:3',
             'rgb' => ['nullable', 'string', 'regex:/^\d{1,3},\d{1,3},\d{1,3}$/'],
             'hexadecimal' => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'description' => 'nullable|string|max:500',
         ]);
 
         $data['name'] = trim((string) $data['name']);
+        $data['code'] = isset($data['code']) && trim((string) $data['code']) !== '' ? trim((string) $data['code']) : null;
         $data['rgb'] = isset($data['rgb']) && trim((string) $data['rgb']) !== '' ? trim((string) $data['rgb']) : null;
         $data['hexadecimal'] = isset($data['hexadecimal'])
             && trim((string) $data['hexadecimal']) !== ''
@@ -42,14 +50,14 @@ class ColorController extends Controller
     public function update(Request $request, Color $color)
     {
         $data = $request->validate([
-            'name'        => [
+            'name' => [
                 'required',
                 'string',
                 'max:100',
-                \Illuminate\Validation\Rule::unique('colors', 'name')
+                Rule::unique('colors', 'name')
                     ->ignore($color->id),
             ],
-            'rgb'         => ['nullable', 'string', 'regex:/^\d{1,3},\d{1,3},\d{1,3}$/'],
+            'rgb' => ['nullable', 'string', 'regex:/^\d{1,3},\d{1,3},\d{1,3}$/'],
             'hexadecimal' => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'description' => 'nullable|string|max:500',
         ]);
@@ -77,6 +85,7 @@ class ColorController extends Controller
     {
         try {
             $this->service->delete($color);
+
             return response()->noContent();
         } catch (\RuntimeException $e) {
             return response()->json([

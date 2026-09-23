@@ -67,3 +67,48 @@ it('saves a code on a subgroup through the update endpoint', function () {
     $response->assertOk();
     expect($subGroup->fresh()->code)->toBe('30');
 });
+
+it('auto-assigns a consecutive code when creating a group without one', function () {
+    $response = $this->postJson(route('categorias.groups.store'), [
+        'name' => 'Grupo Sin Codigo Test',
+    ]);
+
+    $response->assertCreated();
+    $group = CategoryGroup::where('name', 'Grupo Sin Codigo Test')->firstOrFail();
+    expect($group->code)->not->toBeNull()->and($group->code)->toMatch('/^\d{2}$/');
+});
+
+it('auto-assigns a distinct consecutive code to each subgroup created in the same request', function () {
+    $group = CategoryGroup::create(['name' => 'Grupo Multi Subgrupo Codigo Test']);
+
+    $response = $this->postJson(route('categorias.subgroups.store'), [
+        'category_group_id' => $group->id,
+        'subgroups' => [
+            ['name' => 'Subgrupo Auto Uno'],
+            ['name' => 'Subgrupo Auto Dos'],
+        ],
+    ]);
+
+    $response->assertOk();
+    $created = CategorySubGroup::where('category_group_id', $group->id)->orderBy('id')->get();
+
+    expect($created)->toHaveCount(2);
+    expect($created[0]->code)->not->toBeNull();
+    expect($created[1]->code)->not->toBeNull();
+    expect($created[0]->code)->not->toBe($created[1]->code);
+});
+
+it('stores and returns the subgroup name in uppercase, not title case', function () {
+    $group = CategoryGroup::create(['name' => 'Grupo Mayusculas Test']);
+
+    $response = $this->postJson(route('categorias.subgroups.store'), [
+        'category_group_id' => $group->id,
+        'subgroups' => [
+            ['name' => 'algodon peinado'],
+        ],
+    ]);
+
+    $response->assertOk();
+    $response->assertJsonPath('data.0.name', 'ALGODON PEINADO');
+    expect(CategorySubGroup::where('category_group_id', $group->id)->first()->name)->toBe('ALGODON PEINADO');
+});

@@ -1,10 +1,15 @@
 <script lang="ts">
 import type { Tax as CachedTax } from '@/domain/Finance';
-import type { AdditionalField as CachedAdditionalField, CategorySubGroup as CachedCategorySubGroup } from '@/domain/MasterData';
+import type {
+    AdditionalField as CachedAdditionalField,
+    CategoryGroup as CachedCategoryGroup,
+    CategorySubGroup as CachedCategorySubGroup,
+} from '@/domain/MasterData';
 
 type CachedMaterialNameOption = { id: number; nombre: string; base_nombre: string | null; factor?: number | null };
 
 let cachedCategorySubGroups: CachedCategorySubGroup[] | null = null;
+let cachedCategoryGroups: CachedCategoryGroup[] | null = null;
 let cachedTaxes: CachedTax[] | null = null;
 let cachedAdditionalFields: CachedAdditionalField[] | null = null;
 let cachedFabricNameOptions: CachedMaterialNameOption[] | null = null;
@@ -12,10 +17,7 @@ let cachedYarnNameOptions: CachedMaterialNameOption[] | null = null;
 </script>
 
 <script setup lang="ts">
-import axios from 'axios';
-import { ExternalLink, Image, Plus, Trash } from 'lucide-vue-next';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-
+import ColorPickerSelect from '@/components/ColorPickerSelect.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import CreatableSelectField from '@/components/CreatableSelectField.vue';
 import FormHeader from '@/components/FormHeader.vue';
@@ -24,44 +26,39 @@ import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import InputIntegerField from '@/components/InputIntegerField.vue';
 import SelectField from '@/components/SelectField.vue';
-
+import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { DialogFooter } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-
-import ColorPickerSelect from '@/components/ColorPickerSelect.vue';
-import TextareaField from '@/components/TextareaField.vue';
+import { Tabs,TabsList,TabsTrigger } from '@/components/ui/tabs';
+import unitMeasureData from '@/data/unitMeasures.json';
+import type { Tax } from '@/domain/Finance';
+import type { Warehouse } from '@/domain/inventory';
+import type {
+AdditionalField,
+AdditionalFieldPayload,
+AdditionalFieldType,
+CategoryGroup,
+CategorySubGroup,
+ExtraFields,
+Item,
+} from '@/domain/MasterData';
+import type { Option } from '@/domain/shared/types';
+import { formatRequiredFieldsMessage } from '@/lib/alert-format';
+import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
+import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
+import { DEFAULT_TAX_LABEL,formatTaxOptionLabel,isDefaultTax } from '@/lib/taxes';
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 import WarehouseLocationDialog from '@/pages/Inventory/WarehouseLocation/WarehouseLocationDialog.vue';
 import AdditionalFieldDialog from '@/pages/MasterData/AdditionalFields/AdditionalFieldDialog.vue';
 import ExtraFieldsForm from '@/pages/MasterData/Item/ExtraFieldsForm.vue';
-
-import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
-import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
-
-import type { Tax } from '@/domain/Finance';
-import type { Warehouse } from '@/domain/inventory';
-import type {
-    AdditionalField,
-    AdditionalFieldPayload,
-    AdditionalFieldType,
-    CategoryGroup,
-    CategorySubGroup,
-    ExtraFields,
-    Item,
-} from '@/domain/MasterData';
-import type { Option } from '@/domain/shared/types';
-
-import { formatRequiredFieldsMessage } from '@/lib/alert-format';
-import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 import { useAuthStore } from '@/stores/auth';
-
-import unitMeasureData from '@/data/unitMeasures.json';
-
-type DialogType = 'create' | 'edit' | 'view';
+import axios from 'axios';
+import { ExternalLink,Image,Plus,Trash } from 'lucide-vue-next';
+import { computed,nextTick,onBeforeUnmount,onMounted,ref,watch } from 'vue';
+Type = 'create' | 'edit' | 'view';
 type SaveMode = Exclude<DialogType, 'view'>;
 
 const props = withDefaults(
@@ -337,6 +334,7 @@ const canCreateTaxes = computed(() => authStore.can('crear impuestos'));
 const canCreateManualReference = computed(() => authStore.can('crear referencia manual item'));
 const canCreateAdditionalFields = computed(() => authStore.can('crear campos adicionales'));
 const canCreateWarehouses = computed(() => authStore.can('crear bodegas'));
+const canEnableItems = computed(() => authStore.can('habilitar item'));
 
 const groupOptions = computed(() =>
     categoryGroups.value.map((group) => ({
@@ -711,26 +709,28 @@ function handleLocationCreated(location: { id: number; name: string }) {
 
 async function fetchCategorySubGroups(force = false) {
     try {
-        const raw: any[] =
+        const subGroupsPromise: Promise<any[]> =
             !force && props.preloadedSubGroups && props.preloadedSubGroups.length > 0
-                ? props.preloadedSubGroups
+                ? Promise.resolve(props.preloadedSubGroups)
                 : !force && cachedCategorySubGroups
-                  ? cachedCategorySubGroups
-                  : (
-                        await axios.get(catalogLookupRoutes.categorySubGroups, {
-                            params: { per_page: 1000 },
-                        })
-                    ).data.data;
+                  ? Promise.resolve(cachedCategorySubGroups)
+                  : axios.get(catalogLookupRoutes.categorySubGroups, { params: { per_page: 1000 } }).then((res) => res.data.data);
 
-        cachedCategorySubGroups = raw;
+        const groupsPromise: Promise<any[]> =
+            !force && cachedCategoryGroups
+                ? Promise.resolve(cachedCategoryGroups)
+                : axios.get(catalogLookupRoutes.categoryGroups).then((res) => res.data);
 
-        categorySubGroups.value = [...raw];
+        const [rawSubGroups, rawGroups] = await Promise.all([subGroupsPromise, groupsPromise]);
 
-        const seen = new Set<number>();
-        categoryGroups.value = (raw as any[])
-            .map((sg: any) => sg.category_group)
-            .filter((g: any) => g && !seen.has(g.id) && seen.add(g.id))
-            .sort((a: any, b: any) => a.name.localeCompare(b.name));
+        cachedCategorySubGroups = rawSubGroups;
+        cachedCategoryGroups = rawGroups;
+
+        categorySubGroups.value = [...rawSubGroups];
+        // Se obtienen de su propio endpoint (no derivados de los subgrupos): un
+        // grupo recién creado sin subgrupos aún no aparecería nunca si se
+        // dedujera solo de sg.category_group de los subgrupos ya cargados.
+        categoryGroups.value = [...rawGroups].sort((a: any, b: any) => a.name.localeCompare(b.name));
 
         syncGroupFromSubgroup();
     } catch (error) {
@@ -990,6 +990,7 @@ async function handleCreateGroupInline(name: string): Promise<Option> {
     const response = await axios.post<CategoryGroup>('/categorias/grupos', { name });
     const created = response.data;
     categoryGroups.value.push(created);
+    cachedCategoryGroups = [...(cachedCategoryGroups ?? []), created];
     return { id: String(created.id), name: created.name };
 }
 
@@ -1004,14 +1005,15 @@ async function handleCreateSubGroupInline(name: string): Promise<Option> {
         throw new Error('Debes seleccionar un grupo antes de crear un subgrupo');
     }
 
-    await axios.post('/categorias/subgrupos', {
+    const response = await axios.post('/categorias/subgrupos', {
         name,
         category_group_id: Number(groupId),
     });
 
-    await fetchCategorySubGroups(true);
-    const created = categorySubGroups.value.find((sg) => sg.name === name && String(sg.category_group_id) === groupId);
+    const created = response.data?.data?.[0];
     if (!created) throw new Error('Subgrupo no encontrado tras creación');
+
+    await fetchCategorySubGroups(true);
     return { id: String(created.id), name: created.name };
 }
 
@@ -1155,6 +1157,14 @@ const NEGATIVE_STOCK_WARNING =
 const hasNegativeStock = computed(() => warehouseStocks.value.some((w) => Number(w.quantity) < 0));
 
 const negativeMovementBool = computed(() => localForm.value.negative_movement === 1 || localForm.value.negative_movement === true);
+
+const statusBool = computed(() => localForm.value.status === 1 || localForm.value.status === true);
+
+function handleStatusToggle(val: boolean | 'indeterminate') {
+    const next = val === true;
+    if (next && !canEnableItems.value) return;
+    localForm.value.status = next;
+}
 
 function showNegativeMovementWarning() {
     errorType.value = 'warning';
@@ -1312,6 +1322,9 @@ async function handleSubmit() {
     }
 
     if (!unitMeasure.value) requiredErrors.push('Unidad de medida');
+
+    if (materialKind.value === 'fabric' && !fabricNameModel.value) requiredErrors.push('Nombre de tela');
+    if (materialKind.value === 'yarn' && !yarnNameModel.value) requiredErrors.push('Nombre de hilaza');
 
     if (props.showAdvancedSections && !localForm.value.income_account_id) requiredErrors.push('Cuenta de ingreso');
 
@@ -1673,6 +1686,7 @@ watch(
     async (value) => {
         if (value) {
             await fetchAdditionalFields(true);
+            await fetchCategorySubGroups(true);
             await hydrateOpenForm();
         } else {
             isItemHydrationLoading.value = false;
@@ -2302,6 +2316,27 @@ onBeforeUnmount(() => {
                                     {{ negativeMovementBool ? 'Permitido' : 'No permitido' }}
                                 </span>
                             </div>
+                        </div>
+
+                        <div class="md:col-span-1">
+                            <template v-if="isViewMode">
+                                <Label>Estado</Label>
+                                <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                    {{ statusBool ? 'Habilitado' : 'Deshabilitado' }}
+                                </div>
+                            </template>
+                            <template v-else>
+                                <div class="mb-2 flex items-center gap-1">
+                                    <Label class="text-sm font-medium">Estado</Label>
+                                    <HelpTooltip v-if="!canEnableItems" text="No tienes permiso para habilitar ítems." />
+                                </div>
+                                <div class="flex items-center gap-2 pt-1">
+                                    <Switch :checked="statusBool" :disabled="!canEnableItems && !statusBool" @update:checked="handleStatusToggle" />
+                                    <span class="text-sm text-muted-foreground">
+                                        {{ statusBool ? 'Habilitado' : 'Deshabilitado' }}
+                                    </span>
+                                </div>
+                            </template>
                         </div>
                     </div>
 

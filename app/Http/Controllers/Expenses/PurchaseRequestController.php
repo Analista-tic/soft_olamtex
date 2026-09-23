@@ -60,8 +60,9 @@ class PurchaseRequestController extends Controller
 
     public function store(Request $request)
     {
+        $payload = $this->validateRequestPayload($request);
+
         try {
-            $payload = $this->validateRequestPayload($request);
             $payload['items'] = $this->prepareItemsPayload($request, $payload['items'] ?? []);
 
             $purchaseRequest = $this->service->create($payload);
@@ -88,9 +89,9 @@ class PurchaseRequestController extends Controller
     public function update(Request $request, PurchaseRequest $purchaseRequest)
     {
         $purchaseRequest = $this->service->findAccessibleOrFail($purchaseRequest, $request->user());
+        $payload = $this->validateRequestPayload($request, true);
 
         try {
-            $payload = $this->validateRequestPayload($request, true);
             $payload['items'] = $this->prepareItemsPayload($request, $payload['items'] ?? [], $purchaseRequest);
 
             $updated = $this->service->update($purchaseRequest, $payload);

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import InputField from '@/components/InputField.vue';
-import { normalizeChipDisplay, normalizeChipKey, normalizeUniqueChipList, appendUniqueChip, normalizeChipTitleCaseDisplay } from '@/lib/textNormalizer';
+import { normalizeChipDisplay, normalizeChipKey, normalizeUniqueChipList, appendUniqueChip, normalizeChipTitleCaseDisplay, normalizeChipUpperCaseDisplay } from '@/lib/textNormalizer';
 import type { ChipCaseMode } from '@/lib/textNormalizer';
 import { Plus } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
@@ -49,7 +49,12 @@ watch(
     () => props.modelValue,
     (values) => {
         const normalized = normalizeUniqueChipList(values, undefined, props.caseMode);
-        const normalizeValue = props.caseMode === 'title-case' ? normalizeChipTitleCaseDisplay : normalizeChipDisplay;
+        const normalizeValue =
+            props.caseMode === 'title-case'
+                ? normalizeChipTitleCaseDisplay
+                : props.caseMode === 'upper-case'
+                  ? normalizeChipUpperCaseDisplay
+                  : normalizeChipDisplay;
         const hasDiff =
             normalized.length !== values.length ||
             normalized.some((value, index) => value !== normalizeValue(values[index]));

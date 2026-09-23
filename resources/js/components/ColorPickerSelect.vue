@@ -40,12 +40,15 @@ const isCreating = ref(false);
 const createName = ref('');
 const createHex = ref('#9ca3af');
 const createDescription = ref('');
+const createCode = ref('');
+const suggestedCode = ref('');
 const createError = ref('');
 const isSaving = ref(false);
 const inlineInputRef = ref<HTMLInputElement | null>(null);
 
 const colorNameInputId = `color-name-${Math.random().toString(36).slice(2)}`;
 const colorHexInputId = `color-hex-${Math.random().toString(36).slice(2)}`;
+const colorCodeInputId = `color-code-${Math.random().toString(36).slice(2)}`;
 
 const NO_APLICA_ID = '';
 
@@ -260,11 +263,25 @@ onMounted(() => {
     }
 });
 
+async function fetchNextCode() {
+    try {
+        const { data } = await axios.get('/colors/next-code');
+        createCode.value = data?.code ?? '';
+        suggestedCode.value = data?.code ?? '';
+    } catch {
+        createCode.value = '';
+        suggestedCode.value = '';
+    }
+}
+
 function openInlineCreate() {
     createName.value = '';
     createHex.value = '#9ca3af';
+    createCode.value = '';
+    suggestedCode.value = '';
     createError.value = '';
     isCreating.value = true;
+    void fetchNextCode();
     setTimeout(() => {
         inlineInputRef.value?.focus();
     }, 80);
@@ -276,6 +293,8 @@ function cancelInlineCreate() {
     createName.value = '';
     createHex.value = '#9ca3af';
     createDescription.value = '';
+    createCode.value = '';
+    suggestedCode.value = '';
     createError.value = '';
     colorFormat.value = 'hex';
     searchTerm.value = '';
@@ -297,6 +316,8 @@ async function submitInlineCreate() {
         return;
     }
 
+    const codeChanged = createCode.value.trim() !== suggestedCode.value.trim();
+
     isSaving.value = true;
     try {
         const { data } = await axios.post('/colors', {
@@ -304,12 +325,15 @@ async function submitInlineCreate() {
             rgb,
             hexadecimal: createHex.value.toUpperCase(),
             ...(createDescription.value.trim() ? { description: createDescription.value.trim() } : {}),
+            ...(codeChanged ? { code: createCode.value.trim() } : {}),
         });
         await fetchColors();
         isCreating.value = false;
         createName.value = '';
         createHex.value = '#9ca3af';
         createDescription.value = '';
+        createCode.value = '';
+        suggestedCode.value = '';
         createError.value = '';
         colorFormat.value = 'hex';
         searchTerm.value = '';
@@ -318,7 +342,9 @@ async function submitInlineCreate() {
         const created = colors.value.find((c) => c.id === newId) ?? null;
         emit('selected-color', created);
     } catch (error: any) {
-        createError.value = error?.response?.data?.message || 'No se pudo crear el color.';
+        const errors = error?.response?.data?.errors;
+        const firstFieldError = errors ? (Object.values(errors)[0] as string[] | undefined)?.[0] : undefined;
+        createError.value = firstFieldError || error?.response?.data?.message || 'No se pudo crear el color.';
     } finally {
         isSaving.value = false;
     }
@@ -479,6 +505,21 @@ onBeforeUnmount(stopFloatingUpdates);
                                             v-model="createName"
                                             type="text"
                                             placeholder="Nombre del color"
+                                            class="h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                                            :disabled="isSaving"
+                                            @keydown.enter.prevent="submitInlineCreate"
+                                            @keydown.esc.prevent="cancelInlineCreate"
+                                        />
+                                    </div>
+
+                                    <div class="grid gap-1.5">
+                                        <Label :for="colorCodeInputId" class="text-xs">Código</Label>
+                                        <input
+                                            :id="colorCodeInputId"
+                                            v-model="createCode"
+                                            type="text"
+                                            maxlength="3"
+                                            placeholder="Sugerido automáticamente"
                                             class="h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                                             :disabled="isSaving"
                                             @keydown.enter.prevent="submitInlineCreate"
