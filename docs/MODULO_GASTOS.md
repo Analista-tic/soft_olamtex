@@ -1,6 +1,6 @@
 # Módulo de Gastos
 
-**Última actualización:** 2026-06-12
+**Última actualización:** 2026-09-25
 **Propósito:** Explicar qué hace el módulo de Gastos, cómo funciona, qué datos maneja y cómo se conecta con el resto del sistema.
 
 ---
@@ -121,6 +121,24 @@ Datos principales:
 - Razón de rechazo e imagen de evidencia si aplica
 - Pagos realizados
 
+**Cómo se crea y edita:** siempre desde un diálogo en el listado (no hay páginas `crear`/`editar`). Hay dos diálogos, uno por tipo de factura:
+- `PurchaseInvoiceDialog.vue`: factura de compra normal (listado `PurchaseInvoices/Index.vue`).
+- `PurchaseInvoiceDialogTelas.vue`: factura de tela (listado `PurchaseInvoices/IndexFabric.vue`), con sus campos propios (código, color y ancho del proveedor; longitud en metros).
+
+Cada listado usa el mismo diálogo para crear, editar y ver (solo lectura). Al facturar desde una orden de compra, el listado se abre con `?orden=ID` y el diálogo carga esa orden con las cantidades pendientes.
+
+La lógica que es igual en ambos tipos está compartida y no debe copiarse de nuevo:
+
+| Pieza | ¿Qué resuelve? |
+|-------|----------------|
+| `composables/usePurchaseInvoiceTotals.ts` | Subtotal, IVA, retenciones, total y total a pagar |
+| `domain/Expenses/withholdings.ts` | Base y valor de cada retención (debe coincidir con `PurchaseWithholdingCalculator` del backend) |
+| `composables/usePurchaseOrderDifference.ts` | Si la factura difiere de su orden (precio, cantidad pendiente, total) |
+| `composables/useSupplierContacts.ts` | Proveedores paginados de 30 en 30 para el selector |
+| `PurchaseInvoiceSummary.vue` | Cuadro de totales y retenciones |
+| `PurchaseInvoiceWithholdingsTable.vue` | Tabla de retenciones (la base vacía se sugiere como valor gris y se recalcula sola) |
+| `lib/date.ts` | Lectura y formato de fechas (el servidor envía fechas ISO largas) |
+
 ### 6.4 Comprobante de egreso (`finance_expense_vouchers`)
 Para gastos menores o pagos directos que no pasan por el flujo de solicitud/orden.
 
@@ -209,6 +227,9 @@ Datos principales:
 | `app/Http/Controllers/Expenses/PurchaseRequestController.php` | Lógica de solicitudes |
 | `app/Http/Controllers/Expenses/PurchaseOrderController.php` | Lógica de órdenes de compra |
 | `app/Http/Controllers/Expenses/PurchaseInvoiceController.php` | Lógica de facturas de compra |
+| `app/Http/Controllers/Expenses/PurchaseInvoiceTelaController.php` | Lógica de facturas de tela |
+| `resources/js/pages/Expenses/PurchaseInvoices/PurchaseInvoiceDialog.vue` | Diálogo de factura normal |
+| `resources/js/pages/Expenses/PurchaseInvoices/PurchaseInvoiceDialogTelas.vue` | Diálogo de factura de tela |
 | `app/Http/Controllers/Expenses/ExpenseVoucherController.php` | Lógica de comprobantes de egreso |
 | `resources/js/pages/Expenses/PurchaseRequests/Index.vue` | Pantalla de solicitudes |
 | `resources/js/pages/Expenses/PurchaseOrders/Index.vue` | Pantalla de órdenes |
