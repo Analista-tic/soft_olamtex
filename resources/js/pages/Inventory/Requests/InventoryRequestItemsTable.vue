@@ -1,20 +1,11 @@
-<script lang="ts">
-import type { Item as CachedItem } from '@/domain/MasterData';
-
-let cachedCatalogItems: CachedItem[] | null = null;
-let catalogItemsPromise: Promise<CachedItem[]> | null = null;
-</script>
-
 <script setup lang="ts">
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { Item } from '@/domain/MasterData';
-import axios from 'axios';
-import { ImagePlus, X } from 'lucide-vue-next';
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useItemsCatalog } from '@/composables/useItemsCatalog';
+import { onBeforeUnmount, onMounted, computed, ref, watch } from 'vue';
 
 type RequestItem = {
     id?: number | null;
@@ -30,7 +21,8 @@ const props = defineProps<{ items: RequestItem[]; readonly?: boolean }>();
 const emit = defineEmits(['update:items']);
 
 const localItems = ref<RequestItem[]>([]);
-const catalogItems = ref<Item[]>([]);
+const { items: catalogItemsRaw, fetch: fetchItemsCatalog } = useItemsCatalog();
+const catalogItems = computed(() => [...catalogItemsRaw.value].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })));
 const fileInputRefs = ref<Record<number, HTMLInputElement | null>>({});
 const persistedImageUrls = ref<Record<number, string | null>>({});
 const isSyncingItems = ref(false);
@@ -65,20 +57,7 @@ function revokeBlobUrl(url?: string | null) {
 }
 
 async function fetchItems() {
-    if (cachedCatalogItems) {
-        catalogItems.value = cachedCatalogItems;
-        return;
-    }
-    if (!catalogItemsPromise) {
-        catalogItemsPromise = axios
-            .get('/item/data', { params: { per_page: 1000 } })
-            .then((res) => ((res.data.data || []) as Item[]).sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })))
-            .finally(() => {
-                catalogItemsPromise = null;
-            });
-    }
-    cachedCatalogItems = await catalogItemsPromise;
-    catalogItems.value = cachedCatalogItems;
+    await fetchItemsCatalog();
 }
 
 function normalizeItem(item: Partial<RequestItem>, index: number): RequestItem {

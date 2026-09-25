@@ -21,6 +21,7 @@ import CreatableSelectField from '@/components/CreatableSelectField.vue';
 import FormHeader from '@/components/FormHeader.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
+import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import InputField from '@/components/InputField.vue';
 import InputIntegerField from '@/components/InputIntegerField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -40,6 +41,7 @@ import AdditionalFieldDialog from '@/pages/MasterData/AdditionalFields/Additiona
 import ExtraFieldsForm from '@/pages/MasterData/Item/ExtraFieldsForm.vue';
 
 import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
+import { broadcastCatalogInvalidated, onCatalogInvalidatedElsewhere } from '@/lib/crossTabSync';
 import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
 
 import type { Tax } from '@/domain/Finance';
@@ -120,6 +122,7 @@ type ItemWarehouseStockSource = {
     stock_min?: number | string | null;
     stock_max?: number | string | null;
     location_id?: number | string | null;
+    unit_price?: number | string | null;
     weighted_average_price?: number | string | null;
     warehouse?: {
         id?: number | string | null;
@@ -209,6 +212,10 @@ const warehouses = ref<Warehouse[]>([]);
 const warehouseLocations = ref<{ id: number; name: string }[]>([]);
 const categorySubGroups = ref<CategorySubGroup[]>([]);
 const categoryGroups = ref<CategoryGroup[]>([]);
+let categorySubGroupsRequestToken = 0;
+// Fuerza el remount del selector de Subgrupo cada vez que categorySubGroups se
+// refresca en segundo plano — ver el comentario en fetchCategorySubGroups().
+const subGroupsRefreshKey = ref(0);
 
 type MaterialNameOption = { id: number; nombre: string; base_nombre: string | null; factor?: number | null };
 const fabricNameOptions = ref<MaterialNameOption[]>([]);
@@ -251,7 +258,7 @@ type WarehouseStockEntry = {
     stock_min: number;
     stock_max: number;
     location_id: number | string | null;
-    unit_price?: number | null;
+    unit_price?: number;
     initial_date?: string | null;
 };
 const warehouseStocks = ref<WarehouseStockEntry[]>([]);
@@ -662,10 +669,6 @@ function applyFormData(source: ItemFormSource) {
     fillExtraFields(source.extra_fields);
     warehouseStocks.value = normalizeWarehouseStocksFromSource(source);
 
-    if (warehouseStocks.value.length === 0 && !isViewMode.value && currentItemType.value !== 'service') {
-        addWarehouseStock();
-    }
-
     imageFile.value = null;
     if (fileInputRef.value) fileInputRef.value.value = '';
 
@@ -698,8 +701,8 @@ async function fetchWarehouses() {
 async function fetchWarehouseLocations() {
     try {
         const { data } = await axios.get(catalogLookupRoutes.warehouseLocations, { params: { per_page: 1000, status_active: true } });
-        warehouseLocations.value = (data.data ?? [])
-            .map((l: any) => ({ id: l.id, name: l.name }))
+        const locations = (data.data ?? []) as Array<{ id: number; name: string }>;
+        warehouseLocations.value = locations
             .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
     } catch (error) {
         console.error('Error al obtener las ubicaciones:', error);
@@ -721,6 +724,11 @@ function handleLocationCreated(location: { id: number; name: string }) {
 }
 
 async function fetchCategorySubGroups(force = false) {
+    // Token de la llamada en curso: si dos fetch se solapan (ej. la apertura del
+    // diálogo + un aviso de sincronía cross-tab casi al mismo tiempo), descarta la
+    // respuesta que ya no es la más reciente en vez de dejar que una más vieja pise
+    // a una más nueva.
+    const token = ++categorySubGroupsRequestToken;
     try {
         // Los grupos vienen de su propio endpoint (no se derivan de los subgrupos):
         // así un grupo recién creado y aún sin subgrupos aparece de inmediato.
@@ -737,13 +745,21 @@ async function fetchCategorySubGroups(force = false) {
                         })
                     ).data.data;
 
-        cachedCategorySubGroups = raw;
+        const groupsResponse = await groupsRequest;
+        if (token !== categorySubGroupsRequestToken) return;
 
+        cachedCategorySubGroups = raw;
         categorySubGroups.value = [...raw];
-        categoryGroups.value = [...(await groupsRequest).data].sort((a, b) => a.name.localeCompare(b.name));
+        categoryGroups.value = [...groupsResponse.data].sort((a, b) => a.name.localeCompare(b.name));
+        // Fuerza un remount del selector de subgrupo: su lista desplegada no se estaba
+        // repintando sola cuando categorySubGroups cambiaba en segundo plano (ej. por
+        // sincronía cross-tab) mientras el combobox permanecía cerrado/montado con el
+        // mismo grupo seleccionado.
+        subGroupsRefreshKey.value++;
 
         syncGroupFromSubgroup();
     } catch (error) {
+        if (token !== categorySubGroupsRequestToken) return;
         console.error('Error al obtener los subgrupos:', error);
     }
 }
@@ -755,17 +771,34 @@ async function fetchMaterialNameOptions(force = false) {
         return;
     }
 
+    if (!authStore.can('ver nombres materiales')) {
+        fabricNameOptions.value = [];
+        yarnNameOptions.value = [];
+        errorType.value = 'warning';
+        errorMessage.value = 'No puedes ver los nombres de tela e hilaza porque no tienes el permiso «ver nombres materiales».';
+        return;
+    }
+
     try {
-        const [fabricResponse, yarnResponse] = await Promise.all([
+        const responses = await Promise.allSettled([
             axios.get(route('nombres-tela.options')),
             axios.get(route('nombres-hilaza.options')),
         ]);
-        cachedFabricNameOptions = Array.isArray(fabricResponse.data) ? fabricResponse.data : [];
-        cachedYarnNameOptions = Array.isArray(yarnResponse.data) ? yarnResponse.data : [];
+        const [fabricResponse, yarnResponse] = responses;
+        cachedFabricNameOptions = fabricResponse.status === 'fulfilled' && Array.isArray(fabricResponse.value.data) ? fabricResponse.value.data : [];
+        cachedYarnNameOptions = yarnResponse.status === 'fulfilled' && Array.isArray(yarnResponse.value.data) ? yarnResponse.value.data : [];
         fabricNameOptions.value = cachedFabricNameOptions;
         yarnNameOptions.value = cachedYarnNameOptions;
+
+        if (responses.some((response) => response.status === 'rejected' && response.reason?.response?.status === 403)) {
+            errorType.value = 'warning';
+            errorMessage.value = 'No puedes ver uno o más catálogos de tela e hilaza porque no tienes el permiso «ver nombres materiales».';
+        }
     } catch (error) {
-        console.error('Error al obtener los nombres de tela/hilaza:', error);
+        fabricNameOptions.value = [];
+        yarnNameOptions.value = [];
+        errorType.value = 'error';
+        errorMessage.value = 'No fue posible cargar los nombres de tela e hilaza.';
     }
 }
 
@@ -930,9 +963,6 @@ async function hydrateOpenForm() {
         // Refetch en cada apertura: grupos/subgrupos pueden haber cambiado en otra pantalla.
         await loadFormCatalogs(true);
         warehouseStocks.value = [];
-        if (currentItemType.value !== 'service') {
-            addWarehouseStock();
-        }
         void loadSecondaryFormData();
         updateNameField();
         syncGroupFromSubgroup();
@@ -982,6 +1012,12 @@ function normalizeWarehouseStocksFromSource(source: ItemFormSource | null | unde
                 stock_min: toNumericValue(row.stock_min),
                 stock_max: toNumericValue(row.stock_max),
                 location_id: (Number.isFinite(parsedLocationId) ? parsedLocationId : null) as number | null,
+                unit_price:
+                    row.unit_price !== undefined && row.unit_price !== null
+                        ? toNumericValue(row.unit_price)
+                        : row.weighted_average_price !== undefined && row.weighted_average_price !== null
+                          ? toNumericValue(row.weighted_average_price)
+                          : undefined,
             } satisfies WarehouseStockEntry;
         })
         .filter((row) => row.warehouse_id !== null);
@@ -1006,6 +1042,7 @@ async function handleCreateGroupInline(name: string): Promise<Option> {
     const response = await axios.post<CategoryGroup>('/categorias/grupos', { name });
     const created = response.data;
     categoryGroups.value.push(created);
+    broadcastCatalogInvalidated('category_sub_groups');
     return { id: String(created.id), name: created.name };
 }
 
@@ -1030,6 +1067,7 @@ async function handleCreateSubGroupInline(name: string): Promise<Option> {
     if (!created) throw new Error('El servidor no devolvió el subgrupo creado.');
 
     await fetchCategorySubGroups(true);
+    broadcastCatalogInvalidated('category_sub_groups');
     return { id: String(created.id), name: created.name };
 }
 
@@ -1048,6 +1086,7 @@ async function handleTaxDialogSubmit(formData: TaxDialogSubmitPayload) {
     try {
         const { data: createdTax } = await axios.post('/impuestos', formData);
         await fetchTaxes(true);
+        broadcastCatalogInvalidated('taxes');
         isTaxDialogOpen.value = false;
         if (createdTax?.id) localForm.value.tax_id = createdTax.id;
     } catch (error: any) {
@@ -1080,6 +1119,7 @@ async function handleAdditionalFieldDialogSubmit(field: AdditionalFieldPayload) 
         delete payload.label;
         await axios.post('/campos-adicionales', payload);
         await fetchAdditionalFields(true);
+        broadcastCatalogInvalidated('additional_fields');
         additionalFieldDialogOpen.value = false;
     } catch (error: any) {
         console.error('Error creando campo adicional', error);
@@ -1111,7 +1151,7 @@ function addWarehouseStock() {
         stock_min: 0,
         stock_max: 0,
         location_id: null,
-        unit_price: null,
+        unit_price: undefined,
         initial_date: new Date().toISOString().split('T')[0],
     });
 }
@@ -1147,24 +1187,10 @@ function openImageZoom() {
     isImageZoomOpen.value = true;
 }
 
-function closeImageZoom() {
-    isImageZoomOpen.value = false;
-}
-
-function handleImageZoomKey(event: KeyboardEvent) {
-    if (event.key === 'Escape') closeImageZoom();
-}
-
-watch(isImageZoomOpen, (open) => {
-    if (typeof window === 'undefined') return;
-    if (open) window.addEventListener('keydown', handleImageZoomKey);
-    else window.removeEventListener('keydown', handleImageZoomKey);
-});
-
 watch(
     () => imagePreview.value,
     (value) => {
-        if (!value) closeImageZoom();
+        if (!value) isImageZoomOpen.value = false;
     },
 );
 
@@ -1339,7 +1365,26 @@ async function handleSubmit() {
 
     if (!unitMeasure.value) requiredErrors.push('Unidad de medida');
 
+    if (!colorModel.value) requiredErrors.push('Color');
+
     if (props.showAdvancedSections && !localForm.value.income_account_id) requiredErrors.push('Cuenta de ingreso');
+
+    const hasInventoryDetail = warehouseStocks.value.length > 0;
+    const incompleteInventoryDetail = warehouseStocks.value.some(
+        (warehouseStock) =>
+            !Number(warehouseStock.warehouse_id) ||
+            !Number.isFinite(Number(warehouseStock.quantity)) ||
+            !Number.isFinite(Number(warehouseStock.stock_min)) ||
+            !Number.isFinite(Number(warehouseStock.stock_max)) ||
+            warehouseStock.unit_price === null ||
+            warehouseStock.unit_price === undefined ||
+            !Number.isFinite(Number(warehouseStock.unit_price)) ||
+            !Number(warehouseStock.location_id),
+    );
+
+    if (hasInventoryDetail && incompleteInventoryDetail) {
+        requiredErrors.push('Detalle de inventario completo (bodega, cantidades, costo y ubicación)');
+    }
 
     const isAutoReference = props.dialogType === 'create' && referenceMode.value === 'auto';
     if (!isAutoReference && (!localForm.value.reference || String(localForm.value.reference).trim() === '')) {
@@ -1349,11 +1394,6 @@ async function handleSubmit() {
     missingRequiredAdditionalFieldNames.value.forEach((fieldName) => {
         requiredErrors.push(`Campo adicional: ${fieldName}`);
     });
-
-    const hasWarehouseSelected = warehouseStocks.value.some((w) => Number(w.warehouse_id) > 0);
-    if (props.dialogType === 'create' && currentItemType.value !== 'service' && !hasWarehouseSelected) {
-        requiredErrors.push('Bodega');
-    }
 
     if (requiredErrors.length > 0) {
         errorType.value = 'warning';
@@ -1437,18 +1477,6 @@ async function handleSubmit() {
         'cost_price',
     ];
     const isCreate = props.dialogType === 'create';
-
-    // Validación client-side: costo unitario requerido si cantidad > 0 en modo create
-    if (isCreate) {
-        const missingCost = warehouseStocks.value.some(
-            (w) => Number(w.warehouse_id) && Number(w.quantity) > 0 && !(w.unit_price && Number(w.unit_price) > 0),
-        );
-        if (missingCost) {
-            errorType.value = 'warning';
-            errorMessage.value = 'El costo unitario inicial es obligatorio cuando la cantidad de bodega es mayor a 0.';
-            return;
-        }
-    }
 
     const warehousesPayload = warehouseStocks.value
         .filter((w) => Number(w.warehouse_id))
@@ -1540,6 +1568,7 @@ async function handleSubmit() {
             savedId = Number.isFinite(responseId) && responseId > 0 ? responseId : null;
         }
 
+        broadcastCatalogInvalidated('items');
         emit('refresh');
         emit('close');
         emit('saved', props.dialogType, savedId);
@@ -1706,6 +1735,7 @@ watch(
     () => props.isOpen,
     async (value) => {
         if (value) {
+            await authStore.fetchUser(true);
             await fetchAdditionalFields(true);
             await hydrateOpenForm();
         } else {
@@ -1747,11 +1777,20 @@ watch(selectedGroupId, (newVal, oldVal) => {
     }
 });
 
+// Si se crea/edita un grupo, subgrupo, impuesto o campo adicional en OTRA pestaña del
+// navegador, esta pestaña lo refresca sola (sin que el usuario tenga que recargar).
+let unsubscribeCatalogSync: Array<() => void> = [];
+
 onMounted(async () => {
     if (typeof window !== 'undefined') {
         window.addEventListener(INVENTORY_ADJUSTMENT_SAVED_EVENT, handleInventoryAdjustmentSaved);
     }
-    await authStore.fetchUser();
+    unsubscribeCatalogSync = [
+        onCatalogInvalidatedElsewhere('category_sub_groups', () => void fetchCategorySubGroups(true)),
+        onCatalogInvalidatedElsewhere('taxes', () => void fetchTaxes(true)),
+        onCatalogInvalidatedElsewhere('additional_fields', () => void fetchAdditionalFields(true)),
+    ];
+    await authStore.fetchUser(true);
     await Promise.all([fetchCategorySubGroups(), fetchMaterialNameOptions()]);
     // nextTick para asegurar que syncGroupFromSubgroup ya corrió
     await nextTick();
@@ -1761,8 +1800,8 @@ onMounted(async () => {
 onBeforeUnmount(() => {
     if (typeof window !== 'undefined') {
         window.removeEventListener(INVENTORY_ADJUSTMENT_SAVED_EVENT, handleInventoryAdjustmentSaved);
-        window.removeEventListener('keydown', handleImageZoomKey);
     }
+    unsubscribeCatalogSync.forEach((unsubscribe) => unsubscribe());
 });
 </script>
 
@@ -1902,6 +1941,7 @@ onBeforeUnmount(() => {
                                     />
 
                                     <CreatableSelectField
+                                        :key="subGroupsRefreshKey"
                                         v-model="localForm.category_sub_group_id"
                                         label="Subgrupo"
                                         :options="subGroupOptions"
@@ -1945,8 +1985,8 @@ onBeforeUnmount(() => {
                                     </SelectField>
 
                                     <div class="flex flex-col gap-1">
-                                        <div class="flex items-center justify-between gap-2">
-                                            <Label>
+                                        <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                                            <Label class="min-w-0 shrink">
                                                 Referencia
                                                 <span v-if="!(props.dialogType === 'create' && referenceMode === 'auto')" class="text-destructive"
                                                     >*</span
@@ -1955,11 +1995,11 @@ onBeforeUnmount(() => {
                                             <Tabs
                                                 v-if="props.dialogType === 'create' && canCreateManualReference"
                                                 v-model="referenceMode"
-                                                class="shrink-0"
+                                                class="ml-auto shrink-0"
                                             >
-                                                <TabsList class="h-7 p-0.5">
-                                                    <TabsTrigger value="manual" class="h-6 px-2.5 text-xs">Manual</TabsTrigger>
-                                                    <TabsTrigger value="auto" class="h-6 px-2.5 text-xs">Automática</TabsTrigger>
+                                                <TabsList class="h-7 max-w-full p-0.5">
+                                                    <TabsTrigger value="manual" class="h-6 px-2 text-xs">Manual</TabsTrigger>
+                                                    <TabsTrigger value="auto" class="h-6 px-2 text-xs">Automática</TabsTrigger>
                                                 </TabsList>
                                             </Tabs>
                                         </div>
@@ -2132,10 +2172,7 @@ onBeforeUnmount(() => {
                                     ]"
                                 >
                                     <div class="space-y-1">
-                                        <Label class="text-xs">
-                                            Bodega
-                                            <span v-if="props.dialogType === 'create'" class="text-destructive">*</span>
-                                        </Label>
+                                        <Label class="text-xs">Bodega</Label>
                                         <SelectField
                                             v-model="ws.warehouse_id"
                                             label=""
@@ -2319,6 +2356,7 @@ onBeforeUnmount(() => {
                             <ColorPickerSelect
                                 v-model="colorModel"
                                 label="Color"
+                                required
                                 :disabled="isViewMode"
                                 @selected-color="handleSelectedColor"
                             />
@@ -2341,7 +2379,7 @@ onBeforeUnmount(() => {
                                             } else {
                                                 localForm.negative_movement = val ? 1 : 0;
                                                 if (val && currentItemType !== 'service') {
-                                                    localForm.tracks_inventory = 1;
+                                                    localForm.tracks_inventory = true;
                                                 }
                                             }
                                         }
@@ -2499,41 +2537,10 @@ onBeforeUnmount(() => {
         @cancel="closeAdditionalFieldDialog"
     />
 
-    <transition name="zoom">
-        <div
-            v-if="isImageZoomOpen"
-            class="fixed inset-0 z-[1200] flex items-center justify-center bg-black/90 px-8 py-10"
-            @click="closeImageZoom"
-            aria-modal="true"
-            role="dialog"
-        >
-            <div
-                class="relative mx-auto max-h-[98vh] max-w-[98vw] scale-125 transform overflow-hidden rounded-2xl bg-card shadow-[0_25px_70px_rgba(15,23,42,0.8)]"
-                @click.stop
-            >
-                <img :src="imagePreview" alt="Imagen ampliada" class="zoom-img max-h-[105vh] max-w-[105vw] object-cover" />
-                <button
-                    type="button"
-                    class="absolute right-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-white transition hover:bg-black"
-                    @click="closeImageZoom"
-                >
-                    Cerrar
-                </button>
-            </div>
-        </div>
-    </transition>
+    <ImagePreviewDialog
+        v-model:open="isImageZoomOpen"
+        :src="imagePreview ?? null"
+        title="Imagen del ítem"
+        alt="Imagen del ítem"
+    />
 </template>
-
-<style scoped>
-.zoom-enter-active,
-.zoom-leave-active {
-    transition:
-        opacity 160ms ease,
-        transform 160ms ease;
-}
-.zoom-enter-from,
-.zoom-leave-to {
-    opacity: 0;
-    transform: scale(0.95);
-}
-</style>

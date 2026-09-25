@@ -22,9 +22,10 @@ const props = withDefaults(
     defineProps<{
         modelValue: number | string | null;
         label?: string;
+        required?: boolean;
         disabled?: boolean;
     }>(),
-    { label: 'Color', disabled: false },
+    { label: 'Color', required: false, disabled: false },
 );
 
 const emit = defineEmits<{
@@ -32,7 +33,7 @@ const emit = defineEmits<{
     (e: 'selected-color', value: ColorOption | null): void;
 }>();
 
-const { colors, isLoading, fetch: fetchColorsCatalog } = useColorsCatalog();
+const { colors, isLoading, fetch: fetchColorsCatalog, invalidate: invalidateColorsCatalog } = useColorsCatalog();
 const searchTerm = ref('');
 
 const isCreating = ref(false);
@@ -46,9 +47,7 @@ const inlineInputRef = ref<HTMLInputElement | null>(null);
 const colorNameInputId = `color-name-${Math.random().toString(36).slice(2)}`;
 const colorHexInputId = `color-hex-${Math.random().toString(36).slice(2)}`;
 
-const NO_APLICA_ID = '';
-
-const colorOptions = computed(() => [{ id: NO_APLICA_ID, name: 'No aplica' }, ...colors.value.map((c) => ({ id: String(c.id), name: c.name }))]);
+const colorOptions = computed(() => colors.value.map((c) => ({ id: String(c.id), name: c.name })));
 
 const filteredOptions = computed(() => {
     const term = searchTerm.value.trim().toLowerCase();
@@ -62,12 +61,12 @@ const selectedColorData = computed<ColorOption | null>(() => {
 });
 
 const comboboxValue = computed(() => {
-    if (!props.modelValue) return colorOptions.value[0] ?? null;
-    return colorOptions.value.find((o) => o.id !== NO_APLICA_ID && o.id === String(props.modelValue)) ?? colorOptions.value[0] ?? null;
+    if (!props.modelValue) return null;
+    return colorOptions.value.find((o) => o.id === String(props.modelValue)) ?? null;
 });
 
 function handleComboboxChange(option: { id: string; name: string } | null) {
-    if (!option || option.id === NO_APLICA_ID) {
+    if (!option) {
         emit('update:modelValue', null);
         emit('selected-color', null);
         return;
@@ -275,6 +274,7 @@ async function submitInlineCreate() {
             ...(createDescription.value.trim() ? { description: createDescription.value.trim() } : {}),
         });
         await fetchColorsCatalog(true);
+        invalidateColorsCatalog();
         isCreating.value = false;
         createName.value = '';
         createHex.value = '#9ca3af';
@@ -361,7 +361,10 @@ onBeforeUnmount(stopFloatingUpdates);
 
 <template>
     <div class="grid w-full items-center gap-1.5">
-        <Label>{{ label }}</Label>
+        <Label>
+            {{ label }}
+            <span v-if="required" class="text-destructive">*</span>
+        </Label>
 
         <Combobox :modelValue="comboboxValue" :disabled="disabled" by="id" @update:modelValue="handleComboboxChange">
             <template #default="{ open }">
@@ -418,7 +421,7 @@ onBeforeUnmount(stopFloatingUpdates);
                                     <template #default="{ active, selected }">
                                         <div
                                             class="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm transition-colors"
-                                            :class="active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground'"
+                                            :class="active ? 'bg-muted text-foreground' : 'text-popover-foreground'"
                                         >
                                             <span
                                                 v-if="option.id !== ''"

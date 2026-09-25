@@ -153,7 +153,7 @@ class ItemController extends Controller
         $data = $request->validate([
             'reference' => 'required|string',
             'category_sub_group_id' => 'required|integer',
-            'color_id' => 'nullable|integer|exists:colors,id',
+            'color_id' => 'required|integer|exists:colors,id',
             'fabric_name_id' => 'nullable|integer|exists:fabric_names,id',
             'yarn_name_id' => 'nullable|integer|exists:yarn_names,id',
             'extra_fields' => 'nullable',
@@ -324,14 +324,14 @@ class ItemController extends Controller
     }
 
     /**
-     * La referencia automática es exclusiva de la creación: en edición, aunque
+    * La referencia automática es exclusiva de la creación: en edición, aunque
      * llegara reference_mode=auto por error, no se regenera — cada regeneración
      * consumiría un consecutivo nuevo y reemplazaría una referencia ya en uso (en
      * compras, movimientos de inventario, etc.).
      *
-     * Por defecto la referencia de un ítem nuevo es siempre automática; asignarla
-     * a mano requiere el permiso 'crear referencia manual item' (reservado a un rol
-     * de mayor jerarquía, igual que 'habilitar item'). Se llama tanto desde
+    * Por defecto la referencia de un ítem nuevo es automática; asignarla a mano
+    * requiere el permiso 'crear referencia manual item' (reservado a un rol de
+    * mayor jerarquía, igual que 'habilitar item'). Se llama tanto desde
      * itemValidationRules() (para saber si `reference` es obligatoria) como desde
      * prepareItemPayload() (para decidir si se genera o se respeta la enviada) —
      * ambas deben resolver siempre lo mismo, así que viven en un solo lugar.
@@ -342,8 +342,7 @@ class ItemController extends Controller
             return 'manual';
         }
 
-        $wantsManual = $request->input('reference_mode', 'auto') === 'manual';
-        if (! $wantsManual) {
+        if ($request->input('reference_mode', 'auto') !== 'manual') {
             return 'auto';
         }
 
@@ -485,7 +484,7 @@ class ItemController extends Controller
             'category_sub_group_id' => ($isUpdate ? 'sometimes' : 'required').'|integer',
             'img' => 'nullable|string',
             'image' => 'nullable|file|image',
-            'color_id' => 'nullable|integer|exists:colors,id',
+            'color_id' => 'required|integer|exists:colors,id',
             'fabric_name_id' => 'nullable|integer|exists:fabric_names,id',
             'yarn_name_id' => 'nullable|integer|exists:yarn_names,id',
             'tax_id' => 'nullable|integer',

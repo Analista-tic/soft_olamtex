@@ -693,7 +693,7 @@ defineExpose({ closeInlineFromParent });
                                             <div
                                                 :class="[
                                                     'relative cursor-pointer select-none py-1.5 pl-3 pr-9 text-sm transition-colors',
-                                                    active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
+                                                    active ? 'bg-muted text-foreground' : 'text-popover-foreground',
                                                 ]"
                                             >
                                                 <span>
@@ -732,7 +732,7 @@ defineExpose({ closeInlineFromParent });
                                                     <div
                                                         :class="[
                                                             'relative cursor-pointer select-none py-1.5 pl-3 pr-9 text-sm transition-colors',
-                                                            active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
+                                                            active ? 'bg-muted text-foreground' : 'text-popover-foreground',
                                                         ]"
                                                     >
                                                         <span>

@@ -1236,6 +1236,15 @@ class ItemService
 
             $warehouseId = $warehouse['warehouse_id'] ?? $warehouse['warehouseId'] ?? null;
             if (empty($warehouseId)) {
+                $hasInventoryValues = collect(['quantity', 'unit_price', 'stock_min', 'stock_max', 'location_id'])
+                    ->contains(fn (string $key) => array_key_exists($key, $warehouse) && $warehouse[$key] !== null && $warehouse[$key] !== '');
+
+                if ($hasInventoryValues) {
+                    throw ValidationException::withMessages([
+                        'warehouses' => ['Cada detalle de inventario con valores debe tener una bodega.'],
+                    ]);
+                }
+
                 continue;
             }
 
@@ -1243,6 +1252,26 @@ class ItemService
             $unitPrice = isset($warehouse['unit_price']) && is_numeric($warehouse['unit_price'])
                 ? (float) $warehouse['unit_price']
                 : null;
+
+            foreach (['quantity' => 'cantidad', 'stock_min' => 'cantidad mínima', 'stock_max' => 'cantidad máxima'] as $key => $label) {
+                if (! array_key_exists($key, $warehouse) || ! is_numeric($warehouse[$key])) {
+                    throw ValidationException::withMessages([
+                        'warehouses' => ["La {$label} es obligatoria en cada detalle de inventario y puede ser 0."],
+                    ]);
+                }
+            }
+
+            if (! array_key_exists('location_id', $warehouse) || $warehouse['location_id'] === null || $warehouse['location_id'] === '') {
+                throw ValidationException::withMessages([
+                    'warehouses' => ['La ubicación es obligatoria en cada detalle de inventario.'],
+                ]);
+            }
+
+            if (array_key_exists('unit_price', $warehouse) && ! is_numeric($warehouse['unit_price'])) {
+                throw ValidationException::withMessages([
+                    'warehouses' => ['El costo unitario es obligatorio y puede ser 0.'],
+                ]);
+            }
             $initialDate = isset($warehouse['initial_date']) && $warehouse['initial_date'] !== ''
                 ? (string) $warehouse['initial_date']
                 : null;

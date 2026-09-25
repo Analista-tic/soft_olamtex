@@ -51,7 +51,6 @@ class CategorySubGroupController extends Controller
             'name' => $normalizedName,
             'category_group_id' => $groupId,
             'material_kind' => $request->validated('material_kind'),
-            'code' => $request->validated('code'),
         ]);
 
         MaterialClassifier::forgetCache();
@@ -65,7 +64,7 @@ class CategorySubGroupController extends Controller
 
     public function getData(Request $request)
     {
-        $query = CategorySubGroup::select('id', 'name', 'category_group_id', 'material_kind')
+        $query = CategorySubGroup::select('id', 'name', 'code', 'category_group_id', 'material_kind')
             ->with('categoryGroup:id,name');
 
         if ($request->has('search') && $request->search) {

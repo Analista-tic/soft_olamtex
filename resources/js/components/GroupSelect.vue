@@ -195,7 +195,7 @@ const pillClasses =
                                 <div
                                     :class="[
                                         'relative cursor-pointer select-none py-2 pl-3 pr-9 transition-colors',
-                                        active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
+                                        active ? 'bg-muted text-foreground' : 'text-popover-foreground',
                                     ]"
                                 >
                                     <span :class="selected ? 'font-semibold' : 'font-normal'">

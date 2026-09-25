@@ -127,7 +127,7 @@ const moduleSections: ModuleSection[] = [
                 items: [
                     { title: 'Contactos', href: '/contactos' },
                     { title: 'Categorías', href: '/categorias/subgrupos' },
-                    { title: 'Catálogo de ítems', href: '/item', permission: 'ver inventario telas' },
+                    { title: 'Catálogo de ítems', href: '/item', permission: 'ver catalogo items' },
                     { title: 'Campos adicionales', href: '/campos-adicionales' },
                     { title: 'Parámetros', href: '/parametros' },
                     // { title: 'Activos Fijos', href: underConstructionHref('Activos Fijos') },

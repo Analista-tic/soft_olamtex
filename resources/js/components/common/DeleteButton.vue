@@ -15,7 +15,7 @@ const emit = defineEmits<{
     <Button
         variant="ghost"
         size="icon"
-        class="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+        class="h-8 w-8 text-destructive hover:bg-destructive/5 hover:text-destructive"
         type="button"
         @click.stop="emit('click')"
     >

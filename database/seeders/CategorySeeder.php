@@ -33,6 +33,11 @@ class CategorySeeder extends Seeder
             ['name' => 'MANTENIMIENTO',    'created_at' => $now, 'updated_at' => $now],
         ];
 
+        foreach ($groups as $index => &$group) {
+            $group['code'] = str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT);
+        }
+        unset($group);
+
         DB::table('category_groups')->insert($groups);
 
         $groupIds = DB::table('category_groups')->pluck('id', 'name');
@@ -153,6 +158,11 @@ class CategorySeeder extends Seeder
             ['name' => 'TECNOLÓGICO', 'category_group_id' => $groupIds['MANTENIMIENTO'], 'created_at' => $now, 'updated_at' => $now],
             ['name' => 'HARDWARE',    'category_group_id' => $groupIds['MANTENIMIENTO'], 'created_at' => $now, 'updated_at' => $now],
         ];
+
+        foreach ($subGroups as $index => &$subGroup) {
+            $subGroup['code'] = str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT);
+        }
+        unset($subGroup);
 
         DB::table('category_sub_groups')->insert($subGroups);
 

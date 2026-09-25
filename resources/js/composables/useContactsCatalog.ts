@@ -1,14 +1,25 @@
 import type { Contact } from '@/domain/MasterData';
+import { broadcastCatalogInvalidated, onCatalogInvalidatedElsewhere } from '@/lib/crossTabSync';
 import axios from 'axios';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 
 type ContactsCatalogParams = Record<string, string | number | boolean | undefined>;
+
+const CATALOG_KEY = 'contacts';
 
 // Ver el comentario de useItemsCatalog.ts: este Map vive en un módulo .ts real, así
 // que sí se comparte entre todos los componentes que lo importan (a diferencia de un
 // `let` dentro de <script setup>, que el compilador reinicia en cada montaje).
 const cache = new Map<string, Contact[]>();
 const inFlight = new Map<string, Promise<Contact[]>>();
+
+// Se incrementa cuando OTRA pestaña del navegador invalida este catálogo: las
+// instancias que ya cargaron datos lo escuchan (ver abajo) para refrescarse solas.
+const remoteVersion = ref(0);
+onCatalogInvalidatedElsewhere(CATALOG_KEY, () => {
+    cache.clear();
+    remoteVersion.value++;
+});
 
 function keyFor(params: ContactsCatalogParams): string {
     return JSON.stringify(params ?? {});
@@ -22,8 +33,10 @@ function keyFor(params: ContactsCatalogParams): string {
 export function useContactsCatalog() {
     const contacts = ref<Contact[]>([]);
     const isLoading = ref(false);
+    let lastParams: ContactsCatalogParams | null = null;
 
     async function fetch(params: ContactsCatalogParams = {}, force = false): Promise<Contact[]> {
+        lastParams = params;
         const key = keyFor(params);
 
         if (!force && cache.has(key)) {
@@ -60,7 +73,14 @@ export function useContactsCatalog() {
         } else {
             cache.clear();
         }
+        broadcastCatalogInvalidated(CATALOG_KEY);
     }
+
+    // Otra pestaña creó/editó un contacto: si esta instancia ya había cargado datos,
+    // se refresca sola en vez de esperar a que el usuario recargue la página.
+    watch(remoteVersion, () => {
+        if (lastParams !== null) void fetch(lastParams, true);
+    });
 
     return { contacts, isLoading, fetch, invalidate };
 }

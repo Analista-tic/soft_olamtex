@@ -4,6 +4,7 @@ import { defineStore } from 'pinia';
 import type { RetentionDto } from '@/domain/Finance/dto';
 import { mapRetentionDto } from '@/domain/Finance/mappers';
 import type { Retention } from '@/domain/Finance/types';
+import { broadcastCatalogInvalidated, onCatalogInvalidatedElsewhere } from '@/lib/crossTabSync';
 
 type RetentionsResponse = RetentionDto[];
 
@@ -13,10 +14,17 @@ interface RetentionsState {
     loaded: boolean;
 }
 
+const CATALOG_KEY = 'retentions';
+
 // Token de la última llamada en curso: si dos fetch se solapan (uno normal + uno
 // forzado casi al mismo tiempo), descarta la respuesta que ya no es la más reciente
 // en vez de dejar que un dato viejo pise a uno más nuevo.
 let requestToken = 0;
+
+// Se registra una sola vez (no por instancia del store, que en Pinia es un singleton
+// por pestaña de todos modos): si otra pestaña crea/edita una retención, esta la
+// refresca sola en vez de esperar a que el usuario recargue la página.
+let crossTabSubscribed = false;
 
 export const useRetentionsStore = defineStore('retentions', {
     state: (): RetentionsState => ({
@@ -26,6 +34,14 @@ export const useRetentionsStore = defineStore('retentions', {
     }),
     actions: {
         async fetchRetentions(force = false): Promise<void> {
+            if (!crossTabSubscribed) {
+                crossTabSubscribed = true;
+                onCatalogInvalidatedElsewhere(CATALOG_KEY, () => {
+                    this.loaded = false;
+                    if (this.items.length > 0) void this.fetchRetentions(true);
+                });
+            }
+
             if (!force && (this.loaded || this.loading)) return;
             const token = ++requestToken;
             this.loading = true;
@@ -40,6 +56,7 @@ export const useRetentionsStore = defineStore('retentions', {
         },
         invalidate(): void {
             this.loaded = false;
+            broadcastCatalogInvalidated(CATALOG_KEY);
         },
     },
 });

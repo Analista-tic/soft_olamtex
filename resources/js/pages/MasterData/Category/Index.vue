@@ -17,7 +17,8 @@ import type { BreadcrumbItem, Option } from '@/domain/shared'; // Importar los t
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { PlusCircle, Search } from 'lucide-vue-next';
+import { ExternalLink, PlusCircle, Search } from 'lucide-vue-next';
+import { broadcastCatalogInvalidated, onCatalogInvalidatedElsewhere } from '@/lib/crossTabSync';
 import { computed, onMounted, ref, watch, onBeforeUnmount } from 'vue';
 import GroupDialog from './GroupDialog.vue';
 import SubGroupDialog from './SubGroupDialog.vue';
@@ -102,6 +103,7 @@ function closeGroupDialog(): void {
 function handleGroupSaved(): void {
     isGroupDialogOpen.value = false;
     router.reload({ only: ['groups'] });
+    broadcastCatalogInvalidated('category_sub_groups');
 }
 
 function openDialog(type: 'create' | 'edit', subGroup: CategorySubGroup | null = null): void {
@@ -137,6 +139,7 @@ async function deleteSubGroup(): Promise<void> {
     try {
         await axios.delete(`/categorias/subgrupos/${subGroupToDelete.value.id}`);
         fetchSubGroups();
+        broadcastCatalogInvalidated('category_sub_groups');
         isDeleteDialogOpen.value = false;
         successMessage.value = 'El subgrupo se eliminó correctamente.';
         errorMessage.value = '';
@@ -154,6 +157,7 @@ async function submitForm(subGroupData: Partial<CategorySubGroup>): Promise<void
     try {
         await axios({ method, url, data: subGroupData });
         fetchSubGroups();
+        broadcastCatalogInvalidated('category_sub_groups');
         closeDialog();
         successMessage.value = dialogType.value === 'create' ? 'El subgrupo se creó correctamente.' : 'El subgrupo se actualizó correctamente.';
         errorMessage.value = '';
@@ -227,6 +231,10 @@ watch([searchQuery, normalizedGroupId], ([newQuery, newGroup]) => {
 });
 
 // Llamada inicial al montar el componente
+// Si se crea/edita un grupo o subgrupo en OTRA pestaña/equipo, esta tabla se refresca
+// sola en vez de esperar a que el usuario recargue la página.
+const unsubscribeCategorySync = onCatalogInvalidatedElsewhere('category_sub_groups', () => void fetchSubGroups());
+
 onMounted(() => {
     void fetchSubGroups();
 });
@@ -245,6 +253,7 @@ onBeforeUnmount(() => {
         activeFetchController.abort();
         activeFetchController = null;
     }
+    unsubscribeCategorySync();
 });
 </script>
 
@@ -259,10 +268,16 @@ onBeforeUnmount(() => {
                         Define y clasifica subgrupos de categorías para que cada ítem se asocie con la estructura organizativa correcta.
                     </p>
                 </div>
-                <Button variant="default" size="pill" @click="openDialog('create')">
-                    <PlusCircle class="h-4 w-4" />
-                    Crear Nuevo Subgrupo
-                </Button>
+                <div class="flex flex-wrap gap-2">
+                    <Button variant="outline" size="pill" @click="router.visit('/categorias/grupos/gestion')">
+                        <ExternalLink class="h-4 w-4" />
+                        Gestionar grupos
+                    </Button>
+                    <Button variant="default" size="pill" @click="openDialog('create')">
+                        <PlusCircle class="h-4 w-4" />
+                        Crear subgrupo
+                    </Button>
+                </div>
             </div>
             <AlertStack
                 :success-message="successMessage"

@@ -7,6 +7,7 @@ use App\Models\MasterData\CategoryGroup;
 use App\Services\MasterData\CategoryGroupService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Inertia\Inertia;
 
 class CategoryGroupController extends Controller
 {
@@ -33,10 +34,9 @@ class CategoryGroupController extends Controller
     {
         $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('category_groups', 'name')->ignore($group->id)],
-            'code' => ['nullable', 'string', 'max:2', Rule::unique('category_groups', 'code')->ignore($group->id)],
         ]);
 
-        $group->update($request->only('name', 'code'));
+        $group->update($request->only('name'));
 
         return response()->json($group);
     }
@@ -46,6 +46,13 @@ class CategoryGroupController extends Controller
         $groups = CategoryGroup::all(['id', 'name', 'code']); // Seleccionar solo los campos necesarios
 
         return response()->json($groups);
+    }
+
+    public function management()
+    {
+        return Inertia::render('MasterData/Category/Groups', [
+            'groups' => CategoryGroup::query()->withCount('subGroups')->orderBy('name')->get(),
+        ]);
     }
 
     public function destroy(CategoryGroup $group)
