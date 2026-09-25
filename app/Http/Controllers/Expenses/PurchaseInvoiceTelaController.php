@@ -35,23 +35,6 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
         return Inertia::render('Expenses/PurchaseInvoices/IndexFabric');
     }
 
-    public function create()
-    {
-        return Inertia::render('Expenses/PurchaseInvoices/PurchaseInvoiceTelaForm', [
-            'mode' => 'create',
-        ]);
-    }
-
-    public function edit(PurchaseDocument $purchaseInvoice)
-    {
-        $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
-        $invoice = $this->service->loadWithRelations($purchaseInvoice);
-        return Inertia::render('Expenses/PurchaseInvoices/PurchaseInvoiceTelaForm', [
-            'mode' => 'edit',
-            'form' => $invoice,
-        ]);
-    }
-
     /** Fechas del recorrido solicitud → orden → recepción → factura, solo lectura. */
     public function traceability(PurchaseDocument $purchaseInvoice)
     {

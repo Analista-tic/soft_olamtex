@@ -139,7 +139,18 @@ async function fetchProviders() {
     }
 }
 
-/* openDialogWithPreparation removed — navigation uses dedicated pages for create/edit */
+function openCreateDialog() {
+    dialogType.value = 'create';
+    isDialogReadOnly.value = false;
+    form.value = {};
+    clearError();
+    clearSuccess();
+    isDialogOpen.value = true;
+}
+
+async function openEditDialog(invoice: PurchaseInvoice) {
+    await loadInvoiceIntoDialog(invoice, false);
+}
 
 function closeDialog() {
     isDialogReadOnly.value = false;
@@ -315,7 +326,7 @@ function isReceptionBlockedForInvoice(invoice: PurchaseInvoice): boolean {
     );
 }
 
-async function viewInvoiceDetails(invoice: PurchaseInvoice) {
+async function loadInvoiceIntoDialog(invoice: PurchaseInvoice, readOnly: boolean) {
     if (!invoice.id) return;
     if (isPreparingDialog.value) return;
     isPreparingDialog.value = true;
@@ -323,7 +334,7 @@ async function viewInvoiceDetails(invoice: PurchaseInvoice) {
     try {
         const response = await axios.get(`/gastos/facturas-compra-tela/${invoice.id}`);
         dialogType.value = 'edit';
-        isDialogReadOnly.value = true;
+        isDialogReadOnly.value = readOnly;
         form.value = response.data?.data || {};
         clearError();
         clearSuccess();
@@ -334,6 +345,10 @@ async function viewInvoiceDetails(invoice: PurchaseInvoice) {
     } finally {
         isPreparingDialog.value = false;
     }
+}
+
+async function viewInvoiceDetails(invoice: PurchaseInvoice) {
+    await loadInvoiceIntoDialog(invoice, true);
 }
 
 async function handleDialogRefresh(message?: string) {
@@ -378,7 +393,7 @@ function handleDialogError(message?: string) {
                         <Package class="h-4 w-4" />
                         Ver Recepciones
                     </button>
-                    <Button variant="default" size="pill" :disabled="isPreparingDialog" @click="router.visit('/gastos/facturas-compra-tela/crear')">
+                    <Button variant="default" size="pill" :disabled="isPreparingDialog" @click="openCreateDialog()">
                         <PlusCircle class="h-4 w-4" />
                         Nueva Factura
                     </Button>
@@ -552,7 +567,7 @@ function handleDialogError(message?: string) {
                                         </Button>
 
                                         <!-- Editar -->
-                                        <EditButton :onClick="() => router.visit('/gastos/facturas-compra-tela/' + invoice.id + '/editar')" title="Editar factura" />
+                                        <EditButton :onClick="() => openEditDialog(invoice)" title="Editar factura" />
 
                                         <!-- Eliminar -->
                                         <DeleteButton @click="confirmDeleteInvoice(invoice)" title="Eliminar factura" />
