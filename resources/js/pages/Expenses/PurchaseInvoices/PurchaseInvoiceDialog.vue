@@ -20,6 +20,7 @@ import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import type { PurchaseInvoice } from '@/domain/Expenses';
 import { usePurchaseInvoiceTotals } from '@/composables/usePurchaseInvoiceTotals';
+import { useSupplierContacts } from '@/composables/useSupplierContacts';
 import { usePurchaseOrderDifference } from '@/composables/usePurchaseOrderDifference';
 import type { Contact } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
@@ -51,12 +52,7 @@ const emit = defineEmits<{
 const dialogOpen = ref(props.isOpen);
 type PurchaseInvoiceWithProviderName = Partial<PurchaseInvoice> & { provider_name?: string | null };
 const localForm = ref<PurchaseInvoiceWithProviderName>(createDefaultForm());
-const contacts = ref<Contact[]>([]);
-const isLoadingContacts = ref(false);
-const contactsPage = ref(1);
-const contactsHasMore = ref(false);
-const isLoadingMoreContacts = ref(false);
-const CONTACTS_PER_PAGE = 30;
+const { contacts, isLoadingContacts, isLoadingMoreContacts, contactsHasMore, fetchContacts, loadMoreContacts, fetchContactById } = useSupplierContacts<Contact>();
 const isContactDialogOpen = ref(false);
 const contactDialogError = ref('');
 const contactDialogForm = ref<Partial<Contact>>({ groups: [] });
@@ -273,57 +269,6 @@ watch(
     },
     { deep: true },
 );
-
-async function fetchContacts(page = 1): Promise<void> {
-    if (page === 1) {
-        isLoadingContacts.value = true;
-        contacts.value = [];
-        contactsPage.value = 1;
-    } else {
-        isLoadingMoreContacts.value = true;
-    }
-    try {
-        const [res1, res2] = await Promise.all([
-            axios.get<{ data: Contact[]; total: number }>('/contactos/data', { params: { contact_type: 'proveedor', per_page: CONTACTS_PER_PAGE, page } }),
-            axios.get<{ data: Contact[]; total: number }>('/contactos/data', { params: { contact_type: 'cliente_proveedor', per_page: CONTACTS_PER_PAGE, page } }),
-        ]);
-        const p1 = res1.data?.data ?? [];
-        const p2 = res2.data?.data ?? [];
-        const newItems = [...p1, ...p2];
-        if (page === 1) {
-            contacts.value = newItems;
-        } else {
-            const seen = new Set(contacts.value.map((c) => Number(c.id)));
-            contacts.value = [...contacts.value, ...newItems.filter((c) => !seen.has(Number(c.id)))];
-        }
-        const total1: number = res1.data?.total ?? 0;
-        const total2: number = res2.data?.total ?? 0;
-        contactsHasMore.value = page * CONTACTS_PER_PAGE < total1 || page * CONTACTS_PER_PAGE < total2;
-    } catch {
-        if (page === 1) contacts.value = [];
-        contactsHasMore.value = false;
-    } finally {
-        isLoadingContacts.value = false;
-        isLoadingMoreContacts.value = false;
-    }
-}
-
-async function fetchContactById(contactId: number): Promise<void> {
-    try {
-        const { data } = await axios.get(`/contactos/${contactId}`);
-        const contact = data?.data ?? data;
-        if (!contact?.id) return;
-        if (!contacts.value.some((c) => Number(c.id) === Number(contact.id))) {
-            contacts.value = [...contacts.value, contact];
-        }
-    } catch {}
-}
-
-async function loadMoreContacts(): Promise<void> {
-    if (!contactsHasMore.value || isLoadingMoreContacts.value) return;
-    contactsPage.value++;
-    await fetchContacts(contactsPage.value);
-}
 
 function openContactDialog() {
     contactDialogForm.value = { groups: [] };

@@ -17,10 +17,10 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
-import { useContactsCatalog } from '@/composables/useContactsCatalog';
 import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import type { PurchaseInvoice } from '@/domain/Expenses';
 import { usePurchaseInvoiceTotals } from '@/composables/usePurchaseInvoiceTotals';
+import { useSupplierContacts } from '@/composables/useSupplierContacts';
 import { usePurchaseOrderDifference } from '@/composables/usePurchaseOrderDifference';
 import type { Contact } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
@@ -49,8 +49,7 @@ const emit = defineEmits<{
 const dialogOpen = ref(props.isOpen);
 type PurchaseInvoiceWithProviderName = Partial<PurchaseInvoice> & { provider_name?: string | null };
 const localForm = ref<PurchaseInvoiceWithProviderName>(createDefaultForm());
-const contacts = ref<Contact[]>([]);
-const { fetch: fetchContactsCatalog } = useContactsCatalog();
+const { contacts, isLoadingContacts, isLoadingMoreContacts, contactsHasMore, fetchContacts, loadMoreContacts, fetchContactById } = useSupplierContacts<Contact>();
 const isLoading = ref(false);
 const fieldErrors = ref({ contactId: false, invoiceDate: false, deliveryDate: false, supplierInvoiceNumber: false });
 const isSubmittingDialog = ref(false);
@@ -227,6 +226,11 @@ async function initializeDialog() {
             nextInvoiceId.value = null;
             void fetchNextInvoiceId();
         }
+        // Con carga paginada, el proveedor de una factura guardada puede no estar en la primera página.
+        const contactId = Number(localForm.value.contact_id ?? 0);
+        if (contactId > 0 && !contacts.value.some((c) => Number(c.id) === contactId)) {
+            await fetchContactById(contactId);
+        }
     } finally {
         if (isCurrentLoadingRun(currentRun)) {
             isBootstrapping.value = false;
@@ -244,33 +248,6 @@ watch(
     },
     { deep: true },
 );
-
-async function fetchContacts() {
-    try {
-        const [proveedores, clienteProveedores] = await Promise.all([
-            fetchContactsCatalog({ contact_type: 'proveedor' }, true),
-            fetchContactsCatalog({ contact_type: 'cliente_proveedor' }, true),
-        ]);
-        contacts.value = [...proveedores, ...clienteProveedores];
-    } catch {
-        contacts.value = [];
-    }
-}
-
-async function fetchContactById(contactId: number) {
-    if (!Number.isFinite(contactId) || contactId <= 0) return;
-    try {
-        const response = await axios.get(`/contactos/${contactId}`);
-        const contact = response.data;
-        if (!contact || !contact.id) return;
-        const exists = contacts.value.some((c) => Number(c.id) === Number(contact.id));
-        if (!exists) {
-            contacts.value.push(contact);
-        }
-    } catch {
-        // silently fail if contact is not found
-    }
-}
 
 async function fetchNextInvoiceId() {
     isLoadingInvoiceId.value = true;
@@ -841,9 +818,13 @@ watch(dialogOpen, (isOpen) => {
                                                 "
                                                 :readonly="isReadOnly"
                                                 :searchable="true"
+                                                :loading="isLoadingContacts"
+                                                :has-more="contactsHasMore"
+                                                :loading-more="isLoadingMoreContacts"
                                                 required
                                                 :invalid="fieldErrors.contactId"
                                                 :key="contacts.length + '-' + localForm.contact_id"
+                                                @load-more="loadMoreContacts"
                                                 @update:model-value="fieldErrors.contactId = false"
                                             />
                                         </div>
