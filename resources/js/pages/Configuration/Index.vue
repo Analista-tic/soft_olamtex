@@ -39,6 +39,8 @@ type ConfigurationModule = {
     description: string;
     options: ConfigurationOption[];
     permission?: PermissionRequirement;
+    /** Rol exigido (p. ej. 'superadmin'); si se indica, el módulo solo lo ve quien tenga ese rol. */
+    role?: string;
 };
 
 const auth = useAuthStore();
@@ -156,6 +158,12 @@ const modules: ConfigurationModule[] = [
         ],
     },
     {
+        title: 'Notificaciones',
+        description: 'Define quién, cómo y cuándo se avisa en cada módulo.',
+        role: 'superadmin',
+        options: [{ name: 'Reglas de notificaciones', href: '/configuracion/reglas-notificaciones' }],
+    },
+    {
         title: 'Accesos y Permisos',
         description: 'Administra usuarios, roles y permisos de acceso.',
         permission: ['ver roles', 'ver usuarios'],
@@ -190,7 +198,9 @@ const modules: ConfigurationModule[] = [
     },
 ];
 
-const visibleModules = computed(() => modules.filter((module) => hasPermissionAccess(module.permission)));
+const visibleModules = computed(() =>
+    modules.filter((module) => (module.role ? auth.hasRole(module.role) : hasPermissionAccess(module.permission))),
+);
 
 onMounted(() => {
     void auth.fetchUser().catch(() => {

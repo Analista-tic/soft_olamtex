@@ -42,6 +42,8 @@ use App\Models\Production\ProductSheetCuttingPiece;
 use App\Models\Production\TechnicalSheetThread;
 use App\Models\Production\YarnBase;
 use App\Models\Settings\Area;
+use App\Models\Settings\NotificationEvent;
+use App\Models\Settings\NotificationEventRecipient;
 use App\Models\Settings\User;
 use App\Models\Settings\Role;
 use App\Models\Settings\Setting;
@@ -123,6 +125,8 @@ class AppServiceProvider extends ServiceProvider
             Setting::class,
             Area::class,
             Role::class,
+            NotificationEvent::class,
+            NotificationEventRecipient::class,
             // MasterData
             CategoryGroup::class,
             CategorySubGroup::class,

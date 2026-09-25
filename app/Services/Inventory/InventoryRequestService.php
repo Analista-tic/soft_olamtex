@@ -102,18 +102,13 @@ class InventoryRequestService
      */
     protected function notifyInventoryRequestCreated(InventoryRequest $request, User $creator): void
     {
-        $recipients = $this->resolveRecipientsForInventoryRequest($creator);
-
-        if ($recipients->isEmpty()) {
-            return;
-        }
-
         $requesterName = $creator->name ?? null;
         $requesterArea = $this->resolveUserArea($creator);
 
-        Notification::send(
-            $recipients,
-            new InventoryRequestCreatedNotification($request, $requesterName, $requesterArea)
+        app(\App\Services\Settings\NotificationDispatcher::class)->dispatch(
+            'inventory_request_created',
+            new InventoryRequestCreatedNotification($request, $requesterName, $requesterArea),
+            ['actor' => $creator]
         );
     }
 

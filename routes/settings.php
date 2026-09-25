@@ -6,6 +6,7 @@ use App\Http\Controllers\Settings\AppearanceController;
 use App\Http\Controllers\Settings\AvatarController;
 use App\Http\Controllers\Settings\CompanySettingsController;
 use App\Http\Controllers\StorageFileController;
+use App\Http\Controllers\Settings\NotificationRulesController;
 use App\Http\Controllers\Settings\NotificationsController;
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
@@ -117,6 +118,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/read-all', [NotificationsController::class, 'markAllAsRead'])->name('mark-all-read');
         Route::patch('/{id}/archive', [NotificationsController::class, 'archive'])->name('archive');
         Route::delete('/{id}', [NotificationsController::class, 'destroy'])->name('destroy');
+    });
+
+    // Reglas de notificaciones: quién, cómo y cuándo se avisa. Solo el rol superadmin.
+    Route::middleware('role:superadmin')->prefix('configuracion/reglas-notificaciones')->name('reglas-notificaciones.')->group(function () {
+        Route::get('/', [NotificationRulesController::class, 'index'])->name('index');
+        Route::put('/{eventKey}', [NotificationRulesController::class, 'update'])->name('update');
     });
 
     Route::redirect('settings', '/settings/profile');

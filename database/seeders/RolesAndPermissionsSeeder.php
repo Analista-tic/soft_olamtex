@@ -93,11 +93,11 @@ class RolesAndPermissionsSeeder extends Seeder
             'editar contactos',
             'eliminar contactos',
 
-            // Inventario: stock
-            'ver inventario telas',
-            'crear inventario telas',
-            'editar inventario telas',
-            'eliminar inventario telas',
+            // Datos maestros: catálogo de ítems
+            'ver catalogo items',
+            'crear items',
+            'editar items',
+            'eliminar items',
 
             // Inventario: solicitudes de insumos
             'ver solicitudes insumos',
@@ -206,6 +206,10 @@ class RolesAndPermissionsSeeder extends Seeder
         $admin = Role::firstOrCreate(['name' => 'admin']);
         $admin->syncPermissions(Permission::all());
 
+        // Superadmin: mismo acceso que admin más la configuración de notificaciones (solo este rol la ve)
+        $superadmin = Role::firstOrCreate(['name' => 'superadmin']);
+        $superadmin->syncPermissions(Permission::all());
+
         // General: placeholder - Marketing y Recursos Humanos
         // Acceso mínimo hasta que se defina su módulo real
         $general = Role::firstOrCreate(['name' => 'general']);
@@ -229,6 +233,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver propios solicitudes compra',
             'crear solicitudes compra',
             'editar solicitudes compra',
+            'ver catalogo items',
         ]);
 
         // Produccion: Producción + Diseño + Comercial
@@ -262,10 +267,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'crear recepcion telas',
             'editar recepcion telas',
             'eliminar recepcion telas',
-            'ver inventario telas',
-            'crear inventario telas',
-            'editar inventario telas',
-            'eliminar inventario telas',
+            'ver catalogo items',
+            'crear items',
+            'editar items',
+            'eliminar items',
 
             // Solicitudes de insumos: puede ver, crear - no atender
             'ver solicitudes insumos',
@@ -310,6 +315,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'editar solicitudes compra',
             'ver todos documentos compra',
             'ver todos solicitudes insumos',
+            'ver catalogo items',
 
             // Catálogo de cuentas
             'ver catalogo cuentas',
@@ -377,10 +383,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'crear recepcion telas',
             'editar recepcion telas',
             'eliminar recepcion telas',
-            'ver inventario telas',
-            'crear inventario telas',
-            'editar inventario telas',
-            'eliminar inventario telas',
+            'ver catalogo items',
+            'crear items',
+            'editar items',
+            'eliminar items',
 
             'ver solicitudes insumos',
             'crear solicitudes insumos',
@@ -481,6 +487,7 @@ class RolesAndPermissionsSeeder extends Seeder
 
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
         $admin->syncPermissions(Permission::all());
+        $superadmin->syncPermissions(Permission::all());
 
         $superAdminUser = User::firstOrCreate(
             ['email' => 'superadmin@softolamtex.local'],
@@ -493,7 +500,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'name' => 'Super Admin',
             'area_id' => $this->resolveAreaId($areas, ['TICs', 'Tecnologia', 'Administracion', 'Administración']),
         ])->save();
-        $superAdminUser->syncRoles([$admin]);
+        $superAdminUser->syncRoles([$admin, $superadmin]);
 
         $adminTestUser = User::firstOrCreate(
             ['email' => 'admin@softolamtex.local'],

@@ -213,19 +213,12 @@ class SupplyRequestService
     private function notifyLogistics(InventoryRequest $request, User $creator): void
     {
         try {
-            $recipients = User::role('logistica')
-                ->where('id', '!=', $creator->id)
-                ->get();
-
-            if ($recipients->isEmpty()) {
-                return;
-            }
-
             $requesterArea = $this->resolveUserArea($creator);
 
-            Notification::send(
-                $recipients,
-                new InventoryRequestCreatedNotification($request, $creator->name, $requesterArea)
+            app(\App\Services\Settings\NotificationDispatcher::class)->dispatch(
+                'inventory_request_created',
+                new InventoryRequestCreatedNotification($request, $creator->name, $requesterArea),
+                ['actor' => $creator]
             );
         } catch (\Throwable $e) {
             Log::warning('SupplyRequestService: No se pudo notificar a Logística', [

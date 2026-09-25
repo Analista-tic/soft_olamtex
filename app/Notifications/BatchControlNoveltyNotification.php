@@ -4,20 +4,18 @@ namespace App\Notifications;
 
 use App\Models\Production\BatchControlNovelty;
 use App\Models\Production\ProductionOrder;
+use App\Notifications\Concerns\UsesConfiguredChannels;
 use Illuminate\Notifications\Notification;
 
 class BatchControlNoveltyNotification extends Notification
 {
+    use UsesConfiguredChannels;
+
     public function __construct(
         protected BatchControlNovelty $novelty,
         protected ProductionOrder $order,
         protected string $reporterName,
     ) {}
-
-    public function via(mixed $notifiable): array
-    {
-        return ['database'];
-    }
 
     public function toArray(mixed $notifiable): array
     {

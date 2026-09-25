@@ -138,3 +138,41 @@ export interface NotificationTypeOption {
     value: string;
     label: string;
 }
+
+// ── Reglas de notificaciones (Configuración, solo superadmin) ──────────────────
+
+export type NotificationRecipientType = 'role' | 'area' | 'user' | 'dynamic';
+
+export interface NotificationRuleRecipient {
+    type: NotificationRecipientType;
+    value: string;
+    label: string;
+    permission_filter: string | null;
+    /** Destinatario automático que el flujo necesita: no se puede quitar. */
+    locked?: boolean;
+}
+
+export interface NotificationRuleOption {
+    id: string;
+    name: string;
+}
+
+export interface NotificationRule {
+    key: string;
+    module: string;
+    name: string;
+    description: string;
+    dynamic_options: NotificationRuleOption[];
+    enabled: boolean;
+    channel_database: boolean;
+    channel_mail: boolean;
+    exclude_actor: boolean;
+    recipients: NotificationRuleRecipient[];
+}
+
+export interface NotificationRuleOptions {
+    roles: NotificationRuleOption[];
+    areas: NotificationRuleOption[];
+    users: NotificationRuleOption[];
+    permissions: NotificationRuleOption[];
+}

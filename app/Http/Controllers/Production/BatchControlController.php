@@ -1694,11 +1694,12 @@ class BatchControlController extends Controller
             ->whereIn('name', $areaNames)
             ->pluck('id');
 
-        $notification = new BatchControlNoveltyNotification($novelty, $order, $reporterName);
-
-        \App\Models\Settings\User::whereIn('area_id', $areaIds)
-            ->get()
-            ->each(fn ($user) => $user->notify($notification));
+        // Las áreas del proceso son solo el destinatario automático 'novelty_areas': a quién avisar lo define la configuración.
+        app(\App\Services\Settings\NotificationDispatcher::class)->dispatch(
+            'batch_control_novelty',
+            new BatchControlNoveltyNotification($novelty, $order, $reporterName),
+            ['novelty_areas' => $areaIds->all()]
+        );
     }
 
     // ══════════════════════════════════════════════════════════
