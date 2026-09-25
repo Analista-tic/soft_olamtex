@@ -30,7 +30,6 @@ class CreditDebitNoteService
     private const ELIGIBLE_PARENT_INVOICE_STATUSES = [
         'received',
         'approved',
-        'verified',
     ];
 
     /**
@@ -202,6 +201,7 @@ class CreditDebitNoteService
     public function update(PurchaseDocument $note, array $payload): PurchaseDocument
     {
         $this->ensureNoteType($note);
+        $this->ensureNoteIsNotApproved($note, 'editar');
         $this->ensureScopeIsExpenses($payload);
         $this->ensureItemsPayload($payload);
 
@@ -368,11 +368,22 @@ class CreditDebitNoteService
     public function delete(PurchaseDocument $note): void
     {
         $this->ensureNoteType($note);
+        $this->ensureNoteIsNotApproved($note, 'eliminar');
 
         DB::transaction(function () use ($note) {
             $note->items()->delete();
             $note->delete();
         });
+    }
+
+    // Una nota aprobada ya afecta el saldo y la contabilidad de la factura.
+    private function ensureNoteIsNotApproved(PurchaseDocument $note, string $action): void
+    {
+        if ($note->status === 'approved') {
+            throw ValidationException::withMessages([
+                'status' => "No se puede {$action} una nota crédito/débito aprobada.",
+            ]);
+        }
     }
 
     private function ensureScopeIsExpenses(array $payload): void
@@ -486,7 +497,6 @@ class CreditDebitNoteService
 
         return match ($status) {
             'approved' => 'Aprobada',
-            'verified' => 'Verificada',
             default => $status !== '' ? ucfirst($status) : 'Sin estado',
         };
     }

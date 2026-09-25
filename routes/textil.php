@@ -107,6 +107,9 @@ Route::prefix('kardex-telas')->name('kardex-telas.')->middleware('permission:ver
         Route::patch('/{invoice}/aprobar', [FabricRollController::class, 'approveReception'])
             ->middleware('permission:aprobar recepcion tela')
             ->name('approve');
+        Route::patch('/{invoice}/reportar-diferencia', [FabricRollController::class, 'reportReceptionDifference'])
+            ->middleware('permission:aprobar recepcion tela')
+            ->name('report-difference');
         Route::patch('/{invoice}/rechazar', [FabricRollController::class, 'rejectReception'])
             ->middleware('permission:rechazar recepcion tela')
             ->name('reject');

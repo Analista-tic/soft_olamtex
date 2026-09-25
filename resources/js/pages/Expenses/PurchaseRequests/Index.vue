@@ -5,13 +5,16 @@ import ConfirmWithInputDialog from '@/components/common/ConfirmWithInputDialog.v
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import ServerPagination from '@/components/common/ServerPagination.vue';
+import TableActionsMenu from '@/components/common/TableActionsMenu.vue';
+import TableRowActions from '@/components/common/TableRowActions.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
+import ViewButton from '@/components/common/ViewButton.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
-import InputDate from '@/components/InputDate.vue';
+import AccountingDateRangePicker from '@/components/AccountingDateRangePicker.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -23,7 +26,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { useAuthStore } from '@/stores/auth';
 import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { CheckCircle, Eye, MessageSquareWarning, MoreVertical, PlusCircle, Search, Send, X, XCircle } from 'lucide-vue-next';
+import { CheckCircle, MessageSquareWarning, PlusCircle, Search, Send, X, XCircle } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseRequestDialog from './PurchaseRequestDialog.vue';
 
@@ -38,7 +41,7 @@ const itemsPerPage = ref(10);
 const totalItems = ref(0);
 const statusFilter = ref('all');
 // Filtro de proveedor eliminado
-const dateFilter = ref('');
+const dateFilter = ref<{ from: string | null; to: string | null }>({ from: null, to: null });
 const isLoading = ref(false);
 function toggleSort(column: string) {
     if (sortBy.value === column) {
@@ -55,7 +58,7 @@ const DEFAULT_STATUS_FILTER = 'all';
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 // Filtro de proveedor eliminado
-const isDateFilterActive = computed(() => Boolean(dateFilter.value));
+const isDateFilterActive = computed(() => Boolean(dateFilter.value.from || dateFilter.value.to));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const { successMessage, errorMessage, errorType, clearSuccess, clearError, showError, showWarning } = useAlertStack();
@@ -63,6 +66,9 @@ const authStore = useAuthStore();
 const hasApprovePermission = computed(() => authStore.can('aprobar solicitudes compra'));
 const hasRejectPermission = computed(() => authStore.can('rechazar solicitudes compra'));
 const hasCancelPermission = computed(() => authStore.can('cancelar solicitudes compra'));
+const hasCreatePermission = computed(() => authStore.can('crear solicitudes compra'));
+const hasEditPermission = computed(() => authStore.can('editar solicitudes compra'));
+const hasDeletePermission = computed(() => authStore.can('eliminar solicitudes compra'));
 
 const statusOptions = [
     { id: 'all', name: 'Todos los estados' },
@@ -302,9 +308,9 @@ const getStatusTone = (status?: string): 'gray' | 'yellow' | 'green' | 'blue' | 
     return statusBadgeTones[status] ?? 'gray';
 };
 
-const canEditRequest = (request: PurchaseRequest): boolean => request.status === 'draft';
+const canEditRequest = (request: PurchaseRequest): boolean => request.status === 'draft' && hasEditPermission.value;
 
-const canSendToApproval = (request: PurchaseRequest): boolean => request.status === 'draft';
+const canSendToApproval = (request: PurchaseRequest): boolean => request.status === 'draft' && hasEditPermission.value;
 const canApprove = (request: PurchaseRequest): boolean => request.status === 'pending' && hasApprovePermission.value;
 const canReject = (request: PurchaseRequest): boolean => request.status === 'pending' && hasRejectPermission.value;
 const canCancel = (request: PurchaseRequest): boolean => (request.status === 'draft' || request.status === 'pending') && hasCancelPermission.value;
@@ -320,10 +326,8 @@ async function fetchRequests(page = 1) {
     if (searchQuery.value.trim()) params.search = searchQuery.value.trim();
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
     // Filtro de proveedor eliminado
-    if (dateFilter.value) {
-        params.date_from = dateFilter.value;
-        params.date_to = dateFilter.value;
-    }
+    if (dateFilter.value.from) params.date_from = dateFilter.value.from;
+    if (dateFilter.value.to) params.date_to = dateFilter.value.to;
 
     try {
         const response = await axios.get('/gastos/solicitudes-compra/data', { params });
@@ -403,10 +407,10 @@ watch(
         <div class="flex flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <div class="space-y-1">
-                    <h1 class="text-lg font-bold">Solicitud de Compra y Servicios</h1>
+                    <h1 class="text-lg font-bold">Solicitud de compra y servicios</h1>
                     <p class="text-sm text-muted-foreground">Gestiona las solicitudes emitidas a proveedores y mantente al tanto de su estado.</p>
                 </div>
-                <Button variant="default" size="pill" dusk="btn-nueva-solicitud" @click="openCreateRequest">
+                <Button v-if="hasCreatePermission" variant="default" size="pill" dusk="btn-nueva-solicitud" @click="openCreateRequest">
                     <PlusCircle class="h-4 w-4" />
                     Nueva solicitud
                 </Button>
@@ -431,8 +435,8 @@ watch(
                     />
                 </FilterField>
                 <!-- Filtro de proveedor eliminado -->
-                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
-                    <InputDate v-model="dateFilter" placeholder="Fecha" :clearable="true" :show-today="true" />
+                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[240px]">
+                    <AccountingDateRangePicker v-model="dateFilter" placeholder="Rango de fechas" />
                 </FilterField>
             </FilterBar>
 
@@ -456,6 +460,7 @@ watch(
                                     </span>
                                 </TableHead>
                                 <TableHead>Proveedor</TableHead>
+                                <TableHead>Solicitante</TableHead>
                                 <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('total')">
                                     <span class="inline-flex items-center gap-1">
                                         Total estimado
@@ -477,14 +482,14 @@ watch(
                         <TableBody>
                             <template v-if="isLoading">
                                 <TableRow v-for="i in 5" :key="`request-skeleton-${i}`">
-                                    <TableCell v-for="col in 7" :key="`request-skeleton-${i}-${col}`" class="px-4 py-3">
+                                    <TableCell v-for="col in 8" :key="`request-skeleton-${i}-${col}`" class="px-4 py-3">
                                         <Skeleton class="h-4 w-full" />
                                     </TableCell>
                                 </TableRow>
                             </template>
                             <template v-else-if="!requests.length">
                                 <TableRow>
-                                    <TableCell colspan="7">
+                                    <TableCell colspan="8">
                                         <div class="py-6 text-center text-sm text-muted-foreground">No se encontraron solicitudes.</div>
                                     </TableCell>
                                 </TableRow>
@@ -494,6 +499,7 @@ watch(
                                     <TableCell class="font-medium">{{ request.request_number || request.id }}</TableCell>
                                     <TableCell>{{ formatDate(request.date) }}</TableCell>
                                     <TableCell class="max-w-[180px] truncate">{{ request.provider_name || '-' }}</TableCell>
+                                    <TableCell class="max-w-[160px] truncate">{{ request.requester?.name || '-' }}</TableCell>
                                     <TableCell>{{ formatCurrency(computeRequestTotal(request)) }}</TableCell>
                                     <TableCell class="max-w-[200px] truncate">{{ request.description || '-' }}</TableCell>
                                     <TableCell>
@@ -521,62 +527,53 @@ watch(
                                             </Tooltip>
                                         </div>
                                     </TableCell>
-                                    <TableCell class="flex items-center justify-center gap-2">
-                                        <button
-                                            class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-primary"
-                                            @click="viewRequest(request)"
-                                            title="Ver detalles"
-                                        >
-                                            <Eye class="h-4 w-4" />
-                                        </button>
-                                        <EditButton v-if="canEditRequest(request)" :onClick="() => editRequest(request)" title="Editar solicitud" />
-                                        <DeleteButton
-                                            v-if="request.status === 'draft'"
-                                            @click="confirmDeleteRequest(request)"
-                                            title="Eliminar solicitud"
-                                        />
-                                        <DropdownMenu
-                                            v-if="canSendToApproval(request) || canApprove(request) || canReject(request) || canCancel(request)"
-                                        >
-                                            <DropdownMenuTrigger as-child>
-                                                <button
-                                                    class="flex items-center text-gray-500 transition-colors duration-200 hover:text-gray-700"
-                                                    title="Más acciones"
-                                                >
-                                                    <MoreVertical class="h-4 w-4" />
-                                                </button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end" class="w-48">
+                                    <TableCell>
+                                        <TableRowActions>
+                                            <ViewButton :onClick="() => viewRequest(request)" title="Ver detalles" />
+                                            <EditButton
+                                                v-if="canEditRequest(request)"
+                                                :onClick="() => editRequest(request)"
+                                                title="Editar solicitud"
+                                            />
+                                            <DeleteButton
+                                                v-if="request.status === 'draft' && hasDeletePermission"
+                                                @click="confirmDeleteRequest(request)"
+                                                title="Eliminar solicitud"
+                                            />
+                                            <TableActionsMenu
+                                                v-if="canSendToApproval(request) || canApprove(request) || canReject(request) || canCancel(request)"
+                                                trigger-class="h-8 w-8"
+                                            >
                                                 <DropdownMenuItem
                                                     v-if="canSendToApproval(request)"
-                                                    class="cursor-pointer gap-2"
+                                                    class="cursor-pointer gap-2 text-blue-600"
                                                     @click="handleSendToApproval(request)"
                                                 >
-                                                    <Send class="h-4 w-4" /> Enviar a aprobación
+                                                    <Send class="h-4 w-4" /> Enviar solicitud a aprobación
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem
                                                     v-if="canApprove(request)"
                                                     class="cursor-pointer gap-2 text-green-600"
                                                     @click="handleApprove(request)"
                                                 >
-                                                    <CheckCircle class="h-4 w-4" /> Aprobar
+                                                    <CheckCircle class="h-4 w-4" /> Aprobar solicitud
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem
                                                     v-if="canReject(request)"
                                                     class="cursor-pointer gap-2 text-red-600"
                                                     @click="confirmRejectRequest(request)"
                                                 >
-                                                    <XCircle class="h-4 w-4" /> Rechazar
+                                                    <XCircle class="h-4 w-4" /> Rechazar solicitud
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem
                                                     v-if="canCancel(request)"
                                                     class="cursor-pointer gap-2 text-orange-600"
                                                     @click="handleCancel(request)"
                                                 >
-                                                    <X class="h-4 w-4" /> Cancelar
+                                                    <X class="h-4 w-4" /> Cancelar solicitud
                                                 </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
+                                            </TableActionsMenu>
+                                        </TableRowActions>
                                     </TableCell>
                                 </TableRow>
                             </template>

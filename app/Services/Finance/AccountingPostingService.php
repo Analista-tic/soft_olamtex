@@ -1167,6 +1167,11 @@ class AccountingPostingService
             2
         );
 
+        $invoiceIva = round(
+            (float) $invoice->items->sum(fn (PurchaseDocumentItem $item) => (float) ($item->total_tax ?? 0)),
+            2
+        );
+
         $withholdings = is_array($invoice->withholdings) ? $invoice->withholdings : [];
         $lines = [];
 
@@ -1177,15 +1182,6 @@ class AccountingPostingService
 
             $percentage = round((float) ($withholding['percentage'] ?? 0), 2);
             if ($percentage <= 0) {
-                continue;
-            }
-
-            $baseAmount = isset($withholding['base_amount']) && is_numeric($withholding['base_amount'])
-                ? round((float) $withholding['base_amount'], 2)
-                : $invoiceSubtotal;
-
-            $amount = round(($baseAmount * $percentage) / 100, 2);
-            if ($amount <= 0) {
                 continue;
             }
 
@@ -1205,6 +1201,17 @@ class AccountingPostingService
                     .($retentionName !== '' ? $retentionName : '#'.($index + 1))
                     .'" para contabilizar la factura de compra.'
                 );
+            }
+
+            // Base por defecto según normativa: ReteIVA sobre el IVA; ReteFuente/ICA sobre el subtotal.
+            $hasCustomBase = isset($withholding['base_amount']) && is_numeric($withholding['base_amount']) && (float) $withholding['base_amount'] > 0;
+            $baseAmount = $hasCustomBase
+                ? round((float) $withholding['base_amount'], 2)
+                : round(\App\Support\Finance\PurchaseWithholdingCalculator::defaultBase($retention->type, $invoiceSubtotal, $invoiceIva), 2);
+
+            $amount = round(($baseAmount * $percentage) / 100, 2);
+            if ($amount <= 0) {
+                continue;
             }
 
             if (! $retention->account_id) {

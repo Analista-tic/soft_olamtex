@@ -65,6 +65,7 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'rechazar recepcion tela',
             'habilitar item',
             'crear referencia manual item',
+            'ver catalogo items',
         ];
 
         foreach ($permissions as $permissionName) {
@@ -103,9 +104,13 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'editar campos adicionales',
             'eliminar campos adicionales',
             'activar desactivar item',
+            'crear items',
+            'editar items',
+            'eliminar items',
             'carga masiva items',
             'exportar items',
             'ver colores',
+            'ver catalogo items',
         ];
 
         $sharedProductionInventoryTextil = [
@@ -143,10 +148,10 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'crear recepcion telas',
             'editar recepcion telas',
             'eliminar recepcion telas',
-            'ver inventario telas',
-            'crear inventario telas',
-            'editar inventario telas',
-            'eliminar inventario telas',
+            'ver catalogo items',
+            'crear items',
+            'editar items',
+            'eliminar items',
             'ver solicitudes insumos',
             'crear solicitudes insumos',
             'ver propios solicitudes insumos',

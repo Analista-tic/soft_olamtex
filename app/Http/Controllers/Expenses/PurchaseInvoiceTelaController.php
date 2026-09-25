@@ -23,6 +23,13 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
         return $this->service;
     }
 
+    // La recepción de tela (FabricRollService::approveReception) deja status='approved'.
+    private function isReceivedOrApproved(PurchaseDocument $invoice): bool
+    {
+        return $invoice->approval_status === PurchaseDocument::APPROVAL_APPROVED
+            || in_array($invoice->status, ['received', 'approved'], true);
+    }
+
     public function indexFabric()
     {
         return Inertia::render('Expenses/PurchaseInvoices/IndexFabric');
@@ -43,6 +50,12 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
             'mode' => 'edit',
             'form' => $invoice,
         ]);
+    }
+
+    /** Fechas del recorrido solicitud → orden → recepción → factura, solo lectura. */
+    public function traceability(PurchaseDocument $purchaseInvoice)
+    {
+        return $this->traceabilityResponse($purchaseInvoice);
     }
 
     public function show(PurchaseDocument $purchaseInvoice)
@@ -73,6 +86,11 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
     public function update(Request $request, PurchaseDocument $purchaseInvoice)
     {
         $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
+
+        if ($this->isReceivedOrApproved($purchaseInvoice)) {
+            return response()->json(['message' => 'No se puede editar una factura aprobada o recibida.'], 422);
+        }
+
         $payload = $this->validateInvoiceRequest($request, true);
         $items = $request->has('items') ? $payload['items'] ?? [] : null;
 
@@ -83,6 +101,11 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
     public function destroy(PurchaseDocument $purchaseInvoice)
     {
         $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
+
+        if ($this->isReceivedOrApproved($purchaseInvoice)) {
+            return response()->json(['message' => 'No se puede eliminar una factura aprobada o recibida.'], 422);
+        }
+
         $this->service->deleteDocument($purchaseInvoice);
         return response()->json(['message' => 'Factura eliminada']);
     }

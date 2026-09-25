@@ -121,8 +121,6 @@ function formatStatus(value?: string | null): string {
     if (!value) return '-';
     if (value === 'pending') return 'Pendiente';
     if (value === 'approved') return 'Aprobada';
-    if (value === 'posted') return 'Contabilizada';
-    if (value === 'cancelled') return 'Anulada';
     return value;
 }
 

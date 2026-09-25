@@ -6,6 +6,7 @@ import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import type { PurchaseInvoiceWithholding } from '@/domain/Expenses';
+import { isIvaWithholding, withholdingAmount } from '@/domain/Expenses/withholdings';
 import {
     createRetentionForm,
     createRetention as createRetentionRequest,
@@ -26,8 +27,10 @@ const props = withDefaults(
         isReadOnly?: boolean;
         /** Subtotal de la factura; cuando base_amount es null se usa como base (asumida). */
         invoiceSubtotal?: number;
+        /** IVA de la factura: base de las retenciones de tipo IVA (ReteIVA). */
+        invoiceIva?: number;
     }>(),
-    { invoiceSubtotal: 0 },
+    { invoiceSubtotal: 0, invoiceIva: 0 },
 );
 const emit = defineEmits<{
     (e: 'update:modelValue', value: PurchaseInvoiceWithholding[]): void;
@@ -61,7 +64,21 @@ async function fetchRetentions() {
     }
 }
 
-onMounted(fetchRetentions);
+onMounted(async () => {
+    await fetchRetentions();
+    // Retenciones guardadas antes de conocer el tipo: se completa para calcular la base correcta.
+    let changed = false;
+    for (const w of localWithholdings.value) {
+        if (!w.type) {
+            const found = retentions.value.find((r) => r.name === w.name);
+            if (found) {
+                w.type = found.type;
+                changed = true;
+            }
+        }
+    }
+    if (changed) emit('update:modelValue', [...localWithholdings.value]);
+});
 
 watch(
     () => props.modelValue,
@@ -72,15 +89,13 @@ watch(
     { immediate: true },
 );
 
-/** Base efectiva: si base_amount es null/omitido se usa el subtotal de la factura (asumida). */
-function getEffectiveBase(w: PurchaseInvoiceWithholding): number {
-    const b = w.base_amount;
-    if (b != null && Number.isFinite(Number(b))) return Number(b);
-    return Number(props.invoiceSubtotal) || 0;
+/** ReteIVA: base = IVA de la factura. ReteFuente/ICA y demás: base = subtotal. Una base manual prevalece. */
+function getWithholdingValue(w: PurchaseInvoiceWithholding): number {
+    return withholdingAmount(w, Number(props.invoiceSubtotal) || 0, Number(props.invoiceIva) || 0);
 }
 
-function getWithholdingValue(w: PurchaseInvoiceWithholding): number {
-    return (getEffectiveBase(w) * (Number(w.percentage) || 0)) / 100;
+function defaultBaseLabel(w: PurchaseInvoiceWithholding): string {
+    return isIvaWithholding(w.type) ? 'IVA' : 'Subtotal';
 }
 
 function getBaseAmountInputValue(w: PurchaseInvoiceWithholding): string | number {
@@ -143,6 +158,7 @@ async function handleRetentionSubmit(formData: RetentionForm) {
                 suppressWatchSync.value = true;
                 localWithholdings.value[rowIdx].name = newRetention.name;
                 localWithholdings.value[rowIdx].percentage = newRetention.percent;
+                localWithholdings.value[rowIdx].type = newRetention.type;
                 emit('update:modelValue', localWithholdings.value);
                 await nextTick();
                 suppressWatchSync.value = false;
@@ -175,7 +191,7 @@ async function handleRetentionSubmit(formData: RetentionForm) {
                 <thead>
                     <tr>
                         <th class="w-32 p-1">Nombre</th>
-                        <th class="w-24 p-1"><span class="inline-flex items-center gap-1">Base <HelpTooltip text="Valor sobre el cual se calcula la retención. Por defecto es el subtotal de la factura, pero puede ajustarse manualmente." /></span></th>
+                        <th class="w-24 p-1"><span class="inline-flex items-center gap-1">Base <HelpTooltip text="Valor sobre el cual se calcula la retención. Por defecto: el IVA de la factura para ReteIVA y el subtotal (antes de IVA) para ReteFuente e ICA. Puede ajustarse manualmente." /></span></th>
                         <th class="w-24 p-1">Valor</th>
                         <th class="w-8 p-1"></th>
                     </tr>
@@ -191,7 +207,7 @@ async function handleRetentionSubmit(formData: RetentionForm) {
                                 size="xs"
                                 class="flex-1 text-xs"
                                 :key="`${retentionSelectKey}-${idx}`"
-                                :disabled="isReadOnly"
+                                :readonly="isReadOnly"
                                 :showPlaceholderOption="false"
                                 :action-label="!isReadOnly ? 'Nueva retención' : undefined"
                                 :action-disabled="isReadOnly"
@@ -199,7 +215,10 @@ async function handleRetentionSubmit(formData: RetentionForm) {
                                 @update:modelValue="
                                     (val) => {
                                         const found = retentions.find((r) => r.name === val);
-                                        if (found) withholding.percentage = found.percent;
+                                        if (found) {
+                                            withholding.percentage = found.percent;
+                                            withholding.type = found.type;
+                                        }
                                         emit('update:modelValue', localWithholdings);
                                     }
                                 "
@@ -212,9 +231,8 @@ async function handleRetentionSubmit(formData: RetentionForm) {
                                 label=""
                                 size="xs"
                                 class="text-xs"
-                                :placeholder="withholding.base_amount == null ? 'Subtotal' : undefined"
+                                :placeholder="withholding.base_amount == null ? defaultBaseLabel(withholding) : undefined"
                                 :readonly="isReadOnly"
-                                :disabled="isReadOnly"
                                 @update:modelValue="(val) => updateBaseAmount(withholding, val)"
                             />
                         </td>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { formatPersonNameDisplay } from '@/lib/textNormalizer';
 import AlertStack from '@/components/common/AlertStack.vue';
+import ConfirmWithInputDialog from '@/components/common/ConfirmWithInputDialog.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import InputDate from '@/components/InputDate.vue';
@@ -70,7 +71,7 @@ const isLoadingSpecificInvoice = ref(false);
 const isFabricRollDialogOpen = ref(false);
 const selectedItem = ref<any>(null);
 const { company, logoUrl } = useCompanyInfo();
-const TOLERANCE_QUANTITY_PERCENT = 30;
+const TOLERANCE_QUANTITY_METERS = 30;
 
 const invoiceDateTimeFormatter = new Intl.DateTimeFormat('es-CO', {
     dateStyle: 'short',
@@ -278,10 +279,44 @@ async function approveReception(invoice: PurchaseInvoice) {
         setAlert(`Recepción de factura #${invoice.id} aprobada. La factura queda en estado Aprobado.`, 'success');
     } catch (e: any) {
         console.log('Error al aprobar recepción:', e);
+        const errors = e?.response?.data?.errors;
         const detail =
-            e?.response?.data?.errors?.general?.[0] ||
+            errors?.general?.[0] ||
             e?.response?.data?.message ||
             `Error al aprobar la recepción de la factura #${invoice?.id ?? 'N/A'}`;
+        if (errors?.difference_required) {
+            // Fuera de ±30 mts: se pide el motivo para que otra persona con permiso apruebe la diferencia.
+            invoiceForDifference.value = invoice;
+            isDifferenceDialogOpen.value = true;
+            setAlert(String(detail), 'warning');
+            return;
+        }
+        setAlert(String(detail), 'error');
+    }
+}
+
+const isDifferenceDialogOpen = ref(false);
+const invoiceForDifference = ref<PurchaseInvoice | null>(null);
+
+async function reportDifference(reason: string) {
+    const invoice = invoiceForDifference.value;
+    isDifferenceDialogOpen.value = false;
+    invoiceForDifference.value = null;
+    if (!invoice) return;
+    try {
+        const { data } = await axios.patch(`/kardex-telas/recepcion/${invoice.id}/reportar-diferencia`, { reason });
+        if (showInvoicesList.value) {
+            await fetchInvoices(currentPage.value, searchQuery.value);
+        } else if (invoice.id && typeof invoice.id === 'number') {
+            await fetchSpecificInvoice(invoice.id);
+        }
+        setAlert(data?.message || 'Diferencia registrada; queda pendiente de aprobación.', 'success');
+    } catch (e: any) {
+        const detail =
+            e?.response?.data?.errors?.general?.[0] ||
+            e?.response?.data?.errors?.reason?.[0] ||
+            e?.response?.data?.message ||
+            'No se pudo registrar la diferencia.';
         setAlert(String(detail), 'error');
     }
 }
@@ -509,6 +544,11 @@ function isInvoiceReceptionApproved(invoice: PurchaseInvoice | null | undefined)
     return s === 'approved' || s === 'received';
 }
 
+const canAddRollsAfterApproval = computed(() => {
+    const permissions = (usePage<PageProps>().props.auth as { permissions?: string[] } | undefined)?.permissions ?? [];
+    return permissions.includes('ajustar telas rollos');
+});
+
 const canDeleteEditRollsForDialog = computed(() => {
     const inv = selectedInvoice.value;
     if (!inv) return true;
@@ -520,6 +560,8 @@ const cannotApproveDescription = computed(() => getCannotApproveDescription(sele
 /** Condiciones no cumplidas para poder aprobar la factura (ítems tela sin rollos o fuera de tolerancia ±30%). */
 const approvalBlockers = ref<string[]>([]);
 const approvalBlockersLoading = ref(false);
+/** Diferencias fuera de ±30 mts de la factura abierta: no bloquean, exigen aprobación de otra persona. */
+const approvalDifferenceNotes = ref<string[]>([]);
 
 /** Blockers por factura para mostrar alerta en cada fila de la lista (solo dot, no número). */
 const approvalBlockersByInvoiceId = ref<Record<number, string[]>>({});
@@ -532,7 +574,7 @@ function isInvoicePendingReceipt(invoice: PurchaseInvoice | null | undefined): b
 }
 
 /** Calcula blockers para una factura dada (reutilizable para lista y detalle). */
-async function fetchBlockersForInvoice(inv: PurchaseInvoice): Promise<string[]> {
+async function fetchBlockersForInvoice(inv: PurchaseInvoice, differenceNotes: string[] = []): Promise<string[]> {
     const items = inv.items || [];
     const fabricItems = items.filter((item: any) => isFabricItem(item));
     if (fabricItems.length === 0) return [];
@@ -555,10 +597,10 @@ async function fetchBlockersForInvoice(inv: PurchaseInvoice): Promise<string[]> 
             }
             const totalReceived = rollos.reduce((acc: number, r: any) => acc + Number(r.quantity || 0), 0);
             if (ordered <= 0) continue;
-            const difference = Math.abs(ordered - totalReceived);
-            const percentageDiff = (difference / ordered) * 100;
-            if (percentageDiff > TOLERANCE_QUANTITY_PERCENT) {
-                blockers.push(`Cantidad fuera de tolerancia (±${TOLERANCE_QUANTITY_PERCENT}%) para "${itemName}"`);
+            // Fuera de ±30 mts no bloquea el botón: el servidor pide registrar la diferencia para su aprobación.
+            const difference = ordered - totalReceived;
+            if (difference > TOLERANCE_QUANTITY_METERS) {
+                differenceNotes.push(`"${itemName}": faltan ${difference.toFixed(2)} mts respecto a lo facturado (tolerancia ${TOLERANCE_QUANTITY_METERS} mts)`);
             }
         } catch {
             // ignorar error por ítem
@@ -571,19 +613,24 @@ async function fetchApprovalBlockers() {
     const inv = selectedInvoice.value;
     if (!inv || !isInvoicePendingReceipt(inv)) {
         approvalBlockers.value = [];
+        approvalDifferenceNotes.value = [];
         return;
     }
     const items = inv.items || [];
     const fabricItems = items.filter((item: any) => isFabricItem(item));
     if (fabricItems.length === 0) {
         approvalBlockers.value = [];
+        approvalDifferenceNotes.value = [];
         return;
     }
     approvalBlockersLoading.value = true;
     try {
-        approvalBlockers.value = await fetchBlockersForInvoice(inv);
+        const notes: string[] = [];
+        approvalBlockers.value = await fetchBlockersForInvoice(inv, notes);
+        approvalDifferenceNotes.value = notes;
     } catch {
         approvalBlockers.value = [];
+        approvalDifferenceNotes.value = [];
     } finally {
         approvalBlockersLoading.value = false;
     }
@@ -1533,15 +1580,30 @@ function onFabricRollSuccess() {
                             {{ approvalBlockersLoading ? 'Verificando condiciones para aprobar...' : 'No se puede aprobar la recepción:' }}
                         </p>
                         <p v-if="approvalBlockersLoading" class="text-xs text-muted-foreground">
-                            Se comprueba que cada ítem de tela tenga al menos un rollo registrado y que la cantidad recepcionada esté dentro de la
-                            tolerancia (±30% del pedido).
+                            Se comprueba que cada ítem de tela tenga al menos un rollo registrado.
                         </p>
                         <ul v-else-if="approvalBlockers.length > 0" class="list-inside list-disc space-y-0.5 text-xs text-muted-foreground">
                             <li v-for="(msg, i) of approvalBlockers" :key="i">{{ msg }}</li>
                         </ul>
                         <p v-if="approvalBlockers.length > 0" class="mt-2 text-xs text-muted-foreground">
-                            Registre o ajuste los rollos de cada ítem de tela desde el ícono de rollo en la tabla de ítems. La cantidad total
-                            recepcionada por ítem debe estar dentro del ±30% de la cantidad pedida.
+                            Registre o ajuste los rollos de cada ítem de tela desde el ícono de rollo en la tabla de ítems.
+                        </p>
+                    </div>
+
+                    <!-- Diferencias fuera de tolerancia: no bloquean, exigen aprobación de otra persona con permiso -->
+                    <div
+                        v-if="isInvoicePendingReceipt(selectedInvoice) && !approvalBlockersLoading && approvalDifferenceNotes.length > 0"
+                        class="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950/30"
+                    >
+                        <p class="mb-1 font-medium text-amber-800 dark:text-amber-300">
+                            Esta factura tiene faltantes de más de {{ TOLERANCE_QUANTITY_METERS }} mts
+                        </p>
+                        <ul class="list-inside list-disc space-y-0.5 text-xs text-muted-foreground">
+                            <li v-for="(msg, i) of approvalDifferenceNotes" :key="i">{{ msg }}</li>
+                        </ul>
+                        <p class="mt-2 text-xs text-muted-foreground">
+                            Al marcar la recepción completa se pedirá el motivo y otra persona con permiso deberá aprobar la diferencia. El inventario
+                            no se carga hasta entonces.
                         </p>
                     </div>
 
@@ -1614,6 +1676,19 @@ function onFabricRollSuccess() {
                 </div>
             </template>
 
+            <ConfirmWithInputDialog
+                v-model:open="isDifferenceDialogOpen"
+                title="Registrar diferencia de recepción"
+                description="La cantidad recibida está fuera de la tolerancia. Indica el motivo; otra persona con permiso deberá aprobar la diferencia antes de que la recepción pueda completarse y el inventario se cargue."
+                input-label="Motivo de la diferencia"
+                input-placeholder="Ej: el proveedor envió menos rollos de los facturados"
+                confirm-text="Registrar diferencia"
+                cancel-text="Cancelar"
+                :destructive="false"
+                :input-required="true"
+                @confirm="reportDifference"
+            />
+
             <!-- Diálogo de confirmación para rechazar recepción -->
             <Dialog v-model:open="isRejectDialogOpen">
                 <DialogContent class="sm:max-w-[440px] p-6">
@@ -1675,6 +1750,7 @@ function onFabricRollSuccess() {
                 :item="selectedItem"
                 :apiUrl="'/kardex-telas/rollos'"
                 :can-delete-edit-rolls="canDeleteEditRollsForDialog"
+                :can-add-after-approval="canAddRollsAfterApproval"
                 @close="closeFabricRollDialog"
                 @success="onFabricRollSuccess"
             />

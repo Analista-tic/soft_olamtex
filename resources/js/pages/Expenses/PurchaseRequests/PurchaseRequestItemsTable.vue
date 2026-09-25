@@ -4,16 +4,13 @@ import HelpTooltip from '@/components/HelpTooltip.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { Item } from '@/domain/MasterData';
-import axios from 'axios';
 import type { PurchaseRequestItem } from '@/domain/Expenses';
 import { ImagePlus, X } from 'lucide-vue-next';
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { onBeforeUnmount, ref, watch } from 'vue';
 
 const props = defineProps<{ items: PurchaseRequestItem[]; readonly?: boolean }>();
 const emit = defineEmits(['update:items']);
 
-const catalogItems = ref<Item[]>([]);
 const localItems = ref<PurchaseRequestItem[]>([]);
 const fileInputRefs = ref<Record<string, HTMLInputElement | null>>({});
 const persistedImageUrls = ref<Record<string, string | null>>({});
@@ -47,11 +44,6 @@ function calcTotals(item: PurchaseRequestItem) {
     item.total = roundCurrency(price * quantity);
 }
 
-async function fetchItems() {
-    const res = await axios.get('/item/data', { params: { per_page: 1000 } });
-    catalogItems.value = res.data.data;
-}
-
 function normalizeItem(item: Partial<PurchaseRequestItem>): PurchaseRequestItem {
     const uid = typeof item.uid === 'string' && item.uid.trim() ? item.uid.trim() : generateItemUid();
     const imageUrl = typeof item.image_url === 'string' && item.image_url.trim() ? item.image_url : null;
@@ -77,13 +69,6 @@ function normalizeItem(item: Partial<PurchaseRequestItem>): PurchaseRequestItem 
         image_file: item.image_file ?? null,
         _delete_image: Boolean(item._delete_image),
     };
-
-    const match = catalogItems.value.find((entry) => Number(entry.id) === Number(normalized.item_id));
-    if (!normalized.name) {
-        if (match) {
-            normalized.name = match.name || '';
-        }
-    }
 
     calcTotals(normalized);
 
@@ -278,27 +263,13 @@ watch(
 );
 
 watch(
-    catalogItems,
-    () => {
-        syncLocalItemsFromProps(localItems.value);
-    },
-    { immediate: true },
-);
-
-watch(
     localItems,
     (items) => {
         if (isSyncingItems.value) {
             return;
         }
 
-        const normalizedItems = items.map((item) => {
-            const normalized = normalizeItem(item);
-            const match = catalogItems.value.find((entry) => entry.name?.toLowerCase() === (normalized.name || '').toLowerCase());
-            normalized.item_id = match ? Number(match.id) : normalized.name && normalized.name.trim() ? normalized.name.trim() : null;
-            calcTotals(normalized);
-            return normalized;
-        });
+        const normalizedItems = items.map((item) => normalizeItem(item));
 
         const currentSignature = itemsSignature(items);
         const normalizedSignature = itemsSignature(normalizedItems);
@@ -316,10 +287,6 @@ watch(
 
 watch(showLightbox, (isOpen) => {
     syncLightboxKeydownListener(isOpen);
-});
-
-onMounted(() => {
-    fetchItems();
 });
 
 onBeforeUnmount(() => {

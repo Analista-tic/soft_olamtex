@@ -904,7 +904,7 @@ class ExpenseVoucherService
             return 0.0;
         }
 
-        $total = collect($withholdings)->sum(function ($item) {
+        $total = collect($withholdings)->sum(function ($item) use ($invoice) {
             $row = is_array($item) ? $item : (array) $item;
             $baseAmount = (float) ($row['base_amount'] ?? 0);
             $percentage = (float) ($row['percentage'] ?? $row['percent'] ?? 0);
@@ -912,6 +912,14 @@ class ExpenseVoucherService
 
             if ($fixedValue > 0) {
                 return $fixedValue;
+            }
+
+            // Facturas anteriores guardaban base_amount vacío ("la base por defecto"): se calcula según el tipo de retención.
+            if ($baseAmount <= 0 && $percentage > 0 && $invoice instanceof \App\Models\Expenses\PurchaseDocument) {
+                $type = $row['type'] ?? \App\Models\Finance\Retention::query()->where('name', $row['name'] ?? '')->value('type');
+                $subtotal = (float) $invoice->items->sum(fn ($line) => (float) ($line->total ?? 0));
+                $iva = (float) $invoice->items->sum(fn ($line) => (float) ($line->total_tax ?? 0));
+                $baseAmount = \App\Support\Finance\PurchaseWithholdingCalculator::defaultBase($type, $subtotal, $iva);
             }
 
             if ($baseAmount > 0 && $percentage > 0) {

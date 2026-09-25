@@ -52,12 +52,15 @@ class PurchaseDocument extends Model implements HasAuditLabel
         'rejected_at',
         'approved_by_user_id',
         'approved_at',
+        'sent_at',
         'requested_at',
         'ordered_at',
         'invoiced_at',
+        'received_at',
     ];
 
     protected $casts = [
+        'received_at'   => 'datetime',
         'date'          => 'date',
         'delivery_date' => 'date',
 
@@ -66,6 +69,7 @@ class PurchaseDocument extends Model implements HasAuditLabel
         'invoiced_at'   => 'datetime',
         'approved_at'   => 'datetime',
         'rejected_at'   => 'datetime',
+        'sent_at'       => 'datetime',
 
         'withholdings'  => 'array',
         'has_difference' => 'boolean',

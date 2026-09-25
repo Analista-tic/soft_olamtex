@@ -31,7 +31,7 @@ class FabricRollService
     ) {}
 
     /** Tolerancia de cantidad al aprobar recepción: ±30% respecto al pedido por ítem. */
-    public const TOLERANCE_QUANTITY_PERCENT = 30;
+    public const TOLERANCE_QUANTITY_METERS = 30;
 
     public const ROLL_NUMBER_PREFIX = 'RL';
 
@@ -1074,7 +1074,29 @@ class FabricRollService
             $data['price_per_meter'] = (float) $pdi->price;
         }
 
-        return $this->create($data);
+        $document = $pdi->document;
+        $receptionAlreadyApproved = $document !== null && $document->status === 'approved';
+        if ($receptionAlreadyApproved) {
+            $data['approval_status'] = FabricRoll::APPROVAL_APPROVED;
+        }
+
+        return DB::transaction(function () use ($data, $document, $receptionAlreadyApproved) {
+            $roll = $this->create($data);
+
+            if ($receptionAlreadyApproved) {
+                $documentNumber = trim((string) ($document->document_number ?? '')) !== ''
+                    ? trim((string) $document->document_number)
+                    : 'Factura #'.$document->id;
+                $responsibleUserId = Auth::id() ?? $document->approved_by_user_id ?? $document->created_by_user_id;
+                if (empty($responsibleUserId)) {
+                    throw new \RuntimeException('No se pudo resolver el usuario responsable de la recepción de rollos.');
+                }
+
+                $this->createReceptionInventoryMovement($roll, $document, $documentNumber, (int) $responsibleUserId);
+            }
+
+            return $roll;
+        });
     }
 
     /**
@@ -1088,9 +1110,10 @@ class FabricRollService
         if (! $item || ! $item->document) {
             return;
         }
-        if ($item->document->status === 'approved') {
+        // Recepción ya aprobada: solo quien puede ajustar rollos añade más (entran directo al inventario).
+        if ($item->document->status === 'approved' && ! Auth::user()?->can('ajustar telas rollos')) {
             throw ValidationException::withMessages([
-                'general' => ['No se pueden añadir más rollos: la factura ya está recepcionada (aprobada).'],
+                'general' => ['No se pueden añadir más rollos: la factura ya está recepcionada (aprobada). Solo quien tenga permiso para ajustar rollos puede hacerlo.'],
             ]);
         }
 
@@ -1364,6 +1387,35 @@ class FabricRollService
         });
     }
 
+    protected function createReceptionInventoryMovement(FabricRoll $roll, PurchaseDocument $invoice, string $documentNumber, int $responsibleUserId): void
+    {
+        $item = $roll->item ?? $roll->purchaseDocumentItem?->item;
+        if (! $item) {
+            return;
+        }
+
+        $warehouseId = $this->warehouseResolver->resolveWarehouseId($item, null);
+        $unitPrice = $roll->price_per_meter !== null
+            ? (float) $roll->price_per_meter
+            : (float) ($roll->purchaseDocumentItem?->price ?? 0);
+        $movementDocumentNumber = mb_substr($documentNumber.' ['.$roll->roll_number.']', 0, 50);
+
+        $this->movementService->createMovement([
+            'document_number' => $movementDocumentNumber,
+            'item_id' => $item->id,
+            'warehouse_id' => $warehouseId,
+            'type' => 'entrada',
+            'quantity' => (float) $roll->quantity,
+            'unit_price' => $unitPrice,
+            'date' => $roll->entry_date?->toDateString() ?? now()->toDateString(),
+            'source_type' => PurchaseDocument::class,
+            'source_id' => $invoice->id,
+            'source_reference' => $roll->roll_number,
+            'notes' => 'Recepción de rollo '.$roll->roll_number.' de factura '.$documentNumber,
+            'created_by_user_id' => $responsibleUserId,
+        ]);
+    }
+
     public function approveReception($invoiceId)
     {
         $invoice = PurchaseDocument::with(['items', 'items.item.categorySubGroup'])
@@ -1371,7 +1423,7 @@ class FabricRollService
             ->findOrFail($invoiceId);
 
         $this->ensureInvoiceReceptionAllowed($invoice);
-        $this->validateReceptionTolerances($invoice);
+        $this->ensureReceptionDifferencesApproved($invoice);
 
         return DB::transaction(function () use ($invoice) {
             $lockedInvoice = PurchaseDocument::query()
@@ -1390,7 +1442,7 @@ class FabricRollService
                 ->lockForUpdate()
                 ->get();
 
-            $lockedInvoice->update(['status' => 'approved']);
+            $lockedInvoice->update(['status' => 'approved', 'received_at' => $lockedInvoice->received_at ?? now()]);
 
             if ($pendingRolls->isNotEmpty()) {
                 FabricRoll::whereIn('id', $pendingRolls->pluck('id'))
@@ -1418,31 +1470,7 @@ class FabricRollService
                         continue;
                     }
 
-                    $item = $roll->item ?? $roll->purchaseDocumentItem?->item;
-                    if (! $item) {
-                        continue;
-                    }
-
-                    $warehouseId = $this->warehouseResolver->resolveWarehouseId($item, null);
-                    $unitPrice = $roll->price_per_meter !== null
-                        ? (float) $roll->price_per_meter
-                        : (float) ($roll->purchaseDocumentItem?->price ?? 0);
-                    $movementDocumentNumber = mb_substr($documentNumber.' ['.$roll->roll_number.']', 0, 50);
-
-                    $this->movementService->createMovement([
-                        'document_number' => $movementDocumentNumber,
-                        'item_id' => $item->id,
-                        'warehouse_id' => $warehouseId,
-                        'type' => 'entrada',
-                        'quantity' => (float) $roll->quantity,
-                        'unit_price' => $unitPrice,
-                        'date' => $roll->entry_date?->toDateString() ?? now()->toDateString(),
-                        'source_type' => PurchaseDocument::class,
-                        'source_id' => $lockedInvoice->id,
-                        'source_reference' => $roll->roll_number,
-                        'notes' => 'Recepción de rollo '.$roll->roll_number.' de factura '.$documentNumber,
-                        'created_by_user_id' => (int) $responsibleUserId,
-                    ]);
+                    $this->createReceptionInventoryMovement($roll, $lockedInvoice, $documentNumber, (int) $responsibleUserId);
                 }
             }
 
@@ -1451,13 +1479,16 @@ class FabricRollService
     }
 
     /**
-     * No permite aprobar la recepción si algún ítem no cumple la tolerancia de cantidad (±30%).
+     * Ítems de tela con faltante: recibido menos de lo facturado en más de TOLERANCE_QUANTITY_METERS mts.
+     * Lo recibido de más no se restringe (entra al inventario).
      *
-     * @throws ValidationException
+     * @return list<array{name:string, ordered:float, received:float, difference:float}>
      */
-    protected function validateReceptionTolerances(PurchaseDocument $invoice): void
+    public function receptionDifferences(PurchaseDocument $invoice): array
     {
-        $failing = [];
+        $invoice->loadMissing(['items', 'items.item.categorySubGroup']);
+
+        $differences = [];
         foreach ($invoice->items as $item) {
             if (! $item instanceof PurchaseDocumentItem || ! $this->isFabricDocumentItem($item)) {
                 continue;
@@ -1468,27 +1499,112 @@ class FabricRollService
                 continue;
             }
             $received = $this->sumRollQuantityForPurchaseDocumentItem($item->id);
-            $diff = abs($ordered - $received);
-            $percent = ($diff / $ordered) * 100;
-            if ($percent > self::TOLERANCE_QUANTITY_PERCENT) {
-                $name = $item->item_name ?? $item->item?->name ?? "Ítem #{$item->id}";
-                $failing[] = sprintf(
-                    '%s: pedido %.2f mts, recibido %.2f mts (%.1f%% fuera de ±%d%%)',
-                    $name,
-                    $ordered,
-                    $received,
-                    $percent,
-                    self::TOLERANCE_QUANTITY_PERCENT
-                );
+            $difference = $ordered - $received;
+            if ($difference > self::TOLERANCE_QUANTITY_METERS) {
+                $differences[] = [
+                    'name' => (string) ($item->item_name ?? $item->item?->name ?? "Ítem #{$item->id}"),
+                    'ordered' => $ordered,
+                    'received' => $received,
+                    'difference' => $difference,
+                ];
             }
         }
-        if (count($failing) > 0) {
+
+        return $differences;
+    }
+
+    /**
+     * Aviso (no bloqueante) al registrar un rollo cuando ya se recibió de más respecto a lo facturado.
+     * Faltante no se avisa aquí: durante la recepción rollo a rollo es lo normal.
+     */
+    public function receptionExcessWarning(PurchaseDocumentItem $line): ?string
+    {
+        $ordered = (float) $line->quantity;
+        if ($ordered <= 0) {
+            return null;
+        }
+
+        $received = $this->sumRollQuantityForPurchaseDocumentItem($line->id);
+        $excess = $received - $ordered;
+        if ($excess <= self::TOLERANCE_QUANTITY_METERS) {
+            return null;
+        }
+
+        return sprintf(
+            'Se recibieron %.2f mts de más en "%s" (facturado %.2f mts, recibido %.2f mts). No bloquea: el excedente entra al inventario; queda como alerta de la diferencia con la factura.',
+            $excess,
+            (string) ($line->item_name ?? $line->item?->name ?? "Ítem #{$line->id}"),
+            $ordered,
+            $received
+        );
+    }
+
+    /**
+     * Impide aprobar la recepción mientras haya una diferencia fuera de tolerancia sin aprobar.
+     * Quien recepciona registra la diferencia (reportReceptionDifference) y otra persona con
+     * permiso para gestionar diferencias la aprueba; recién ahí se puede aprobar y entra al inventario.
+     *
+     * @throws ValidationException
+     */
+    protected function ensureReceptionDifferencesApproved(PurchaseDocument $invoice): void
+    {
+        if ($invoice->approval_status === PurchaseDocument::APPROVAL_PENDING_DIFFERENCE) {
             throw ValidationException::withMessages([
-                'general' => [
-                    'No se puede aprobar la recepción: la cantidad recibida de uno o más ítems no cumple la tolerancia de ±'.self::TOLERANCE_QUANTITY_PERCENT.'%. '.implode('; ', $failing),
-                ],
+                'general' => ['La diferencia de esta recepción está pendiente de aprobación por quien tenga permiso para gestionar diferencias. El inventario no se carga hasta entonces.'],
+                'difference_pending' => ['1'],
             ]);
         }
+
+        $failing = $this->receptionDifferences($invoice);
+        if (count($failing) === 0 || $invoice->difference_status === 'approved') {
+            return;
+        }
+
+        $detail = implode('; ', array_map(
+            fn (array $row) => sprintf('%s: facturado %.2f mts, recibido %.2f mts (diferencia %.2f mts)', $row['name'], $row['ordered'], $row['received'], $row['difference']),
+            $failing
+        ));
+
+        throw ValidationException::withMessages([
+            'general' => [
+                'Hay faltante de más de '.self::TOLERANCE_QUANTITY_METERS.' mts respecto a lo facturado. Registre la diferencia con su motivo para que la apruebe alguien con permiso; el inventario no se carga hasta entonces. '.$detail,
+            ],
+            'difference_required' => ['1'],
+        ]);
+    }
+
+    /**
+     * Registra el motivo de la diferencia de recepción y la deja pendiente de aprobación.
+     *
+     * @throws ValidationException
+     */
+    public function reportReceptionDifference($invoiceId, string $reason): PurchaseDocument
+    {
+        $invoice = PurchaseDocument::with(['items', 'items.item.categorySubGroup'])
+            ->where('document_type', PurchaseDocument::TYPE_INVOICE)
+            ->findOrFail($invoiceId);
+
+        $this->ensureInvoiceReceptionAllowed($invoice);
+
+        if ($invoice->status === 'approved') {
+            throw ValidationException::withMessages(['general' => ['La factura ya está recepcionada.']]);
+        }
+        if ($invoice->approval_status === PurchaseDocument::APPROVAL_PENDING_DIFFERENCE) {
+            throw ValidationException::withMessages(['general' => ['La diferencia ya fue registrada y está pendiente de aprobación.']]);
+        }
+
+        $failing = $this->receptionDifferences($invoice);
+        if (count($failing) === 0) {
+            throw ValidationException::withMessages(['general' => ['La recepción no tiene diferencias fuera de tolerancia.']]);
+        }
+
+        $summary = implode('; ', array_map(
+            fn (array $row) => sprintf('%s: facturado %.2f mts, recibido %.2f mts', $row['name'], $row['ordered'], $row['received']),
+            $failing
+        ));
+
+        return app(\App\Services\Expenses\PurchaseDocumentService::class)
+            ->attachValidationDifference($invoice, $reason, null, $summary);
     }
 
     protected function isFabricDocumentItem(PurchaseDocumentItem $item): bool

@@ -44,6 +44,7 @@ const purchaseOrders = ref<any[]>([]);
 const selectedPurchaseOrderId = ref<number | null>(null);
 const selectedPurchaseOrderValue = ref<number | null>(null);
 const isSubmitting = ref(false);
+const fieldErrors = ref({ contactId: false, deliveryDate: false, supplierInvoiceNumber: false });
 const invoiceItemsTableRef = ref<{ addItem: () => void } | null>(null);
 const invoiceDate = ref<Date | null>(null);
 const deliveryDate = ref<Date | null>(null);
@@ -63,7 +64,9 @@ const hasModifiedPriceOrQuantity = computed(() => {
     return items.some((item: any) => {
         if (!item.original_order_item) return false;
         const suggestedPrice = Number(item.original_order_item.price);
-        const suggestedQty = Number(item.original_order_item.quantity);
+        const orderQty = Number(item.original_order_item.quantity);
+        const alreadyInvoiced = Number(item.original_order_item.already_invoiced_qty ?? 0);
+        const suggestedQty = alreadyInvoiced > 0 ? Math.max(0, orderQty - alreadyInvoiced) : orderQty;
         const priceChanged = Number.isFinite(suggestedPrice) && Number(item.price) !== suggestedPrice;
         const qtyChanged = Number.isFinite(suggestedQty) && Number(item.quantity) !== suggestedQty;
         return priceChanged || qtyChanged;
@@ -195,7 +198,7 @@ async function fetchPendingPurchaseOrders(search = '') {
 
     try {
         const { data } = await axios.get('/gastos/ordenes-compra/data', {
-            params: { status: 'approved', per_page: 80, fabric_only: true, search: search.trim() },
+            params: { status: 'approved,partially_invoiced', per_page: 80, fabric_only: true, search: search.trim() },
         });
 
         if (currentSequence !== purchaseOrdersRequestSequence) {
@@ -322,7 +325,15 @@ async function fetchNextDocumentNumber() {
 function handleInvoiceAddLine() { invoiceItemsTableRef.value?.addItem(); }
 
 async function loadPurchaseOrderToInvoice(orderId: number) {
-    const order = purchaseOrders.value.find((o: any) => Number(o.id) === Number(orderId));
+    const listedOrder = purchaseOrders.value.find((o: any) => Number(o.id) === Number(orderId));
+    let order: any = listedOrder;
+    try {
+        // La orden completa trae lo ya facturado por ítem (facturas parciales).
+        const { data } = await axios.get(`/gastos/ordenes-compra/${orderId}`);
+        order = data?.data ?? listedOrder;
+    } catch {
+        order = listedOrder;
+    }
     if (!order) return;
     await fetchContacts();
     const foundContact = contacts.value.find((c: any) => Number(c.id) === Number(order.contact_id));
@@ -343,7 +354,10 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
               item_id: item.item_id ?? null,
               price: item.price || '',
               tax: item.tax || 0,
-              quantity: item.quantity || '',
+              quantity: (() => {
+                  const pending = Math.max(0, Number(item.quantity || 0) - Number(item.already_invoiced_qty ?? 0));
+                  return pending > 0 ? pending : item.quantity || '';
+              })(),
               description: item.description || '',
               total: item.total || 0,
               total_tax: item.total_tax || 0,
@@ -390,10 +404,20 @@ function cancel() { router.visit('/gastos/facturas-compra-tela'); }
 function validateForm(): boolean {
     const missingFields: string[] = [];
 
-    if (!localForm.value.contact_id) missingFields.push('Proveedor');
+    fieldErrors.value = { contactId: false, deliveryDate: false, supplierInvoiceNumber: false };
+    if (!localForm.value.contact_id) {
+        missingFields.push('Proveedor');
+        fieldErrors.value.contactId = true;
+    }
     if (!invoiceDate.value) missingFields.push('Fecha factura');
-    if (!deliveryDate.value) missingFields.push('Fecha de entrega');
-    if (!String(localForm.value.supplier_invoice_number || '').trim()) missingFields.push('N° factura proveedor');
+    if (!deliveryDate.value) {
+        missingFields.push('Fecha de entrega');
+        fieldErrors.value.deliveryDate = true;
+    }
+    if (!String(localForm.value.supplier_invoice_number || '').trim()) {
+        missingFields.push('N° factura proveedor');
+        fieldErrors.value.supplierInvoiceNumber = true;
+    }
 
     if (missingFields.length > 0) {
         showError(`Completa los campos obligatorios: ${missingFields.join(', ')}.`);
@@ -458,7 +482,7 @@ async function handleSubmit(sendMail = false, options: { skipDifferenceCheck?: b
         const { data } = await axios({ method, url, data: formToSend });
         const invoiceId = data?.data?.id ?? data?.id ?? localForm.value.id ?? null;
         savedInvoiceId.value = invoiceId;
-        if (sendMail && invoiceId) await axios.post(`/gastos/facturas-compra-tela/${invoiceId}/enviar-correo`);
+        if (sendMail && invoiceId) await axios.post(`/gastos/facturas-compra/${invoiceId}/enviar-correo`);
         if (!options.suppressRedirect) router.visit('/gastos/facturas-compra-tela');
         return true;
     } catch (e: any) {
@@ -563,7 +587,13 @@ function handleDifferenceDialogOpenChange(isOpen: boolean): void {
                                         aria-label="Ayuda sobre fecha de entrega"
                                     />
                                 </div>
-                                <DateField v-model="deliveryDate" label="" :clearable="true" />
+                                <DateField
+                                    v-model="deliveryDate"
+                                    label=""
+                                    :clearable="true"
+                                    :error="fieldErrors.deliveryDate"
+                                    @update:model-value="fieldErrors.deliveryDate = false"
+                                />
                             </div>
                         </div>
 
@@ -613,6 +643,8 @@ function handleDifferenceDialogOpenChange(isOpen: boolean): void {
                                 @action="() => isContactDialogOpen = true"
                                 @load-more="loadMoreContacts"
                                 required
+                                :invalid="fieldErrors.contactId"
+                                @update:model-value="fieldErrors.contactId = false"
                             />
                         </div>
                         <div>
@@ -627,7 +659,13 @@ function handleDifferenceDialogOpenChange(isOpen: boolean): void {
                                 <span class="text-sm font-medium">N° factura proveedor<span class="text-destructive">*</span></span>
                                 <HelpTooltip text="Número de la factura suministrado por el proveedor." aria-label="Ayuda sobre número de factura proveedor" />
                             </div>
-                                <InputField v-model="localForm.supplier_invoice_number" label="" required />
+                                <InputField
+                                    v-model="localForm.supplier_invoice_number"
+                                    label=""
+                                    required
+                                    :error="fieldErrors.supplierInvoiceNumber"
+                                    @update:model-value="fieldErrors.supplierInvoiceNumber = false"
+                                />
                         </div>
 
                     </div>
@@ -636,6 +674,7 @@ function handleDifferenceDialogOpenChange(isOpen: boolean): void {
                             :modelValue="localForm.withholdings || []"
                             @update:modelValue="(val) => (localForm.withholdings = val)"
                             :invoiceSubtotal="subtotal"
+                            :invoiceIva="iva"
                         />
                     </div>
                 </div>

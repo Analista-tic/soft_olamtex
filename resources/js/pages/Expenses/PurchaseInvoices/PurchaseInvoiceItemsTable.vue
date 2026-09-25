@@ -9,16 +9,19 @@ import { useItemsCatalog } from '@/composables/useItemsCatalog';
 import type { PurchaseInvoiceItem } from '@/domain/Expenses';
 import type { Tax } from '@/domain/Finance';
 import type { Item } from '@/domain/MasterData';
+import { broadcastCatalogInvalidated, onCatalogInvalidatedElsewhere } from '@/lib/crossTabSync';
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 import ItemDialog from '@/pages/MasterData/Item/ItemDialog.vue';
 import axios from 'axios';
 import { AlertTriangle } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 // Caché de ítems: ver useItemsCatalog.ts (módulo .ts real, compartido entre componentes).
 const itemsCatalogParams = { status: true, per_page: 2000 };
 const { fetch: fetchItemsCatalogData, invalidate: invalidateItemsCatalog } = useItemsCatalog();
+
+const TAXES_CATALOG_KEY = 'taxes';
 
 // Caché de impuestos a nivel de módulo — persiste entre montajes del componente
 let cachedTaxes: Tax[] | null = null;
@@ -164,13 +167,13 @@ watch(
         items.forEach((item) => {
             item.tax = isNaN(Number(item.tax)) ? 0 : Number(item.tax);
 
-                // Enforce positive integer quantities cuando no es modo Tela
+                // Fuera de modo Tela: cantidades positivas con hasta 2 decimales (a futuro dependerá del tipo y la unidad de medida)
                 if (props.telaMode !== true) {
                     const q = Number(item.quantity);
                     if (Number.isFinite(q)) {
-                        const intQ = Math.max(0, Math.floor(q));
-                        if (intQ !== q) {
-                            item.quantity = intQ;
+                        const normalizedQ = Math.max(0, Math.round(q * 100) / 100);
+                        if (normalizedQ !== q) {
+                            item.quantity = normalizedQ;
                         }
                     }
                 } else {
@@ -213,12 +216,12 @@ async function fetchItems() {
     }
 }
 
-async function fetchTaxes() {
-    if (cachedTaxes !== null) {
+async function fetchTaxes(force = false) {
+    if (!force && cachedTaxes !== null) {
         taxes.value = cachedTaxes;
         return;
     }
-    if (taxesFetchPromise) {
+    if (!force && taxesFetchPromise) {
         await taxesFetchPromise;
         if (cachedTaxes !== null) {
             taxes.value = cachedTaxes;
@@ -240,9 +243,19 @@ async function fetchTaxes() {
     await taxesFetchPromise;
 }
 
+// Si se crea/edita un impuesto o un ítem en OTRA pestaña/equipo, esta pestaña lo
+// refresca sola en vez de esperar a que el usuario recargue la página.
+const unsubscribeTaxesSync = onCatalogInvalidatedElsewhere(TAXES_CATALOG_KEY, () => void fetchTaxes(true));
+const unsubscribeItemsSync = onCatalogInvalidatedElsewhere('items', () => void fetchItems());
+
 onMounted(() => {
     fetchItems();
     fetchTaxes();
+});
+
+onBeforeUnmount(() => {
+    unsubscribeTaxesSync();
+    unsubscribeItemsSync();
 });
 
 function openTaxDialog() {
@@ -259,7 +272,8 @@ async function handleTaxDialogSubmit(formData: TaxDialogForm) {
     taxDialogLoading.value = true;
     try {
         await axios.post('/impuestos', formData);
-        await fetchTaxes();
+        await fetchTaxes(true);
+        broadcastCatalogInvalidated(TAXES_CATALOG_KEY);
         isTaxDialogOpen.value = false;
         emit('success', 'Impuesto creado correctamente.');
     } catch (error: any) {
@@ -560,7 +574,7 @@ defineExpose({ addItem });
                                     :options="itemOptions"
                                     label=""
                                     placeholder="Selecciona ítem"
-                                    :disabled="isReadOnly"
+                                    :readonly="isReadOnly"
                                     class="h-10 w-full"
                                     :action-label="!isReadOnly ? 'Nuevo ítem' : undefined"
                                     :action-disabled="isReadOnly"
@@ -582,7 +596,6 @@ defineExpose({ addItem });
                                         :step="0.01"
                                         :decimals="2"
                                         :readonly="isReadOnly"
-                                        :disabled="isReadOnly"
                                         class="h-10 w-full pr-10"
                                         @input="calcTotals(item)"
                                         :dusk="`factura-item-${idx}-precio`"
@@ -624,7 +637,7 @@ defineExpose({ addItem });
                                     :options="taxOptions"
                                     label=""
                                     class="h-10 w-full"
-                                    :disabled="isReadOnly"
+                                    :readonly="isReadOnly"
                                     :action-label="!isReadOnly ? 'Nuevo impuesto' : undefined"
                                     :action-disabled="isReadOnly"
                                     @action="openTaxDialog"
@@ -645,11 +658,12 @@ defineExpose({ addItem });
                                     <InputField
                                         v-model="item.quantity"
                                         type="number"
+                                        step="0.01"
+                                        min="0"
                                         label=""
                                         class="h-10 w-full pr-10"
                                         @input="calcTotals(item)"
                                         :readonly="isReadOnly"
-                                        :disabled="isReadOnly"
                                         :dusk="`factura-item-${idx}-cantidad`"
                                     />
                                     <Tooltip v-if="isQuantityDifferent(item)">
@@ -689,7 +703,6 @@ defineExpose({ addItem });
                                     label=""
                                     class="h-10 w-full"
                                     :readonly="isReadOnly"
-                                    :disabled="isReadOnly"
                                     :dusk="`factura-item-${idx}-descripcion`"
                                 />
                                 <div class="min-h-[20px]"></div>
@@ -704,7 +717,7 @@ defineExpose({ addItem });
                                     placeholder="Código proveedor"
                                     class="h-10 w-full"
                                     :readonly="isReadOnly || !isTela(item)"
-                                    :disabled="isReadOnly || !isTela(item)"
+                                    :disabled="!isTela(item)"
                                 />
                                 <div class="min-h-[20px]"></div>
                             </div>
@@ -718,7 +731,7 @@ defineExpose({ addItem });
                                     placeholder="Color proveedor"
                                     class="h-10 w-full"
                                     :readonly="isReadOnly || !isTela(item)"
-                                    :disabled="isReadOnly || !isTela(item)"
+                                    :disabled="!isTela(item)"
                                 />
                                 <div class="min-h-[20px]"></div>
                             </div>
@@ -733,7 +746,7 @@ defineExpose({ addItem });
                                     :placeholder="isTela(item) ? 'Ancho (cm) *' : 'Ancho pedido'"
                                     class="h-10 w-full"
                                     :readonly="isReadOnly || !isTela(item)"
-                                    :disabled="isReadOnly || !isTela(item)"
+                                    :disabled="!isTela(item)"
                                     :required="isTela(item)"
                                     :dusk="`factura-item-${idx}-ancho`"
                                 />

@@ -83,6 +83,11 @@ class PurchaseRequestController extends Controller
         }
     }
 
+    public function nextNumber()
+    {
+        return response()->json(['request_number' => $this->service->peekNextRequestNumber()]);
+    }
+
     public function show(PurchaseRequest $purchaseRequest)
     {
         return response()->json(['data' => $this->service->findAccessibleOrFail($purchaseRequest, request()->user())]);

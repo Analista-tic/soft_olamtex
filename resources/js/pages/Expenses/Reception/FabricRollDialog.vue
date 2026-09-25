@@ -20,7 +20,7 @@ import axios from 'axios';
 import { AlertTriangle, Pencil, Trash2 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
-const TOLERANCE_QUANTITY_PERCENT = 30;
+const TOLERANCE_QUANTITY_METERS = 30;
 const TOLERANCE_WIDTH_CM = 0.05;
 
 type AlertType = 'error' | 'info' | 'warning';
@@ -110,6 +110,7 @@ const props = defineProps<{
     item: PurchaseInvoiceItem | null;
     apiUrl: string;
     canDeleteEditRolls?: boolean;
+    canAddAfterApproval?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -133,6 +134,8 @@ const rollToDelete = ref<RollRecord | null>(null);
 
 const canDeleteEditRolls = computed(() => props.canDeleteEditRolls !== false);
 const isReadOnly = computed(() => !canDeleteEditRolls.value);
+// Con la recepción aprobada solo quien puede ajustar rollos sigue añadiendo (entran directo al inventario).
+const canRegister = computed(() => !isReadOnly.value || props.canAddAfterApproval === true);
 
 const requiredFieldLabels: Record<string, string> = {
     quantity: 'Longitud (mts)',
@@ -270,15 +273,14 @@ const quantityTolerance = computed(() => {
 
     const thisQuantity = parseNumber(form.value.quantity);
     const receivedAfterSave = currentReceivedWithoutEditing + thisQuantity;
-    const difference = Math.abs(ordered - receivedAfterSave);
-    const percentageDiff = (difference / ordered) * 100;
-    const isApproved = percentageDiff <= TOLERANCE_QUANTITY_PERCENT;
+    const difference = ordered - receivedAfterSave;
+
+    const isApproved = difference <= TOLERANCE_QUANTITY_METERS;
 
     return {
         ordered,
         receivedAfterSave,
         difference,
-        percentageDiff,
         isApproved,
     };
 });
@@ -329,7 +331,7 @@ async function loadRolls(): Promise<void> {
 // La ubicación es un campo de texto libre: no se listan bodegas aquí.
 
 async function handleSubmit(): Promise<void> {
-    if (isReadOnly.value) {
+    if (!canRegister.value) {
         setAlert('La factura está aprobada. Los rollos solo se pueden consultar.', 'info');
         return;
     }
@@ -363,8 +365,12 @@ async function handleSubmit(): Promise<void> {
             await axios.put(`${props.apiUrl}/${editingRoll.value.id}`, payload);
             setAlert('Rollo actualizado correctamente.', 'success');
         } else {
-            await axios.post(props.apiUrl, payload);
-            setAlert('Rollo guardado correctamente.', 'success');
+            const { data } = await axios.post<{ warning?: string | null }>(props.apiUrl, payload);
+            if (data?.warning) {
+                setAlert(`Rollo guardado. ${data.warning}`, 'warning');
+            } else {
+                setAlert('Rollo guardado correctamente.', 'success');
+            }
         }
 
         await loadRolls();
@@ -440,7 +446,7 @@ watch(
 
         if (value) {
             resetForm();
-            activeTab.value = isReadOnly.value ? 'list' : 'form';
+            activeTab.value = canRegister.value ? 'form' : 'list';
             await loadRolls();
         }
     },
@@ -452,14 +458,14 @@ watch(
     async () => {
         if (dialogOpen.value) {
             resetForm();
-            activeTab.value = isReadOnly.value ? 'list' : 'form';
+            activeTab.value = canRegister.value ? 'form' : 'list';
             await loadRolls();
         }
     }
 );
 
-watch(isReadOnly, (value) => {
-    if (value) {
+watch(canRegister, (canRegisterNow) => {
+    if (!canRegisterNow) {
         editingRoll.value = null;
         activeTab.value = 'list';
     }
@@ -479,7 +485,7 @@ watch(dialogOpen, (value) => {
         >
             <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                     <DialogTitle class="text-lg">
-                        {{ isReadOnly ? 'Rollos registrados' : editingRoll ? 'Editar rollo' : 'Registrar rollo de tela' }}
+                        {{ !canRegister ? 'Rollos registrados' : editingRoll ? 'Editar rollo' : 'Registrar rollo de tela' }}
                     </DialogTitle>
                     <DialogDescription>
                         {{
@@ -502,7 +508,7 @@ watch(dialogOpen, (value) => {
                 <div class="space-y-5">
                     <div class="flex gap-2 border-b pb-2">
                         <Button
-                            v-if="!isReadOnly"
+                            v-if="canRegister"
                             type="button"
                             size="pill"
                             :class="[
@@ -534,7 +540,7 @@ watch(dialogOpen, (value) => {
                         </Button>
                     </div>
 
-                    <template v-if="activeTab === 'form' && !isReadOnly">
+                    <template v-if="activeTab === 'form' && canRegister">
                         <div v-if="itemInfo" class="rounded-lg border bg-muted/30 p-4">
                             <h3 class="mb-3 text-sm font-semibold">Resumen del ítem</h3>
                             <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
@@ -565,11 +571,15 @@ watch(dialogOpen, (value) => {
                                         :class="quantityTolerance.isApproved ? 'text-green-600' : 'text-amber-600'"
                                     >
                                         Tras guardar: {{ quantityTolerance.receivedAfterSave.toFixed(2) }} mts
-                                        ({{ quantityTolerance.percentageDiff.toFixed(1) }}%
+                                        ({{
+                                            quantityTolerance.difference > 0
+                                                ? `faltan ${quantityTolerance.difference.toFixed(2)} mts`
+                                                : `excedente de ${Math.abs(quantityTolerance.difference).toFixed(2)} mts`
+                                        }}
                                         {{
                                             quantityTolerance.isApproved
-                                                ? '— dentro de tolerancia'
-                                                : '— fuera de tolerancia ±30%'
+                                                ? '— sin restricción'
+                                                : `— faltante mayor a ${TOLERANCE_QUANTITY_METERS} mts: exigirá aprobación de la diferencia`
                                         }})
                                     </p>
                                 </div>
@@ -612,7 +622,7 @@ watch(dialogOpen, (value) => {
                                     label="Ubicación"
                                     :options="locationOptions"
                                     placeholder="Selecciona una ubicación"
-                                    :disabled="isReadOnly"
+                                    :disabled="!canRegister"
                                     required
                                 />
                             </div>
@@ -699,7 +709,7 @@ watch(dialogOpen, (value) => {
 
             <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
                 <div class="flex w-full flex-col gap-2 md:flex-row md:justify-end">
-                    <template v-if="activeTab === 'form' && !isReadOnly">
+                    <template v-if="activeTab === 'form' && canRegister">
                         <Button
                             type="button"
                             variant="outline"
@@ -744,7 +754,7 @@ watch(dialogOpen, (value) => {
                         </Button>
 
                         <Button
-                            v-if="!isReadOnly"
+                            v-if="canRegister"
                             type="button"
                             size="pill"
                             class="rounded-full px-5 py-2 text-sm font-semibold shadow-sm"

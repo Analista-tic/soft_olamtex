@@ -13,6 +13,7 @@ interface Props {
     disabled?: boolean;
     rows?: number;
     tooltipText?: string;
+    error?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -47,7 +48,11 @@ watch(localModelValue, (newValue) => emit('update:modelValue', newValue));
             :disabled="disabled"
             :required="required"
             :rows="rows || 4"
-            class="block w-full rounded border border-input bg-background px-3 py-2 text-sm text-foreground transition duration-150 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
+            :aria-invalid="error ? 'true' : undefined"
+            :class="[
+                'block w-full rounded border border-input bg-background px-3 py-2 text-sm text-foreground transition duration-150 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50',
+                error ? 'border-destructive ring-1 ring-destructive/40 focus-visible:ring-destructive/40' : '',
+            ]"
         ></textarea>
     </div>
 </template>

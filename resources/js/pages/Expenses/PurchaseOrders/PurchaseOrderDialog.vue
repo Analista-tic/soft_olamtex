@@ -53,6 +53,7 @@ const selectedPurchaseRequest = ref<any | null>(null); // Solicitud completa sel
 const isLoading = ref(false);
 const isLoadingPurchaseRequests = ref(false);
 const isSubmittingDialog = ref(false);
+const fieldErrors = ref({ contactId: false, deliveryDate: false, supplierOrderNumber: false });
 const nextOrderId = ref<number | null>(null);
 const isLoadingOrderId = ref(false);
 const isSendingMail = ref(false);
@@ -73,9 +74,27 @@ const canEdit = computed(() => {
 
 const isReadOnly = computed(() => props.readonly || !canEdit.value);
 
+// Con cualquier factura vinculada, ítems, cantidades, precios y proveedor quedan bloqueados para todos.
+const hasInvoices = computed(() => props.dialogType === 'edit' && Number((localForm.value as { invoices_count?: number }).invoices_count ?? 0) > 0);
+const valuesLocked = computed(() => isReadOnly.value || hasInvoices.value);
+
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + Math.max(Number(item.total) || 0, 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + Math.max(Number(item.total_tax) || 0, 0), 0));
 const total = computed(() => Math.max(subtotal.value, 0) + Math.max(iva.value, 0));
+
+// Recorta nombres de persona a "Nombre Apellido" para que quepan en el label del selector.
+function shortenPersonName(name: string, maxLength = 22): string {
+    const trimmed = String(name || '').trim();
+    if (!trimmed) return '';
+    if (trimmed.length <= maxLength) return trimmed;
+    const parts = trimmed.split(/\s+/);
+    if (parts.length >= 2) {
+        const shortened = `${parts[0]} ${parts[1]}`;
+        if (shortened.length <= maxLength) return shortened;
+        return parts[0];
+    }
+    return trimmed.slice(0, maxLength);
+}
 
 const pendingPurchaseRequestOptions = computed<Option[]>(() => {
     return purchaseRequests.value.map((request) => {
@@ -91,9 +110,13 @@ const pendingPurchaseRequestOptions = computed<Option[]>(() => {
             requestNumber = String(request?.id ?? '');
         }
         const providerName = request?.provider_name || '';
+        const requesterName = shortenPersonName(request?.requester_name || request?.requester?.name || '');
         const labelParts = [requestNumber];
         if (providerName) {
             labelParts.push(providerName);
+        }
+        if (requesterName) {
+            labelParts.push(`Sol.: ${requesterName}`);
         }
         return {
             id: optionId,
@@ -278,6 +301,11 @@ async function initializeDialog() {
             nextOrderId.value = null;
             void fetchNextOrderId();
         }
+        // fetchContacts() ya resolvió y pudo pisar el contacto inyectado por el watch de
+        // contact_id (race): se re-asegura aquí, después de que todo lo demás asentó.
+        if (localForm.value.contact_id) {
+            await syncSelectedContact(localForm.value.contact_id);
+        }
     } catch (e) {
         const message = 'No se pudo cargar la orden de compra.';
         showError(message);
@@ -328,6 +356,7 @@ function resetForm(source: Partial<PurchaseOrder> = props.form) {
     if (!Array.isArray(localForm.value.items) || localForm.value.items.length === 0) {
         localForm.value.items = [createEmptyItem()];
     }
+    fieldErrors.value = { contactId: false, deliveryDate: false, supplierOrderNumber: false };
     clearAlerts();
     originalFormSnapshot.value = stableStringify(localForm.value);
 }
@@ -665,18 +694,22 @@ async function handleSubmit(sendMail = false) {
 
 function validateForm(): boolean {
     const missingFields: string[] = [];
+    fieldErrors.value = { contactId: false, deliveryDate: false, supplierOrderNumber: false };
 
     if (!localForm.value.contact_id) {
         missingFields.push('Proveedor');
+        fieldErrors.value.contactId = true;
     }
     if (!localForm.value.date) {
         missingFields.push('Fecha de orden');
     }
     if (!localForm.value.delivery_date) {
         missingFields.push('Fecha de entrega');
+        fieldErrors.value.deliveryDate = true;
     }
     if (!localForm.value.supplier_order_number || !localForm.value.supplier_order_number.toString().trim()) {
         missingFields.push('# Pedido Proveedor');
+        fieldErrors.value.supplierOrderNumber = true;
     }
 
     if (missingFields.length) {
@@ -735,27 +768,29 @@ function validateForm(): boolean {
     return true;
 }
 
+async function syncSelectedContact(val: unknown) {
+    if (val !== null && val !== undefined && typeof val !== 'number') {
+        localForm.value.contact_id = Number(val);
+    }
+    if (!val) {
+        selectedContactDetails.value = null;
+        return;
+    }
+    try {
+        const { data } = await axios.get(`/contactos/${val}`);
+        selectedContactDetails.value = data;
+        const contactId = Number(val);
+        if (data && !contacts.value.some((c) => Number(c.id) === contactId)) {
+            contacts.value = [data, ...contacts.value];
+        }
+    } catch {
+        selectedContactDetails.value = null;
+    }
+}
+
 watch(
     () => localForm.value.contact_id,
-    async (val) => {
-        if (val !== null && val !== undefined && typeof val !== 'number') {
-            localForm.value.contact_id = Number(val);
-        }
-        if (!val) {
-            selectedContactDetails.value = null;
-            return;
-        }
-        try {
-            const { data } = await axios.get(`/contactos/${val}`);
-            selectedContactDetails.value = data;
-            const contactId = Number(val);
-            if (data && !contacts.value.some((c) => Number(c.id) === contactId)) {
-                contacts.value = [data, ...contacts.value];
-            }
-        } catch {
-            selectedContactDetails.value = null;
-        }
-    },
+    (val) => void syncSelectedContact(val),
 );
 
 watch(
@@ -889,6 +924,10 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                             })
                                             : 'No especificada' }}</span>
                                     </div>
+                                    <div>
+                                        <span class="text-muted-foreground">Solicitante:</span>
+                                        <span class="ml-2 text-foreground">{{ selectedPurchaseRequest.requester_name || selectedPurchaseRequest.requester?.name || 'No especificado' }}</span>
+                                    </div>
                                     <div class="col-span-2">
                                         <span class="text-muted-foreground">Descripción:</span>
                                         <span class="ml-2 text-foreground">{{ selectedPurchaseRequest.description || 'Sin descripción' }}</span>
@@ -946,16 +985,19 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                                 .map((c) => ({ id: c.id, name: c.full_name }))
                                                 .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
                                         "
-                                            :disabled="isReadOnly || !canEdit"
+                                            :disabled="valuesLocked || !canEdit"
                                             :searchable="true"
                                             :loading="isLoadingContacts"
                                             :has-more="contactsHasMore"
                                             :loading-more="isLoadingMoreContacts"
-                                            :action-label="(!isReadOnly && canEdit) ? 'Nuevo contacto' : undefined"
-                                            :action-disabled="isReadOnly || !canEdit"
+                                            :action-label="(!valuesLocked && canEdit) ? 'Nuevo contacto' : undefined"
+                                            :action-disabled="valuesLocked || !canEdit"
+                                            :invalid="fieldErrors.contactId"
+                                            error-message="Selecciona un proveedor."
                                             required
                                             @action="openContactDialog"
                                             @load-more="loadMoreContacts"
+                                            @update:model-value="fieldErrors.contactId = false"
                                         />
                                     </div>
                                     <InputField
@@ -1008,7 +1050,9 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                             :disabled="!canEdit || isReadOnly"
                                             :clearable="true"
                                             :show-today="true"
+                                            :error="fieldErrors.deliveryDate"
                                             required
+                                            @update:model-value="fieldErrors.deliveryDate = false"
                                         />
                                     </div>
                                     <div class="flex flex-col gap-1">
@@ -1027,17 +1071,27 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                             label=""
                                             :disabled="isReadOnly"
                                             :readonly="isReadOnly"
+                                            :error="fieldErrors.supplierOrderNumber"
                                             required
+                                            @update:model-value="fieldErrors.supplierOrderNumber = false"
                                         />
                                     </div>
                                 </div>
+
+                                <p
+                                    v-if="hasInvoices"
+                                    class="rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+                                >
+                                    Esta orden ya tiene facturas: los ítems, cantidades, precios y el proveedor no se pueden cambiar. Para corregir,
+                                    crea una orden adicional, cierra la orden o usa una nota crédito/débito.
+                                </p>
 
                                 <!-- Items -->
                                 <InventoryDetailTableLayout :show-create-line-button="false">
                                     <template #actions>
                                         <div class="flex items-center gap-2">
                                             <Button
-                                                v-if="!isReadOnly"
+                                                v-if="!valuesLocked"
                                                 type="button"
                                                 dusk="btn-agregar-item-orden"
                                                 variant="outline"
@@ -1055,7 +1109,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                         :items="localForm.items || []"
                                         :suggested-items="requestItemsForTable"
                                         :purchase-request-id="effectivePurchaseRequestId"
-                                        :readonly="isReadOnly"
+                                        :readonly="valuesLocked"
                                         @update:items="(items) => (localForm.items = items)"
                                         @success="showSuccess"
                                         @error="(m: string) => showError(m)"

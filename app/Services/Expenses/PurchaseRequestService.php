@@ -9,6 +9,8 @@ use App\Models\Settings\User;
 use App\Enums\PurchaseRequestStatus;
 use App\Notifications\PurchaseRequestSubmittedNotification;
 use App\Notifications\PurchaseRequestRespondedNotification;
+use App\Services\Settings\NotificationDispatcher;
+use App\Services\Settings\NotificationRuleService;
 use Illuminate\Support\Collection;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -30,9 +32,11 @@ class PurchaseRequestService
         $normalizedSearch = trim($search);
 
         $query = PurchaseRequest::query()
-            ->select(['purchase_requests.id', 'purchase_requests.request_number', 'purchase_requests.provider_name', 'purchase_requests.created_at', 'purchase_requests.requester_user_id'])
+            ->select(['purchase_requests.id', 'purchase_requests.request_number', 'purchase_requests.provider_name', 'purchase_requests.created_at', 'purchase_requests.requester_user_id', 'purchase_requests.buyer_user_id'])
             ->leftJoin('users', 'users.id', '=', 'purchase_requests.requester_user_id')
+            ->leftJoin('users as buyer_users', 'buyer_users.id', '=', 'purchase_requests.buyer_user_id')
             ->addSelect('users.name as requester_name')
+            ->addSelect('buyer_users.name as buyer_name')
             ->where('purchase_requests.status', PurchaseRequestStatus::APPROVED->value)
             ->whereNotExists(function ($subQuery) {
                 $subQuery->selectRaw('1')
@@ -70,6 +74,7 @@ class PurchaseRequestService
                 'request_number' => $request->request_number,
                 'provider_name' => $request->provider_name,
                 'requester_name' => $request->requester_name ?? null,
+                'buyer_name' => $request->buyer_name ?? null,
                 'created_at' => $request->created_at?->toISOString(),
                 'status' => PurchaseRequestStatus::APPROVED->value,
             ];
@@ -120,7 +125,7 @@ class PurchaseRequestService
         if (!empty($filters['exclude_with_orders']) && $filters['exclude_with_orders']) {
             $query->whereDoesntHave('orders', function ($orderQuery) {
                 $orderQuery->where('document_type', \App\Models\Expenses\PurchaseDocument::TYPE_ORDER)
-                    ->where('status', '!=', 'pending')
+                    ->whereNotIn('status', ['pending', 'rejected'])
                     ->whereNull('deleted_at');
             })->where('status', '!=', \App\Enums\PurchaseRequestStatus::PROCESSED->value);
         }
@@ -338,6 +343,11 @@ class PurchaseRequestService
         }
     }
 
+    public function peekNextRequestNumber(): string
+    {
+        return $this->generateRequestNumber();
+    }
+
     protected function generateRequestNumber(): string
     {
         $nextId = (int) PurchaseRequest::withTrashed()->max('id') + 1;
@@ -509,56 +519,55 @@ class PurchaseRequestService
 
     protected function notifySubmitted(PurchaseRequest $purchaseRequest): void
     {
-        $recipients = $this->resolveSubmittedRecipients($purchaseRequest);
-
-        if ($recipients->isEmpty()) {
-            \Log::info('notifySubmitted: sin destinatarios', ['purchase_request_id' => $purchaseRequest->id]);
-            return;
-        }
-
         $requesterName = $purchaseRequest->requester?->name ?? Auth::user()?->name;
-        Notification::send($recipients, new PurchaseRequestSubmittedNotification($purchaseRequest, $requesterName));
+
+        app(NotificationDispatcher::class)->dispatch(
+            'purchase_request_submitted',
+            new PurchaseRequestSubmittedNotification($purchaseRequest, $requesterName),
+            $this->submittedContext($purchaseRequest),
+        );
     }
 
     /**
-     * Destinatarios al enviar a aprobación: quienes pueden aprobar en el área destino
-     * ("solicited_to": gerencia -> rol admin, logistica -> rol logistica) Y tienen el permiso
-     * 'aprobar solicitudes compra'. Un auxiliar sin ese permiso no recibe el aviso.
-     * Nunca se notifica al propio solicitante. El encargado de compra se entera al responderse.
+     * Destinatarios al enviar a aprobación según la configuración del evento
+     * 'purchase_request_submitted' (por defecto: quienes pueden aprobar en el área destino).
      *
      * @return Collection<int, User>
      */
     public function resolveSubmittedRecipients(PurchaseRequest $purchaseRequest): Collection
     {
-        $solicitedTo = $purchaseRequest->solicited_to;
-        if (!$solicitedTo) {
+        $event = app(NotificationRuleService::class)->eventFor('purchase_request_submitted');
+        if (! $event) {
             return collect();
         }
+
+        return app(NotificationDispatcher::class)->resolveRecipients($event, $this->submittedContext($purchaseRequest));
+    }
+
+    /** @return array<string, mixed> */
+    private function submittedContext(PurchaseRequest $purchaseRequest): array
+    {
+        $context = ['actor' => $purchaseRequest->requester_user_id];
 
         // 'gerencia' no existe como rol Spatie; los gerentes están en 'admin'
-        $roleName = $solicitedTo === 'gerencia' ? 'admin' : $solicitedTo;
-
-        try {
-            $recipients = User::role($roleName)->permission('aprobar solicitudes compra')->get();
-        } catch (\Throwable $e) {
-            \Log::warning('resolveSubmittedRecipients: rol o permiso no encontrado', ['role' => $roleName, 'error' => $e->getMessage()]);
-            return collect();
+        $solicitedTo = $purchaseRequest->solicited_to;
+        if ($solicitedTo) {
+            $context['request_target_role'] = $solicitedTo === 'gerencia' ? 'admin' : $solicitedTo;
         }
 
-        return $recipients->reject(fn (User $u) => $u->id === $purchaseRequest->requester_user_id)->values();
+        return $context;
     }
 
     protected function notifyResponded(PurchaseRequest $purchaseRequest, string $action, ?User $responder, ?string $reason): void
     {
-        // Solicitante y encargado de compra; nunca quien ejecuta la acción.
-        $recipients = User::whereIn('id', array_filter([$purchaseRequest->requester_user_id, $purchaseRequest->buyer_user_id]))
-            ->get()
-            ->reject(fn (User $u) => $responder && $u->id === $responder->id);
-
-        if ($recipients->isEmpty()) {
-            return;
-        }
-
-        Notification::send($recipients, new PurchaseRequestRespondedNotification($purchaseRequest, $action, $responder?->name, $reason));
+        app(NotificationDispatcher::class)->dispatch(
+            'purchase_request_responded',
+            new PurchaseRequestRespondedNotification($purchaseRequest, $action, $responder?->name, $reason),
+            [
+                'actor' => $responder,
+                'requester' => $purchaseRequest->requester_user_id ? User::find($purchaseRequest->requester_user_id) : null,
+                'buyer' => $purchaseRequest->buyer_user_id ? User::find($purchaseRequest->buyer_user_id) : null,
+            ],
+        );
     }
 }

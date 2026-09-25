@@ -120,6 +120,9 @@ class PermissionSeeder extends Seeder
 
             'activar desactivar item',
             'habilitar item',
+            'crear items',
+            'editar items',
+            'eliminar items',
             'crear referencia manual item',
             'carga masiva items',
             'exportar items',

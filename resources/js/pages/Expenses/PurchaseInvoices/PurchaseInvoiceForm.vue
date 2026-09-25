@@ -22,6 +22,7 @@ import { useAlertStack } from '@/composables/useAlert';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useSmartLoading } from '@/composables/useSmartLoading';
 import type { PurchaseInvoiceWithholding, PurchaseOrderItem } from '@/domain/Expenses';
+import { withholdingAmount } from '@/domain/Expenses/withholdings';
 import type { Contact as DomainContact } from '@/domain/MasterData';
 
 type FormMode = 'create' | 'edit';
@@ -63,7 +64,7 @@ interface PurchaseInvoiceForm {
     provider_name?: string | null;
     parent_document_id?: number | null;
     purchase_order_id?: number | null;
-    approval_status?: 'pending' | 'pending_difference_approval' | 'approved' | 'rejected' | 'difference_rejected' | null;
+    approval_status?: 'pending' | 'pending_difference_approval' | 'approved' | 'difference_rejected' | null;
     items: PurchaseInvoiceItem[];
     withholdings: PurchaseInvoiceWithholding[];
 }
@@ -113,6 +114,7 @@ const differenceEvidenceData = ref<string | null>(null);
 const savedInvoiceId = ref<number | null>(null);
 
 const isLoading = ref(false);
+const fieldErrors = ref({ contactId: false, deliveryDate: false, supplierInvoiceNumber: false });
 const smartLoading = useSmartLoading();
 smartLoading.reset();
 const pageLoadTaskId = smartLoading.start({ label: 'Cargando factura de compra...' });
@@ -273,14 +275,8 @@ function createEmptyItem(): PurchaseInvoiceItem {
     };
 }
 
-function getWithholdingBase(withholding: PurchaseInvoiceWithholding): number {
-    const baseAmount = toNumber(withholding.base_amount);
-
-    return baseAmount > 0 ? baseAmount : subtotal.value;
-}
-
 function getWithholdingAmount(withholding: PurchaseInvoiceWithholding): number {
-    return (getWithholdingBase(withholding) * toNumber(withholding.percentage)) / 100;
+    return withholdingAmount(withholding, subtotal.value, iva.value);
 }
 
 function syncDateRefsFromForm(): void {
@@ -583,10 +579,20 @@ async function handleSubmit(sendMail = false, options: SubmitOptions = {}): Prom
 function validateForm(): boolean {
     const missingFields: string[] = [];
 
-    if (!localForm.value.contact_id) missingFields.push('Proveedor');
+    fieldErrors.value = { contactId: false, deliveryDate: false, supplierInvoiceNumber: false };
+    if (!localForm.value.contact_id) {
+        missingFields.push('Proveedor');
+        fieldErrors.value.contactId = true;
+    }
     if (!invoiceDate.value) missingFields.push('Fecha factura');
-    if (!deliveryDate.value) missingFields.push('Fecha de entrega');
-    if (!String(localForm.value.supplier_invoice_number || '').trim()) missingFields.push('N° factura proveedor');
+    if (!deliveryDate.value) {
+        missingFields.push('Fecha de entrega');
+        fieldErrors.value.deliveryDate = true;
+    }
+    if (!String(localForm.value.supplier_invoice_number || '').trim()) {
+        missingFields.push('N° factura proveedor');
+        fieldErrors.value.supplierInvoiceNumber = true;
+    }
 
     if (missingFields.length > 0) {
         showError(`Completa los campos obligatorios: ${missingFields.join(', ')}.`);
@@ -758,6 +764,8 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
 
 watch(selectedPurchaseOrderId, async (orderId, oldVal) => {
     if (orderId) {
+        // Al editar, la orden ya viene vinculada: recargarla pisaría el número de factura, los ítems y las cantidades guardados.
+        if (mode.value === 'edit') return;
         await loadPurchaseOrderToInvoice(orderId);
     } else if (oldVal !== null && oldVal !== undefined) {
         localForm.value.purchase_order_id = null;
@@ -785,8 +793,26 @@ onMounted(async () => {
         resetForm();
         await fetchContacts();
 
+        // Atajo "Facturar" desde Órdenes de compra: /crear?orden=ID preselecciona la orden.
+        const preselectedOrderId = mode.value === 'create' ? Number(new URLSearchParams(window.location.search).get('orden')) : NaN;
+        const hasPreselectedOrder = Number.isInteger(preselectedOrderId) && preselectedOrderId > 0;
+
         if (mode.value === 'create') {
-            void fetchPendingPurchaseOrders();
+            if (hasPreselectedOrder) {
+                await fetchPendingPurchaseOrders();
+            } else {
+                void fetchPendingPurchaseOrders();
+            }
+        }
+
+        if (hasPreselectedOrder) {
+            const order = await fetchPurchaseOrderById(preselectedOrderId);
+            if (order) {
+                if (!purchaseOrders.value.some((existingOrder: any) => Number(existingOrder.id) === Number(order.id))) {
+                    purchaseOrders.value = [order, ...purchaseOrders.value];
+                }
+                selectedPurchaseOrderValue.value = Number(order.id);
+            }
         }
 
         const parentOrderId = localForm.value.parent_document_id ?? localForm.value.purchase_order_id ?? null;
@@ -949,7 +975,13 @@ function stopContactsSync() {
                                         aria-label="Ayuda sobre fecha de entrega"
                                     />
                                 </div>
-                                <DateField v-model="deliveryDate" label="" :clearable="true" />
+                                <DateField
+                                    v-model="deliveryDate"
+                                    label=""
+                                    :clearable="true"
+                                    :error="fieldErrors.deliveryDate"
+                                    @update:model-value="fieldErrors.deliveryDate = false"
+                                />
                             </div>
                         </div>
 
@@ -998,6 +1030,8 @@ function stopContactsSync() {
                                 @action="openContactDialog"
                                 @load-more="loadMoreContacts"
                                 required
+                                :invalid="fieldErrors.contactId"
+                                @update:model-value="fieldErrors.contactId = false"
                             />
                         </div>
                         <div>
@@ -1015,7 +1049,13 @@ function stopContactsSync() {
                                     aria-label="Ayuda sobre número de factura proveedor"
                                 />
                             </div>
-                            <InputField v-model="localForm.supplier_invoice_number" label="" required />
+                            <InputField
+                                v-model="localForm.supplier_invoice_number"
+                                label=""
+                                required
+                                :error="fieldErrors.supplierInvoiceNumber"
+                                @update:model-value="fieldErrors.supplierInvoiceNumber = false"
+                            />
                         </div>
                     </div>
 
@@ -1024,6 +1064,7 @@ function stopContactsSync() {
                             :modelValue="localForm.withholdings || []"
                             @update:modelValue="(val) => (localForm.withholdings = val)"
                             :invoiceSubtotal="subtotal"
+                            :invoiceIva="iva"
                         />
                     </div>
                 </div>

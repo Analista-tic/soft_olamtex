@@ -4,7 +4,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
-import DateField from '@/components/DateField.vue';
+import AccountingDateRangePicker from '@/components/AccountingDateRangePicker.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -18,7 +18,7 @@ import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { PurchaseInvoice } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
-import { formatDateDDMMYYYY, toIsoDateString } from '@/lib/date';
+import { formatDateDDMMYYYY } from '@/lib/date';
 import { useAuthStore } from '@/stores/auth';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -81,7 +81,7 @@ function toggleSort(column: string) {
 const statusFilter = ref<string | null>(null);
 const providerFilter = ref<number | string | null>(null);
 const subgroupFilter = ref<number | string | null>(null);
-const dateFilter = ref<Date | null>(null);
+const dateFilter = ref<{ from: string | null; to: string | null }>({ from: null, to: null });
 const providers = ref<{ id: number; full_name: string }[]>([]);
 const subgroups = ref<{ id: number; name: string }[]>([]);
 const statusOptions = [
@@ -97,7 +97,7 @@ const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value != null);
 const isProviderFilterActive = computed(() => providerFilter.value != null);
 const isSubgroupFilterActive = computed(() => subgroupFilter.value != null);
-const isDateFilterActive = computed(() => Boolean(dateFilter.value));
+const isDateFilterActive = computed(() => Boolean(dateFilter.value.from || dateFilter.value.to));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
@@ -245,8 +245,8 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
             page,
             per_page: itemsPerPage.value,
             search,
-            date_from: toIsoDateString(dateFilter.value) || undefined,
-            date_to: toIsoDateString(dateFilter.value) || undefined,
+            date_from: dateFilter.value.from || undefined,
+            date_to: dateFilter.value.to || undefined,
             sort_by: sortBy.value,
             sort_dir: sortDir.value,
         };
@@ -594,8 +594,8 @@ async function handleDifferenceDecision() {
                         :clearable="true"
                     />
                 </FilterField>
-                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
-                    <DateField v-model="dateFilter" placeholder="Fecha" :clearable="true" />
+                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[240px]">
+                    <AccountingDateRangePicker v-model="dateFilter" placeholder="Rango de fechas" />
                 </FilterField>
             </FilterBar>
             <div class="relative overflow-auto rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
@@ -732,18 +732,19 @@ async function handleDifferenceDecision() {
                                                     @select="openApprovalDialog(invoice, $event)"
                                                 >
                                                     <ShieldCheck class="h-4 w-4 mr-2" />
-                                                    Aprobar diferencia
+                                                    Aprobar diferencia de la factura
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem @select="handlePrintAction(invoice, $event)">
                                                     <Printer class="mr-2 h-4 w-4" />
-                                                    Imprimir
+                                                    Imprimir factura
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem
                                                     v-if="(invoice.status === 'pending_receipt' || invoice.status === 'approved' || invoice.status === 'rejected') && !isReceptionBlockedForInvoice(invoice)"
+                                                    class="cursor-pointer gap-2 text-blue-600"
                                                     @select="handleReceptionAction(invoice, $event)"
                                                 >
                                                     <Package class="mr-2 h-4 w-4" />
-                                                    Ir a recepción
+                                                    Ir a recepción de mercancía
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem
                                                     v-if="invoiceHasNotes(invoice)"
@@ -754,15 +755,15 @@ async function handleDifferenceDecision() {
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem v-if="canCreateNotes" @select="goToCreditDebitNote(invoice, 'purchase_credit_note', $event)">
                                                     <MinusCircle class="mr-2 h-4 w-4" />
-                                                    Crear Nota Crédito
+                                                    Crear nota crédito de la factura
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem v-if="canCreateNotes" @select="goToCreditDebitNote(invoice, 'purchase_debit_note', $event)">
                                                     <PlusCircle class="mr-2 h-4 w-4" />
-                                                    Crear Nota Débito
+                                                    Crear nota débito de la factura
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem disabled class="cursor-not-allowed opacity-50" @select="handleSendMailAction(invoice, $event)">
                                                     <Mail class="mr-2 h-4 w-4" />
-                                                    Enviar al correo
+                                                    Enviar factura por correo
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>

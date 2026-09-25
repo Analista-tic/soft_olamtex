@@ -1365,6 +1365,19 @@ class FabricRollController extends Controller
         try {
             $invoice = $this->service->approveReception($invoiceId);
 
+            $number = $invoice->document_number ?? (string) $invoice->id;
+            app(\App\Services\Settings\NotificationDispatcher::class)->dispatch(
+                'fabric_reception_completed',
+                new \App\Notifications\GenericEventNotification(
+                    'fabric_reception_completed',
+                    'Textil',
+                    "Recepción de tela completa — Factura #{$number}",
+                    "Se marcó la recepción completa de la factura {$number}; el inventario de rollos ya fue cargado.",
+                    '/kardex-telas/recepcion'
+                ),
+                ['actor' => request()->user(), 'creator' => $invoice->creator]
+            );
+
             return response()->json([
                 'message' => 'Recepción aprobada correctamente',
                 'data' => $invoice,
@@ -1382,6 +1395,31 @@ class FabricRollController extends Controller
             return response()->json([
                 'message' => 'Error al aprobar la recepción: '.$e->getMessage(),
             ], 500);
+        }
+    }
+
+    public function reportReceptionDifference(Request $request, $invoiceId)
+    {
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        try {
+            $invoice = $this->service->reportReceptionDifference($invoiceId, $validated['reason']);
+
+            return response()->json([
+                'message' => 'Diferencia registrada. Queda pendiente de aprobación; el inventario no se carga hasta entonces.',
+                'data' => $invoice,
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'No se pudo registrar la diferencia.',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'Factura no encontrada.',
+            ], 404);
         }
     }
 
@@ -1420,10 +1458,12 @@ class FabricRollController extends Controller
 
         try {
             $fabricRoll = $this->service->storeFromReception($data);
+            $line = \App\Models\Expenses\PurchaseDocumentItem::find($data['purchase_document_item_id']);
 
             return response()->json([
                 'message' => 'Rollo creado correctamente desde recepción',
                 'data' => (new FabricRollReceptionResource($fabricRoll))->resolve(),
+                'warning' => $line ? $this->service->receptionExcessWarning($line) : null,
             ], 201);
         } catch (ValidationException $e) {
             $errors = $e->errors();

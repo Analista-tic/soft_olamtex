@@ -20,6 +20,7 @@ import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useContactsCatalog } from '@/composables/useContactsCatalog';
 import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import type { PurchaseInvoice } from '@/domain/Expenses';
+import { withholdingAmount } from '@/domain/Expenses/withholdings';
 import type { Contact } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
@@ -27,6 +28,7 @@ import { parseToDate, toIsoDateString } from '@/lib/date';
 import axios from 'axios';
 import { X } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
+import InvoiceTraceability from './InvoiceTraceability.vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
 import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
 
@@ -48,6 +50,7 @@ const localForm = ref<PurchaseInvoiceWithProviderName>(createDefaultForm());
 const contacts = ref<Contact[]>([]);
 const { fetch: fetchContactsCatalog } = useContactsCatalog();
 const isLoading = ref(false);
+const fieldErrors = ref({ contactId: false, invoiceDate: false, deliveryDate: false, supplierInvoiceNumber: false });
 const isSubmittingDialog = ref(false);
 const isSendingMail = ref(false);
 const nextInvoiceId = ref<number | null>(null);
@@ -74,12 +77,9 @@ const { isBootstrapping, isHydrating, isBlockingLoading, canRenderForm, startLoa
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
 const total = computed(() => Number(subtotal.value) + Number(iva.value));
-/** Base efectiva de una retención: si base_amount es null/omitido se asume el subtotal. */
-function getWithholdingBase(w: { base_amount?: number | null; percentage?: number }): number {
-    return w.base_amount != null && Number.isFinite(Number(w.base_amount)) ? Number(w.base_amount) : Number(subtotal.value);
-}
-function getWithholdingAmount(w: { base_amount?: number | null; percentage?: number }): number {
-    return (getWithholdingBase(w) * (Number(w.percentage) || 0)) / 100;
+/** ReteIVA se calcula sobre el IVA; ReteFuente/ICA sobre el subtotal (ver domain/Expenses/withholdings). */
+function getWithholdingAmount(w: { base_amount?: number | null; percentage?: number; type?: string | null }): number {
+    return withholdingAmount(w, Number(subtotal.value), Number(iva.value));
 }
 const retencionesTotal = computed(() => (localForm.value.withholdings || []).reduce((acc, w) => acc + getWithholdingAmount(w), 0));
 const totalPagar = computed(() => Number(total.value) - Number(retencionesTotal.value));
@@ -91,7 +91,9 @@ const hasModifiedPriceOrQuantity = computed(() => {
         const original = item.original_order_item;
         if (!original) return false;
         const suggestedPrice = Number(original.price);
-        const suggestedQuantity = Number(original.quantity);
+        const orderQuantity = Number(original.quantity);
+        const alreadyInvoiced = Number(original.already_invoiced_qty ?? 0);
+        const suggestedQuantity = alreadyInvoiced > 0 ? Math.max(0, orderQuantity - alreadyInvoiced) : orderQuantity;
         const priceChanged = !Number.isNaN(suggestedPrice) && Number(item.price) !== suggestedPrice;
         const quantityChanged = !Number.isNaN(suggestedQuantity) && Number(item.quantity) !== suggestedQuantity;
         return priceChanged || quantityChanged;
@@ -189,6 +191,7 @@ function syncDateRefsFromForm() {
 }
 
 function resetForm() {
+    fieldErrors.value = { contactId: false, invoiceDate: false, deliveryDate: false, supplierInvoiceNumber: false };
     if (props.form && Object.keys(props.form).length > 0) {
         const formCopy = JSON.parse(JSON.stringify(props.form));
         if (!Array.isArray(formCopy.items)) formCopy.items = [];
@@ -298,7 +301,7 @@ async function fetchPendingPurchaseOrders() {
     try {
         // Obtener todas las órdenes aprobadas de tela
         const { data } = await axios.get('/gastos/ordenes-compra/data', {
-            params: { status: 'approved', per_page: 1000, fabric_only: true },
+            params: { status: 'approved,partially_invoiced', per_page: 1000, fabric_only: true },
         });
         let orders = Array.isArray(data.data) ? data.data : [];
 
@@ -318,7 +321,15 @@ async function fetchPendingPurchaseOrders() {
 }
 
 async function loadPurchaseOrderToInvoice(orderId: number) {
-    const order = purchaseOrders.value.find((o) => Number(o.id) === Number(orderId));
+    const listedOrder = purchaseOrders.value.find((o) => Number(o.id) === Number(orderId));
+    let order: any = listedOrder;
+    try {
+        // La orden completa trae lo ya facturado por ítem (facturas parciales).
+        const { data } = await axios.get(`/gastos/ordenes-compra/${orderId}`);
+        order = data?.data ?? listedOrder;
+    } catch {
+        order = listedOrder;
+    }
     if (!order) return;
     if (!contacts.value.length) await fetchContacts();
     const foundContact = contacts.value.find((c) => Number(c.id) === Number(order.contact_id));
@@ -340,7 +351,10 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
               item_id: item.item_id,
               price: item.price || '',
               tax: item.tax || 0,
-              quantity: item.quantity || '',
+              quantity: (() => {
+                  const pending = Math.max(0, Number(item.quantity || 0) - Number(item.already_invoiced_qty ?? 0));
+                  return pending > 0 ? pending : item.quantity || '';
+              })(),
               description: item.description || '',
               total: item.total || 0,
               total_tax: item.total_tax || 0,
@@ -473,7 +487,7 @@ async function handleSubmit(sendMail = false, skipDifferenceCheck = false, keepO
             return;
         }
         if (sendMail) {
-            await axios.post(`/gastos/facturas-compra-tela/${data.data.id}/enviar-correo`);
+            await axios.post(`/gastos/facturas-compra/${data.data.id}/enviar-correo`);
             emit('refresh', 'Factura guardada y enviada por correo correctamente.');
         } else {
             emit('refresh', props.dialogType === 'create' ? 'Factura creada correctamente.' : 'Factura actualizada correctamente.');
@@ -540,17 +554,22 @@ function validateForm(): boolean {
     const items = getItems();
     const missingFields: string[] = [];
 
+    fieldErrors.value = { contactId: false, invoiceDate: false, deliveryDate: false, supplierInvoiceNumber: false };
     if (!localForm.value.contact_id) {
         missingFields.push('Proveedor');
+        fieldErrors.value.contactId = true;
     }
     if (!invoiceDate.value) {
         missingFields.push('Fecha factura');
+        fieldErrors.value.invoiceDate = true;
     }
     if (!deliveryDate.value) {
         missingFields.push('Fecha entrega');
+        fieldErrors.value.deliveryDate = true;
     }
     if (!String(localForm.value.supplier_invoice_number || '').trim()) {
         missingFields.push('N° factura proveedor');
+        fieldErrors.value.supplierInvoiceNumber = true;
     }
 
     if (missingFields.length) {
@@ -685,7 +704,6 @@ watch(dialogOpen, (isOpen) => {
                                                 :options="pendingPurchaseOrderOptions"
                                                 label=""
                                                 placeholder="Selecciona una orden existente"
-                                                :disabled="isReadOnly"
                                                 :readonly="isReadOnly"
                                                 :searchable="pendingPurchaseOrderOptions.length >= 6"
                                                 search-placeholder="Buscar orden de compra..."
@@ -720,6 +738,13 @@ watch(dialogOpen, (isOpen) => {
                         >
                             <fieldset v-if="canRenderForm" class="space-y-6">
                                 <div class="space-y-4 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
+                                    <!-- Trazabilidad de fechas -->
+                                    <InvoiceTraceability
+                                        v-if="dialogType === 'edit'"
+                                        base-url="/gastos/facturas-compra-tela"
+                                        :invoice-id="localForm.id ? Number(localForm.id) : null"
+                                    />
+
                                     <!-- Cabecera -->
                                     <div class="grid grid-cols-3 items-start gap-4">
                                         <div class="flex flex-col gap-1">
@@ -770,10 +795,12 @@ watch(dialogOpen, (isOpen) => {
                                                         .map((c) => ({ id: Number(c.id), name: formatPersonNameDisplay(c.full_name, c.person_type) }))
                                                         .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
                                                 "
-                                                :disabled="isReadOnly"
+                                                :readonly="isReadOnly"
                                                 :searchable="true"
                                                 required
+                                                :invalid="fieldErrors.contactId"
                                                 :key="contacts.length + '-' + localForm.contact_id"
+                                                @update:model-value="fieldErrors.contactId = false"
                                             />
                                         </div>
                                         <InputField
@@ -793,10 +820,12 @@ watch(dialogOpen, (isOpen) => {
                                         <DateField
                                             v-model="invoiceDate"
                                             label="Fecha de factura"
-                                            :disabled="isReadOnly"
+                                            :readonly="isReadOnly"
                                             :clearable="true"
                                             :show-today="true"
                                             required
+                                            :error="fieldErrors.invoiceDate"
+                                            @update:model-value="fieldErrors.invoiceDate = false"
                                         />
                                         <div class="flex flex-col gap-1">
                                             <div class="flex items-center gap-2">
@@ -809,10 +838,12 @@ watch(dialogOpen, (isOpen) => {
                                             <DateField
                                                 v-model="deliveryDate"
                                                 label=""
-                                                :disabled="isReadOnly"
+                                                :readonly="isReadOnly"
                                                 :clearable="true"
                                                 :show-today="true"
                                                 required
+                                                :error="fieldErrors.deliveryDate"
+                                                @update:model-value="fieldErrors.deliveryDate = false"
                                             />
                                         </div>
                                         <div class="flex flex-col gap-1">
@@ -823,7 +854,14 @@ watch(dialogOpen, (isOpen) => {
                                                     aria-label="Ayuda sobre número de factura proveedor"
                                                 />
                                             </div>
-                                            <InputField v-model="localForm.supplier_invoice_number" label="" :disabled="isReadOnly" required />
+                                            <InputField
+                                                v-model="localForm.supplier_invoice_number"
+                                                label=""
+                                                :readonly="isReadOnly"
+                                                required
+                                                :error="fieldErrors.supplierInvoiceNumber"
+                                                @update:model-value="fieldErrors.supplierInvoiceNumber = false"
+                                            />
                                         </div>
                                     </div>
                                     <InventoryDetailTableLayout
@@ -848,6 +886,7 @@ watch(dialogOpen, (isOpen) => {
                                                 :modelValue="localForm.withholdings || []"
                                                 @update:modelValue="(val) => (localForm.withholdings = val)"
                                                 :invoiceSubtotal="subtotal"
+                                        :invoiceIva="iva"
                                                 :isReadOnly="isReadOnly"
                                             />
                                         </div>

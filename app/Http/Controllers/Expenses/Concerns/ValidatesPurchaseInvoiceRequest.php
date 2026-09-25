@@ -55,6 +55,8 @@ trait ValidatesPurchaseInvoiceRequest
             ?? null;
         unset($validated['purchase_order_id']);
 
+        $this->ensureFabricItemsHaveSupplierData($validated['items'] ?? []);
+
         return $validated;
     }
 

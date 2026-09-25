@@ -6,7 +6,7 @@ import EditButton from '@/components/common/EditButton.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
-import InputDate from '@/components/InputDate.vue';
+import AccountingDateRangePicker from '@/components/AccountingDateRangePicker.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -62,7 +62,7 @@ function toggleSort(column: string) {
 
 const statusFilter = ref<string | null>(null);
 const providerFilter = ref<number | string | null>(null);
-const dateFilter = ref<string | null>('');
+const dateFilter = ref<{ from: string | null; to: string | null }>({ from: null, to: null });
 const providers = ref<{ id: number; full_name: string }[]>([]);
 const facturasFabricRoute = '/gastos/facturas-compra-tela';
 const receptionBaseRoute = '/kardex-telas/recepcion';
@@ -86,7 +86,7 @@ const isSendingMail = ref(false);
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value != null);
 const isProviderFilterActive = computed(() => providerFilter.value != null);
-const isDateFilterActive = computed(() => Boolean(dateFilter.value));
+const isDateFilterActive = computed(() => Boolean(dateFilter.value.from || dateFilter.value.to));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
@@ -201,8 +201,8 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
             page,
             per_page: itemsPerPage.value,
             search,
-            date_from: dateFilter.value || undefined,
-            date_to: dateFilter.value || undefined,
+            date_from: dateFilter.value.from || undefined,
+            date_to: dateFilter.value.to || undefined,
             sort_by: sortBy.value,
             sort_dir: sortDir.value,
         };
@@ -267,7 +267,7 @@ async function sendInvoiceByEmail(invoice: PurchaseInvoice, event?: Event) {
     if (isSendingMail.value) return;
     isSendingMail.value = true;
     try {
-        await axios.post(`/gastos/facturas-compra-tela/${invoice.id}/enviar-correo`);
+        await axios.post(`/gastos/facturas-compra/${invoice.id}/enviar-correo`);
         showSuccess('Factura enviada por correo correctamente.');
     } catch {
         showError('Error al enviar el correo.');
@@ -417,8 +417,8 @@ function handleDialogError(message?: string) {
                         :clearable="true"
                     />
                 </FilterField>
-                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
-                    <InputDate v-model="dateFilter" placeholder="Fecha" :clearable="true" :show-today="true" />
+                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[240px]">
+                    <AccountingDateRangePicker v-model="dateFilter" placeholder="Rango de fechas" />
                 </FilterField>
             </FilterBar>
             <div class="relative overflow-auto rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">

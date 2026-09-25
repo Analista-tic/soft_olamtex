@@ -108,7 +108,7 @@ class PurchaseDocumentController extends Controller
             'date' => 'required|date',
             'delivery_date' => 'nullable|date',
             'description' => $isUpdate ? 'sometimes|nullable|string' : 'required|string',
-            'status' => 'sometimes|in:pending,processed',
+            'status' => 'sometimes|in:pending',
             'items' => $isUpdate ? 'sometimes|array' : 'required|array|min:1',
             'items.*.item_id' => 'nullable|integer|exists:items,id',
             'items.*.item_name' => 'required_without:items.*.item_id|string|max:255',
@@ -137,7 +137,6 @@ class PurchaseDocumentController extends Controller
             'delivery_date' => 'required|date|after_or_equal:date',
             'supplier_order_number' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'status' => 'sometimes|in:pending,approved,sent,received,invoiced,cancelled',
             'parent_document_id' => 'nullable|exists:purchase_documents,id',
             'purchase_request_id' => 'nullable|exists:purchase_requests,id',
             'items' => 'required|array|min:1',
@@ -163,7 +162,105 @@ class PurchaseDocumentController extends Controller
             'items.*.item_id.exists'   => 'Uno de los ítems no existe en el catálogo. Créalo primero o selecciona uno existente.',
         ];
 
-        return $request->validate($rules, $messages);
+        $validated = $request->validate($rules, $messages);
+
+        $this->ensureOrderIsNotMixed($validated['items'] ?? []);
+        $this->ensureFabricItemsHaveSupplierData($validated['items'] ?? []);
+
+        return $validated;
     }
 
+    /**
+     * En órdenes y facturas de tela, cada ítem de tela debe traer código y color del proveedor y el ancho pedido
+     * (los usa la recepción para crear los rollos).
+     */
+    protected function ensureFabricItemsHaveSupplierData(array $items): void
+    {
+        $itemIds = collect($items)->pluck('item_id')->filter()->unique()->values();
+        if ($itemIds->isEmpty()) {
+            return;
+        }
+
+        $fabricIds = \App\Models\MasterData\Item::with('categorySubGroup:id,name')
+            ->whereIn('id', $itemIds)
+            ->get()
+            ->filter(fn ($item) => strtolower(trim((string) ($item->categorySubGroup?->name ?? ''))) === 'tela')
+            ->pluck('id')
+            ->all();
+
+        $errors = [];
+        foreach ($items as $index => $item) {
+            if (! in_array((int) ($item['item_id'] ?? 0), $fabricIds, true)) {
+                continue;
+            }
+            if (trim((string) ($item['supplier_code'] ?? '')) === '') {
+                $errors["items.$index.supplier_code"] = ['El código del proveedor es obligatorio en ítems de tela.'];
+            }
+            if (trim((string) ($item['supplier_color'] ?? '')) === '') {
+                $errors["items.$index.supplier_color"] = ['El color del proveedor es obligatorio en ítems de tela.'];
+            }
+            if (! is_numeric($item['order_width'] ?? null) || (float) $item['order_width'] <= 0) {
+                $errors["items.$index.order_width"] = ['El ancho pedido es obligatorio en ítems de tela y debe ser mayor a 0.'];
+            }
+        }
+
+        if ($errors) {
+            throw \Illuminate\Validation\ValidationException::withMessages($errors);
+        }
+    }
+
+    /**
+     * Una orden es solo de tela o solo de ítems normales: las facturas y la recepción de cada tipo
+     * son flujos distintos (rollos vs bodega) y una orden mixta no podría facturarse completa.
+     */
+    protected function ensureOrderIsNotMixed(array $items): void
+    {
+        $itemIds = collect($items)->pluck('item_id')->filter()->unique()->values();
+        if ($itemIds->count() < 2) {
+            return;
+        }
+
+        $fabricFlags = \App\Models\MasterData\Item::with('categorySubGroup:id,name')
+            ->whereIn('id', $itemIds)
+            ->get()
+            ->map(fn ($item) => strtolower(trim((string) ($item->categorySubGroup?->name ?? ''))) === 'tela');
+
+        if ($fabricFlags->contains(true) && $fabricFlags->contains(false)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'items' => ['Una orden de compra no puede mezclar telas con ítems normales. Crea una orden solo de telas y otra con los demás ítems.'],
+            ]);
+        }
+    }
+
+
+    /** Fechas del recorrido solicitud → orden → recepción → factura (compartido por facturas normales y de tela). */
+    protected function traceabilityResponse(PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        $invoice = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
+
+        $order = $invoice->parent_document_id
+            ? PurchaseDocument::with('purchaseRequest:id,request_number,date,created_at')->find($invoice->parent_document_id)
+            : null;
+        $purchaseRequest = $order?->purchaseRequest;
+
+        return response()->json(['data' => [
+            'request' => $purchaseRequest ? [
+                'number' => $purchaseRequest->request_number,
+                'date' => $purchaseRequest->date?->toDateString(),
+                'created_at' => $purchaseRequest->created_at?->toIso8601String(),
+            ] : null,
+            'order' => $order ? [
+                'number' => $order->document_number,
+                'date' => $order->date?->toDateString(),
+                'created_at' => $order->created_at?->toIso8601String(),
+                'delivery_date' => $order->delivery_date?->toDateString(),
+            ] : null,
+            'received_at' => $invoice->received_at?->toIso8601String(),
+            'invoice' => [
+                'date' => $invoice->date?->toDateString(),
+                'created_at' => $invoice->created_at?->toIso8601String(),
+            ],
+        ]]);
+    }
 }

@@ -19,6 +19,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import type { PurchaseInvoice, PurchaseInvoiceItem } from '@/domain/Expenses';
+import { withholdingAmount } from '@/domain/Expenses/withholdings';
 import type { Contact } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
@@ -27,6 +28,7 @@ import ContactDialog from '@/pages/MasterData/Contact/ContactDialog.vue';
 import axios from 'axios';
 import { X } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
+import InvoiceTraceability from './InvoiceTraceability.vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
 import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
 
@@ -55,6 +57,7 @@ const isContactDialogOpen = ref(false);
 const contactDialogError = ref('');
 const contactDialogForm = ref<Partial<Contact>>({ groups: [] });
 const isLoading = ref(false);
+const fieldErrors = ref({ contactId: false, invoiceDate: false, deliveryDate: false, supplierInvoiceNumber: false });
 const isSubmittingDialog = ref(false);
 const isSendingMail = ref(false);
 const nextInvoiceId = ref<number | null>(null);
@@ -82,12 +85,9 @@ const { isBootstrapping, isHydrating, isBlockingLoading, canRenderForm, startLoa
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
 const total = computed(() => Number(subtotal.value) + Number(iva.value));
-/** Base efectiva de una retención: si base_amount es null/omitido se asume el subtotal. */
-function getWithholdingBase(w: { base_amount?: number | null; percentage?: number }): number {
-    return w.base_amount != null && Number.isFinite(Number(w.base_amount)) ? Number(w.base_amount) : Number(subtotal.value);
-}
-function getWithholdingAmount(w: { base_amount?: number | null; percentage?: number }): number {
-    return (getWithholdingBase(w) * (Number(w.percentage) || 0)) / 100;
+/** ReteIVA se calcula sobre el IVA; ReteFuente/ICA sobre el subtotal (ver domain/Expenses/withholdings). */
+function getWithholdingAmount(w: { base_amount?: number | null; percentage?: number; type?: string | null }): number {
+    return withholdingAmount(w, Number(subtotal.value), Number(iva.value));
 }
 const retencionesTotal = computed(() => (localForm.value.withholdings || []).reduce((acc, w) => acc + getWithholdingAmount(w), 0));
 const totalPagar = computed(() => Number(total.value) - Number(retencionesTotal.value));
@@ -217,6 +217,7 @@ function syncDateRefsFromForm() {
 
 function resetForm() {
     savedInvoiceId.value = null;
+    fieldErrors.value = { contactId: false, invoiceDate: false, deliveryDate: false, supplierInvoiceNumber: false };
     if (props.form && Object.keys(props.form).length > 0) {
         const formCopy = JSON.parse(JSON.stringify(props.form));
         if (!Array.isArray(formCopy.items)) formCopy.items = [];
@@ -627,17 +628,22 @@ function validateForm(): boolean {
     const items = getItems();
     const missingFields: string[] = [];
 
+    fieldErrors.value = { contactId: false, invoiceDate: false, deliveryDate: false, supplierInvoiceNumber: false };
     if (!localForm.value.contact_id) {
         missingFields.push('Proveedor');
+        fieldErrors.value.contactId = true;
     }
     if (!invoiceDate.value) {
         missingFields.push('Fecha factura');
+        fieldErrors.value.invoiceDate = true;
     }
     if (!deliveryDate.value) {
         missingFields.push('Fecha entrega');
+        fieldErrors.value.deliveryDate = true;
     }
     if (!String(localForm.value.supplier_invoice_number || '').trim()) {
         missingFields.push('N° factura proveedor');
+        fieldErrors.value.supplierInvoiceNumber = true;
     }
 
     if (missingFields.length) {
@@ -759,7 +765,6 @@ watch(dialogOpen, (isOpen) => {
                                             :options="pendingPurchaseOrderOptions"
                                             label=""
                                             placeholder="Selecciona una orden existente"
-                                            :disabled="isReadOnly"
                                             :readonly="isReadOnly"
                                             :searchable="pendingPurchaseOrderOptions.length >= 6"
                                             search-placeholder="Buscar orden de compra..."
@@ -825,7 +830,10 @@ watch(dialogOpen, (isOpen) => {
                     <div :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingInvoiceId }" class="space-y-6 pb-4">
                         <template v-if="canRenderForm">
                             <div class="space-y-4 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
-                                <!-- Orden relacionada (solo lectura) -->
+                                <!-- Trazabilidad de fechas -->
+                                <InvoiceTraceability v-if="dialogType === 'edit'" :invoice-id="localForm.id ? Number(localForm.id) : null" />
+
+                <!-- Orden relacionada (solo lectura) -->
                                 <div v-if="isReadOnly && relatedOrder" class="rounded-lg border border-border bg-muted/30 p-4">
                                     <div class="mb-3 flex items-center justify-between">
                                         <h3 class="text-sm font-medium text-foreground">Orden relacionada: {{ relatedOrder.document_number }}</h3>
@@ -910,7 +918,7 @@ watch(dialogOpen, (isOpen) => {
                                                 .map((c) => ({ id: Number(c.id), name: formatPersonNameDisplay(c.full_name, c.person_type) }))
                                                 .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
                                         "
-                                            :disabled="isReadOnly"
+                                            :readonly="isReadOnly"
                                             :searchable="true"
                                             :loading="isLoadingContacts"
                                             :has-more="contactsHasMore"
@@ -918,9 +926,11 @@ watch(dialogOpen, (isOpen) => {
                                             :action-label="!isReadOnly ? 'Nuevo contacto' : undefined"
                                             :action-disabled="isReadOnly"
                                             required
+                                            :invalid="fieldErrors.contactId"
                                             :key="contacts.length + '-' + localForm.contact_id"
                                             @action="openContactDialog"
                                             @load-more="loadMoreContacts"
+                                            @update:model-value="fieldErrors.contactId = false"
                                         />
                                     </div>
                                     <InputField
@@ -944,11 +954,13 @@ watch(dialogOpen, (isOpen) => {
                                         <DateField
                                             v-model="invoiceDate"
                                             label=""
-                                            :disabled="isReadOnly"
+                                            :readonly="isReadOnly"
                                             :clearable="true"
                                             :show-today="true"
                                             required
+                                            :error="fieldErrors.invoiceDate"
                                             dusk="factura-input-fecha-factura"
+                                            @update:model-value="fieldErrors.invoiceDate = false"
                                         />
                                     </div>
                                     <div class="flex flex-col gap-1">
@@ -962,11 +974,13 @@ watch(dialogOpen, (isOpen) => {
                                         <DateField
                                             v-model="deliveryDate"
                                             label=""
-                                            :disabled="isReadOnly"
+                                            :readonly="isReadOnly"
                                             :clearable="true"
                                             :show-today="true"
                                             required
+                                            :error="fieldErrors.deliveryDate"
                                             dusk="factura-input-fecha-entrega"
+                                            @update:model-value="fieldErrors.deliveryDate = false"
                                         />
                                     </div>
                                     <div class="flex flex-col gap-1">
@@ -981,9 +995,10 @@ watch(dialogOpen, (isOpen) => {
                                             v-model="localForm.supplier_invoice_number"
                                             label=""
                                             :readonly="isReadOnly"
-                                            :disabled="isReadOnly"
                                             required
+                                            :error="fieldErrors.supplierInvoiceNumber"
                                             dusk="factura-input-numero-proveedor"
+                                            @update:model-value="fieldErrors.supplierInvoiceNumber = false"
                                         />
                                     </div>
                                 </div>
@@ -1012,6 +1027,7 @@ watch(dialogOpen, (isOpen) => {
                                         :modelValue="localForm.withholdings || []"
                                         @update:modelValue="(val) => (localForm.withholdings = val)"
                                         :invoiceSubtotal="subtotal"
+                                        :invoiceIva="iva"
                                         :isReadOnly="isReadOnly"
                                     />
                                 </div>
@@ -1090,7 +1106,7 @@ watch(dialogOpen, (isOpen) => {
                                         v-model="localForm.description" data-no-uppercase
                                         label=""
                                         placeholder="Agrega aquí observaciones adicionales para la factura de compra"
-                                        :disabled="isReadOnly"
+                                        :readonly="isReadOnly"
                                     />
                                 </div>
                             </div>

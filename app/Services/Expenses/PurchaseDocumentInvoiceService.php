@@ -218,8 +218,10 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
             $parentId = $parentId ? (int) $parentId : null;
 
             // Validar que no exista ya una factura para esta orden
+            $overInvoicedReason = null;
             if (!empty($parentId)) {
-                $parentOrder = PurchaseDocument::find($parentId);
+                // Bloqueo de la orden: dos facturas simultáneas no deben calcular su estado con datos viejos.
+                $parentOrder = PurchaseDocument::whereKey($parentId)->lockForUpdate()->first();
                 if (!$parentOrder) {
                     throw new \RuntimeException('La orden de compra especificada no existe.');
                 }
@@ -235,6 +237,17 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
                 ];
                 if (!in_array($parentOrder->status, $invoiceableStatuses)) {
                     throw new \RuntimeException('Solo se pueden crear facturas desde órdenes aprobadas o parcialmente facturadas.');
+                }
+
+                // Facturar más de lo pendiente se permite solo con motivo; la diferencia la aprueba alguien con permiso.
+                $overInvoiced = $this->overInvoicedItems($parentOrder, $items);
+                if (count($overInvoiced) > 0) {
+                    $overInvoicedReason = trim((string) ($data['reason'] ?? ''));
+                    if ($overInvoicedReason === '') {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'reason' => ['La factura supera la cantidad pendiente de la orden ('.implode('; ', $overInvoiced).'). Indica el motivo de la diferencia; debe aprobarla alguien con permiso.'],
+                        ]);
+                    }
                 }
             }
 
@@ -269,18 +282,18 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
             ]);
 
             $this->syncItems($invoice, $items);
+            $this->syncInvoiceWithholdings($invoice);
 
-            // Actualizar el estado de la orden según si la factura cubre todas las cantidades
+            if ($overInvoicedReason !== null) {
+                // Queda pendiente de aprobación desde el inicio (también recalcula la orden).
+                $this->attachValidationDifference($invoice, $overInvoicedReason, $data['evidence_path'] ?? null, null);
+            }
+
+            // Actualizar el estado de la orden y de su solicitud según lo facturado
             if (!empty($parentId)) {
                 $parentOrder = PurchaseDocument::with('items')->find($parentId);
-                if ($parentOrder && $parentOrder->document_type === PurchaseDocument::TYPE_ORDER) {
-                    $newStatus = $this->resolveOrderStatusAfterInvoice($parentOrder, []);
-                    $parentOrder->update(['status' => $newStatus]);
-
-                    // Verificar si todas las órdenes de la solicitud están completamente facturadas
-                    if ($newStatus === \App\Enums\PurchaseOrderStatus::INVOICED->value && $parentOrder->purchase_request_id) {
-                        $this->checkAndMarkRequestAsProcessed((int) $parentOrder->purchase_request_id);
-                    }
+                if ($parentOrder) {
+                    $this->recalculateOrderStatus($parentOrder);
                 }
             }
 
@@ -330,6 +343,7 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
             $lockedInvoice->approval_status = 'approved';
             $lockedInvoice->approved_by_user_id = $lockedInvoice->approved_by_user_id ?: (int) $responsibleUserId;
             $lockedInvoice->approved_at = $lockedInvoice->approved_at ?? now();
+            $lockedInvoice->received_at = $lockedInvoice->received_at ?? now();
 
             if ($lockedInvoice->isDirty()) {
                 $lockedInvoice->save();
@@ -633,75 +647,33 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
         return $enum?->label() ?? $status;
     }
 
-    private function resolveOrderStatusAfterInvoice(PurchaseDocument $order, array $newInvoiceItems): string
+    /**
+     * Líneas de la factura nueva que superan lo pendiente de la orden (pedido menos lo ya facturado válido).
+     *
+     * @return list<string> descripciones, vacío si ninguna se pasa
+     */
+    protected function overInvoicedItems(PurchaseDocument $order, array $items): array
     {
-        $orderItems = $order->items;
+        $order->loadMissing('items');
+        $invoiced = $this->invoicedQuantitiesByKey($this->validInvoicesForOrder($order)->pluck('id')->all());
 
-        if ($orderItems->isEmpty()) {
-            return \App\Enums\PurchaseOrderStatus::INVOICED->value;
+        $requested = [];
+        foreach ($items as $item) {
+            $key = ! empty($item['item_id']) ? 'id:'.$item['item_id'] : 'name:'.strtolower(trim((string) ($item['item_name'] ?? '')));
+            $requested[$key] = ($requested[$key] ?? 0) + (float) ($item['quantity'] ?? 0);
         }
 
-        // Sumar cantidades de facturas anteriores para esta orden
-        $previousInvoiceIds = PurchaseDocument::where('parent_document_id', $order->id)
-            ->where('document_type', PurchaseDocument::TYPE_INVOICE)
-            ->whereNull('deleted_at')
-            ->pluck('id');
-
-        $invoicedQty = \App\Models\Expenses\PurchaseDocumentItem::whereIn('purchase_document_id', $previousInvoiceIds)
-            ->get()
-            ->reduce(function (array $carry, $item) {
-                $key = $item->item_id
-                    ? 'id:' . $item->item_id
-                    : 'name:' . strtolower(trim((string) ($item->item_name ?? '')));
-                $carry[$key] = ($carry[$key] ?? 0) + (float) $item->quantity;
-                return $carry;
-            }, []);
-
-        // Sumar la factura actual
-        foreach ($newInvoiceItems as $item) {
-            $key = !empty($item['item_id'])
-                ? 'id:' . $item['item_id']
-                : 'name:' . strtolower(trim((string) ($item['item_name'] ?? '')));
-            $invoicedQty[$key] = ($invoicedQty[$key] ?? 0) + (float) ($item['quantity'] ?? 0);
-        }
-
-        foreach ($orderItems as $orderItem) {
-            $key = $orderItem->item_id
-                ? 'id:' . $orderItem->item_id
-                : 'name:' . strtolower(trim((string) ($orderItem->item_name ?? '')));
-            $ordered  = (float) $orderItem->quantity;
-            $invoiced = $invoicedQty[$key] ?? 0;
-
-            if ($ordered > 0 && $invoiced < $ordered) {
-                return \App\Enums\PurchaseOrderStatus::PARTIALLY_INVOICED->value;
+        $over = [];
+        foreach ($order->items as $orderItem) {
+            $key = $orderItem->item_id ? 'id:'.$orderItem->item_id : 'name:'.strtolower(trim((string) ($orderItem->item_name ?? '')));
+            $pending = max(0.0, (float) $orderItem->quantity - ($invoiced[$key] ?? 0));
+            $asked = $requested[$key] ?? 0;
+            if ($asked > $pending + 0.0001) {
+                $over[] = sprintf('%s: pendiente %s, facturado %s', $orderItem->item_name ?? $orderItem->item?->name ?? 'Ítem #'.$orderItem->id, rtrim(rtrim(number_format($pending, 2, '.', ''), '0'), '.'), rtrim(rtrim(number_format($asked, 2, '.', ''), '0'), '.'));
             }
         }
 
-        return \App\Enums\PurchaseOrderStatus::INVOICED->value;
+        return $over;
     }
 
-    private function checkAndMarkRequestAsProcessed(int $requestId): void
-    {
-        $purchaseRequest = \App\Models\Expenses\PurchaseRequest::find($requestId);
-        if (!$purchaseRequest || !$purchaseRequest->isApproved()) {
-            return;
-        }
-
-        // Verificar que exista al menos una orden y que todas las no-rechazadas/no-eliminadas estén facturadas
-        $orders = PurchaseDocument::where('purchase_request_id', $requestId)
-            ->where('document_type', PurchaseDocument::TYPE_ORDER)
-            ->whereNotIn('status', ['rejected'])
-            ->whereNull('deleted_at')
-            ->get(['id', 'status']);
-
-        if ($orders->isEmpty()) {
-            return;
-        }
-
-        $allInvoiced = $orders->every(fn($o) => $o->status === \App\Enums\PurchaseOrderStatus::INVOICED->value);
-
-        if ($allInvoiced) {
-            $purchaseRequest->markAsProcessed(Auth::id());
-        }
-    }
 }

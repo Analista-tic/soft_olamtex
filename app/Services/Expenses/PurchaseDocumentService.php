@@ -167,9 +167,7 @@ class PurchaseDocumentService
                 })
             )
             ->when($this->shouldApplyFilter($filters['status'] ?? null), function (Builder $builder) use ($filters) {
-                if ($filters['status'] === 'processed') {
-                    $builder->where('status', 'approved')->whereNotNull('purchase_request_id');
-                } elseif (str_contains($filters['status'], ',')) {
+                if (str_contains($filters['status'], ',')) {
                     $builder->whereIn('status', array_map('trim', explode(',', $filters['status'])));
                 } else {
                     $builder->where('status', $filters['status']);
@@ -267,6 +265,11 @@ class PurchaseDocumentService
         array $data,
         ?array $items = null
     ): PurchaseDocument {
+        if ($this->orderHasInvoices($document)) {
+            $this->ensureInvoicedOrderValuesUnchanged($document, $data, $items);
+            $items = null;
+        }
+
         return DB::transaction(function () use ($document, $data, $items) {
             $fillable = array_intersect_key($data, array_flip($this->updateFillableKeys()));
 
@@ -288,8 +291,93 @@ class PurchaseDocumentService
                 $this->syncItems($document, $items);
             }
 
+            if ($document->isInvoice() && ($items !== null || array_key_exists('withholdings', $data))) {
+                $this->syncInvoiceWithholdings($document);
+            }
+
             return $this->loadWithRelations($document);
         });
+    }
+
+    /**
+     * Guarda cada retención con su tipo, base efectiva y valor calculado según la normativa colombiana
+     * (ReteIVA sobre el IVA; ReteFuente/ICA sobre el subtotal). Así todo el sistema (comprobantes de egreso,
+     * cuentas por pagar, contabilidad) lee el mismo valor en vez de recalcularlo.
+     */
+    protected function syncInvoiceWithholdings(PurchaseDocument $invoice): void
+    {
+        $withholdings = is_array($invoice->withholdings) ? $invoice->withholdings : [];
+        if ($withholdings === []) {
+            return;
+        }
+
+        $items = $invoice->items()->get();
+        $subtotal = round((float) $items->sum(fn ($item) => (float) ($item->total ?? 0)), 2);
+        $iva = round((float) $items->sum(fn ($item) => (float) ($item->total_tax ?? 0)), 2);
+
+        $invoice->forceFill([
+            'withholdings' => app(\App\Support\Finance\PurchaseWithholdingCalculator::class)->normalize($withholdings, $subtotal, $iva),
+        ])->save();
+    }
+
+    /** Una orden con cualquier factura vinculada (sin importar su estado) ya no admite cambios de valor. */
+    protected function orderHasInvoices(PurchaseDocument $document): bool
+    {
+        return $document->isOrder()
+            && $document->children()->where('document_type', PurchaseDocument::TYPE_INVOICE)->exists();
+    }
+
+    /**
+     * En una orden ya facturada solo se editan datos que no cambian el valor (fecha de entrega, notas,
+     * número de orden del proveedor). Ítems, cantidades, precios, proveedor y retenciones quedan bloqueados
+     * para todos; para corregir se usa una orden adicional, cerrar la orden o notas crédito/débito.
+     */
+    protected function ensureInvoicedOrderValuesUnchanged(PurchaseDocument $order, array $data, ?array $items): void
+    {
+        $changed = false;
+
+        foreach (['contact_id', 'provider_name', 'provider_phone'] as $field) {
+            if (array_key_exists($field, $data) && (string) ($data[$field] ?? '') !== (string) ($order->{$field} ?? '')) {
+                $changed = true;
+            }
+        }
+
+        if (array_key_exists('withholdings', $data)
+            && json_encode($data['withholdings'] ?? null) !== json_encode($order->withholdings)
+            && ! (empty($data['withholdings']) && empty($order->withholdings))) {
+            $changed = true;
+        }
+
+        if ($items !== null && $this->normalizedItemSignature($items) !== $this->normalizedItemSignature($order->items->toArray())) {
+            $changed = true;
+        }
+
+        if ($changed) {
+            throw ValidationException::withMessages([
+                'document' => 'Esta orden ya tiene facturas: no se pueden cambiar sus ítems, cantidades, precios ni proveedor. Para corregir, crea una orden adicional, cierra la orden o usa una nota crédito/débito.',
+            ]);
+        }
+    }
+
+    /** @param  list<array<string, mixed>>  $items */
+    private function normalizedItemSignature(array $items): array
+    {
+        $rows = [];
+        foreach ($items as $item) {
+            if (empty($item['quantity'])) {
+                continue;
+            }
+            $id = $item['item_id'] ?? null;
+            $rows[] = implode('|', [
+                is_numeric($id) ? 'id:'.(int) $id : 'name:'.strtolower(trim((string) ($item['item_name'] ?? $id ?? ''))),
+                round((float) $item['quantity'], 4),
+                round((float) ($item['price'] ?? 0), 4),
+                round((float) ($item['tax'] ?? 0), 4),
+            ]);
+        }
+        sort($rows);
+
+        return $rows;
     }
 
     public function deleteDocument(PurchaseDocument $document): void
@@ -318,13 +406,142 @@ class PurchaseDocumentService
             if ($document->isInvoice() && $document->parent_document_id) {
                 $parentOrder = PurchaseDocument::find($document->parent_document_id);
                 if ($parentOrder && $parentOrder->isOrder()) {
-                    $parentOrder->update([
-                        'status' => 'pending',
-                        'invoiced_at' => null,
-                    ]);
+                    $this->recalculateOrderStatus($parentOrder);
                 }
             }
         });
+    }
+
+    /**
+     * Única fuente del estado de facturación de una orden. Cuenta solo facturas válidas (no
+     * rechazadas ni con diferencia rechazada): aprobada si no hay ninguna; facturada cuando lo
+     * facturado cubre lo pedido en cada ítem (facturar de más no lo impide); parcialmente facturada
+     * en cualquier otro caso o mientras haya una diferencia pendiente. Un cierre manual no se reabre.
+     * También cierra o reabre la solicitud según el resultado.
+     */
+    public function recalculateOrderStatus(PurchaseDocument $order): PurchaseDocument
+    {
+        if (! $order->isOrder()) {
+            return $order;
+        }
+
+        $order->loadMissing('items');
+        $current = $order->status instanceof \BackedEnum ? $order->status->value : $order->status;
+        $recalculable = [
+            \App\Enums\PurchaseOrderStatus::APPROVED->value,
+            \App\Enums\PurchaseOrderStatus::PARTIALLY_INVOICED->value,
+            \App\Enums\PurchaseOrderStatus::INVOICED->value,
+        ];
+        if (! in_array($current, $recalculable, true)) {
+            return $order;
+        }
+        if ($current === \App\Enums\PurchaseOrderStatus::INVOICED->value && filled($order->closure_reason)) {
+            return $order;
+        }
+
+        $invoices = $this->validInvoicesForOrder($order)->get(['id', 'approval_status']);
+
+        if ($invoices->isEmpty()) {
+            $new = \App\Enums\PurchaseOrderStatus::APPROVED->value;
+        } else {
+            $hasPendingDifference = $invoices->contains(fn ($i) => $i->approval_status === PurchaseDocument::APPROVAL_PENDING_DIFFERENCE);
+            $new = (! $hasPendingDifference && $this->invoicesCoverOrder($order, $invoices->pluck('id')->all()))
+                ? \App\Enums\PurchaseOrderStatus::INVOICED->value
+                : \App\Enums\PurchaseOrderStatus::PARTIALLY_INVOICED->value;
+        }
+
+        if ($new !== $current) {
+            $order->update([
+                'status' => $new,
+                'invoiced_at' => $new === \App\Enums\PurchaseOrderStatus::INVOICED->value ? ($order->invoiced_at ?? now()) : null,
+            ]);
+        }
+
+        if ($order->purchase_request_id) {
+            if ($new === \App\Enums\PurchaseOrderStatus::INVOICED->value) {
+                $this->checkAndMarkRequestAsProcessed((int) $order->purchase_request_id);
+            } else {
+                $request = \App\Models\Expenses\PurchaseRequest::find($order->purchase_request_id);
+                $requestStatus = $request?->status instanceof \BackedEnum ? $request->status->value : $request?->status;
+                if ($request && $requestStatus === \App\Enums\PurchaseRequestStatus::PROCESSED->value) {
+                    $request->update([
+                        'status' => \App\Enums\PurchaseRequestStatus::APPROVED->value,
+                        'processed_at' => null,
+                        'processed_by_user_id' => null,
+                    ]);
+                }
+            }
+        }
+
+        return $order;
+    }
+
+    /** Facturas de la orden que cuentan como facturado: no rechazadas ni con diferencia rechazada. */
+    protected function validInvoicesForOrder(PurchaseDocument $order): \Illuminate\Database\Eloquent\Builder
+    {
+        return PurchaseDocument::where('parent_document_id', $order->id)
+            ->where('document_type', PurchaseDocument::TYPE_INVOICE)
+            ->whereNull('deleted_at')
+            ->where(fn ($q) => $q->whereNull('status')->orWhere('status', '!=', 'rejected'))
+            ->where(fn ($q) => $q->whereNull('approval_status')->orWhere('approval_status', '!=', PurchaseDocument::APPROVAL_DIFFERENCE_REJECTED));
+    }
+
+    /** Cantidad de cada ítem de la orden que ya cubren las facturas dadas. @return array<string,float> */
+    protected function invoicedQuantitiesByKey(array $invoiceIds): array
+    {
+        if (empty($invoiceIds)) {
+            return [];
+        }
+
+        return \App\Models\Expenses\PurchaseDocumentItem::whereIn('purchase_document_id', $invoiceIds)
+            ->get()
+            ->reduce(function (array $carry, $item) {
+                $key = $item->item_id ? 'id:'.$item->item_id : 'name:'.strtolower(trim((string) ($item->item_name ?? '')));
+                $carry[$key] = ($carry[$key] ?? 0) + (float) $item->quantity;
+
+                return $carry;
+            }, []);
+    }
+
+    protected function invoicesCoverOrder(PurchaseDocument $order, array $invoiceIds): bool
+    {
+        $invoiced = $this->invoicedQuantitiesByKey($invoiceIds);
+
+        foreach ($order->items as $orderItem) {
+            $key = $orderItem->item_id ? 'id:'.$orderItem->item_id : 'name:'.strtolower(trim((string) ($orderItem->item_name ?? '')));
+            if ((float) $orderItem->quantity > 0 && ($invoiced[$key] ?? 0) < (float) $orderItem->quantity) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Cierra la solicitud cuando todas sus órdenes (no rechazadas) ya están facturadas.
+     */
+    public function checkAndMarkRequestAsProcessed(int $requestId): void
+    {
+        $purchaseRequest = \App\Models\Expenses\PurchaseRequest::find($requestId);
+        if (!$purchaseRequest || !$purchaseRequest->isApproved()) {
+            return;
+        }
+
+        $orders = PurchaseDocument::where('purchase_request_id', $requestId)
+            ->where('document_type', PurchaseDocument::TYPE_ORDER)
+            ->whereNotIn('status', ['rejected'])
+            ->whereNull('deleted_at')
+            ->get(['id', 'status']);
+
+        if ($orders->isEmpty()) {
+            return;
+        }
+
+        $allInvoiced = $orders->every(fn($o) => $o->status === \App\Enums\PurchaseOrderStatus::INVOICED->value);
+
+        if ($allInvoiced) {
+            $purchaseRequest->markAsProcessed(Auth::id());
+        }
     }
 
     public function loadWithRelations(PurchaseDocument $document): PurchaseDocument
@@ -355,6 +572,8 @@ class PurchaseDocumentService
             throw new \InvalidArgumentException('Solo las facturas pueden tener justificación de diferencias.');
         }
 
+        $alreadyPending = $invoice->approval_status === PurchaseDocument::APPROVAL_PENDING_DIFFERENCE;
+
         $invoice->update([
             'rejection_reason'        => $reason,
             'rejection_evidence_image'=> $this->prepareEvidencePath($evidencePath),
@@ -365,20 +584,20 @@ class PurchaseDocumentService
             'rejected_at'             => now(),
         ]);
 
-        // Revertir la orden a "parcialmente facturada" mientras haya diferencia pendiente
+        // Mientras haya diferencia pendiente la orden queda "parcialmente facturada"
         if ($invoice->parent_document_id) {
             $parentOrder = PurchaseDocument::find($invoice->parent_document_id);
-            if ($parentOrder
-                && $parentOrder->document_type === PurchaseDocument::TYPE_ORDER
-                && $parentOrder->status === \App\Enums\PurchaseOrderStatus::INVOICED->value
-            ) {
-                $parentOrder->update(['status' => \App\Enums\PurchaseOrderStatus::PARTIALLY_INVOICED->value]);
+            if ($parentOrder) {
+                $this->recalculateOrderStatus($parentOrder);
             }
         }
 
-        /** @var \App\Models\Settings\User|null $currentUser */
-        $currentUser = Auth::user();
-        $this->notifyDifference($invoice, $currentUser);
+        // Si ya se creó pendiente (sobrefacturación), el aviso salió una vez: no se repite al justificar.
+        if (! $alreadyPending) {
+            /** @var \App\Models\Settings\User|null $currentUser */
+            $currentUser = Auth::user();
+            $this->notifyDifference($invoice, $currentUser);
+        }
 
         return $this->loadWithRelations($invoice);
     }
@@ -630,27 +849,19 @@ class PurchaseDocumentService
             'ordered_at',
             'invoiced_at',
             'approved_at',
+            'approved_by_user_id',
             'approval_notes',
             'closure_reason',
         ];
     }
 
-    /**
-     * Notificar a usuarios con permiso 'aprobar facturas compra' sobre una diferencia registrada.
-     */
     protected function notifyDifference(PurchaseDocument $invoice, ?User $requester): void
     {
-        $requesterName = $requester?->name;
-        $notification = new PurchaseInvoiceDifferenceNotification($invoice, $requesterName);
-
-        $recipientsQuery = User::role(['admin', 'contabilidad']);
-        if ($requester?->id) {
-            $recipientsQuery->where('id', '!=', $requester->id);
-        }
-
-        $recipients = $recipientsQuery->get();
-
-        Notification::send($recipients, $notification);
+        app(\App\Services\Settings\NotificationDispatcher::class)->dispatch(
+            'invoice_difference',
+            new PurchaseInvoiceDifferenceNotification($invoice, $requester?->name),
+            ['actor' => $requester]
+        );
     }
 
     /**
@@ -683,51 +894,13 @@ class PurchaseDocumentService
 
         // Re-evaluar el estado de la orden padre tras aprobar la diferencia
         if ($invoice->parent_document_id) {
-            $parentOrder = PurchaseDocument::with('items')->find($invoice->parent_document_id);
-            if ($parentOrder
-                && $parentOrder->document_type === PurchaseDocument::TYPE_ORDER
-                && $parentOrder->status === \App\Enums\PurchaseOrderStatus::PARTIALLY_INVOICED->value
-            ) {
-                $hasPendingDiffs = PurchaseDocument::where('parent_document_id', $parentOrder->id)
-                    ->where('document_type', PurchaseDocument::TYPE_INVOICE)
-                    ->whereNull('deleted_at')
-                    ->where('approval_status', PurchaseDocument::APPROVAL_PENDING_DIFFERENCE)
-                    ->exists();
-
-                $allQuantitiesCovered = true;
-                $orderItems = $parentOrder->items;
-                if ($orderItems->isNotEmpty()) {
-                    $invoiceIds = PurchaseDocument::where('parent_document_id', $parentOrder->id)
-                        ->where('document_type', PurchaseDocument::TYPE_INVOICE)
-                        ->whereNull('deleted_at')
-                        ->pluck('id');
-
-                    $invoicedQty = \App\Models\Expenses\PurchaseDocumentItem::whereIn('purchase_document_id', $invoiceIds)
-                        ->get()
-                        ->reduce(function (array $carry, $item) {
-                            $key = $item->item_id
-                                ? 'id:' . $item->item_id
-                                : 'name:' . strtolower(trim((string) ($item->item_name ?? '')));
-                            $carry[$key] = ($carry[$key] ?? 0) + (float) $item->quantity;
-                            return $carry;
-                        }, []);
-
-                    foreach ($orderItems as $orderItem) {
-                        $key = $orderItem->item_id
-                            ? 'id:' . $orderItem->item_id
-                            : 'name:' . strtolower(trim((string) ($orderItem->item_name ?? '')));
-                        if ((float) $orderItem->quantity > 0 && ($invoicedQty[$key] ?? 0) < (float) $orderItem->quantity) {
-                            $allQuantitiesCovered = false;
-                            break;
-                        }
-                    }
-                }
-
-                if (! $hasPendingDiffs && $allQuantitiesCovered) {
-                    $parentOrder->update(['status' => \App\Enums\PurchaseOrderStatus::INVOICED->value]);
-                }
+            $parentOrder = PurchaseDocument::find($invoice->parent_document_id);
+            if ($parentOrder) {
+                $this->recalculateOrderStatus($parentOrder);
             }
         }
+
+        $this->notifyDifferenceApproved($invoice);
 
         return $this->loadWithRelations($invoice);
     }
@@ -760,6 +933,14 @@ class PurchaseDocumentService
             'approved_at'         => now(),
         ]);
 
+        // La diferencia rechazada deja de contar como facturado: la orden se recalcula
+        if ($invoice->parent_document_id) {
+            $parentOrder = PurchaseDocument::find($invoice->parent_document_id);
+            if ($parentOrder) {
+                $this->recalculateOrderStatus($parentOrder);
+            }
+        }
+
         // Notificar al creador de la factura para que gestione nota crédito
         $this->notifyDifferenceRejected($invoice);
 
@@ -768,33 +949,27 @@ class PurchaseDocumentService
 
     protected function notifyDifferenceRejected(PurchaseDocument $invoice): void
     {
-        $creator = $invoice->creator;
-        if (!$creator || !$creator->email) {
-            return;
-        }
+        app(\App\Services\Settings\NotificationDispatcher::class)->dispatch(
+            'invoice_difference_rejected',
+            new \App\Notifications\PurchaseInvoiceDifferenceRejectedNotification($invoice),
+            ['actor' => Auth::user(), 'creator' => $invoice->creator]
+        );
+    }
 
-        try {
-            \Illuminate\Support\Facades\Mail::send(
-                [],
-                [],
-                function ($message) use ($invoice, $creator) {
-                    $message->to($creator->email, $creator->name)
-                        ->subject('Diferencia rechazada — ' . $invoice->document_number)
-                        ->html(
-                            '<p>Estimado/a <strong>' . e($creator->name) . '</strong>,</p>' .
-                            '<p>La diferencia registrada en la factura <strong>' .
-                            e($invoice->document_number) . '</strong> ha sido <strong>rechazada</strong>.</p>' .
-                            '<p><strong>Motivo de rechazo:</strong> ' . e($invoice->approval_notes) . '</p>' .
-                            '<p>Por favor gestiona la nota crédito correspondiente.</p>'
-                        );
-                }
-            );
-        } catch (\Throwable $e) {
-            // No interrumpir el flujo si el correo falla
-            \Illuminate\Support\Facades\Log::warning(
-                'No se pudo enviar email de rechazo de diferencia: ' . $e->getMessage(),
-                ['invoice_id' => $invoice->id]
-            );
-        }
+    protected function notifyDifferenceApproved(PurchaseDocument $invoice): void
+    {
+        $number = $invoice->document_number ?? (string) $invoice->id;
+
+        app(\App\Services\Settings\NotificationDispatcher::class)->dispatch(
+            'invoice_difference_approved',
+            new \App\Notifications\GenericEventNotification(
+                'invoice_difference_approved',
+                'Gastos',
+                "Diferencia aprobada — Factura #{$number}",
+                "La diferencia registrada en la factura {$number} fue aprobada.",
+                '/gastos/facturas-compra'
+            ),
+            ['actor' => Auth::user(), 'creator' => $invoice->creator]
+        );
     }
 }

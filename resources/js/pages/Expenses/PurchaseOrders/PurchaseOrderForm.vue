@@ -24,6 +24,11 @@ const { successMessage, errorMessage, errorType, showSuccess, showError, clearEr
 const { company, logoUrl } = useCompanyInfo();
 const authStore = useAuthStore();
 const canSeeAllRequests = computed(() => authStore.can('ver todos ordenes compra'));
+// Sin alguno de estos permisos, GET /gastos/solicitudes-compra/data devuelve 403:
+// se oculta el selector en vez de mostrarlo vacío/roto.
+const canViewPurchaseRequests = computed(() =>
+    authStore.canAny(['ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra']),
+);
 const myRequestsOnly = ref(false);
 const ContactDialog = defineAsyncComponent(() => import('@/pages/MasterData/Contact/ContactDialog.vue'));
 
@@ -66,6 +71,20 @@ const subtotal = computed(() => (localForm.value.items || []).reduce((acc: numbe
 const iva = computed(() => (localForm.value.items || []).reduce((acc: number, item: any) => acc + Math.max(Number(item.total_tax) || 0, 0), 0));
 const total = computed(() => Math.max(subtotal.value, 0) + Math.max(iva.value, 0));
 
+// Recorta nombres de persona a "Nombre Apellido" para que quepan en la fila de opciones del selector.
+function shortenPersonName(name: string, maxLength = 22): string {
+    const trimmed = String(name || '').trim();
+    if (!trimmed) return '';
+    if (trimmed.length <= maxLength) return trimmed;
+    const parts = trimmed.split(/\s+/);
+    if (parts.length >= 2) {
+        const shortened = `${parts[0]} ${parts[1]}`;
+        if (shortened.length <= maxLength) return shortened;
+        return parts[0];
+    }
+    return trimmed.slice(0, maxLength);
+}
+
 const pendingRequestOptions = computed(() => {
     return purchaseRequests.value.map((request: any) => {
         const rawId = request?.id ?? '';
@@ -84,10 +103,12 @@ const pendingRequestOptions = computed(() => {
             id: optionId,
             name: requestNumber,
             requester_name: request?.requester_name || '',
+            buyer_name: request?.buyer_name || '',
             created_at: request?.created_at || null,
         };
     });
 });
+
 
 function daysAgo(isoDate: string | null): { label: string; urgent: boolean } {
     if (!isoDate) return { label: '', urgent: false };
@@ -339,9 +360,6 @@ async function handleSubmit(sendMail = false) {
     if (payload.provider_name == null || payload.provider_name === '') {
         delete payload.provider_name;
     }
-    if (payload.purchase_request_id) {
-        payload.status = 'approved';
-    }
     payload.items = (localForm.value.items || []).map((item: any) => ({
         ...item,
         item_id: item.item_id ? Number(item.item_id) : null,
@@ -452,7 +470,7 @@ function initializeFromForm() {
 onMounted(async () => {
     isLoading.value = true;
     try {
-        await Promise.all([fetchContacts(), fetchPendingPurchaseRequests()]);
+        await Promise.all([fetchContacts(), canViewPurchaseRequests.value ? fetchPendingPurchaseRequests() : Promise.resolve()]);
         if (mode.value === 'create') {
             await fetchNextDocumentNumber();
         }
@@ -610,7 +628,7 @@ watch(myRequestsOnly, () => {
                     <h1 class="text-lg font-bold">{{ mode === 'create' ? 'Nueva Orden de Compra' : 'Editar Orden de Compra' }}</h1>
                     <p class="text-sm text-muted-foreground">Completa los campos y añade los ítems de la orden.</p>
                 </div>
-                <div v-if="mode === 'create'" class="w-full sm:w-[420px] shrink-0">
+                <div v-if="mode === 'create' && canViewPurchaseRequests" class="w-full sm:w-[420px] shrink-0">
                     <div class="space-y-1">
                         <div class="flex items-center justify-between gap-2">
                             <label class="text-sm font-medium leading-none text-foreground">Cargar desde orden pendiente</label>
@@ -658,7 +676,13 @@ watch(myRequestsOnly, () => {
                                         v-if="option.requester_name"
                                         :class="['text-xs truncate', active ? 'text-accent-foreground/80' : 'text-muted-foreground']"
                                     >
-                                        {{ option.requester_name }}
+                                        Sol.: {{ shortenPersonName(option.requester_name) }}
+                                    </span>
+                                    <span
+                                        v-if="option.buyer_name"
+                                        :class="['text-xs truncate', active ? 'text-accent-foreground/80' : 'text-muted-foreground']"
+                                    >
+                                        Encargado de compra: {{ shortenPersonName(option.buyer_name) }}
                                     </span>
                                 </div>
                             </template>

@@ -9,8 +9,8 @@ import type { Item } from '@/domain/MasterData';
 
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 import axios from 'axios';
-import { ImagePlus, Lightbulb, PlusCircle, X as XIcon } from 'lucide-vue-next';
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { Image, Lightbulb, PlusCircle } from 'lucide-vue-next';
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue';
 
 const ImagePreviewDialog = defineAsyncComponent(() => import('@/components/ImagePreviewDialog.vue'));
 const TaxDialog = defineAsyncComponent(() => import('@/pages/Finance/Taxes/TaxDialog.vue'));
@@ -42,8 +42,6 @@ const taxDialogLoading = ref(false);
 type TaxDialogForm = Pick<Tax, 'name' | 'percentage' | 'status'> & { id?: number };
 const taxForm = ref<TaxDialogForm>({ name: '', percentage: 0, status: true });
 
-const fileInputRefs = ref<Record<string, HTMLInputElement | null>>({});
-const persistedImageUrls = ref<Record<string, string | null>>({});
 const itemTypedNames = ref<Record<number, string>>({});
 
 // Catálogo unificado de todos los ítems conocidos (base + por fila) para lookups (isTela, etc.)
@@ -80,7 +78,6 @@ function onItemSearch(rowIdx: number, term: string) {
 }
 const showLightbox = ref(false);
 const lightboxUrl = ref<string | null>(null);
-let lightboxKeydownListenerAttached = false;
 // Item dialog state (quick-create)
 const isItemDialogOpen = ref(false);
 const itemDialogTargetRowIndex = ref<number | null>(null);
@@ -193,8 +190,6 @@ watch(
                       supplier_color: item.supplier_color || '',
                       order_width: typeof item.order_width === 'number' ? item.order_width : Number(item.order_width) || 0,
                       image_url: item.image_url ?? null,
-                      _image_file: null,
-                      _delete_image: false,
                   }))
                 : [];
 
@@ -368,9 +363,15 @@ function validateFabricFields(): string | null {
     for (let idx = 0; idx < localItems.value.length; idx++) {
         const item = localItems.value[idx];
         if (!isTela(item)) continue;
+        const name = itemMap.value.get(Number(item.item_id))?.name || `Ítem ${idx + 1}`;
+        if (!String(item.supplier_code ?? '').trim()) {
+            return `El ítem "${name}" es tela: el código del proveedor es obligatorio.`;
+        }
+        if (!String(item.supplier_color ?? '').trim()) {
+            return `El ítem "${name}" es tela: el color del proveedor es obligatorio.`;
+        }
         const width = item.order_width;
         if (width === undefined || width === null || (typeof width === 'string' && String(width).trim() === '') || Number(width) <= 0) {
-            const name = itemMap.value.get(Number(item.item_id))?.name || `Ítem ${idx + 1}`;
             return `El ítem "${name}" es tela: el ancho pedido (cm) es obligatorio. En recepción se compara el ancho real del rollo con este valor para validar tolerancias.`;
         }
     }
@@ -390,8 +391,6 @@ function addItem() {
         supplier_color: '',
         order_width: 0,
         image_url: null,
-        _image_file: null,
-        _delete_image: false,
     };
 
     localItems.value.push(newItem);
@@ -451,47 +450,6 @@ function getItemUid(item: any, idx: number): string {
     return `item-${idx}-${item.item_id ?? 'new'}`;
 }
 
-function revokeBlobUrl(url?: string | null) {
-    if (typeof url === 'string' && url.startsWith('blob:')) {
-        URL.revokeObjectURL(url);
-    }
-}
-
-function registerFileInput(uid: string, element: HTMLInputElement | null) {
-    if (element) {
-        fileInputRefs.value[uid] = element;
-        return;
-    }
-    delete fileInputRefs.value[uid];
-}
-
-function triggerImagePicker(item: any, idx: number) {
-    if (props.readonly) {
-        return;
-    }
-    fileInputRefs.value[getItemUid(item, idx)]?.click();
-}
-
-function handleImageSelected(event: Event, item: any, idx: number) {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) {
-        return;
-    }
-
-    const uid = getItemUid(item, idx);
-    if (!(uid in persistedImageUrls.value)) {
-        persistedImageUrls.value[uid] = item.image_url && !item.image_url.startsWith('blob:') ? item.image_url : null;
-    }
-
-    revokeBlobUrl(item.image_url);
-    item._image_file = file;
-    item.image_url = URL.createObjectURL(file);
-    item._delete_image = false;
-    input.value = '';
-    emit('update:items', localItems.value);
-}
-
 function openLightbox(url?: string | null) {
     if (!url) {
         return;
@@ -504,57 +462,6 @@ function closeLightbox() {
     showLightbox.value = false;
     lightboxUrl.value = null;
 }
-
-function handleLightboxKeydown(event: KeyboardEvent) {
-    if (!showLightbox.value || event.key !== 'Escape') {
-        return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    closeLightbox();
-}
-
-function syncLightboxKeydownListener(isOpen: boolean) {
-    if (isOpen && !lightboxKeydownListenerAttached) {
-        document.addEventListener('keydown', handleLightboxKeydown, true);
-        lightboxKeydownListenerAttached = true;
-        return;
-    }
-    if (!isOpen && lightboxKeydownListenerAttached) {
-        document.removeEventListener('keydown', handleLightboxKeydown, true);
-        lightboxKeydownListenerAttached = false;
-    }
-}
-
-function removeItemImage(item: any, idx: number) {
-    const uid = getItemUid(item, idx);
-    const hadPersistedImage = Boolean(persistedImageUrls.value[uid]);
-    const removedImageUrl = item.image_url;
-
-    revokeBlobUrl(item.image_url);
-    item._image_file = null;
-    item.image_url = null;
-    item._delete_image = hadPersistedImage;
-
-    if (removedImageUrl && lightboxUrl.value === removedImageUrl) {
-        closeLightbox();
-    }
-
-    const fileInput = fileInputRefs.value[uid];
-    if (fileInput) {
-        fileInput.value = '';
-    }
-    emit('update:items', localItems.value);
-}
-
-watch(showLightbox, (isOpen) => {
-    syncLightboxKeydownListener(isOpen);
-});
-
-onBeforeUnmount(() => {
-    syncLightboxKeydownListener(false);
-    localItems.value.forEach((item) => revokeBlobUrl(item.image_url));
-});
 
 function setDescriptionFromItem(item: any) {
     const catalogItem = itemMap.value.get(Number(item.item_id));
@@ -785,52 +692,11 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                     <TableRow v-for="(item, idx) in localItems" :key="idx">
                         <TableCell class="w-[52px] p-1 text-center align-middle">
                             <div class="flex items-center justify-center">
-                                <input
-                                    :ref="(el) => registerFileInput(getItemUid(item, idx), el as HTMLInputElement | null)"
-                                    type="file"
-                                    accept="image/*"
-                                    class="hidden"
-                                    @change="handleImageSelected($event, item, idx)"
-                                />
-                                <button
-                                    v-if="!item.image_url && !isReadOnly"
-                                    type="button"
-                                    class="inline-flex h-10 w-10 items-center justify-center text-muted-foreground transition hover:text-foreground"
-                                    title="Agregar imagen"
-                                    @click.stop="triggerImagePicker(item, idx)"
-                                >
-                                    <ImagePlus class="h-5 w-5" />
+                                <button v-if="item.image_url" type="button" class="block h-10 w-10 overflow-hidden rounded-md" title="Ver imagen" @click.stop="openLightbox(item.image_url)">
+                                    <img :src="item.image_url" alt="Imagen del ítem" class="h-full w-full rounded-md object-cover" />
                                 </button>
-                                <div
-                                    v-else-if="item.image_url"
-                                    class="relative h-10 w-10 overflow-visible rounded-md"
-                                >
-                                    <button
-                                        type="button"
-                                        class="block h-full w-full overflow-hidden rounded-md"
-                                        @click.stop="openLightbox(item.image_url)"
-                                    >
-                                        <img
-                                            :src="item.image_url"
-                                            alt="Imagen del ítem"
-                                            class="h-full w-full rounded-md object-cover"
-                                        />
-                                    </button>
-                                    <div v-if="!isReadOnly" class="absolute right-0 top-0 z-10">
-                                        <button
-                                            type="button"
-                                            class="inline-flex h-5 w-5 translate-x-1 -translate-y-1 items-center justify-center rounded-full bg-red-500 text-white shadow-sm transition hover:bg-red-600"
-                                            @click.stop="removeItemImage(item, idx)"
-                                        >
-                                            <XIcon class="h-3 w-3" />
-                                        </button>
-                                    </div>
-                                </div>
-                                <span
-                                    v-else
-                                    class="inline-flex h-10 w-10 items-center justify-center text-muted-foreground"
-                                >
-                                    <ImagePlus class="h-5 w-5 opacity-30" />
+                                <span v-else class="inline-flex h-10 w-10 items-center justify-center text-muted-foreground" title="Sin imagen">
+                                    <Image class="h-5 w-5 opacity-30" />
                                 </span>
                             </div>
                         </TableCell>
@@ -1015,7 +881,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
             :open="showLightbox"
             :src="lightboxUrl"
             alt="Imagen ampliada del ítem"
-            @update:open="(value) => (value ? (showLightbox = value) : closeLightbox())"
+            @update:open="(value) => (showLightbox = value)"
         />
     </div>
 </template>

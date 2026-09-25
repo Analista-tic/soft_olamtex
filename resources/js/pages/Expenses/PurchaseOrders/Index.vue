@@ -16,7 +16,7 @@ import { buttonVariants } from '@/components/ui/button';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
-import DatePickerField from '@/components/DatePickerField.vue';
+import AccountingDateRangePicker from '@/components/AccountingDateRangePicker.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -25,11 +25,12 @@ import Input from '@/components/ui/input/Input.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { useAuthStore } from '@/stores/auth';
 import type { PurchaseOrder } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Eye, PlusCircle, Search, Printer, Mail, MoreVertical, LockKeyhole } from 'lucide-vue-next';
+import { CheckCircle2, Eye, FileText, PlusCircle, Search, Printer, Mail, MoreVertical, LockKeyhole, XCircle } from 'lucide-vue-next';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -58,12 +59,24 @@ const isDeleteDialogOpen = ref(false);
 const orderToClose = ref<PurchaseOrder | null>(null);
 const isCloseDialogOpen = ref(false);
 const closeReason = ref('');
+const orderToReject = ref<PurchaseOrder | null>(null);
+const isRejectDialogOpen = ref(false);
+const rejectReason = ref('');
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
 const totalItems = ref(0);
 const isPrintDialogOpen = ref(false);
 const orderToPrint = ref<PurchaseOrder | null>(null);
 const isSendingMail = ref(false);
+const authStore = useAuthStore();
+const canCreateOrder = computed(() => authStore.can('crear ordenes compra'));
+const canEditOrder = computed(() => authStore.can('editar ordenes compra'));
+const canDeleteOrder = computed(() => authStore.can('eliminar ordenes compra'));
+const canApproveOrder = computed(() => authStore.can('aprobar orden compra'));
+const canCreateInvoice = computed(() => authStore.can('crear facturas compra'));
+
+const canApproveRow = (order: PurchaseOrder) => canApproveOrder.value && order.status === 'pending';
+const canInvoiceRow = (order: PurchaseOrder) => canCreateInvoice.value && ['approved', 'partially_invoiced'].includes(String(order.status));
 
 
 const successMessage = ref('');
@@ -80,7 +93,7 @@ const setErrorMessage = (msg: string) => {
 // NUEVOS FILTROS
 const statusFilter = ref<string | null>(null);
 const providerFilter = ref<number | string | null>(null);
-const dateFilter = ref<string | null>(null);
+const dateFilter = ref<{ from: string | null; to: string | null }>({ from: null, to: null });
 const providers = ref<{ id: number; full_name: string }[]>([]);
 
 // SORT
@@ -100,7 +113,7 @@ function toggleSort(column: string) {
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value != null);
 const isProviderFilterActive = computed(() => providerFilter.value != null);
-const isDateFilterActive = computed(() => Boolean(dateFilter.value));
+const isDateFilterActive = computed(() => Boolean(dateFilter.value.from || dateFilter.value.to));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
@@ -168,8 +181,8 @@ function viewOrder(order: PurchaseOrder) {
             page,
             per_page: itemsPerPage.value,
             search,
-            date_from: dateFilter.value || undefined,
-            date_to: dateFilter.value || undefined,
+            date_from: dateFilter.value.from || undefined,
+            date_to: dateFilter.value.to || undefined,
             sort_by: sortBy.value,
             sort_dir: sortDir.value,
         };
@@ -203,13 +216,53 @@ function viewOrder(order: PurchaseOrder) {
         if (isSendingMail.value) return;
         isSendingMail.value = true;
         try {
-            await axios.post(`/gastos/ordenes-compra/${order.id}/enviar-correo`);
+            await axios.post(`/gastos/ordenes-compra/${order.id}/enviar-correo-pdf`);
             successMessage.value = 'Orden enviada por correo correctamente.';
+            fetchOrders(currentPage.value, searchQuery.value);
             } catch (err: any) {
                 setErrorMessage(err?.response?.data?.message || 'Error al enviar el correo.');
         } finally {
             isSendingMail.value = false;
         }
+    }
+
+    async function approveOrder(order: PurchaseOrder) {
+        try {
+            await axios.patch(`/gastos/ordenes-compra/${order.id}/approve`);
+            successMessage.value = 'Orden aprobada correctamente.';
+            fetchOrders(currentPage.value, searchQuery.value);
+        } catch (err: any) {
+            setErrorMessage(err?.response?.data?.message || 'Error al aprobar la orden.');
+        }
+    }
+
+    function confirmRejectOrder(order: PurchaseOrder) {
+        orderToReject.value = order;
+        rejectReason.value = '';
+        isRejectDialogOpen.value = true;
+    }
+
+    async function rejectOrder() {
+        if (!orderToReject.value) return;
+        if (!rejectReason.value.trim()) {
+            setErrorMessage('El motivo de rechazo es obligatorio.');
+            return;
+        }
+        try {
+            await axios.patch(`/gastos/ordenes-compra/${orderToReject.value.id}/reject`, {
+                rejection_reason: rejectReason.value.trim(),
+            });
+            successMessage.value = 'Orden rechazada correctamente.';
+            isRejectDialogOpen.value = false;
+            orderToReject.value = null;
+            fetchOrders(currentPage.value, searchQuery.value);
+        } catch (err: any) {
+            setErrorMessage(err?.response?.data?.errors?.rejection_reason?.[0] || err?.response?.data?.message || 'Error al rechazar la orden.');
+        }
+    }
+
+    function invoiceOrder(order: PurchaseOrder) {
+        router.visit(`/gastos/facturas-compra/crear?orden=${order.id}`);
     }
 
     async function deleteOrder() {
@@ -239,16 +292,15 @@ watch(searchQuery, (newQuery) => {
     fetchOrders(1, newQuery);
 });
 
-onMounted(() => {
+onMounted(async () => {
+    await authStore.fetchUser(true);
     fetchOrders();
     fetchProviders();
 });
 
 
-function getOrderStatusLabel(status?: string, purchaseRequestId?: number | null): string {
-    if (status === 'approved' && purchaseRequestId) return 'Procesada';
+function getOrderStatusLabel(status?: string): string {
     if (status === 'approved') return 'Aprobada';
-    if (status === 'sent') return 'Enviada';
     if (status === 'invoiced') return 'Facturada';
     if (status === 'partially_invoiced') return 'Parcialmente facturada';
     if (status === 'rejected') return 'Rechazada';
@@ -286,10 +338,35 @@ async function closeOrder() {
     }
 }
 
-function getOrderStatusTone(status?: string, purchaseRequestId?: number | null): 'green' | 'blue' | 'indigo' | 'red' | 'yellow' {
-    if (status === 'approved' && purchaseRequestId) return 'blue';
+// Órdenes aún no cerradas (ni facturadas por completo ni rechazadas) con fecha de entrega vencida o próxima.
+const DELIVERY_SOON_DAYS = 3;
+const OPEN_ORDER_STATUSES = ['pending', 'approved', 'partially_invoiced'];
+
+function getDeliveryAlert(order: PurchaseOrder): { label: string; tone: 'red' | 'yellow'; title: string } | null {
+    if (!order.delivery_date || !OPEN_ORDER_STATUSES.includes(String(order.status ?? 'pending'))) return null;
+
+    const [year, month, day] = String(order.delivery_date).split('T')[0].split('-').map(Number);
+    if (!year || !month || !day) return null;
+
+    const today = new Date();
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const delivery = new Date(year, month - 1, day);
+    const days = Math.round((delivery.getTime() - startOfToday.getTime()) / 86400000);
+    const pendingText = order.status === 'partially_invoiced' ? 'con entrega parcial pendiente de facturar' : 'sin facturar';
+
+    if (days < 0) {
+        const late = Math.abs(days);
+        return { label: `Vencida hace ${late} ${late === 1 ? 'día' : 'días'}`, tone: 'red', title: `La fecha de entrega prometida ya pasó y la orden sigue ${pendingText}.` };
+    }
+    if (days === 0) return { label: 'Entrega hoy', tone: 'yellow', title: `La entrega está prevista para hoy y la orden sigue ${pendingText}.` };
+    if (days <= DELIVERY_SOON_DAYS) {
+        return { label: `Entrega en ${days} ${days === 1 ? 'día' : 'días'}`, tone: 'yellow', title: `La entrega está próxima y la orden sigue ${pendingText}.` };
+    }
+    return null;
+}
+
+function getOrderStatusTone(status?: string): 'green' | 'blue' | 'indigo' | 'red' | 'yellow' {
     if (status === 'approved') return 'green';
-    if (status === 'sent') return 'indigo';
     if (status === 'invoiced') return 'indigo';
     if (status === 'partially_invoiced') return 'yellow';
     if (status === 'rejected') return 'red';
@@ -330,7 +407,14 @@ function handleDialogError(message?: string) {
                     <h1 class="text-lg font-bold">Órdenes de Compras y Servicios</h1>
                     <p class="text-sm text-muted-foreground">Lleva el control de las órdenes emitidas a proveedores y su estado de facturación.</p>
                 </div>
-                <Button variant="default" size="pill" dusk="btn-nueva-orden" :disabled="isPreparingDialog" @click.prevent="router.visit('/gastos/ordenes-compra/crear')">
+                <Button
+                    v-if="canCreateOrder"
+                    variant="default"
+                    size="pill"
+                    dusk="btn-nueva-orden"
+                    :disabled="isPreparingDialog"
+                    @click.prevent="router.visit('/gastos/ordenes-compra/crear')"
+                >
                     <PlusCircle class="h-4 w-4" />
                     Nueva Orden
                 </Button>
@@ -351,8 +435,7 @@ function handleDialogError(message?: string) {
                         :options="[
                             { id: 'pending', name: 'Pendiente' },
                             { id: 'approved', name: 'Aprobada' },
-                            { id: 'processed', name: 'Procesada' },
-                            { id: 'sent', name: 'Enviada' },
+                            { id: 'partially_invoiced', name: 'Parcialmente facturada' },
                             { id: 'invoiced', name: 'Facturada' },
                             { id: 'rejected', name: 'Rechazada' },
                         ]"
@@ -375,8 +458,8 @@ function handleDialogError(message?: string) {
                         :clearable="true"
                     />
                 </FilterField>
-<FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
-    <DatePickerField v-model="dateFilter" label="" placeholder-text="Fecha" :clearable="true" :show-today="true" />
+<FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[240px]">
+    <AccountingDateRangePicker v-model="dateFilter" placeholder="Rango de fechas" />
 </FilterField>
             </FilterBar>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
@@ -460,7 +543,17 @@ function handleDialogError(message?: string) {
                                     {{ order.document_number || `ORD-${String(order.id).padStart(3, '0')}` }}
                                 </TableCell>
                                 <TableCell>{{ formatDate(order.date) }}</TableCell>
-                                <TableCell>{{ formatDate(order.delivery_date) }}</TableCell>
+                                <TableCell>
+                                    <div class="flex flex-col items-center gap-1">
+                                        <span>{{ formatDate(order.delivery_date) }}</span>
+                                        <TableStatusBadge
+                                            v-if="getDeliveryAlert(order)"
+                                            :label="getDeliveryAlert(order)!.label"
+                                            :tone="getDeliveryAlert(order)!.tone"
+                                            :title="getDeliveryAlert(order)!.title"
+                                        />
+                                    </div>
+                                </TableCell>
                                 <TableCell>{{ order.supplier?.full_name || order.contact?.full_name || '-' }}</TableCell>
                                 <TableCell>{{ formatCurrency(computeOrderTotal(order)) }}</TableCell>
                                 <TableCell class="text-start">{{ order.description || '-' }}</TableCell>
@@ -474,11 +567,20 @@ function handleDialogError(message?: string) {
                                     <span v-else class="text-xs text-muted-foreground">0</span>
                                 </TableCell>
                                 <TableCell>
-                                    <TableStatusBadge :dusk="`estado-orden-${order.id}`" :label="getOrderStatusLabel(order.status, order.purchase_request_id)" :tone="getOrderStatusTone(order.status, order.purchase_request_id)" />
+                                    <div class="flex flex-col items-center gap-1">
+                                        <TableStatusBadge :dusk="`estado-orden-${order.id}`" :label="getOrderStatusLabel(order.status)" :tone="getOrderStatusTone(order.status)" />
+                                        <span
+                                            v-if="(order as any).sent_at"
+                                            class="text-xs text-muted-foreground"
+                                            :title="`Enviada al proveedor el ${formatDate((order as any).sent_at)}`"
+                                        >
+                                            Enviada {{ formatDate((order as any).sent_at) }}
+                                        </span>
+                                    </div>
                                 </TableCell>
                                 <TableCell class="flex justify-center gap-1">
                                     <!-- Acción 1: Editar -->
-                                    <EditButton @click="router.visit('/gastos/ordenes-compra/' + order.id + '/editar')" />
+                                    <EditButton v-if="canEditOrder" @click="router.visit('/gastos/ordenes-compra/' + order.id + '/editar')" />
 
                                     <!-- Acción 2: Ver -->
                                     <Button variant="ghost" size="icon" :class="actionButtonClass" title="Ver orden" @click="viewOrder(order)">
@@ -487,7 +589,7 @@ function handleDialogError(message?: string) {
                                     </Button>
 
                                     <!-- Acción 3: Eliminar -->
-                                    <DeleteButton @click="confirmDeleteOrder(order)" title="Eliminar orden" />
+                                    <DeleteButton v-if="canDeleteOrder" @click="confirmDeleteOrder(order)" title="Eliminar orden" />
 
                                     <!-- Acción 4: Más acciones -->
                                     <DropdownMenu>
@@ -498,21 +600,45 @@ function handleDialogError(message?: string) {
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
-                                            <DropdownMenuItem @click="openPrintDialog(order)">
-                                                <Printer class="mr-2 h-4 w-4" />
-                                                Imprimir
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem @click="sendOrderByEmail(order)">
-                                                <Mail class="mr-2 h-4 w-4" />
-                                                Enviar por correo
+                                            <DropdownMenuItem
+                                                v-if="canApproveRow(order)"
+                                                @click="approveOrder(order)"
+                                                class="text-green-600 focus:text-green-600"
+                                            >
+                                                <CheckCircle2 class="mr-2 h-4 w-4" />
+                                                Aprobar orden de compra
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
-                                                v-if="(order as any).status === 'partially_invoiced'"
+                                                v-if="canApproveRow(order)"
+                                                @click="confirmRejectOrder(order)"
+                                                class="text-red-600 focus:text-red-600"
+                                            >
+                                                <XCircle class="mr-2 h-4 w-4" />
+                                                Rechazar orden de compra
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                v-if="canInvoiceRow(order)"
+                                                @click="invoiceOrder(order)"
+                                                class="text-blue-600 focus:text-blue-600"
+                                            >
+                                                <FileText class="mr-2 h-4 w-4" />
+                                                Crear factura de esta orden
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem @click="openPrintDialog(order)">
+                                                <Printer class="mr-2 h-4 w-4" />
+                                                Imprimir orden
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem v-if="canEditOrder" @click="sendOrderByEmail(order)">
+                                                <Mail class="mr-2 h-4 w-4" />
+                                                Enviar orden por correo al proveedor
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                v-if="canEditOrder && (order as any).status === 'partially_invoiced'"
                                                 @click="confirmCloseOrder(order)"
                                                 class="text-amber-600 focus:text-amber-600"
                                             >
                                                 <LockKeyhole class="mr-2 h-4 w-4" />
-                                                Cerrar orden
+                                                Cerrar orden sin facturar el resto
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
@@ -550,6 +676,43 @@ function handleDialogError(message?: string) {
             :destructive="true"
             @confirm="deleteOrder"
         />
+        <!-- Diálogo rechazar orden con motivo -->
+        <AlertDialog :open="isRejectDialogOpen" @update:open="isRejectDialogOpen = $event">
+            <AlertDialogContent size="sm">
+                <AlertDialogHeader class="items-center text-center">
+                    <AlertDialogMedia class="bg-red-100 text-red-600">
+                        <XCircle class="h-5 w-5" />
+                    </AlertDialogMedia>
+                    <AlertDialogTitle class="text-center">Rechazar orden</AlertDialogTitle>
+                    <AlertDialogDescription class="text-center">
+                        La orden quedará como Rechazada y no se podrá facturar. La solicitud de origen queda disponible para generar otra orden. La orden no se elimina.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div class="flex flex-col gap-1.5 px-1">
+                    <label class="text-sm font-medium text-foreground">
+                        Motivo del rechazo <span class="text-destructive">*</span>
+                    </label>
+                    <textarea
+                        v-model="rejectReason"
+                        rows="3"
+                        placeholder="Ej: precios fuera de lo acordado, proveedor equivocado..."
+                        class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                </div>
+                <AlertDialogFooter class="gap-x-2 sm:justify-center">
+                    <AlertDialogCancel :class="buttonVariants({ variant: 'outline', size: 'pill' })" @click="isRejectDialogOpen = false">
+                        Cancelar
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                        :class="buttonVariants({ variant: 'destructive', size: 'pill' })"
+                        :disabled="!rejectReason.trim()"
+                        @click.prevent="rejectOrder"
+                    >
+                        Rechazar orden
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
         <!-- Diálogo cerrar orden con motivo -->
         <AlertDialog :open="isCloseDialogOpen" @update:open="isCloseDialogOpen = $event">
             <AlertDialogContent size="sm">

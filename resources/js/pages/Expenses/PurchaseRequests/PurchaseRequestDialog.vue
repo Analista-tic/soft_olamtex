@@ -55,7 +55,7 @@ const isLoading = ref(false);
 const users = ref<{ id: number; name: string; area_name: string }[]>([]);
 const isLoadingUsers = ref(false);
 const isSubmittingDialog = ref(false);
-const nextRequestId = ref<number | null>(null);
+const nextRequestNumber = ref<string | null>(null);
 const isLoadingRequestId = ref(false);
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError } = useAlertStack();
 const originalFormSnapshot = ref('');
@@ -170,20 +170,17 @@ const rejectedAtFormatted = computed(() => {
     });
 });
 
-const id = computed(() => {
+const requestNumberPlaceholder = computed(() => {
     if (props.dialogType === 'edit') {
-        return props.form?.id?.toString() || localForm.value.id?.toString() || '';
+        const rawId = props.form?.id?.toString() || localForm.value.id?.toString() || '';
+        return rawId ? `SOL-${rawId}` : 'SOL-001';
     }
 
     if (isLoadingRequestId.value) {
         return 'Cargando...';
     }
 
-    if (nextRequestId.value == null) {
-        return '';
-    }
-
-    return nextRequestId.value.toString();
+    return nextRequestNumber.value || 'SOL-001';
 });
 
 const canSendToApproval = computed(() => {
@@ -306,6 +303,7 @@ function stableStringify(value: any): string {
 }
 
 function resetForm(source: Partial<PurchaseRequestDialogForm> = props.form) {
+    descriptionError.value = false;
     if (source && Object.keys(source).length > 0) {
         const clone = JSON.parse(JSON.stringify(source));
         clone.estimated_amount = clone.estimated_amount ?? null;
@@ -345,19 +343,26 @@ async function initializeDialog() {
         await authStore.fetchUser();
         resetForm();
 
-        await Promise.all([fetchUsers(), fetchProviders()]);
+        // En modo solo lectura no hay buscadores de usuario/proveedor que llenar
+        // (el nombre ya viene incluido en los datos de la solicitud), así que se omiten.
+        const tasks: Promise<unknown>[] = props.readonly ? [] : [fetchUsers(), fetchProviders()];
 
         if (props.dialogType === 'edit' && props.form?.id) {
-            const { data } = await axios.get(`${PURCHASE_REQUESTS_BASE_URL}/${props.form.id}`);
-            if (isCurrentLoadingRun(currentRun)) {
-                resetForm(data?.data || props.form);
-            }
+            tasks.push(
+                axios.get(`${PURCHASE_REQUESTS_BASE_URL}/${props.form.id}`).then(({ data }) => {
+                    if (isCurrentLoadingRun(currentRun)) {
+                        resetForm(data?.data || props.form);
+                    }
+                }),
+            );
         }
 
         if (props.dialogType === 'create') {
-            nextRequestId.value = null;
-            await fetchNextRequestId();
+            nextRequestNumber.value = null;
+            tasks.push(fetchNextRequestId());
         }
+
+        await Promise.all(tasks);
     } catch (error) {
         const message = 'No se pudo cargar la solicitud de compra.';
         showError(message);
@@ -375,15 +380,11 @@ async function fetchNextRequestId() {
     isLoadingRequestId.value = true;
 
     try {
-        const { data } = await axios.get(`${PURCHASE_REQUESTS_BASE_URL}/data`, {
-            params: { per_page: 1, order_by: 'id', order_direction: 'desc' },
-        });
-
-        const lastId = Array.isArray(data.data) && data.data.length > 0 ? Number(data.data[0].id) : 0;
-        nextRequestId.value = lastId + 1;
+        const { data } = await axios.get(`${PURCHASE_REQUESTS_BASE_URL}/next-number`);
+        nextRequestNumber.value = typeof data?.request_number === 'string' ? data.request_number : null;
     } catch (error) {
-        nextRequestId.value = 1;
-        console.error('Error fetching next request ID:', error);
+        nextRequestNumber.value = null;
+        console.error('Error fetching next request number:', error);
     } finally {
         isLoadingRequestId.value = false;
     }
@@ -421,8 +422,12 @@ function appendItemsToFormData(formData: FormData, items: PurchaseRequestItem[])
     });
 }
 
+const descriptionError = ref(false);
+
 function validateForm() {
+    descriptionError.value = false;
     if (!localForm.value.description || !String(localForm.value.description).trim()) {
+        descriptionError.value = true;
         setErrorMessage('La descripción es obligatoria.', 'warning');
         return false;
     }
@@ -632,7 +637,7 @@ watch(dialogOpen, (isOpen) => {
                                         <InputField
                                             label=""
                                             v-model="localForm.request_number"
-                                            :placeholder="id ? `SOL-${id}` : 'SOL-001'"
+                                            :placeholder="requestNumberPlaceholder"
                                             :readonly="true"
                                         />
                                         <span v-if="dialogType === 'create' && isLoadingRequestId" class="text-xs text-muted-foreground">
@@ -772,7 +777,8 @@ watch(dialogOpen, (isOpen) => {
                                         dusk="input-descripcion"
                                         label=""
                                         :model-value="localForm.description || ''"
-                                        @update:model-value="localForm.description = $event"
+                                        @update:model-value="localForm.description = $event; descriptionError = false"
+                                        :error="descriptionError"
                                         placeholder="Agrega la descripción y observaciones de la solicitud"
                                         :readonly="isReadOnly"
                                         :rows="3"

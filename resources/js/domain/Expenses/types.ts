@@ -31,9 +31,10 @@ export interface PurchaseOrder {
     items: PurchaseOrderItem[];
     created_at?: string;
     updated_at?: string;
-    status?: 'pending' | 'approved' | 'sent' | 'invoiced' | 'rejected';
+    status?: 'pending' | 'approved' | 'partially_invoiced' | 'invoiced' | 'rejected';
     approved_by_user_id?: number | null;
     approved_at?: string | null;
+    sent_at?: string | null;
     rejected_by_user_id?: number | null;
     rejected_at?: string | null;
     rejection_reason?: string | null;
@@ -46,6 +47,10 @@ export interface PurchaseInvoiceWithholding {
     percentage: number;
     /** Base de la retención; si es null/omitido se asume el subtotal de la factura. */
     base_amount?: number | null;
+    /** Tipo de retención (IVA, FUENTE, ICA...): define la base por defecto. */
+    type?: string | null;
+    /** Valor calculado por el servidor al guardar la factura. */
+    value?: number | null;
 }
 
 export interface PurchaseDocumentItemReception {
@@ -91,7 +96,7 @@ export interface PurchaseInvoice {
     supplier_invoice_number?: string;
     description?: string;
     status?: 'pending' | 'pending_receipt' | 'received' | 'approved' | 'rejected';
-    approval_status?: 'pending' | 'pending_difference_approval' | 'approved' | 'rejected' | 'difference_rejected' | null;
+    approval_status?: 'pending' | 'pending_difference_approval' | 'approved' | 'difference_rejected' | null;
     approval_notes?: string | null;
     has_difference?: boolean;
     approved_by_user_id?: number | null;

@@ -190,14 +190,16 @@ function formatDate(value?: string | null): string {
 }
 
 function getNoteStatusLabel(status?: string | null): string {
-    return String(status || 'pending');
+    const normalized = String(status || 'pending').toLowerCase();
+    if (normalized === 'approved') return 'Aprobada';
+    if (normalized === 'pending') return 'Pendiente';
+    return normalized;
 }
 
-function getNoteStatusTone(status?: string | null): 'yellow' | 'green' | 'red' | 'gray' {
+function getNoteStatusTone(status?: string | null): 'yellow' | 'green' | 'gray' {
     const normalized = String(status || 'pending').toLowerCase();
-    if (['approved', 'processed', 'completed', 'active'].includes(normalized)) return 'green';
-    if (['rejected', 'cancelled', 'canceled'].includes(normalized)) return 'red';
-    if (['pending', 'draft', 'in_review'].includes(normalized)) return 'yellow';
+    if (normalized === 'approved') return 'green';
+    if (normalized === 'pending') return 'yellow';
     return 'gray';
 }
 

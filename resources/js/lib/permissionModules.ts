@@ -409,7 +409,17 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     {
         label: 'Catálogo de Ítems',
         tokens: ['catalogo items', 'activar desactivar item', 'carga masiva items', 'exportar items'],
-        permissions: ['activar desactivar item', 'carga masiva items', 'exportar items'],
+        permissions: [
+            'ver catalogo items',
+            'crear items',
+            'editar items',
+            'eliminar items',
+            'activar desactivar item',
+            'habilitar item',
+            'crear referencia manual item',
+            'carga masiva items',
+            'exportar items',
+        ],
         category: 'Datos Maestros',
     },
     {
@@ -492,7 +502,13 @@ const PERMISSION_LABEL_OVERRIDES: Record<string, string> = {
     // Financiero
     'ver movimientos cuenta contable': 'Ver movimientos contables',
     // Datos maestros
+    'ver catalogo items': 'Ver catálogo de ítems',
+    'crear items': 'Crear ítems',
+    'editar items': 'Editar ítems',
+    'eliminar items': 'Eliminar ítems',
     'activar desactivar item': 'Activar / desactivar ítem',
+    'habilitar item': 'Habilitar ítem',
+    'crear referencia manual item': 'Asignar referencia manual',
     'carga masiva items': 'Carga masiva de ítems',
     'exportar items': 'Exportar ítems',
 };

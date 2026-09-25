@@ -17,6 +17,8 @@ const props = withDefaults(
         label?: string;
         placeholderText?: string;
         disabled?: boolean;
+        /** Solo lectura: no abre el calendario pero conserva el contraste normal. */
+        readonly?: boolean;
         required?: boolean;
         displayFormat?: string;
         clearable?: boolean;
@@ -27,6 +29,7 @@ const props = withDefaults(
     {
         placeholderText: 'Selecciona una fecha',
         disabled: false,
+        readonly: false,
         required: false,
         displayFormat: 'dd/MM/yyyy',
         clearable: false,
@@ -133,9 +136,10 @@ const calendarPlaceholderValue = computed(() => calendarPlaceholder.value as Dat
             <PopoverTrigger as-child>
                 <button
                     type="button"
-                    :disabled="disabled"
+                    :disabled="disabled || readonly"
                     :class="[
                         'flex h-10 w-full items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm ring-offset-background transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+                        readonly ? 'disabled:cursor-default disabled:opacity-100' : '',
                         error ? 'border-destructive text-destructive' : 'border-input'
                     ]"
                 >

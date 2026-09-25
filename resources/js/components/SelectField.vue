@@ -30,6 +30,8 @@ const props = withDefaults(
         multiple?: boolean;
         placeholder?: string;
         disabled?: boolean;
+        /** Solo lectura: bloquea la interacción pero conserva el contraste normal (a diferencia de disabled). */
+        readonly?: boolean;
         searchable?: boolean;
         searchPlaceholder?: string;
         showPlaceholderOption?: boolean;
@@ -57,6 +59,7 @@ const props = withDefaults(
         multiple: false,
         placeholder: '',
         disabled: false,
+        readonly: false,
         searchable: false,
         searchPlaceholder: 'Buscar y seleccionar...',
         showPlaceholderOption: true,
@@ -294,6 +297,7 @@ function handleInput(event: Event) {
     searchTerm.value = target.value;
 }
 
+const isLocked = computed(() => props.disabled || props.readonly);
 const hasLabel = computed(() => Boolean(props.label?.trim()));
 const hasAction = computed(() => Boolean(props.actionLabel?.trim()));
 const actionButtonClass = computed(() => {
@@ -312,7 +316,7 @@ function handleEnterKey(event: KeyboardEvent) {
 }
 
 function handleActionClick() {
-    if (props.disabled || props.actionDisabled) return;
+    if (isLocked.value || props.actionDisabled) return;
     const currentSearchTerm = searchTerm.value.trim();
     emit('action', currentSearchTerm);
     searchTerm.value = '';
@@ -407,7 +411,7 @@ watch(
                 class="w-full"
                 :modelValue="comboboxValue"
                 :multiple="multiple"
-                :disabled="disabled"
+                :disabled="isLocked"
                 by="id"
                 @update:modelValue="handleComboboxChange"
             >
@@ -442,18 +446,21 @@ watch(
                                 buttonClass,
                                 multiple ? 'pl-28' : '',
                                 invalid ? 'border-destructive focus-visible:ring-destructive/40' : '',
+                                readonly ? 'disabled:cursor-default disabled:opacity-100' : '',
                             ]"
                             :aria-invalid="invalid ? 'true' : undefined"
                             :data-invalid="invalid ? 'true' : undefined"
                             :placeholder="placeholderText"
                             :display-value="displayValueForInput"
-                            :disabled="disabled"
+                            :disabled="isLocked"
+                            :readonly="readonly"
                             @input="handleInput"
                             @keydown.enter="handleEnterKey"
                         />
                         <button
                             v-if="
                                 clearable &&
+                                !readonly &&
                                 localModelValue !== null &&
                                 localModelValue !== undefined &&
                                 localModelValue !== '' &&
@@ -468,6 +475,7 @@ watch(
                             <X class="h-3.5 w-3.5" />
                         </button>
                         <ComboboxButton
+                            v-if="!readonly"
                             class="pointer-events-auto absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-transparent bg-transparent p-0 text-muted-foreground/70 transition hover:text-muted-foreground"
                             :class="[disabled ? 'pointer-events-none opacity-60' : '']"
                             :disabled="disabled"
@@ -516,7 +524,7 @@ watch(
                                             <div
                                                 :class="[
                                                     'relative cursor-pointer select-none py-2 pl-3 pr-9 text-sm transition-colors',
-                                                    active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
+                                                    active ? 'bg-accent/30 font-medium text-foreground' : 'text-popover-foreground',
                                                 ]"
                                             >
                                                 <span>
@@ -555,7 +563,7 @@ watch(
                                                     <div
                                                         :class="[
                                                             'relative cursor-pointer select-none py-2 pl-3 pr-9 text-sm transition-colors',
-                                                            active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
+                                                            active ? 'bg-accent/30 font-medium text-foreground' : 'text-popover-foreground',
                                                         ]"
                                                     >
                                                         <slot v-if="$slots.option" name="option" :option="option as any" :active="active" />
