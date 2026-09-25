@@ -74,7 +74,7 @@ const relatedOrder = ref<any | null>(null);
 const { isBootstrapping, isHydrating, isBlockingLoading, canRenderForm, startLoadingRun, isCurrentLoadingRun, cancelLoadingRun } =
     useDialogLoadingState(dialogOpen);
 
-const { subtotal, iva, total, totalPagar, getWithholdingAmount } = usePurchaseInvoiceTotals(localForm);
+const { subtotal, iva, ivaLabel, total, retencionesTotal, totalPagar, getWithholdingAmount } = usePurchaseInvoiceTotals(localForm);
 const { hasDifference } = usePurchaseOrderDifference(localForm, orderTotal, total);
 
 const selectedContactData = computed(() => contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id)) || null);
@@ -908,6 +908,8 @@ watch(dialogOpen, (isOpen) => {
                                         :description="localForm.description"
                                         :subtotal="subtotal"
                                         :iva="iva"
+                                        :iva-label="ivaLabel"
+                                        :retenciones-total="retencionesTotal"
                                         :total="total"
                                         :total-pagar="totalPagar"
                                         :get-withholding-amount="getWithholdingAmount"

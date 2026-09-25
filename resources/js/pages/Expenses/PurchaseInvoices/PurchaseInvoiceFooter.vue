@@ -14,6 +14,8 @@ defineProps<{
     description: string | null | undefined;
     subtotal: number;
     iva: number;
+    ivaLabel?: string;
+    retencionesTotal: number;
     total: number;
     totalPagar: number;
     getWithholdingAmount: (withholding: PurchaseInvoiceWithholding) => number;
@@ -40,6 +42,8 @@ defineEmits<{
             <PurchaseInvoiceSummary
                 :subtotal="subtotal"
                 :iva="iva"
+                :iva-label="ivaLabel"
+                :retenciones-total="retencionesTotal"
                 :total="total"
                 :total-pagar="totalPagar"
                 :withholdings="withholdings"

@@ -6,6 +6,8 @@ import type { WithholdingLike } from '@/domain/Expenses/withholdings';
 const props = defineProps<{
     subtotal: number;
     iva: number;
+    ivaLabel?: string;
+    retencionesTotal: number;
     total: number;
     totalPagar: number;
     withholdings?: Array<WithholdingLike & { name?: string | null }>;
@@ -28,16 +30,20 @@ function formatCurrency(value: number): string {
             <span class="font-medium">{{ formatCurrency(subtotal) }}</span>
         </div>
         <div class="flex items-center justify-between border-b border-border px-5 py-3">
-            <span class="text-muted-foreground">Impuestos</span>
+            <span class="text-muted-foreground">{{ ivaLabel || 'IVA' }}</span>
             <span class="font-medium">{{ formatCurrency(iva) }}</span>
         </div>
         <div class="flex items-center justify-between px-5 py-3" :class="rows.length ? 'border-b border-border' : ''">
-            <span class="font-semibold">Total</span>
+            <span class="font-semibold">Total factura</span>
             <span class="font-semibold">{{ formatCurrency(total) }}</span>
         </div>
         <div v-for="row in rows" :key="row.key" class="flex items-center justify-between border-b border-border px-5 py-2.5 last:border-b-0">
             <span class="text-muted-foreground">- {{ row.name }}</span>
             <span class="text-red-500 dark:text-red-400">-{{ formatCurrency(row.amount) }}</span>
+        </div>
+        <div v-if="rows.length" class="flex items-center justify-between border-t border-border px-5 py-2.5">
+            <span class="font-semibold text-muted-foreground">Total retenciones</span>
+            <span class="font-medium text-red-500 dark:text-red-400">-{{ formatCurrency(retencionesTotal) }}</span>
         </div>
         <div class="flex items-center justify-between border-t border-border bg-muted/40 px-5 py-3.5">
             <span class="font-bold">Total a pagar</span>

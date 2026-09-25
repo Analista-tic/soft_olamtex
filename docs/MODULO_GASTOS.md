@@ -136,7 +136,7 @@ La lógica que es igual en ambos tipos está compartida y no debe copiarse de nu
 | `composables/usePurchaseOrderDifference.ts` | Si la factura difiere de su orden (precio, cantidad pendiente, total) |
 | `composables/useSupplierContacts.ts` | Proveedores paginados de 30 en 30 para el selector |
 | `PurchaseInvoiceFooter.vue` | Parte inferior común, siempre en este orden: detalle → retenciones → totales → observación |
-| `PurchaseInvoiceSummary.vue` | Cuadro de totales y retenciones |
+| `PurchaseInvoiceSummary.vue` | Cuadro de totales (Subtotal, IVA, Total factura, retenciones, Total retenciones, Total a pagar); también lo usa la pantalla de Recepción |
 | `PurchaseInvoiceWithholdingsTable.vue` | Tabla de retenciones (la base vacía se sugiere como valor gris y se recalcula sola) |
 | `lib/date.ts` | Lectura y formato de fechas (el servidor envía fechas ISO largas) |
 

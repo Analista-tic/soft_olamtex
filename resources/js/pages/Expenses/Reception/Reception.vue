@@ -21,6 +21,9 @@ import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
 import { useContactsStore } from '@/stores/masterData/contacts';
 import type { PageProps as InertiaPageProps } from '@inertiajs/core';
 import { Head, router, usePage } from '@inertiajs/vue3';
+import { usePurchaseInvoiceTotals } from '@/composables/usePurchaseInvoiceTotals';
+import { withholdingAmount, withholdingBase } from '@/domain/Expenses/withholdings';
+import PurchaseInvoiceSummary from '@/pages/Expenses/PurchaseInvoices/PurchaseInvoiceSummary.vue';
 import axios from 'axios';
 import { AlertTriangle, ArrowLeft, Check, Eye, Layers, Package2, Search, X } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -67,6 +70,16 @@ const currentPage = ref(1);
 const itemsPerPage = ref(10);
 const totalItems = ref(0);
 const selectedInvoice = ref<PurchaseInvoice | null>(null);
+const invoiceForTotals = computed(() => selectedInvoice.value ?? { items: [], withholdings: [] });
+const {
+    subtotal: invSubtotal,
+    iva: invIva,
+    ivaLabel: invIvaLabel,
+    total: invTotal,
+    retencionesTotal: invRetencionesTotal,
+    totalPagar: invTotalPagar,
+    getWithholdingAmount: invWithholdingAmount,
+} = usePurchaseInvoiceTotals(invoiceForTotals);
 const isLoadingSpecificInvoice = ref(false);
 const isFabricRollDialogOpen = ref(false);
 const selectedItem = ref<any>(null);
@@ -395,7 +408,7 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
 function calculateInvoiceTotal(invoice: PurchaseInvoice): number {
     const subtotal = (invoice.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0);
     const iva = (invoice.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0);
-    const retenciones = (invoice.withholdings || []).reduce((acc, w) => acc + ((Number(w.base_amount) || 0) * (Number(w.percentage) || 0)) / 100, 0);
+    const retenciones = (invoice.withholdings || []).reduce((acc, w) => acc + withholdingAmount(w, subtotal, iva), 0);
     return subtotal + iva - retenciones;
 }
 
@@ -688,9 +701,14 @@ async function fetchWarehouseOptions() {
     }
 }
 
+/** La cantidad a recibir admite hasta 2 decimales; se redondea para evitar residuos de punto flotante (p. ej. 0.1 + 0.2). */
+function roundToTwoDecimals(value: number): number {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 function needsOverReceiveReason(item: any): boolean {
     const roundQty = Number(roundQuantityByLineId.value[item.id] || 0);
-    return receivedSoFar(item) + roundQty > Number(item.quantity || 0);
+    return roundToTwoDecimals(receivedSoFar(item) + roundQty) > roundToTwoDecimals(Number(item.quantity || 0));
 }
 
 async function prepareGeneralReceptionState(inv: PurchaseInvoice) {
@@ -702,7 +720,7 @@ async function prepareGeneralReceptionState(inv: PurchaseInvoice) {
         await Promise.all(
             generalItems.map(async (item: any) => {
                 if (roundQuantityByLineId.value[item.id] === undefined) {
-                    roundQuantityByLineId.value[item.id] = Math.max(pendingQuantity(item), 0);
+                    roundQuantityByLineId.value[item.id] = roundToTwoDecimals(Math.max(pendingQuantity(item), 0));
                 }
                 if (roundWarehouseByLineId.value[item.id] !== undefined) return;
                 try {
@@ -737,7 +755,7 @@ async function registerReception() {
             item,
             purchase_document_item_id: item.id,
             warehouse_id: roundWarehouseByLineId.value[item.id],
-            quantity: Number(roundQuantityByLineId.value[item.id] || 0),
+            quantity: roundToTwoDecimals(Number(roundQuantityByLineId.value[item.id] || 0)),
             over_received_reason: roundReasonByLineId.value[item.id] || undefined,
         }))
         .filter((line) => line.quantity > 0);
@@ -1300,6 +1318,7 @@ function onFabricRollSuccess() {
                                                             v-model="roundQuantityByLineId[item.id]"
                                                             type="number"
                                                             min="0"
+                                                            step="0.01"
                                                             class="h-9 w-24 text-center"
                                                             :disabled="isInvoiceReceptionApproved(selectedInvoice)"
                                                         />
@@ -1434,7 +1453,7 @@ function onFabricRollSuccess() {
                                 >
                                     <span>{{ withholding.name || 'N/A' }}</span>
                                     <span class="text-muted-foreground">{{
-                                        Number(withholding.base_amount || 0).toLocaleString('es-CO', {
+                                        Number(withholdingBase(withholding, invSubtotal, invIva)).toLocaleString('es-CO', {
                                             style: 'currency',
                                             currency: 'COP',
                                             minimumFractionDigits: 0,
@@ -1444,7 +1463,7 @@ function onFabricRollSuccess() {
                                     <span class="text-muted-foreground">{{ withholding.percentage || 0 }}%</span>
                                     <span class="text-red-700"
                                         >-{{
-                                            (((Number(withholding.base_amount) || 0) * (Number(withholding.percentage) || 0)) / 100).toLocaleString(
+                                            invWithholdingAmount(withholding).toLocaleString(
                                                 'es-CO',
                                                 { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 },
                                             )
@@ -1456,9 +1475,7 @@ function onFabricRollSuccess() {
                                 <span class="font-medium text-muted-foreground">Total retenciones</span>
                                 <span class="text-red-700"
                                     >-{{
-                                        (selectedInvoice.withholdings || [])
-                                            .reduce((acc, w) => acc + ((Number(w.base_amount) || 0) * (Number(w.percentage) || 0)) / 100, 0)
-                                            .toLocaleString('es-CO', {
+                                        invRetencionesTotal.toLocaleString('es-CO', {
                                                 style: 'currency',
                                                 currency: 'COP',
                                                 minimumFractionDigits: 0,
@@ -1474,95 +1491,16 @@ function onFabricRollSuccess() {
 
                         <!-- Totales detallados a la derecha -->
                         <div class="flex justify-end">
-                            <div class="w-full max-w-xs space-y-1 rounded-lg bg-muted/40 p-4">
-                                <div class="flex items-center justify-between">
-                                    <span class="text-sm font-medium text-muted-foreground">Subtotal</span>
-                                    <span class="text-sm">{{
-                                        (selectedInvoice.items || [])
-                                            .reduce((acc, item) => acc + (Number(item.total) || 0), 0)
-                                            .toLocaleString('es-CO', {
-                                                style: 'currency',
-                                                currency: 'COP',
-                                                minimumFractionDigits: 0,
-                                                maximumFractionDigits: 0,
-                                            })
-                                    }}</span>
-                                </div>
-                                <div class="flex items-center justify-between">
-                                    <span class="text-sm font-medium text-muted-foreground">IVA 19%</span>
-                                    <span class="text-sm">{{
-                                        (selectedInvoice.items || [])
-                                            .reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0)
-                                            .toLocaleString('es-CO', {
-                                                style: 'currency',
-                                                currency: 'COP',
-                                                minimumFractionDigits: 0,
-                                                maximumFractionDigits: 0,
-                                            })
-                                    }}</span>
-                                </div>
-                                <div class="flex items-center justify-between border-t pt-1">
-                                    <span class="text-sm font-semibold text-foreground">Total factura</span>
-                                    <span class="text-sm font-semibold text-foreground">{{
-                                        (
-                                            (selectedInvoice.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0) +
-                                            (selectedInvoice.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0)
-                                        ).toLocaleString('es-CO', {
-                                            style: 'currency',
-                                            currency: 'COP',
-                                            minimumFractionDigits: 0,
-                                            maximumFractionDigits: 0,
-                                        })
-                                    }}</span>
-                                </div>
-                                <!-- Mostrar cada retención individual -->
-                                <template v-for="(w, idx) in selectedInvoice.withholdings || []" :key="idx">
-                                    <div class="flex items-center justify-between text-sm">
-                                        <span class="text-muted-foreground">- {{ w.name }}</span>
-                                        <span class="text-red-700"
-                                            >-{{
-                                                (((Number(w.base_amount) || 0) * (Number(w.percentage) || 0)) / 100).toLocaleString('es-CO', {
-                                                    style: 'currency',
-                                                    currency: 'COP',
-                                                    minimumFractionDigits: 0,
-                                                    maximumFractionDigits: 0,
-                                                })
-                                            }}</span
-                                        >
-                                    </div>
-                                </template>
-                                <div
-                                    v-if="(selectedInvoice.withholdings || []).length"
-                                    class="flex items-center justify-between border-t pt-1 text-sm"
-                                >
-                                    <span class="font-medium text-muted-foreground">Total retenciones</span>
-                                    <span class="text-red-700"
-                                        >-{{
-                                            (selectedInvoice.withholdings || [])
-                                                .reduce((acc, w) => acc + ((Number(w.base_amount) || 0) * (Number(w.percentage) || 0)) / 100, 0)
-                                                .toLocaleString('es-CO', {
-                                                    style: 'currency',
-                                                    currency: 'COP',
-                                                    minimumFractionDigits: 0,
-                                                    maximumFractionDigits: 0,
-                                                })
-                                        }}</span
-                                    >
-                                </div>
-                                <div class="mt-1 flex items-center justify-between border-t-2 border-border pt-2">
-                                    <span class="text-base font-bold text-green-700">Total a pagar</span>
-                                    <span class="text-base font-bold text-green-700">
-                                        {{
-                                            calculateInvoiceTotal(selectedInvoice).toLocaleString('es-CO', {
-                                                style: 'currency',
-                                                currency: 'COP',
-                                                minimumFractionDigits: 0,
-                                                maximumFractionDigits: 0,
-                                            })
-                                        }}
-                                    </span>
-                                </div>
-                            </div>
+                            <PurchaseInvoiceSummary
+                                :subtotal="invSubtotal"
+                                :iva="invIva"
+                                :iva-label="invIvaLabel"
+                                :total="invTotal"
+                                :retenciones-total="invRetencionesTotal"
+                                :total-pagar="invTotalPagar"
+                                :withholdings="selectedInvoice.withholdings || []"
+                                :get-withholding-amount="invWithholdingAmount"
+                            />
                         </div>
                     </div>
 
