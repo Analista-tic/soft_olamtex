@@ -68,9 +68,6 @@ Route::prefix('gastos')->name('gastos.')->group(function () {
     // === FACTURAS DE COMPRA ===
     Route::prefix('facturas-compra')->name('purchase-invoices.')->middleware('permission:ver facturas compra')->group(function () {
         Route::get('/', [PurchaseInvoiceController::class, 'index'])->name('index');
-        // Página completa crear/editar
-        Route::get('/crear', [PurchaseInvoiceController::class, 'create'])->name('create')->middleware('permission:crear facturas compra');
-        Route::get('/{purchaseDocument}/editar', [PurchaseInvoiceController::class, 'edit'])->name('edit')->middleware('permission:editar facturas compra');
         Route::get('/data', [PurchaseInvoiceController::class, 'getData'])->name('getData');
         Route::get('/{purchaseDocument}/notas-credito-debito', [PurchaseInvoiceController::class, 'creditDebitNotes'])->name('credit-debit-notes');
         Route::get('/{purchaseDocument}/notes-summary', [PurchaseInvoiceController::class, 'notesSummary'])->name('notes-summary');

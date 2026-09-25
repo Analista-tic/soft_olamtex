@@ -262,7 +262,7 @@ function viewOrder(order: PurchaseOrder) {
     }
 
     function invoiceOrder(order: PurchaseOrder) {
-        router.visit(`/gastos/facturas-compra/crear?orden=${order.id}`);
+        router.visit(`/gastos/facturas-compra?orden=${order.id}`);
     }
 
     async function deleteOrder() {

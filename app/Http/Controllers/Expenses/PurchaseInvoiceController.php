@@ -92,24 +92,6 @@ class PurchaseInvoiceController extends PurchaseDocumentController
         return $this->indexView('Expenses/PurchaseInvoices/Index');
     }
 
-    public function create()
-    {
-        return Inertia::render('Expenses/PurchaseInvoices/PurchaseInvoiceForm', [
-            'mode' => 'create',
-        ]);
-    }
-
-    public function edit(PurchaseDocument $purchaseDocument)
-    {
-        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
-        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
-        $invoice = $this->service->loadWithRelations($purchaseDocument);
-        return Inertia::render('Expenses/PurchaseInvoices/PurchaseInvoiceForm', [
-            'mode' => 'edit',
-            'form' => $invoice,
-        ]);
-    }
-
     public function getData(Request $request)
     {
 

@@ -38,6 +38,8 @@ const props = defineProps<{
     dialogType: 'create' | 'edit';
     form: Partial<PurchaseInvoice>;
     readOnly?: boolean;
+    /** Atajo "Facturar" desde Órdenes de compra: preselecciona y carga esta orden al crear. */
+    preselectedOrderId?: number | null;
 }>();
 const emit = defineEmits<{
     (e: 'close'): void;
@@ -260,6 +262,20 @@ async function fetchRelatedOrder(orderId: number) {
     }
 }
 
+async function preselectOrderIfRequested() {
+    const orderId = Number(props.preselectedOrderId);
+    if (props.dialogType !== 'create' || !Number.isInteger(orderId) || orderId <= 0) return;
+    if (!purchaseOrders.value.some((order) => Number(order.id) === orderId)) {
+        try {
+            const { data } = await axios.get(`/gastos/ordenes-compra/${orderId}`);
+            if (data?.data) purchaseOrders.value = [data.data, ...purchaseOrders.value];
+        } catch {
+            return;
+        }
+    }
+    selectedPurchaseOrderId.value = orderId;
+}
+
 async function initializeDialog() {
     const currentRun = startLoadingRun();
     isBootstrapping.value = true;
@@ -267,6 +283,7 @@ async function initializeDialog() {
     try {
         resetForm();
         await Promise.all([fetchContacts(), fetchPendingPurchaseOrders()]);
+        await preselectOrderIfRequested();
         if (props.dialogType === 'create') {
             nextInvoiceId.value = null;
             void fetchNextInvoiceId();

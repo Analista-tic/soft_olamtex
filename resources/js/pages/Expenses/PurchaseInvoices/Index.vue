@@ -43,6 +43,7 @@ const isLoading = ref(false);
 const isDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
 const isDialogReadOnly = ref(false);
+const preselectedOrderId = ref<number | null>(null);
 const form = ref<Partial<PurchaseInvoice>>({});
 const isPreparingDialog = ref(false);
 const invoiceToDelete = ref<PurchaseInvoice | null>(null);
@@ -199,7 +200,18 @@ async function fetchSubgroups() {
     }
 }
 
-/* openDialogWithPreparation removed — navigation uses dedicated pages for create/edit */
+function openCreateDialog(orderId: number | null = null) {
+    dialogType.value = 'create';
+    isDialogReadOnly.value = false;
+    form.value = {};
+    preselectedOrderId.value = orderId;
+    clearAlerts();
+    isDialogOpen.value = true;
+}
+
+async function openEditDialog(invoice: PurchaseInvoice) {
+    await loadInvoiceIntoDialog(invoice, false);
+}
 
 function closeDialog() {
     isDialogReadOnly.value = false;
@@ -291,6 +303,14 @@ watch(currentPage, (newPage) => {
     }
 });
 
+/** Atajo "Facturar" desde Órdenes de compra: /gastos/facturas-compra?orden=ID abre el diálogo con la orden. */
+function openCreateFromOrderShortcut() {
+    const orderId = Number(new URLSearchParams(window.location.search).get('orden'));
+    if (!Number.isInteger(orderId) || orderId <= 0) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    openCreateDialog(orderId);
+}
+
 onMounted(async () => {
     try {
         await authStore.fetchUser();
@@ -300,6 +320,7 @@ onMounted(async () => {
     fetchInvoices();
     fetchProviders();
     fetchSubgroups();
+    openCreateFromOrderShortcut();
 });
 
 async function openPrintDialog(invoice: PurchaseInvoice) {
@@ -469,7 +490,7 @@ function handleOpenAssociatedNote(note: PurchaseInvoiceAssociatedNote) {
     router.visit(`/notas-credito-debito?${query.toString()}`);
 }
 
-async function viewInvoiceDetails(invoice: PurchaseInvoice) {
+async function loadInvoiceIntoDialog(invoice: PurchaseInvoice, readOnly: boolean) {
     if (!invoice.id) return;
     if (isPreparingDialog.value) return;
     isPreparingDialog.value = true;
@@ -477,7 +498,8 @@ async function viewInvoiceDetails(invoice: PurchaseInvoice) {
     try {
         const response = await axios.get(`/gastos/facturas-compra/${invoice.id}`);
         dialogType.value = 'edit';
-        isDialogReadOnly.value = true;
+        preselectedOrderId.value = null;
+        isDialogReadOnly.value = readOnly;
         form.value = response.data?.data || {};
         clearAlerts();
         isDialogOpen.value = true;
@@ -487,6 +509,10 @@ async function viewInvoiceDetails(invoice: PurchaseInvoice) {
     } finally {
         isPreparingDialog.value = false;
     }
+}
+
+async function viewInvoiceDetails(invoice: PurchaseInvoice) {
+    await loadInvoiceIntoDialog(invoice, true);
 }
 
 async function handleDialogRefresh(message?: string) {
@@ -541,7 +567,7 @@ async function handleDifferenceDecision() {
                         <Package class="h-4 w-4" />
                         Ver Recepciones
                     </button>
-                    <Button variant="default" size="pill" :disabled="isPreparingDialog" @click="router.visit('/gastos/facturas-compra/crear')" dusk="btn-nueva-factura">
+                    <Button variant="default" size="pill" :disabled="isPreparingDialog" @click="openCreateDialog()" dusk="btn-nueva-factura">
                         <PlusCircle class="h-4 w-4" />
                         Nueva Factura
                     </Button>
@@ -712,7 +738,7 @@ async function handleDifferenceDecision() {
                                         </Button>
 
                                         <!-- Editar -->
-                                        <EditButton v-if="canEdit" :onClick="() => router.visit('/gastos/facturas-compra/' + invoice.id + '/editar')" title="Editar factura" />
+                                        <EditButton v-if="canEdit" :onClick="() => openEditDialog(invoice)" title="Editar factura" />
 
                                         <!-- Eliminar -->
                                         <DeleteButton v-if="canDelete" @click="confirmDeleteInvoice(invoice)" title="Eliminar factura" />
@@ -790,6 +816,7 @@ async function handleDifferenceDecision() {
             :dialogType="dialogType"
             :form="form"
             :readOnly="isDialogReadOnly"
+            :preselectedOrderId="preselectedOrderId"
             @close="closeDialog"
             @refresh="handleDialogRefresh"
             @error="handleDialogError"
