@@ -22,26 +22,26 @@ function formatCurrency(value: number): string {
 </script>
 
 <template>
-    <div class="w-full max-w-xs space-y-1 rounded bg-muted/30 p-3 text-sm text-card-foreground">
-        <div class="flex items-center justify-between">
-            <span class="font-semibold text-card-foreground/70">Subtotal</span>
-            <span>{{ formatCurrency(subtotal) }}</span>
+    <div class="w-full max-w-sm overflow-hidden rounded-lg border border-border bg-card text-sm text-card-foreground shadow-sm">
+        <div class="flex items-center justify-between border-b border-border px-5 py-3">
+            <span class="text-muted-foreground">Subtotal</span>
+            <span class="font-medium">{{ formatCurrency(subtotal) }}</span>
         </div>
-        <div class="flex items-center justify-between">
-            <span class="font-semibold text-card-foreground/70">Impuestos</span>
-            <span>{{ formatCurrency(iva) }}</span>
+        <div class="flex items-center justify-between border-b border-border px-5 py-3">
+            <span class="text-muted-foreground">Impuestos</span>
+            <span class="font-medium">{{ formatCurrency(iva) }}</span>
         </div>
-        <div class="flex items-center justify-between pt-1">
-            <span class="font-bold">Total</span>
-            <span class="font-bold">{{ formatCurrency(total) }}</span>
+        <div class="flex items-center justify-between px-5 py-3" :class="rows.length ? 'border-b border-border' : ''">
+            <span class="font-semibold">Total</span>
+            <span class="font-semibold">{{ formatCurrency(total) }}</span>
         </div>
-        <div v-for="row in rows" :key="row.key" class="flex items-center justify-between">
-            <span class="text-card-foreground/60">- {{ row.name }}</span>
+        <div v-for="row in rows" :key="row.key" class="flex items-center justify-between border-b border-border px-5 py-2.5 last:border-b-0">
+            <span class="text-muted-foreground">- {{ row.name }}</span>
             <span class="text-red-500 dark:text-red-400">-{{ formatCurrency(row.amount) }}</span>
         </div>
-        <div class="mt-1 flex items-center justify-between border-t border-border/50 pt-2">
+        <div class="flex items-center justify-between border-t border-border bg-muted/40 px-5 py-3.5">
             <span class="font-bold">Total a pagar</span>
-            <span class="font-bold text-green-500 dark:text-green-400">{{ formatCurrency(totalPagar) }}</span>
+            <span class="text-base font-bold text-green-600 dark:text-green-400">{{ formatCurrency(totalPagar) }}</span>
         </div>
     </div>
 </template>
