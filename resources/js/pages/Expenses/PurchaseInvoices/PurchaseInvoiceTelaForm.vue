@@ -12,6 +12,9 @@ import TextareaField from '@/components/TextareaField.vue';
 import ContactDialog from '@/pages/MasterData/Contact/ContactDialog.vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
 import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
+import PurchaseInvoiceSummary from './PurchaseInvoiceSummary.vue';
+import { usePurchaseInvoiceTotals } from '@/composables/usePurchaseInvoiceTotals';
+import { formatDateDDMMYYYY, parseToDate, toIsoDateString } from '@/lib/date';
 import { Button } from '@/components/ui/button';
 import { Head, router } from '@inertiajs/vue3';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
@@ -73,9 +76,7 @@ const hasModifiedPriceOrQuantity = computed(() => {
     });
 });
 
-const subtotal = computed(() => (localForm.value.items || []).reduce((acc: number, item: any) => acc + (Number(item.total) || 0), 0));
-const iva = computed(() => (localForm.value.items || []).reduce((acc: number, item: any) => acc + (Number(item.total_tax) || 0), 0));
-const total = computed(() => Number(subtotal.value) + Number(iva.value));
+const { subtotal, iva, total, totalPagar, getWithholdingAmount } = usePurchaseInvoiceTotals(localForm);
 
 const pendingPurchaseOrderOptions = computed(() =>
     purchaseOrders.value.map((o: any) => ({
@@ -83,10 +84,6 @@ const pendingPurchaseOrderOptions = computed(() =>
         name: o.document_number ? `${o.document_number}` : `Orden #${o.id}`,
     }))
 );
-
-function formatCurrency(value: number) {
-    return Number(value || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
-}
 
 const selectedContactData = computed(() => {
     if (!localForm.value.contact_id) return null;
@@ -121,8 +118,8 @@ function resetForm() {
     } else {
         localForm.value = createDefaultForm();
     }
-    invoiceDate.value = localForm.value.date ? new Date(localForm.value.date) : new Date();
-    deliveryDate.value = localForm.value.delivery_date ? new Date(localForm.value.delivery_date) : null;
+    invoiceDate.value = parseToDate(localForm.value.date) ?? new Date();
+    deliveryDate.value = parseToDate(localForm.value.delivery_date);
 }
 
 async function fetchContacts(page = 1) {
@@ -471,7 +468,7 @@ async function handleSubmit(sendMail = false, options: { skipDifferenceCheck?: b
     isSubmitting.value = true;
     const formToSend = { ...localForm.value };
     const selectedContact = contacts.value.find((contact: any) => Number(contact.id) === Number(localForm.value.contact_id));
-    formToSend.date = invoiceDate.value ? invoiceDate.value.toISOString().slice(0, 10) : localForm.value.date;
+    formToSend.date = invoiceDate.value ? toIsoDateString(invoiceDate.value) : localForm.value.date;
     formToSend.delivery_date = deliveryDate.value ? deliveryDate.value.toISOString().slice(0, 10) : localForm.value.delivery_date;
     formToSend.provider_name = String(selectedContact?.full_name ?? localForm.value.provider_name ?? '').trim();
     formToSend.reason = differenceReason.value.trim() || localForm.value.reason || null;
@@ -576,7 +573,7 @@ function handleDifferenceDialogOpenChange(isOpen: boolean): void {
                         <div class="doc-col-left">
                             <div class="doc-date-row">
                                 <span class="doc-date-label">Fecha factura</span>
-                                <span class="text-sm">{{ localForm.date }}</span>
+                                <span class="text-sm">{{ formatDateDDMMYYYY(invoiceDate, '') }}</span>
                             </div>
                             <div class="doc-date-row">
                                 <div class="flex shrink-0 items-center gap-1">
@@ -703,20 +700,7 @@ function handleDifferenceDialogOpenChange(isOpen: boolean): void {
                     <div class="flex-1">
                         <TextareaField data-no-uppercase v-model="localForm.description" label="Observación" />
                     </div>
-                    <div class="shrink-0 rounded-lg border border-sidebar-border/70" style="min-width: 420px; width: auto">
-    <div class="flex justify-between" style="padding: 12px 20px; font-size: 14px; border-bottom: 1px solid hsl(var(--border))">
-        <span class="text-muted-foreground">Subtotal</span>
-        <span class="font-medium">{{ formatCurrency(subtotal) }}</span>
-    </div>
-    <div class="flex justify-between" style="padding: 12px 20px; font-size: 14px; border-bottom: 1px solid hsl(var(--border))">
-        <span class="text-muted-foreground">Impuestos</span>
-        <span class="font-medium">{{ formatCurrency(iva) }}</span>
-    </div>
-    <div class="flex justify-between" style="padding: 14px 20px; font-size: 15px; font-weight: 500; border-top: 1px solid hsl(var(--border))">
-        <span>Total</span>
-        <span class="font-bold">{{ formatCurrency(total) }}</span>
-    </div>
-</div>
+                    <PurchaseInvoiceSummary :subtotal="subtotal" :iva="iva" :total="total" :total-pagar="totalPagar" :withholdings="localForm.withholdings || []" :get-withholding-amount="getWithholdingAmount" />
                 </div>
 
             </div>

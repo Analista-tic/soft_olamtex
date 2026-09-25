@@ -19,7 +19,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import type { PurchaseInvoice, PurchaseInvoiceItem } from '@/domain/Expenses';
-import { withholdingAmount } from '@/domain/Expenses/withholdings';
+import { usePurchaseInvoiceTotals } from '@/composables/usePurchaseInvoiceTotals';
 import type { Contact } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
@@ -31,6 +31,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import InvoiceTraceability from './InvoiceTraceability.vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
 import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
+import PurchaseInvoiceSummary from './PurchaseInvoiceSummary.vue';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -82,15 +83,7 @@ const relatedOrder = ref<any | null>(null);
 const { isBootstrapping, isHydrating, isBlockingLoading, canRenderForm, startLoadingRun, isCurrentLoadingRun, cancelLoadingRun } =
     useDialogLoadingState(dialogOpen);
 
-const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
-const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
-const total = computed(() => Number(subtotal.value) + Number(iva.value));
-/** ReteIVA se calcula sobre el IVA; ReteFuente/ICA sobre el subtotal (ver domain/Expenses/withholdings). */
-function getWithholdingAmount(w: { base_amount?: number | null; percentage?: number; type?: string | null }): number {
-    return withholdingAmount(w, Number(subtotal.value), Number(iva.value));
-}
-const retencionesTotal = computed(() => (localForm.value.withholdings || []).reduce((acc, w) => acc + getWithholdingAmount(w), 0));
-const totalPagar = computed(() => Number(total.value) - Number(retencionesTotal.value));
+const { subtotal, iva, total, totalPagar, getWithholdingAmount } = usePurchaseInvoiceTotals(localForm);
 const amountDifference = computed(() => (orderTotal.value != null ? Number(total.value) - orderTotal.value : 0));
 
 function getSuggestedPriceForItem(item: PurchaseInvoiceItem): number | null {
@@ -1050,67 +1043,7 @@ watch(dialogOpen, (isOpen) => {
                                 <!-- Totales -->
                                 <div class="space-y-4 pt-6">
                                     <div class="flex w-full flex-col items-end space-y-0 text-sm">
-                                        <div class="w-full max-w-xs space-y-1 rounded bg-muted/30 p-3 text-card-foreground">
-                                            <div class="flex items-center justify-between">
-                                                <span class="font-semibold text-card-foreground/70">Subtotal</span>
-                                                <span>{{
-                                                    Number(subtotal || 0).toLocaleString('es-CO', {
-                                                        style: 'currency',
-                                                        currency: 'COP',
-                                                        minimumFractionDigits: 0,
-                                                        maximumFractionDigits: 0,
-                                                    })
-                                                }}</span>
-                                            </div>
-                                            <div class="flex items-center justify-between">
-                                                <span class="font-semibold text-card-foreground/70">IVA 19%</span>
-                                                <span>{{
-                                                    Number(iva || 0).toLocaleString('es-CO', {
-                                                        style: 'currency',
-                                                        currency: 'COP',
-                                                        minimumFractionDigits: 0,
-                                                        maximumFractionDigits: 0,
-                                                    })
-                                                }}</span>
-                                            </div>
-                                            <div class="flex items-center justify-between pt-1">
-                                                <span class="font-bold text-card-foreground">Total orden de compra</span>
-                                                <span class="font-bold text-card-foreground">{{
-                                                    Number(total || 0).toLocaleString('es-CO', {
-                                                        style: 'currency',
-                                                        currency: 'COP',
-                                                        minimumFractionDigits: 0,
-                                                        maximumFractionDigits: 0,
-                                                    })
-                                                }}</span>
-                                            </div>
-                                            <template v-for="(w, idx) in localForm.withholdings || []" :key="idx">
-                                                <div class="flex items-center justify-between">
-                                                    <span class="text-card-foreground/60">- {{ w.name }}</span>
-                                                    <span class="text-red-500 dark:text-red-400"
-                                                        >-{{
-                                                            getWithholdingAmount(w).toLocaleString('es-CO', {
-                                                                style: 'currency',
-                                                                currency: 'COP',
-                                                                minimumFractionDigits: 0,
-                                                                maximumFractionDigits: 0,
-                                                            })
-                                                        }}</span
-                                                    >
-                                                </div>
-                                            </template>
-                                            <div class="mt-1 flex items-center justify-between border-t border-border/50 pt-2">
-                                                <span class="font-bold text-card-foreground">Total a pagar</span>
-                                                <span class="font-bold text-green-500 dark:text-green-400">{{
-                                                    Number(totalPagar || 0).toLocaleString('es-CO', {
-                                                        style: 'currency',
-                                                        currency: 'COP',
-                                                        minimumFractionDigits: 0,
-                                                        maximumFractionDigits: 0,
-                                                    })
-                                                }}</span>
-                                            </div>
-                                        </div>
+                                        <PurchaseInvoiceSummary :subtotal="subtotal" :iva="iva" :total="total" :total-pagar="totalPagar" :withholdings="localForm.withholdings || []" :get-withholding-amount="getWithholdingAmount" />
                                     </div>
                                 </div>
 

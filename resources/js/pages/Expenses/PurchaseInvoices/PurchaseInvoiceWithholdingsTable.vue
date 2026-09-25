@@ -95,7 +95,8 @@ function getWithholdingValue(w: PurchaseInvoiceWithholding): number {
 }
 
 function defaultBaseLabel(w: PurchaseInvoiceWithholding): string {
-    return isIvaWithholding(w.type) ? 'IVA' : 'Subtotal';
+    const base = isIvaWithholding(w.type) ? Number(props.invoiceIva) || 0 : Number(props.invoiceSubtotal) || 0;
+    return base.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function getBaseAmountInputValue(w: PurchaseInvoiceWithholding): string | number {
@@ -228,6 +229,7 @@ async function handleRetentionSubmit(formData: RetentionForm) {
                             <InputField
                                 :modelValue="getBaseAmountInputValue(withholding)"
                                 type="currency"
+                                :decimals="2"
                                 label=""
                                 size="xs"
                                 class="text-xs"
@@ -240,6 +242,7 @@ async function handleRetentionSubmit(formData: RetentionForm) {
                             <InputField
                                 :modelValue="getWithholdingValue(withholding)"
                                 type="currency"
+                                :decimals="2"
                                 label=""
                                 size="xs"
                                 class="text-xs"
