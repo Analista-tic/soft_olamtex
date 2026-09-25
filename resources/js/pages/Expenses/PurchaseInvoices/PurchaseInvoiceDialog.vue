@@ -11,7 +11,6 @@ import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import SelectField from '@/components/SelectField.vue';
-import TextareaField from '@/components/TextareaField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -32,8 +31,7 @@ import { X } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import InvoiceTraceability from './InvoiceTraceability.vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
-import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
-import PurchaseInvoiceSummary from './PurchaseInvoiceSummary.vue';
+import PurchaseInvoiceFooter from './PurchaseInvoiceFooter.vue';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -955,34 +953,18 @@ watch(dialogOpen, (isOpen) => {
                                     />
                                 </InventoryDetailTableLayout>
 
-                                <!-- Retenciones -->
-                                <div>
-                                    <PurchaseInvoiceWithholdingsTable
-                                        :modelValue="localForm.withholdings || []"
-                                        @update:modelValue="(val) => (localForm.withholdings = val)"
-                                        :invoiceSubtotal="subtotal"
-                                        :invoiceIva="iva"
-                                        :isReadOnly="isReadOnly"
-                                    />
-                                </div>
-
-                                <!-- Totales -->
-                                <div class="space-y-4 pt-6">
-                                    <div class="flex w-full flex-col items-end space-y-0 text-sm">
-                                        <PurchaseInvoiceSummary :subtotal="subtotal" :iva="iva" :total="total" :total-pagar="totalPagar" :withholdings="localForm.withholdings || []" :get-withholding-amount="getWithholdingAmount" />
-                                    </div>
-                                </div>
-
-                                <!-- Observaciones -->
-                                <div class="flex flex-col gap-1">
-                                    <label class="text-sm font-medium">Observación</label>
-                                    <TextareaField
-                                        v-model="localForm.description" data-no-uppercase
-                                        label=""
-                                        placeholder="Agrega aquí observaciones adicionales para la factura de compra"
-                                        :readonly="isReadOnly"
-                                    />
-                                </div>
+                                <PurchaseInvoiceFooter
+                                    :withholdings="localForm.withholdings || []"
+                                    :description="localForm.description"
+                                    :subtotal="subtotal"
+                                    :iva="iva"
+                                    :total="total"
+                                    :total-pagar="totalPagar"
+                                    :get-withholding-amount="getWithholdingAmount"
+                                    :is-read-only="isReadOnly"
+                                    @update:withholdings="(value) => (localForm.withholdings = value)"
+                                    @update:description="(value) => (localForm.description = value)"
+                                />
                             </div>
                         </template>
                     </div>
