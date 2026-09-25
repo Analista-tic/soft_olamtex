@@ -22,23 +22,28 @@ export default defineConfig({
             },
         }),
     ],
+    // server: {
+    //     host: '0.0.0.0',
+    //     hmr: {
+    //         host: 'localhost',
+    //     },
+    //     watch: {
+    //         ignored: ['**/storage/**', '**/public/build/**', '**/bootstrap/cache/**'],
+    //     },
+    // },
     server: {
-        host: '127.0.0.1',
+        host: '0.0.0.0',
+        port: 5173,
+        strictPort: true,
+        origin: 'http://192.168.1.70:5173',
+        cors: true, // la página (:80) y los módulos (:5173) son orígenes distintos
         hmr: {
-            host: '127.0.0.1',
+            host: '192.168.1.70', // TU IP LOCAL
         },
         watch: {
             ignored: ['**/storage/**', '**/public/build/**', '**/bootstrap/cache/**'],
         },
     },
-    // server: {
-    //     host: '0.0.0.0',
-    //     port: 5173,
-    //     strictPort: true,
-    //     hmr: {
-    //         host: '192.168.20.106', // TU IP LOCAL
-    //     }
-    // },
     resolve: {
         alias: {
             '@': path.resolve(__dirname, './resources/js'),

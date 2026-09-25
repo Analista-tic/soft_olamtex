@@ -110,8 +110,8 @@
   composer run dev:ssr
   ```
   Adds `php artisan inertia:start-ssr` and logs via `php artisan pail`.
-- DB migration & seed: `php artisan migrate:fresh --seed`. Route binding and permissions require seeded data.
-- Tests: Pest is configured; run `vendor/bin/pest` or `php artisan test`.
+- DB migration & seed: `php artisan migrate` y `php artisan db:seed --class=RolesAndPermissionsSeeder` (no destructivos). **NUNCA** `migrate:fresh`, `migrate:refresh`, `migrate:reset` ni `db:wipe` sobre la BD de desarrollo: borra los datos de prueba. Solo con petición explícita del usuario.
+- Tests: Pest usa `RefreshDatabase` y vacía la BD configurada en `.env`. **No ejecutar `vendor/bin/pest` ni `php artisan test`** salvo que el usuario lo pida explícitamente o exista una BD de pruebas aislada configurada.
 - Builds: `npm run build` (CSR) or `npm run build:ssr` for SSR bundles.
 
 ### Depuración y mantenibilidad (facilitar debugging futuro)
@@ -206,6 +206,36 @@ function setError(msg: string, type: 'error' | 'warning' | 'info' = 'error') {
 
 Ver documentación completa en [GUIA_ALERTAS.md](../docs/GUIA_ALERTAS.md).
 
+## Convenciones de texto visible en UI (Obligatorio)
+
+**Todo texto que ve el usuario final** (labels, `TableHead`, `DialogTitle`/títulos de página, texto de `Button`, `placeholder`, badges de estado, tooltips/`HelpTooltip`, mensajes de `useGlobalAlert`/`AlertBox`) sigue estas reglas. El objetivo es eliminar la mezcla actual de MAYÚSCULAS, Mayúscula Inicial En Cada Palabra y camelCase filtrado desde el backend.
+
+### Capitalización: mayúscula inicial de oración (sentence case)
+Solo la primera letra de la frase (y los nombres propios/siglas) va en mayúscula; el resto en minúsculas. En español **no existe el Title Case** de inglés.
+- ✅ `Solicitud de compra y servicios`, `Nueva solicitud`, `Fecha de solicitud`, `Enviar a aprobación`
+- ❌ `Solicitud De Compra Y Servicios` (Title Case), `SOLICITUD DE COMPRA` (mayúsculas sostenidas), `solicitud de Compra` (mezcla arbitraria)
+- Excepción: acrónimos de negocio (`NIT`, `IVA`, `SOL-014`) y nombres propios (proveedor, persona, marca) conservan su forma natural.
+- Ejemplo real a corregir cuando se toque el archivo: el `<h1>` de `PurchaseRequests/Index.vue` dice "Solicitud de Compra y Servicios" (Title Case) y debería ser "Solicitud de compra y servicios".
+
+### Nunca mostrar el valor crudo del backend
+- Prohibido pintar en el DOM un enum/estado en snake_case o minúsculas técnicas (`pending`, `provider_name`, `solicited_to`). Todo estado pasa por un diccionario de etiquetas en español (patrón `statusLabels` ya usado en `PurchaseRequests/Index.vue`) antes de mostrarse.
+- Los labels de campo se redactan a mano en español con el casing de esta sección; no se derivan automáticamente del nombre de columna.
+
+### Botones y acciones
+Verbo en infinitivo o frase corta de acción, sentence case, sin punto final: `Guardar borrador`, `Guardar y enviar a aprobación`, `Eliminar solicitud`.
+
+### Badges y mensajes
+- Badges de estado: una palabra o frase corta en sentence case (`Pendiente`, `Aprobada`, `Rechazada`).
+- Mensajes de alerta: oración completa en sentence case terminada en punto (`Solicitud eliminada correctamente.`). Tooltips/ayudas cortas sin verbo pueden omitir el punto.
+
+### Ortografía y tildes (obligatorio)
+- Toda cadena visible lleva tildes y ortografía correcta: `número` (no `numero`), `descripción` (no `descripcion`), `aprobación` (no `aprobacion`), uso correcto de `ñ`.
+- Antes de cerrar una tarea que agregue o toque texto visible, revisar ortografía/tildes de cada cadena nueva o modificada.
+- Un mismo concepto usa siempre el mismo término en todo el proyecto (ej. siempre "solicitud de compra"; no alternar con "solicitud de compras" o "pedido de compra" para la misma entidad).
+
+### Alcance de aplicación
+- Al modificar un archivo `.vue`/Blade/PHP por cualquier motivo, corregir de paso el texto visible de ese archivo que no cumpla esta convención. No se exige un barrido completo del proyecto solo por esta regla; se corrige de forma incremental, archivo por archivo, a medida que se toca cada uno.
+
 ## Optimización de tokens (obligatorio)
 - Leer solo archivos mencionados en la tarea.
 - No leer `node_modules/`, `dist/`, `.git/`, `build/`, `coverage/` salvo instrucción explícita.
@@ -228,6 +258,6 @@ Ver documentación completa en [GUIA_ALERTAS.md](../docs/GUIA_ALERTAS.md).
 - **Frontend:** Añadir componentes Vue 3 + TS bajo `resources/js/<Domain>/...`, navegar con nombres de ruta Ziggy y mantener nombres alineados con los grupos del backend. **IMPORTANTE:** Siempre incluir alertas para operaciones (crear, editar, eliminar, guardar) usando `useGlobalAlert()` en páginas y `AlertBox` locale en dialogs.
 - **Dialogs:** Cuando el feature use modal, construirlo con `FormDialogContent` y mantener una distribución proporcional del espacio: formulario principal dominante, paneles auxiliares compactos, y layout claro para lectura/captura.
 - **Alertas:** Toda operación debe mostrar feedback: success para operaciones exitosas, error para fallos, warning para advertencias. Nunca dejar usuarios sin saber si algo se guardó o falló.
-- **QA:** Ejecutar `php artisan migrate:fresh --seed`, `vendor/bin/pest` y format/lint en `resources/`. Todo código nuevo debe ser depurable siguiendo los patrones de este documento.
+- **QA:** Ejecutar `php artisan migrate` (nunca `migrate:fresh` sobre la BD de desarrollo) y format/lint en `resources/`. Los tests Pest solo se ejecutan con BD de pruebas aislada o si el usuario lo pide. Todo código nuevo debe ser depurable siguiendo los patrones de este documento.
 
 Si alguna sección no queda clara o falta un patrón importante, indicarlo para refinar estas instrucciones.
