@@ -74,8 +74,8 @@ const receptionScopeValue = 'fabric';
 
 const statusOptions = [
     { id: 'status_pending', name: 'Pendiente' },
-    { id: 'status_approved', name: 'Aprobado' },
-    { id: 'status_rejected', name: 'Rechazado' },
+    { id: 'status_approved', name: 'Recepcionada' },
+    { id: 'status_rejected', name: 'Rechazada' },
     { id: 'approval_pending_difference', name: 'Aprobación pendiente' },
     { id: 'approval_approved', name: 'Diferencia aprobada' },
     { id: 'approval_difference_rejected', name: 'Diferencia rechazada' },
@@ -219,7 +219,7 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         };
         if (statusFilter.value != null) {
             if (statusFilter.value === 'status_pending') params.status = 'pending';
-            else if (statusFilter.value === 'status_approved') params.status = 'approved';
+            else if (statusFilter.value === 'status_approved') params.status = 'received,approved';
             else if (statusFilter.value === 'status_rejected') params.status = 'rejected';
             else if (statusFilter.value === 'approval_pending_difference') params.approval_status = 'pending_difference_approval';
             else if (statusFilter.value === 'approval_approved') params.approval_status = 'approved';
@@ -533,17 +533,17 @@ function handleDialogError(message?: string) {
                                     />
                                     <TableStatusBadge
                                         v-else-if="invoice.status === 'pending_receipt' || invoice.status === 'pending' || !invoice.status"
-                                        label="Pendiente"
+                                        label="Pendiente de recepción"
                                         tone="yellow"
                                     />
                                     <TableStatusBadge
                                         v-else-if="invoice.status === 'received'"
-                                        label="Recibida"
+                                        label="Recepcionada"
                                         tone="green"
                                     />
                                     <TableStatusBadge
                                         v-else-if="invoice.status === 'approved'"
-                                        label="Aprobada"
+                                        label="Recepcionada"
                                         tone="green"
                                     />
                                     <TableStatusBadge

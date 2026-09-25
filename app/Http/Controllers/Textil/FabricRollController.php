@@ -696,6 +696,11 @@ class FabricRollController extends Controller
             $filters['status'] = 'pending_receipt';
         }
 
+        // "Recepcionada" agrupa las facturas normales (received) y las de tela (approved).
+        if (($filters['status'] ?? null) === 'approved') {
+            $filters['status'] = 'approved,received';
+        }
+
         if ($scope === 'general') {
             $filters['exclude_fabric'] = true;
         } elseif ($scope === 'fabric') {
@@ -1423,10 +1428,17 @@ class FabricRollController extends Controller
         }
     }
 
-    public function rejectReception($invoiceId)
+    public function rejectReception(Request $request, $invoiceId)
     {
+        $validated = $request->validate([
+            'rejection_reason' => ['required', 'string', 'max:1000'],
+            'rejection_notes' => ['nullable', 'string', 'max:2000'],
+        ], [
+            'rejection_reason.required' => 'Indica el motivo del rechazo.',
+        ]);
+
         try {
-            $invoice = $this->service->rejectReception($invoiceId);
+            $invoice = $this->service->rejectReception($invoiceId, $validated['rejection_reason'], $validated['rejection_notes'] ?? null);
 
             return response()->json([
                 'message' => 'Recepción rechazada correctamente',

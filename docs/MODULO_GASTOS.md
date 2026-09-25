@@ -140,6 +140,20 @@ La lógica que es igual en ambos tipos está compartida y no debe copiarse de nu
 | `PurchaseInvoiceWithholdingsTable.vue` | Tabla de retenciones (la base vacía se sugiere como valor gris y se recalcula sola) |
 | `lib/date.ts` | Lectura y formato de fechas (el servidor envía fechas ISO largas) |
 
+**Estados de la factura y su recepción**
+
+| Estado (`status`) | Etiqueta | Cuándo |
+|-------------------|----------|--------|
+| `pending_receipt` | Pendiente de recepción | Al crearla |
+| `received` / `approved` | Recepcionada | Recepción cerrada. `received` es la factura normal y `approved` la de tela; ambas se muestran igual |
+| `rejected` | Rechazada | Se rechazó la recepción |
+
+Además `approval_status` controla las diferencias: `pending_difference_approval` (falta aprobar la diferencia), `approved` y `difference_rejected`.
+
+**Rechazo de la recepción:** el motivo es obligatorio y queda guardado con quién y cuándo (`rejection_reason`, `rejection_notes`, `rejected_by_user_id`, `rejected_at`). Solo se puede rechazar una factura pendiente de recepción. Una factura rechazada no admite registrar rollos, recepción general, reportar diferencias ni aprobar, aunque el usuario tenga permiso de ajustar rollos.
+
+**Pantalla de recepción:** es una sola (`/kardex-telas/recepcion`) con selector Todas / Facturas de compra / Telas (`?scope=`). Desde los listados de facturas se entra con el tipo ya elegido y "Volver" regresa al origen (`return_to`) o a la misma vista.
+
 ### 6.4 Comprobante de egreso (`finance_expense_vouchers`)
 Para gastos menores o pagos directos que no pasan por el flujo de solicitud/orden.
 

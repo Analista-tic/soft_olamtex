@@ -12,7 +12,7 @@ enum PurchaseInvoiceStatus: string
     {
         return match($this) {
             self::PENDING_RECEIPT => 'Pendiente de recepción',
-            self::RECEIVED => 'Recibida',
+            self::RECEIVED => 'Recepcionada',
             self::REJECTED => 'Rechazada',
         };
     }

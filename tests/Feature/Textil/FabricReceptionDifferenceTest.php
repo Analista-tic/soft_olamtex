@@ -160,3 +160,39 @@ it('lets only users who can adjust rolls add rolls after the reception is approv
 
     expect(InventoryMovement::where('item_id', $item->id)->where('source_id', $invoice->id)->count())->toBe(2);
 });
+
+it('requires a reason to reject a reception and records who and when', function () {
+    [$invoice] = fabricReceptionInvoice(100);
+
+    expect(fn () => $this->service->rejectReception($invoice->id, '  '))
+        ->toThrow(ValidationException::class);
+    expect($invoice->fresh()->status)->toBe('pending_receipt');
+
+    $this->service->rejectReception($invoice->id, 'Mercancía dañada', 'Rollos mojados');
+
+    $fresh = $invoice->fresh();
+    expect($fresh->status)->toBe('rejected')
+        ->and($fresh->rejection_reason)->toBe('Mercancía dañada')
+        ->and($fresh->rejection_notes)->toBe('Rollos mojados')
+        ->and($fresh->rejected_by_user_id)->toBe(auth()->id())
+        ->and($fresh->rejected_at)->not->toBeNull();
+});
+
+it('does not allow registering rolls, reporting, approving or rejecting again once the reception is rejected', function () {
+    [$invoice, $line] = fabricReceptionInvoice(100);
+    $this->service->rejectReception($invoice->id, 'Mercancía dañada');
+
+    expect(fn () => registerRoll($this->service, $line, 50))->toThrow(ValidationException::class);
+    expect(fn () => $this->service->approveReception($invoice->id))->toThrow(ValidationException::class);
+    expect(fn () => $this->service->rejectReception($invoice->id, 'Otro motivo'))->toThrow(ValidationException::class);
+    expect($invoice->fresh()->status)->toBe('rejected');
+});
+
+it('only rejects invoices that are pending reception', function () {
+    [$invoice, $line] = fabricReceptionInvoice(100);
+    registerRoll($this->service, $line, 100);
+    $this->service->approveReception($invoice->id);
+
+    expect(fn () => $this->service->rejectReception($invoice->id, 'Ya recepcionada'))->toThrow(ValidationException::class);
+    expect($invoice->fresh()->status)->toBe('approved');
+});

@@ -87,8 +87,8 @@ const providers = ref<{ id: number; full_name: string }[]>([]);
 const subgroups = ref<{ id: number; name: string }[]>([]);
 const statusOptions = [
     { id: 'status_pending', name: 'Pendiente' },
-    { id: 'status_approved', name: 'Aprobado' },
-    { id: 'status_rejected', name: 'Rechazado' },
+    { id: 'status_approved', name: 'Recepcionada' },
+    { id: 'status_rejected', name: 'Rechazada' },
     { id: 'approval_pending_difference', name: 'Aprobación pendiente' },
     { id: 'approval_approved', name: 'Diferencia aprobada' },
     { id: 'approval_difference_rejected', name: 'Diferencia rechazada' },
@@ -148,11 +148,11 @@ const computeInvoiceTotal = (invoice: PurchaseInvoice) => {
 
 function getInvoiceStatusLabel(status?: string): string {
     const labels: Record<string, string> = {
-        pending_receipt: 'Pendiente',
-        received: 'Recibida',
+        pending_receipt: 'Pendiente de recepción',
+        received: 'Recepcionada',
         rejected: 'Rechazada',
-        approved: 'Aprobada',
-        pending: 'Pendiente',
+        approved: 'Recepcionada',
+        pending: 'Pendiente de recepción',
     };
     return labels[status ?? ''] ?? 'Pendiente';
 }
@@ -264,7 +264,7 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         };
         if (statusFilter.value != null) {
             if (statusFilter.value === 'status_pending') params.status = 'pending';
-            else if (statusFilter.value === 'status_approved') params.status = 'approved';
+            else if (statusFilter.value === 'status_approved') params.status = 'received,approved';
             else if (statusFilter.value === 'status_rejected') params.status = 'rejected';
             else if (statusFilter.value === 'approval_pending_difference') params.approval_status = 'pending_difference_approval';
             else if (statusFilter.value === 'approval_approved') params.approval_status = 'approved';

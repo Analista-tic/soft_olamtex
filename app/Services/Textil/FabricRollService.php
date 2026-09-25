@@ -1117,6 +1117,12 @@ class FabricRollService
             ]);
         }
 
+        if ($item->document->status === 'rejected') {
+            throw ValidationException::withMessages([
+                'general' => ['No se pueden añadir rollos: la recepción de la factura fue rechazada.'],
+            ]);
+        }
+
         if ($this->isDifferenceRejectedInvoice($item->document)) {
             throw ValidationException::withMessages([
                 'general' => ['No se pueden añadir rollos: la factura tiene diferencia rechazada y no puede gestionarse en recepción.'],
@@ -1618,15 +1624,35 @@ class FabricRollService
         return $fallbackName !== '' && str_contains($fallbackName, 'tela');
     }
 
-    public function rejectReception($invoiceId)
+    /**
+     * Rechaza la recepción de una factura pendiente. El motivo es obligatorio y queda registrado junto con
+     * quién y cuándo la rechazó. Una factura rechazada ya no admite rollos, registro ni aprobación.
+     */
+    public function rejectReception($invoiceId, ?string $reason = null, ?string $notes = null)
     {
         $invoice = PurchaseDocument::where('document_type', PurchaseDocument::TYPE_INVOICE)
             ->findOrFail($invoiceId);
 
         $this->ensureInvoiceReceptionAllowed($invoice);
 
-        return DB::transaction(function () use ($invoice) {
-            $invoice->update(['status' => 'rejected']);
+        if (trim((string) $reason) === '') {
+            throw ValidationException::withMessages(['rejection_reason' => ['Indica el motivo del rechazo.']]);
+        }
+
+        if ($invoice->status !== 'pending_receipt') {
+            throw ValidationException::withMessages([
+                'general' => ['Solo se puede rechazar una factura pendiente de recepción.'],
+            ]);
+        }
+
+        return DB::transaction(function () use ($invoice, $reason, $notes) {
+            $invoice->update([
+                'status' => 'rejected',
+                'rejection_reason' => trim((string) $reason),
+                'rejection_notes' => $notes !== null && trim($notes) !== '' ? trim($notes) : null,
+                'rejected_by_user_id' => Auth::id(),
+                'rejected_at' => now(),
+            ]);
 
             FabricRoll::whereHas('purchaseDocumentItem', function ($q) use ($invoice) {
                 $q->where('purchase_document_id', $invoice->id);
@@ -1640,6 +1666,12 @@ class FabricRollService
 
     protected function ensureInvoiceReceptionAllowed(PurchaseDocument $invoice): void
     {
+        if ($invoice->status === 'rejected') {
+            throw ValidationException::withMessages([
+                'general' => ['La recepción de esta factura fue rechazada; ya no se puede registrar, aprobar ni añadir rollos.'],
+            ]);
+        }
+
         if ($this->isDifferenceRejectedInvoice($invoice)) {
             throw ValidationException::withMessages([
                 'general' => ['La factura tiene diferencia rechazada y no puede volver al flujo de recepción.'],

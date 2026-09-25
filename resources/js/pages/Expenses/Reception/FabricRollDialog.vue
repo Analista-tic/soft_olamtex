@@ -153,6 +153,11 @@ const locationOptions = [
     'F1','F2','F3',
 ].map((loc) => ({ id: loc, name: loc }));
 
+/** Metros y ancho se manejan con máximo 2 decimales. */
+function roundTwoDecimals(value: number): number {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 function parseNumber(value: number | string | null | undefined): number {
     if (value === null || value === undefined || value === '') return 0;
     if (typeof value === 'number') return value;
@@ -353,8 +358,8 @@ async function handleSubmit(): Promise<void> {
     const payload = {
         roll_number: form.value.roll_number,
         purchase_document_item_id: props.item.id,
-        quantity: parseNumber(form.value.quantity),
-        roll_width: parseNumber(form.value.roll_width),
+        quantity: roundTwoDecimals(parseNumber(form.value.quantity)),
+        roll_width: roundTwoDecimals(parseNumber(form.value.roll_width)),
         location: form.value.location,
         description: form.value.description,
         entry_date: form.value.entry_date,
@@ -393,8 +398,8 @@ function startEditRoll(roll: RollRecord): void {
     form.value = {
         roll_number: roll.roll_number,
         purchase_document_item_id: props.item?.id ?? null,
-        quantity: roll.quantity ?? '',
-        roll_width: roll.roll_width ?? '',
+        quantity: roll.quantity != null ? Number(roll.quantity).toFixed(2) : '',
+        roll_width: roll.roll_width != null ? Number(roll.roll_width).toFixed(2) : '',
         location: roll.location || '',
         description: roll.description || '',
         entry_date: roll.entry_date || todayIso(),
@@ -666,8 +671,8 @@ watch(dialogOpen, (value) => {
                                     <tbody>
                                         <tr v-for="roll in rolls" :key="roll.id" class="border-t">
                                             <td class="px-4 py-3 font-medium">{{ roll.roll_number }}</td>
-                                            <td class="px-4 py-3 text-right">{{ roll.quantity }} mts</td>
-                                            <td class="px-4 py-3 text-right">{{ roll.roll_width }} cm</td>
+                                            <td class="px-4 py-3 text-right">{{ Number(roll.quantity).toFixed(2) }} mts</td>
+                                            <td class="px-4 py-3 text-right">{{ Number(roll.roll_width).toFixed(2) }} cm</td>
                                             <td class="px-4 py-3">{{ roll.location || '—' }}</td>
                                             <td class="px-4 py-3">{{ formatDate(roll.entry_date) }}</td>
                                             <td v-if="canDeleteEditRolls" class="px-4 py-3">

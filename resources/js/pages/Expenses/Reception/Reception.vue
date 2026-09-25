@@ -56,11 +56,25 @@ const isTelasList = computed(() => {
     if (!inv || !Array.isArray(inv.items)) return false;
     return inv.items.some((row: any) => isFabricItem(row));
 });
+const scopeOptions: { value: 'all' | 'general' | 'fabric'; label: string }[] = [
+    { value: 'all', label: 'Todas' },
+    { value: 'general', label: 'Facturas de compra' },
+    { value: 'fabric', label: 'Telas' },
+];
+
+/** Una sola pantalla de recepción: el tipo se cambia aquí en vez de entrar por vistas distintas. */
+function changeScope(scope: 'all' | 'general' | 'fabric') {
+    if (scope === receptionScope.value) return;
+    router.visit(scope === 'all' ? '/kardex-telas/recepcion' : `/kardex-telas/recepcion?scope=${scope}`);
+}
+
 const invoiceListHref = computed(() => (isTelasList.value ? '/gastos/facturas-compra-tela' : '/gastos/facturas-compra'));
 const invoiceListTitle = computed(() => (isTelasList.value ? 'Facturas de compra de telas' : 'Facturas de compra'));
+/** Lista de recepción de la misma vista (todas, generales o telas) en la que se está. */
+const receptionListHref = computed(() => (receptionScope.value === 'all' ? '/kardex-telas/recepcion' : `/kardex-telas/recepcion?scope=${receptionScope.value}`));
 const breadcrumbs = computed(() => [
     { title: invoiceListTitle.value, href: invoiceListHref.value },
-    { title: 'Recepción', href: '/kardex-telas/recepcion' },
+    { title: 'Recepción', href: receptionListHref.value },
 ]);
 
 const invoices = ref<PurchaseInvoice[]>([]);
@@ -243,37 +257,8 @@ function viewInvoice(invoice: PurchaseInvoice) {
 
 function goBackToList() {
     selectedInvoice.value = null;
-    if (returnToUrl.value) {
-        router.visit(returnToUrl.value);
-        return;
-    }
-    // Si vino por URL específica, navegar de vuelta
-    if (specificInvoiceId.value) {
-        router.visit('/kardex-telas/recepcion');
-        return;
-    }
-    // Priorizar redirección a Facturas si la página de origen fue Facturas
-    const referrer = typeof document !== 'undefined' ? document.referrer : '';
-    if (referrer) {
-        try {
-            const refUrl = new URL(referrer);
-            const refPath = refUrl.pathname || '';
-            // Ajusta las rutas según la aplicación: buscar patrones relacionados con facturas
-            if (refPath.includes('/gastos/facturas') || refPath.includes('/facturas') || refPath.includes('/gastos/facturas-compra')) {
-                router.visit('/gastos/facturas');
-                return;
-            }
-        } catch {
-            // si falla el parseo, continuar con la lógica por defecto
-        }
-    }
-
-    // Si hay historial previo, volver al anterior; si no, ir a Kardex Telas
-    if (typeof window !== 'undefined' && window.history.length > 1) {
-        window.history.back();
-    } else {
-        router.visit('/kardex-telas');
-    }
+    // Vuelve a donde se entró (lista de facturas de origen) o, si no hay origen, a la lista de recepción de la misma vista.
+    router.visit(returnToUrl.value || receptionListHref.value);
 }
 
 async function approveReception(invoice: PurchaseInvoice) {
@@ -287,7 +272,7 @@ async function approveReception(invoice: PurchaseInvoice) {
                 await fetchSpecificInvoice(invoice.id);
             }
         }
-        setAlert(`Recepción de factura #${invoice.id} aprobada. La factura queda en estado Aprobado.`, 'success');
+        setAlert(`Recepción de factura #${invoice.id} aprobada. La factura queda Recepcionada.`, 'success');
     } catch (e: any) {
         console.log('Error al aprobar recepción:', e);
         const errors = e?.response?.data?.errors;
@@ -337,14 +322,14 @@ function showRejectDialog(invoice: PurchaseInvoice) {
     isRejectDialogOpen.value = true;
 }
 
-async function confirmRejectReception() {
+async function confirmRejectReception(reason: string) {
     const invoice = invoiceToReject.value;
     if (!invoice) {
         isRejectDialogOpen.value = false;
         return;
     }
     try {
-        await axios.patch(`/kardex-telas/recepcion/${invoice.id}/rechazar`);
+        await axios.patch(`/kardex-telas/recepcion/${invoice.id}/rechazar`, { rejection_reason: reason });
         if (showInvoicesList.value) {
             await fetchInvoices(currentPage.value, searchQuery.value);
         } else {
@@ -446,9 +431,9 @@ function getStatusText(status: string) {
             return 'Pendiente de recepción';
         case 'approved':
         case 'received':
-            return 'Aprobado';
+            return 'Recepcionada';
         case 'rejected':
-            return 'Rechazado';
+            return 'Rechazada';
         case 'difference_rejected':
             return 'Diferencia rechazada';
         default:
@@ -552,11 +537,14 @@ function isInvoiceReceptionApproved(invoice: PurchaseInvoice | null | undefined)
     if (!invoice) return false;
     if (isDifferenceRejectedInvoice(invoice)) return true;
     const s = String(invoice.status ?? '').toLowerCase();
-    return s === 'approved' || s === 'received';
+    // Recepcionada o rechazada: la recepción está cerrada (solo se consulta).
+    return s === 'approved' || s === 'received' || s === 'rejected';
 }
 
 const canAddRollsAfterApproval = computed(() => {
     const permissions = (usePage<PageProps>().props.auth as { permissions?: string[] } | undefined)?.permissions ?? [];
+    // Una recepción rechazada no admite más rollos, ni siquiera con permiso de ajuste.
+    if (String(selectedInvoice.value?.status ?? '').toLowerCase() === 'rejected') return false;
     return permissions.includes('ajustar telas rollos');
 });
 
@@ -945,9 +933,21 @@ function onFabricRollSuccess() {
                         {{ showInvoiceDetail ? `Recepción - Factura N° ${selectedInvoice?.document_number || selectedInvoice?.id}` : 'Recepción' }}
                     </h1>
                 </div>
-                <div class="text-xs text-muted-foreground">
-                    {{ showInvoiceDetail ? 'Revisión y aprobación de factura' : 'Gestión de recepciones de facturas' }}
+                <div v-if="showInvoicesList" class="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-1" role="tablist" aria-label="Tipo de recepción">
+                    <button
+                        v-for="option in scopeOptions"
+                        :key="option.value"
+                        type="button"
+                        role="tab"
+                        :aria-selected="receptionScope === option.value"
+                        class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
+                        :class="receptionScope === option.value ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                        @click="changeScope(option.value)"
+                    >
+                        {{ option.label }}
+                    </button>
                 </div>
+                <div v-else class="text-xs text-muted-foreground">Revisión y aprobación de factura</div>
             </div>
 
             <!-- Vista de lista de facturas -->
@@ -974,8 +974,8 @@ function onFabricRollSuccess() {
                             :options="[
                                 { id: 'all', name: 'Todos los estados' },
                                 { id: 'pending', name: 'Pendiente' },
-                                { id: 'approved', name: 'Aprobado' },
-                                { id: 'rejected', name: 'Rechazado' },
+                                { id: 'approved', name: 'Recepcionada' },
+                                { id: 'rejected', name: 'Rechazada' },
                             ]"
                             :button-class="statusButtonClasses"
                         />
@@ -1369,71 +1369,80 @@ function onFabricRollSuccess() {
                                     Esta factura no tiene ítems de tela.
                                 </div>
 
-                                <!-- Un bloque por cada ítem de tela -->
+                                <!-- Un bloque por cada tela: avance de recepción, rollos y acción para registrar -->
                                 <template v-else>
                                     <div
                                         v-for="item in (selectedInvoice.items || []).filter((i: any) => isFabricItem(i))"
                                         :key="item.id"
                                         class="overflow-hidden rounded-xl border border-border bg-card"
                                     >
-                                        <!-- Cabecera del ítem -->
-                                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/40 px-4 py-2.5">
-                                            <div class="flex items-center gap-2">
-                                                <Layers class="h-4 w-4 shrink-0 text-muted-foreground" />
-                                                <span class="text-sm font-semibold">{{ item.item?.name || 'Tela sin nombre' }}</span>
-                                                <span v-if="item.supplier_code" class="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                                                    {{ item.supplier_code }}
-                                                </span>
+                                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+                                            <div class="min-w-0">
+                                                <p class="truncate text-sm font-semibold">{{ item.item?.name || 'Tela sin nombre' }}</p>
+                                                <p class="text-[11px] text-muted-foreground">{{ itemSubtitle(item) }}</p>
                                             </div>
-                                            <!-- Badge de cobertura -->
-                                            <span
-                                                v-if="item.id != null"
-                                                :class="['rounded-full px-2.5 py-1 text-xs font-semibold', rollCoverageBadge(Number(item.quantity), rollsTotalFor(item)).cls]"
-                                            >
-                                                {{
-                                                    rollCoverageBadge(Number(item.quantity), rollsTotalFor(item)).label
-                                                }}
-                                            </span>
+                                            <div class="flex items-center gap-3">
+                                                <div v-if="item.id != null" class="w-44">
+                                                    <div class="mb-1 flex justify-between text-[11px] text-muted-foreground">
+                                                        <span>Recibido</span>
+                                                        <span class="tabular-nums">
+                                                            {{ rollsTotalFor(item).toFixed(2) }} / {{ Number(item.quantity).toFixed(2) }} mts
+                                                        </span>
+                                                    </div>
+                                                    <div class="h-1.5 overflow-hidden rounded-full bg-muted">
+                                                        <div
+                                                            class="h-full rounded-full bg-primary transition-all"
+                                                            :style="{ width: `${Math.min(100, Number(item.quantity) > 0 ? (rollsTotalFor(item) / Number(item.quantity)) * 100 : 0)}%` }"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <span
+                                                    v-if="item.id != null"
+                                                    :class="[
+                                                        'rounded-full px-2.5 py-1 text-xs font-semibold',
+                                                        rollCoverageBadge(Number(item.quantity), rollsTotalFor(item)).cls,
+                                                    ]"
+                                                >
+                                                    {{ Math.round(Number(item.quantity) > 0 ? (rollsTotalFor(item) / Number(item.quantity)) * 100 : 0) }}%
+                                                </span>
+                                                <Button variant="outline" size="sm" class="h-8 gap-1.5 text-xs" @click="openFabricRollDialog(item)">
+                                                    <Package2 class="h-3.5 w-3.5" />
+                                                    {{ isInvoiceReceptionApproved(selectedInvoice) ? 'Ver rollos' : 'Registrar rollos' }}
+                                                </Button>
+                                            </div>
                                         </div>
 
-                                        <!-- Lista de rollos -->
-                                        <div v-if="item.id != null && (rollsByItemId[item.id] ?? []).length > 0">
+                                        <div v-if="item.id != null && (rollsByItemId[item.id] ?? []).length > 0" class="overflow-x-auto">
                                             <Table>
                                                 <TableHeader>
                                                     <TableRow class="text-[11px] text-muted-foreground">
-                                                        <TableHead class="py-1.5 pl-4">N° Rollo</TableHead>
-                                                        <TableHead class="py-1.5">Longitud (mts)</TableHead>
-                                                        <TableHead class="py-1.5">Ancho (m)</TableHead>
+                                                        <TableHead class="py-1.5 pl-4">N° rollo</TableHead>
+                                                        <TableHead class="py-1.5 text-right">Longitud (mts)</TableHead>
+                                                        <TableHead class="py-1.5 text-right">Ancho (cm)</TableHead>
                                                         <TableHead class="py-1.5">Ubicación</TableHead>
-                                                        <TableHead class="py-1.5">Fecha entrada</TableHead>
+                                                        <TableHead class="py-1.5">Fecha de entrada</TableHead>
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
-                                                    <TableRow
-                                                        v-for="roll in rollsByItemId[item.id]"
-                                                        :key="roll.id"
-                                                        class="text-xs hover:bg-muted/30"
-                                                    >
+                                                    <TableRow v-for="roll in rollsByItemId[item.id]" :key="roll.id" class="text-xs hover:bg-muted/30">
                                                         <TableCell class="py-1.5 pl-4 font-mono font-medium">{{ roll.roll_number }}</TableCell>
-                                                        <TableCell class="py-1.5">{{ Number(roll.quantity).toFixed(2) }}</TableCell>
-                                                        <TableCell class="py-1.5">{{ Number(roll.roll_width).toFixed(2) }}</TableCell>
-                                                        <TableCell class="py-1.5">
-                                                            <span class="rounded bg-muted px-1.5 py-0.5 text-[10px]">
-                                                                {{ roll.location || '-' }}
-                                                            </span>
-                                                        </TableCell>
+                                                        <TableCell class="py-1.5 text-right tabular-nums">{{ Number(roll.quantity).toFixed(2) }}</TableCell>
+                                                        <TableCell class="py-1.5 text-right tabular-nums">{{ Number(roll.roll_width).toFixed(2) }}</TableCell>
+                                                        <TableCell class="py-1.5">{{ roll.location || '-' }}</TableCell>
                                                         <TableCell class="py-1.5 text-muted-foreground">{{ roll.entry_date || '-' }}</TableCell>
+                                                    </TableRow>
+                                                    <TableRow class="bg-muted/30 text-xs font-semibold hover:bg-muted/30">
+                                                        <TableCell class="py-1.5 pl-4">Total</TableCell>
+                                                        <TableCell class="py-1.5 text-right tabular-nums">{{ rollsTotalFor(item).toFixed(2) }}</TableCell>
+                                                        <TableCell colspan="3" />
                                                     </TableRow>
                                                 </TableBody>
                                             </Table>
                                         </div>
 
-                                        <!-- Sin rollos aún -->
-                                        <div v-else class="flex items-center gap-2 px-4 py-3 text-xs text-muted-foreground">
+                                        <div v-else class="flex items-center gap-2 px-4 py-4 text-xs text-muted-foreground">
                                             <AlertTriangle class="h-3.5 w-3.5 shrink-0 text-amber-500" />
-                                            Sin rollos registrados — usa el botón
-                                            <Package2 class="inline h-3.5 w-3.5 text-primary" />
-                                            en la pestaña Ítems para registrar.
+                                            Aún no hay rollos registrados para esta tela.
                                         </div>
                                     </div>
                                 </template>
@@ -1563,7 +1572,7 @@ function onFabricRollSuccess() {
                             </Button>
                         </template>
                         <p v-if="isInvoicePendingReceipt(selectedInvoice)" class="order-first mr-auto max-w-md text-left text-xs text-muted-foreground">
-                            Al aprobar la recepción la factura pasará a estado <strong>Aprobado</strong>; al rechazarla, a <strong>Rechazado</strong>.
+                            Al aprobar la recepción la factura pasará a estado <strong>Recepcionada</strong>; al rechazarla, a <strong>Rechazada</strong> (el motivo es obligatorio y no se podrán registrar más rollos).
                         </p>
                         <div v-else class="flex flex-col items-end gap-1 text-right">
                             <div class="flex items-center gap-2 text-sm text-muted-foreground">
@@ -1593,32 +1602,19 @@ function onFabricRollSuccess() {
                 @confirm="reportDifference"
             />
 
-            <!-- Diálogo de confirmación para rechazar recepción -->
-            <Dialog v-model:open="isRejectDialogOpen">
-                <DialogContent class="sm:max-w-[440px] p-6">
-                    <div class="flex items-start pr-8">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10 text-destructive mt-1 mr-4 shrink-0">
-                            <AlertTriangle class="h-5 w-5" />
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <DialogHeader class="p-0 text-left">
-                                <DialogTitle class="text-base font-semibold">Rechazar recepción</DialogTitle>
-                            </DialogHeader>
-                            <DialogDescription class="mt-1 text-sm text-muted-foreground">
-                                Esta acción marcará la recepción como rechazada y no se podrá deshacer fácilmente.
-                            </DialogDescription>
-                        </div>
-                    </div>
-                    <DialogFooter class="mt-6 gap-2 sm:justify-end">
-                        <DialogClose as-child>
-                            <Button variant="outline" class="rounded-full px-4 py-2">Cancelar</Button>
-                        </DialogClose>
-                        <Button variant="destructive" class="rounded-full px-4 py-2 flex items-center gap-2" @click="confirmRejectReception">
-                            <X class="h-4 w-4" /> Rechazar
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <!-- Rechazar recepción: el motivo es obligatorio y queda registrado con usuario y fecha -->
+            <ConfirmWithInputDialog
+                v-model:open="isRejectDialogOpen"
+                title="Rechazar recepción"
+                description="La recepción quedará rechazada y no se podrán registrar más rollos ni aprobarla. Queda registrado quién la rechazó, cuándo y el motivo."
+                input-label="Motivo del rechazo"
+                input-placeholder="Ej: la mercancía llegó dañada"
+                confirm-text="Rechazar recepción"
+                cancel-text="Cancelar"
+                :destructive="true"
+                :input-required="true"
+                @confirm="confirmRejectReception"
+            />
 
             <!-- Diálogo de confirmación para cerrar factura general con saldo pendiente -->
             <Dialog v-model:open="isClosePendingConfirmOpen">
