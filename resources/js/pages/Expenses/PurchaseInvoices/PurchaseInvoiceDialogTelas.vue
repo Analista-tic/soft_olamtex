@@ -21,6 +21,7 @@ import { useContactsCatalog } from '@/composables/useContactsCatalog';
 import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import type { PurchaseInvoice } from '@/domain/Expenses';
 import { usePurchaseInvoiceTotals } from '@/composables/usePurchaseInvoiceTotals';
+import { usePurchaseOrderDifference } from '@/composables/usePurchaseOrderDifference';
 import type { Contact } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
@@ -77,26 +78,7 @@ const { isBootstrapping, isHydrating, isBlockingLoading, canRenderForm, startLoa
     useDialogLoadingState(dialogOpen);
 
 const { subtotal, iva, total, totalPagar, getWithholdingAmount } = usePurchaseInvoiceTotals(localForm);
-const amountDifference = computed(() => (orderTotal.value != null ? Number(total.value) - orderTotal.value : 0));
-
-const hasModifiedPriceOrQuantity = computed(() => {
-    const items = Array.isArray(localForm.value.items) ? localForm.value.items : [];
-    return items.some((item: any) => {
-        const original = item.original_order_item;
-        if (!original) return false;
-        const suggestedPrice = Number(original.price);
-        const orderQuantity = Number(original.quantity);
-        const alreadyInvoiced = Number(original.already_invoiced_qty ?? 0);
-        const suggestedQuantity = alreadyInvoiced > 0 ? Math.max(0, orderQuantity - alreadyInvoiced) : orderQuantity;
-        const priceChanged = !Number.isNaN(suggestedPrice) && Number(item.price) !== suggestedPrice;
-        const quantityChanged = !Number.isNaN(suggestedQuantity) && Number(item.quantity) !== suggestedQuantity;
-        return priceChanged || quantityChanged;
-    });
-});
-
-const hasDifference = computed(() => {
-    return orderTotal.value != null && Math.abs(amountDifference.value) > 0.01 && hasModifiedPriceOrQuantity.value;
-});
+const { hasDifference } = usePurchaseOrderDifference(localForm, orderTotal, total);
 
 const selectedContactData = computed(() => contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id)) || null);
 const contactIdNumber = computed(() => selectedContactData.value?.id_number || '');

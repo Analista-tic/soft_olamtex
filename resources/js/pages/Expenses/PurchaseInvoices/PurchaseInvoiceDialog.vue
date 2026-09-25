@@ -18,8 +18,9 @@ import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
-import type { PurchaseInvoice, PurchaseInvoiceItem } from '@/domain/Expenses';
+import type { PurchaseInvoice } from '@/domain/Expenses';
 import { usePurchaseInvoiceTotals } from '@/composables/usePurchaseInvoiceTotals';
+import { usePurchaseOrderDifference } from '@/composables/usePurchaseOrderDifference';
 import type { Contact } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
@@ -86,44 +87,7 @@ const { isBootstrapping, isHydrating, isBlockingLoading, canRenderForm, startLoa
     useDialogLoadingState(dialogOpen);
 
 const { subtotal, iva, total, totalPagar, getWithholdingAmount } = usePurchaseInvoiceTotals(localForm);
-const amountDifference = computed(() => (orderTotal.value != null ? Number(total.value) - orderTotal.value : 0));
-
-function getSuggestedPriceForItem(item: PurchaseInvoiceItem): number | null {
-    const original = item.original_order_item;
-    if (!original) {
-        return null;
-    }
-    const price = Number(original.price);
-    return Number.isNaN(price) ? null : price;
-}
-
-function getSuggestedQuantityForItem(item: PurchaseInvoiceItem): number | null {
-    const original = item.original_order_item;
-    if (!original) {
-        return null;
-    }
-    const quantity = Number(original.quantity);
-    if (Number.isNaN(quantity)) {
-        return null;
-    }
-    const alreadyInvoiced = Number(original.already_invoiced_qty ?? 0);
-    return alreadyInvoiced > 0 ? Math.max(0, quantity - alreadyInvoiced) : quantity;
-}
-
-const hasModifiedPriceOrQuantity = computed(() => {
-    const items: PurchaseInvoiceItem[] = Array.isArray(localForm.value.items) ? localForm.value.items : [];
-    return items.some((item) => {
-        const suggestedPrice = getSuggestedPriceForItem(item);
-        const suggestedQuantity = getSuggestedQuantityForItem(item);
-        const priceChanged = suggestedPrice !== null && Number(item.price) !== suggestedPrice;
-        const quantityChanged = suggestedQuantity !== null && Number(item.quantity) !== suggestedQuantity;
-        return priceChanged || quantityChanged;
-    });
-});
-
-const hasDifference = computed(() => {
-    return orderTotal.value != null && Math.abs(amountDifference.value) > 0.01 && hasModifiedPriceOrQuantity.value;
-});
+const { hasDifference } = usePurchaseOrderDifference(localForm, orderTotal, total);
 
 const selectedContactData = computed(() => contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id)) || null);
 const contactIdNumber = computed(() => selectedContactData.value?.id_number || '');
