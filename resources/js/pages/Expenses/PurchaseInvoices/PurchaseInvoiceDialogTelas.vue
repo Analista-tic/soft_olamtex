@@ -71,6 +71,7 @@ const savedInvoiceId = ref<number | null>(null);
 const invoiceItemsTableRef = ref<{ addItem: () => void } | null>(null);
 const invoiceDate = ref<Date | null>(null);
 const deliveryDate = ref<Date | null>(null);
+const relatedOrder = ref<any | null>(null);
 const { isBootstrapping, isHydrating, isBlockingLoading, canRenderForm, startLoadingRun, isCurrentLoadingRun, cancelLoadingRun } =
     useDialogLoadingState(dialogOpen);
 
@@ -151,6 +152,8 @@ function createDefaultForm(): PurchaseInvoiceWithProviderName {
         delivery_date: '',
         supplier_invoice_number: '',
         description: '',
+        reason: '',
+        evidence_path: '',
         items: [],
         id: undefined,
         purchase_order_id: null,
@@ -191,6 +194,7 @@ function syncDateRefsFromForm() {
 }
 
 function resetForm() {
+    savedInvoiceId.value = null;
     fieldErrors.value = { contactId: false, invoiceDate: false, deliveryDate: false, supplierInvoiceNumber: false };
     if (props.form && Object.keys(props.form).length > 0) {
         const formCopy = JSON.parse(JSON.stringify(props.form));
@@ -222,6 +226,19 @@ function resetForm() {
         selectedPurchaseOrderId.value = pid != null ? Number(pid) : null;
     }
     originalFormSnapshot.value = stableStringify(localForm.value);
+    const relatedOrderId = localForm.value.parent_document_id ?? localForm.value.purchase_order_id ?? null;
+    if (relatedOrderId && props.readOnly) {
+        void fetchRelatedOrder(Number(relatedOrderId));
+    }
+}
+
+async function fetchRelatedOrder(orderId: number) {
+    try {
+        const { data } = await axios.get(`/gastos/ordenes-compra/${orderId}`);
+        relatedOrder.value = data?.data ?? null;
+    } catch {
+        relatedOrder.value = null;
+    }
 }
 
 async function initializeDialog() {
@@ -303,18 +320,7 @@ async function fetchPendingPurchaseOrders() {
         const { data } = await axios.get('/gastos/ordenes-compra/data', {
             params: { status: 'approved,partially_invoiced', per_page: 1000, fabric_only: true },
         });
-        let orders = Array.isArray(data.data) ? data.data : [];
-
-        // Obtener todas las facturas existentes para tela
-        const invoicesRes = await axios.get('/gastos/facturas-compra-tela/data', {
-            params: { per_page: 1000 },
-        });
-        const invoices = Array.isArray(invoicesRes.data.data) ? invoicesRes.data.data : [];
-        const orderIdsWithInvoice = new Set(invoices.map((inv: { parent_document_id?: number }) => inv.parent_document_id).filter(Boolean));
-
-        // Filtrar órdenes que NO tengan factura asociada
-        orders = orders.filter((order: any) => !orderIdsWithInvoice.has(order.id));
-        purchaseOrders.value = orders;
+        purchaseOrders.value = Array.isArray(data.data) ? data.data : [];
     } catch {
         purchaseOrders.value = [];
     }
@@ -343,7 +349,7 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
         localForm.value.contact_id = null;
     }
     localForm.value.supplier_invoice_number = '';
-    localForm.value.date = normalizeIsoDate(order.date, toIsoDateString(new Date()));
+    // La fecha de la factura se mantiene (fecha actual); no se copia la de la orden.
     localForm.value.delivery_date = normalizeIsoDate(order.delivery_date, '');
     localForm.value.description = order.description || '';
     localForm.value.items = Array.isArray(order.items)
@@ -676,7 +682,7 @@ watch(dialogOpen, (isOpen) => {
             :scrollable="false"
         >
             <TooltipProvider>
-                <div class="relative flex min-h-0 flex-1 flex-col">
+                <div class="relative flex min-h-0 min-w-0 flex-1 flex-col">
                     <AlertStack
                         :success-message="successMessage"
                         :error-message="errorMessage"
@@ -724,7 +730,39 @@ watch(dialogOpen, (isOpen) => {
                             </div>
                         </div>
                     </FormDialogHeader>
-                    <FormDialogBody class="relative px-4 pr-2" :class="{ 'min-h-[420px]': isBlockingLoading }" style="scrollbar-width: thin">
+
+                    <!-- Banner de estado de aprobación de diferencia -->
+                    <div
+                        v-if="localForm.approval_status === 'pending_difference_approval'"
+                        class="mx-4 flex items-center gap-3 rounded-lg bg-yellow-50 px-4 py-3 text-sm text-yellow-800"
+                    >
+                        <span class="text-lg">⏳</span>
+                        <div>
+                            <p class="font-semibold">Diferencia pendiente de aprobación</p>
+                            <p class="text-xs text-yellow-700">
+                                Esta factura tiene una diferencia registrada que requiere aprobación por un usuario autorizado.
+                            </p>
+                        </div>
+                    </div>
+                    <div
+                        v-else-if="localForm.approval_status === 'difference_rejected'"
+                        class="mx-4 flex items-center gap-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800"
+                    >
+                        <span class="text-lg">✗</span>
+                        <div>
+                            <p class="font-semibold">Diferencia rechazada</p>
+                            <p class="text-xs text-red-700">
+                                Rechazado por
+                                <strong>{{ localForm.approved_by?.name ?? 'Usuario' }}</strong>
+                                <template v-if="localForm.approved_at">
+                                    el {{ new Date(localForm.approved_at).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' }) }}
+                                </template>
+                                <template v-if="localForm.approval_notes"> — {{ localForm.approval_notes }} </template>
+                            </p>
+                        </div>
+                    </div>
+
+                    <FormDialogBody class="relative min-w-0 overflow-x-hidden px-4 pr-2" :class="{ 'min-h-[420px]': isBlockingLoading }" style="scrollbar-width: thin">
                         <FormLoadingOverlay
                             :active="isBlockingLoading"
                             :delay-ms="0"
@@ -733,17 +771,48 @@ watch(dialogOpen, (isOpen) => {
                         />
                         <div
                             v-if="canRenderForm"
-                            :class="{ 'pointer-events-none opacity-50': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly }"
-                            class="space-y-6 pb-4"
+                            :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingInvoiceId }"
+                            class="min-w-0 space-y-6 pb-4"
                         >
-                            <fieldset v-if="canRenderForm" class="space-y-6">
-                                <div class="space-y-4 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
+                            <fieldset v-if="canRenderForm" class="min-w-0 space-y-6">
+                                <div class="min-w-0 space-y-4">
                                     <!-- Trazabilidad de fechas -->
                                     <InvoiceTraceability
                                         v-if="dialogType === 'edit'"
                                         base-url="/gastos/facturas-compra-tela"
                                         :invoice-id="localForm.id ? Number(localForm.id) : null"
                                     />
+
+                                    <!-- Orden relacionada (solo lectura) -->
+                                    <div v-if="isReadOnly && relatedOrder" class="rounded-lg bg-muted/30 p-4">
+                                        <h3 class="mb-3 text-sm font-medium text-foreground">Orden relacionada: {{ relatedOrder.document_number }}</h3>
+                                        <div class="grid grid-cols-2 gap-3 text-sm">
+                                            <div>
+                                                <span class="text-muted-foreground">Proveedor:</span>
+                                                <span class="ml-2 text-foreground">
+                                                    {{ relatedOrder.provider_name || relatedOrder.supplier?.full_name || 'No especificado' }}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span class="text-muted-foreground">Fecha:</span>
+                                                <span class="ml-2 text-foreground">
+                                                    {{
+                                                        relatedOrder.date
+                                                            ? new Date(relatedOrder.date).toLocaleDateString('es-CO', {
+                                                                  day: '2-digit',
+                                                                  month: '2-digit',
+                                                                  year: 'numeric',
+                                                              })
+                                                            : 'No especificada'
+                                                    }}
+                                                </span>
+                                            </div>
+                                            <div class="col-span-2">
+                                                <span class="text-muted-foreground">Descripción:</span>
+                                                <span class="ml-2 text-foreground">{{ relatedOrder.description || 'Sin descripción' }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
 
                                     <!-- Cabecera -->
                                     <div class="grid grid-cols-3 items-start gap-4">
@@ -881,7 +950,7 @@ watch(dialogOpen, (isOpen) => {
                                         />
                                     </InventoryDetailTableLayout>
                                     <div class="space-y-4 pt-6">
-                                        <div class="rounded border border-sidebar-border/70 bg-card p-3 text-card-foreground">
+                                        <div>
                                             <PurchaseInvoiceWithholdingsTable
                                                 :modelValue="localForm.withholdings || []"
                                                 @update:modelValue="(val) => (localForm.withholdings = val)"
@@ -891,7 +960,7 @@ watch(dialogOpen, (isOpen) => {
                                             />
                                         </div>
                                         <div class="flex w-full flex-col items-end space-y-0 text-sm">
-                                            <div class="w-full max-w-xs space-y-1 rounded bg-card p-2 text-card-foreground shadow-sm">
+                                            <div class="w-full max-w-xs space-y-1 rounded bg-muted/30 p-3 text-card-foreground">
                                                 <div class="flex items-center justify-between">
                                                     <span class="font-semibold text-card-foreground/70">Subtotal</span>
                                                     <span>{{
@@ -954,8 +1023,15 @@ watch(dialogOpen, (isOpen) => {
                                             </div>
                                         </div>
                                     </div>
-                                    <div>
-                                        <TextareaField data-no-uppercase v-model="localForm.description" label="Observación" :disabled="isReadOnly" />
+                                    <div class="flex flex-col gap-1">
+                                        <label class="text-sm font-medium">Observación</label>
+                                        <TextareaField
+                                            v-model="localForm.description"
+                                            data-no-uppercase
+                                            label=""
+                                            placeholder="Agrega aquí observaciones adicionales para la factura de compra"
+                                            :readonly="isReadOnly"
+                                        />
                                     </div>
                                 </div>
                             </fieldset>

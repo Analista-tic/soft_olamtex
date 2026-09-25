@@ -114,7 +114,7 @@ const totalColumns = computed(() => {
 });
 
 const tableClasses = computed(() => [
-    props.telaMode === true ? 'min-w-[1600px] table-auto' : 'min-w-full table-fixed',
+    props.telaMode === true ? 'w-full table-auto' : 'min-w-full table-fixed',
     'border-separate border-spacing-x-2 border-spacing-y-1 text-center',
 ]);
 
@@ -527,34 +527,34 @@ defineExpose({ addItem });
 
 <template>
     <div class="w-full">
-        <div class="overflow-x-auto rounded-lg border border-border">
+        <div class="overflow-x-auto">
             <Table :class="tableClasses">
                 <TableHeader>
                     <TableRow class="border-b border-border/60">
-                        <TableHead :class="[props.telaMode === true ? 'min-w-[220px]' : 'min-w-[150px]', 'text-left']"
+                        <TableHead :class="[props.telaMode === true ? 'min-w-[170px]' : 'min-w-[150px]', 'text-left']"
                             >Ítem <span class="text-red-600">*</span></TableHead
                         >
-                        <TableHead :class="[props.telaMode === true ? 'min-w-[150px]' : 'min-w-[120px]', 'text-left']"
+                        <TableHead :class="[props.telaMode === true ? 'min-w-[110px]' : 'min-w-[120px]', 'text-left']"
                             >Precio SIN Impuesto <span class="text-red-600">*</span></TableHead
                         >
-                        <TableHead :class="[props.telaMode === true ? 'min-w-[170px]' : 'min-w-[160px]', 'text-left']">Impuesto (%)</TableHead>
+                        <TableHead :class="[props.telaMode === true ? 'min-w-[110px]' : 'min-w-[160px]', 'text-left']">Impuesto (%)</TableHead>
                         <TableHead class="min-w-[140px] text-left"
                             >{{ props.telaMode ? 'Longitud (mts)' : 'Cantidad' }} <span class="text-red-600">*</span></TableHead
                         >
                         <TableHead v-if="!props.telaMode" class="min-w-[160px] text-left">Descripción</TableHead>
-                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
+                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[110px] text-left"
                             ><span class="inline-flex items-center gap-1"
                                 >Código proveedor <span class="text-red-600">*</span
                                 ><HelpTooltip
                                     text="Referencia interna del proveedor para identificar esta tela en su catálogo. Aparece en la factura del proveedor." /></span
                         ></TableHead>
-                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
+                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[110px] text-left"
                             ><span class="inline-flex items-center gap-1"
                                 >Color proveedor <span class="text-red-600">*</span
                                 ><HelpTooltip
                                     text="Nombre o código del color según el proveedor. Puede diferir del nombre interno del sistema." /></span
                         ></TableHead>
-                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
+                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[110px] text-left"
                             ><span class="inline-flex items-center gap-1"
                                 >Ancho pedido <span class="text-red-600">*</span
                                 ><HelpTooltip text="Ancho de la tela en centímetros según lo pactado en la orden de compra." /></span
@@ -567,7 +567,7 @@ defineExpose({ addItem });
                 <TableBody>
                     <TableRow v-for="(item, idx) in localItems" :key="idx" class="items-start">
                         <!-- Item -->
-                        <TableCell :class="[props.telaMode === true ? 'min-w-[220px]' : 'min-w-[150px]', 'p-1 text-left align-top']">
+                        <TableCell :class="[props.telaMode === true ? 'min-w-[170px]' : 'min-w-[150px]', 'p-1 text-left align-top']">
                             <div class="flex flex-col">
                                 <SelectField
                                     v-model="item.item_id"
@@ -585,7 +585,7 @@ defineExpose({ addItem });
                             </div>
                         </TableCell>
                         <!-- Precio -->
-                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '150px' : '120px' }">
+                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '110px' : '120px' }">
                             <div class="flex flex-col">
                                 <div class="relative">
                                     <InputField
@@ -630,7 +630,7 @@ defineExpose({ addItem });
                             </div>
                         </TableCell>
                         <!-- Impuesto -->
-                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '170px' : '160px' }">
+                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '110px' : '160px' }">
                             <div class="flex flex-col">
                                 <SelectField
                                     v-model="item.tax"
@@ -709,7 +709,7 @@ defineExpose({ addItem });
                             </div>
                         </TableCell>
                         <!-- Código proveedor -->
-                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left align-top" style="width: 160px">
+                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '110px' : '160px' }">
                             <div class="flex flex-col">
                                 <InputField
                                     v-model="item.supplier_code"
@@ -723,7 +723,7 @@ defineExpose({ addItem });
                             </div>
                         </TableCell>
                         <!-- Color proveedor -->
-                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left align-top" style="width: 160px">
+                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '110px' : '160px' }">
                             <div class="flex flex-col">
                                 <InputField
                                     v-model="item.supplier_color"
@@ -737,7 +737,7 @@ defineExpose({ addItem });
                             </div>
                         </TableCell>
                         <!-- Ancho pedido -->
-                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left align-top" style="width: 160px">
+                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '110px' : '160px' }">
                             <div class="flex flex-col">
                                 <InputField
                                     v-model="item.order_width"
@@ -754,7 +754,7 @@ defineExpose({ addItem });
                             </div>
                         </TableCell>
                         <!-- Total -->
-                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '120px' : '90px' }">
+                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '100px' : '90px' }">
                             <div class="flex flex-col">
                                 <div class="flex h-10 items-center text-sm font-medium">
                                     {{

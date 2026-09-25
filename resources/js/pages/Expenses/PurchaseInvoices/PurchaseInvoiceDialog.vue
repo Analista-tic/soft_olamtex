@@ -108,7 +108,11 @@ function getSuggestedQuantityForItem(item: PurchaseInvoiceItem): number | null {
         return null;
     }
     const quantity = Number(original.quantity);
-    return Number.isNaN(quantity) ? null : quantity;
+    if (Number.isNaN(quantity)) {
+        return null;
+    }
+    const alreadyInvoiced = Number(original.already_invoiced_qty ?? 0);
+    return alreadyInvoiced > 0 ? Math.max(0, quantity - alreadyInvoiced) : quantity;
 }
 
 const hasModifiedPriceOrQuantity = computed(() => {
@@ -407,7 +411,15 @@ async function fetchPendingPurchaseOrders() {
 }
 
 async function loadPurchaseOrderToInvoice(orderId: number) {
-    const order = purchaseOrders.value.find((o) => Number(o.id) === Number(orderId));
+    const listedOrder = purchaseOrders.value.find((o) => Number(o.id) === Number(orderId));
+    let order: any = listedOrder;
+    try {
+        // La orden completa trae lo ya facturado por ítem (facturas parciales).
+        const { data } = await axios.get(`/gastos/ordenes-compra/${orderId}`);
+        order = data?.data ?? listedOrder;
+    } catch {
+        order = listedOrder;
+    }
     if (!order) return;
     if (!contacts.value.length) await fetchContacts();
     const foundContact = contacts.value.find((c) => Number(c.id) === Number(order.contact_id));
@@ -430,7 +442,10 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
               item_id: item.item_id,
               price: item.price || '',
               tax: item.tax || 0,
-              quantity: item.quantity || '',
+              quantity: (() => {
+                  const pending = Math.max(0, Number(item.quantity || 0) - Number(item.already_invoiced_qty ?? 0));
+                  return pending > 0 ? pending : item.quantity || '';
+              })(),
               description: item.description || '',
               total: item.total || 0,
               total_tax: item.total_tax || 0,
@@ -792,7 +807,7 @@ watch(dialogOpen, (isOpen) => {
                 <!-- Banner de estado de aprobación de diferencia -->
                 <div
                     v-if="localForm.approval_status === 'pending_difference_approval'"
-                    class="mx-4 flex items-center gap-3 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800"
+                    class="mx-4 flex items-center gap-3 rounded-lg bg-yellow-50 px-4 py-3 text-sm text-yellow-800"
                 >
                     <span class="text-lg">⏳</span>
                     <div>
@@ -804,7 +819,7 @@ watch(dialogOpen, (isOpen) => {
                 </div>
                 <div
                     v-else-if="localForm.approval_status === 'difference_rejected'"
-                    class="mx-4 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                    class="mx-4 flex items-center gap-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800"
                 >
                     <span class="text-lg">✗</span>
                     <div>
@@ -829,12 +844,12 @@ watch(dialogOpen, (isOpen) => {
                     />
                     <div :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingInvoiceId }" class="space-y-6 pb-4">
                         <template v-if="canRenderForm">
-                            <div class="space-y-4 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
+                            <div class="min-w-0 space-y-4">
                                 <!-- Trazabilidad de fechas -->
                                 <InvoiceTraceability v-if="dialogType === 'edit'" :invoice-id="localForm.id ? Number(localForm.id) : null" />
 
                 <!-- Orden relacionada (solo lectura) -->
-                                <div v-if="isReadOnly && relatedOrder" class="rounded-lg border border-border bg-muted/30 p-4">
+                                <div v-if="isReadOnly && relatedOrder" class="rounded-lg bg-muted/30 p-4">
                                     <div class="mb-3 flex items-center justify-between">
                                         <h3 class="text-sm font-medium text-foreground">Orden relacionada: {{ relatedOrder.document_number }}</h3>
                                     </div>
@@ -1022,7 +1037,7 @@ watch(dialogOpen, (isOpen) => {
                                 </InventoryDetailTableLayout>
 
                                 <!-- Retenciones -->
-                                <div class="rounded border border-sidebar-border/70 bg-card p-3 text-card-foreground">
+                                <div>
                                     <PurchaseInvoiceWithholdingsTable
                                         :modelValue="localForm.withholdings || []"
                                         @update:modelValue="(val) => (localForm.withholdings = val)"
@@ -1035,7 +1050,7 @@ watch(dialogOpen, (isOpen) => {
                                 <!-- Totales -->
                                 <div class="space-y-4 pt-6">
                                     <div class="flex w-full flex-col items-end space-y-0 text-sm">
-                                        <div class="w-full max-w-xs space-y-1 rounded bg-card p-2 text-card-foreground shadow-sm">
+                                        <div class="w-full max-w-xs space-y-1 rounded bg-muted/30 p-3 text-card-foreground">
                                             <div class="flex items-center justify-between">
                                                 <span class="font-semibold text-card-foreground/70">Subtotal</span>
                                                 <span>{{

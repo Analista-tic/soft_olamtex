@@ -102,7 +102,7 @@ const steps = computed(() => {
 </script>
 
 <template>
-    <section v-if="steps.length" class="rounded-lg border border-border bg-muted/30 p-4" aria-label="Trazabilidad de fechas">
+    <section v-if="steps.length" class="rounded-lg bg-muted/30 p-4" aria-label="Trazabilidad de fechas">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 class="text-sm font-medium text-foreground">Trazabilidad</h3>
             <span

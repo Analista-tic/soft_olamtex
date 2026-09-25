@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import type { DateValue } from '@internationalized/date';
-import type { DateRange } from 'reka-ui';
-import { format as formatDateFn } from 'date-fns';
 import {
+    addMonths,
+    differenceInCalendarMonths,
     endOfMonth,
     endOfQuarter,
     endOfWeek,
     endOfYear,
+    format as formatDateFn,
     startOfDay,
     startOfMonth,
     startOfQuarter,
@@ -18,8 +18,6 @@ import {
     subWeeks,
     subYears,
 } from 'date-fns';
-import { es } from 'date-fns/locale';
-import { getLocalTimeZone, parseDate } from '@internationalized/date';
 import { CalendarDays } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
@@ -59,28 +57,26 @@ const emit = defineEmits<{
 
 const open = ref(false);
 const draftValue = ref<AccountingDateRangeValue>({ from: null, to: null });
-const calendarAnchorIso = ref(getTodayIsoDate());
+const leftMonth = ref(monthStartIso(new Date()));
+const rightMonth = ref(monthStartIso(addMonths(new Date(), 1)));
 
 function getBaseDate(): Date {
     return startOfDay(new Date());
 }
 
-function getTodayIsoDate(): string {
-    return formatDateFn(new Date(), 'yyyy-MM-dd');
-}
-
-function parseIsoDate(value: string | null | undefined): DateValue | undefined {
-    if (!value) return undefined;
-
-    try {
-        return parseDate(value);
-    } catch {
-        return undefined;
-    }
-}
-
 function toIsoDate(value: Date): string {
     return formatDateFn(value, 'yyyy-MM-dd');
+}
+
+function monthStartIso(value: Date): string {
+    return toIsoDate(startOfMonth(value));
+}
+
+function parseIsoDate(value: string | null | undefined): Date | null {
+    if (!value) return null;
+    const [year, month, day] = value.split('-').map(Number);
+    const parsed = new Date(year, month - 1, day);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function buildRange(from: Date, to: Date): AccountingDateRangeValue {
@@ -181,22 +177,29 @@ const presets: AccountingPreset[] = [
     },
 ];
 
-function toRangeValue(range: DateRange | null | undefined): AccountingDateRangeValue {
-    return {
-        from: range?.start?.toString() ?? null,
-        to: range?.end?.toString() ?? null,
-    };
+function formatDisplayValue(value: string | null | undefined): string | null {
+    const parsed = parseIsoDate(value);
+    return parsed ? formatDateFn(parsed, 'dd/MM/yyyy') : null;
 }
 
-function toDateRange(value: AccountingDateRangeValue | null | undefined): DateRange {
-    return {
-        start: parseIsoDate(value?.from),
-        end: parseIsoDate(value?.to),
-    };
-}
+/**
+ * Cada panel es independiente: el izquierdo muestra el mes de la fecha inicial y el derecho el de la final,
+ * de modo que ambos extremos del rango siempre quedan a la vista (sea un día, un trimestre o varios años).
+ * Si ambas fechas caen en el mismo mes, el derecho muestra el mes siguiente.
+ */
+function syncMonthsFromRange(value: AccountingDateRangeValue): void {
+    const from = parseIsoDate(value.from);
+    const to = parseIsoDate(value.to);
 
-function resolveAnchorIso(value: AccountingDateRangeValue | null | undefined): string {
-    return value?.from ?? value?.to ?? getTodayIsoDate();
+    if (from && to) {
+        leftMonth.value = monthStartIso(from);
+        rightMonth.value = differenceInCalendarMonths(to, from) === 0 ? monthStartIso(addMonths(from, 1)) : monthStartIso(to);
+        return;
+    }
+
+    const anchor = from ?? to ?? getBaseDate();
+    leftMonth.value = monthStartIso(anchor);
+    rightMonth.value = monthStartIso(addMonths(anchor, 1));
 }
 
 function syncDraftFromModel(value: AccountingDateRangeValue | null | undefined): void {
@@ -204,17 +207,11 @@ function syncDraftFromModel(value: AccountingDateRangeValue | null | undefined):
         from: value?.from ?? null,
         to: value?.to ?? null,
     };
-    calendarAnchorIso.value = resolveAnchorIso(value);
+    syncMonthsFromRange(draftValue.value);
 }
 
-function formatDisplayValue(value: string | null | undefined): string | null {
-    if (!value) return null;
-
-    try {
-        return formatDateFn(parseDate(value).toDate(getLocalTimeZone()), 'dd/MM/yyyy', { locale: es });
-    } catch {
-        return value;
-    }
+function handleRangeUpdate(value: AccountingDateRangeValue): void {
+    draftValue.value = value;
 }
 
 function applyDraft(): void {
@@ -225,17 +222,16 @@ function applyDraft(): void {
     open.value = false;
 }
 
+/** Limpia solo la selección en curso; el popover sigue abierto y el filtro cambia al presionar Aplicar. */
 function clearRange(): void {
     draftValue.value = { from: null, to: null };
-    calendarAnchorIso.value = getTodayIsoDate();
-    emit('update:modelValue', { from: null, to: null });
-    open.value = false;
+    syncMonthsFromRange(draftValue.value);
 }
 
 function selectPreset(preset: AccountingPreset): void {
     const value = preset.resolve();
     draftValue.value = value;
-    calendarAnchorIso.value = resolveAnchorIso(value);
+    syncMonthsFromRange(value);
 }
 
 function isPresetSelected(preset: AccountingPreset): boolean {
@@ -245,18 +241,16 @@ function isPresetSelected(preset: AccountingPreset): boolean {
     return currentValue.from === presetValue.from && currentValue.to === presetValue.to;
 }
 
-const calendarModelValue = computed<DateRange>({
-    get: () => toDateRange(draftValue.value),
-    set: (value) => {
-        draftValue.value = toRangeValue(value);
-    },
+const canApply = computed(() => Boolean(draftValue.value.from) === Boolean(draftValue.value.to));
+
+const selectionHint = computed(() => {
+    const from = formatDisplayValue(draftValue.value.from);
+    const to = formatDisplayValue(draftValue.value.to);
+
+    if (from && to) return from === to ? from : `${from} - ${to}`;
+    if (from) return `${from} - elige la fecha final`;
+    return 'Elige la fecha inicial en el calendario o un periodo predefinido';
 });
-
-const calendarPlaceholder = computed<DateValue>(() => parseDate(calendarAnchorIso.value));
-
-function handleCalendarPlaceholderUpdate(value: DateValue): void {
-    calendarAnchorIso.value = value.toString();
-}
 
 const displayLabel = computed(() => {
     const from = formatDisplayValue(props.modelValue?.from);
@@ -303,7 +297,7 @@ watch(open, (isOpen) => {
         <PopoverContent
             align="start"
             :side-offset="8"
-            class="w-[min(880px,calc(100vw-2rem))] p-0"
+            class="w-[min(860px,calc(100vw-2rem))] p-0"
             @open-auto-focus.prevent
         >
             <div class="grid gap-0 border-border md:grid-cols-[200px_minmax(0,1fr)]">
@@ -331,14 +325,15 @@ watch(open, (isOpen) => {
                 </div>
 
                 <div class="p-3">
+                    <p class="mb-3 text-sm font-medium" :class="draftValue.from ? 'text-foreground' : 'text-muted-foreground'">{{ selectionHint }}</p>
+
                     <RangeCalendar
-                        :model-value="calendarModelValue"
-                        :placeholder="calendarPlaceholder"
-                        initial-focus
-                        locale="es-CO"
+                        :from="draftValue.from"
+                        :to="draftValue.to"
+                        v-model:left-month="leftMonth"
+                        v-model:right-month="rightMonth"
                         class="rounded-lg border border-border"
-                        @update:model-value="calendarModelValue = $event"
-                        @update:placeholder="handleCalendarPlaceholderUpdate"
+                        @update:range="handleRangeUpdate"
                     />
                 </div>
             </div>
@@ -356,7 +351,7 @@ watch(open, (isOpen) => {
                     <Button type="button" variant="outline" size="pill" class="min-w-[90px]" @click="open = false">
                         Cerrar
                     </Button>
-                    <Button type="button" size="pill" class="min-w-[90px]" @click="applyDraft">
+                    <Button type="button" size="pill" class="min-w-[90px]" :disabled="!canApply" @click="applyDraft">
                         Aplicar
                     </Button>
                 </div>
