@@ -251,10 +251,12 @@ async function fetchSpecificInvoice(invoiceId: number) {
     }
 }
 
-/** El detalle tiene su propia ruta, así el botón Atrás del navegador vuelve a la lista de recepciones y la factura se carga completa (retenciones, rollos, recepciones). */
+/** El detalle tiene su propia ruta: así "Atrás" del navegador y "Volver" regresan a la lista de recepciones. */
 function viewInvoice(invoice: PurchaseInvoice) {
-    const scopeQuery = receptionScope.value === 'all' ? '' : `?scope=${receptionScope.value}`;
-    router.visit(`/kardex-telas/recepcion/${invoice.id}${scopeQuery}`);
+    if (invoice.id == null) return;
+    const params = new URLSearchParams({ return_to: receptionListHref.value });
+    if (receptionScope.value !== 'all') params.set('scope', receptionScope.value);
+    router.visit(`/kardex-telas/recepcion/${invoice.id}?${params.toString()}`);
 }
 
 function goBackToList() {
