@@ -153,6 +153,12 @@ class PurchaseDocument extends Model implements HasAuditLabel
         return $this->belongsTo(User::class, 'rejected_by_user_id');
     }
 
+    // Historial de recepción: rechazos y reaperturas, del más reciente al más antiguo
+    public function receptionEvents()
+    {
+        return $this->hasMany(PurchaseDocumentReceptionEvent::class, 'purchase_document_id')->orderByDesc('occurred_at')->orderByDesc('id');
+    }
+
     // Usuario que aprobó (si aplica)
     public function approvedBy()
     {

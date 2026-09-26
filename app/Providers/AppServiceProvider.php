@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
+use App\Models\Expenses\PurchaseDocumentReceptionEvent;
 use App\Models\Expenses\PurchaseRequest;
 use App\Models\Finance\Retention;
 use App\Models\Finance\Tax;
@@ -142,6 +143,7 @@ class AppServiceProvider extends ServiceProvider
             PurchaseRequest::class,
             PurchaseDocument::class,
             PurchaseDocumentItem::class,
+            PurchaseDocumentReceptionEvent::class,
             // Inventory
             Warehouse::class,
             WarehouseTransfer::class,
