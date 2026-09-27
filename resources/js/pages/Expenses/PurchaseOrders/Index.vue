@@ -15,33 +15,33 @@ import {
 import { buttonVariants } from '@/components/ui/button';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
+import SearchInput from '@/components/common/SearchInput.vue';
+import PurchaseListTable, { type ListColumn } from '@/components/common/PurchaseListTable.vue';
+import TableActionsMenu from '@/components/common/TableActionsMenu.vue';
+import TableRowActions from '@/components/common/TableRowActions.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
+import ViewButton from '@/components/common/ViewButton.vue';
+import { getPurchaseOrderStatus } from '@/domain/Expenses/statuses';
+import { canDeleteOrder as canDeleteOrderRule, canEditOrder as canEditOrderRule } from '@/domain/Expenses/rules';
+import { formatCurrency, formatDate } from '@/domain/Expenses/format';
+import { useAlertStack } from '@/composables/useAlert';
 import AccountingDateRangePicker from '@/components/AccountingDateRangePicker.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
-import Input from '@/components/ui/input/Input.vue';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import { useAuthStore } from '@/stores/auth';
 import type { PurchaseOrder } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { CheckCircle2, Eye, FileText, PlusCircle, Search, Printer, Mail, MoreVertical, LockKeyhole, XCircle } from 'lucide-vue-next';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { CheckCircle2, FileText, PlusCircle, Printer, Mail, LockKeyhole, XCircle } from 'lucide-vue-next';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { computed, onMounted, ref, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import PurchaseOrderDialog from './PurchaseOrderDialog.vue';
 import PurchaseOrderPrintDialog from './PurchaseOrderPrintDialog.vue';
-import ServerPagination from '@/components/common/ServerPagination.vue';
 
 const breadcrumbs = [{ title: 'Órdenes de Compra', href: '/ordenes-compra' }];
 
@@ -79,15 +79,10 @@ const canApproveRow = (order: PurchaseOrder) => canApproveOrder.value && order.s
 const canInvoiceRow = (order: PurchaseOrder) => canCreateInvoice.value && ['approved', 'partially_invoiced'].includes(String(order.status));
 
 
-const successMessage = ref('');
-const errorMessage = ref('');
-const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
+const { successMessage, errorMessage, errorType, clearSuccess, clearError, showError, showWarning } = useAlertStack();
 
 const warningMatcher = (msg: string) => /obligatori|complet[ao]s? los campos/i.test(msg);
-const setErrorMessage = (msg: string) => {
-    errorType.value = warningMatcher(msg) ? 'warning' : 'error';
-    errorMessage.value = msg;
-};
+const setErrorMessage = (msg: string) => (warningMatcher(msg) ? showWarning(msg) : showError(msg));
 
 
 // NUEVOS FILTROS
@@ -95,6 +90,17 @@ const statusFilter = ref<string | null>(null);
 const providerFilter = ref<number | string | null>(null);
 const dateFilter = ref<{ from: string | null; to: string | null }>({ from: null, to: null });
 const providers = ref<{ id: number; full_name: string }[]>([]);
+
+const columns: ListColumn[] = [
+    { key: 'document_number', label: 'N° Orden' },
+    { key: 'date', label: 'Fecha de creación', sortField: 'date' },
+    { key: 'delivery_date', label: 'Fecha de entrega', sortField: 'delivery_date' },
+    { key: 'supplier', label: 'Proveedor' },
+    { key: 'description', label: 'Descripción', align: 'start', class: 'max-w-[200px] truncate' },
+    { key: 'invoices_count', label: 'Facturas' },
+    { key: 'total', label: 'Total', sortField: 'total' },
+    { key: 'status', label: 'Estado' },
+];
 
 // SORT
 const sortBy = ref<string>('date');
@@ -107,7 +113,8 @@ function toggleSort(column: string) {
         sortBy.value = column;
         sortDir.value = 'desc';
     }
-    fetchOrders();
+    currentPage.value = 1;
+    fetchOrders(1, searchQuery.value);
 }
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
@@ -117,27 +124,6 @@ const isDateFilterActive = computed(() => Boolean(dateFilter.value.from || dateF
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
-const actionButtonClass =
-    'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
-const actionIconClass = 'h-4 w-4';
-
-const formatDate = (value?: string | null) => {
-    if (!value) return '-';
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return String(value);
-    return d.toLocaleDateString('es-CO');
-};
-
-const formatCurrency = (value: number) => {
-    if (!Number.isFinite(value)) return '-';
-    return value.toLocaleString('es-CO', {
-        style: 'currency',
-        currency: 'COP',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-    });
-};
-
 const computeOrderTotal = (order: PurchaseOrder) => {
     if (!order.items?.length) return 0;
     return order.items.reduce((acc, item) => {
@@ -176,6 +162,7 @@ function viewOrder(order: PurchaseOrder) {
 
 
     async function fetchOrders(page = 1, search = '') {
+        isLoading.value = true;
         try {
         const params: any = {
             page,
@@ -299,14 +286,6 @@ onMounted(async () => {
 });
 
 
-function getOrderStatusLabel(status?: string): string {
-    if (status === 'approved') return 'Aprobada';
-    if (status === 'invoiced') return 'Facturada';
-    if (status === 'partially_invoiced') return 'Parcialmente facturada';
-    if (status === 'rejected') return 'Rechazada';
-    return 'Pendiente';
-}
-
 function confirmDeleteOrder(order: PurchaseOrder) {
     orderToDelete.value = order;
     isDeleteDialogOpen.value = true;
@@ -365,16 +344,6 @@ function getDeliveryAlert(order: PurchaseOrder): { label: string; tone: 'red' | 
     return null;
 }
 
-function getOrderStatusTone(status?: string): 'green' | 'blue' | 'indigo' | 'red' | 'yellow' {
-    if (status === 'approved') return 'green';
-    if (status === 'invoiced') return 'indigo';
-    if (status === 'partially_invoiced') return 'yellow';
-    if (status === 'rejected') return 'red';
-    return 'yellow';
-}
-
-
-
 function handleDialogRefresh(message?: string) {
     if (message) {
         successMessage.value = message;
@@ -398,35 +367,32 @@ function handleDialogError(message?: string) {
             :successMessage="successMessage"
             :errorMessage="errorMessage"
             :errorType="errorType"
-            @close-success="successMessage = ''"
-            @close-error="errorMessage = ''"
+            @close-success="clearSuccess"
+            @close-error="clearError"
         />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
-            <div class="flex items-center justify-between">
-                <div class="flex flex-col gap-1">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="space-y-1">
                     <h1 class="text-lg font-bold">Órdenes de Compras y Servicios</h1>
                     <p class="text-sm text-muted-foreground">Lleva el control de las órdenes emitidas a proveedores y su estado de facturación.</p>
                 </div>
-                <Button
-                    v-if="canCreateOrder"
-                    variant="default"
-                    size="pill"
-                    dusk="btn-nueva-orden"
-                    :disabled="isPreparingDialog"
-                    @click.prevent="router.visit('/gastos/ordenes-compra/crear')"
-                >
-                    <PlusCircle class="h-4 w-4" />
-                    Nueva Orden
-                </Button>
+                <div class="flex gap-2">
+                    <Button
+                        v-if="canCreateOrder"
+                        variant="default"
+                        size="pill"
+                        dusk="btn-nueva-orden"
+                        :disabled="isPreparingDialog"
+                        @click.prevent="router.visit('/gastos/ordenes-compra/crear')"
+                    >
+                        <PlusCircle class="h-4 w-4" />
+                        Nueva Orden
+                    </Button>
+                </div>
             </div>
             <FilterBar align="start">
                 <FilterField label="Buscar orden" :active="isSearchActive" class="min-w-[220px] flex-1">
-                    <div class="relative">
-                        <Input v-model="searchQuery" placeholder="Buscar orden" class="h-10 w-full pl-10" />
-                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                            <Search :size="20" class="text-muted-foreground" />
-                        </span>
-                    </div>
+                    <SearchInput v-model="searchQuery" placeholder="Buscar orden" />
                 </FilterField>
                 <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
                     <SelectField
@@ -462,200 +428,108 @@ function handleDialogError(message?: string) {
     <AccountingDateRangePicker v-model="dateFilter" placeholder="Rango de fechas" />
 </FilterField>
             </FilterBar>
-            <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>N° Orden</TableHead>
-                            <TableHead
-                                class="cursor-pointer select-none whitespace-nowrap"
-                                @click="toggleSort('date')"
-                            >
-                                <span class="inline-flex items-center gap-1">
-                                    Fecha de creación
-                                    <span class="text-muted-foreground">
-                                        <template v-if="sortBy === 'date'">
-                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
-                                        </template>
-                                        <template v-else>
-                                            <span class="opacity-30">↕</span>
-                                        </template>
-                                    </span>
-                                </span>
-                            </TableHead>
-                            <TableHead
-                                class="cursor-pointer select-none whitespace-nowrap"
-                                @click="toggleSort('delivery_date')"
-                            >
-                                <span class="inline-flex items-center gap-1">
-                                    Fecha de entrega
-                                    <span class="text-muted-foreground">
-                                        <template v-if="sortBy === 'delivery_date'">
-                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
-                                        </template>
-                                        <template v-else>
-                                            <span class="opacity-30">↕</span>
-                                        </template>
-                                    </span>
-                                </span>
-                            </TableHead>
-                            <TableHead>Proveedor</TableHead>
-                            <TableHead
-                                class="cursor-pointer select-none whitespace-nowrap"
-                                @click="toggleSort('total')"
-                            >
-                                <span class="inline-flex items-center gap-1">
-                                    Total
-                                    <span class="text-muted-foreground">
-                                        <template v-if="sortBy === 'total'">
-                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
-                                        </template>
-                                        <template v-else>
-                                            <span class="opacity-30">↕</span>
-                                        </template>
-                                    </span>
-                                </span>
-                            </TableHead>
-                            <TableHead>Descripción</TableHead>
-                            <TableHead class="text-center">Facturas</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead class="text-center">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <template v-if="isLoading">
-                            <TableRow v-for="i in 5" :key="`purchase-order-skeleton-${i}`">
-                                <TableCell v-for="col in 9" :key="`purchase-order-skeleton-${i}-${col}`" class="px-4 py-3">
-                                    <Skeleton class="h-4 w-full" />
-                                </TableCell>
-                            </TableRow>
-                        </template>
-                        <template v-else-if="!orders.length">
-                            <TableRow>
-                                <TableCell colspan="9">
-                                    <div class="py-6 text-center text-sm text-muted-foreground">No se encontraron órdenes.</div>
-                                </TableCell>
-                            </TableRow>
-                        </template>
-                        <template v-else>
-                            <TableRow v-for="order in orders" :key="order.id" class="text-center">
-                                <TableCell class="font-medium">
-                                    {{ order.document_number || `ORD-${String(order.id).padStart(3, '0')}` }}
-                                </TableCell>
-                                <TableCell>{{ formatDate(order.date) }}</TableCell>
-                                <TableCell>
-                                    <div class="flex flex-col items-center gap-1">
-                                        <span>{{ formatDate(order.delivery_date) }}</span>
-                                        <TableStatusBadge
-                                            v-if="getDeliveryAlert(order)"
-                                            :label="getDeliveryAlert(order)!.label"
-                                            :tone="getDeliveryAlert(order)!.tone"
-                                            :title="getDeliveryAlert(order)!.title"
-                                        />
-                                    </div>
-                                </TableCell>
-                                <TableCell>{{ order.supplier?.full_name || order.contact?.full_name || '-' }}</TableCell>
-                                <TableCell>{{ formatCurrency(computeOrderTotal(order)) }}</TableCell>
-                                <TableCell class="text-start">{{ order.description || '-' }}</TableCell>
-                                <TableCell class="text-center">
-                                    <span
-                                        v-if="(order as any).invoices_count > 0"
-                                        class="inline-flex items-center justify-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700"
+            <PurchaseListTable
+                :columns="columns"
+                :rows="orders"
+                :loading="isLoading"
+                empty-text="No se encontraron órdenes."
+                :sort-by="sortBy"
+                :sort-dir="sortDir"
+                v-model:current-page="currentPage"
+                v-model:page-size="itemsPerPage"
+                :total-items="totalItems"
+                @sort="toggleSort"
+                @fetch-data="() => fetchOrders(currentPage, searchQuery)"
+            >
+                <template #cell-document_number="{ row: order }">
+                    <span class="font-medium">{{ order.document_number || `ORD-${String(order.id).padStart(3, '0')}` }}</span>
+                </template>
+                <template #cell-date="{ row: order }">{{ formatDate(order.date) }}</template>
+                <template #cell-delivery_date="{ row: order }">
+                    <div class="flex flex-col items-center gap-1">
+                        <span>{{ formatDate(order.delivery_date) }}</span>
+                        <TableStatusBadge
+                            v-if="getDeliveryAlert(order)"
+                            :label="getDeliveryAlert(order)!.label"
+                            :tone="getDeliveryAlert(order)!.tone"
+                            :title="getDeliveryAlert(order)!.title"
+                        />
+                    </div>
+                </template>
+                <template #cell-supplier="{ row: order }">{{ order.supplier?.full_name || order.contact?.full_name || '-' }}</template>
+                <template #cell-description="{ row: order }">{{ order.description || '-' }}</template>
+                <template #cell-invoices_count="{ row: order }">
+                    <span
+                        v-if="(order as any).invoices_count > 0"
+                        class="inline-flex items-center justify-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700"
+                    >
+                        {{ (order as any).invoices_count }}
+                    </span>
+                    <span v-else class="text-xs text-muted-foreground">0</span>
+                </template>
+                <template #cell-total="{ row: order }">{{ formatCurrency(computeOrderTotal(order)) }}</template>
+                <template #cell-status="{ row: order }">
+                    <div class="flex flex-col items-center gap-1">
+                        <TableStatusBadge :dusk="`estado-orden-${order.id}`" :label="getPurchaseOrderStatus(order.status).label" :tone="getPurchaseOrderStatus(order.status).tone" />
+                        <span
+                            v-if="(order as any).sent_at"
+                            class="text-xs text-muted-foreground"
+                            :title="`Enviada al proveedor el ${formatDate((order as any).sent_at)}`"
+                        >
+                            Enviada {{ formatDate((order as any).sent_at) }}
+                        </span>
+                    </div>
+                </template>
+                <template #actions="{ row: order }">
+                            <TableRowActions>
+                                <ViewButton :onClick="() => viewOrder(order)" title="Ver orden" />
+                                <EditButton v-if="canEditOrder && canEditOrderRule(order.status)" title="Editar orden" @click="router.visit('/gastos/ordenes-compra/' + order.id + '/editar')" />
+                                <DeleteButton v-if="canDeleteOrder && canDeleteOrderRule(order.status)" @click="confirmDeleteOrder(order)" title="Eliminar orden" />
+                                <TableActionsMenu trigger-class="h-8 w-8" title="Más acciones">
+                                    <DropdownMenuItem
+                                        v-if="canApproveRow(order)"
+                                        @click="approveOrder(order)"
+                                        class="text-green-600 focus:text-green-600"
                                     >
-                                        {{ (order as any).invoices_count }}
-                                    </span>
-                                    <span v-else class="text-xs text-muted-foreground">0</span>
-                                </TableCell>
-                                <TableCell>
-                                    <div class="flex flex-col items-center gap-1">
-                                        <TableStatusBadge :dusk="`estado-orden-${order.id}`" :label="getOrderStatusLabel(order.status)" :tone="getOrderStatusTone(order.status)" />
-                                        <span
-                                            v-if="(order as any).sent_at"
-                                            class="text-xs text-muted-foreground"
-                                            :title="`Enviada al proveedor el ${formatDate((order as any).sent_at)}`"
-                                        >
-                                            Enviada {{ formatDate((order as any).sent_at) }}
-                                        </span>
-                                    </div>
-                                </TableCell>
-                                <TableCell class="flex justify-center gap-1">
-                                    <!-- Acción 1: Editar -->
-                                    <EditButton v-if="canEditOrder" @click="router.visit('/gastos/ordenes-compra/' + order.id + '/editar')" />
-
-                                    <!-- Acción 2: Ver -->
-                                    <Button variant="ghost" size="icon" :class="actionButtonClass" title="Ver orden" @click="viewOrder(order)">
-                                        <Eye :class="actionIconClass" />
-                                        <span class="sr-only">Ver orden</span>
-                                    </Button>
-
-                                    <!-- Acción 3: Eliminar -->
-                                    <DeleteButton v-if="canDeleteOrder" @click="confirmDeleteOrder(order)" title="Eliminar orden" />
-
-                                    <!-- Acción 4: Más acciones -->
-                                    <DropdownMenu>
-                                            <DropdownMenuTrigger as-child>
-                                            <Button variant="ghost" size="icon" :class="actionButtonClass" title="Más acciones">
-                                                <MoreVertical :class="actionIconClass" />
-                                                <span class="sr-only">Más acciones</span>
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                            <DropdownMenuItem
-                                                v-if="canApproveRow(order)"
-                                                @click="approveOrder(order)"
-                                                class="text-green-600 focus:text-green-600"
-                                            >
-                                                <CheckCircle2 class="mr-2 h-4 w-4" />
-                                                Aprobar orden de compra
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                v-if="canApproveRow(order)"
-                                                @click="confirmRejectOrder(order)"
-                                                class="text-red-600 focus:text-red-600"
-                                            >
-                                                <XCircle class="mr-2 h-4 w-4" />
-                                                Rechazar orden de compra
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                v-if="canInvoiceRow(order)"
-                                                @click="invoiceOrder(order)"
-                                                class="text-blue-600 focus:text-blue-600"
-                                            >
-                                                <FileText class="mr-2 h-4 w-4" />
-                                                Crear factura de esta orden
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem @click="openPrintDialog(order)">
-                                                <Printer class="mr-2 h-4 w-4" />
-                                                Imprimir orden
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem v-if="canEditOrder" @click="sendOrderByEmail(order)">
-                                                <Mail class="mr-2 h-4 w-4" />
-                                                Enviar orden por correo al proveedor
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                v-if="canEditOrder && (order as any).status === 'partially_invoiced'"
-                                                @click="confirmCloseOrder(order)"
-                                                class="text-amber-600 focus:text-amber-600"
-                                            >
-                                                <LockKeyhole class="mr-2 h-4 w-4" />
-                                                Cerrar orden sin facturar el resto
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </TableCell>
-                            </TableRow>
-                        </template>
-                    </TableBody>
-                </Table>
-                <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
-                  <ServerPagination 
-                    v-model:current-page="currentPage"
-                    v-model:page-size="itemsPerPage"
-                    :total-items="totalItems"
-                    @fetch-data="() => fetchOrders(currentPage, searchQuery)" 
-                  />
-                </div>
-            </div>
+                                        <CheckCircle2 class="mr-2 h-4 w-4" />
+                                        Aprobar orden de compra
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        v-if="canApproveRow(order)"
+                                        @click="confirmRejectOrder(order)"
+                                        class="text-red-600 focus:text-red-600"
+                                    >
+                                        <XCircle class="mr-2 h-4 w-4" />
+                                        Rechazar orden de compra
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        v-if="canInvoiceRow(order)"
+                                        @click="invoiceOrder(order)"
+                                        class="text-blue-600 focus:text-blue-600"
+                                    >
+                                        <FileText class="mr-2 h-4 w-4" />
+                                        Crear factura de esta orden
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem @click="openPrintDialog(order)">
+                                        <Printer class="mr-2 h-4 w-4" />
+                                        Imprimir orden
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem v-if="canEditOrder" @click="sendOrderByEmail(order)">
+                                        <Mail class="mr-2 h-4 w-4" />
+                                        Enviar orden por correo al proveedor
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        v-if="canEditOrder && (order as any).status === 'partially_invoiced'"
+                                        @click="confirmCloseOrder(order)"
+                                        class="text-amber-600 focus:text-amber-600"
+                                    >
+                                        <LockKeyhole class="mr-2 h-4 w-4" />
+                                        Cerrar orden sin facturar el resto
+                                    </DropdownMenuItem>
+                                </TableActionsMenu>
+                            </TableRowActions>
+                </template>
+            </PurchaseListTable>
         </div>
         <PurchaseOrderDialog
             :isOpen="isDialogOpen"

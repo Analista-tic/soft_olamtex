@@ -6,17 +6,27 @@ import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import InputDate from '@/components/InputDate.vue';
 import SelectField from '@/components/SelectField.vue';
+import ActionIconButton from '@/components/common/ActionIconButton.vue';
+import SearchInput from '@/components/common/SearchInput.vue';
+import PurchaseDocumentHeader from '@/components/common/PurchaseDocumentHeader.vue';
+import PurchaseListTable,{ type ListColumn } from '@/components/common/PurchaseListTable.vue';
+import TableRowActions from '@/components/common/TableRowActions.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
+import ViewButton from '@/components/common/ViewButton.vue';
+import { formatCurrency, formatDate } from '@/domain/Expenses/format';
+import { getPurchaseInvoiceStatus } from '@/domain/Expenses/statuses';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { PurchaseInvoice } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useAuthStore } from '@/stores/auth';
 import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
+import { formatDecimalInput } from '@/lib/decimalFormat';
 import { useContactsStore } from '@/stores/masterData/contacts';
 import type { PageProps as InertiaPageProps } from '@inertiajs/core';
 import { Head, router, usePage } from '@inertiajs/vue3';
@@ -24,10 +34,9 @@ import { usePurchaseInvoiceTotals } from '@/composables/usePurchaseInvoiceTotals
 import { withholdingAmount, withholdingBase } from '@/domain/Expenses/withholdings';
 import PurchaseInvoiceSummary from '@/pages/Expenses/PurchaseInvoices/PurchaseInvoiceSummary.vue';
 import axios from 'axios';
-import { AlertTriangle, ArrowLeft, Check, Eye, Layers, Package2, Search, X } from 'lucide-vue-next';
+import { AlertTriangle, ArrowLeft, Check, Layers, Package2, X } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import FabricRollDialog from './FabricRollDialog.vue';
-import ServerPagination from '@/components/common/ServerPagination.vue';
 
 interface PageProps extends InertiaPageProps {
     invoiceId?: string | number;
@@ -36,6 +45,10 @@ interface PageProps extends InertiaPageProps {
 }
 
 const props = usePage<PageProps>().props;
+const authStore = useAuthStore();
+const canApproveReception = computed(() => authStore.can('aprobar recepcion tela'));
+const canRejectReception = computed(() => authStore.can('rechazar recepcion tela'));
+const canCreateRolls = computed(() => authStore.can('crear telas rollos'));
 
 const returnToUrl = computed(() => {
     if (typeof window === 'undefined') return '';
@@ -98,23 +111,6 @@ const isFabricRollDialogOpen = ref(false);
 const selectedItem = ref<any>(null);
 const TOLERANCE_QUANTITY_METERS = 30;
 
-const invoiceDateTimeFormatter = new Intl.DateTimeFormat('es-CO', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-    timeZone: 'UTC',
-});
-
-function formatInvoiceDate(value?: string | Date | number | null): string {
-    if (!value) {
-        return '-';
-    }
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) {
-        return String(value);
-    }
-    return invoiceDateTimeFormatter.format(parsed);
-}
-
 /** Contacto/proveedor de una factura: el backend puede devolver `supplier` o `contact`. */
 function getInvoiceContact(
     invoice: PurchaseInvoice | null | undefined,
@@ -152,14 +148,20 @@ function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning
     }
 }
 
-const DEFAULT_STATUS_FILTER = 'all';
-const DEFAULT_PROVIDER_FILTER = 'all';
-const DEFAULT_SUBGROUP_FILTER = 'all';
-const statusFilter = ref(DEFAULT_STATUS_FILTER);
-const providerFilter = ref(DEFAULT_PROVIDER_FILTER);
-const subgroupFilter = ref(DEFAULT_SUBGROUP_FILTER);
+const statusFilter = ref<string | null>(null);
+const providerFilter = ref<number | string | null>(null);
+const subgroupFilter = ref<number | string | null>(null);
 const dateFilter = ref('');
 const isDateFilterActive = computed(() => Boolean(dateFilter.value));
+const listColumns: ListColumn[] = [
+    { key: 'document_number', label: 'N° Factura' },
+    { key: 'date', label: 'Fecha', sortField: 'date' },
+    { key: 'provider', label: 'Proveedor' },
+    { key: 'items', label: 'Ítems' },
+    { key: 'total', label: 'Total', sortField: 'total' },
+    { key: 'status', label: 'Estado' },
+];
+
 const sortBy = ref<string>('date');
 const sortDir = ref<'asc' | 'desc'>('desc');
 const isLoading = ref(true);
@@ -181,9 +183,9 @@ const showInvoiceDetail = computed(() => {
     return selectedInvoice.value !== null;
 });
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
-const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
-const isSubgroupFilterActive = computed(() => subgroupFilter.value !== DEFAULT_SUBGROUP_FILTER);
+const isStatusFilterActive = computed(() => statusFilter.value != null && statusFilter.value !== '');
+const isProviderFilterActive = computed(() => providerFilter.value != null && providerFilter.value !== '');
+const isSubgroupFilterActive = computed(() => subgroupFilter.value != null && subgroupFilter.value !== '');
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
 const subgroupButtonClasses = useFilterButtonClasses(isSubgroupFilterActive);
@@ -368,11 +370,11 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         scope: receptionScope.value,
         exclude_difference_rejected: true,
     };
-    if (statusFilter.value !== 'all') params.status = statusFilter.value;
-    if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
+    if (isStatusFilterActive.value) params.status = statusFilter.value;
+    if (isProviderFilterActive.value && providerFilter.value !== null) {
         params.provider_id = isNaN(Number(providerFilter.value)) ? providerFilter.value : Number(providerFilter.value);
     }
-    if (subgroupFilter.value !== 'all' && subgroupFilter.value !== '' && subgroupFilter.value !== null) {
+    if (isSubgroupFilterActive.value && subgroupFilter.value !== null) {
         params.subgroup_id = isNaN(Number(subgroupFilter.value)) ? subgroupFilter.value : Number(subgroupFilter.value);
     }
     try {
@@ -411,38 +413,8 @@ function getInvoiceDisplayStatus(invoice: PurchaseInvoice | null | undefined): s
     return isDifferenceRejectedInvoice(invoice) ? 'difference_rejected' : String(invoice.status || 'pending');
 }
 
-function getStatusBadge(status: string) {
-    switch (status) {
-        case 'pending':
-        case 'pending_receipt':
-            return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-400';
-        case 'approved':
-        case 'received':
-            return 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400';
-        case 'rejected':
-        case 'difference_rejected':
-            return 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400';
-        default:
-            return 'bg-muted text-foreground';
-    }
-}
-
-function getStatusText(status: string) {
-    switch (status) {
-        case 'pending':
-            return 'Pendiente';
-        case 'pending_receipt':
-            return 'Pendiente de recepción';
-        case 'approved':
-        case 'received':
-            return 'Recepcionada';
-        case 'rejected':
-            return 'Rechazada';
-        case 'difference_rejected':
-            return 'Diferencia rechazada';
-        default:
-            return 'Desconocido';
-    }
+function invoiceStatus(invoice: PurchaseInvoice | null | undefined) {
+    return getPurchaseInvoiceStatus(getInvoiceDisplayStatus(invoice), undefined);
 }
 
 /** Descripción cuando la factura no puede ser aprobada (ya aprobada o rechazada). */
@@ -474,15 +446,6 @@ watch(
         fetchInvoices(1, searchQuery.value);
     }
 );
-
-// 2. Si solo cambia la página manualmente
-watch(currentPage, (newPage) => {
-    if (!showInvoicesList.value) return;
-    // Solo disparamos si no es la pág 1 para no chocar con el watcher anterior
-    if (newPage !== 1) {
-        fetchInvoices(newPage, searchQuery.value);
-    }
-});
 
 onMounted(async () => {
     await fetchProviders();
@@ -560,7 +523,7 @@ const canDeleteEditRollsForDialog = computed(() => {
 
 const cannotApproveDescription = computed(() => getCannotApproveDescription(selectedInvoice.value));
 
-/** Condiciones no cumplidas para poder aprobar la factura (ítems tela sin rollos o fuera de tolerancia ±30%). */
+/** Condiciones no cumplidas para poder aprobar la factura (ítems tela sin rollos o fuera de tolerancia ±30 mts). */
 const approvalBlockers = ref<string[]>([]);
 const approvalBlockersLoading = ref(false);
 /** Diferencias fuera de ±30 mts de la factura abierta: no bloquean, exigen aprobación de otra persona. */
@@ -603,7 +566,7 @@ async function fetchBlockersForInvoice(inv: PurchaseInvoice, differenceNotes: st
             // Fuera de ±30 mts no bloquea el botón: el servidor pide registrar la diferencia para su aprobación.
             const difference = ordered - totalReceived;
             if (difference > TOLERANCE_QUANTITY_METERS) {
-                differenceNotes.push(`"${itemName}": faltan ${difference.toFixed(2)} mts respecto a lo facturado (tolerancia ${TOLERANCE_QUANTITY_METERS} mts)`);
+                differenceNotes.push(`"${itemName}": faltan ${formatDecimalInput(difference)} mts respecto a lo facturado (tolerancia ${TOLERANCE_QUANTITY_METERS} mts)`);
             }
         } catch {
             // ignorar error por ítem
@@ -689,11 +652,6 @@ async function fetchWarehouseOptions() {
     } catch {
         warehouseOptions.value = [];
     }
-}
-
-/** La cantidad a recibir admite hasta 2 decimales; se redondea para evitar residuos de punto flotante (p. ej. 0.1 + 0.2). */
-function formatMoney(value: unknown): string {
-    return Number(value || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 /** Código, descripción y código de proveedor del ítem en una sola línea. */
@@ -882,11 +840,14 @@ async function fetchRollsForInvoiceDetail() {
 }
 
 function rollCoverageBadge(ordered: number, received: number): { label: string; cls: string } {
-    if (ordered <= 0) return { label: `${received.toFixed(2)} mts`, cls: 'bg-muted text-muted-foreground' };
+    if (ordered <= 0) return { label: `${formatDecimalInput(received)} mts`, cls: 'bg-muted text-muted-foreground' };
     const pct = (received / ordered) * 100;
-    const label = `${received.toFixed(2)} / ${ordered.toFixed(2)} mts (${Math.round(pct)}%)`;
-    if (pct === 0) return { label, cls: 'bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400' };
-    if (Math.abs(pct - 100) <= 30) return { label, cls: 'bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400' };
+    const label = `${formatDecimalInput(received)} / ${formatDecimalInput(ordered)} mts (${Math.round(pct)}%)`;
+    if (received === 0) return { label, cls: 'bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400' };
+    // Misma tolerancia que el backend y el resto del módulo: ±30 mts absolutos, no un porcentaje.
+    if (Math.abs(ordered - received) <= TOLERANCE_QUANTITY_METERS) {
+        return { label, cls: 'bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400' };
+    }
     return { label, cls: 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400' };
 }
 
@@ -917,25 +878,30 @@ function onFabricRollSuccess() {
 <template>
     <Head :title="showInvoiceDetail ? `Recepción - Factura N° ${selectedInvoice?.document_number || specificInvoiceId}` : 'Recepción'" />
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div ref="pageContentRef" class="flex h-full flex-col gap-4 rounded-xl p-3">
-            <AlertStack
-                :success-message="successMessage"
-                :error-message="errorMessage"
-                :error-type="errorType"
-                @close-success="successMessage = ''"
-                @close-error="errorMessage = ''"
-            />
+        <AlertStack
+            :success-message="successMessage"
+            :error-message="errorMessage"
+            :error-type="errorType"
+            @close-success="successMessage = ''"
+            @close-error="errorMessage = ''"
+        />
+        <div ref="pageContentRef" class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <!-- Header principal -->
-            <div class="flex items-center justify-between">
+            <div class="flex flex-wrap items-center justify-between gap-4">
                 <div class="flex items-center gap-4">
                     <!-- Botón de volver solo cuando se está viendo una factura -->
                     <Button v-if="showInvoiceDetail" variant="ghost" size="sm" @click="goBackToList" class="flex items-center gap-2">
                         <ArrowLeft class="h-4 w-4" />
                         Volver a la lista
                     </Button>
-                    <h1 class="text-base font-bold">
-                        {{ showInvoiceDetail ? `Recepción - Factura N° ${selectedInvoice?.document_number || selectedInvoice?.id}` : 'Recepción' }}
-                    </h1>
+                    <div class="space-y-1">
+                        <h1 class="text-lg font-bold">
+                            {{ showInvoiceDetail ? `Recepción - Factura N° ${selectedInvoice?.document_number || selectedInvoice?.id}` : 'Recepción' }}
+                        </h1>
+                        <p class="text-sm text-muted-foreground">
+                            {{ showInvoiceDetail ? 'Revisión y aprobación de factura' : 'Revisa, aprueba o rechaza la recepción de las facturas de compra.' }}
+                        </p>
+                    </div>
                 </div>
                 <div v-if="showInvoicesList" class="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-1" role="tablist" aria-label="Tipo de recepción">
                     <button
@@ -951,7 +917,6 @@ function onFabricRollSuccess() {
                         {{ option.label }}
                     </button>
                 </div>
-                <div v-else class="text-xs text-muted-foreground">Revisión y aprobación de factura</div>
             </div>
 
             <!-- Vista de lista de facturas -->
@@ -964,50 +929,48 @@ function onFabricRollSuccess() {
                 <!-- Filtros -->
                 <FilterBar align="start" gap="gap-4">
                     <FilterField label="Buscar factura" :active="isSearchActive" class="min-w-[220px] flex-1 p-0">
-                        <div class="relative">
-                            <Input v-model="searchQuery" placeholder="Buscar factura" class="h-10 w-full pl-10" />
-                            <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                                <Search :size="20" class="text-muted-foreground" />
-                            </span>
-                        </div>
+                        <SearchInput v-model="searchQuery" placeholder="Buscar factura" />
                     </FilterField>
                     <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
                         <SelectField
                             v-model="statusFilter"
                             label=""
                             :options="[
-                                { id: 'all', name: 'Todos los estados' },
-                                { id: 'pending', name: 'Pendiente' },
+                                { id: 'pending', name: 'Pendiente de recepción' },
                                 { id: 'approved', name: 'Recepcionada' },
                                 { id: 'rejected', name: 'Rechazada' },
                             ]"
+                            placeholder="Estado"
                             :button-class="statusButtonClasses"
+                            :clearable="true"
                         />
                     </FilterField>
                     <FilterField label="Proveedor" :active="isProviderFilterActive" class="min-w-[180px]">
                         <SelectField
                             v-model="providerFilter"
                             label=""
-                            :options="[
-                                { id: 'all', name: 'Todos los proveedores' },
-                                ...contactsStore.items
+                            :options="
+                                contactsStore.items
                                     .map((prov) => ({ id: String(prov.id), name: formatPersonNameDisplay(prov.full_name, prov.person_type) }))
-                                    .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
-                            ]"
+                                    .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
+                            "
+                            placeholder="Proveedor"
                             :button-class="providerButtonClasses"
+                            :clearable="true"
                         />
                     </FilterField>
                     <FilterField label="Subgrupo" :active="isSubgroupFilterActive" class="min-w-[180px]">
                         <SelectField
                             v-model="subgroupFilter"
                             label=""
-                            :options="[
-                                { id: 'all', name: 'Todos los subgrupos' },
-                                ...subgroups
+                            :options="
+                                subgroups
                                     .map((sub) => ({ id: String(sub.id), name: sub.name }))
-                                    .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
-                            ]"
+                                    .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
+                            "
+                            placeholder="Subgrupo"
                             :button-class="subgroupButtonClasses"
+                            :clearable="true"
                         />
                     </FilterField>
                     <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
@@ -1016,182 +979,79 @@ function onFabricRollSuccess() {
                 </FilterBar>
 
                 <!-- Tabla de facturas -->
-                <div class="relative overflow-auto rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>N° Factura</TableHead>
-                                <TableHead>Proveedor</TableHead>
-                                <TableHead
-                                    class="cursor-pointer select-none whitespace-nowrap"
-                                    @click="toggleSort('date')"
-                                >
-                                    <span class="inline-flex items-center gap-1">
-                                        Fecha
-                                        <span class="text-muted-foreground">
-                                            <template v-if="sortBy === 'date'">
-                                                {{ sortDir === 'asc' ? '↑' : '↓' }}
-                                            </template>
-                                            <template v-else>
-                                                <span class="opacity-30">↕</span>
-                                            </template>
-                                        </span>
-                                    </span>
-                                </TableHead>
-                                <TableHead
-                                    class="cursor-pointer select-none whitespace-nowrap"
-                                    @click="toggleSort('total')"
-                                >
-                                    <span class="inline-flex items-center gap-1">
-                                        Total
-                                        <span class="text-muted-foreground">
-                                            <template v-if="sortBy === 'total'">
-                                                {{ sortDir === 'asc' ? '↑' : '↓' }}
-                                            </template>
-                                            <template v-else>
-                                                <span class="opacity-30">↕</span>
-                                            </template>
-                                        </span>
-                                    </span>
-                                </TableHead>
-                                <TableHead>Estado</TableHead>
-                                <TableHead>Ítems</TableHead>
-                                <TableHead>Acciones</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            <template v-if="isLoading">
-                                <TableRow v-for="i in 5" :key="`reception-skeleton-${i}`">
-                                    <TableCell v-for="col in 7" :key="`reception-skeleton-${i}-${col}`" class="px-4 py-3">
-                                        <Skeleton class="h-4 w-full" />
-                                    </TableCell>
-                                </TableRow>
-                            </template>
-                            <template v-else-if="!invoices.length">
-                                <TableRow>
-                                    <TableCell :colspan="7" class="py-6 text-center text-sm text-muted-foreground">
-                                        No se encontraron recepciones.
-                                    </TableCell>
-                                </TableRow>
-                            </template>
-                            <template v-else>
-                                <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
-                                    <TableCell class="font-medium">{{ invoice.document_number || invoice.id }}</TableCell>
-                                    <TableCell>{{ getInvoiceContact(invoice)?.full_name ?? '—' }}</TableCell>
-                                    <TableCell>{{ formatInvoiceDate(invoice.date) }}</TableCell>
-                                    <TableCell class="font-medium">
-                                        {{
-                                            calculateInvoiceTotal(invoice).toLocaleString('es-CO', {
-                                                style: 'currency',
-                                                currency: 'COP',
-                                                minimumFractionDigits: 0,
-                                                maximumFractionDigits: 0,
-                                            })
-                                        }}
-                                    </TableCell>
-                                    <TableCell>
-                                        <span :class="['rounded-full px-2 py-1 text-xs font-medium', getStatusBadge(getInvoiceDisplayStatus(invoice))]">
-                                            {{ getStatusText(getInvoiceDisplayStatus(invoice)) }}
-                                        </span>
-                                    </TableCell>
-                                    <TableCell>{{ (invoice.items || []).length }} {{ (invoice.items || []).length === 1 ? 'item' : 'items' }}</TableCell>
-                                    <TableCell class="flex justify-center gap-1">
-                                        <button
-                                            class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-primary"
-                                            @click="viewInvoice(invoice)"
-                                            title="Ver detalle"
-                                        >
-                                            <Eye class="h-4 w-4" />
-                                        </button>
-                                        <template v-if="isInvoicePendingReceipt(invoice)">
-                                            <div class="relative inline-flex">
-                                                <button
-                                                    class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-green-600"
-                                                    :disabled="getBlockersForInvoiceId(invoice.id).length > 0"
-                                                    :title="getBlockersForInvoiceId(invoice.id).length > 0 ? getBlockersForInvoiceId(invoice.id).join(' ') : 'Aprobar recepci�n'"
-                                                    @click="
-                                                        getBlockersForInvoiceId(invoice.id).length > 0
-                                                            ? setAlert(getBlockersForInvoiceId(invoice.id).join(' '), 'warning')
-                                                            : approveReception(invoice)
-                                                    "
-                                                >
-                                                    <Check class="h-4 w-4" />
-                                                </button>
-                                                <span
-                                                    v-if="getBlockersForInvoiceId(invoice.id).length > 0"
-                                                    class="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 cursor-pointer rounded-full bg-destructive ring-2 ring-background"
-                                                    title="Condiciones no cumplidas para aprobar"
-                                                    @click="setAlert(getBlockersForInvoiceId(invoice.id).join(' '), 'warning')"
-                                                />
-                                            </div>
-                                            <button
-                                                class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-red-600"
-                                                @click="showRejectDialog(invoice)"
-                                                title="Rechazar recepción"
-                                            >
-                                                <X class="h-4 w-4" />
-                                            </button>
-                                        </template>
-                                    </TableCell>
-                                </TableRow>
-                            </template>
-                        </TableBody>
-                    </Table>
-                    <div class="mt-4 flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between rounded-xl border">
-                      <ServerPagination 
-                        v-model:current-page="currentPage"
-                        v-model:page-size="itemsPerPage"
-                        :total-items="totalItems"
-                        @fetch-data="() => fetchInvoices(currentPage, searchQuery)" 
-                      />
-                    </div>
-                </div>
+                <PurchaseListTable
+                    :columns="listColumns"
+                    :rows="invoices"
+                    :loading="isLoading"
+                    empty-text="No se encontraron recepciones."
+                    :sort-by="sortBy"
+                    :sort-dir="sortDir"
+                    v-model:current-page="currentPage"
+                    v-model:page-size="itemsPerPage"
+                    :total-items="totalItems"
+                    @sort="toggleSort"
+                    @fetch-data="() => fetchInvoices(currentPage, searchQuery)"
+                >
+                    <template #cell-document_number="{ row: invoice }">
+                        <span class="font-medium">{{ invoice.document_number || invoice.id }}</span>
+                    </template>
+                    <template #cell-date="{ row: invoice }">{{ formatDate(invoice.date) }}</template>
+                    <template #cell-provider="{ row: invoice }">{{ getInvoiceContact(invoice)?.full_name ?? '-' }}</template>
+                    <template #cell-items="{ row: invoice }">
+                        {{ (invoice.items || []).length }} {{ (invoice.items || []).length === 1 ? 'item' : 'items' }}
+                    </template>
+                    <template #cell-total="{ row: invoice }">
+                        <span class="font-medium">{{ formatCurrency(calculateInvoiceTotal(invoice)) }}</span>
+                    </template>
+                    <template #cell-status="{ row: invoice }"><TableStatusBadge v-bind="invoiceStatus(invoice)" /></template>
+                    <template #actions="{ row: invoice }">
+                    <TableRowActions>
+                        <ViewButton :on-click="() => viewInvoice(invoice)" :dusk="`btn-ver-factura-${invoice.id}`" />
+                        <template v-if="isInvoicePendingReceipt(invoice)">
+                            <div v-if="canApproveReception" class="relative inline-flex">
+                                <ActionIconButton
+                                    :icon="Check"
+                                    :tooltip="getBlockersForInvoiceId(invoice.id).length > 0 ? getBlockersForInvoiceId(invoice.id).join(' ') : 'Aprobar recepción'"
+                                    @click="
+                                        getBlockersForInvoiceId(invoice.id).length > 0
+                                            ? setAlert(getBlockersForInvoiceId(invoice.id).join(' '), 'warning')
+                                            : approveReception(invoice)
+                                    "
+                                />
+                                <span
+                                    v-if="getBlockersForInvoiceId(invoice.id).length > 0"
+                                    class="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 cursor-pointer rounded-full bg-destructive ring-2 ring-background"
+                                    title="Condiciones no cumplidas para aprobar"
+                                    @click="setAlert(getBlockersForInvoiceId(invoice.id).join(' '), 'warning')"
+                                />
+                            </div>
+                            <ActionIconButton v-if="canRejectReception" :icon="X" variant="destructive" tooltip="Rechazar recepción" @click="showRejectDialog(invoice)" />
+                        </template>
+                    </TableRowActions>
+                    </template>
+                </PurchaseListTable>
             </template>
 
             <!-- Vista detallada de factura (sin dialog) -->
             <template v-if="showInvoiceDetail && selectedInvoice">
                 <div class="space-y-6">
                     <!-- Datos de la factura -->
-                    <div class="rounded-xl border border-border bg-card p-4">
-                        <div class="grid gap-x-8 gap-y-4 md:grid-cols-2">
-                            <div>
-                                <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Proveedor</p>
-                                <p class="mt-1 text-sm font-semibold">{{ getInvoiceContact(selectedInvoice)?.full_name ?? 'N/A' }}</p>
-                                <p class="mt-0.5 text-xs text-muted-foreground">
-                                    ID {{ getInvoiceContact(selectedInvoice)?.id_number ?? 'N/A' }} · Tel.
-                                    {{ getInvoiceContact(selectedInvoice)?.phone ?? 'N/A' }}
-                                </p>
-                            </div>
-                            <dl class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-                                <div>
-                                    <dt class="text-xs text-muted-foreground">Fecha de factura</dt>
-                                    <dd>{{ formatInvoiceDate(selectedInvoice.date) }}</dd>
-                                </div>
-                                <div>
-                                    <dt class="text-xs text-muted-foreground">Fecha de entrega</dt>
-                                    <dd>{{ formatInvoiceDate(selectedInvoice.delivery_date) }}</dd>
-                                </div>
-                                <div>
-                                    <dt class="text-xs text-muted-foreground">N° factura proveedor</dt>
-                                    <dd>{{ selectedInvoice.supplier_invoice_number || 'N/A' }}</dd>
-                                </div>
-                                <div>
-                                    <dt class="text-xs text-muted-foreground">Estado</dt>
-                                    <dd>
-                                        <span
-                                            :class="['rounded-full px-2 py-0.5 text-xs font-medium', getStatusBadge(getInvoiceDisplayStatus(selectedInvoice))]"
-                                        >
-                                            {{ getStatusText(getInvoiceDisplayStatus(selectedInvoice)) }}
-                                        </span>
-                                    </dd>
-                                </div>
-                            </dl>
+                    <PurchaseDocumentHeader
+                        :provider-name="getInvoiceContact(selectedInvoice)?.full_name"
+                        :id-number="getInvoiceContact(selectedInvoice)?.id_number"
+                        :phone="getInvoiceContact(selectedInvoice)?.phone"
+                        :email="getInvoiceContact(selectedInvoice)?.email"
+                        :date="formatDate(selectedInvoice.date)"
+                        :delivery-date="formatDate(selectedInvoice.delivery_date)"
+                        :document-number="selectedInvoice.supplier_invoice_number"
+                        date-label="Fecha de factura"
+                        document-number-label="N° factura proveedor"
+                    >
+                        <div>
+                            <dt class="text-xs text-muted-foreground">Estado</dt>
+                            <dd><TableStatusBadge v-bind="invoiceStatus(selectedInvoice)" /></dd>
                         </div>
-                        <div v-if="selectedInvoice.description" class="mt-4 border-t border-border pt-3">
-                            <p class="text-xs text-muted-foreground">Observaciones</p>
-                            <p class="text-sm">{{ selectedInvoice.description }}</p>
-                        </div>
-                    </div>
+                    </PurchaseDocumentHeader>
 
                     <!-- Qué falta para aprobar / diferencias (arriba, para verlo antes de revisar los ítems) -->
                     <!-- Descripción de validación: por qué no se puede aprobar -->
@@ -1282,14 +1142,20 @@ function onFabricRollSuccess() {
                                                 <p class="text-[11px] text-muted-foreground">{{ itemSubtitle(item) }}</p>
                                             </TableCell>
                                             <TableCell class="py-2.5 text-right tabular-nums">{{
-                                                `${Number(item.quantity).toFixed(2)} ${item.item && 'unit' in item.item ? item.item.unit : 'mts'}`
+                                                `${formatDecimalInput(item.quantity)} ${item.item && 'unit' in item.item ? item.item.unit : 'mts'}`
                                             }}</TableCell>
-                                            <TableCell class="py-2.5 text-right tabular-nums">{{ formatMoney(item.price) }}</TableCell>
-                                            <TableCell class="py-2.5 text-right tabular-nums">{{ formatMoney(item.total_tax) }}</TableCell>
-                                            <TableCell class="py-2.5 text-right font-medium tabular-nums">{{ formatMoney(item.total) }}</TableCell>
+                                            <TableCell class="py-2.5 text-right tabular-nums">{{ formatCurrency(item.price) }}</TableCell>
+                                            <TableCell class="py-2.5 text-right tabular-nums">{{ formatCurrency(item.total_tax) }}</TableCell>
+                                            <TableCell class="py-2.5 text-right font-medium tabular-nums">{{ formatCurrency(item.total) }}</TableCell>
                                             <TableCell v-if="isTelasList" class="py-2.5 text-center">
                                                 <div v-if="isFabricItem(item)" class="flex flex-col items-center gap-1">
-                                                    <Button variant="outline" size="sm" class="h-8 gap-1.5 text-xs" @click="openFabricRollDialog(item)">
+                                                    <Button
+                                                        v-if="isInvoiceReceptionApproved(selectedInvoice) || canCreateRolls"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        class="h-8 gap-1.5 text-xs"
+                                                        @click="openFabricRollDialog(item)"
+                                                    >
                                                         <Package2 class="h-3.5 w-3.5" />
                                                         {{ isInvoiceReceptionApproved(selectedInvoice) ? 'Ver rollos' : 'Registrar rollos' }}
                                                     </Button>
@@ -1307,12 +1173,12 @@ function onFabricRollSuccess() {
                                             </TableCell>
                                             <template v-if="!isTelasList">
                                                 <template v-if="requiresGeneralReception(item)">
-                                                    <TableCell class="py-2.5 text-right tabular-nums">{{ receivedSoFar(item).toFixed(2) }}</TableCell>
+                                                    <TableCell class="py-2.5 text-right tabular-nums">{{ formatDecimalInput(receivedSoFar(item)) }}</TableCell>
                                                     <TableCell
                                                         class="py-2.5 text-right tabular-nums"
                                                         :class="pendingQuantity(item) > 0 ? 'font-medium text-amber-600' : 'text-emerald-600'"
                                                     >
-                                                        {{ pendingQuantity(item).toFixed(2) }}
+                                                        {{ formatDecimalInput(pendingQuantity(item)) }}
                                                     </TableCell>
                                                     <TableCell class="py-2.5">
                                                         <SelectField
@@ -1390,7 +1256,7 @@ function onFabricRollSuccess() {
                                                     <div class="mb-1 flex justify-between text-[11px] text-muted-foreground">
                                                         <span>Recibido</span>
                                                         <span class="tabular-nums">
-                                                            {{ rollsTotalFor(item).toFixed(2) }} / {{ Number(item.quantity).toFixed(2) }} mts
+                                                            {{ formatDecimalInput(rollsTotalFor(item)) }} / {{ formatDecimalInput(item.quantity) }} mts
                                                         </span>
                                                     </div>
                                                     <div class="h-1.5 overflow-hidden rounded-full bg-muted">
@@ -1409,7 +1275,13 @@ function onFabricRollSuccess() {
                                                 >
                                                     {{ Math.round(Number(item.quantity) > 0 ? (rollsTotalFor(item) / Number(item.quantity)) * 100 : 0) }}%
                                                 </span>
-                                                <Button variant="outline" size="sm" class="h-8 gap-1.5 text-xs" @click="openFabricRollDialog(item)">
+                                                <Button
+                                                        v-if="isInvoiceReceptionApproved(selectedInvoice) || canCreateRolls"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        class="h-8 gap-1.5 text-xs"
+                                                        @click="openFabricRollDialog(item)"
+                                                    >
                                                     <Package2 class="h-3.5 w-3.5" />
                                                     {{ isInvoiceReceptionApproved(selectedInvoice) ? 'Ver rollos' : 'Registrar rollos' }}
                                                 </Button>
@@ -1430,14 +1302,14 @@ function onFabricRollSuccess() {
                                                 <TableBody>
                                                     <TableRow v-for="roll in rollsByItemId[item.id]" :key="roll.id" class="text-xs hover:bg-muted/30">
                                                         <TableCell class="py-1.5 pl-4 font-mono font-medium">{{ roll.roll_number }}</TableCell>
-                                                        <TableCell class="py-1.5 text-right tabular-nums">{{ Number(roll.quantity).toFixed(2) }}</TableCell>
-                                                        <TableCell class="py-1.5 text-right tabular-nums">{{ Number(roll.roll_width).toFixed(2) }}</TableCell>
+                                                        <TableCell class="py-1.5 text-right tabular-nums">{{ formatDecimalInput(roll.quantity) }}</TableCell>
+                                                        <TableCell class="py-1.5 text-right tabular-nums">{{ formatDecimalInput(roll.roll_width) }}</TableCell>
                                                         <TableCell class="py-1.5">{{ roll.location || '-' }}</TableCell>
                                                         <TableCell class="py-1.5 text-muted-foreground">{{ roll.entry_date || '-' }}</TableCell>
                                                     </TableRow>
                                                     <TableRow class="bg-muted/30 text-xs font-semibold hover:bg-muted/30">
                                                         <TableCell class="py-1.5 pl-4">Total</TableCell>
-                                                        <TableCell class="py-1.5 text-right tabular-nums">{{ rollsTotalFor(item).toFixed(2) }}</TableCell>
+                                                        <TableCell class="py-1.5 text-right tabular-nums">{{ formatDecimalInput(rollsTotalFor(item)) }}</TableCell>
                                                         <TableCell colspan="3" />
                                                     </TableRow>
                                                 </TableBody>
@@ -1472,37 +1344,14 @@ function onFabricRollSuccess() {
                                     class="flex justify-between py-1 text-xs"
                                 >
                                     <span>{{ withholding.name || 'N/A' }}</span>
-                                    <span class="text-muted-foreground">{{
-                                        Number(withholdingBase(withholding, invSubtotal, invIva)).toLocaleString('es-CO', {
-                                            style: 'currency',
-                                            currency: 'COP',
-                                            minimumFractionDigits: 0,
-                                            maximumFractionDigits: 0,
-                                        })
-                                    }}</span>
+                                    <span class="text-muted-foreground">{{ formatCurrency(withholdingBase(withholding, invSubtotal, invIva)) }}</span>
                                     <span class="text-muted-foreground">{{ withholding.percentage || 0 }}%</span>
-                                    <span class="text-red-700"
-                                        >-{{
-                                            invWithholdingAmount(withholding).toLocaleString(
-                                                'es-CO',
-                                                { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 },
-                                            )
-                                        }}</span
-                                    >
+                                    <span class="text-red-700">-{{ formatCurrency(invWithholdingAmount(withholding)) }}</span>
                                 </li>
                             </ul>
                             <div class="mt-2 flex items-center justify-between border-t pt-2 text-xs">
                                 <span class="font-medium text-muted-foreground">Total retenciones</span>
-                                <span class="text-red-700"
-                                    >-{{
-                                        invRetencionesTotal.toLocaleString('es-CO', {
-                                                style: 'currency',
-                                                currency: 'COP',
-                                                minimumFractionDigits: 0,
-                                                maximumFractionDigits: 0,
-                                            })
-                                    }}</span
-                                >
+                                <span class="text-red-700">-{{ formatCurrency(invRetencionesTotal) }}</span>
                             </div>
                         </div>
                         <div v-else>
@@ -1510,7 +1359,7 @@ function onFabricRollSuccess() {
                         </div>
 
                         <!-- Totales detallados a la derecha -->
-                        <div class="flex justify-end">
+                        <div class="flex flex-col items-end gap-3">
                             <PurchaseInvoiceSummary
                                 :subtotal="invSubtotal"
                                 :iva="invIva"
@@ -1521,6 +1370,10 @@ function onFabricRollSuccess() {
                                 :withholdings="selectedInvoice.withholdings || []"
                                 :get-withholding-amount="invWithholdingAmount"
                             />
+                            <div v-if="selectedInvoice.description" class="w-full max-w-sm">
+                                <p class="text-xs text-muted-foreground">Observación</p>
+                                <p class="text-sm">{{ selectedInvoice.description }}</p>
+                            </div>
                         </div>
                     </div>
 
@@ -1528,7 +1381,7 @@ function onFabricRollSuccess() {
                     <div class="sticky bottom-0 z-10 mt-2 flex flex-wrap items-center justify-end gap-2 rounded-xl border border-border bg-card p-3 shadow-sm">
                         <template v-if="isInvoicePendingReceipt(selectedInvoice)">
                             <Button
-                                v-if="!isTelasList && invoiceHasPendingGeneralReception(selectedInvoice)"
+                                v-if="canApproveReception && !isTelasList && invoiceHasPendingGeneralReception(selectedInvoice)"
                                 variant="outline"
                                 size="sm"
                                 class="min-w-[160px]"
@@ -1537,7 +1390,7 @@ function onFabricRollSuccess() {
                             >
                                 {{ isRegisteringReception ? 'Registrando...' : 'Registrar recepción' }}
                             </Button>
-                            <TooltipProvider>
+                            <TooltipProvider v-if="canApproveReception">
                                 <Tooltip>
                                     <TooltipTrigger as-child>
                                         <div class="relative inline-flex">
@@ -1571,7 +1424,7 @@ function onFabricRollSuccess() {
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
-                            <Button variant="destructive" size="sm" class="min-w-[120px]" @click="showRejectDialog(selectedInvoice)">
+                            <Button v-if="canRejectReception" variant="destructive" size="sm" class="min-w-[120px]" @click="showRejectDialog(selectedInvoice)">
                                 <X class="h-4 w-4" /> Rechazar
                             </Button>
                         </template>
@@ -1581,9 +1434,7 @@ function onFabricRollSuccess() {
                         <div v-else class="flex flex-col items-end gap-1 text-right">
                             <div class="flex items-center gap-2 text-sm text-muted-foreground">
                                 Estado:
-                                <span :class="['rounded-full px-2 py-1 text-xs font-medium', getStatusBadge(getInvoiceDisplayStatus(selectedInvoice))]">
-                                    {{ getStatusText(getInvoiceDisplayStatus(selectedInvoice)) }}
-                                </span>
+                                <TableStatusBadge v-bind="invoiceStatus(selectedInvoice)" />
                             </div>
                             <p v-if="cannotApproveDescription" class="max-w-md text-xs text-muted-foreground">
                                 {{ cannotApproveDescription }}
