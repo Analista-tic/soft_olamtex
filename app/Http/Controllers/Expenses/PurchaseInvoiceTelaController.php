@@ -23,13 +23,6 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
         return $this->service;
     }
 
-    // La recepción de tela (FabricRollService::approveReception) deja status='approved'.
-    private function isReceivedOrApproved(PurchaseDocument $invoice): bool
-    {
-        return $invoice->approval_status === PurchaseDocument::APPROVAL_APPROVED
-            || in_array($invoice->status, ['received', 'approved'], true);
-    }
-
     public function indexFabric()
     {
         return Inertia::render('Expenses/PurchaseInvoices/IndexFabric');
@@ -70,8 +63,10 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
     {
         $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
 
-        if ($this->isReceivedOrApproved($purchaseInvoice)) {
-            return response()->json(['message' => 'No se puede editar una factura aprobada o recibida.'], 422);
+        $purchaseInvoice = $this->service->findAccessibleDocumentOrFail($purchaseInvoice, $request->user());
+
+        if (! $purchaseInvoice->canEditInvoice()) {
+            return response()->json(['message' => PurchaseDocument::INVOICE_LOCKED_MESSAGE], 422);
         }
 
         $payload = $this->validateInvoiceRequest($request, true);
@@ -85,8 +80,10 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
     {
         $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
 
-        if ($this->isReceivedOrApproved($purchaseInvoice)) {
-            return response()->json(['message' => 'No se puede eliminar una factura aprobada o recibida.'], 422);
+        $purchaseInvoice = $this->service->findAccessibleDocumentOrFail($purchaseInvoice, request()->user());
+
+        if (! $purchaseInvoice->canDeleteInvoice()) {
+            return response()->json(['message' => PurchaseDocument::INVOICE_LOCKED_MESSAGE], 422);
         }
 
         $this->service->deleteDocument($purchaseInvoice);
@@ -123,6 +120,7 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
     public function justify(Request $request, PurchaseDocument $purchaseInvoice)
     {
         $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
+        $purchaseInvoice = $this->service->findAccessibleDocumentOrFail($purchaseInvoice, $request->user());
 
         $validated = $request->validate([
             'difference_reason' => 'required|string',

@@ -155,11 +155,8 @@ class PurchaseInvoiceController extends PurchaseDocumentController
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
 
-        if ($purchaseDocument->approval_status === PurchaseDocument::APPROVAL_APPROVED
-            || $purchaseDocument->status === 'received') {
-            return response()->json([
-                'message' => 'No se puede editar una factura aprobada o recibida.'
-            ], 422);
+        if (! $purchaseDocument->canEditInvoice()) {
+            return response()->json(['message' => PurchaseDocument::INVOICE_LOCKED_MESSAGE], 422);
         }
 
         return $this->updateGeneric(
@@ -174,11 +171,8 @@ class PurchaseInvoiceController extends PurchaseDocumentController
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
 
-        if ($purchaseDocument->approval_status === PurchaseDocument::APPROVAL_APPROVED
-            || $purchaseDocument->status === 'received') {
-            return response()->json([
-                'message' => 'No se puede eliminar una factura aprobada o recibida.'
-            ], 422);
+        if (! $purchaseDocument->canDeleteInvoice()) {
+            return response()->json(['message' => PurchaseDocument::INVOICE_LOCKED_MESSAGE], 422);
         }
 
         return $this->destroyGeneric(

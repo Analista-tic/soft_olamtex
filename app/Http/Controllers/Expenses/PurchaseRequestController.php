@@ -97,6 +97,12 @@ class PurchaseRequestController extends Controller
     {
         $purchaseRequest = $this->service->findAccessibleOrFail($purchaseRequest, $request->user());
 
+        if (! $purchaseRequest->canEdit()) {
+            return response()->json([
+                'message' => 'Solo se pueden editar solicitudes en estado borrador.',
+            ], 422);
+        }
+
         try {
             $payload = $this->validateRequestPayload($request, true);
             $payload['items'] = $this->prepareItemsPayload($request, $payload['items'] ?? [], $purchaseRequest);
@@ -168,6 +174,8 @@ class PurchaseRequestController extends Controller
 
     public function approve(Request $request, PurchaseRequest $purchaseRequest)
     {
+        $purchaseRequest = $this->service->findAccessibleOrFail($purchaseRequest, $request->user());
+
         $validated = $request->validate([
             'reason' => 'nullable|string|max:500',
         ]);
@@ -195,6 +203,8 @@ class PurchaseRequestController extends Controller
 
     public function reject(Request $request, PurchaseRequest $purchaseRequest)
     {
+        $purchaseRequest = $this->service->findAccessibleOrFail($purchaseRequest, $request->user());
+
         $validated = $request->validate([
             'reason' => 'required|string|max:500',
         ]);
@@ -245,6 +255,8 @@ class PurchaseRequestController extends Controller
 
     public function cancel(PurchaseRequest $purchaseRequest)
     {
+        $purchaseRequest = $this->service->findAccessibleOrFail($purchaseRequest, request()->user());
+
         try {
             $updated = $this->service->cancel($purchaseRequest);
 
@@ -282,7 +294,6 @@ class PurchaseRequestController extends Controller
             'date' => 'required|date',
             'destination' => 'nullable|string|max:255',
             'description' => $isUpdate ? 'sometimes|nullable|string' : 'required|string',
-            'status' => 'sometimes|in:draft,pending,approved,processed,rejected,cancelled',
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => 'nullable',
             'items.*.name' => 'nullable|string',
@@ -295,6 +306,11 @@ class PurchaseRequestController extends Controller
             'items.*._delete_image' => 'nullable|boolean',
             'items.*.image' => 'nullable|image|max:2048',
         ];
+
+        // El estado solo se acepta al crear; en update se ignora (las transiciones van por sus endpoints).
+        if (!$isUpdate) {
+            $rules['status'] = 'sometimes|in:draft,pending,approved,processed,rejected,cancelled';
+        }
 
         $validated = $request->validate($rules, [
             'items.required' => 'Debe agregar al menos un ítem a la solicitud.',

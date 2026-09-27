@@ -272,7 +272,11 @@ class PurchaseRequestService
             $data['request_number'] = $this->generateRequestNumber();
         }
 
-        $data['status'] = $data['status'] ?? 'draft';
+        if ($isUpdate) {
+            unset($data['status']); // el estado solo cambia por las transiciones
+        } else {
+            $data['status'] = $data['status'] ?? 'draft';
+        }
         // El solicitante es siempre quien crea la solicitud; se ignora cualquier valor enviado por el cliente.
         unset($data['requester_user_id']);
         if (!$isUpdate) {

@@ -78,7 +78,7 @@ test('deleting one of several invoices leaves the order partially invoiced', fun
 
 test('a received fabric invoice can no longer be edited or deleted', function () {
     $invoice = flowDoc('purchase_invoice', 'approved');
-    $user = flowUser(['ver facturas compra', 'editar facturas compra', 'eliminar facturas compra']);
+    $user = flowUser(['ver facturas compra', 'ver todos facturas compra', 'editar facturas compra', 'eliminar facturas compra']);
 
     $this->actingAs($user)->putJson("/gastos/facturas-compra-tela/{$invoice->id}", [])->assertStatus(422);
     $this->actingAs($user)->deleteJson("/gastos/facturas-compra-tela/{$invoice->id}")->assertStatus(422);

@@ -35,6 +35,10 @@ class PurchaseOrderController extends PurchaseDocumentController
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
         $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
 
+        if (! $purchaseDocument->canEditOrder()) {
+            abort(403, PurchaseDocument::ORDER_LOCKED_MESSAGE);
+        }
+
         $order = $this->service->loadWithRelations($purchaseDocument);
 
         return Inertia::render('Expenses/PurchaseOrders/PurchaseOrderForm', [
@@ -83,6 +87,11 @@ class PurchaseOrderController extends PurchaseDocumentController
 
     public function update(Request $request, PurchaseDocument $purchaseDocument)
     {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+        if (! $purchaseDocument->canEditOrder()) {
+            return response()->json(['message' => PurchaseDocument::ORDER_LOCKED_MESSAGE], 422);
+        }
+
         return $this->updateGeneric(
             $request,
             $purchaseDocument,
@@ -93,6 +102,11 @@ class PurchaseOrderController extends PurchaseDocumentController
 
     public function destroy(PurchaseDocument $purchaseDocument)
     {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+        if (! $purchaseDocument->canEditOrder()) {
+            return response()->json(['message' => PurchaseDocument::ORDER_LOCKED_MESSAGE], 422);
+        }
+
         return $this->destroyGeneric($purchaseDocument, PurchaseDocument::TYPE_ORDER, 'Purchase order deleted.');
     }
 

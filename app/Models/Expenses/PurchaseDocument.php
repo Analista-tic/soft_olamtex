@@ -234,6 +234,9 @@ class PurchaseDocument extends Model implements HasAuditLabel
         return $this->isOrder() && $this->status === 'invoiced';
     }
 
+    public const ORDER_LOCKED_MESSAGE = 'Solo se pueden editar o eliminar órdenes de compra pendientes de aprobación.';
+    public const INVOICE_LOCKED_MESSAGE = 'Solo se puede editar o eliminar una factura pendiente de recepción, sin diferencias en revisión ni rechazadas.';
+
     public function canEditOrder(): bool
     {
         return $this->isOrder() && $this->status === 'pending';
@@ -278,9 +281,31 @@ class PurchaseDocument extends Model implements HasAuditLabel
         return $this->isInvoice() && $this->status === 'rejected';
     }
 
+    /**
+     * Editar/eliminar factura (normal y tela): solo pendiente de recepción (o legacy vacío/'pending')
+     * y sin aprobación/diferencia en curso o resuelta.
+     */
     public function canEditInvoice(): bool
     {
-        return $this->isInvoice() && $this->status === 'pending_receipt';
+        if (! $this->isInvoice()) {
+            return false;
+        }
+
+        $status = strtolower(trim((string) $this->status));
+        if (! in_array($status, ['', 'pending', 'pending_receipt'], true)) {
+            return false;
+        }
+
+        return ! in_array($this->approval_status, [
+            self::APPROVAL_PENDING_DIFFERENCE,
+            self::APPROVAL_DIFFERENCE_REJECTED,
+            self::APPROVAL_APPROVED,
+        ], true);
+    }
+
+    public function canDeleteInvoice(): bool
+    {
+        return $this->canEditInvoice();
     }
 
     public function canRejectInvoice(): bool
