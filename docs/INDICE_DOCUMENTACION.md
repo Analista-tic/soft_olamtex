@@ -94,5 +94,6 @@ REPORTES
 | [DESPLIEGUE_HOSTINGER_SSH.md](DESPLIEGUE_HOSTINGER_SSH.md) | Cómo hacer deploy en el servidor de producción |
 | [ENTORNO_PRUEBAS_EN_RED.md](ENTORNO_PRUEBAS_EN_RED.md) | Cómo exponer la app local a otros dispositivos de la red (LAN) |
 | [ANALISIS_FLUJO_COMPRAS.md](ANALISIS_FLUJO_COMPRAS.md) | Análisis detallado del flujo de compras |
+| [REGLAS_ESTADOS_COMPRAS.md](REGLAS_ESTADOS_COMPRAS.md) | Qué se puede editar, eliminar o aprobar en Compras según el estado, y dónde vive cada regla |
 | [FICHA_TECNICA_BD_Y_ALMACENAMIENTO.md](FICHA_TECNICA_BD_Y_ALMACENAMIENTO.md) | Estructura de la ficha técnica en base de datos |
 | [AUDITORIA_SEGURIDAD_VULNERABILIDADES.md](AUDITORIA_SEGURIDAD_VULNERABILIDADES.md) | Revisión de seguridad del sistema |
