@@ -7,15 +7,17 @@ const props = defineProps<{
     subtotal: number;
     iva: number;
     ivaLabel?: string;
-    retencionesTotal: number;
+    retencionesTotal?: number;
     total: number;
-    totalPagar: number;
+    totalPagar?: number;
+    totalLabel?: string;
+    hidePayable?: boolean;
     withholdings?: Array<WithholdingLike & { name?: string | null }>;
-    getWithholdingAmount: (withholding: WithholdingLike) => number;
+    getWithholdingAmount?: (withholding: WithholdingLike) => number;
 }>();
 
 const rows = computed(() =>
-    (props.withholdings || []).map((w, index) => ({ key: index, name: w.name || 'Retención', amount: props.getWithholdingAmount(w) })),
+    (props.withholdings || []).map((w, index) => ({ key: index, name: w.name || 'Retención', amount: props.getWithholdingAmount ? props.getWithholdingAmount(w) : 0 })),
 );
 
 function formatCurrency(value: number): string {
@@ -34,7 +36,7 @@ function formatCurrency(value: number): string {
             <span class="font-medium">{{ formatCurrency(iva) }}</span>
         </div>
         <div class="flex items-center justify-between px-5 py-3" :class="rows.length ? 'border-b border-border' : ''">
-            <span class="font-semibold">Total factura</span>
+            <span class="font-semibold">{{ totalLabel || 'Total factura' }}</span>
             <span class="font-semibold">{{ formatCurrency(total) }}</span>
         </div>
         <div v-for="row in rows" :key="row.key" class="flex items-center justify-between border-b border-border px-5 py-2.5 last:border-b-0">
@@ -43,11 +45,11 @@ function formatCurrency(value: number): string {
         </div>
         <div v-if="rows.length" class="flex items-center justify-between border-t border-border px-5 py-2.5">
             <span class="font-semibold text-muted-foreground">Total retenciones</span>
-            <span class="font-medium text-red-500 dark:text-red-400">-{{ formatCurrency(retencionesTotal) }}</span>
+            <span class="font-medium text-red-500 dark:text-red-400">-{{ formatCurrency(retencionesTotal ?? 0) }}</span>
         </div>
-        <div class="flex items-center justify-between border-t border-border bg-muted/40 px-5 py-3.5">
+        <div v-if="!hidePayable" class="flex items-center justify-between border-t border-border bg-muted/40 px-5 py-3.5">
             <span class="font-bold">Total a pagar</span>
-            <span class="text-base font-bold text-green-600 dark:text-green-400">{{ formatCurrency(totalPagar) }}</span>
+            <span class="text-base font-bold text-green-600 dark:text-green-400">{{ formatCurrency(totalPagar ?? 0) }}</span>
         </div>
     </div>
 </template>

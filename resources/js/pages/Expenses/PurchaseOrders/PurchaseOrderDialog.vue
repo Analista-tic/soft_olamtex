@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import DatePickerField from '@/components/DatePickerField.vue';
+import FormDialogBody from '@/components/FormDialogBody.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormDialogFooter from '@/components/FormDialogFooter.vue';
+import FormDialogHeader from '@/components/FormDialogHeader.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
@@ -8,13 +11,16 @@ import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.
 import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
+import StatusBanner from '@/components/common/StatusBanner.vue';
+import PurchaseInvoiceSummary from '../PurchaseInvoices/PurchaseInvoiceSummary.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import Label from '@/components/ui/label/Label.vue';
 import { useAlertStack } from '@/composables/useAlert';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import type { PurchaseOrder } from '@/domain/Expenses';
+import { canEditOrder as canEditOrderRule } from '@/domain/Expenses/rules';
 import type { Contact } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
@@ -68,8 +74,7 @@ const canEdit = computed(() => {
     if (props.readonly) return false;
     if (props.dialogType === 'create') return true;
     const status = localForm.value.status;
-    // Solo se puede editar si está pendiente
-    return status === 'pending' || !status;
+    return canEditOrderRule(status);
 });
 
 const isReadOnly = computed(() => props.readonly || !canEdit.value);
@@ -827,7 +832,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
 <template>
     <Dialog v-model:open="dialogOpen">
         <FormDialogContent class="flex max-h-[95vh] max-w-[95vw] flex-col px-2 py-2">
-            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
+            <FormDialogHeader class="space-y-1 px-4 pb-3 pr-12 pt-4">
                 <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                     <div class="flex min-w-0 flex-col gap-1">
                         <DialogTitle>
@@ -866,21 +871,16 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                         </div>
                     </div>
                 </div>
-            </DialogHeader>
+            </FormDialogHeader>
 
-            <!-- Motivo de cierre manual — visible siempre, fuera del scroll -->
-            <div
-                v-if="localForm.status === 'invoiced' && localForm.closure_reason"
-                class="flex gap-3 border-b border-amber-200 bg-amber-50 px-5 py-3"
-            >
-                <LockKeyhole class="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                <div class="text-sm text-amber-800">
-                    <p class="font-semibold">Orden cerrada manualmente</p>
-                    <p class="mt-0.5">{{ localForm.closure_reason }}</p>
-                </div>
-            </div>
+            <StatusBanner v-if="localForm.status === 'invoiced' && localForm.closure_reason" tone="warning" title="Orden cerrada manualmente" class="mx-4 mt-3">
+                <template #icon>
+                    <LockKeyhole class="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                </template>
+                <p class="mt-0.5">{{ localForm.closure_reason }}</p>
+            </StatusBanner>
 
-            <div class="relative min-h-0 flex-1 overflow-y-auto px-5 py-4" :class="{ 'min-h-[420px]': isBlockingLoading }" style="scrollbar-width: thin">
+            <FormDialogBody class="relative px-4 pr-2" :class="{ 'min-h-[420px]': isBlockingLoading }" style="scrollbar-width: thin">
                 <AlertStack
                     :success-message="successMessage"
                     :error-message="errorMessage"
@@ -1116,27 +1116,16 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                     />
                                 </InventoryDetailTableLayout>
 
-                                <!-- Totales -->
-                                <div class="space-y-4 pt-6">
-                                    <div class="flex w-full flex-col items-end space-y-0 text-sm">
-                                        <div class="w-full max-w-xs space-y-1 rounded bg-card p-2 text-card-foreground shadow-sm">
-                                            <div class="flex items-center justify-between">
-                                                <span class="font-semibold text-card-foreground/70">Subtotal</span>
-                                                <span>{{ formatCurrency(Number(subtotal || 0)) }}</span>
-                                            </div>
-                                            <div class="flex items-center justify-between">
-                                                <span class="font-semibold text-card-foreground/70">IVA</span>
-                                                <span>{{ formatCurrency(Number(iva || 0)) }}</span>
-                                            </div>
-                                            <div class="flex items-center justify-between pt-1">
-                                                <span class="font-bold text-card-foreground">Total orden de compra</span>
-                                                <span class="font-bold text-card-foreground">{{ formatCurrency(Number(total || 0)) }}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                                <PurchaseInvoiceSummary
+                                    class="ml-auto"
+                                    :subtotal="Number(subtotal || 0)"
+                                    :iva="Number(iva || 0)"
+                                    :total="Number(total || 0)"
+                                    total-label="Total orden de compra"
+                                    hide-payable
+                                />
 
-                                <!-- Observaciones -->
+                                <!-- Observación -->
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium"> Observación </Label>
@@ -1158,30 +1147,32 @@ watch(selectedPurchaseRequestId, async (requestId) => {
 
                     </form>
                 </template>
-            </div>
+            </FormDialogBody>
 
-            <DialogFooter class="flex-shrink-0 border-t border-border px-5 py-4 justify-end gap-4">
+            <FormDialogFooter class="justify-end gap-4 bg-background">
                 <Button variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
-                <button
+                <Button
                     v-if="!isReadOnly"
                     type="button"
+                    variant="default"
+                    size="pill"
                     dusk="btn-guardar-orden"
                     :disabled="isLoading || isSendingMail || isBlockingLoading"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
                     @click.prevent="handleSubmit(false)"
                 >
                     {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
-                </button>
-                <button
+                </Button>
+                <Button
                     v-if="!isReadOnly"
                     type="button"
+                    variant="default"
+                    size="pill"
                     :disabled="isLoading || isSendingMail || isBlockingLoading"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
                     @click.prevent="handleSubmit(true)"
                 >
                     {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
-                </button>
-            </DialogFooter>
+                </Button>
+            </FormDialogFooter>
         </FormDialogContent>
     </Dialog>
     <ContactDialog

@@ -2,22 +2,28 @@
 import AlertStack from '@/components/common/AlertStack.vue';
 import CreatableSelectField from '@/components/CreatableSelectField.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
+import FormDialogBody from '@/components/FormDialogBody.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormDialogFooter from '@/components/FormDialogFooter.vue';
+import FormDialogHeader from '@/components/FormDialogHeader.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
+import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
+import StatusBanner from '@/components/common/StatusBanner.vue';
 import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
 import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import type { PurchaseRequestForm, PurchaseRequestItem } from '@/domain/Expenses';
+import { canEditRequest as canEditRequestRule } from '@/domain/Expenses/rules';
 import { useAuthStore } from '@/stores/auth';
 import axios from 'axios';
-import { Plus, XCircle } from 'lucide-vue-next';
+import { Plus } from 'lucide-vue-next';
 import { computed, nextTick, ref, watch } from 'vue';
 import PurchaseRequestItemsTable from './PurchaseRequestItemsTable.vue';
 
@@ -153,8 +159,7 @@ const canEdit = computed(() => {
         return true;
     }
 
-    const status = localForm.value.status;
-    return status === 'draft' || !status;
+    return canEditRequestRule(localForm.value.status || 'draft');
 });
 
 const isReadOnly = computed(() => props.readonly || !canEdit.value);
@@ -188,8 +193,7 @@ const canSendToApproval = computed(() => {
         return false;
     }
 
-    const status = localForm.value.status;
-    return status === 'draft' || status === undefined || status === null;
+    return canEditRequestRule(localForm.value.status || 'draft');
 });
 
 const solicitadoAOptions = [
@@ -472,8 +476,14 @@ async function handleSubmit(sendToApproval: boolean = false) {
         const payload: Record<string, unknown> = {
             ...localForm.value,
             date: normalizeIsoDate(localForm.value.date, getTodayDate()) || getTodayDate(),
-            status: sendToApproval ? 'pending' : (localForm.value.status || 'draft'),
         };
+
+        // El backend no acepta `status` en PUT: en edición solo se guarda el borrador y luego se envía a aprobación.
+        if (props.dialogType === 'create') {
+            payload.status = sendToApproval ? 'pending' : 'draft';
+        } else {
+            delete payload.status;
+        }
 
         delete payload.estimated_amount;
         delete payload.items;
@@ -501,6 +511,10 @@ async function handleSubmit(sendToApproval: boolean = false) {
                 'Content-Type': 'multipart/form-data',
             },
         });
+
+        if (sendToApproval && props.dialogType === 'edit') {
+            await axios.post(`${PURCHASE_REQUESTS_BASE_URL}/${localForm.value.id}/send-to-approval`);
+        }
 
         if (sendToApproval) {
             const message =
@@ -576,10 +590,10 @@ watch(dialogOpen, (isOpen) => {
     <Dialog v-model:open="dialogOpen">
         <FormDialogContent class="flex max-h-[95vh] max-w-[95vw] flex-col px-2 py-2" :scrollable="false">
             <div class="flex min-h-0 flex-1 flex-col">
-                <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
-                    <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Solicitud de Compra</DialogTitle>
+                <FormDialogHeader class="px-4 pb-3 pr-12 pt-4">
+                    <DialogTitle>{{ props.readonly ? 'Ver' : dialogType === 'edit' ? 'Editar' : 'Nueva' }} Solicitud de Compra</DialogTitle>
                     <DialogDescription>Completa los campos de la solicitud de compra.</DialogDescription>
-                </DialogHeader>
+                </FormDialogHeader>
 
                 <AlertStack
                     :success-message="successMessage"
@@ -591,26 +605,15 @@ watch(dialogOpen, (isOpen) => {
                     @close-error="clearError"
                 />
 
-                <div
-                    v-if="isRejected && canRenderForm"
-                    class="mx-4 mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30"
-                >
-                    <XCircle class="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
-                    <div class="text-sm text-red-800 dark:text-red-300">
-                        <p class="font-semibold">Solicitud rechazada</p>
-                        <p>
-                            Rechazada por <strong>{{ rejectedByName }}</strong>
-                            <template v-if="rejectedAtFormatted"> el {{ rejectedAtFormatted }}</template>
-                        </p>
-                        <p class="mt-1 italic">{{ localForm.rejection_reason || 'Sin motivo registrado.' }}</p>
-                    </div>
-                </div>
+                <StatusBanner v-if="isRejected && canRenderForm" tone="danger" title="Solicitud rechazada" class="mx-4 mt-3">
+                    <p>
+                        Rechazada por <strong>{{ rejectedByName }}</strong>
+                        <template v-if="rejectedAtFormatted"> el {{ rejectedAtFormatted }}</template>
+                    </p>
+                    <p class="mt-1 italic">{{ localForm.rejection_reason || 'Sin motivo registrado.' }}</p>
+                </StatusBanner>
 
-                <div
-                    class="relative min-h-0 flex-1 overflow-y-auto scroll-smooth px-4 pr-2"
-                    :class="{ 'min-h-[420px]': isBlockingLoading }"
-                    style="scrollbar-width: thin"
-                >
+                <FormDialogBody class="relative px-4 pr-2" :class="{ 'min-h-[420px]': isBlockingLoading }" style="scrollbar-width: thin">
                     <FormLoadingOverlay
                         :active="isBlockingLoading"
                         :delay-ms="0"
@@ -786,39 +789,37 @@ watch(dialogOpen, (isOpen) => {
                                 </div>
                             </div>
 
-                            <div class="border-t border-border"></div>
-
-                            <div class="space-y-2">
-                                <div class="flex items-center justify-between">
-                                    <div>
-                                        <h3 class="text-sm font-semibold">Ítems</h3>
-                                        <p class="text-xs text-muted-foreground">Agrega los ítems necesarios para esta solicitud</p>
-                                    </div>
+                            <InventoryDetailTableLayout
+                                title="Ítems"
+                                description="Agrega los ítems necesarios para esta solicitud"
+                                :show-create-line-button="false"
+                            >
+                                <template #actions>
                                     <Button
                                         v-if="!isReadOnly"
                                         type="button"
                                         variant="outline"
                                         size="pill"
                                         dusk="btn-agregar-item"
-                                        class="border-primary/40 text-primary shadow-sm hover:bg-primary/10"
+                                        class="border-primary/40 bg-background text-primary hover:bg-primary/10 hover:text-primary"
                                         @click="itemsTableRef?.addItem()"
                                     >
                                         <Plus class="h-4 w-4" />
                                         Agregar Item
                                     </Button>
-                                </div>
+                                </template>
                                 <PurchaseRequestItemsTable
                                     ref="itemsTableRef"
                                     :items="localForm.items || []"
                                     :readonly="isReadOnly"
                                     @update:items="localForm.items = $event"
                                 />
-                            </div>
+                            </InventoryDetailTableLayout>
                         </form>
                     </TooltipProvider>
-                </div>
+                </FormDialogBody>
 
-                <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
+                <FormDialogFooter class="justify-end gap-4 bg-background">
                     <Button variant="outline" size="pill" @click="dialogOpen = false">Cancelar</Button>
                     <Button
                         v-if="!props.readonly && !isReadOnly"
@@ -840,7 +841,7 @@ watch(dialogOpen, (isOpen) => {
                     >
                         {{ isLoading ? 'Guardando...' : 'Guardar y enviar a aprobación' }}
                     </Button>
-                </DialogFooter>
+                </FormDialogFooter>
             </div>
         </FormDialogContent>
     </Dialog>

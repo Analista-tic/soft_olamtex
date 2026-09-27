@@ -10,6 +10,7 @@ import HelpTooltip from '@/components/HelpTooltip.vue';
 import Label from '@/components/ui/label/Label.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import PurchaseOrderItemsTable from './PurchaseOrderItemsTable.vue';
+import PurchaseInvoiceSummary from '../PurchaseInvoices/PurchaseInvoiceSummary.vue';
 import { Button } from '@/components/ui/button';
 import { Lightbulb, Plus, PlusCircle } from 'lucide-vue-next';
 import { Head, router } from '@inertiajs/vue3';
@@ -19,6 +20,7 @@ import { useAlertStack } from '@/composables/useAlert';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useSmartLoading } from '@/composables/useSmartLoading';
 import { useAuthStore } from '@/stores/auth';
+import { canEditOrder as canEditOrderRule } from '@/domain/Expenses/rules';
 
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearError, clearSuccess } = useAlertStack();
 const { company, logoUrl } = useCompanyInfo();
@@ -62,7 +64,11 @@ const isLoadingPurchaseRequests = ref(false);
 const isLoadingContacts = ref(false);
 const itemsTableRef = ref<any>(null);
 
-const isReadOnly = computed(() => false);
+// Solo lectura si la orden ya no está pendiente o tiene facturas vinculadas.
+const orderHasInvoices = computed(() => Number(localForm.value?.invoices_count ?? props.form?.invoices_count ?? 0) > 0);
+const isReadOnly = computed(
+    () => mode.value === 'edit' && (!canEditOrderRule(localForm.value?.status ?? props.form?.status) || orderHasInvoices.value),
+);
 
 const selectedContactData = ref<any | null>(null);
 const contactIdNumber = computed(() => selectedContactData.value?.id_number || '');
@@ -653,7 +659,7 @@ watch(myRequestsOnly, () => {
                             :searchable="true"
                             search-placeholder="Buscar solicitud..."
                             tooltip-text="Selecciona una solicitud de compra aprobada para pre-llenar automáticamente los ítems."
-                            :disabled="isLoadingRequest"
+                            :disabled="isLoadingRequest || isReadOnly"
                             :loading="isLoadingPurchaseRequests"
                             :clearable="true"
                             @search="handlePurchaseRequestSearch"
@@ -696,7 +702,11 @@ watch(myRequestsOnly, () => {
 
             <AlertStack :successMessage="successMessage" :errorMessage="errorMessage" :errorType="errorType" @close-success="clearSuccess" @close-error="clearError" />
 
-            <div class="space-y-6">
+            <p v-if="isReadOnly" class="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800" dusk="orden-solo-lectura">
+                Esta orden ya no se puede modificar (no está pendiente o tiene facturas vinculadas).
+            </p>
+
+            <fieldset :disabled="isReadOnly" class="m-0 min-w-0 space-y-6 border-0 p-0">
                 <!-- Tarjeta: cabecera del documento + proveedor -->
                 <div class="overflow-hidden rounded-xl border border-sidebar-border/70">
 
@@ -756,9 +766,9 @@ watch(myRequestsOnly, () => {
 
                     </div>
 
-                    <!-- Sección proveedor: grid 2 columnas iguales -->
-                    <div class="grid grid-cols-2 gap-4 p-4">
-                        <!-- Fila 1: Proveedor | Teléfono -->
+                    <!-- Sección proveedor: grid 3 columnas -->
+                    <div class="grid grid-cols-3 gap-4 p-4">
+                        <!-- Fila 1: Proveedor | N° identificación | Teléfono -->
                         <div>
                             <SelectField
                                 v-model="localForm.contact_id"
@@ -804,14 +814,15 @@ watch(myRequestsOnly, () => {
                                 </button>
                             </div>
                         </div>
+
+                        <div>
+                            <InputField label="N° identificación" :modelValue="contactIdNumber" readonly />
+                        </div>
                         <div>
                             <InputField label="Teléfono" :modelValue="contactPhone" readonly />
                         </div>
 
-                        <!-- Fila 2: N° identificación | N° Orden proveedor -->
-                        <div>
-                            <InputField label="N° identificación" :modelValue="contactIdNumber" readonly />
-                        </div>
+                        <!-- Fila 2: N° Orden proveedor -->
                         <div class="flex flex-col gap-1">
                             <div class="flex items-center gap-2">
                                 <Label class="text-sm font-medium">N° Orden proveedor<span class="text-destructive">*</span></Label>
@@ -846,6 +857,7 @@ watch(myRequestsOnly, () => {
                         :items="localForm.items"
                         :suggested-items="requestItemsForTable"
                         :purchase-request-id="effectivePurchaseRequestId"
+                        :readonly="isReadOnly"
                         @update:items="(items) => (localForm.items = items)"
                         @success="showSuccess"
                         @error="(m: string) => showError(m)"
@@ -855,33 +867,16 @@ watch(myRequestsOnly, () => {
                 <!-- Zona inferior: Observación + Totales -->
                 <div class="flex items-start justify-between gap-6">
                     <div class="flex-1">
-                        <TextareaField data-no-uppercase v-model="localForm.description" label="Observación" />
+                        <TextareaField data-no-uppercase v-model="localForm.description" label="Observación" :disabled="isReadOnly" />
                     </div>
-                    <div class="shrink-0 rounded-lg border border-sidebar-border/70" style="min-width: 420px; width: auto">
-                        <div class="flex justify-between" style="padding: 12px 20px; font-size: 14px">
-                            <span class="text-muted-foreground">Subtotal</span>
-                            <span class="font-medium">{{ formatCurrency(subtotal) }}</span>
-                        </div>
-                        <div class="flex justify-between" style="padding: 12px 20px; font-size: 14px">
-                            <span class="text-muted-foreground">Descuento</span>
-                            <span class="font-medium">{{ formatCurrency(0) }}</span>
-                        </div>
-                        <div class="flex justify-between" style="padding: 12px 20px; font-size: 14px">
-                            <span class="text-muted-foreground">Impuestos</span>
-                            <span class="font-medium">{{ formatCurrency(iva) }}</span>
-                        </div>
-                        <div class="flex justify-between border-t" style="padding: 14px 20px; font-size: 15px; font-weight: 500">
-                            <span>Total</span>
-                            <span class="font-bold">{{ formatCurrency(total) }}</span>
-                        </div>
-                    </div>
+                    <PurchaseInvoiceSummary class="shrink-0" :subtotal="subtotal" :iva="iva" :total="total" total-label="Total orden de compra" hide-payable />
                 </div>
-            </div>
+            </fieldset>
 
             <!-- Footer de acciones -->
             <div class="flex justify-end gap-2 pt-2">
-                <Button variant="outline" size="pill" @click="cancel">Cancelar</Button>
-                <Button variant="default" size="pill" :disabled="isSubmitting" @click.prevent="handleSubmit(false)">
+                <Button variant="outline" size="pill" @click="cancel">{{ isReadOnly ? 'Volver' : 'Cancelar' }}</Button>
+                <Button v-if="!isReadOnly" variant="default" size="pill" :disabled="isSubmitting" @click.prevent="handleSubmit(false)">
                     {{ mode === 'create' ? 'Guardar orden' : 'Actualizar' }}
                 </Button>
             </div>

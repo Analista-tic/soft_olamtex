@@ -18,6 +18,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import type { PurchaseInvoice } from '@/domain/Expenses';
+import { canEditInvoice as canEditInvoiceRule } from '@/domain/Expenses/rules';
 import { usePurchaseInvoiceTotals } from '@/composables/usePurchaseInvoiceTotals';
 import { useSupplierContacts } from '@/composables/useSupplierContacts';
 import { usePurchaseOrderDifference } from '@/composables/usePurchaseOrderDifference';
@@ -54,7 +55,9 @@ const isSubmittingDialog = ref(false);
 const isSendingMail = ref(false);
 const nextInvoiceId = ref<number | null>(null);
 const isLoadingInvoiceId = ref(false);
-const isReadOnly = computed(() => !!props.readOnly);
+const isReadOnly = computed(
+    () => !!props.readOnly || (props.dialogType === 'edit' && !canEditInvoiceRule(localForm.value.status, localForm.value.approval_status)),
+);
 const purchaseOrders = ref<any[]>([]);
 const selectedPurchaseOrderId = ref<number | null>(null);
 const successMessage = ref<string>('');
