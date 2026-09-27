@@ -51,7 +51,7 @@ class PurchaseRequestService
         $this->applySolicitedToFilter($query, $user);
 
         if ($myRequestsOnly && $user !== null) {
-            $query->where('purchase_requests.buyer_user_id', $user->id);
+            $query->where('purchase_requests.requester_user_id', $user->id);
         }
 
         if ($normalizedSearch !== '') {
