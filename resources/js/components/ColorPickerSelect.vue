@@ -77,6 +77,10 @@ function handleComboboxChange(option: { id: string; name: string } | null) {
     emit('selected-color', color);
 }
 
+function displayColorName(option: unknown): string {
+    return (option as { id: string; name: string } | null)?.name ?? '';
+}
+
 function handleInput(event: Event) {
     if (isCreating.value) return;
     searchTerm.value = (event.target as HTMLInputElement).value;
@@ -382,7 +386,7 @@ onBeforeUnmount(stopFloatingUpdates);
                             selectedColorData ? 'pl-8' : 'pl-3',
                         ]"
                         placeholder="Selecciona un color"
-                        :displayValue="(opt) => (opt as { id: string; name: string } | null)?.name ?? ''"
+                        :displayValue="displayColorName"
                         :disabled="disabled || isCreating"
                         @input="handleInput"
                     />
