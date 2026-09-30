@@ -42,7 +42,7 @@ beforeEach(function () {
     $this->color = Color::create(['name' => 'AZUL REY']);
 
     $user = User::factory()->create();
-    foreach (['ver inventario telas', 'crear inventario telas', 'editar inventario telas', 'crear referencia manual item'] as $permission) {
+    foreach (['ver catalogo items', 'crear items', 'editar items', 'crear referencia manual item'] as $permission) {
         $user->givePermissionTo(Permission::findOrCreate($permission, 'web'));
     }
     $this->actingAs($user);

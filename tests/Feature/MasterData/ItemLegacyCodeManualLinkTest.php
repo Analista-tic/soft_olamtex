@@ -20,7 +20,7 @@ beforeEach(function () {
     );
 
     $user = User::factory()->create();
-    foreach (['ver inventario telas', 'crear inventario telas', 'editar inventario telas', 'crear referencia manual item'] as $permission) {
+    foreach (['ver catalogo items', 'crear items', 'editar items', 'crear referencia manual item'] as $permission) {
         $user->givePermissionTo(Permission::findOrCreate($permission, 'web'));
     }
     $this->actingAs($user);
@@ -28,6 +28,7 @@ beforeEach(function () {
 
 it('saves a manually entered legacy_code when creating an item', function () {
     $response = $this->postJson(route('item.store'), [
+        'color_id' => \App\Models\MasterData\Color::firstOrCreate(['name' => 'COLOR LEGACY CODE TEST'])->id,
         'category_sub_group_id' => $this->subGroup->id,
         'legacy_code' => 'AVS-12345',
         'reference' => 'REF-LEGACY-'.uniqid(),
@@ -53,6 +54,7 @@ it('updates the legacy_code on an existing item', function () {
     ]);
 
     $response = $this->putJson(route('item.update', $item->id), [
+        'color_id' => \App\Models\MasterData\Color::firstOrCreate(['name' => 'COLOR LEGACY CODE TEST'])->id,
         'category_sub_group_id' => $this->subGroup->id,
         'legacy_code' => 'AVS-99999',
         'reference' => $item->reference,

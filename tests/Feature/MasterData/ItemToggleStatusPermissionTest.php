@@ -41,7 +41,7 @@ beforeEach(function () {
 function toggleStatusTestUserWithoutEnablePermission(): User
 {
     $user = User::factory()->create();
-    foreach (['ver inventario telas', 'activar desactivar item'] as $permission) {
+    foreach (['ver catalogo items', 'activar desactivar item'] as $permission) {
         $user->givePermissionTo(Permission::findOrCreate($permission, 'web'));
     }
 

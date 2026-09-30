@@ -30,42 +30,43 @@ it('assigns a consecutive two-digit code automatically when creating a group', f
         ->and($second)->toBe(str_pad((string) ((int) $first + 1), 2, '0', STR_PAD_LEFT));
 });
 
-it('updates a group name and code — there was no update endpoint for groups before this phase', function () {
-    $group = CategoryGroup::create(['name' => 'Grupo Original Test']);
+// El código es un identificador asignado por el sistema (forma parte de la referencia de los ítems):
+// editar un grupo o subgrupo cambia su nombre, pero nunca su código, aunque la petición lo envíe.
+it('renames a group but keeps its system-assigned code', function () {
+    $group = CategoryGroup::create(['name' => 'Grupo Original Test', 'code' => '21']);
 
-    $response = $this->putJson(route('categorias.groups.update', $group), [
+    $this->putJson(route('categorias.groups.update', $group), [
         'name' => 'Grupo Renombrado Test',
         'code' => '22',
-    ]);
+    ])->assertOk();
 
-    $response->assertOk();
     $group->refresh();
     expect($group->name)->toBe('Grupo Renombrado Test')
-        ->and($group->code)->toBe('22');
+        ->and($group->code)->toBe('21');
 });
 
-it('rejects a duplicate group code', function () {
+it('cannot take another group code through the update endpoint', function () {
     CategoryGroup::create(['name' => 'Grupo A Codigo Test', 'code' => '23']);
-    $groupB = CategoryGroup::create(['name' => 'Grupo B Codigo Test']);
+    $groupB = CategoryGroup::create(['name' => 'Grupo B Codigo Test', 'code' => '24']);
 
-    $response = $this->putJson(route('categorias.groups.update', $groupB), [
+    $this->putJson(route('categorias.groups.update', $groupB), [
         'name' => 'Grupo B Codigo Test',
         'code' => '23',
-    ]);
+    ])->assertOk();
 
-    $response->assertStatus(422);
+    expect($groupB->fresh()->code)->toBe('24')
+        ->and(CategoryGroup::where('code', '23')->count())->toBe(1);
 });
 
-it('saves a code on a subgroup through the update endpoint', function () {
+it('renames a subgroup but keeps its system-assigned code', function () {
     $group = CategoryGroup::create(['name' => 'Grupo Subgrupo Codigo Test']);
-    $subGroup = CategorySubGroup::create(['name' => 'Subgrupo Codigo Test', 'category_group_id' => $group->id]);
+    $subGroup = CategorySubGroup::create(['name' => 'Subgrupo Codigo Test', 'category_group_id' => $group->id, 'code' => '31']);
 
-    $response = $this->putJson(route('categorias.subgroups.update', $subGroup), [
+    $this->putJson(route('categorias.subgroups.update', $subGroup), [
         'name' => 'Subgrupo Codigo Test',
         'category_group_id' => $group->id,
         'code' => '30',
-    ]);
+    ])->assertOk();
 
-    $response->assertOk();
-    expect($subGroup->fresh()->code)->toBe('30');
+    expect($subGroup->fresh()->code)->toBe('31');
 });

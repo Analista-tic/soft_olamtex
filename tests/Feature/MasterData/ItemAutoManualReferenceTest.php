@@ -29,7 +29,7 @@ beforeEach(function () {
     $this->color = Color::create(['name' => 'ROJO AUTO REF TEST', 'code' => '77']);
 
     $user = User::factory()->create();
-    foreach (['ver inventario telas', 'crear inventario telas', 'editar inventario telas', 'crear referencia manual item'] as $permission) {
+    foreach (['ver catalogo items', 'crear items', 'editar items', 'crear referencia manual item'] as $permission) {
         $user->givePermissionTo(Permission::findOrCreate($permission, 'web'));
     }
     $this->user = $user;
@@ -127,8 +127,9 @@ it('rejects an automatic reference when no color was selected', function () {
         'item_type' => 'product',
     ]);
 
-    $response->assertStatus(422);
-    expect($response->json('errors.reference_mode.0'))->toContain('el color');
+    // El color es obligatorio para todo ítem (lo exige la validación antes de generar la referencia).
+    $response->assertStatus(422)->assertJsonValidationErrors('color_id');
+    expect(\App\Models\MasterData\Item::where('description', 'Item sin color')->exists())->toBeFalse();
 });
 
 it('never regenerates the reference on update even if reference_mode=auto is sent', function () {
@@ -187,7 +188,7 @@ it('generates an automatic reference for an item using a color just created inli
 
 it('rejects a manual reference from a user without the manual-reference permission', function () {
     $userWithoutPermission = User::factory()->create();
-    foreach (['ver inventario telas', 'crear inventario telas'] as $permission) {
+    foreach (['ver catalogo items', 'crear items'] as $permission) {
         $userWithoutPermission->givePermissionTo(Permission::findOrCreate($permission, 'web'));
     }
     $this->actingAs($userWithoutPermission);
