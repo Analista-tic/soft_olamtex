@@ -24,7 +24,8 @@ const props = withDefaults(
         clearable?: boolean;
         showToday?: boolean;
         align?: 'start' | 'center' | 'end';
-        error?: boolean;
+        /** `true` pinta el borde en rojo; un string además muestra el mensaje. */
+        error?: boolean | string;
     }>(),
     {
         placeholderText: 'Selecciona una fecha',
@@ -124,6 +125,9 @@ const displayLabel = computed(() => {
     }
 });
 
+const hasError = computed(() => !!props.error);
+const errorMessage = computed(() => (typeof props.error === 'string' ? props.error : ''));
+
 const calendarModelValue = computed(() => internalValue.value as DateValue | undefined);
 const calendarPlaceholderValue = computed(() => calendarPlaceholder.value as DateValue);
 </script>
@@ -138,9 +142,9 @@ const calendarPlaceholderValue = computed(() => calendarPlaceholder.value as Dat
                     type="button"
                     :disabled="disabled || readonly"
                     :class="[
-                        'flex h-10 w-full items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm ring-offset-background transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+                        'flex h-9 w-full items-center gap-2 rounded-md border bg-background px-2.5 py-1.5 text-sm ring-offset-background transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
                         readonly ? 'disabled:cursor-default disabled:opacity-100' : '',
-                        error ? 'border-destructive text-destructive' : 'border-input'
+                        hasError ? 'border-destructive ring-1 ring-destructive/40 focus-visible:ring-destructive/40' : 'border-input'
                     ]"
                 >
                     <CalendarIcon class="h-4 w-4 flex-shrink-0" />
@@ -194,5 +198,8 @@ const calendarPlaceholderValue = computed(() => calendarPlaceholder.value as Dat
                 </PopoverContent>
             </PopoverPortal>
         </PopoverRoot>
+        <p v-if="hasError && errorMessage" class="mt-0.5 text-xs text-destructive">
+            {{ errorMessage }}
+        </p>
     </div>
 </template>

@@ -194,13 +194,10 @@ const formattedValue = computed({
             const numericValue = parseCurrencyInput(normalizedValue, currencyDecimals.value);
             updateValue(roundToDecimals(numericValue, currencyDecimals.value));
         } else if (props.type === 'number') {
-            const cleanValue = safeValue.replace(/[^0-9.]/g, '');
-            const parts = cleanValue.split('.');
-            if (parts.length > 2) {
-                updateValue(parts[0] + '.' + parts.slice(1).join(''));
-            } else {
-                updateValue(cleanValue);
-            }
+            const decimals = typeof props.decimals === 'number' ? currencyDecimals.value : 2;
+            const cleanValue = safeValue.replace(/,/g, '.').replace(/[^0-9.]/g, '');
+            const [integerPart, ...decimalParts] = cleanValue.split('.');
+            updateValue(decimalParts.length && decimals > 0 ? `${integerPart}.${decimalParts.join('').slice(0, decimals)}` : integerPart);
         } else if (props.type === 'email') {
             updateValue(safeValue.trim());
         } else if (props.type === 'text' || !props.type) {
@@ -285,7 +282,7 @@ function togglePasswordVisibility() {
                         : props.type
                           ? props.type === 'password'
                               ? 'password'
-                              : props.type === 'currency'
+                              : props.type === 'currency' || props.type === 'number'
                                 ? 'text'
                                 : props.type
                           : 'text'
@@ -301,7 +298,7 @@ function togglePasswordVisibility() {
                 @beforeinput="handleBeforeInput"
                 :data-no-uppercase="props.type === 'password' || $attrs['data-no-uppercase'] !== undefined ? '' : undefined"
                 :class="[
-                    'h-10 w-full rounded-md border border-input bg-background px-3 py-2 pr-5 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 read-only:cursor-default read-only:caret-transparent read-only:focus-visible:ring-0 read-only:focus-visible:ring-offset-0',
+                    'h-9 w-full rounded-md border border-input bg-background px-2.5 py-1.5 pr-4 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 read-only:cursor-default read-only:caret-transparent read-only:focus-visible:ring-0 read-only:focus-visible:ring-offset-0',
                     hasError ? 'border-destructive ring-1 ring-destructive/40 focus-visible:ring-destructive/40' : '',
                 ]"
             />
@@ -317,7 +314,7 @@ function togglePasswordVisibility() {
                         : props.type
                           ? props.type === 'password'
                               ? 'password'
-                              : props.type === 'currency'
+                              : props.type === 'currency' || props.type === 'number'
                                 ? 'text'
                                 : props.type
                           : 'text'
@@ -333,7 +330,7 @@ function togglePasswordVisibility() {
                 @beforeinput="handleBeforeInput"
                 :data-no-uppercase="props.type === 'password' || $attrs['data-no-uppercase'] !== undefined ? '' : undefined"
                 :class="[
-                    'h-10 w-full rounded-md border border-input bg-background px-3 py-2 pr-5 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 read-only:cursor-default read-only:caret-transparent read-only:focus-visible:ring-0 read-only:focus-visible:ring-offset-0',
+                    'h-9 w-full rounded-md border border-input bg-background px-2.5 py-1.5 pr-4 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 read-only:cursor-default read-only:caret-transparent read-only:focus-visible:ring-0 read-only:focus-visible:ring-offset-0',
                     hasError ? 'border-destructive ring-1 ring-destructive/40 focus-visible:ring-destructive/40' : '',
                 ]"
             />

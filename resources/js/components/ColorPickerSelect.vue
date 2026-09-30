@@ -375,7 +375,7 @@ onBeforeUnmount(stopFloatingUpdates);
                 <div ref="triggerRef" class="relative">
                     <ComboboxInput
                         :class="[
-                            'h-10 min-h-[42px] w-full rounded-md border border-input',
+                            'h-9 min-h-9 w-full rounded-md border border-input',
                             'bg-background py-2 pr-10 text-sm text-foreground',
                             'shadow-sm transition',
                             'placeholder:text-muted-foreground',

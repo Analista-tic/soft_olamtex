@@ -440,12 +440,12 @@ watch(
 
                         <ComboboxInput
                             v-bind="$attrs"
-                            class="h-10 min-h-[42px] w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm text-foreground shadow-sm transition placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60"
+                            class="h-9 min-h-9 w-full rounded-md border bg-background px-2.5 py-1.5 pr-10 text-sm text-foreground shadow-sm transition placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60"
                             :class="[
                                 !isSearchEnabled ? 'cursor-default' : '',
                                 buttonClass,
                                 multiple ? 'pl-28' : '',
-                                invalid ? 'border-destructive focus-visible:ring-destructive/40' : '',
+                                invalid ? 'border-destructive ring-1 ring-destructive/40 focus-visible:ring-destructive/40' : 'border-input',
                                 readonly ? 'disabled:cursor-default disabled:opacity-100' : '',
                             ]"
                             :aria-invalid="invalid ? 'true' : undefined"

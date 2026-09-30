@@ -45,7 +45,7 @@ function onInput(event: Event) {
             :data-invalid="props.invalid ? 'true' : undefined"
             :class="
     cn(
-        'w-full min-h-[42px] rounded-md border border-border bg-background px-3 py-2 text-sm font-normal text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background read-only:cursor-default read-only:caret-transparent read-only:focus-visible:ring-0 read-only:focus-visible:ring-offset-0',
+        'w-full min-h-9 rounded-md border border-border bg-background px-2.5 py-1.5 text-sm font-normal text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background read-only:cursor-default read-only:caret-transparent read-only:focus-visible:ring-0 read-only:focus-visible:ring-offset-0',
         'data-[invalid=true]:border-destructive data-[invalid=true]:ring-2 data-[invalid=true]:ring-destructive/40',
         props.class,
     )
