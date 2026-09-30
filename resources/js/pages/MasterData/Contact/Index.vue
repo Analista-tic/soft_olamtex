@@ -217,17 +217,19 @@ async function openDialog(type: 'create' | 'edit', contact: Contact | null = nul
     clearMessages();
 
     if (type === 'edit' && contact) {
-        // Loader local: muestra el modal vacío y luego hidrata
-        form.value = { id: contact.id }; // Solo ID para iniciar
-        isDialogOpen.value = true;
-        armDialogPreparationFallback(token);
-
+        // Los datos se cargan antes de abrir: el diálogo copia `contactData` al abrirse
+        // y no vuelve a sincronizarse si este llega después.
         try {
             const { data } = await axios.get(`/contactos/${contact.id}`);
             form.value = { ...data };
         } catch {
-            // Manejo de error opcional: podrías mostrar un mensaje si falla la carga
+            finishDialogPreparation(token);
+            setError('No se pudieron cargar los datos del contacto. Intenta nuevamente.', 'error');
+            return;
         }
+
+        isDialogOpen.value = true;
+        armDialogPreparationFallback(token);
     } else {
         form.value = { id: undefined, full_name: '', email: '', phone: '' };
         await nextTick();

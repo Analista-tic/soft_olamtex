@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PillTabs from '@/components/common/PillTabs.vue';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { useAuthStore } from '@/stores/auth';
 import { useGlobalAlert } from '@/composables/useGlobalAlert';
 import type { BreadcrumbItem } from '@/domain/shared';
@@ -496,10 +497,12 @@ async function performDelete() {
             <AlertStack :success-message="successMessage" :error-message="errorMessage" :error-type="errorType" @close-success="clear" @close-error="clear" />
 
             <Tabs v-model="activeTab">
-                <TabsList class="grid w-full max-w-md grid-cols-2">
-                    <TabsTrigger value="fabric">Tela</TabsTrigger>
-                    <TabsTrigger value="yarn">Hilaza</TabsTrigger>
-                </TabsList>
+                <PillTabs
+                    :tabs="[
+                        { value: 'fabric', label: 'Tela' },
+                        { value: 'yarn', label: 'Hilaza' },
+                    ]"
+                />
 
                 <TabsContent v-for="kind in (['fabric', 'yarn'] as MaterialKind[])" :key="kind" :value="kind" class="mt-4 space-y-6">
                     <section>

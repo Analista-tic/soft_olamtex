@@ -55,7 +55,7 @@ function handleFormError(message: string) {
     <Dialog :open="props.isOpen" @update:open="handleDialogOpenChange">
         <FormDialogContent
             size="xl"
-            class="flex max-h-[90vh] w-full flex-col overflow-hidden p-0"
+            class="flex max-h-[calc(100vh-3rem)] w-full flex-col overflow-hidden p-0"
             content-class="flex min-h-0 flex-col overflow-hidden p-0"
             :scrollable="false"
         >

@@ -17,7 +17,6 @@ import SelectField from '@/components/SelectField.vue';
 import ServerPagination from '@/components/common/ServerPagination.vue';
 import Button from '@/components/ui/button/Button.vue';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -230,9 +229,11 @@ async function toggleStatus() {
 
     try {
         await axios.post(`/item/${itemToToggleStatus.value.id}/toggle-status`);
+        const wasEnabled = !!itemToToggleStatus.value.status;
         await fetchItems(currentPage.value);
         isStatusDialogOpen.value = false;
         itemToToggleStatus.value = null;
+        setSuccess(wasEnabled ? 'El ítem se deshabilitó correctamente.' : 'El ítem se habilitó correctamente.');
     } catch (err) {
         setError(getErrorMessage(err, 'No se pudo cambiar el estado del ítem.'));
     }
@@ -715,94 +716,35 @@ onBeforeUnmount(() => {
             @confirm="deleteItem"
         />
 
-        <!-- Diálogo de confirmación para habilitar/deshabilitar -->
-        <Dialog v-model:open="isStatusDialogOpen">
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle> {{ itemToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar' }} ítem </DialogTitle>
-                    <DialogDescription>
-                        ¿Estás seguro de que deseas
-                        {{ itemToToggleStatus?.status ? 'deshabilitar' : 'habilitar' }}
-                        este ítem?
-                    </DialogDescription>
-                </DialogHeader>
+        <ConfirmDialog
+            v-model:open="isStatusDialogOpen"
+            :title="itemToToggleStatus?.status ? 'Deshabilitar ítem' : 'Habilitar ítem'"
+            :description="`¿Estás seguro de que deseas ${itemToToggleStatus?.status ? 'deshabilitar' : 'habilitar'} este ítem?`"
+            :confirm-text="itemToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar'"
+            cancel-text="Cancelar"
+            :destructive="!!itemToToggleStatus?.status"
+            @confirm="toggleStatus"
+        >
+            <template #icon>
+                <Ban v-if="itemToToggleStatus?.status" class="h-5 w-5" />
+                <CheckCircle v-else class="h-5 w-5" />
+            </template>
+        </ConfirmDialog>
 
-                <DialogFooter class="mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
-                    <div class="w-full md:w-auto">
-                        <Button
-                            variant="outline"
-                            size="pill"
-                            class="mx-auto flex w-full max-w-[140px] justify-center"
-                            @click="isStatusDialogOpen = false"
-                        >
-                            Cancelar
-                        </Button>
-                    </div>
-
-                    <div class="w-full md:w-auto">
-                        <button
-                            type="button"
-                            :class="[
-                                'mx-auto flex w-full max-w-[140px] items-center justify-center gap-1 rounded-full px-5 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
-                                itemToToggleStatus?.status
-                                    ? 'border border-red-600 bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500'
-                                    : 'border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-500',
-                            ]"
-                            @click="toggleStatus"
-                        >
-                            <Ban v-if="itemToToggleStatus?.status" class="mr-1 h-4 w-4" />
-                            <CheckCircle v-else class="mr-1 h-4 w-4" />
-                            {{ itemToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar' }}
-                        </button>
-                    </div>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-
-        <!-- Diálogo de confirmación para habilitar/deshabilitar en bloque -->
-        <Dialog v-model:open="isBulkStatusDialogOpen">
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle> {{ bulkStatusTarget ? 'Habilitar' : 'Deshabilitar' }} {{ selectedIds.size }} ítem(s) </DialogTitle>
-                    <DialogDescription>
-                        ¿Estás seguro de que deseas {{ bulkStatusTarget ? 'habilitar' : 'deshabilitar' }} los {{ selectedIds.size }} ítems
-                        seleccionados?
-                    </DialogDescription>
-                </DialogHeader>
-
-                <DialogFooter class="mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
-                    <div class="w-full md:w-auto">
-                        <Button
-                            variant="outline"
-                            size="pill"
-                            class="mx-auto flex w-full max-w-[140px] justify-center"
-                            :disabled="isBulkStatusSubmitting"
-                            @click="isBulkStatusDialogOpen = false"
-                        >
-                            Cancelar
-                        </Button>
-                    </div>
-
-                    <div class="w-full md:w-auto">
-                        <button
-                            type="button"
-                            :class="[
-                                'mx-auto flex w-full max-w-[140px] items-center justify-center gap-1 rounded-full px-5 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60',
-                                bulkStatusTarget
-                                    ? 'border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-500'
-                                    : 'border border-red-600 bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500',
-                            ]"
-                            :disabled="isBulkStatusSubmitting"
-                            @click="confirmBulkStatus"
-                        >
-                            <CheckCircle v-if="bulkStatusTarget" class="mr-1 h-4 w-4" />
-                            <Ban v-else class="mr-1 h-4 w-4" />
-                            {{ bulkStatusTarget ? 'Habilitar' : 'Deshabilitar' }}
-                        </button>
-                    </div>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <ConfirmDialog
+            v-model:open="isBulkStatusDialogOpen"
+            :title="`${bulkStatusTarget ? 'Habilitar' : 'Deshabilitar'} ${selectedIds.size} ítem(s)`"
+            :description="`¿Estás seguro de que deseas ${bulkStatusTarget ? 'habilitar' : 'deshabilitar'} los ${selectedIds.size} ítems seleccionados?`"
+            :confirm-text="bulkStatusTarget ? 'Habilitar' : 'Deshabilitar'"
+            cancel-text="Cancelar"
+            :destructive="!bulkStatusTarget"
+            @confirm="confirmBulkStatus"
+        >
+            <template #icon>
+                <CheckCircle v-if="bulkStatusTarget" class="h-5 w-5" />
+                <Ban v-else class="h-5 w-5" />
+            </template>
+        </ConfirmDialog>
 
         <BulkUploadDialog
             :open="isBulkDialogOpen"

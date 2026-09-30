@@ -190,6 +190,9 @@ function mapItemToFormState(source: ItemFormSource): ItemForm {
                 ? Number(source.yarn_name_id)
                 : null,
         reference: source.reference || '',
+        // Un ítem nuevo nace habilitado: el formulario no expone el estado y varios
+        // orígenes (formulario avanzado, diálogos de compras) no lo envían.
+        status: source.status ?? true,
         bar_code: source.bar_code ?? '',
         legacy_code: source.legacy_code ?? '',
         tax_id: resolvedTaxId,
@@ -1806,10 +1809,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div class="flex flex-col">
+    <div :class="['flex flex-col', { 'min-h-0 flex-1': !props.isFullPage }]">
         <AlertStack :error-message="errorMessage" :error-type="errorType" @close-error="errorMessage = ''" />
 
-        <form class="flex flex-col" @submit.prevent="handleSubmit">
+        <form :class="['flex flex-col', { 'min-h-0 flex-1': !props.isFullPage }]" @submit.prevent="handleSubmit">
             <FormHeader
                 v-if="!props.isFullPage"
                 class="shrink-0 border-b px-5 py-4 pr-12"
@@ -1835,10 +1838,10 @@ onBeforeUnmount(() => {
                 ref="dialogInnerRef"
                 :class="[
                     'relative px-5 py-4 pr-4',
-                    !props.isFullPage ? 'overflow-y-auto scroll-smooth' : 'overflow-visible',
+                    !props.isFullPage ? 'min-h-0 flex-1 overflow-y-auto scroll-smooth' : 'overflow-visible',
                     { 'flex min-h-[160px] items-center justify-center': isBlockingLoading },
                 ]"
-                :style="props.isFullPage ? {} : { maxHeight: '65vh', scrollbarWidth: 'thin' }"
+                :style="props.isFullPage ? {} : { scrollbarWidth: 'thin' }"
             >
                 <FormLoadingOverlay
                     v-if="showInternalLoadingOverlay"

@@ -5,7 +5,8 @@ import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import DialogDescription from '@/components/ui/dialog/DialogDescription.vue';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PillTabs from '@/components/common/PillTabs.vue';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import type { AdditionalContact, Contact } from '@/domain/MasterData';
 import type { Branch } from '@/domain/shared';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
@@ -127,8 +128,6 @@ const requiredFieldKeys: (keyof Partial<Contact>)[] = [
     'email',
 ];
 
-const requiredFieldLabels = requiredFieldKeys.map((key) => fieldLabels[key as string] || String(key));
-const emptyFieldsMessage = formatRequiredFieldsMessage('Se debe completar todos los campos obligatorios', requiredFieldLabels);
 
 const resetForm = () => {
     form.value = {
@@ -213,7 +212,7 @@ const translateValidationMessage = (field: string, msg: string): string => {
     return msg;
 };
 
-const areRequiredFieldsEmpty = () => {
+const getMissingRequiredFields = () => {
     const isEmptyValue = (value: unknown) => {
         if (Array.isArray(value)) {
             return value.length === 0;
@@ -230,7 +229,11 @@ const areRequiredFieldsEmpty = () => {
         return false;
     };
 
-    return requiredFieldKeys.every((field) => isEmptyValue((form.value as any)[field]));
+    return requiredFieldKeys.filter((field) => isEmptyValue((form.value as any)[field]));
+};
+
+const clearFieldError = (field: string) => {
+    delete errors.value[field];
 };
 
 const handleErrors = (errorResponse: any) => {
@@ -306,8 +309,14 @@ const submitForm = async () => {
     }
 
     try {
-        if (areRequiredFieldsEmpty()) {
-            alertMessage.value = emptyFieldsMessage;
+        const missingFields = getMissingRequiredFields();
+
+        if (missingFields.length > 0) {
+            errors.value = Object.fromEntries(missingFields.map((field) => [field, ['Este campo es obligatorio.']]));
+            alertMessage.value = formatRequiredFieldsMessage(
+                'Se debe completar todos los campos obligatorios',
+                missingFields.map((key) => fieldLabels[key as string] || String(key)),
+            );
             alertType.value = 'warning';
 
             const dialogEl = document.querySelector('[role="dialog"]');
@@ -389,14 +398,17 @@ const updateBranches = (branches: Branch[]) => {
 
                     <fieldset v-if="canRenderForm" :disabled="isBlockingLoading" class="space-y-3">
                         <Tabs default-value="basic-info" class="pt-1">
-                            <TabsList class="flex justify-center space-x-4">
-                                <TabsTrigger value="basic-info" class="flex-1 py-2 text-center">Información básica</TabsTrigger>
-                                <TabsTrigger value="additional-info" class="flex-1 py-2 text-center">Contactos adicionales</TabsTrigger>
-                                <TabsTrigger value="branches" class="flex-1 py-2 text-center">Sucursales</TabsTrigger>
-                            </TabsList>
+                            <PillTabs
+                                size="sm"
+                                :tabs="[
+                                    { value: 'basic-info', label: 'Información básica' },
+                                    { value: 'additional-info', label: 'Contactos adicionales' },
+                                    { value: 'branches', label: 'Sucursales' },
+                                ]"
+                            />
 
                             <TabsContent value="basic-info">
-                                <ContactForm v-model:form="form" class="pb-6" />
+                                <ContactForm v-model:form="form" :errors="errors" class="pb-6" @clear-error="clearFieldError" />
                             </TabsContent>
 
                             <TabsContent value="additional-info">

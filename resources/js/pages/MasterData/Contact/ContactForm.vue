@@ -61,10 +61,12 @@ const personTypeOptions = [
 
 const props = defineProps<{
     form?: ContactFormState | Record<string, any>;
+    errors?: Record<string, string[]>;
 }>();
 
 const emit = defineEmits<{
     (e: 'update:form', updatedForm: ContactFormState): void;
+    (e: 'clear-error', field: string): void;
 }>();
 
 const defaultForm: ContactFormState = {
@@ -187,7 +189,18 @@ const updateLocationOptions = (searchQuery: string = '') => {
 
 const masterDataStore = useMasterDataStore();
 
-const errors = ref<Record<string, string[]>>({});
+const errors = computed(() => props.errors ?? {});
+
+const errorFieldKeys = ['contact_type', 'groups', 'id_type', 'id_number', 'full_name', 'person_type', 'municipality', 'department', 'email'] as const;
+
+errorFieldKeys.forEach((field) => {
+    watch(
+        () => JSON.stringify(internalForm.value[field] ?? ''),
+        () => {
+            if (errors.value[field]) emit('clear-error', field);
+        },
+    );
+});
 
 watch(getSelectedLocationKey, (key) => {
     syncSelectedLocationOption(key);
@@ -208,12 +221,6 @@ const locationValue = computed({
         internalForm.value.department = department || '';
     },
 });
-
-const validateField = (field: string) => {
-    if (errors.value[field]) {
-        delete errors.value[field];
-    }
-};
 </script>
 
 <template>
@@ -223,9 +230,9 @@ const validateField = (field: string) => {
             label="Tipo de contacto"
             required
             :options="contactTypeOptions"
-            :error="errors.contact_type?.[0]"
+            :invalid="!!errors.contact_type"
+            :error-message="errors.contact_type?.[0]"
             :searchable="false"
-            @input="validateField('contact_type')"
         />
         <GroupSelect
             v-model="internalForm.groups"
@@ -235,7 +242,6 @@ const validateField = (field: string) => {
             required
             :searchable="true"
             :error="errors.groups?.[0]"
-            @input="validateField('groups')"
         />
         <SelectField
             v-model="internalForm.id_type"
@@ -243,10 +249,18 @@ const validateField = (field: string) => {
             required
             :searchable="true"
             :options="idTypeOptions"
+            :invalid="!!errors.id_type"
+            :error-message="errors.id_type?.[0]"
         />
         <div class="grid grid-cols-5 gap-4">
             <div :class="internalForm.id_type === 'nit' ? 'col-span-4' : 'col-span-5'">
-                <InputField v-model="internalForm.id_number" label="Número de identificación" required placeholder="Número de identificación" />
+                <InputField
+                    v-model="internalForm.id_number"
+                    label="Número de identificación"
+                    required
+                    placeholder="Número de identificación"
+                    :error="errors.id_number?.[0]"
+                />
             </div>
             <div v-if="internalForm.id_type === 'nit'" class="col-span-1">
                 <div class="grid w-full items-center gap-1.5">
@@ -267,11 +281,18 @@ const validateField = (field: string) => {
             label="Tipo de persona"
             required
             :options="personTypeOptions"
-            :error="errors.person_type?.[0]"
+            :invalid="!!errors.person_type"
+            :error-message="errors.person_type?.[0]"
             :searchable="false"
-            @input="validateField('person_type')"
         />
-        <InputField v-model="internalForm.full_name" data-no-uppercase label="Nombre completo o razón social" required placeholder="Nombre completo" />
+        <InputField
+            v-model="internalForm.full_name"
+            data-no-uppercase
+            label="Nombre completo o razón social"
+            required
+            placeholder="Nombre completo"
+            :error="errors.full_name?.[0]"
+        />
         <div class="md:col-span-2">
             <SelectField
                 v-model="locationValue"
@@ -279,16 +300,11 @@ const validateField = (field: string) => {
                 required
                 :options="locationOptions"
                 placeholder="Escribe para buscar municipio o departamento..."
-                :error="errors.municipality?.[0] || errors.department?.[0]"
+                :invalid="!!(errors.municipality || errors.department)"
+                :error-message="errors.municipality?.[0] || errors.department?.[0]"
                 :searchable="true"
                 :searchThreshold="0"
                 @search="updateLocationOptions"
-                @input="
-                    () => {
-                        validateField('municipality');
-                        validateField('department');
-                    }
-                "
             />
         </div>
         <div class="col-span-full grid grid-cols-3 gap-4">
@@ -299,8 +315,7 @@ const validateField = (field: string) => {
                 type="email"
                 required
                 placeholder="Correo electrónico"
-                :error="!!errors.email?.[0]"
-                @input="validateField('email')"
+                :error="errors.email?.[0]"
             />
             <InputField v-model="internalForm.phone" label="Teléfono" placeholder="Teléfono" />
         </div>
