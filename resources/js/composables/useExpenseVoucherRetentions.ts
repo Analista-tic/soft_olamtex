@@ -91,7 +91,8 @@ export function useExpenseVoucherRetentions(options: UseExpenseVoucherRetentions
 
         options.documents.value.forEach((doc) => {
             const documentId = Number(doc.id);
-            const basePending = sanitizeNonNegativeAmount(doc.pending_balance);
+            // Se parte del saldo pagable: excluye lo retenido por rollos rechazados sin nota crédito aprobada.
+            const basePending = sanitizeNonNegativeAmount(doc.payable_balance ?? doc.pending_balance);
             const baseWithholding = sanitizeNonNegativeAmount(doc.withholdings_total);
 
             nextBasePending[documentId] = basePending;

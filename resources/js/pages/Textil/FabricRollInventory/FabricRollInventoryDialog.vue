@@ -59,6 +59,12 @@ async function saveQuantityCorrection() {
         qtyError.value = 'Ingresa una cantidad válida mayor a 0.';
         return;
     }
+    // Mismo piso que el servidor: no puede quedar por debajo de lo consumido más lo reservado.
+    const floor = Number(props.roll.exit_quantity_value ?? 0) + Number(props.roll.partial_output_value ?? 0);
+    if (qty < floor - 0.001) {
+        qtyError.value = `No puede ser menor que lo consumido más lo reservado (${floor.toLocaleString('es-CO')} mts).`;
+        return;
+    }
     if (!quantityReason.value.trim()) {
         qtyError.value = 'El motivo es obligatorio.';
         return;
@@ -248,6 +254,12 @@ const avatarInitials = computed(() => {
     return letters.slice(0, 2).toUpperCase() || 'RL';
 });
 
+/** Con descargues el rollo no se edita directamente: solo ajustes y correcciones trazables. */
+const isLocked = computed(() => Boolean(props.roll?.has_discharges));
+/** El primer vínculo de tela sí se permite con descargues: carga el saldo real al kardex. */
+const canRelinkFabric = computed(() => props.canEditMainFabric && (!isLocked.value || !props.roll?.fabric_item_id));
+const hasLengthReviewPending = computed(() => props.roll?.length_review_status === 'pending');
+
 const statusLabel = computed(() => (props.roll?.status === 'available' ? 'Disponible' : 'Agotado'));
 const statusVariant = computed(() => (props.roll?.status === 'available' ? 'default' : 'destructive'));
 
@@ -265,9 +277,12 @@ const infoRows = computed(() => {
 
 const metricCards = computed(() => {
     if (!props.roll) return [];
+    const received = props.roll.received_quantity_value;
+    const receivedDiffers = received != null && props.roll.roll_qty_value != null && Math.abs(received - props.roll.roll_qty_value) > 0.001;
     return [
         { label: 'Ancho', value: props.roll.width },
-        { label: 'Cant. rollo', value: props.roll.roll_qty },
+        { label: receivedDiffers ? 'Cant. vigente' : 'Cant. rollo', value: props.roll.roll_qty },
+        ...(receivedDiffers ? [{ label: 'Recibido', value: `${received!.toLocaleString('es-CO')} m` }] : []),
         { label: 'Salida parcial', value: props.roll.partial_output },
         { label: 'Disp. parcial', value: props.roll.partial_availability },
         { label: 'Cant. salida', value: props.roll.exit_quantity },
@@ -298,6 +313,14 @@ const metricCards = computed(() => {
                             </DialogTitle>
                             <Badge :variant="statusVariant" class="shrink-0 text-[11px]">
                                 {{ statusLabel }}
+                            </Badge>
+                            <Badge v-if="isLocked" variant="outline" class="shrink-0 text-[11px]">Con descargues</Badge>
+                            <Badge
+                                v-if="hasLengthReviewPending"
+                                variant="outline"
+                                class="shrink-0 border-amber-400 text-[11px] text-amber-700 dark:text-amber-300"
+                            >
+                                Metraje en revisión
                             </Badge>
                         </div>
                         <DialogDescription class="truncate text-xs text-muted-foreground">
@@ -367,6 +390,15 @@ const metricCards = computed(() => {
                         </div>
                     </section>
 
+                    <div
+                        v-if="isLocked"
+                        class="rounded-xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200"
+                    >
+                        Este rollo ya tiene descargues: su cantidad, precio y tela no se editan directamente. Use
+                        <span class="font-semibold">Ajustar rollo</span> (entrada/salida) o corrija el descargue desde el descargue por orden; ambos
+                        quedan trazados en el historial y en el kardex.
+                    </div>
+
                     <section>
                         <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tela principal del rollo</p>
                         <div class="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
@@ -377,7 +409,7 @@ const metricCards = computed(() => {
                                 </p>
                             </div>
 
-                            <div v-if="props.canEditMainFabric" class="space-y-3">
+                            <div v-if="canRelinkFabric" class="space-y-3">
                                 <div class="space-y-1">
                                     <p class="text-xs font-semibold text-muted-foreground">Buscar tela</p>
                                     <Input v-model="fabricSearch" placeholder="Referencia o nombre" class="h-9" />
@@ -412,13 +444,17 @@ const metricCards = computed(() => {
                             </div>
 
                             <p v-else class="text-xs text-muted-foreground">
-                                Solo superadmin puede actualizar la relación del rollo con su tela principal.
+                                {{
+                                    props.canEditMainFabric
+                                        ? 'El rollo ya tiene descargues: su tela principal no se cambia.'
+                                        : 'Solo superadmin puede actualizar la relación del rollo con su tela principal.'
+                                }}
                             </p>
                         </div>
                     </section>
 
-                    <!-- Corrección de cantidad (solo usuarios con permiso editar rollos) -->
-                    <section v-if="props.canAdjustRolls">
+                    <!-- Corrección de cantidad (permiso ajustar telas rollos; bloqueada con descargues) -->
+                    <section v-if="props.canAdjustRolls && !isLocked">
                         <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Corrección de cantidad</p>
                         <div class="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
                             <div class="flex items-center justify-between gap-3 text-sm">
@@ -459,8 +495,8 @@ const metricCards = computed(() => {
                         </div>
                     </section>
 
-                    <!-- Precio por metro (solo usuarios con permiso editar rollos) -->
-                    <section v-if="props.canAdjustRolls">
+                    <!-- Precio por metro (permiso ajustar telas rollos; bloqueado con descargues) -->
+                    <section v-if="props.canAdjustRolls && !isLocked">
                         <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Precio por metro</p>
                         <div class="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
                             <div class="flex items-center justify-between gap-3 text-sm">

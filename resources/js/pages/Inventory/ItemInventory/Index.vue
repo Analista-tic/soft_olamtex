@@ -25,6 +25,8 @@ type InventoryViewItem = {
     reference?: string | null;
     quantity: number;
     reserved_quantity: number;
+    /** Metros de rollos rechazados en recepción con nota crédito pendiente (no incluidos en `quantity`). */
+    restricted_quantity: number;
     is_fabric: boolean;
     status: boolean;
     average_cost: number;
@@ -224,6 +226,7 @@ onMounted(() => {
                                     </span>
                                 </span>
                             </TableHead>
+                            <TableHead class="whitespace-nowrap">Restringido</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('average_cost')">
                                 <span class="inline-flex items-center gap-1">
@@ -257,14 +260,14 @@ onMounted(() => {
                     <TableBody>
                         <template v-if="isLoading">
                             <TableRow>
-                                <TableCell :colspan="6" class="py-6 text-center text-sm text-muted-foreground">
+                                <TableCell :colspan="7" class="py-6 text-center text-sm text-muted-foreground">
                                     Cargando inventario de items...
                                 </TableCell>
                             </TableRow>
                         </template>
                         <template v-else-if="items.length === 0">
                             <TableRow>
-                                <TableCell :colspan="6" class="text-center text-muted-foreground">
+                                <TableCell :colspan="7" class="text-center text-muted-foreground">
                                     No hay items con stock actual en el inventario.
                                 </TableCell>
                             </TableRow>
@@ -292,6 +295,23 @@ onMounted(() => {
                                             <TableStatusBadge v-else label="Tela" tone="blue" />
                                         </template>
                                     </div>
+                                </TableCell>
+                                <TableCell class="text-right tabular-nums">
+                                    <TooltipProvider v-if="item.is_fabric && Number(item.restricted_quantity) > 0">
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <span class="inline-flex items-center justify-end gap-2">
+                                                    <span class="font-medium">{{ formatQuantity(item.restricted_quantity) }}</span>
+                                                    <TableStatusBadge label="Restringido" tone="warning" />
+                                                </span>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                {{ formatQuantity(item.restricted_quantity) }} metros de rollos rechazados en recepción, pendientes de
+                                                nota crédito. No están incluidos en la cantidad disponible.
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                    <span v-else class="text-muted-foreground">—</span>
                                 </TableCell>
                                 <TableCell class="text-center">
                                     <StatusBadge :status="item.status" />

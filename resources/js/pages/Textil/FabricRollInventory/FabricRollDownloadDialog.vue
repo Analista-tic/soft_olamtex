@@ -48,6 +48,7 @@ const emit = defineEmits<{
             realAvailabilityValue: number;
             rollQtyValue: number;
             exitQuantityValue: number;
+            hasDischarges: boolean;
         },
     ): void;
     (event: 'discharge-error', payload: { message: string }): void;
@@ -117,7 +118,8 @@ function validateForm(): boolean {
     clearErrors();
 
     const quantity = Number(form.quantity);
-    const realAvailability = Number(props.roll?.real_availability_value ?? 0);
+    // Una salida de ajuste solo toma el disponible libre: lo reservado se descarga por orden.
+    const freeAvailability = Number(props.roll?.partial_availability_value ?? 0);
 
     if (!form.type) {
         errors.type = 'Selecciona el tipo de ajuste.';
@@ -125,8 +127,8 @@ function validateForm(): boolean {
 
     if (!form.quantity || Number.isNaN(quantity) || quantity <= 0) {
         errors.quantity = 'Ingresa una cantidad mayor a 0.';
-    } else if (form.type === 'salida' && quantity > realAvailability) {
-        errors.quantity = 'La cantidad no puede superar la disponibilidad real.';
+    } else if (form.type === 'salida' && quantity > freeAvailability) {
+        errors.quantity = `La salida no puede superar el disponible libre (${props.roll?.partial_availability ?? '0 m'}). Lo reservado se descarga desde el descargue por orden.`;
     }
 
     if (!form.reason.trim()) {
@@ -165,6 +167,7 @@ async function submitDischarge() {
             realAvailabilityValue: Number(response.data.real_availability_value ?? 0),
             rollQtyValue: Number(response.data.roll_qty_value ?? 0),
             exitQuantityValue: Number(response.data.exit_quantity_value ?? 0),
+            hasDischarges: Boolean(response.data.has_discharges),
         });
 
         closeDialog();
@@ -212,12 +215,12 @@ async function submitDischarge() {
                                 <p class="font-semibold">{{ props.roll.roll_qty }}</p>
                             </div>
                             <div>
-                                <p class="text-xs text-muted-foreground">Disp. real</p>
+                                <p class="text-xs text-muted-foreground">Disp. real · libre</p>
                                 <p
                                     class="font-semibold"
                                     :class="Number(props.roll.real_availability_value ?? 0) === 0 ? 'text-destructive' : 'text-foreground'"
                                 >
-                                    {{ props.roll.real_availability }}
+                                    {{ props.roll.real_availability }} · {{ props.roll.partial_availability }}
                                 </p>
                             </div>
                         </div>

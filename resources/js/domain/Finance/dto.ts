@@ -53,6 +53,7 @@ export interface CreditDebitNoteDto {
     reason?: string | null;
     status?: string | null;
     approval_status?: string | null;
+    fabric_roll_ids?: number[];
     items: CreditDebitNoteItemDto[];
 }
 
@@ -75,6 +76,9 @@ export interface TreasuryOpenDocumentDto {
     debit_notes_total?: number | string | null;
     payments_total?: number | string | null;
     current_balance?: number | string | null;
+    disputed_amount?: number | string | null;
+    disputed_rolls_count?: number | string | null;
+    payable_balance?: number | string | null;
     debt_status?: string | null;
     debt_status_label?: string | null;
 }

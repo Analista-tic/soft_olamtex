@@ -43,6 +43,16 @@ export function toIsoDateString(value: DateInput): string | null {
     return `${year}-${month}-${day}`;
 }
 
+/** Timestamps (ISO con zona) en hora local; un "YYYY-MM-DD" sin hora se muestra solo como fecha. */
+export function formatDateTimeDDMMYYYY(value: DateInput, fallback = '-'): string {
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+        return formatDateDDMMYYYY(value, fallback);
+    }
+    const parsed = value instanceof Date ? value : value ? new Date(value) : null;
+    if (!parsed || Number.isNaN(parsed.getTime())) return fallback;
+    return format(parsed, 'dd/MM/yyyy hh:mm a');
+}
+
 export function formatDateDDMMYYYY(value: DateInput, fallback = '-'): string {
     const parsed = parseToDate(value);
     if (!parsed) return fallback;

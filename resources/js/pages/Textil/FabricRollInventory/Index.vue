@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ActionIconButton from '@/components/common/ActionIconButton.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
@@ -7,6 +8,12 @@ import FilterField from '@/components/FilterField.vue';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
+import { Skeleton } from '@/components/ui/skeleton';
+import PillTabs from '@/components/common/PillTabs.vue';
+import { Tabs } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import TableRowActions from '@/components/common/TableRowActions.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { FabricRollView, FabricRollViewDto } from '@/domain/Textil';
 import { formatMeters, formatWidthToMeters, mapFabricRollViewDto } from '@/domain/Textil';
@@ -32,6 +39,9 @@ const searchQuery = ref('');
 const baseFilter = ref('');
 const providerFilter = ref('');
 const filterNoItem = ref(false);
+// 'available' = stock disponible (aprobado); 'restricted' = rollos rechazados con nota crédito pendiente.
+const viewMode = ref<'available' | 'restricted'>('available');
+const isRestrictedMode = computed(() => viewMode.value === 'restricted');
 
 // Datos
 const rolls = ref<FabricRollView[]>([]);
@@ -124,6 +134,7 @@ async function fetchFabricRolls(page = 1) {
         if (baseFilter.value.trim()) params.set('base_fabric', baseFilter.value.trim());
         if (providerFilter.value.trim()) params.set('provider', providerFilter.value.trim());
         if (filterNoItem.value) params.set('no_item', '1');
+        if (isRestrictedMode.value) params.set('restricted', '1');
         params.set('page', String(page));
         params.set('per_page', String(perPage.value));
         params.set('sort_by', sortColumn.value);
@@ -151,7 +162,16 @@ function scheduleRefetch() {
     debounceTimer = setTimeout(() => fetchFabricRolls(1), 350);
 }
 
-watch([searchQuery, baseFilter, providerFilter, filterNoItem], scheduleRefetch);
+watch([searchQuery, baseFilter, providerFilter, filterNoItem, viewMode], scheduleRefetch);
+
+function restrictedBadgeLabel(roll: FabricRollView): string {
+    return roll.credit_note_number ? `Restringido · Nota N° ${roll.credit_note_number}` : 'Restringido · pendiente nota crédito';
+}
+
+function restrictedTooltip(roll: FabricRollView): string {
+    const reason = roll.restriction_reason?.trim() ? roll.restriction_reason.trim() : 'Sin motivo registrado';
+    return `Motivo del rechazo: ${reason}`;
+}
 
 onMounted(() => {
     authStore.fetchUser().catch(() => undefined);
@@ -207,6 +227,7 @@ function handleDischargeSuccess(payload: {
     realAvailabilityValue: number;
     rollQtyValue: number;
     exitQuantityValue: number;
+    hasDischarges: boolean;
 }) {
     if (!payload.roll) {
         return;
@@ -229,6 +250,7 @@ function handleDischargeSuccess(payload: {
             real_availability_value: payload.realAvailabilityValue,
             real_availability: formatMeters(payload.realAvailabilityValue),
             status: payload.realAvailabilityValue <= 0 ? 'depleted' : 'available',
+            has_discharges: payload.hasDischarges,
         };
     }
 
@@ -407,6 +429,15 @@ async function handleCsvImported(payload: { inserted: number; skipped: number; e
                 </div>
             </div>
 
+            <Tabs v-model="viewMode">
+                <PillTabs
+                    :tabs="[
+                        { value: 'available', label: 'Disponibles' },
+                        { value: 'restricted', label: 'Restringidos' },
+                    ]"
+                />
+            </Tabs>
+
             <FilterBar>
                 <FilterField label="Buscar rollo" :active="searchQuery.trim().length > 0" class="min-w-[220px] flex-1 p-0">
                     <div class="relative">
@@ -546,7 +577,7 @@ async function handleCsvImported(payload: { inserted: number; skipped: number; e
                                     </span>
                                 </TableHead>
 
-                                <TableHead>Acciones</TableHead>
+                                <TableHead>{{ isRestrictedMode ? 'Restricción' : 'Acciones' }}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -558,7 +589,7 @@ async function handleCsvImported(payload: { inserted: number; skipped: number; e
                                 </TableRow>
                             </template>
                             <TableRow v-else-if="sortedRolls.length === 0">
-                                <TableCell colspan="11" class="py-8 text-center text-sm text-muted-foreground">No hay rollos disponibles.</TableCell>
+                                <TableCell colspan="11" class="py-8 text-center text-sm text-muted-foreground">{{ isRestrictedMode ? 'No hay rollos restringidos.' : 'No hay rollos disponibles.' }}</TableCell>
                             </TableRow>
                             <TableRow v-for="roll in sortedRolls" v-else :key="roll.id" class="border-b">
                                 <TableCell class="text-center text-sm">{{ roll.roll }}</TableCell>
@@ -592,38 +623,39 @@ async function handleCsvImported(payload: { inserted: number; skipped: number; e
                                 <TableCell class="text-center text-sm text-foreground/90">{{ formatMeters(roll.partial_availability) }}</TableCell>
                                 <TableCell class="text-center text-sm text-foreground/90">{{ formatMeters(roll.exit_quantity) }}</TableCell>
                                 <TableCell class="text-center text-sm text-foreground/90">{{ formatMeters(roll.real_availability) }}</TableCell>
-                                <TableCell class="text-center">
-                                    <div class="flex items-center justify-center gap-1">
-                                        <button
-                                            class="inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                            title="Ver rollo"
-                                            type="button"
-                                            @click="selectRoll(roll)"
-                                        >
-                                            <Eye class="h-4 w-4" />
-                                        </button>
-                                        <DeleteButton v-if="canSuperadminManageChanges" @click="confirmDeleteRoll(roll)" />
-                                        <button
-                                            v-if="canAdjustRolls"
-                                            class="inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                            title="Ajustar rollo"
-                                            type="button"
-                                            @click="openDownloadDialog(roll)"
-                                        >
-                                            <ArrowDownToLine class="h-4 w-4" />
-                                        </button>
-                                        <!-- Ajuste de salida: funcionalidad en estudio — puede generar inconsistencias de inventario -->
-                                        <button
-                                            v-if="canEditRolls"
-                                            class="inline-flex h-9 w-9 items-center justify-center rounded-md transition hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                            :class="roll.fabric_item_id ? 'text-foreground/50 hover:text-foreground' : 'text-amber-600 hover:text-amber-700'"
-                                            :title="roll.fabric_item_id ? 'Cambiar ítem vinculado' : 'Vincular ítem (sin vínculo)'"
-                                            type="button"
-                                            @click="openLinkItemDialog(roll)"
-                                        >
-                                            <Link class="h-4 w-4" />
-                                        </button>
+                                <TableCell v-if="isRestrictedMode" class="text-center">
+                                    <div class="flex flex-col items-center gap-1">
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger as-child>
+                                                    <span>
+                                                        <TableStatusBadge :label="restrictedBadgeLabel(roll)" tone="warning" />
+                                                    </span>
+                                                </TooltipTrigger>
+                                                <TooltipContent>{{ restrictedTooltip(roll) }}</TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                        <span v-if="roll.invoice_number" class="text-xs text-muted-foreground">Factura {{ roll.invoice_number }}</span>
                                     </div>
+                                </TableCell>
+                                <TableCell v-else class="text-center">
+                                    <TableRowActions>
+                                        <ActionIconButton :icon="Eye" tooltip="Ver rollo" @click="selectRoll(roll)" />
+                                        <ActionIconButton
+                                            v-if="canAdjustRolls"
+                                            :icon="ArrowDownToLine"
+                                            tooltip="Ajustar rollo (entrada/salida trazable)"
+                                            @click="openDownloadDialog(roll)"
+                                        />
+                                        <ActionIconButton
+                                            v-if="canEditRolls && (!roll.fabric_item_id || !roll.has_discharges)"
+                                            :icon="Link"
+                                            :tooltip="roll.fabric_item_id ? 'Cambiar ítem vinculado' : 'Vincular ítem (sin vínculo)'"
+                                            :class="roll.fabric_item_id ? '' : 'text-amber-600 hover:text-amber-700'"
+                                            @click="openLinkItemDialog(roll)"
+                                        />
+                                        <DeleteButton v-if="canSuperadminManageChanges && !roll.has_discharges" @click="confirmDeleteRoll(roll)" />
+                                    </TableRowActions>
                                 </TableCell>
                             </TableRow>
                         </TableBody>
@@ -653,7 +685,6 @@ async function handleCsvImported(payload: { inserted: number; skipped: number; e
             @price-updated="handlePriceUpdated"
         />
 
-        <!-- FabricRollAdjustDialog: funcionalidad en estudio — puede generar inconsistencias de inventario -->
 
         <FabricRollDownloadDialog
             :modelValue="isDownloadDialogOpen"

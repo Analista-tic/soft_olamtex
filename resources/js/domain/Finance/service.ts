@@ -15,6 +15,7 @@ import type {
     ExpenseVoucherListItem,
     ExpenseVoucherListQuery,
     ExpenseVoucherRecord,
+    RejectedFabricRoll,
     Retention,
     RetentionListQuery,
     RetentionPayload,
@@ -183,6 +184,14 @@ export async function update(id: number | string, payload: CreditDebitNotePayloa
 
 export async function remove(id: number | string): Promise<void> {
     await axios.delete(`${CREDIT_DEBIT_NOTE_ENDPOINT}/${id}`);
+}
+
+/** Rollos rechazados sin resolver de la factura base que la nota crédito puede cubrir (incluye los ya enlazados a esa nota). */
+export async function fetchCoverableRejectedRolls(parentDocumentId: number, noteId?: number | null): Promise<RejectedFabricRoll[]> {
+    const res = await axios.get<{ data?: RejectedFabricRoll[] }>(`${CREDIT_DEBIT_NOTE_ENDPOINT}/rejected-rolls`, {
+        params: { parent_document_id: parentDocumentId, note_id: noteId || undefined },
+    });
+    return Array.isArray(res.data?.data) ? res.data.data : [];
 }
 
 function pickRows<T>(raw: { data?: T[] } | T[] | undefined | null): T[] {

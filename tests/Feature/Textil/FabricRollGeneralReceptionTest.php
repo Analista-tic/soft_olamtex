@@ -93,6 +93,76 @@ it('accumulates a second round on top of the first without duplicating or resett
     expect(PurchaseDocumentItemReception::where('purchase_document_item_id', $line->id)->count())->toBe(2);
 });
 
+it('corrects a registered general reception with auditable inventory movements', function () {
+    $item = createGeneralReceptionTestItem('correction');
+    $warehouse = Warehouse::create(['name' => 'Bodega recepción correction', 'observation' => 'Test']);
+    [$invoice, $line] = createGeneralReceptionTestInvoice($item, quantity: 100);
+
+    $this->service->registerGeneralReception($invoice->id, [
+        ['purchase_document_item_id' => $line->id, 'warehouse_id' => $warehouse->id, 'quantity' => 40],
+    ]);
+
+    $reception = PurchaseDocumentItemReception::where('purchase_document_item_id', $line->id)->firstOrFail();
+    $originalMovementId = $reception->inventory_movement_id;
+
+    $updatedReception = $this->service->updateGeneralReception($invoice->id, $reception->id, [
+        'warehouse_id' => $warehouse->id,
+        'quantity' => 25,
+        'over_received_reason' => null,
+    ]);
+
+    expect((float) $updatedReception->quantity)->toEqual(25.0);
+    expect($updatedReception->inventory_movement_id)->not->toBe($originalMovementId);
+    expect(WarehouseItem::where('item_id', $item->id)->where('warehouse_id', $warehouse->id)->first()->quantity)->toEqual(25.0);
+    expect(InventoryMovement::where('source_id', $invoice->id)->count())->toBe(2);
+    expect(InventoryMovement::findOrFail($originalMovementId)->quantity)->toEqual('40.0000');
+});
+
+it('corrects the same general reception twice without repeating the movement number', function () {
+    $item = createGeneralReceptionTestItem('double-correction');
+    $warehouse = Warehouse::create(['name' => 'Bodega recepción double-correction', 'observation' => 'Test']);
+    [$invoice, $line] = createGeneralReceptionTestInvoice($item, quantity: 100);
+
+    $this->service->registerGeneralReception($invoice->id, [
+        ['purchase_document_item_id' => $line->id, 'warehouse_id' => $warehouse->id, 'quantity' => 40],
+    ]);
+    $reception = PurchaseDocumentItemReception::where('purchase_document_item_id', $line->id)->firstOrFail();
+
+    foreach ([25, 30] as $quantity) {
+        $this->service->updateGeneralReception($invoice->id, $reception->id, [
+            'warehouse_id' => $warehouse->id,
+            'quantity' => $quantity,
+            'over_received_reason' => null,
+        ]);
+    }
+
+    $numbers = InventoryMovement::where('source_id', $invoice->id)->pluck('document_number');
+    expect($numbers)->toHaveCount(3)
+        ->and($numbers->unique())->toHaveCount(3)
+        ->and(WarehouseItem::where('item_id', $item->id)->where('warehouse_id', $warehouse->id)->first()->quantity)->toEqual(30.0);
+});
+
+it('does not correct a general reception once the reception is approved', function () {
+    $item = createGeneralReceptionTestItem('approved-correction');
+    $warehouse = Warehouse::create(['name' => 'Bodega recepción approved-correction', 'observation' => 'Test']);
+    [$invoice, $line] = createGeneralReceptionTestInvoice($item, quantity: 100);
+
+    $this->service->registerGeneralReception($invoice->id, [
+        ['purchase_document_item_id' => $line->id, 'warehouse_id' => $warehouse->id, 'quantity' => 40],
+    ]);
+    $reception = PurchaseDocumentItemReception::where('purchase_document_item_id', $line->id)->firstOrFail();
+    $invoice->forceFill(['status' => 'approved'])->save();
+
+    expect(fn () => $this->service->updateGeneralReception($invoice->id, $reception->id, [
+        'warehouse_id' => $warehouse->id,
+        'quantity' => 25,
+        'over_received_reason' => null,
+    ]))->toThrow(ValidationException::class);
+
+    expect((float) $reception->fresh()->quantity)->toEqual(40.0)
+        ->and(InventoryMovement::where('source_id', $invoice->id)->count())->toBe(1);
+});
+
 it('rejects a round that would over-receive without a reason', function () {
     $item = createGeneralReceptionTestItem('overreceive-fail');
     $warehouse = Warehouse::create(['name' => 'Bodega recepción overreceive-fail', 'observation' => 'Test']);

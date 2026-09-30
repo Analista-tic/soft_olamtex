@@ -38,6 +38,11 @@ export interface FabricRollViewDto {
     width_value: number | null;
     roll_qty: string;
     roll_qty_value: number | null;
+    /** Metraje recibido (no cambia tras la recepción); roll_qty es el metraje vigente. */
+    received_quantity_value?: number | null;
+    /** Con descargues el rollo queda bloqueado para edición directa (solo ajustes trazables). */
+    has_discharges?: boolean;
+    length_review_status?: 'none' | 'pending' | 'reviewed';
     partial_output: string;
     partial_output_value: number | null;
     partial_availability: string;
@@ -52,6 +57,13 @@ export interface FabricRollViewDto {
     created_at: string | null;
     creator: string | null;
     status: 'available' | 'depleted';
+    tolerance_status?: string | null;
+    /** Rollo rechazado en recepción con nota crédito pendiente (fuera del stock disponible). */
+    is_restricted?: boolean;
+    restriction_reason?: string | null;
+    credit_note_number?: string | null;
+    invoice_id?: number | null;
+    invoice_number?: string | null;
 }
 
 export interface FabricOrderItemDto {

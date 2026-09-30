@@ -150,6 +150,7 @@ export function mapCreditDebitNoteFromApi(dto: CreditDebitNoteDto): CreditDebitN
         reason: dto.reason ?? null,
         status: dto.status ?? null,
         approval_status: dto.approval_status ?? null,
+        fabric_roll_ids: Array.isArray(dto.fabric_roll_ids) ? dto.fabric_roll_ids.map(Number) : undefined,
         items: Array.isArray(dto.items) ? dto.items.map(mapCreditDebitNoteItemFromApi) : [],
     };
 }
@@ -187,6 +188,8 @@ export function mapCreditDebitNoteToApi(payload: CreditDebitNotePayload): Credit
         reason: payload.reason ?? null,
         status: payload.status ?? null,
         approval_status: payload.approval_status ?? null,
+        // Solo se envía cuando el formulario lo gestiona; omitirlo deja los enlaces como están.
+        ...(Array.isArray(payload.fabric_roll_ids) ? { fabric_roll_ids: payload.fabric_roll_ids } : {}),
         items: Array.isArray(payload.items) ? payload.items.map(mapCreditDebitNoteItemToApi) : [],
     };
 }
@@ -212,6 +215,9 @@ export function mapTreasuryOpenDocumentFromApi(dto: TreasuryOpenDocumentDto): Tr
         debit_notes_total: Number(dto.debit_notes_total ?? 0),
         applied_total: Number(dto.payments_total ?? 0),
         pending_balance: Number(dto.current_balance ?? 0),
+        disputed_amount: Number(dto.disputed_amount ?? 0),
+        disputed_rolls_count: Number(dto.disputed_rolls_count ?? 0),
+        payable_balance: Number(dto.payable_balance ?? dto.current_balance ?? 0),
         status: dto.debt_status ?? null,
         status_label: dto.debt_status_label ?? null,
     };

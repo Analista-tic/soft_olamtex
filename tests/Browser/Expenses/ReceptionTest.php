@@ -86,7 +86,7 @@ class ReceptionTest extends DuskTestCase
                     'total'          => 175000,
                     'supplier_code'  => 'COD-001',
                     'supplier_color' => 'Azul',
-                    'order_width'    => 150,
+                    'order_width'    => 1.5,
                 ],
             ],
         ]);
@@ -123,7 +123,7 @@ class ReceptionTest extends DuskTestCase
             $browser->waitFor('[dusk="rollo-input-longitud"]');
             $browser->type('[dusk="rollo-input-longitud"]', '45');
             $browser->pause(200);
-            $browser->type('[dusk="rollo-input-ancho"]', '148');
+            $browser->type('[dusk="rollo-input-ancho"]', '1.48');
             $browser->pause(200);
 
             // Fecha de entrada

@@ -77,6 +77,17 @@ export interface CreditDebitNoteItem {
     order_width?: number | string | null;
 }
 
+/** Rollo de tela rechazado en recepción que una nota crédito puede cubrir. */
+export interface RejectedFabricRoll {
+    id: number;
+    roll_number: string | null;
+    quantity: number;
+    amount: number;
+    reason: string | null;
+    credit_note_id: number | null;
+    credit_note_number: string | null;
+}
+
 export interface CreditDebitNote {
     id?: number;
     document_number?: string | null;
@@ -91,6 +102,8 @@ export interface CreditDebitNote {
     reason?: string | null;
     status?: string | null;
     approval_status?: string | null;
+    /** Rollos rechazados que cubre la nota (solo nota crédito de una factura de tela). */
+    fabric_roll_ids?: number[];
     items: CreditDebitNoteItem[];
 }
 
@@ -132,6 +145,11 @@ export interface TreasuryOpenDocument {
     debit_notes_total: number;
     applied_total: number;
     pending_balance: number;
+    /** Monto retenido por rollos rechazados sin nota crédito aprobada. */
+    disputed_amount?: number;
+    disputed_rolls_count?: number;
+    /** pending_balance - disputed_amount: máximo que se puede pagar hoy. */
+    payable_balance?: number;
     status: string | null;
     status_label: string | null;
 }

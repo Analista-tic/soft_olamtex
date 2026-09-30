@@ -8,6 +8,7 @@ use App\Models\MasterData\CategoryGroup;
 use App\Models\MasterData\CategorySubGroup;
 use App\Models\MasterData\Item;
 use App\Models\Settings\User;
+use App\Models\Textil\FabricRoll;
 use App\Services\Expenses\PurchaseDocumentService;
 use App\Services\Textil\FabricRollService;
 use App\Support\MasterData\MaterialClassifier;
@@ -47,13 +48,14 @@ function fabricReceptionInvoice(float $invoicedMeters): array
     return [$invoice, $line, $item];
 }
 
-function registerRoll(FabricRollService $service, PurchaseDocumentItem $line, float $meters): void
+function registerRoll(FabricRollService $service, PurchaseDocumentItem $line, float $meters, ?string $postApprovalReason = null): void
 {
     $service->storeFromReception([
         'purchase_document_item_id' => $line->id,
         'quantity' => $meters,
-        'roll_width' => 150,
+        'roll_width' => 1.5,
         'entry_date' => now()->toDateString(),
+        'post_approval_reason' => $postApprovalReason,
     ]);
 }
 
@@ -65,21 +67,23 @@ beforeEach(function () {
     $this->service = app(FabricRollService::class);
 });
 
-it('only flags a shortage beyond 30 meters per item; receiving more is not restricted', function () {
+it('flags a shortage or an excess beyond 30 meters per item, symmetrically', function () {
     [$invoice, $line] = fabricReceptionInvoice(500);
 
     registerRoll($this->service, $line, 480);
     expect($this->service->receptionDifferences($invoice->fresh()))->toBeEmpty();
 
-    // Excedente (540 de 500): no se restringe.
+    // Excedente de 40 (540 de 500): fuera de tolerancia también hacia arriba.
     registerRoll($this->service, $line, 60);
-    expect($this->service->receptionDifferences($invoice->fresh()))->toBeEmpty();
+    $excessDifferences = $this->service->receptionDifferences($invoice->fresh());
+    expect($excessDifferences)->toHaveCount(1)
+        ->and($excessDifferences[0]['difference'])->toEqual(-40.0);
 
     [$invoice2, $line2] = fabricReceptionInvoice(500);
     registerRoll($this->service, $line2, 460);
-    $differences = $this->service->receptionDifferences($invoice2->fresh());
-    expect($differences)->toHaveCount(1)
-        ->and($differences[0]['difference'])->toEqual(40.0);
+    $shortageDifferences = $this->service->receptionDifferences($invoice2->fresh());
+    expect($shortageDifferences)->toHaveCount(1)
+        ->and($shortageDifferences[0]['difference'])->toEqual(40.0);
 });
 
 it('warns on registration only when the received meters exceed the invoiced ones by more than 30', function () {
@@ -102,6 +106,88 @@ it('approves directly and loads inventory when the difference is within toleranc
         ->and(InventoryMovement::where('item_id', $item->id)->where('source_id', $invoice->id)->count())->toBe(1);
 });
 
+it('does not approve an already approved reception twice nor duplicate its inventory', function () {
+    [$invoice, $line, $item] = fabricReceptionInvoice(500);
+    registerRoll($this->service, $line, 490);
+    $this->service->approveReception($invoice->id);
+
+    expect(fn () => $this->service->approveReception($invoice->id))->toThrow(ValidationException::class);
+    expect(InventoryMovement::where('item_id', $item->id)->where('source_id', $invoice->id)->count())->toBe(1);
+});
+
+it('adds a roll after approval only with a reason and without leaving the tolerance', function () {
+    Permission::findOrCreate(FabricRollService::PERMISSION_ADD_ROLLS_AFTER_APPROVAL, 'web');
+    auth()->user()->givePermissionTo(FabricRollService::PERMISSION_ADD_ROLLS_AFTER_APPROVAL);
+
+    [$invoice, $line, $item] = fabricReceptionInvoice(500);
+    registerRoll($this->service, $line, 490);
+    $this->service->approveReception($invoice->id);
+
+    $addRoll = fn (float $meters, ?string $reason) => $this->service->storeFromReception([
+        'purchase_document_item_id' => $line->id,
+        'quantity' => $meters,
+        'roll_width' => 1.5,
+        'entry_date' => now()->toDateString(),
+        'post_approval_reason' => $reason,
+    ]);
+
+    // Sin motivo: no se permite.
+    try {
+        $addRoll(10, '  ');
+        $this->fail('Debió exigir el motivo.');
+    } catch (ValidationException $e) {
+        expect($e->errors())->toHaveKey('post_approval_reason');
+    }
+
+    // 490 + 60 = 550 frente a 500: sale de la tolerancia sin aprobación.
+    try {
+        $addRoll(60, 'Rollo olvidado');
+        $this->fail('Debió bloquear por tolerancia.');
+    } catch (ValidationException $e) {
+        expect($e->errors())->toHaveKey('quantity');
+    }
+
+    // 490 + 20 = 510: dentro de tolerancia, entra directo al inventario y queda el motivo.
+    $roll = $addRoll(20, 'Rollo olvidado al registrar');
+    expect($roll->approval_status)->toBe(FabricRoll::APPROVAL_APPROVED)
+        ->and(InventoryMovement::where('item_id', $item->id)->where('source_id', $invoice->id)->count())->toBe(2)
+        ->and(\App\Models\Expenses\PurchaseDocumentReceptionEvent::where('purchase_document_id', $invoice->id)
+            ->where('event_type', 'roll_added_after_approval')->value('reason'))->toBe('Rollo olvidado al registrar');
+});
+
+it('allows completing an approved shortage after approval even if still outside tolerance', function () {
+    Permission::findOrCreate(FabricRollService::PERMISSION_ADD_ROLLS_AFTER_APPROVAL, 'web');
+    auth()->user()->givePermissionTo(FabricRollService::PERMISSION_ADD_ROLLS_AFTER_APPROVAL);
+
+    [$invoice, $line] = fabricReceptionInvoice(500);
+    registerRoll($this->service, $line, 400);
+    $invoice->forceFill(['status' => 'approved'])->save();
+
+    // 400 → 450: sigue a 50 mts, pero se acerca a lo facturado (completa parte del faltante).
+    $roll = $this->service->storeFromReception([
+        'purchase_document_item_id' => $line->id,
+        'quantity' => 50,
+        'roll_width' => 1.5,
+        'entry_date' => now()->toDateString(),
+        'post_approval_reason' => 'Llegó parte del faltante',
+    ]);
+    expect($roll->approval_status)->toBe(FabricRoll::APPROVAL_APPROVED);
+});
+
+it('does not reject a reception while its difference awaits approval', function () {
+    [$invoice, $line] = fabricReceptionInvoice(500);
+    registerRoll($this->service, $line, 400);
+    $this->service->reportReceptionDifference($invoice->id, 'Faltan rollos', 'evidencia-test.jpg');
+
+    try {
+        $this->service->rejectReception($invoice->id, 'No llegó completo');
+        $this->fail('Debió exigir decidir la diferencia antes de rechazar.');
+    } catch (ValidationException $e) {
+        expect($e->errors())->toHaveKey('difference_pending');
+    }
+    expect($invoice->fresh()->status)->toBe('pending_receipt');
+});
+
 it('blocks approval outside tolerance until the difference is reported and approved by someone else', function () {
     [$invoice, $line, $item] = fabricReceptionInvoice(500);
     registerRoll($this->service, $line, 400);
@@ -115,9 +201,10 @@ it('blocks approval outside tolerance until the difference is reported and appro
     }
     expect(InventoryMovement::where('source_id', $invoice->id)->count())->toBe(0);
 
-    // 2) Quien recepciona registra el motivo: queda pendiente de aprobación.
-    $this->service->reportReceptionDifference($invoice->id, 'El proveedor envió menos rollos');
-    expect($invoice->fresh()->approval_status)->toBe(PurchaseDocument::APPROVAL_PENDING_DIFFERENCE);
+    // 2) Quien recepciona registra el motivo y la evidencia: queda pendiente de aprobación.
+    $this->service->reportReceptionDifference($invoice->id, 'El proveedor envió menos rollos', 'evidencia-test.jpg');
+    expect($invoice->fresh()->approval_status)->toBe(PurchaseDocument::APPROVAL_PENDING_DIFFERENCE)
+        ->and($invoice->fresh()->rejection_evidence_image)->toBe('evidencia-test.jpg');
 
     try {
         $this->service->approveReception($invoice->id);
@@ -131,6 +218,16 @@ it('blocks approval outside tolerance until the difference is reported and appro
     $approver = User::factory()->create();
     app(PurchaseDocumentService::class)->approveDifference($invoice->fresh(), null, $approver->id);
 
+    // 4) Además, cada rollo fuera de tolerancia se resuelve individualmente antes de aprobar la factura.
+    try {
+        $this->service->approveReception($invoice->id);
+        $this->fail('Debió exigir resolver los rollos pendientes de revisión.');
+    } catch (ValidationException $e) {
+        expect($e->errors())->toHaveKey('rolls_pending_review');
+    }
+    $roll = FabricRoll::where('purchase_document_item_id', $line->id)->firstOrFail();
+    $this->service->approveRollDifference($roll->id, 'Aceptado por el proveedor');
+
     $this->service->approveReception($invoice->id);
 
     expect($invoice->fresh()->status)->toBe('approved')
@@ -141,22 +238,48 @@ it('does not accept a difference report when the reception is within tolerance',
     [$invoice, $line] = fabricReceptionInvoice(500);
     registerRoll($this->service, $line, 500);
 
-    expect(fn () => $this->service->reportReceptionDifference($invoice->id, 'x'))->toThrow(ValidationException::class);
+    expect(fn () => $this->service->reportReceptionDifference($invoice->id, 'x', 'evidencia-test.jpg'))->toThrow(ValidationException::class);
 });
 
-it('lets only users who can adjust rolls add rolls after the reception is approved, straight into inventory', function () {
+it('requires evidence to report a reception difference', function () {
+    [$invoice, $line] = fabricReceptionInvoice(500);
+    registerRoll($this->service, $line, 400);
+
+    // El grupo de rutas kardex-telas exige además 'ver telas rollos'.
+    Permission::findOrCreate('ver telas rollos', 'web');
+    Permission::findOrCreate('aprobar recepcion tela', 'web');
+    $user = User::factory()->create();
+    $user->givePermissionTo(['ver telas rollos', 'aprobar recepcion tela']);
+    $this->actingAs($user);
+
+    $response = $this->patchJson("/kardex-telas/recepcion/{$invoice->id}/reportar-diferencia", [
+        'reason' => 'El proveedor envió menos rollos',
+    ]);
+
+    $response->assertStatus(422)->assertJsonValidationErrors('evidence');
+    expect($invoice->fresh()->approval_status)->not->toBe(PurchaseDocument::APPROVAL_PENDING_DIFFERENCE);
+});
+
+it('lets only users with the exclusive permission add rolls after the reception is approved, straight into inventory', function () {
     [$invoice, $line, $item] = fabricReceptionInvoice(500);
     registerRoll($this->service, $line, 500);
     $this->service->approveReception($invoice->id);
 
     expect(fn () => registerRoll($this->service, $line, 10))->toThrow(ValidationException::class);
 
+    // 'ajustar telas rollos' ya no basta para añadir rollos tras aprobar.
     Permission::findOrCreate('ajustar telas rollos', 'web');
+    $adjuster = User::factory()->create();
+    $adjuster->givePermissionTo('ajustar telas rollos');
+    $this->actingAs($adjuster);
+    expect(fn () => registerRoll($this->service, $line, 10))->toThrow(ValidationException::class);
+
+    Permission::findOrCreate('agregar rollos recepcion aprobada', 'web');
     $user = User::factory()->create();
-    $user->givePermissionTo('ajustar telas rollos');
+    $user->givePermissionTo('agregar rollos recepcion aprobada');
     $this->actingAs($user);
 
-    registerRoll($this->service, $line, 10);
+    registerRoll($this->service, $line, 10, 'Rollo omitido');
 
     expect(InventoryMovement::where('item_id', $item->id)->where('source_id', $invoice->id)->count())->toBe(2);
 });

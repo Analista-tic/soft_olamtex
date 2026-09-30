@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PillTabs from '@/components/common/PillTabs.vue';
+import { Tabs } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Head } from '@inertiajs/vue3';
@@ -201,11 +202,7 @@ const approvalLabel = (status: string) => approvalBadge(status).label;
             <!-- Tabs + Buscador -->
             <div class="no-print flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <Tabs v-model="activeTab">
-                    <TabsList>
-                        <TabsTrigger v-for="tab in tabs" :key="tab.value" :value="tab.value">
-                            {{ tab.label }}
-                        </TabsTrigger>
-                    </TabsList>
+                    <PillTabs :tabs="tabs" class="mb-0" />
                 </Tabs>
                 <div class="relative w-full sm:w-64">
                     <Search class="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />

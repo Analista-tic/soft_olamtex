@@ -118,7 +118,7 @@ onMounted(() => fetchRows(1));
                 </FilterField>
                 <FilterField label="Solo con rollo ligado" :active="onlyWithRoll" class="min-w-[180px] p-0">
                     <label class="flex h-10 items-center gap-2 px-3 text-sm">
-                        <Checkbox :model-value="onlyWithRoll" @update:model-value="(v) => (onlyWithRoll = Boolean(v))" />
+                        <Checkbox :model-value="onlyWithRoll" @update:model-value="(v: boolean | 'indeterminate') => (onlyWithRoll = v === true)" />
                         Solo con rollo ligado
                     </label>
                 </FilterField>
@@ -151,18 +151,22 @@ onMounted(() => fetchRows(1));
                                 <TableHead class="cursor-pointer select-none text-right" @click="toggleSort('difference_meters')">
                                     Diferencia {{ sortBy === 'difference_meters' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}
                                 </TableHead>
+                                <TableHead class="text-right" title="Reserva que la línea todavía mantiene sobre el rollo">Reserva pendiente</TableHead>
+                                <TableHead class="cursor-pointer select-none text-right" @click="toggleSort('overconsumed_meters')">
+                                    Sobreconsumo {{ sortBy === 'overconsumed_meters' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}
+                                </TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             <template v-if="isLoading">
                                 <TableRow v-for="i in 5" :key="`rp-sk-${i}`">
-                                    <TableCell v-for="col in 10" :key="`rp-sk-${i}-${col}`" class="px-4 py-3">
+                                    <TableCell v-for="col in 12" :key="`rp-sk-${i}-${col}`" class="px-4 py-3">
                                         <Skeleton class="h-4 w-full" />
                                     </TableCell>
                                 </TableRow>
                             </template>
                             <TableRow v-else-if="rows.length === 0">
-                                <TableCell colspan="10" class="py-8 text-center text-sm text-muted-foreground">
+                                <TableCell colspan="12" class="py-8 text-center text-sm text-muted-foreground">
                                     No hay rollos programados que coincidan con el filtro.
                                 </TableCell>
                             </TableRow>
@@ -194,6 +198,13 @@ onMounted(() => fetchRows(1));
                                     "
                                 >
                                     {{ fmtMeters(row.difference_meters) }}
+                                </TableCell>
+                                <TableCell class="text-right text-sm text-muted-foreground">{{ fmtMeters(row.pending_meters) }}</TableCell>
+                                <TableCell
+                                    class="text-right text-sm"
+                                    :class="row.overconsumed_meters > 0 ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-muted-foreground'"
+                                >
+                                    {{ row.overconsumed_meters > 0 ? fmtMeters(row.overconsumed_meters) : '-' }}
                                 </TableCell>
                             </TableRow>
                         </TableBody>

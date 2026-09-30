@@ -133,7 +133,7 @@ export function useTreasuryVoucherPage(options: TreasuryVoucherPageOptions) {
         const next: Record<number, string> = {};
 
         documents.value.forEach((doc) => {
-            next[doc.id] = String(Number(doc.pending_balance || 0));
+            next[doc.id] = String(Number(doc.payable_balance ?? doc.pending_balance ?? 0));
         });
 
         applicationAmounts.value = next;

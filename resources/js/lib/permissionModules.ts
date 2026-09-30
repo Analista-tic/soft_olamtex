@@ -176,20 +176,29 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     },
     {
         label: 'Rollos de Tela',
-        tokens: ['telas rollos', 'fabric_rolls.import'],
+        tokens: ['telas rollos', 'fabric_rolls.import', 'diferencias metraje'],
         permissions: [
             'ver telas rollos',
             'crear telas rollos',
             'editar telas rollos',
             'eliminar telas rollos',
+            'ajustar telas rollos',
             'fabric_rolls.import',
+            'revisar diferencias metraje telas',
         ],
         category: 'Textil Pack',
     },
     {
         label: 'Descargue de Telas',
         tokens: ['descargue telas'],
-        permissions: ['ver descargue telas orden', 'crear descargue telas orden'],
+        permissions: [
+            'ver descargue telas orden',
+            'crear descargue telas orden',
+            'editar descargue telas orden',
+            'eliminar descargue telas orden',
+            'descargar telas orden',
+            'corregir descargue telas orden',
+        ],
         category: 'Textil Pack',
     },
 
@@ -493,7 +502,13 @@ const PERMISSION_LABEL_OVERRIDES: Record<string, string> = {
     // Textil Pack
     'fabric_rolls.import': 'Importar rollos',
     'ver descargue telas orden': 'Ver descargue por orden',
-    'crear descargue telas orden': 'Crear descargue por orden',
+    'crear descargue telas orden': 'Programar descargue por orden',
+    'editar descargue telas orden': 'Editar programación de descargue',
+    'eliminar descargue telas orden': 'Eliminar programación de descargue',
+    'descargar telas orden': 'Descargar tela por orden',
+    'corregir descargue telas orden': 'Corregir descargue por orden',
+    'ajustar telas rollos': 'Ajustar rollos (entrada/salida, cantidad, precio)',
+    'revisar diferencias metraje telas': 'Revisar diferencias de metraje',
     // Ingresos
     'convertir cotizacion a pedido': 'Convertir a pedido',
     'convertir pedido a factura venta': 'Convertir a factura',

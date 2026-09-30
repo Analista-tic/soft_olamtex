@@ -2,7 +2,8 @@
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import SelectField from '@/components/SelectField.vue';
 import Button from '@/components/ui/button/Button.vue';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PillTabs from '@/components/common/PillTabs.vue';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import type { OpBasicInfo } from '@/domain/Production';
 import { fetchOpBasicInfo, fetchOpOptions, fetchOpRawMaterials, fetchOpRolls } from '@/domain/Production';
 import axios from 'axios';
@@ -692,21 +693,7 @@ onBeforeUnmount(() => {
                     </div>
 
                     <Tabs v-model="activeTab" :default-value="defaultTabValue" class="flex min-h-0 w-full min-w-0 flex-1 flex-col">
-                        <div class="mb-3 flex justify-center">
-                            <TabsList class="inline-flex w-fit flex-nowrap items-center gap-1 rounded-full border border-border bg-muted/40 p-1">
-                                <TabsTrigger
-                                    v-for="tab in tabs"
-                                    :key="tab.value"
-                                    :value="tab.value"
-                                    class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground data-[state=active]:border data-[state=active]:border-primary/20 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm"
-                                >
-                                    <span class="inline-flex shrink-0 items-center gap-2">
-                                        <component :is="tab.icon" class="h-4 w-4 shrink-0" />
-                                        <span class="shrink-0">{{ tab.label }}</span>
-                                    </span>
-                                </TabsTrigger>
-                            </TabsList>
-                        </div>
+                        <PillTabs :tabs="tabs" align="center" />
 
                         <TabsContent value="lista_operacional" class="mt-0">
                             <div v-if="selectedOp && isEditable" class="mb-3 flex justify-end">

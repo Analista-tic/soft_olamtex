@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import Input from '@/components/ui/input/Input.vue';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import PillTabs from '@/components/common/PillTabs.vue';
 import { useAlertStack } from '@/composables/useAlert';
 import type { AdditionalInfo } from '@/domain/Production';
 import { fetchOpAdditionalInfo, fetchOpBasicInfo } from '@/domain/Production';
@@ -82,9 +82,6 @@ const TAB_COLORS = [
     'bg-indigo-100 text-indigo-800 data-[state=active]:bg-indigo-600 data-[state=active]:text-primary-foreground data-[state=active]:shadow-md',
 ];
 
-const toggleGroupBaseClass = 'inline-flex min-w-max items-center gap-1 rounded-full bg-muted/40 p-1';
-const toggleItemBaseClass =
-    'flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition text-muted-foreground hover:text-foreground data-[state=on]:border-primary/30 data-[state=on]:bg-primary/10 data-[state=on]:text-primary data-[state=on]:shadow-sm';
 
 /* ── State ──────────────────────────────────────────────── */
 
@@ -1429,18 +1426,9 @@ onUnmounted(() => {
                             <!-- Toggle muestras/productos + filtro temporada -->
                             <div class="flex flex-wrap items-center gap-3">
                                 <div class="min-w-0 overflow-x-auto">
-                                    <ToggleGroup v-model="activeType" type="single" variant="outline" :class="toggleGroupBaseClass">
-                                        <ToggleGroupItem
-                                            v-for="option in scopeOptions"
-                                            :key="option.value"
-                                            :value="option.value"
-                                            variant="outline"
-                                            :class="toggleItemBaseClass"
-                                        >
-                                            <component :is="option.icon" class="h-4 w-4" />
-                                            <span>{{ option.label }}</span>
-                                        </ToggleGroupItem>
-                                    </ToggleGroup>
+                                    <Tabs v-model="activeType">
+                                        <PillTabs :tabs="scopeOptions" class="mb-0" />
+                                    </Tabs>
                                 </div>
 
                                 <!-- Filtros de temporada, búsqueda y fabricación -->
