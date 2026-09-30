@@ -5,6 +5,7 @@ namespace App\Services\Inventory;
 use App\Helpers\ScopeHelper;
 use App\Models\Inventory\InventoryRequest;
 use App\Models\Inventory\InventoryRequestItem;
+use App\Support\DocumentSequence;
 use App\Models\Settings\User;
 use App\Notifications\InventoryRequestCreatedNotification;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -341,28 +342,15 @@ class InventoryRequestService
         }
     }
 
-    public function nextNumber(): string
-    {
-        return $this->generateDocumentNumber();
-    }
-
+    /** Consecutivo atómico (SINT-###): se asigna al guardar; el formulario ya no "sugiere" uno. */
     protected function generateDocumentNumber(): string
     {
-        $prefix = 'SINT';
-        $sequenceLength = 3;
+        $next = DocumentSequence::next(
+            'inventory_requests:SINT',
+            fn () => DocumentSequence::maxInTable('inventory_requests', 'document_number', 'SINT')
+        );
 
-        $lastNumber = InventoryRequest::whereNotNull('document_number')
-            ->orderByDesc('id')
-            ->value('document_number');
-
-        $next = 1;
-        if ($lastNumber && preg_match("/^{$prefix}-(\\d{{$sequenceLength}})$/", $lastNumber, $matches)) {
-            $next = (int) $matches[1] + 1;
-        }
-
-        $sequence = str_pad((string) $next, $sequenceLength, '0', STR_PAD_LEFT);
-
-        return "{$prefix}-{$sequence}";
+        return sprintf('SINT-%03d', $next);
     }
 
     protected function assertPending(InventoryRequest $request): void

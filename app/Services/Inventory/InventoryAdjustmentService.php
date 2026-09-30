@@ -4,6 +4,7 @@ namespace App\Services\Inventory;
 
 use App\Models\Inventory\InventoryAdjustment;
 use App\Models\Inventory\InventoryAdjustmentLine;
+use App\Support\DocumentSequence;
 use App\Models\MasterData\Item;
 use App\Services\Finance\AccountingPostingService;
 use App\Services\Inventory\InventoryMovementService;
@@ -69,27 +70,19 @@ class InventoryAdjustmentService
         return InventoryAdjustment::with(['lines.item', 'lines.warehouse'])->findOrFail($id);
     }
 
-    public function nextNumber(): string
+    /**
+     * Consecutivo atómico (OL-###) que asigna el servidor al guardar. No se muestra un número "sugerido" en el
+     * formulario: con dos usuarios a la vez ambos veían el mismo y el segundo recibía un error. Cuenta también
+     * los ajustes eliminados (la validación única los incluye).
+     */
+    protected function allocateNumber(): string
     {
-        return DB::transaction(function () {
-            $prefix = 'OL';
-            $sequenceLength = 3;
+        $next = DocumentSequence::next(
+            'inventory_adjustments:OL',
+            fn () => DocumentSequence::maxInTable('inventory_adjustments', 'document_number', 'OL')
+        );
 
-            $lastNumber = InventoryAdjustment::whereNotNull('document_number')
-                ->where('document_number', 'like', "{$prefix}-%")
-                ->orderByDesc('id')
-                ->lockForUpdate()
-                ->value('document_number');
-
-            $next = 1;
-            if ($lastNumber && preg_match("/^{$prefix}-(\\d{{$sequenceLength}})$/", $lastNumber, $matches)) {
-                $next = (int) $matches[1] + 1;
-            }
-
-            $sequence = str_pad((string) $next, $sequenceLength, '0', STR_PAD_LEFT);
-
-            return "{$prefix}-{$sequence}";
-        });
+        return sprintf('OL-%03d', $next);
     }
 
     public function movementReasons(): array
@@ -180,7 +173,8 @@ class InventoryAdjustmentService
         $movementReasons = $this->movementReasons();
 
         return DB::transaction(function () use ($data, $items, $adjustment, $movementReasons) {
-            $documentNumber = $data['document_number'] ?: ($adjustment->document_number ?? $this->nextNumber());
+            // El número lo decide siempre el servidor; el que envíe el cliente se ignora al crear.
+            $documentNumber = $adjustment->document_number ?? $this->allocateNumber();
 
             if (!$adjustment) {
                 $adjustment = InventoryAdjustment::create([

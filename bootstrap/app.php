@@ -27,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleAppearance::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
+            \App\Http\Middleware\PreventDuplicateSubmission::class,
         ]);
 
         // Alias para middlewares de roles y permisos
@@ -37,6 +38,24 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
+        // Última defensa contra duplicados: si dos peticiones simultáneas pasan la validación y chocan con un
+        // índice único, se responde 422 con un mensaje claro en vez de un 500.
+        $exceptions->render(function (\Illuminate\Database\UniqueConstraintViolationException $exception, $request) {
+            if (! $request->expectsJson()) {
+                return null;
+            }
+
+            $message = (string) $exception->getMessage();
+            [$field, $text] = match (true) {
+                str_contains($message, 'supplier_invoice') => ['supplier_invoice_number', 'Este proveedor ya tiene registrada una factura con ese número.'],
+                str_contains($message, 'document_number'), str_contains($message, 'request_number'), str_contains($message, 'purchase_documents_type_number') => ['document_number', 'El consecutivo ya fue asignado a otro documento. Vuelve a guardar para obtener uno nuevo.'],
+                str_contains($message, 'roll_number') => ['roll_number', 'Ya existe un rollo con ese número.'],
+                default => ['general', 'Ya existe un registro con esos datos. Actualiza la lista antes de volver a intentarlo.'],
+            };
+
+            return response()->json(['message' => $text, 'errors' => [$field => [$text]]], 422);
+        });
+
         $exceptions->render(function (AuthenticationException $exception, $request) {
             if ($request->is('api/*')) {
                 return response()->json([

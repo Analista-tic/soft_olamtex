@@ -19,6 +19,7 @@ use App\Support\MasterData\MaterialClassifier;
 use App\Support\TextNormalizer;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -156,10 +157,22 @@ class ItemService
     public function create(array $data, array $warehouses = []): Item
     {
         $payload = $this->buildCreatePayload($data);
-        $item = Item::create($payload);
-        $this->syncWarehousesOnCreate($item, $warehouses);
 
-        return $item;
+        // La validación de duplicado del controlador es "consultar y luego insertar": dos usuarios creando el mismo
+        // ítem a la vez pasaban ambos. Se serializa por nombre y se repite la comprobación dentro del bloqueo.
+        $lockKey = 'item-create:' . sha1($this->normalizeForComparison((string) ($payload['name'] ?? '')));
+
+        return Cache::lock($lockKey, 15)->block(10, function () use ($payload, $warehouses) {
+            $existing = $this->findByName((string) ($payload['name'] ?? ''));
+            if ($existing !== null) {
+                throw ValidationException::withMessages(['reference' => [$this->duplicateMessage($existing)]]);
+            }
+
+            $item = Item::create($payload);
+            $this->syncWarehousesOnCreate($item, $warehouses);
+
+            return $item;
+        });
     }
 
     protected function syncWarehousesOnCreate(Item $item, array $warehouses): void
@@ -1672,16 +1685,41 @@ class ItemService
             ];
         }
 
-        $duplicateByName = $this->existsByName($name, $excludeId);
+        $existing = $this->findByName($name, $excludeId);
+        $duplicateByName = $existing !== null;
 
         return [
             'duplicate' => $duplicateByName,
             'duplicate_by_reference' => false,
             'duplicate_by_name' => $duplicateByName,
             'message' => $duplicateByName
-                ? 'El ítem ya existe.'
+                ? $this->duplicateMessage($existing)
                 : '',
         ];
+    }
+
+    protected function findByName(string $name, ?int $excludeId = null): ?Item
+    {
+        $normalized = $this->normalizeForComparison($name);
+        if ($normalized === '') {
+            return null;
+        }
+
+        $query = Item::query()->whereRaw('LOWER(name) = ?', [$normalized]);
+        if ($excludeId) {
+            $query->where('id', '<>', $excludeId);
+        }
+
+        return $query->first(['id', 'name', 'reference']);
+    }
+
+    protected function duplicateMessage(Item $existing): string
+    {
+        $reference = trim((string) $existing->reference);
+
+        return $reference !== ''
+            ? "Ya existe un ítem con las mismas características (subgrupo, color y campos): \"{$existing->name}\", referencia {$reference}. Modifica alguno de los datos o usa el ítem existente."
+            : "Ya existe un ítem con las mismas características (subgrupo, color y campos): \"{$existing->name}\". Modifica alguno de los datos o usa el ítem existente.";
     }
 
     public function assertUniqueReferenceAndName(string $reference, string $name, ?int $excludeId = null): void
@@ -1693,7 +1731,7 @@ class ItemService
 
         $errors = [];
         if ($status['duplicate_by_name']) {
-            $errors['reference'][] = 'Ya existe un ítem con los mismos datos de subgrupo y campos.';
+            $errors['reference'][] = $status['message'];
         }
 
         throw ValidationException::withMessages($errors);

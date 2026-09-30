@@ -217,14 +217,9 @@ function resetForm() {
     alertDetails.value = [];
 }
 
-async function loadDocumentNumber() {
-    documentNumber.value = 'Cargando...';
-    try {
-        const { data } = await axios.get('/ajustes-inventario/next-number');
-        documentNumber.value = data?.document_number || 'Automatico';
-    } catch {
-        documentNumber.value = 'Automatico';
-    }
+/** El consecutivo (OL-###) lo asigna el servidor al guardar; un número "sugerido" se repetía entre usuarios. */
+function loadDocumentNumber() {
+    documentNumber.value = 'Automatico';
 }
 
 function fillFromAdjustment(data: any) {

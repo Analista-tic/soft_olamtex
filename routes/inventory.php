@@ -60,7 +60,6 @@ Route::get('inventario/ajuste-inventario/crear', function () {
 Route::prefix('inventario/solicitudes-internas')->name('inventory-requests.')->group(function () {
     Route::get('/', [InventoryRequestController::class, 'index'])->name('index');
     Route::get('/data', [InventoryRequestController::class, 'getData'])->name('data');
-    Route::get('/next-number', [InventoryRequestController::class, 'nextNumber'])->name('next-number');
     Route::get('/{inventoryRequest}', [InventoryRequestController::class, 'show'])->name('show');
     Route::post('/', [InventoryRequestController::class, 'store'])->name('store');
     Route::put('/{inventoryRequest}', [InventoryRequestController::class, 'update'])->name('update');
@@ -91,7 +90,6 @@ Route::prefix('campos-adicionales')->name('inventory.additional-fields.')->middl
 Route::prefix('ajustes-inventario')->name('ajustes-inventario.')->group(function () {
     Route::get('/data', [InventoryAdjustmentController::class, 'getData'])->name('data');
     Route::get('/', [InventoryAdjustmentController::class, 'index'])->name('index');
-    Route::get('/next-number', [InventoryAdjustmentController::class, 'nextNumber'])->name('next-number');
     Route::get('/movement-reasons', [InventoryAdjustmentController::class, 'movementReasons'])->name('movement-reasons');
     Route::get('/{id}', [InventoryAdjustmentController::class, 'show'])->name('show');
     Route::post('/', [InventoryAdjustmentController::class, 'store'])->name('store');

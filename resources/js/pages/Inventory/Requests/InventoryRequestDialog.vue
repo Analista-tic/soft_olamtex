@@ -66,8 +66,6 @@ const isHydrationLoading = ref(false);
 const isSubmittingDialog = ref(false);
 const { successMessage, errorMessage, errorType, showSuccess, showWarning, showError, clearSuccess, clearError } = useAlertStack();
 const itemsTableRef = ref<{ addItem: () => void } | null>(null);
-const nextDocumentNumber = ref('');
-const isLoadingNumber = ref(false);
 
 const isReadonly = computed(() => props.dialogType === 'view');
 const shouldBlockBody = computed(() => dialogOpen.value && isHydrationLoading.value);
@@ -207,8 +205,8 @@ function initializeDialog() {
         return;
     }
 
+    // El consecutivo (SINT-###) lo asigna el servidor al guardar.
     applyInitialDraft(props.initialDraft);
-    void fetchNextNumber();
 }
 
 async function hydrateRequest(requestId: number) {
@@ -303,19 +301,6 @@ function validateForm(): boolean {
     }
 
     return true;
-}
-
-async function fetchNextNumber() {
-    isLoadingNumber.value = true;
-    try {
-        const { data } = await axios.get('/inventario/solicitudes-internas/next-number');
-        nextDocumentNumber.value = data?.document_number ?? '';
-        localForm.value.document_number = nextDocumentNumber.value;
-    } catch {
-        nextDocumentNumber.value = '';
-    } finally {
-        isLoadingNumber.value = false;
-    }
 }
 
 async function handleSubmit() {
@@ -453,13 +438,10 @@ watch(dialogOpen, (isOpen) => {
                                     <InputField
                                         v-model="safeDocumentNumber"
                                         label="N° Solicitud"
-                                        placeholder="SINT-001"
+                                        placeholder="Se asigna al guardar"
                                         :readonly="true"
                                         :disabled="true"
                                     />
-                                    <p v-if="props.dialogType === 'create' && isLoadingNumber" class="text-xs text-muted-foreground">
-                                        Generando consecutivo...
-                                    </p>
                                 </div>
                                 <DatePickerField
                                     v-model="localForm.date"

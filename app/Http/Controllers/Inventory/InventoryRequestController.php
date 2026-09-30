@@ -63,13 +63,6 @@ class InventoryRequestController extends Controller
         ]);
     }
 
-    public function nextNumber()
-    {
-        $next = $this->service->nextNumber();
-
-        return response()->json(['document_number' => $next]);
-    }
-
     public function show(InventoryRequest $inventoryRequest)
     {
         $this->ensureCanView($inventoryRequest);

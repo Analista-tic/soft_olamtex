@@ -44,7 +44,7 @@ class ItemController extends Controller
     public function store(Request $request)
     {
         try {
-            $data = $request->validate($this->itemValidationRules(false, null, $request));
+            $data = $request->validate($this->itemValidationRules(false, null, $request), $this->itemValidationMessages($request));
         } catch (ValidationException $e) {
             return $this->validationErrorResponse($e);
         } catch (\Throwable $e) {
@@ -61,7 +61,7 @@ class ItemController extends Controller
         $item = $this->service->find($id);
 
         try {
-            $data = $request->validate($this->itemValidationRules(true, $item, $request));
+            $data = $request->validate($this->itemValidationRules(true, $item, $request), $this->itemValidationMessages($request));
         } catch (ValidationException $e) {
             return $this->validationErrorResponse($e);
         } catch (\Throwable $e) {
@@ -476,6 +476,18 @@ class ItemController extends Controller
                 'yarn_name_id' => ['El nombre de hilaza solo aplica a ítems del subgrupo Hilaza.'],
             ]);
         }
+    }
+
+    private function itemValidationMessages(Request $request): array
+    {
+        $reference = trim((string) $request->input('reference', ''));
+
+        return [
+            'reference.unique' => $reference !== ''
+                ? "La referencia \"{$reference}\" ya está asignada a otro ítem. Ingresa una referencia distinta."
+                : 'La referencia ingresada ya está asignada a otro ítem. Ingresa una referencia distinta.',
+            'reference.required' => 'La referencia es obligatoria cuando se ingresa de forma manual.',
+        ];
     }
 
     private function itemValidationRules(bool $isUpdate = false, $item = null, ?Request $request = null): array

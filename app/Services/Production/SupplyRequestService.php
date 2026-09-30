@@ -5,6 +5,7 @@ namespace App\Services\Production;
 use App\Enums\PurchaseRequestStatus;
 use App\Models\Expenses\PurchaseRequest;
 use App\Models\Inventory\InventoryRequest;
+use App\Support\DocumentSequence;
 use App\Models\Inventory\InventoryRequestItem;
 use App\Models\MasterData\CategorySubGroup;
 use App\Models\MasterData\Item;
@@ -176,22 +177,14 @@ class SupplyRequestService
 
     private function generateRequestNumber(): string
     {
-        $year = now()->year;
-        $prefix = "SOL-INS-{$year}-";
+        $prefix = 'SOL-INS-' . now()->year;
 
-        $lastNumber = InventoryRequest::query()
-            ->where('document_number', 'like', "{$prefix}%")
-            ->orderByDesc('document_number')
-            ->value('document_number');
+        $next = DocumentSequence::next(
+            "inventory_requests:{$prefix}",
+            fn () => DocumentSequence::maxInTable('inventory_requests', 'document_number', $prefix)
+        );
 
-        if ($lastNumber) {
-            $lastSeq = (int) str_replace($prefix, '', $lastNumber);
-            $nextSeq = $lastSeq + 1;
-        } else {
-            $nextSeq = 1;
-        }
-
-        return $prefix . str_pad((string) $nextSeq, 4, '0', STR_PAD_LEFT);
+        return sprintf('%s-%04d', $prefix, $next);
     }
 
     private function resolveDefaultTaxId(): int
@@ -288,22 +281,14 @@ class SupplyRequestService
      */
     private function generatePurchaseRequestNumber(): string
     {
-        $year = now()->year;
-        $prefix = "SC-{$year}-";
+        $prefix = 'SC-' . now()->year;
 
-        $lastNumber = PurchaseRequest::query()
-            ->where('request_number', 'like', "{$prefix}%")
-            ->orderByDesc('request_number')
-            ->value('request_number');
+        $next = DocumentSequence::next(
+            "purchase_requests:{$prefix}",
+            fn () => DocumentSequence::maxInTable('purchase_requests', 'request_number', $prefix)
+        );
 
-        if ($lastNumber) {
-            $lastSeq = (int) str_replace($prefix, '', $lastNumber);
-            $nextSeq = $lastSeq + 1;
-        } else {
-            $nextSeq = 1;
-        }
-
-        return $prefix . str_pad((string) $nextSeq, 4, '0', STR_PAD_LEFT);
+        return sprintf('%s-%04d', $prefix, $next);
     }
 
     /**

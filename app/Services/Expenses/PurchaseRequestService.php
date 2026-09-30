@@ -11,7 +11,9 @@ use App\Notifications\PurchaseRequestSubmittedNotification;
 use App\Notifications\PurchaseRequestRespondedNotification;
 use App\Services\Settings\NotificationDispatcher;
 use App\Services\Settings\NotificationRuleService;
+use App\Support\DocumentSequence;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -162,8 +164,12 @@ class PurchaseRequestService
 
     public function create(array $data): PurchaseRequest
     {
-        $payload = $this->prepareData($data);
-        return PurchaseRequest::create($payload)->load('requester');
+        // Una sola transacción: el bloqueo del consecutivo se mantiene hasta que la solicitud queda guardada.
+        return DB::transaction(function () use ($data) {
+            $payload = $this->prepareData($data);
+
+            return PurchaseRequest::create($payload)->load('requester');
+        });
     }
 
     public function update(PurchaseRequest $purchaseRequest, array $data): PurchaseRequest
@@ -347,15 +353,18 @@ class PurchaseRequestService
         }
     }
 
-    public function peekNextRequestNumber(): string
-    {
-        return $this->generateRequestNumber();
-    }
-
+    /**
+     * Consecutivo atómico (bloqueo de fila): se asigna al guardar, nunca al abrir el formulario, y no se reutiliza
+     * el de una solicitud eliminada. Basar el número en `max(id)` repetía el mismo número con dos usuarios a la vez.
+     */
     protected function generateRequestNumber(): string
     {
-        $nextId = (int) PurchaseRequest::withTrashed()->max('id') + 1;
-        return sprintf('SOL-%03d', $nextId);
+        $next = DocumentSequence::next(
+            'purchase_requests:SOL',
+            fn () => DocumentSequence::maxFromNumbers(PurchaseRequest::withTrashed()->pluck('request_number'), 'SOL')
+        );
+
+        return sprintf('SOL-%03d', $next);
     }
 
     protected function extractItems(mixed $items): array
@@ -465,7 +474,7 @@ class PurchaseRequestService
      *  1. Alcance normal por permisos (propios / area / todos) + filtro "solicitado a".
      *  2. Los borradores solo los ve su solicitante (quien la creó).
      */
-    private function applyVisibility(Builder $query, ?User $user): void
+    public function applyVisibility(Builder $query, ?User $user): void
     {
         ScopeHelper::apply($query, $user, 'ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra', 'requester_user_id');
         $this->applySolicitedToFilter($query, $user);

@@ -5,6 +5,7 @@ namespace App\Services\Inventory;
 use App\Helpers\ScopeHelper;
 use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\InventoryPeriodLock;
+use App\Support\DocumentSequence;
 use App\Models\MasterData\Item;
 use App\Models\Settings\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -463,21 +464,16 @@ class InventoryMovementService
      */
     protected function generateMovementNumber(): string
     {
-        $year = now()->year;
-        $prefix = "MOV-{$year}-";
+        // Contador atómico por año. La versión anterior ordenaba como texto y leía 3 dígitos: al llegar a
+        // MOV-2026-1000 repetía 1000 para siempre, y dos movimientos simultáneos calculaban el mismo número.
+        $prefix = 'MOV-' . now()->year;
 
-        $lastMovement = InventoryMovement::where('document_number', 'like', "{$prefix}%")
-            ->orderByDesc('document_number')
-            ->first();
+        $next = DocumentSequence::next(
+            "inventory_movements:{$prefix}",
+            fn () => DocumentSequence::maxInTable('inventory_movements', 'document_number', $prefix)
+        );
 
-        if ($lastMovement) {
-            $lastNumber = (int) substr($lastMovement->document_number, -3);
-            $nextNumber = $lastNumber + 1;
-        } else {
-            $nextNumber = 1;
-        }
-
-        return $prefix . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
+        return sprintf('%s-%03d', $prefix, $next);
     }
 
     /**

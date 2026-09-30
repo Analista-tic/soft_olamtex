@@ -165,16 +165,6 @@ class InventoryAdjustmentController extends Controller
         return response()->noContent();
     }
 
-    /**
-     * Devuelve el siguiente numero consecutivo sugerido (para mostrar en el formulario).
-     */
-    public function nextNumber()
-    {
-        $next = $this->service->nextNumber();
-
-        return response()->json(['document_number' => $next]);
-    }
-
     public function movementReasons()
     {
         return response()->json([

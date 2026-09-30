@@ -6,6 +6,7 @@ use App\Models\Inventory\InventoryMovement;
 use App\Models\MasterData\Item;
 use App\Models\Inventory\WarehouseTransfer;
 use App\Models\Inventory\WarehouseTransferItem;
+use App\Support\DocumentSequence;
 use App\Models\Settings\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -265,22 +266,12 @@ class WarehouseTransferService
 
     private function generateDocumentNumber(): string
     {
-        $prefix = 'TR';
-        $sequenceLength = 3;
+        // Contador atómico: no reutiliza el número de un traslado eliminado ni depende de que existan filas para bloquear.
+        $next = DocumentSequence::next(
+            'warehouse_transfers:TR',
+            fn () => DocumentSequence::maxInTable('warehouse_transfers', 'document_number', 'TR')
+        );
 
-        $lastNumber = WarehouseTransfer::whereNotNull('document_number')
-            ->where('document_number', 'like', "{$prefix}-%")
-            ->orderByDesc('id')
-            ->lockForUpdate()
-            ->value('document_number');
-
-        $next = 1;
-        if ($lastNumber && preg_match("/^{$prefix}-(\\d{{$sequenceLength}})$/", $lastNumber, $matches)) {
-            $next = (int) $matches[1] + 1;
-        }
-
-        $sequence = str_pad((string) $next, $sequenceLength, '0', STR_PAD_LEFT);
-
-        return "{$prefix}-{$sequence}";
+        return sprintf('TR-%03d', $next);
     }
 }
