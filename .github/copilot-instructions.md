@@ -138,6 +138,7 @@
 - Permissions: Most routes are gated by `auth`, `verified`, and `permission:*`. Ensure proper middleware on new routes.
 - SSR: Only needed for specific pages; wire via the existing SSR entry and composer script.
 - Auditing noise: Add high-churn columns to `AuditLog::$auditIgnore` to reduce diff clutter.
+- Consecutivos/identificadores de documentos: se asignan en el servidor al guardar con `App\Support\DocumentSequence` (contador atómico, dentro de la transacción de creación) y con índice único en BD; nunca `max(id)+1`, "el último por id" ni un número "sugerido" al abrir el formulario. Ver [docs/NUMERACION_Y_DUPLICADOS.md](../docs/NUMERACION_Y_DUPLICADOS.md).
 
 ### Naming & Structure
 - Prefer Spanish route prefixes and names (e.g., `usuarios`, `gastos`, `inventario`, `kardex-telas`).
@@ -232,6 +233,10 @@ Verbo en infinitivo o frase corta de acción, sentence case, sin punto final: `G
 - Toda cadena visible lleva tildes y ortografía correcta: `número` (no `numero`), `descripción` (no `descripcion`), `aprobación` (no `aprobacion`), uso correcto de `ñ`.
 - Antes de cerrar una tarea que agregue o toque texto visible, revisar ortografía/tildes de cada cadena nueva o modificada.
 - Un mismo concepto usa siempre el mismo término en todo el proyecto (ej. siempre "solicitud de compra"; no alternar con "solicitud de compras" o "pedido de compra" para la misma entidad).
+
+### Formato numérico (es-CO)
+- En la interfaz, el separador decimal es la **coma** y el de miles el punto (`50,25`; `$ 1.250.000`). Usar `toLocaleString('es-CO', …)` o los helpers de `@/lib/decimalFormat` (`formatDecimalInput`, `parseDecimalInput`, `toApiDecimal`).
+- API, base de datos y validaciones backend usan **punto** decimal. Los campos que el usuario ve con coma se convierten con `toApiDecimal` justo antes de enviar.
 
 ### Alcance de aplicación
 - Al modificar un archivo `.vue`/Blade/PHP por cualquier motivo, corregir de paso el texto visible de ese archivo que no cumpla esta convención. No se exige un barrido completo del proyecto solo por esta regla; se corrige de forma incremental, archivo por archivo, a medida que se toca cada uno.

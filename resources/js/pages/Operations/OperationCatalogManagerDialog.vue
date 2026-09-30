@@ -9,7 +9,8 @@ import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PillTabs from '@/components/common/PillTabs.vue';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import axios from 'axios';
 import { Pencil, Plus, Save, Trash2, X } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
@@ -314,12 +315,15 @@ async function confirmDelete() {
                 </p>
 
                 <Tabs v-model="activeTab" class="space-y-4">
-                    <TabsList class="grid w-full grid-cols-4">
-                        <TabsTrigger value="sections">Secciones</TabsTrigger>
-                        <TabsTrigger value="actions">Acciones</TabsTrigger>
-                        <TabsTrigger value="garment-parts">Partes de prenda</TabsTrigger>
-                        <TabsTrigger value="machines">Máquinas</TabsTrigger>
-                    </TabsList>
+                    <PillTabs
+                        size="sm"
+                        :tabs="[
+                            { value: 'sections', label: 'Secciones' },
+                            { value: 'actions', label: 'Acciones' },
+                            { value: 'garment-parts', label: 'Partes de prenda' },
+                            { value: 'machines', label: 'Máquinas' },
+                        ]"
+                    />
 
                     <TabsContent value="sections" class="mt-0">
                         <div class="grid grid-cols-1 gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">

@@ -41,6 +41,8 @@ Estados: `Abierto` · `En curso` · `Resuelto` · `Descartado`.
 | 2026-08-29 | DOC | 1 | Plantillas de carga inicial generadas y verificadas contra el código (`docs/plantillas/`) | Resuelto |
 | 2026-08-29 | BUG | 0 | `/listados-operacionales/bulk` responde 422/500. Causa por confirmar — ver hecho técnico #4 | Abierto |
 | 2026-08-29 | DEUDA | — | `Documentacion.md` §5.5 cita migraciones `2026_06_22_000001/2` que no existen en el repo | Abierto |
+| 2026-09-27 | FUNCIONAL | 4 | Recepción de telas: aprobación por rollo, motivo obligatorio, rollos restringidos, nota crédito enlazada con baja, retención de pago por monto y asiento contable proporcional. Ver [RECEPCION_ROLLOS_TOLERANCIA_Y_NOTAS_CREDITO.md](RECEPCION_ROLLOS_TOLERANCIA_Y_NOTAS_CREDITO.md). Falta aplicar migraciones y permiso en desarrollo | En curso |
+| 2026-09-27 | FUNCIONAL | 4 | La factura de tela se contabiliza al aprobar la recepción (antes no tenía asiento) | En curso |
 
 ---
 

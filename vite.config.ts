@@ -11,7 +11,7 @@ export default defineConfig({
         laravel({
             input: ['resources/js/app.ts'],
             ssr: 'resources/js/ssr.ts',
-            refresh: true,
+            refresh: ['resources/views/**', 'routes/**'],
         }),
         vue({
             template: {
@@ -35,13 +35,22 @@ export default defineConfig({
         host: '0.0.0.0',
         port: 5173,
         strictPort: true,
-        origin: 'http://192.168.1.70:5173',
+        origin: 'http://192.168.1.90:5173',
         cors: true, // la página (:80) y los módulos (:5173) son orígenes distintos
         hmr: {
-            host: '192.168.1.70', // TU IP LOCAL
+            host: '192.168.1.90', // TU IP LOCAL
         },
         watch: {
-            ignored: ['**/storage/**', '**/public/build/**', '**/bootstrap/cache/**'],
+            ignored: [
+                '**/storage/**',
+                '**/public/build/**',
+                '**/bootstrap/cache/**',
+                '**/vendor/**',
+                '**/node_modules/**',
+                '**/.git/**',
+                '**/tests/**',
+                '**/database/**',
+            ],
         },
     },
     resolve: {

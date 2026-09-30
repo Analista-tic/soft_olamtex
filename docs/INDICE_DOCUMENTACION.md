@@ -95,5 +95,10 @@ REPORTES
 | [ENTORNO_PRUEBAS_EN_RED.md](ENTORNO_PRUEBAS_EN_RED.md) | Cómo exponer la app local a otros dispositivos de la red (LAN) |
 | [ANALISIS_FLUJO_COMPRAS.md](ANALISIS_FLUJO_COMPRAS.md) | Análisis detallado del flujo de compras |
 | [REGLAS_ESTADOS_COMPRAS.md](REGLAS_ESTADOS_COMPRAS.md) | Qué se puede editar, eliminar o aprobar en Compras según el estado, y dónde vive cada regla |
+| [NUMERACION_Y_DUPLICADOS.md](NUMERACION_Y_DUPLICADOS.md) | Cómo se asignan los consecutivos sin repetirse, índices únicos y protección contra doble envío |
+| [RECEPCION_ROLLOS_TOLERANCIA_Y_NOTAS_CREDITO.md](RECEPCION_ROLLOS_TOLERANCIA_Y_NOTAS_CREDITO.md) | Recepción de telas: aprobación por rollo, rollos restringidos, nota crédito enlazada, baja, retención de pago y asiento contable proporcional |
+| [textil/FLUJO_ROLLOS_STOCK_Y_DESCARGUE.md](textil/FLUJO_ROLLOS_STOCK_Y_DESCARGUE.md) | Rollos de tela: fórmula única de saldos, descargue con sobreconsumo, sobrante/faltante de metraje, bloqueo tras descargue, corte idempotente y auditoría de saldos (con diagramas) |
+| [PATRON_UI_COMPRAS.md](PATRON_UI_COMPRAS.md) | Patrón de UI en Compras: crear/editar es página, ver es diálogo |
+| [PATRON_TABS.md](PATRON_TABS.md) | Componente `PillTabs` y regla para que todas las pestañas del sistema se vean igual |
 | [FICHA_TECNICA_BD_Y_ALMACENAMIENTO.md](FICHA_TECNICA_BD_Y_ALMACENAMIENTO.md) | Estructura de la ficha técnica en base de datos |
 | [AUDITORIA_SEGURIDAD_VULNERABILIDADES.md](AUDITORIA_SEGURIDAD_VULNERABILIDADES.md) | Revisión de seguridad del sistema |

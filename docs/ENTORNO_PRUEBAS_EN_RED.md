@@ -1,12 +1,40 @@
 # Entorno de pruebas en red (LAN)
 
-Guía para que otros dispositivos de la misma red (WiFi/LAN) abran la app que corre en tu PC con Sail.
+Guía para que otros dispositivos de la misma red (WiFi/LAN) abran la app que corre en tu PC con Sail (Docker).
 
 ## Requisitos
 
-- Sail levantado (`sail up -d`): el contenedor publica el puerto 80 en todas las interfaces.
+- Docker Desktop instalado y corriendo en Windows.
+- Sail levantado (paso 0): el contenedor publica el puerto 80 (app) y 5173 (Vite) en todas las interfaces.
 - Dispositivos de prueba conectados a la **misma red** que tu PC.
 - PowerShell con permisos de administrador (solo para el paso del firewall).
+
+## 0. Levantar Docker/Sail
+
+El proyecto corre en Docker vía [Laravel Sail](../compose.yaml). Servicios definidos:
+
+| Servicio | Imagen | Puerto host | Descripción |
+|---|---|---|---|
+| `laravel.test` | Sail (PHP 8.5) | `${APP_PORT:-80}` y `${VITE_PORT:-5173}` | App Laravel |
+| `mysql` | mysql:8.4 | `${FORWARD_DB_PORT:-3306}` | Base de datos `soft_olamtex_db` |
+| `phpmyadmin` | phpmyadmin | `${FORWARD_PMA_PORT:-8080}` | Administración de la BD |
+
+1. Abre **Docker Desktop** (o espera a que termine de iniciar si ya lo lanzaste) y confirma que el ícono de la ballena esté "Running", no "Starting...".
+2. Desde WSL, en la raíz del proyecto:
+
+    ```bash
+    ./vendor/bin/sail up -d
+    ```
+
+3. Verifica que los tres contenedores estén `Up`/`healthy`:
+
+    ```bash
+    ./vendor/bin/sail ps
+    ```
+
+Con esto la app ya responde en `http://localhost` y `http://<TU_IP>` (ver paso 1), y phpMyAdmin en `http://localhost:8080`.
+
+> Alias: si tienes `sail` en el PATH de tu shell (WSL), puedes usar `sail up -d` en vez de `./vendor/bin/sail up -d` en todos los comandos de esta guía.
 
 ## 1. Obtener la IP de tu PC
 
@@ -108,6 +136,8 @@ Con la opción A no hay nada que revertir. Con la opción B, `sail npm run dev` 
 | Falla `:5173` desde otro equipo | Firewall sin puerto 5173 o IP vieja en `vite.config.ts` | Paso 3 / actualizar IP |
 | Dejó de funcionar de un día para otro | La IP cambió | Revisar IP (paso 1) |
 | Redirige a `localhost` | `APP_URL` en `.env` | Poner `APP_URL=http://<TU_IP>` y `sail artisan config:clear` |
+| `Docker or Podman is not running` al hacer `sail up` | Docker Desktop no ha terminado de iniciar | Abrir Docker Desktop, esperar a "Running" y reintentar |
+| `Cannot connect to the Docker daemon` | Docker Desktop cerrado o WSL sin integración habilitada | Abrir Docker Desktop → Settings → Resources → WSL Integration |
 
 ## Advertencias
 
