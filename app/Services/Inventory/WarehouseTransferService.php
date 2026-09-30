@@ -54,7 +54,8 @@ class WarehouseTransferService
         return DB::transaction(function () use ($transfer, $data, $user) {
             $this->reverseTransferEffects($transfer, $user);
 
-            $transfer->items()->delete();
+            // Por instancia para que el AuditObserver registre cada línea eliminada.
+            $transfer->items()->get()->each->delete();
 
             $transfer->update([
                 'date' => $data['date'],
@@ -212,8 +213,11 @@ class WarehouseTransferService
             }
         }
 
+        // Por instancia para que el AuditObserver registre cada movimiento eliminado.
         InventoryMovement::where('source_type', WarehouseTransfer::class)
             ->where('source_id', $transfer->id)
+            ->get()
+            ->each
             ->delete();
     }
 

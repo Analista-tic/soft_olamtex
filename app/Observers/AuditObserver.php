@@ -18,32 +18,29 @@ class AuditObserver
 
     public function updated(Model $model): void
     {
-        $this->logWithContext($model, 'updated');
+        // restore() guarda el modelo (dispara "updated"); se registra como restauración.
+        $isRestore = $this->usesSoftDeletes($model)
+            && $model->wasChanged($model->getDeletedAtColumn())
+            && $model->getOriginal($model->getDeletedAtColumn()) !== null
+            && $model->{$model->getDeletedAtColumn()} === null;
+
+        $this->logWithContext($model, $isRestore ? 'restored' : 'updated');
     }
 
     public function deleted(Model $model): void
     {
-        $this->logWithContext($model, 'deleted');
+        $isForceDelete = $this->usesSoftDeletes($model) && $model->isForceDeleting();
+
+        $this->logWithContext($model, $isForceDelete ? 'force_deleted' : 'deleted');
     }
 
     protected function logWithContext(Model $model, string $action): void
     {
-        $this->logger->log($model, $action, $this->gatherContext());
+        $this->logger->log($model, $action, $this->logger->currentContext());
     }
 
-    protected function gatherContext(): array
+    protected function usesSoftDeletes(Model $model): bool
     {
-        $request = app()->bound('request') ? app('request') : null;
-
-        $user = null;
-        if (app()->bound('auth')) {
-            $user = app('auth')->user();
-        }
-
-        return [
-            'user' => $user,
-            'ip_address' => $request?->ip(),
-            'user_agent' => $request?->userAgent(),
-        ];
+        return method_exists($model, 'isForceDeleting');
     }
 }

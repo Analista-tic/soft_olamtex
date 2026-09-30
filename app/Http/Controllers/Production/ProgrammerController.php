@@ -13,6 +13,7 @@ use App\Models\Production\ProductionOrder;
 use App\Models\Production\TechnicalSheet;
 use App\Models\Production\TechnicalSheetSupply;
 use App\Models\Textil\FabricRoll;
+use App\Services\Audit\AuditLogService;
 use App\Services\Production\FabricBaseService;
 use App\Services\Production\ProductionOrderService;
 use App\Services\Production\ProductionOrderSchedulingService;
@@ -415,7 +416,20 @@ class ProgrammerController extends Controller
                     }
                 }
 
-                DB::table('production_orders')->where('id', $programador->id)->update($dbValues);
+                $affected = DB::table('production_orders')->where('id', $programador->id)->update($dbValues);
+
+                // El save() anterior ya quedó auditado; solo se registra si esta escritura
+                // directa cambió algo que el modelo no había persistido.
+                if ($affected > 0) {
+                    app(AuditLogService::class)->logBulk(
+                        ProductionOrder::class,
+                        'updated',
+                        [$programador->id],
+                        $dbValues,
+                        'Persistencia directa de campos de la orden de producción',
+                    );
+                }
+
                 $programador->refresh();
             } catch (\Throwable $e) {
                 Log::warning('production_order.update.force_db_update_failed', ['error' => $e->getMessage()]);
@@ -1195,7 +1209,12 @@ class ProgrammerController extends Controller
     private function resetTechnicalSheet(int $orderId): void
     {
         // TechnicalSheetSupply usa SoftDeletes → forceDelete
-        TechnicalSheetSupply::where('production_order_id', $orderId)->forceDelete();
+        // Por instancia (incluye las ya eliminadas) para que el AuditObserver registre cada fila.
+        TechnicalSheetSupply::withTrashed()
+            ->where('production_order_id', $orderId)
+            ->get()
+            ->each
+            ->forceDelete();
 
         // Incluye registros soft-deleted para evitar violación de clave única al recrear
         $sheets = TechnicalSheet::withTrashed()->where('production_order_id', $orderId)->get();
@@ -1212,13 +1231,14 @@ class ProgrammerController extends Controller
         }
 
         foreach ($sheets as $sheet) {
-            // Los siguientes modelos NO usan SoftDeletes → delete()
-            $sheet->rollsSnapshot()->delete();
-            $sheet->rollProgrammingLines()->delete();
-            $sheet->threadsSnapshot()->delete();
-            $sheet->rawMaterialsSnapshot()->delete();
-            $sheet->sizes()->delete();
-            $sheet->stampingImages()->delete();
+            // Los siguientes modelos NO usan SoftDeletes → delete(). Por instancia para que
+            // el AuditObserver registre cada fila eliminada.
+            $sheet->rollsSnapshot()->get()->each->delete();
+            $sheet->rollProgrammingLines()->get()->each->delete();
+            $sheet->threadsSnapshot()->get()->each->delete();
+            $sheet->rawMaterialsSnapshot()->get()->each->delete();
+            $sheet->sizes()->get()->each->delete();
+            $sheet->stampingImages()->get()->each->delete();
             // TechnicalSheet sí usa SoftDeletes → forceDelete para eliminar definitivamente
             $sheet->forceDelete();
         }

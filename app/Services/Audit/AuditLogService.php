@@ -17,11 +17,23 @@ class AuditLogService
     private const TIMESTAMP_KEYS = ['created_at', 'updated_at', 'deleted_at'];
 
     /**
+     * Campos que nunca deben persistirse en la auditoría, sin importar el modelo.
+     */
+    public const SENSITIVE_KEYS = [
+        'password',
+        'remember_token',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+    ];
+
+    private static ?bool $tableExists = null;
+
+    /**
      * @param array{user?: mixed, ip_address?: ?string, user_agent?: ?string} $context
      */
     public function log(Model $model, string $action, array $context = []): void
     {
-        if (!Schema::hasTable('audit_logs')) {
+        if (!$this->auditTableExists()) {
             return;
         }
 
@@ -30,34 +42,135 @@ class AuditLogService
             return;
         }
 
-        $user = $context['user'] ?? null;
-        $ipAddress = $context['ip_address'] ?? null;
-        $userAgent = $context['user_agent'] ?? null;
+        $ignored = array_flip(array_merge($model->auditIgnore ?? [], self::SENSITIVE_KEYS));
 
-        $ignored = $model->auditIgnore ?? [];
+        $old = array_diff_key($model->getOriginal(), $ignored);
+        $new = array_diff_key($model->getAttributes(), $ignored);
 
-        $old = array_diff_key($model->getOriginal(), array_flip($ignored));
-        $new = array_diff_key($model->getAttributes(), array_flip($ignored));
-
-        if ($action === 'updated' && $old == $new) {
+        if (in_array($action, ['updated', 'restored'], true) && $old == $new) {
             return;
         }
 
-        $description = $this->buildDescription($model, $action, $old, $new);
-
-        AuditLog::create([
-            'user_id' => $user?->id,
-            'user_name' => $user?->name,
+        $this->write([
             'action' => $action,
             'auditable_type' => $model::class,
             'auditable_id' => $model->getKey(),
             'module' => $this->guessModule($model),
             'old_values' => $old ?: null,
             'new_values' => $new ?: null,
+            'description' => $this->buildDescription($model, $action, $old, $new),
+        ], $context);
+    }
+
+    /**
+     * Registra un evento que no proviene de un evento Eloquent (sync de pivotes,
+     * operaciones masivas, autenticación, etc.).
+     *
+     * @param array{user?: mixed, ip_address?: ?string, user_agent?: ?string}|null $context
+     */
+    public function logEvent(
+        string $action,
+        ?string $description,
+        ?Model $subject = null,
+        ?array $old = null,
+        ?array $new = null,
+        ?string $module = null,
+        ?array $context = null,
+    ): void {
+        if (!$this->auditTableExists()) {
+            return;
+        }
+
+        $sensitive = array_flip(self::SENSITIVE_KEYS);
+
+        $this->write([
+            'action' => $action,
+            'auditable_type' => $subject ? $subject::class : null,
+            'auditable_id' => $subject?->getKey(),
+            'module' => $module ?? ($subject ? $this->guessModule($subject) : null),
+            'old_values' => $old ? array_diff_key($old, $sensitive) : null,
+            'new_values' => $new ? array_diff_key($new, $sensitive) : null,
             'description' => $description,
-            'ip_address' => $ipAddress,
-            'user_agent' => $userAgent,
+        ], $context ?? $this->currentContext());
+    }
+
+    /**
+     * Registra una operación masiva (query builder) sobre un modelo auditado,
+     * que no dispara eventos Eloquent.
+     *
+     * @param class-string<Model> $modelClass
+     * @param array<int, int|string> $ids
+     */
+    public function logBulk(string $modelClass, string $action, array $ids, ?array $changes = null, ?string $reason = null): void
+    {
+        $ids = array_values(array_unique(array_filter($ids, static fn ($id) => $id !== null)));
+
+        if ($ids === []) {
+            return;
+        }
+
+        $verb = match ($action) {
+            'created' => 'Creación',
+            'deleted' => 'Eliminación',
+            default => 'Actualización',
+        };
+
+        $description = sprintf(
+            '%s masiva de %s (%d): ids %s.%s',
+            $verb,
+            class_basename($modelClass),
+            count($ids),
+            implode(', ', array_slice($ids, 0, 200)) . (count($ids) > 200 ? '…' : ''),
+            $reason ? " Motivo: {$reason}." : ''
+        );
+
+        $this->logEvent(
+            action: $action,
+            description: $description,
+            new: array_filter(['ids' => $ids, 'changes' => $changes], static fn ($value) => $value !== null),
+            module: $this->guessModuleFromClass($modelClass),
+        );
+    }
+
+    /**
+     * @return array{user: mixed, ip_address: ?string, user_agent: ?string}
+     */
+    public function currentContext(): array
+    {
+        $request = app()->bound('request') ? app('request') : null;
+        $user = app()->bound('auth') ? app('auth')->user() : null;
+
+        return [
+            'user' => $user,
+            'ip_address' => $request?->ip(),
+            'user_agent' => $request?->userAgent(),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     * @param array{user?: mixed, ip_address?: ?string, user_agent?: ?string} $context
+     */
+    private function write(array $attributes, array $context): void
+    {
+        $user = $context['user'] ?? null;
+
+        AuditLog::create($attributes + [
+            'user_id' => $user?->id,
+            'user_name' => $user?->name,
+            'ip_address' => $context['ip_address'] ?? null,
+            'user_agent' => $context['user_agent'] ?? null,
         ]);
+    }
+
+    private function auditTableExists(): bool
+    {
+        // Solo se cachea el resultado positivo: la tabla puede crearse durante migraciones.
+        if (self::$tableExists !== true) {
+            self::$tableExists = Schema::hasTable('audit_logs') ?: null;
+        }
+
+        return self::$tableExists === true;
     }
 
     public function paginate(array $filters, int $perPage = 50): LengthAwarePaginator
@@ -210,13 +323,47 @@ class AuditLogService
             'OperationSection' => 'Sección operacional',
             'Machine' => 'Máquina',
             'FabricRoll' => 'Rollo de tela',
+            'FabricRollAdjustment' => 'Ajuste de rollo',
+            'FabricRollCreditNoteLink' => 'Vínculo rollo / nota crédito',
+            'FabricRollLengthDifference' => 'Diferencia de longitud de rollo',
+            'SaleDocument' => 'Documento de venta',
+            'SaleDocumentItem' => 'Línea de documento de venta',
+            'SalePayment' => 'Pago de venta',
+            'CashReceipt' => 'Recibo de caja',
+            'JournalEntry' => 'Comprobante contable',
+            'JournalEntryLine' => 'Línea de comprobante contable',
+            'BankAccount' => 'Cuenta bancaria',
+            'AccountingAccount' => 'Cuenta contable',
+            'PurchasePayment' => 'Pago de compra',
+            'ExpenseVoucher' => 'Comprobante de egreso',
+            'WarehouseItem' => 'Existencia en bodega',
+            'WarehouseLocation' => 'Ubicación de bodega',
+            'InventoryPeriodLock' => 'Cierre de período de inventario',
+            'BatchControlDelivery' => 'Entrega de lote',
+            'BatchControlInspection' => 'Inspección de lote',
+            'BatchControlNovelty' => 'Novedad de lote',
+            'BatchControlWarehouseReceipt' => 'Recepción de lote en bodega',
+            'ManualRollProgramming' => 'Programación manual de rollos',
+            'FabricRollProgrammingLine' => 'Línea de programación de rollos',
+            'ProductionRollConsumption' => 'Consumo de rollo en producción',
+            'Color' => 'Color',
+            'Role' => 'Rol',
+            'Permission' => 'Permiso',
             default => $base,
         };
     }
 
     protected function guessModule(Model $model): ?string
     {
-        $class = $model::class;
+        return $this->guessModuleFromClass($model::class);
+    }
+
+    protected function guessModuleFromClass(string $class): ?string
+    {
+        if (str_starts_with($class, 'Spatie\\Permission\\')) {
+            return 'Settings';
+        }
+
         $prefix = 'App\\Models\\';
 
         if (!str_starts_with($class, $prefix)) {
@@ -264,7 +411,12 @@ class AuditLogService
             return $this->stripDatesFromText("Creado registro de {$modelName}. Valores: {$values}.");
         }
 
-        if ($action === 'deleted') {
+        if ($action === 'restored') {
+            return "Restaurado registro de {$modelName}.";
+        }
+
+        if ($action === 'deleted' || $action === 'force_deleted') {
+            $verb = $action === 'force_deleted' ? 'Eliminado definitivamente' : 'Eliminado';
             $pairs = [];
             foreach ($old as $key => $value) {
                 if (in_array($key, self::TIMESTAMP_KEYS, true)) {
@@ -274,7 +426,7 @@ class AuditLogService
             }
 
             $values = $pairs ? implode('; ', $pairs) : 'sin valores';
-            return $this->stripDatesFromText("Eliminado registro de {$modelName}. Valores: {$values}.");
+            return $this->stripDatesFromText("{$verb} registro de {$modelName}. Valores: {$values}.");
         }
 
         if ($action === 'updated') {

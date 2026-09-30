@@ -107,6 +107,8 @@ class FabricRollCreditNoteService
                 FabricRollCreditNoteLink::query()
                     ->where('credit_note_document_id', $note->id)
                     ->whereIn('fabric_roll_id', $toRemove->all())
+                    ->get()
+                    ->each
                     ->delete();
             }
 
@@ -131,8 +133,11 @@ class FabricRollCreditNoteService
     /** Borra todos los enlaces de la nota (al eliminarla o al dejar de ser crédito). */
     public function unlinkAll(PurchaseDocument $note): void
     {
+        // Por instancia para que el AuditObserver registre cada enlace eliminado.
         FabricRollCreditNoteLink::query()
             ->where('credit_note_document_id', $note->id)
+            ->get()
+            ->each
             ->delete();
     }
 

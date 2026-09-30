@@ -5,6 +5,7 @@ namespace App\Services\Production;
 use App\Models\Production\Operation;
 use App\Models\Production\ProductOperationList;
 use App\Models\Settings\AuditLog;
+use App\Services\Audit\AuditLogService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -125,6 +126,8 @@ class OperationService
 
                 $groupRelinked = 0;
                 $groupCollisionsDeleted = 0;
+                $collisionRowIds = [];
+                $relinkedRowIds = [];
 
                 foreach ($listRows as $row) {
                     if ((int) $row->operation_id === (int) $keeper->id) {
@@ -139,6 +142,7 @@ class OperationService
                             ProductOperationList::query()
                                 ->whereKey($row->id)
                                 ->update(['deleted_at' => now(), 'updated_at' => now()]);
+                            $collisionRowIds[] = (int) $row->id;
                         }
                         continue;
                     }
@@ -148,6 +152,7 @@ class OperationService
                         ProductOperationList::query()
                             ->whereKey($row->id)
                             ->update(['operation_id' => $keeper->id, 'updated_at' => now()]);
+                        $relinkedRowIds[] = (int) $row->id;
                     }
 
                     $sheetsWithKeeper->put($sheetId, true);
@@ -158,6 +163,13 @@ class OperationService
                         ->newQuery()
                         ->whereIn('id', $duplicateIds)
                         ->update(['deleted_at' => now(), 'updated_at' => now()]);
+
+                    // Los updates por query builder no disparan el AuditObserver: resumen por grupo.
+                    $audit = app(AuditLogService::class);
+                    $reason = "Depuración de operaciones duplicadas (se conserva la operación {$keeper->id})";
+                    $audit->logBulk(ProductOperationList::class, 'deleted', $collisionRowIds, ['deleted_at' => 'fecha actual (eliminación lógica)', 'motivo' => 'colisión con la operación conservada'], $reason);
+                    $audit->logBulk(ProductOperationList::class, 'updated', $relinkedRowIds, ['operation_id' => $keeper->id], $reason);
+                    $audit->logBulk(Operation::class, 'deleted', $duplicateIds, ['deleted_at' => 'fecha actual (eliminación lógica)'], $reason);
                 }
 
                 $summary['groups']++;
@@ -436,10 +448,20 @@ class OperationService
                 'machine_id_reference',
                 'factor_operario',
                 'description',
+                'codigo',
+                'is_active',
             ];
 
             foreach ($auditableFields as $field) {
-                if (array_key_exists($field, $data) && (string) $operation->$field !== (string) $data[$field]) {
+                if (! array_key_exists($field, $data)) {
+                    continue;
+                }
+
+                $differs = $field === 'is_active'
+                    ? (bool) $operation->$field !== (bool) $data[$field]
+                    : (string) $operation->$field !== (string) $data[$field];
+
+                if ($differs) {
                     $this->logOperationFieldChange(
                         $operation,
                         $field,
@@ -487,11 +509,22 @@ class OperationService
             $operation->fill(['sam_base' => $newSamBase]);
             $operation->saveQuietly();
 
+            $listIds = $operation->productOperationLists()->pluck('id')->all();
+
             $operation->productOperationLists()->update([
                 'optimal_time' => $newSamBase,
                 'sam' => $newSamBase,
                 'updated_at' => now(),
             ]);
+
+            // El update masivo no dispara el AuditObserver: se registra un resumen.
+            app(AuditLogService::class)->logBulk(
+                ProductOperationList::class,
+                'updated',
+                $listIds,
+                ['operation_id' => $operation->id, 'optimal_time' => $newSamBase, 'sam' => $newSamBase],
+                $motivo ?? 'Actualización de SAM base de la operación',
+            );
 
             $operation->productOperationLists()->each(function ($list) {
                 $productionTime = $list->optimal_time

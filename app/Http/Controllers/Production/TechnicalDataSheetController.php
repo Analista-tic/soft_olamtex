@@ -483,8 +483,13 @@ class TechnicalDataSheetController extends Controller
                 }
             }
 
-            TechnicalSheetOperation::where('technical_sheet_id', $technicalSheet->id)
+            // Por instancia (incluye las ya eliminadas, como el forceDelete masivo) para que el
+            // AuditObserver registre cada operación eliminada.
+            TechnicalSheetOperation::withTrashed()
+                ->where('technical_sheet_id', $technicalSheet->id)
                 ->whereNotIn('id', $processedIds)
+                ->get()
+                ->each
                 ->forceDelete();
         });
 

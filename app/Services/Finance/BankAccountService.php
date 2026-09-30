@@ -82,7 +82,10 @@ class BankAccountService
         $bankAccount->update($updatable);
 
         if (isset($updatable['name']) && $bankAccount->accounting_account_id) {
+            // Por instancia para que el AuditObserver registre el cambio en la cuenta contable.
             AccountingAccount::where('id', $bankAccount->accounting_account_id)
+                ->get()
+                ->each
                 ->update(['name' => $updatable['name']]);
         }
 
@@ -104,7 +107,10 @@ class BankAccountService
         $bankAccount->update(['is_active' => false]);
 
         if ($bankAccount->accounting_account_id) {
+            // Por instancia para que el AuditObserver registre el cambio en la cuenta contable.
             AccountingAccount::where('id', $bankAccount->accounting_account_id)
+                ->get()
+                ->each
                 ->update(['is_active' => false]);
         }
 

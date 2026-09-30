@@ -24,6 +24,7 @@ use App\Models\Production\ProductionRollConsumption;
 use App\Models\Textil\FabricRoll;
 use App\Models\Textil\FabricRollAdjustment;
 use App\Models\Textil\FabricRollLengthDifference;
+use App\Services\Audit\AuditLogService;
 use App\Services\Expenses\PurchaseDocumentInvoiceService;
 use App\Services\Textil\FabricRollService;
 use App\Support\MasterData\MaterialClassifier;
@@ -1203,6 +1204,16 @@ class FabricRollController extends Controller
                     DB::table('fabric_rolls')->insert($chunk);
                     $count += count($chunk);
                 }
+
+                // La inserción por query builder no dispara el AuditObserver: se registra un resumen.
+                $rollNumbers = array_column($toInsert, 'roll_number');
+                app(AuditLogService::class)->logBulk(
+                    FabricRoll::class,
+                    'created',
+                    DB::table('fabric_rolls')->whereIn('roll_number', $rollNumbers)->whereNull('deleted_at')->pluck('id')->all(),
+                    ['roll_numbers' => $rollNumbers, 'approval_status' => FabricRoll::APPROVAL_APPROVED],
+                    'Importación masiva de rollos desde archivo',
+                );
 
                 return $count;
             });

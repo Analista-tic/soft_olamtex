@@ -149,7 +149,13 @@ class ProductionOrderService
             );
 
             // Reemplazar operaciones del snapshot previo
-            TechnicalSheetOperation::where('technical_sheet_id', $technicalSheet->id)->forceDelete();
+            // Por instancia (incluye las ya eliminadas, como el forceDelete masivo) para que el
+            // AuditObserver registre cada operación eliminada.
+            TechnicalSheetOperation::withTrashed()
+                ->where('technical_sheet_id', $technicalSheet->id)
+                ->get()
+                ->each
+                ->forceDelete();
 
             return $operations->map(function ($psOp) use ($order, $technicalSheet, $quantityLote) {
                 $samTotalOperacion = (float) ($psOp->sam_total_operacion ?? $psOp->sam_total_unitario * ($psOp->quantity ?? 1));

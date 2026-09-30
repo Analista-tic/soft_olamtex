@@ -65,8 +65,9 @@ class TechnicalDataSheetSuppliesStore
                 $this->deleteLinkedRequestsForSupply($record);
             }
 
-            // Eliminar (soft-delete) los que ya no están en la lista
-            $recordsToDeleteQuery->delete();
+            // Eliminar (soft-delete) los que ya no están en la lista. Por instancia para que
+            // el AuditObserver registre cada insumo eliminado.
+            $recordsToDelete->each->delete();
 
             foreach ($items as $index => $item) {
                 $this->persistOne($opId, $item, $index);
@@ -139,7 +140,7 @@ class TechnicalDataSheetSuppliesStore
                     ]);
                 }
 
-                $inventoryRequest->items()->delete();
+                $inventoryRequest->items()->get()->each->delete();
                 $inventoryRequest->delete();
             }
         }

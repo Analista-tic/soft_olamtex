@@ -80,6 +80,13 @@ const actionOptionsForSelect = [
     { id: 'created', name: 'Creado' },
     { id: 'updated', name: 'Actualizado' },
     { id: 'deleted', name: 'Eliminado' },
+    { id: 'restored', name: 'Restaurado' },
+    { id: 'force_deleted', name: 'Eliminado definitivamente' },
+    { id: 'login', name: 'Inicio de sesión' },
+    { id: 'logout', name: 'Cierre de sesión' },
+    { id: 'login_failed', name: 'Inicio de sesión fallido' },
+    { id: 'lockout', name: 'Acceso bloqueado' },
+    { id: 'password_reset', name: 'Contraseña restablecida' },
 ];
 
 const selectAction = ref<string | null>(filters.action ?? null);
@@ -269,18 +276,31 @@ const actionLabels: Record<string, string> = {
     created: 'Creado',
     updated: 'Actualizado',
     deleted: 'Eliminado',
+    restored: 'Restaurado',
+    force_deleted: 'Eliminado definitivamente',
+    login: 'Inicio de sesión',
+    logout: 'Cierre de sesión',
+    login_failed: 'Inicio de sesión fallido',
+    lockout: 'Acceso bloqueado',
+    password_reset: 'Contraseña restablecida',
 };
 
 const actionVerbMap: Record<string, string> = {
     created: 'creó',
     updated: 'actualizó',
     deleted: 'eliminó',
+    restored: 'restauró',
+    force_deleted: 'eliminó definitivamente',
 };
 
 const actionToneMap: Record<string, 'green' | 'blue' | 'red' | 'gray'> = {
     created: 'green',
     updated: 'blue',
     deleted: 'red',
+    restored: 'green',
+    force_deleted: 'red',
+    login_failed: 'red',
+    lockout: 'red',
 };
 
 const fieldLabelTranslations: Record<string, string> = {
@@ -530,7 +550,12 @@ function summarizeChangedFields(log: AuditLog): string[] {
 }
 
 function formatDescriptionSummary(log: AuditLog): string {
-    const verb = actionVerbMap[log.action ?? ''] ?? 'registró';
+    const mappedVerb = actionVerbMap[log.action ?? ''];
+    // Eventos sin cambios de campos (sesión, operaciones masivas, permisos): usar la descripción del backend.
+    if (!mappedVerb && log.description) {
+        return log.description;
+    }
+    const verb = mappedVerb ?? 'registró';
     const fields = summarizeChangedFields(log);
     if (!fields.length) {
         return `Se ${verb} un recurso.`;

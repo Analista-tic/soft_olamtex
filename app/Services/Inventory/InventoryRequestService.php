@@ -300,7 +300,8 @@ class InventoryRequestService
 
     protected function syncItems(InventoryRequest $request, array $items): void
     {
-        $request->items()->delete();
+        // Por instancia para que el AuditObserver registre cada línea eliminada.
+        $request->items()->get()->each->delete();
 
         foreach ($items as $item) {
             $itemId = $item['item_id'] ?? null;

@@ -73,6 +73,8 @@ class TechnicalSheetCuttingPieceController extends Controller
             // Eliminar piezas que ya no vienen en el payload
             $sheet->cuttingPieces()
                 ->whereNotIn('piece_uid', $incomingUids)
+                ->get()
+                ->each
                 ->delete();
 
             // Upsert piezas (actualizar o crear por piece_uid)

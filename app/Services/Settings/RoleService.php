@@ -3,6 +3,7 @@
 namespace App\Services\Settings;
 
 use App\Models\Settings\Role;
+use App\Services\Audit\AuditLogService;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
@@ -10,6 +11,10 @@ use Spatie\Permission\PermissionRegistrar;
 
 class RoleService
 {
+    public function __construct(
+        protected AuditLogService $auditLog
+    ) {}
+
     public function listAll()
     {
         return Role::with('permissions')->get();
@@ -28,7 +33,7 @@ class RoleService
             ]);
 
             if (!empty($data['permissions'])) {
-                $role->syncPermissions($data['permissions']);
+                $this->syncPermissionsAudited($role, $data['permissions']);
                 // Limpiar caché de permisos para que los cambios sean inmediatos
                 app()[PermissionRegistrar::class]->forgetCachedPermissions();
             }
@@ -45,7 +50,7 @@ class RoleService
             ]);
 
             if (array_key_exists('permissions', $data)) {
-                $role->syncPermissions($data['permissions'] ?? []);
+                $this->syncPermissionsAudited($role, $data['permissions'] ?? []);
                 // Limpiar caché de permisos para que los cambios sean inmediatos
                 app()[PermissionRegistrar::class]->forgetCachedPermissions();
             }
@@ -76,5 +81,32 @@ class RoleService
     public function allPermissions()
     {
         return Permission::all();
+    }
+
+    private function syncPermissionsAudited(Role $role, array $permissions): void
+    {
+        $before = $role->permissions()->pluck('name')->sort()->values()->all();
+        $role->syncPermissions($permissions);
+        $after = $role->permissions()->pluck('name')->sort()->values()->all();
+
+        if ($before === $after) {
+            return;
+        }
+
+        $added = array_values(array_diff($after, $before));
+        $removed = array_values(array_diff($before, $after));
+
+        $this->auditLog->logEvent(
+            action: 'updated',
+            description: sprintf(
+                "Permisos del rol '%s' actualizados. Agregados: %s. Quitados: %s.",
+                $role->name,
+                $added ? implode(', ', $added) : 'ninguno',
+                $removed ? implode(', ', $removed) : 'ninguno'
+            ),
+            subject: $role,
+            old: ['permissions' => $before],
+            new: ['permissions' => $after],
+        );
     }
 }

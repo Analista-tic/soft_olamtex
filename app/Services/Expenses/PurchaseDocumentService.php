@@ -417,7 +417,8 @@ class PurchaseDocumentService
         $this->ensureDocumentCanBeDeleted($document);
 
         DB::transaction(function () use ($document) {
-            $document->items()->delete();
+            // Por instancia para que el AuditObserver registre cada línea eliminada.
+            $document->items()->get()->each->delete();
             $document->delete();
 
             // Si es una orden de compra, restaurar la solicitud si no tiene más órdenes activas
@@ -674,7 +675,8 @@ class PurchaseDocumentService
 
     protected function syncItems(PurchaseDocument $document, array $items): void
     {
-        $document->items()->delete();
+        // Por instancia para que el AuditObserver registre cada línea eliminada.
+        $document->items()->get()->each->delete();
 
         $payload = [];
 

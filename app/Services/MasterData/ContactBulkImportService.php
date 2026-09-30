@@ -5,6 +5,7 @@ namespace App\Services\MasterData;
 use App\Helpers\NitHelper;
 use App\Models\MasterData\CategoryGroup;
 use App\Models\MasterData\Contact;
+use App\Services\Audit\AuditLogService;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -42,6 +43,11 @@ class ContactBulkImportService
             return compact('inserted', 'updated', 'errors');
         }
 
+        $insertedIds = [];
+        $insertedIdNumbers = [];
+        $updatedIds = [];
+        $updatedIdNumbers = [];
+
         $rowNum = 1;
         foreach ($rows as $row) {
             $rowNum++;
@@ -76,17 +82,26 @@ class ContactBulkImportService
                 if ($existing) {
                     $payload['updated_at'] = now();
                     DB::table('contacts')->where('id_number', $idNumber)->update($payload);
+                    $updatedIds[] = $existing->id;
+                    $updatedIdNumbers[] = $idNumber;
                     $updated++;
                 } else {
                     $payload['created_at'] = now();
                     $payload['updated_at'] = now();
-                    DB::table('contacts')->insert($payload);
+                    $insertedIds[] = DB::table('contacts')->insertGetId($payload);
+                    $insertedIdNumbers[] = $idNumber;
                     $inserted++;
                 }
             } catch (\Throwable $e) {
                 $errors[] = "Fila {$rowNum}: {$e->getMessage()}";
             }
         }
+
+        // La carga por query builder no dispara el AuditObserver: se registra un resumen.
+        $audit = app(AuditLogService::class);
+        $fields = ['id_number', 'contact_type', 'id_type', 'dv', 'full_name', 'person_type', 'groups', 'municipality', 'department', 'address', 'email', 'phone', 'additional_contacts', 'branches'];
+        $audit->logBulk(Contact::class, 'created', $insertedIds, ['id_numbers' => $insertedIdNumbers, 'campos' => $fields], 'Carga masiva de contactos desde Excel');
+        $audit->logBulk(Contact::class, 'updated', $updatedIds, ['id_numbers' => $updatedIdNumbers, 'campos' => $fields], 'Carga masiva de contactos desde Excel');
 
         return compact('inserted', 'updated', 'errors');
     }

@@ -456,7 +456,8 @@ class CreditDebitNoteService
             }
 
             $this->rollCreditNoteService->unlinkAll($note);
-            $note->items()->delete();
+            // Por instancia para que el AuditObserver registre cada línea eliminada.
+            $note->items()->get()->each->delete();
             $note->delete();
         });
     }

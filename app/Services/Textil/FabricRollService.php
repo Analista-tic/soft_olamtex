@@ -16,6 +16,7 @@ use App\Models\Production\ProductionRollConsumption;
 use App\Models\Textil\FabricRoll;
 use App\Models\Textil\FabricRollAdjustment;
 use App\Models\Textil\FabricRollLengthDifference;
+use App\Services\Audit\AuditLogService;
 use App\Services\Finance\AccountingPostingService;
 use App\Services\Inventory\InventoryMovementService;
 use App\Services\Inventory\WarehouseResolver;
@@ -568,6 +569,8 @@ class FabricRollService
         $inserted = 0;
         $skipped = 0;
         $errors = [];
+        $insertedIds = [];
+        $insertedRollNumbers = [];
 
         $existingRolls = DB::table('fabric_rolls')
             ->pluck('roll_number')
@@ -614,7 +617,7 @@ class FabricRollService
             }
 
             try {
-                DB::table('fabric_rolls')->insert([
+                $insertedIds[] = DB::table('fabric_rolls')->insertGetId([
                     'roll_number' => $rollNumber,
                     'location' => trim((string) ($row[1] ?? '')) ?: null,
                     'description' => $description ?: null,
@@ -634,12 +637,22 @@ class FabricRollService
                 ]);
 
                 $existingRolls[$rollNumber] = true;
+                $insertedRollNumbers[] = $rollNumber;
                 $inserted++;
             } catch (\Throwable $e) {
                 $errors[] = ['row' => $rowNum, 'message' => "Rollo '{$rollNumber}': ".$e->getMessage()];
                 $skipped++;
             }
         }
+
+        // La inserción por query builder no dispara el AuditObserver: se registra un resumen.
+        app(AuditLogService::class)->logBulk(
+            FabricRoll::class,
+            'created',
+            $insertedIds,
+            ['roll_numbers' => $insertedRollNumbers, 'approval_status' => FabricRoll::APPROVAL_APPROVED],
+            'Importación de rollos históricos desde CSV',
+        );
 
         return compact('inserted', 'skipped', 'errors');
     }
@@ -1478,9 +1491,11 @@ class FabricRollService
                 $actualOutputBefore = (float) $roll->actual_output;
 
                 if ($toRelease > FabricRollBalance::EPSILON) {
+                    // Por instancia para que el AuditObserver registre cada línea liberada.
                     FabricRollProgrammingLine::whereIn('technical_sheet_id', $sheetIds)
                         ->where('fabric_roll_id', $rollId)
-                        ->update(['released_meters' => DB::raw('programmed_meters')]);
+                        ->get()
+                        ->each(fn (FabricRollProgrammingLine $line) => $line->update(['released_meters' => $line->programmed_meters]));
                     $roll->partial_output = FabricRollBalance::meters(max(0.0, $partialBefore - $toRelease));
                 }
 
@@ -1572,8 +1587,11 @@ class FabricRollService
             }
 
             // Consumos del corte de esta OP: estado final. Los de otros flujos no se tocan.
+            // Por instancia para que el AuditObserver registre cada consumo eliminado.
             ProductionRollConsumption::where('production_order_id', $order->id)
                 ->where('source', ProductionRollConsumption::SOURCE_CUT)
+                ->get()
+                ->each
                 ->delete();
 
             foreach ($newByRoll as $rollId => $meters) {
@@ -1828,6 +1846,14 @@ class FabricRollService
             if (! $pending) {
                 FabricRoll::whereKey($difference->fabric_roll_id)
                     ->update(['length_review_status' => FabricRoll::LENGTH_REVIEW_REVIEWED]);
+
+                app(AuditLogService::class)->logBulk(
+                    FabricRoll::class,
+                    'updated',
+                    [$difference->fabric_roll_id],
+                    ['length_review_status' => FabricRoll::LENGTH_REVIEW_REVIEWED],
+                    'Diferencias de metraje del rollo revisadas',
+                );
             }
 
             return $difference->fresh(['roll', 'createdBy', 'reviewedBy']);
@@ -2582,6 +2608,14 @@ class FabricRollService
                 FabricRoll::whereIn('id', $pendingRolls->pluck('id'))
                     ->update(['approval_status' => FabricRoll::APPROVAL_APPROVED]);
 
+                app(AuditLogService::class)->logBulk(
+                    FabricRoll::class,
+                    'updated',
+                    $pendingRolls->pluck('id')->all(),
+                    ['approval_status' => FabricRoll::APPROVAL_APPROVED, 'purchase_document_id' => $lockedInvoice->id],
+                    'Aprobación de recepción de rollos de la factura',
+                );
+
                 $existingMovementReferences = DB::table('inventory_movements')
                     ->where('source_type', PurchaseDocument::class)
                     ->where('source_id', $lockedInvoice->id)
@@ -2681,9 +2715,23 @@ class FabricRollService
 
         if ($toReview) {
             FabricRoll::whereIn('id', $toReview)->update(['tolerance_status' => FabricRoll::TOLERANCE_PENDING_REVIEW]);
+            app(AuditLogService::class)->logBulk(
+                FabricRoll::class,
+                'updated',
+                $toReview,
+                ['tolerance_status' => FabricRoll::TOLERANCE_PENDING_REVIEW],
+                'Línea de factura fuera de tolerancia',
+            );
         }
         if ($toClear) {
             FabricRoll::whereIn('id', $toClear)->update(['tolerance_status' => FabricRoll::TOLERANCE_NONE]);
+            app(AuditLogService::class)->logBulk(
+                FabricRoll::class,
+                'updated',
+                $toClear,
+                ['tolerance_status' => FabricRoll::TOLERANCE_NONE],
+                'Línea de factura vuelve a tolerancia',
+            );
         }
     }
 
@@ -3023,11 +3071,22 @@ class FabricRollService
                 'rejected_at' => now(),
             ]);
 
-            FabricRoll::whereHas('purchaseDocumentItem', function ($q) use ($invoice) {
+            $rejectedRollsQuery = FabricRoll::whereHas('purchaseDocumentItem', function ($q) use ($invoice) {
                 $q->where('purchase_document_id', $invoice->id);
             })
-                ->where('approval_status', FabricRoll::APPROVAL_PENDING)
-                ->update(['approval_status' => FabricRoll::APPROVAL_NOT_APPROVED]);
+                ->where('approval_status', FabricRoll::APPROVAL_PENDING);
+
+            $rejectedRollIds = (clone $rejectedRollsQuery)->pluck('id')->all();
+
+            $rejectedRollsQuery->update(['approval_status' => FabricRoll::APPROVAL_NOT_APPROVED]);
+
+            app(AuditLogService::class)->logBulk(
+                FabricRoll::class,
+                'updated',
+                $rejectedRollIds,
+                ['approval_status' => FabricRoll::APPROVAL_NOT_APPROVED, 'purchase_document_id' => $invoice->id],
+                'Rechazo de recepción de la factura',
+            );
 
             return $invoice;
         });

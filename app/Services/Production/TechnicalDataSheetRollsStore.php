@@ -92,6 +92,8 @@ class TechnicalDataSheetRollsStore
 
             $sheet->rollProgrammingLines()
                 ->whereNotIn('legacy_uuid', $incomingUuids)
+                ->get()
+                ->each
                 ->delete();
         });
     }

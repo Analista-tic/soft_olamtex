@@ -226,8 +226,11 @@ class ItemService
                     'notes' => 'Saldo inicial ingresado al crear el ítem manualmente',
                 ]);
 
+                // Por instancia para que el AuditObserver registre el cambio de límites.
                 WarehouseItem::where('item_id', $item->id)
                     ->where('warehouse_id', $warehouseId)
+                    ->get()
+                    ->each
                     ->update([
                         'stock_min' => $warehouse['stock_min'] ?? 0,
                         'stock_max' => $warehouse['stock_max'] ?? 0,
@@ -255,7 +258,8 @@ class ItemService
             throw new \RuntimeException("No se puede eliminar el item porque tiene {$message}.");
         }
 
-        WarehouseItem::where('item_id', $item->id)->delete();
+        // Por instancia para que el AuditObserver registre cada bodega desasignada.
+        WarehouseItem::where('item_id', $item->id)->get()->each->delete();
 
         try {
             $item->delete();
@@ -1743,7 +1747,8 @@ class ItemService
         bool $replace = false
     ): void {
         if ($replace) {
-            WarehouseItem::where('item_id', $item->id)->delete();
+            // Por instancia para que el AuditObserver registre cada bodega desasignada.
+            WarehouseItem::where('item_id', $item->id)->get()->each->delete();
         }
 
         foreach ($warehouses as $warehouse) {
@@ -1817,6 +1822,8 @@ class ItemService
                 // Reaplicar límites de stock después del movimiento para conservar valores de importación.
                 WarehouseItem::where('item_id', $item->id)
                     ->where('warehouse_id', $warehouse['warehouse_id'])
+                    ->get()
+                    ->each
                     ->update([
                         'stock_min' => $warehouse['stock_min'] ?? 0,
                         'stock_max' => $warehouse['stock_max'] ?? 0,

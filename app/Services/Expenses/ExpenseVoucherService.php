@@ -233,8 +233,11 @@ class ExpenseVoucherService
                 fallbackCreatorUserId: $basePayment->created_by_user_id ? (int) $basePayment->created_by_user_id : null,
             );
 
+            // Por instancia para que el AuditObserver registre cada pago eliminado.
             PurchasePayment::query()
                 ->whereIn('id', $existingPayments->pluck('id')->all())
+                ->get()
+                ->each
                 ->delete();
 
             $registeredApplications = $applications->values()->map(function (array $line) use ($payload, $date, $availableDocs, $voucherNumber) {

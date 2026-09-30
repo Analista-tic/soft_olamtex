@@ -8,6 +8,7 @@ use App\Models\Production\Machine;
 use App\Models\Production\ProductOperationList;
 use App\Models\Production\ProductSheet;
 use App\Models\Production\ProductSheetOperationHistory;
+use App\Services\Audit\AuditLogService;
 use App\Services\Settings\SettingService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -688,12 +689,27 @@ class ProductOperationListService
     public function reorder(int $productSheetId, array $operationIds): void
     {
         DB::transaction(function () use ($productSheetId, $operationIds) {
+            $sequences = [];
+
             foreach ($operationIds as $index => $operationId) {
-                $this->model
+                $affected = $this->model
                     ->where('id', $operationId)
                     ->where('product_sheet_id', $productSheetId)
                     ->update(['sequence' => ($index + 1) * 10]);
+
+                if ($affected > 0) {
+                    $sequences[$operationId] = ($index + 1) * 10;
+                }
             }
+
+            // El update por query builder no dispara el AuditObserver: se registra un resumen.
+            app(AuditLogService::class)->logBulk(
+                ProductOperationList::class,
+                'updated',
+                array_keys($sequences),
+                ['product_sheet_id' => $productSheetId, 'sequence' => $sequences],
+                'Reordenamiento de operaciones de la ficha',
+            );
         });
     }
 

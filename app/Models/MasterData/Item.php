@@ -112,6 +112,8 @@ class Item extends Model implements \App\Contracts\HasAuditLabel
     {
         WarehouseItem::where('item_id', $this->id)
             ->where('warehouse_id', $warehouseId)
+            ->get()
+            ->each
             ->delete();
     }
 

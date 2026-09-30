@@ -204,7 +204,8 @@ class InventoryAdjustmentService
                     'total'            => $data['total'],
                 ]);
 
-                $adjustment->lines()->delete();
+                // Por instancia para que el AuditObserver registre cada línea eliminada.
+                $adjustment->lines()->get()->each->delete();
             }
 
             $createdMovements = $this->syncLinesAndStock($adjustment, $data['lines'], $items, $movementReasons);

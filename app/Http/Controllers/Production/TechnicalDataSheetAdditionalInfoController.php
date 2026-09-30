@@ -227,7 +227,7 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
             ->keyBy(fn ($row) => trim((string) $row['size']));
 
         // Eliminar tallas que ya no están en el payload
-        $sheet->sizes()->whereNotIn('size', $incomingSizes->keys()->all())->delete();
+        $sheet->sizes()->whereNotIn('size', $incomingSizes->keys()->all())->get()->each->delete();
 
         foreach ($incomingSizes as $size => $row) {
             $sheet->sizes()->updateOrCreate(

@@ -3,6 +3,7 @@
 namespace App\Services\Production;
 
 use App\Models\Production\ProductSheet;
+use App\Services\Audit\AuditLogService;
 use Illuminate\Support\Facades\DB;
 
 class ProductSheetStatusService
@@ -15,15 +16,29 @@ class ProductSheetStatusService
      */
     public function promoteIncompleteWithOperations(): int
     {
-        return ProductSheet::query()
+        $query = ProductSheet::query()
             ->where('status', self::STATUS_INCOMPLETE)
             ->whereExists(function ($query) {
                 $query->select(DB::raw(1))
                     ->from('product_sheet_operations')
                     ->whereColumn('product_sheet_operations.product_sheet_id', 'product_sheets.id')
                     ->whereNull('product_sheet_operations.deleted_at');
-            })
-            ->update(['status' => self::STATUS_COMPLETE]);
+            });
+
+        $ids = (clone $query)->pluck('id')->all();
+
+        $updated = $query->update(['status' => self::STATUS_COMPLETE]);
+
+        // El update masivo no dispara el AuditObserver: se registra un resumen.
+        app(AuditLogService::class)->logBulk(
+            ProductSheet::class,
+            'updated',
+            $ids,
+            ['status' => self::STATUS_COMPLETE],
+            'Promoción automática de fichas incompletas con operaciones',
+        );
+
+        return $updated;
     }
 
     /**
@@ -38,12 +53,19 @@ class ProductSheetStatusService
 
         $targetStatus = $hasOperations ? self::STATUS_COMPLETE : self::STATUS_INCOMPLETE;
 
-        $updated = ProductSheet::query()
+        // Por instancia para que el AuditObserver registre el cambio de estado.
+        $sheet = ProductSheet::query()
             ->whereKey($productSheetId)
             ->where('status', '!=', $targetStatus)
-            ->update(['status' => $targetStatus]);
+            ->first();
 
-        return $updated > 0;
+        if (! $sheet) {
+            return false;
+        }
+
+        $sheet->update(['status' => $targetStatus]);
+
+        return true;
     }
 
     /**

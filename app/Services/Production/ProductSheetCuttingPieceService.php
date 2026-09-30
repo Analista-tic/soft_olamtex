@@ -60,7 +60,7 @@ class ProductSheetCuttingPieceService
 
         // Si no vienen piezas, eliminar todas las existentes y retornar vacío
         if (empty($piecesData)) {
-            ProductSheetCuttingPiece::where('product_sheet_id', $productSheetId)->delete();
+            ProductSheetCuttingPiece::where('product_sheet_id', $productSheetId)->get()->each->delete();
             return collect();
         }
 
@@ -106,6 +106,8 @@ class ProductSheetCuttingPieceService
             ProductSheetCuttingPiece::where('product_sheet_id', $productSheetId)
                 ->whereNotNull('piece_uid')
                 ->whereNotIn('piece_uid', $upsertedPieceUids)
+                ->get()
+                ->each
                 ->delete();
         }
 

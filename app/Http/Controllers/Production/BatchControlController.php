@@ -513,8 +513,11 @@ class BatchControlController extends Controller
             'priorities.*.batch_priority' => 'required|integer|min:0',
         ]);
 
+        // Por instancia para que el AuditObserver registre cada cambio de prioridad.
         foreach ($request->input('priorities') as $item) {
             ProductionOrder::where('id', $item['id'])
+                ->get()
+                ->each
                 ->update(['batch_priority' => $item['batch_priority']]);
         }
 
@@ -1430,7 +1433,13 @@ class BatchControlController extends Controller
                 ]);
             }
 
-            TechnicalSheetOperation::where('technical_sheet_id', $technicalSheet->id)->forceDelete();
+            // Por instancia (incluye las ya eliminadas, como el forceDelete masivo) para que el
+            // AuditObserver registre cada operación eliminada.
+            TechnicalSheetOperation::withTrashed()
+                ->where('technical_sheet_id', $technicalSheet->id)
+                ->get()
+                ->each
+                ->forceDelete();
 
             foreach ($validated['operations'] as $op) {
                 $samBase                 = (float) $op['optimal_time'];
@@ -1714,49 +1723,63 @@ class BatchControlController extends Controller
         $previousRemisionCurves  = $previousReceipt?->remision_curves  ?? [];
         $previousWarehouseId     = $previousReceipt?->warehouse_id;
 
-        $receipt = \App\Models\Production\BatchControlWarehouseReceipt::updateOrCreate(
-            ['production_order_id' => $order->id],
-            [
-                'received_curves'        => $receivedCurves,
-                'imperfect_curves'       => $validated['imperfect_curves'],
-                'responsible'            => $validated['responsible'] ?? null,
-                'imperfect_observations' => $validated['imperfect_observations'] ?? null,
-                'remision_curves'        => $validated['remision_curves'],
-                'remision_observations'  => $validated['remision_observations'] ?? null,
-                'warehouse_id'           => $validated['warehouse_id'],
-                'remisionado_at'         => now(),
-            ],
-        );
-
-        // Revertir stock del recibo anterior si existía
-        if (!empty($previousRemisionCurves) && $previousWarehouseId) {
-            $oldItemQuantities = $this->finishedProductCatalogItemService->ensureItemsForCurves(
-                $order,
-                $previousRemisionCurves
-            );
-            foreach ($oldItemQuantities as $itemId => $oldQty) {
-                \App\Models\Inventory\WarehouseItem::where('item_id', $itemId)
-                    ->where('warehouse_id', $previousWarehouseId)
-                    ->update(['quantity' => DB::raw("GREATEST(0, quantity - {$oldQty})")]);
-            }
-        }
-
-        // Aplicar nuevo stock: un ítem por cada combinación color+talla
         // Se usa input() en lugar de validated() para preservar todas las tallas dinámicas
         $rawRemisionCurves = $request->input('remision_curves', []);
-        $totalRemision = collect($rawRemisionCurves)->sum('total');
-        if ($totalRemision > 0) {
-            $itemQuantities = $this->finishedProductCatalogItemService->ensureItemsForCurves(
-                $order,
-                $rawRemisionCurves
+
+        $receipt = DB::transaction(function () use ($order, $validated, $receivedCurves, $previousRemisionCurves, $previousWarehouseId, $rawRemisionCurves) {
+            $receipt = \App\Models\Production\BatchControlWarehouseReceipt::updateOrCreate(
+                ['production_order_id' => $order->id],
+                [
+                    'received_curves'        => $receivedCurves,
+                    'imperfect_curves'       => $validated['imperfect_curves'],
+                    'responsible'            => $validated['responsible'] ?? null,
+                    'imperfect_observations' => $validated['imperfect_observations'] ?? null,
+                    'remision_curves'        => $validated['remision_curves'],
+                    'remision_observations'  => $validated['remision_observations'] ?? null,
+                    'warehouse_id'           => $validated['warehouse_id'],
+                    'remisionado_at'         => now(),
+                ],
             );
-            foreach ($itemQuantities as $itemId => $qty) {
-                \App\Models\Inventory\WarehouseItem::updateOrCreate(
-                    ['item_id' => $itemId, 'warehouse_id' => $validated['warehouse_id']],
-                    ['quantity' => DB::raw("quantity + {$qty}")]
+
+            // Revertir stock del recibo anterior si existía (sin dejar existencias negativas)
+            if (!empty($previousRemisionCurves) && $previousWarehouseId) {
+                $oldItemQuantities = $this->finishedProductCatalogItemService->ensureItemsForCurves(
+                    $order,
+                    $previousRemisionCurves
                 );
+                foreach ($oldItemQuantities as $itemId => $oldQty) {
+                    $currentStock = $this->movementService->getCurrentStockPublic((int) $itemId, (int) $previousWarehouseId);
+                    $this->registerFinishedProductMovement(
+                        $receipt,
+                        $order,
+                        (int) $itemId,
+                        (int) $previousWarehouseId,
+                        -min((float) $oldQty, max(0.0, $currentStock)),
+                        'Reversión de remisión previa a bodega'
+                    );
+                }
             }
-        }
+
+            // Aplicar nuevo stock: un ítem por cada combinación color+talla
+            if (collect($rawRemisionCurves)->sum('total') > 0) {
+                $itemQuantities = $this->finishedProductCatalogItemService->ensureItemsForCurves(
+                    $order,
+                    $rawRemisionCurves
+                );
+                foreach ($itemQuantities as $itemId => $qty) {
+                    $this->registerFinishedProductMovement(
+                        $receipt,
+                        $order,
+                        (int) $itemId,
+                        (int) $validated['warehouse_id'],
+                        (float) $qty,
+                        'Remisión de producto terminado a bodega'
+                    );
+                }
+            }
+
+            return $receipt;
+        });
 
         // Auto-novelty si hay imperfectos
         $totalImperfect = collect($validated['imperfect_curves'])->sum('total');
@@ -1773,5 +1796,39 @@ class BatchControlController extends Controller
         }
 
         return response()->json(['receipt' => $receipt], 200);
+    }
+
+    /**
+     * Mueve existencias de producto terminado por el kardex, dejando movimiento de
+     * inventario y auditoría. Las entradas se valoran al costo promedio vigente
+     * para no alterarlo; las salidas nunca dejan existencias negativas (el llamador acota).
+     */
+    private function registerFinishedProductMovement(
+        \App\Models\Production\BatchControlWarehouseReceipt $receipt,
+        ProductionOrder $order,
+        int $itemId,
+        int $warehouseId,
+        float $delta,
+        string $notes
+    ): void {
+        if ($delta == 0.0) {
+            return;
+        }
+
+        $isEntry = $delta > 0;
+
+        $this->movementService->createMovement([
+            'item_id'             => $itemId,
+            'warehouse_id'        => $warehouseId,
+            'type'                => $isEntry ? 'entrada' : 'salida',
+            'quantity'            => abs($delta),
+            'unit_price'          => $isEntry
+                ? $this->movementService->getCurrentWeightedPrice($itemId, $warehouseId)
+                : null,
+            'source_type'         => 'batch_control_warehouse_receipt',
+            'source_id'           => $receipt->id,
+            'source_reference'    => $order->op_code,
+            'notes'               => "{$notes} (OP {$order->op_code})",
+        ]);
     }
 }
