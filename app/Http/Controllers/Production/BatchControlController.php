@@ -10,13 +10,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Production\BatchControlDelivery;
 use App\Models\Production\BatchControlNovelty;
 use App\Models\Production\ProductionOrder;
-use App\Models\Production\ProductionRollConsumption;
 use App\Models\Production\TechnicalSheetSupply;
 use App\Models\Production\TechnicalSheet;
 use App\Models\Production\TechnicalSheetOperation;
 use App\Models\Production\TechnicalSheetOperationHistory;
 use App\Models\Textil\FabricRoll;
-use App\Models\Textil\FabricRollAdjustment;
 use App\Services\Inventory\InventoryMovementService;
 use App\Services\Production\FabricBaseService;
 use App\Services\Production\FinishedProductCatalogItemService;
@@ -27,6 +25,7 @@ use App\Services\Production\MachineService;
 use App\Services\Production\OperationSectionService;
 use App\Services\Production\OperationService;
 use App\Services\Settings\SettingService;
+use App\Services\Textil\FabricRollService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -121,6 +120,7 @@ class BatchControlController extends Controller
         private TechnicalSheetService $technicalSheetService,
         private FabricBaseService $fabricBaseService,
         private TechnicalDataSheetRollsStore $rollsStore,
+        private FabricRollService $fabricRollService,
     ) {
     }
 
@@ -1017,175 +1017,12 @@ class BatchControlController extends Controller
             'updated_by'   => $request->user()?->id,
         ];
 
-        // ── 1. Resolver roll_code → fabric_roll_id ───────────────────────────────
-        $rollCodes = array_values(array_unique(array_filter(
-            array_map(static fn ($l) => trim((string) ($l['roll_code'] ?? '')), $validated['lines']),
-            static fn ($c) => $c !== '',
-        )));
-        $rollIdsByCode = [];
-        if (!empty($rollCodes)) {
-            $rolls = FabricRoll::query()
-                ->select(['id', 'roll_number'])
-                ->whereIn('roll_number', $rollCodes)
-                ->get();
-            foreach ($rolls as $roll) {
-                $rollIdsByCode[trim((string) $roll->roll_number)] = (int) $roll->id;
-            }
-        }
-
-        // ── 2. Construir mapa nuevo: roll_id → metros (suma si hay duplicados) ──
-        $newByRollId = [];
-        foreach ($validated['lines'] as $line) {
-            $rollCode    = trim((string) ($line['roll_code'] ?? ''));
-            $rollId      = $rollCode !== '' ? ($rollIdsByCode[$rollCode] ?? null) : null;
-            $consumption = (float) ($line['total_consumption'] ?? 0);
-            if ($rollId === null || $consumption <= 0) continue;
-            $newByRollId[$rollId] = ($newByRollId[$rollId] ?? 0.0) + $consumption;
-        }
-
-        // ── 2b. Metros programados por esta OP (para liberar partial en primer descargue) ──
-        $programmedByRollId = [];
-        foreach ($validated['lines'] as $line) {
-            $rollCode   = trim((string) ($line['roll_code'] ?? ''));
-            $rollId     = $rollCode !== '' ? ($rollIdsByCode[$rollCode] ?? null) : null;
-            $programmed = (float) ($line['meters_per_roll'] ?? 0);
-            if ($rollId !== null && $programmed > 0) {
-                $programmedByRollId[$rollId] = ($programmedByRollId[$rollId] ?? 0.0) + $programmed;
-            }
-        }
-
-        // ── 3. Leer consumo previo aplicado por esta orden ───────────────────────
-        $prevByRollId = ProductionRollConsumption::where('production_order_id', $order->id)
-            ->get()
-            ->keyBy('fabric_roll_id')
-            ->map(static fn ($r) => (float) $r->meters_consumed);
-
-        // ── 4. Calcular deltas y cargar rollos afectados ─────────────────────────
-        $allRollIds = array_unique(array_merge(
-            array_keys($newByRollId),
-            $prevByRollId->keys()->all(),
-        ));
-
-        $rollModels = [];
-        if (!empty($allRollIds)) {
-            $rollModels = FabricRoll::with(['item.warehouses'])
-                ->whereIn('id', $allRollIds)
-                ->get()
-                ->keyBy('id');
-        }
-
-        $userId = $request->user()?->id;
-
-        DB::transaction(function () use (
-            $order, $payload, $newByRollId, $prevByRollId, $allRollIds, $rollModels, $userId, $programmedByRollId
-        ) {
-            // 4a. Guardar JSON
+        // Rollos, reservas, kardex y consumos por orden: FabricRollService::saveCutConsumption()
+        // (bloqueos, liberación de la reserva de ficha técnica, sobrante/faltante de metraje).
+        // Un error de kardex cancela todo el guardado en vez de omitirse en silencio.
+        DB::transaction(function () use ($order, $payload, $validated) {
             $order->update(['cut_fabric_consumption' => $payload]);
-
-            // 4b. Aplicar deltas a actual_output, liberar partial en primer descargue, y registrar novedades
-            foreach ($allRollIds as $rollId) {
-                $prevMeters = (float) ($prevByRollId[$rollId] ?? 0);
-                $newMeters  = $newByRollId[$rollId] ?? 0.0;
-                $delta      = round($newMeters - $prevMeters, 6);
-
-                if (abs($delta) < 0.000001) continue;
-
-                /** @var FabricRoll|null $roll */
-                $roll = $rollModels[$rollId] ?? null;
-                if (!$roll) continue;
-
-                $isFirstCut          = $prevMeters < 0.001;
-                $programmedForThisOp = (float) ($programmedByRollId[$rollId] ?? 0.0);
-                $currentPartial      = (float) $roll->partial_output;
-
-                if ($isFirstCut && $programmedForThisOp > 0.001) {
-                    // Primer descargue: liberar la reserva parcial de esta OP
-                    $newPartial = round(max(0.0, $currentPartial - $programmedForThisOp), 2);
-                    $actualOutputBefore = (float) $roll->actual_output;
-                    $newActualOutput = max(0.0, round($actualOutputBefore + $delta, 6));
-                    $roll->update([
-                        'actual_output'  => $newActualOutput,
-                        'partial_output' => $newPartial,
-                    ]);
-
-                    // Trazabilidad de novedad si el consumo difiere del programado
-                    if (abs($newMeters - $programmedForThisOp) > 0.01) {
-                        FabricRollAdjustment::create([
-                            'fabric_roll_id'  => $rollId,
-                            'user_id'         => $userId,
-                            'type'            => 'salida',
-                            'quantity_before' => $roll->quantity,
-                            'quantity_after'  => $roll->quantity,
-                            'partial_before'  => $currentPartial,
-                            'partial_after'   => $newPartial,
-                            'actual_output_before' => $actualOutputBefore,
-                            'actual_output_after'  => $newActualOutput,
-                            'reason'          => "Novedad descargue corte: {$newMeters}m consumidos vs {$programmedForThisOp}m programados — OP {$order->op_code}",
-                            'reference'       => "cut_consumption::{$order->id}",
-                        ]);
-                    }
-                } else {
-                    // Corrección de descargue: solo ajustar actual_output
-                    $roll->update([
-                        'actual_output' => max(0.0, round((float) $roll->actual_output + $delta, 6)),
-                    ]);
-                }
-
-                // Movimiento de inventario (solo si el rollo tiene ítem y bodega)
-                $item = $roll->item;
-                if (!$item) continue;
-                $warehouse = $item->warehouses()->first();
-                if (!$warehouse) continue;
-
-                $unitPrice = $this->movementService->getCurrentWeightedPrice($item->id, $warehouse->id);
-                if ($unitPrice <= 0) {
-                    $unitPrice = (float) ($roll->price_per_meter ?? 0);
-                }
-
-                try {
-                    if ($delta > 0) {
-                        $this->movementService->createMovement([
-                            'item_id'            => $item->id,
-                            'warehouse_id'       => $warehouse->id,
-                            'type'               => 'salida',
-                            'quantity'           => $delta,
-                            'unit_price'         => $unitPrice,
-                            'date'               => now()->toDateString(),
-                            'source_type'        => ProductionOrder::class,
-                            'source_id'          => $order->id,
-                            'notes'              => "Consumo corte rollo #{$roll->roll_number} — OP {$order->op_code}",
-                            'created_by_user_id' => $userId,
-                        ]);
-                    } else {
-                        // Corrección: reversa del exceso aplicado
-                        $this->movementService->createMovement([
-                            'item_id'            => $item->id,
-                            'warehouse_id'       => $warehouse->id,
-                            'type'               => 'entrada',
-                            'quantity'           => abs($delta),
-                            'unit_price'         => $unitPrice,
-                            'date'               => now()->toDateString(),
-                            'source_type'        => ProductionOrder::class,
-                            'source_id'          => $order->id,
-                            'notes'              => "Corrección corte rollo #{$roll->roll_number} — OP {$order->op_code}",
-                            'created_by_user_id' => $userId,
-                        ]);
-                    }
-                } catch (\Throwable $e) {
-                    // Si el movimiento de inventario falla (ej. stock insuficiente),
-                    // se omite silenciosamente para no bloquear el guardado del consumo.
-                }
-            }
-
-            // 4c. Re-sincronizar production_roll_consumptions (estado final)
-            ProductionRollConsumption::where('production_order_id', $order->id)->delete();
-            foreach ($newByRollId as $rollId => $meters) {
-                ProductionRollConsumption::create([
-                    'production_order_id' => $order->id,
-                    'fabric_roll_id'      => $rollId,
-                    'meters_consumed'     => $meters,
-                ]);
-            }
+            $this->fabricRollService->saveCutConsumption($order, $validated['lines']);
         });
 
         return response()->json([

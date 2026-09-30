@@ -22,9 +22,27 @@ class FabricRollReceptionResource extends JsonResource
             'entry_date' => optional($this->entry_date)->format('Y-m-d'),
             'available_quantity' => $this->toFloat($this->available_quantity),
             'is_depleted' => (bool) $this->is_depleted,
+            'approval_status' => $this->approval_status,
+            'tolerance_status' => $this->tolerance_status ?? 'none',
+            'tolerance_reason' => $this->tolerance_reason,
+            'resolved_at' => optional($this->resolved_at)->toISOString(),
+            'written_off_at' => optional($this->written_off_at)->toISOString(),
+            'credit_note_number' => $this->linkedCreditNoteNumber(),
             'created_at' => optional($this->created_at)->toISOString(),
             'updated_at' => optional($this->updated_at)->toISOString(),
         ];
+    }
+
+    /** Número de la nota crédito enlazada más reciente (solo si la relación está cargada). */
+    protected function linkedCreditNoteNumber(): ?string
+    {
+        if (! $this->relationLoaded('creditNoteLinks')) {
+            return null;
+        }
+
+        $number = $this->creditNoteLinks->last()?->creditNote?->document_number;
+
+        return $number !== null && $number !== '' ? (string) $number : null;
     }
 
     protected function toFloat(mixed $value): float

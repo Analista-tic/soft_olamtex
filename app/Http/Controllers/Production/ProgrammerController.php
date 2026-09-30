@@ -8,8 +8,6 @@ use App\Helpers\ScopeHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Production\StoreProgrammerRequest;
 use App\Http\Requests\Production\UpdateProgrammerRequest;
-use App\Models\Production\FabricRollProgrammingLine;
-use App\Models\Production\ManualRollProgramming;
 use App\Models\Production\ProductSheet;
 use App\Models\Production\ProductionOrder;
 use App\Models\Production\TechnicalSheet;
@@ -21,6 +19,7 @@ use App\Services\Production\ProductionOrderSchedulingService;
 use App\Services\Production\ProductSheetStatusService;
 use App\Services\Production\YarnBaseService;
 use App\Services\Settings\SettingService;
+use App\Support\Textil\FabricRollBalance;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -1241,42 +1240,23 @@ class ProgrammerController extends Controller
     }
 
     /**
+     * Reserva comprometida por rollo según las programaciones vigentes (ficha técnica
+     * pendiente de liberar + manuales pendientes). Misma fórmula que el reporte y la
+     * recalibración: FabricRollBalance::committedByRoll().
+     *
      * @param  int[]  $rollIds
      * @return array<string, float>
      */
     private function buildRollTotalsFromSnapshots(array $rollIds): array
     {
         $totals = [];
-
-        // Fase 15: la fuente de verdad de líneas programadas es fabric_roll_programming_lines,
-        // ya no TechnicalSheetRoll::lines (JSON).
-        FabricRollProgrammingLine::query()
-            ->whereIn('fabric_roll_id', $rollIds)
-            ->where('programmed_meters', '>', 0)
-            ->select(['fabric_roll_id', 'programmed_meters'])
-            ->cursor()
-            ->each(function (FabricRollProgrammingLine $line) use (&$totals): void {
-                $rollId = (string) $line->fabric_roll_id;
-                $totals[$rollId] = ($totals[$rollId] ?? 0.0) + (float) $line->programmed_meters;
-            });
-
-        // Reservas manuales pendientes (manual_roll_programmings) — sin sumarlas aquí,
-        // el update de partial_output más abajo las borraría de la contabilidad del
-        // rollo aunque la línea manual siga activa (mismo bug que RecalibrarPartialOutput).
-        ManualRollProgramming::query()
-            ->whereIn('fabric_roll_id', $rollIds)
-            ->get(['fabric_roll_id', 'programmed_meters', 'consumed_meters'])
-            ->each(function (ManualRollProgramming $line) use (&$totals): void {
-                $pending = (float) $line->programmed_meters - (float) $line->consumed_meters;
-                if ($pending <= 0) {
-                    return;
-                }
-                $rollId = (string) $line->fabric_roll_id;
-                $totals[$rollId] = ($totals[$rollId] ?? 0.0) + $pending;
-            });
+        foreach (FabricRollBalance::committedByRoll(array_values($rollIds)) as $rollId => $meters) {
+            $totals[(string) $rollId] = $meters;
+        }
 
         return $totals;
     }
+
 
     private function summarizeLot(?array $lot): array
     {

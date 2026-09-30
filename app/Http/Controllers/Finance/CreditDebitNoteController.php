@@ -75,6 +75,22 @@ class CreditDebitNoteController extends Controller
         ]);
     }
 
+    /** Rollos rechazados sin resolver de la factura base, ofrecidos al crear/editar una nota crédito. */
+    public function rejectedRolls(Request $request)
+    {
+        $validated = $request->validate([
+            'parent_document_id' => ['required', 'integer', 'min:1'],
+            'note_id' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        return response()->json([
+            'data' => $this->service->listCoverableRejectedRolls(
+                (int) $validated['parent_document_id'],
+                isset($validated['note_id']) ? (int) $validated['note_id'] : null,
+            ),
+        ]);
+    }
+
     public function store(Request $request)
     {
         $validated = $this->validatePayload($request);
@@ -84,6 +100,7 @@ class CreditDebitNoteController extends Controller
             'parent:id,document_number,document_type',
             'creator:id,name',
         ]);
+        $document->setAttribute('linked_fabric_rolls', $this->service->listLinkedRolls($document));
 
         return response()->json(['data' => $document], 201);
     }
@@ -97,6 +114,7 @@ class CreditDebitNoteController extends Controller
             'creator:id,name',
             'executor:id,name',
         ]);
+        $purchaseDocument->setAttribute('linked_fabric_rolls', $this->service->listLinkedRolls($purchaseDocument));
 
         return response()->json(['data' => $purchaseDocument]);
     }
@@ -113,6 +131,7 @@ class CreditDebitNoteController extends Controller
             'creator:id,name',
             'executor:id,name',
         ]);
+        $updated->setAttribute('linked_fabric_rolls', $this->service->listLinkedRolls($updated));
 
         return response()->json(['data' => $updated]);
     }
@@ -143,6 +162,8 @@ class CreditDebitNoteController extends Controller
             'status' => ['nullable', 'string', 'max:50'],
             'approval_status' => ['nullable', 'string', 'max:50'],
             'executed_by_user_id' => ['nullable', 'integer'],
+            'fabric_roll_ids' => ['sometimes', 'nullable', 'array'],
+            'fabric_roll_ids.*' => ['integer', 'min:1'],
             'items' => [$isUpdate ? 'sometimes' : 'required', 'array', 'min:1'],
             'items.*.id' => ['sometimes', 'integer'],
             'items.*.item_id' => ['nullable', 'integer', 'exists:items,id'],

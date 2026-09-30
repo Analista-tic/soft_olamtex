@@ -44,8 +44,9 @@ Route::prefix('notas-credito-debito')->name('notas-credito-debito.')->middleware
     Route::get('/data', [CreditDebitNoteController::class, 'getData'])->name('data');
     Route::get('/next-number', [CreditDebitNoteController::class, 'nextNumber'])->name('next-number');
     Route::get('/eligible-purchase-invoices', [CreditDebitNoteController::class, 'eligiblePurchaseInvoices'])->name('eligible-purchase-invoices');
+    Route::get('/rejected-rolls', [CreditDebitNoteController::class, 'rejectedRolls'])->name('rejected-rolls');
     Route::post('/', [CreditDebitNoteController::class, 'store'])->name('store')->middleware('permission:crear notas credito debito');
-    Route::get('/{id}', [CreditDebitNoteController::class, 'show'])->name('show');
+    Route::get('/{id}',[CreditDebitNoteController::class, 'show'])->name('show');
     Route::put('/{id}', [CreditDebitNoteController::class, 'update'])->name('update')->middleware('permission:editar notas credito debito');
     Route::delete('/{id}', [CreditDebitNoteController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar notas credito debito');
 });

@@ -10,10 +10,16 @@ class ProductionRollConsumption extends Model
 {
     protected $table = 'production_roll_consumptions';
 
+    public const SOURCE_CUT = 'cut';
+    public const SOURCE_MANUAL = 'manual';
+    public const SOURCE_ADJUSTMENT = 'adjustment';
+
     protected $fillable = [
         'production_order_id',
         'fabric_roll_id',
         'meters_consumed',
+        'source',
+        'fabric_roll_adjustment_id',
     ];
 
     protected $casts = [

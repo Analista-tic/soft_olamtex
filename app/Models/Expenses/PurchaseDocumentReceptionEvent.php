@@ -15,6 +15,17 @@ class PurchaseDocumentReceptionEvent extends Model
 
     public const TYPE_REOPENED = 'reopened';
 
+    // Eventos por rollo (recepción de telas)
+    public const TYPE_ROLL_REJECTED = 'roll_rejected';
+
+    public const TYPE_ROLL_DIFFERENCE_APPROVED = 'roll_difference_approved';
+
+    public const TYPE_ROLL_LINKED_TO_NOTE = 'roll_linked_to_note';
+
+    public const TYPE_ROLL_WRITTEN_OFF = 'roll_written_off';
+
+    public const TYPE_ROLL_ADDED_AFTER_APPROVAL = 'roll_added_after_approval';
+
     protected $table = 'purchase_document_reception_events';
 
     protected $fillable = [

@@ -98,6 +98,7 @@ class PermissionSeeder extends Seeder
             'editar telas rollos',
             'eliminar telas rollos',
             'ajustar telas rollos',
+            'agregar rollos recepcion aprobada',
             'fabric_rolls.import',
             'aprobar recepcion tela',
             'rechazar recepcion tela',
@@ -107,6 +108,7 @@ class PermissionSeeder extends Seeder
             'eliminar descargue telas orden',
             'descargar telas orden',
             'corregir descargue telas orden',
+            'revisar diferencias metraje telas',
 
             'anular comprobantes egreso',
             'ver movimientos cuenta contable',

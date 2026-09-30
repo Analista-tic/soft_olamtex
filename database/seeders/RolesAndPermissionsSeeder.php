@@ -86,6 +86,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'eliminar recepcion telas',
             'aprobar recepcion tela',
             'rechazar recepcion tela',
+            // Revisión de sobrantes/faltantes de metraje detectados al descargar rollos.
+            'revisar diferencias metraje telas',
 
             // Datos maestros: contactos
             'ver contactos',

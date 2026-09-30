@@ -25,13 +25,30 @@ class ItemInventoryService
 
     protected function buildQuery(array $filters)
     {
+        // roll_quantity / reserved_quantity cuentan solo rollos aprobados (stock disponible).
+        // restricted_quantity suma los rollos rechazados en recepción y aún sin resolver
+        // (nota crédito pendiente): están fuera del disponible pero se muestran aparte.
+        $restrictedCondition = 'fr.tolerance_status = ? AND fr.resolved_at IS NULL';
         $rollSubquery = DB::table('fabric_rolls as fr')
             ->selectRaw('COALESCE(fr.item_id, pdi.item_id) AS item_id')
-            ->selectRaw('SUM(fr.quantity - fr.actual_output) AS roll_quantity')
-            ->selectRaw('SUM(fr.partial_output) AS reserved_quantity')
+            ->selectRaw(
+                'SUM(CASE WHEN fr.approval_status = ? THEN fr.quantity - fr.actual_output ELSE 0 END) AS roll_quantity',
+                [FabricRoll::APPROVAL_APPROVED],
+            )
+            ->selectRaw(
+                'SUM(CASE WHEN fr.approval_status = ? THEN fr.partial_output ELSE 0 END) AS reserved_quantity',
+                [FabricRoll::APPROVAL_APPROVED],
+            )
+            ->selectRaw(
+                "SUM(CASE WHEN {$restrictedCondition} THEN fr.quantity ELSE 0 END) AS restricted_quantity",
+                [FabricRoll::TOLERANCE_REJECTED],
+            )
             ->leftJoin('purchase_document_items as pdi', 'pdi.id', '=', 'fr.purchase_document_item_id')
             ->whereNull('fr.deleted_at')
-            ->where('fr.approval_status', FabricRoll::APPROVAL_APPROVED)
+            ->where(function ($q) use ($restrictedCondition) {
+                $q->where('fr.approval_status', FabricRoll::APPROVAL_APPROVED)
+                    ->orWhereRaw($restrictedCondition, [FabricRoll::TOLERANCE_REJECTED]);
+            })
             ->groupByRaw('COALESCE(fr.item_id, pdi.item_id)');
 
         $query = DB::table('warehouse_items')
@@ -62,6 +79,12 @@ class ItemInventoryService
                          THEN COALESCE(roll_inv.reserved_quantity, 0)
                          ELSE 0
                     END AS reserved_quantity
+                "),
+                DB::raw("
+                    CASE WHEN LOWER(COALESCE(category_sub_groups.name,'')) LIKE '%tela%'
+                         THEN COALESCE(roll_inv.restricted_quantity, 0)
+                         ELSE 0
+                    END AS restricted_quantity
                 "),
                 DB::raw("(LOWER(COALESCE(category_sub_groups.name,'')) LIKE '%tela%') AS is_fabric"),
                 DB::raw('COALESCE(warehouse_items.weighted_average_price, 0) as average_cost'),
@@ -109,14 +132,16 @@ class ItemInventoryService
         $query->where('items.deleted_at', null);
 
         // Para ítems normales: excluir si quantity = 0.
-        // Para telas: excluir si no hay metros disponibles en rollos.
+        // Para telas: excluir si no hay metros disponibles NI restringidos en rollos
+        // (un ítem con solo stock restringido sigue visible para que la restricción no
+        // quede oculta; su `quantity` disponible será 0).
         $query->where(function ($q) {
             $q->where(function ($inner) {
                 $inner->whereRaw("LOWER(COALESCE(category_sub_groups.name,'')) NOT LIKE '%tela%'")
                       ->where('warehouse_items.quantity', '<>', 0);
             })->orWhere(function ($inner) {
                 $inner->whereRaw("LOWER(COALESCE(category_sub_groups.name,'')) LIKE '%tela%'")
-                      ->whereRaw("COALESCE(roll_inv.roll_quantity, 0) <> 0");
+                      ->whereRaw("(COALESCE(roll_inv.roll_quantity, 0) <> 0 OR COALESCE(roll_inv.restricted_quantity, 0) <> 0)");
             });
         });
 

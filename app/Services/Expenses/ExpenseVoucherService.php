@@ -845,6 +845,7 @@ class ExpenseVoucherService
             $current = $pendingRows->get($documentId);
             if (is_array($current)) {
                 $current['pending_balance'] = round((float) ($current['pending_balance'] ?? 0) + $appliedAmount, 2);
+                $current['payable_balance'] = round((float) ($current['payable_balance'] ?? $current['pending_balance'] ?? 0) + $appliedAmount, 2);
                 $current['applied_total'] = max(0, round((float) ($current['applied_total'] ?? 0) - $appliedAmount, 2));
                 $current['withholdings_total'] = max(
                     (float) ($current['withholdings_total'] ?? 0),
@@ -867,6 +868,7 @@ class ExpenseVoucherService
                 'debit_notes_total' => 0.0,
                 'applied_total' => 0.0,
                 'pending_balance' => $appliedAmount,
+                'payable_balance' => $appliedAmount,
                 'status' => null,
                 'status_label' => null,
             ]);
@@ -888,6 +890,9 @@ class ExpenseVoucherService
             'debit_notes_total' => (float) ($row['debit_notes_total'] ?? 0),
             'applied_total' => (float) ($row['payments_total'] ?? $row['applied_total'] ?? 0),
             'pending_balance' => (float) ($row['current_balance'] ?? $row['pending_balance'] ?? 0),
+            'disputed_amount' => (float) ($row['disputed_amount'] ?? 0),
+            'disputed_rolls_count' => (int) ($row['disputed_rolls_count'] ?? 0),
+            'payable_balance' => (float) ($row['payable_balance'] ?? $row['current_balance'] ?? $row['pending_balance'] ?? 0),
             'status' => $row['debt_status'] ?? $row['status'] ?? null,
             'status_label' => $row['debt_status_label'] ?? $row['status_label'] ?? null,
         ];

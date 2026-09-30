@@ -21,12 +21,13 @@ use App\Models\Production\FabricRollProgrammingLine;
 use App\Models\Production\ManualRollProgramming;
 use App\Models\Production\ProductionOrder;
 use App\Models\Production\ProductionRollConsumption;
-use App\Models\Production\TechnicalSheet;
 use App\Models\Textil\FabricRoll;
 use App\Models\Textil\FabricRollAdjustment;
+use App\Models\Textil\FabricRollLengthDifference;
 use App\Services\Expenses\PurchaseDocumentInvoiceService;
 use App\Services\Textil\FabricRollService;
 use App\Support\MasterData\MaterialClassifier;
+use App\Support\Textil\FabricRollBalance;
 use App\Support\TextNormalizer;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -179,25 +180,11 @@ class FabricRollController extends Controller
         }
         $manualLines = $manualQuery->get();
 
-        // Comprometido total por rollo (todas las líneas de todas las fichas + líneas
-        // manuales pendientes) — mismo criterio que getCommittedMetersByRollId(), para
-        // que "disponible" coincida con lo que ve Corte en el listado de inventario de
-        // rollos, y no quede inflado cuando el rollo también tiene reserva manual.
-        $committedByRoll = FabricRollProgrammingLine::query()
-            ->whereNotNull('fabric_roll_id')
-            ->where('programmed_meters', '>', 0)
-            ->selectRaw('fabric_roll_id, SUM(programmed_meters) as total')
-            ->groupBy('fabric_roll_id')
-            ->pluck('total', 'fabric_roll_id')
-            ->all();
-
-        foreach (ManualRollProgramming::query()->get() as $manualLine) {
-            $pending = max(0.0, (float) $manualLine->programmed_meters - (float) $manualLine->consumed_meters);
-            if ($pending <= 0) {
-                continue;
-            }
-            $committedByRoll[$manualLine->fabric_roll_id] = ($committedByRoll[$manualLine->fabric_roll_id] ?? 0.0) + $pending;
-        }
+        // Comprometido por rollo según las programaciones vigentes: ficha técnica pendiente
+        // (programado − liberado por el corte) + manuales pendientes. Antes se sumaba el
+        // total programado de la ficha aunque el corte ya lo hubiera consumido, y el
+        // disponible salía más bajo de lo real.
+        $committedByRoll = FabricRollBalance::committedByRoll();
 
         $rollIds = $lines->pluck('fabric_roll_id')->filter()->unique()->values();
         $consumedByRollAndOrder = ProductionRollConsumption::query()
@@ -228,6 +215,9 @@ class FabricRollController extends Controller
             return [
                 'id' => $line->id,
                 'source' => 'order',
+                'pending_meters' => $line->pending_meters,
+                'released_meters' => (float) $line->released_meters,
+                'overconsumed_meters' => FabricRollBalance::meters(max(0.0, $consumedReal - $programmed)),
                 'op_code' => $line->technicalSheet?->productionOrder?->op_code,
                 'manual_order_code' => null,
                 'roll_number' => $roll?->roll_number,
@@ -257,6 +247,9 @@ class FabricRollController extends Controller
             return [
                 'id' => $line->id,
                 'source' => 'manual',
+                'pending_meters' => FabricRollBalance::meters($line->remaining_meters),
+                'released_meters' => (float) $line->released_meters,
+                'overconsumed_meters' => FabricRollBalance::meters($line->overconsumed_meters),
                 'op_code' => null,
                 'manual_order_code' => $line->manual_order_code,
                 'roll_number' => $roll?->roll_number,
@@ -275,7 +268,7 @@ class FabricRollController extends Controller
 
         $sortBy = $request->input('sort_by', 'programmed_meters');
         $sortDirection = $request->input('sort_direction', 'desc');
-        $allowedSorts = ['programmed_meters', 'available_meters', 'consumed_real_meters', 'difference_meters', 'op_code', 'roll_number'];
+        $allowedSorts = ['programmed_meters', 'available_meters', 'consumed_real_meters', 'difference_meters', 'overconsumed_meters', 'op_code', 'roll_number'];
         if (! in_array($sortBy, $allowedSorts, true)) {
             $sortBy = 'programmed_meters';
         }
@@ -320,6 +313,8 @@ class FabricRollController extends Controller
                     'rolls_count' => $lines->count(),
                     'programmed_meters' => round((float) $lines->sum('programmed_meters'), 2),
                     'consumed_meters' => round((float) $lines->sum('consumed_meters'), 2),
+                    'overconsumed_meters' => round((float) $lines->sum(fn (ManualRollProgramming $line) => $line->overconsumed_meters), 2),
+                    'remaining_meters' => round((float) $lines->sum(fn (ManualRollProgramming $line) => $line->remaining_meters), 2),
                     'created_at' => optional($lines->min('created_at'))->toIso8601String(),
                 ];
             })
@@ -345,17 +340,32 @@ class FabricRollController extends Controller
         $lines = ManualRollProgramming::query()
             ->where('manual_order_code', $manualOrderCode)
             ->with([
-                'fabricRoll:id,roll_number,location,quantity,actual_output,item_id,description,internal_color_name,batch',
+                'fabricRoll:id,roll_number,location,quantity,received_quantity,actual_output,partial_output,item_id,description,internal_color_name,batch,length_review_status',
                 'fabricRoll.item:id,fabric_name_id,color_id,category_sub_group_id',
                 'fabricRoll.item.fabricName:id,nombre',
                 'fabricRoll.item.color:id,name',
                 'fabricRoll.item.categorySubGroup:id,name',
             ])
             ->orderByDesc('created_at')
-            ->get()
-            ->map(function (ManualRollProgramming $line) {
+            ->get();
+
+        // Reservas de OTRAS programaciones sobre cada rollo: las que se liberarían al darlo por terminado.
+        $rollIds = $lines->pluck('fabric_roll_id')->unique()->values()->all();
+        $manualByRoll = ManualRollProgramming::whereIn('fabric_roll_id', $rollIds)
+            ->get(['id', 'fabric_roll_id', 'programmed_meters', 'consumed_meters', 'released_meters'])
+            ->groupBy('fabric_roll_id');
+        $sheetByRoll = FabricRollProgrammingLine::whereIn('fabric_roll_id', $rollIds)
+            ->get(['id', 'fabric_roll_id', 'programmed_meters', 'released_meters'])
+            ->groupBy('fabric_roll_id');
+
+        $lines = $lines->map(function (ManualRollProgramming $line) use ($manualByRoll, $sheetByRoll) {
                 $roll = $line->fabricRoll;
                 $item = $roll?->item;
+
+                $otherManual = collect($manualByRoll->get($line->fabric_roll_id, []))
+                    ->filter(fn (ManualRollProgramming $other) => $other->id !== $line->id && $other->remaining_meters > 0);
+                $otherSheet = collect($sheetByRoll->get($line->fabric_roll_id, []))
+                    ->filter(fn (FabricRollProgrammingLine $other) => $other->pending_meters > 0);
 
                 return [
                     'id' => $line->id,
@@ -370,8 +380,20 @@ class FabricRollController extends Controller
                     'programmed_meters' => (float) $line->programmed_meters,
                     'consumed_meters' => (float) $line->consumed_meters,
                     'remaining_meters' => $line->remaining_meters,
+                    'overconsumed_meters' => $line->overconsumed_meters,
+                    'released_meters' => (float) $line->released_meters,
                     'notes' => $line->notes,
                     'has_item' => $item !== null,
+                    'roll_quantity' => $roll ? (float) $roll->quantity : null,
+                    'roll_received_quantity' => $roll ? (float) ($roll->received_quantity ?? $roll->quantity) : null,
+                    'roll_real_meters' => $roll ? max(0.0, FabricRollBalance::real($roll)) : null,
+                    'roll_free_meters' => $roll ? FabricRollBalance::free($roll) : null,
+                    'roll_length_review_status' => $roll?->length_review_status ?? FabricRoll::LENGTH_REVIEW_NONE,
+                    'other_reservations_count' => $otherManual->count() + $otherSheet->count(),
+                    'other_reservations_meters' => FabricRollBalance::meters(
+                        (float) $otherManual->sum(fn (ManualRollProgramming $other) => $other->remaining_meters)
+                        + (float) $otherSheet->sum(fn (FabricRollProgrammingLine $other) => $other->pending_meters)
+                    ),
                 ];
             });
 
@@ -435,13 +457,29 @@ class FabricRollController extends Controller
                 $manualRollProgramming,
                 (float) $data['quantity'],
                 $data['reason'] ?? null,
+                (bool) ($data['finish_roll'] ?? false),
             );
         } catch (ValidationException $e) {
             return response()->json(['message' => $e->getMessage(), 'errors' => $e->errors()], 422);
         }
 
+        $differences = $line->relationLoaded('recordedDifferences') ? $line->getRelation('recordedDifferences') : collect();
+        $surplus = (float) $differences->where('type', FabricRollLengthDifference::TYPE_SURPLUS)->sum('meters');
+        $shortage = (float) $differences->where('type', FabricRollLengthDifference::TYPE_SHORTAGE)->sum('meters');
+
+        $message = 'Descargue registrado correctamente.';
+        if ($line->overconsumed_meters > 0) {
+            $message .= ' Sobreconsumo acumulado en la línea: '.FabricRollBalance::meters($line->overconsumed_meters).' m.';
+        }
+        if ($surplus > 0) {
+            $message .= " Se registró un sobrante de metraje de {$surplus} m, pendiente de revisión.";
+        }
+        if ($shortage > 0) {
+            $message .= " Se registró un faltante de metraje de {$shortage} m, pendiente de revisión.";
+        }
+
         return response()->json([
-            'message' => 'Descargue registrado correctamente.',
+            'message' => $message,
             'data' => $line,
         ]);
     }
@@ -484,10 +522,10 @@ class FabricRollController extends Controller
                 'id' => $adjustment->id,
                 'created_at' => $adjustment->created_at?->toIso8601String(),
                 'user_name' => $adjustment->user?->name,
-                // Se deriva de actual_output_after - actual_output_before del propio
-                // registro, no de inventoryMovement->quantity: un rollo sin ítem
-                // vinculado no crea movimiento de inventario y antes quedaba en null.
-                'quantity' => round((float) $adjustment->actual_output_after - (float) $adjustment->actual_output_before, 6),
+                // Cantidad VIGENTE del descargue (ya incluye sus correcciones). Registros
+                // anteriores sin la columna: se deriva de actual_output_after − before.
+                'quantity' => round((float) ($adjustment->quantity ?? ((float) $adjustment->actual_output_after - (float) $adjustment->actual_output_before)), 6),
+                'corrections_count' => (int) $adjustment->corrections_count,
                 'reason' => $adjustment->reason,
             ]);
 
@@ -502,6 +540,8 @@ class FabricRollController extends Controller
             $adjustment = $this->service->correctManualDischarge(
                 $fabricRollAdjustment,
                 (float) $data['quantity'],
+                $data['reason'] ?? null,
+                $manualRollProgramming,
             );
         } catch (ValidationException $e) {
             return response()->json(['message' => $e->getMessage(), 'errors' => $e->errors()], 422);
@@ -529,6 +569,7 @@ class FabricRollController extends Controller
             'with_output' => $request->boolean('with_output'),
             'fabric_item_ids' => $fabricItemIds ?: null,
             'no_item' => $request->boolean('no_item'),
+            'restricted' => $request->boolean('restricted'),
         ];
 
         $perPage = min((int) $request->input('per_page', 100), 500);
@@ -561,8 +602,9 @@ class FabricRollController extends Controller
             $qty = (float) ($row['quantity'] ?? 0);
             $partial = (float) ($row['partial_output'] ?? 0);
             $actual = (float) ($row['actual_output'] ?? 0);
-            $ownCommitted = (float) ($ownCommittedByRollId[(string) $row['id']] ?? 0.0);
-            $partialAvailability = max(0.0, $qty - $actual - $partial + $ownCommitted);
+            $ownCommitted = (float) ($ownCommittedByRollId[(int) $row['id']] ?? 0.0);
+            $partialAvailability = FabricRollBalance::freeFromValues($qty, $actual, $partial, $ownCommitted);
+            $realAvailability = max(0.0, FabricRollBalance::realFromValues($qty, $actual));
             $color = $row['internal_color_name'] ?? $row['supplier_color'] ?? null;
             $colorName = $row['item_color_name'] ?? $color ?? null;
             $colorHex = isset($row['item_color_hex']) && $row['item_color_hex'] !== ''
@@ -582,14 +624,17 @@ class FabricRollController extends Controller
                 'width_value' => (float) ($row['roll_width'] ?? 0),
                 'roll_qty' => $this->fmtMeters($qty),
                 'roll_qty_value' => $qty,
+                'received_quantity_value' => isset($row['received_quantity']) ? (float) $row['received_quantity'] : $qty,
                 'partial_output' => $this->fmtMeters($partial),
                 'partial_output_value' => $partial,
                 'partial_availability' => $this->fmtMeters($partialAvailability),
                 'partial_availability_value' => $partialAvailability,
                 'exit_quantity' => $this->fmtMeters($actual),
                 'exit_quantity_value' => $actual,
-                'real_availability' => $this->fmtMeters(max(0.0, $qty - $actual)),
-                'real_availability_value' => max(0.0, $qty - $actual),
+                'real_availability' => $this->fmtMeters($realAvailability),
+                'real_availability_value' => $realAvailability,
+                'has_discharges' => (bool) ($row['has_discharges'] ?? false),
+                'length_review_status' => $row['length_review_status'] ?? FabricRoll::LENGTH_REVIEW_NONE,
                 'order_number' => $row['order_number'],
                 'provider' => $row['provider'],
                 'price_per_meter' => isset($row['price_per_meter']) ? (float) $row['price_per_meter'] : null,
@@ -597,7 +642,15 @@ class FabricRollController extends Controller
                     ? Carbon::parse($row['doc_created_at'])->format('d M Y')
                     : null,
                 'creator' => $row['creator_name'] ?? null,
-                'status' => $actual >= $qty ? 'depleted' : 'available',
+                'status' => $realAvailability <= FabricRollBalance::EPSILON ? 'depleted' : 'available',
+                'tolerance_status' => $row['tolerance_status'] ?? 'none',
+                'is_restricted' => ($row['tolerance_status'] ?? null) === FabricRoll::TOLERANCE_REJECTED,
+                'restriction_reason' => ($row['tolerance_status'] ?? null) === FabricRoll::TOLERANCE_REJECTED
+                    ? ($row['tolerance_reason'] ?? null)
+                    : null,
+                'credit_note_number' => ($row['credit_note_number'] ?? null) ?: null,
+                'invoice_id' => isset($row['invoice_id']) ? (int) $row['invoice_id'] : null,
+                'invoice_number' => $row['invoice_number'] ?? null,
             ];
         });
 
@@ -615,32 +668,15 @@ class FabricRollController extends Controller
     }
 
     /**
-     * Suma metros programados por rollId, SOLO en la ficha técnica de la orden dada.
-     * Se le "devuelve" este valor a quantity - partial_output para que una orden no
-     * vea su propia reserva ya existente como indisponible mientras la reprograma.
+     * Reserva que la ficha técnica de la orden dada todavía mantiene por rollo
+     * (programado − liberado por el corte). Se le "devuelve" al disponible libre para que
+     * una orden no vea su propia reserva como indisponible mientras la reprograma.
      *
-     * @return array<string, float>
+     * @return array<int, float>
      */
     private function getOwnCommittedMetersByRollId(int $opId): array
     {
-        $sheetId = TechnicalSheet::where('production_order_id', $opId)->value('id');
-        if (! $sheetId) {
-            return [];
-        }
-
-        $committed = [];
-        foreach (
-            FabricRollProgrammingLine::query()
-                ->where('technical_sheet_id', $sheetId)
-                ->whereNotNull('fabric_roll_id')
-                ->where('programmed_meters', '>', 0)
-                ->get(['fabric_roll_id', 'programmed_meters']) as $line
-        ) {
-            $rollId = (string) $line->fabric_roll_id;
-            $committed[$rollId] = ($committed[$rollId] ?? 0.0) + (float) $line->programmed_meters;
-        }
-
-        return $committed;
+        return FabricRollBalance::sheetPendingByRollForOrder($opId);
     }
 
     private function fmtMeters(?float $value): string
@@ -743,7 +779,7 @@ class FabricRollController extends Controller
         }
 
         $invoice = $invoiceService->loadWithRelations($purchaseDocument);
-        $invoice->loadMissing('items.receptions.warehouse');
+        $invoice->loadMissing('items.receptions.warehouse', 'items.receptions.receivedBy');
 
         return response()->json([
             'data' => $invoice,
@@ -1192,10 +1228,6 @@ class FabricRollController extends Controller
     {
         $data = $request->validated();
 
-        if ($error = $this->validateActualOutput((float) $data['quantity'], (float) ($data['actual_output'] ?? 0))) {
-            return $error;
-        }
-
         $fabricRoll = $this->service->create($data);
 
         return response()->json([
@@ -1212,10 +1244,6 @@ class FabricRollController extends Controller
     public function update(UpdateFabricRollRequest $request, FabricRoll $fabricRoll)
     {
         $data = $request->validated();
-
-        if ($error = $this->validateActualOutput((float) $data['quantity'], (float) ($data['actual_output'] ?? 0))) {
-            return $error;
-        }
 
         try {
             $fabricRoll = $this->service->update($fabricRoll, $data);
@@ -1253,32 +1281,39 @@ class FabricRollController extends Controller
                 'message' => $e->getMessage(),
                 'errors' => $e->errors(),
             ], 422);
-        } catch (\RuntimeException $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
         }
-
-        $rollQtyValue = (float) $fabricRoll->quantity;
-        $partialOutputValue = (float) $fabricRoll->partial_output;
-        $exitQuantityValue = (float) $fabricRoll->actual_output;
-        $partialAvailabilityValue = max(0.0, $rollQtyValue - $exitQuantityValue - $partialOutputValue);
-        $realAvailabilityValue = $rollQtyValue - $exitQuantityValue;
 
         return response()->json([
             'message' => $type === 'salida'
                 ? 'Descargue de rollo registrado correctamente.'
                 : 'Entrada de rollo registrada correctamente.',
-            'real_availability_value' => $realAvailabilityValue,
-            'partial_output_value' => $partialOutputValue,
-            'partial_availability_value' => $partialAvailabilityValue,
-            'roll_qty_value' => $rollQtyValue,
-            'exit_quantity_value' => $exitQuantityValue,
+            ...$this->rollBalancePayload($fabricRoll),
         ]);
+    }
+
+    /**
+     * Saldos del rollo tras una operación, con las fórmulas únicas de FabricRollBalance.
+     *
+     * @return array<string, mixed>
+     */
+    private function rollBalancePayload(FabricRoll $fabricRoll): array
+    {
+        return [
+            'roll_qty_value' => (float) $fabricRoll->quantity,
+            'received_quantity_value' => (float) ($fabricRoll->received_quantity ?? $fabricRoll->quantity),
+            'exit_quantity_value' => (float) $fabricRoll->actual_output,
+            'partial_output_value' => (float) $fabricRoll->partial_output,
+            'partial_availability_value' => FabricRollBalance::free($fabricRoll),
+            'real_availability_value' => max(0.0, FabricRollBalance::real($fabricRoll)),
+            'has_discharges' => $this->service->hasDischarges($fabricRoll),
+            'length_review_status' => $fabricRoll->length_review_status ?? FabricRoll::LENGTH_REVIEW_NONE,
+        ];
     }
 
     public function correctQuantity(Request $request, FabricRoll $fabricRoll): JsonResponse
     {
         $data = $request->validate([
-            'new_quantity' => ['required', 'numeric', 'min:0.01'],
+            'new_quantity' => ['required', 'numeric', 'min:0.01', 'decimal:0,2'],
             'reason' => ['required', 'string', 'max:500'],
         ]);
 
@@ -1290,40 +1325,24 @@ class FabricRollController extends Controller
             );
         } catch (ValidationException $e) {
             return response()->json(['message' => $e->getMessage(), 'errors' => $e->errors()], 422);
-        } catch (\RuntimeException $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
         }
-
-        $rollQtyValue = (float) $fabricRoll->quantity;
-        $exitQuantityValue = (float) $fabricRoll->actual_output;
-        $partialOutputValue = (float) $fabricRoll->partial_output;
-        $partialAvailability = max(0.0, $rollQtyValue - $exitQuantityValue - $partialOutputValue);
-        $realAvailability = $rollQtyValue - $exitQuantityValue;
 
         return response()->json([
             'message' => 'Cantidad del rollo corregida correctamente.',
-            'roll_qty_value' => $rollQtyValue,
-            'exit_quantity_value' => $exitQuantityValue,
-            'partial_output_value' => $partialOutputValue,
-            'partial_availability_value' => $partialAvailability,
-            'real_availability_value' => $realAvailability,
+            ...$this->rollBalancePayload($fabricRoll),
         ]);
     }
 
     public function updatePrice(Request $request, FabricRoll $fabricRoll): JsonResponse
     {
         $data = $request->validate([
-            'price_per_meter' => ['required', 'numeric', 'min:0'],
+            'price_per_meter' => ['required', 'numeric', 'min:0', 'decimal:0,4'],
         ]);
 
-        $fabricRoll->update(['price_per_meter' => (float) $data['price_per_meter']]);
-
-        // Recalcular el PP ponderado en warehouse_items para el ítem vinculado al rollo.
-        // Se usa el promedio ponderado de todos los rollos aprobados del ítem para
-        // que el cambio de precio se refleje inmediatamente en el costo de producción.
-        $item = $fabricRoll->item ?? $fabricRoll->purchaseDocumentItem?->item;
-        if ($item) {
-            $this->service->refreshWarehouseItemPP($item->id);
+        try {
+            $fabricRoll = $this->service->updatePrice($fabricRoll, (float) $data['price_per_meter']);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => $e->getMessage(), 'errors' => $e->errors()], 422);
         }
 
         return response()->json([
@@ -1338,7 +1357,7 @@ class FabricRollController extends Controller
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.purchase_document_item_id' => ['required', 'integer'],
             'lines.*.warehouse_id' => ['required', 'integer', 'exists:warehouses,id'],
-            'lines.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'lines.*.quantity' => ['required', 'numeric', 'min:0.01', 'decimal:0,2'],
             'lines.*.over_received_reason' => ['nullable', 'string', 'max:500'],
         ]);
 
@@ -1365,6 +1384,35 @@ class FabricRollController extends Controller
         }
     }
 
+    public function updateGeneralReception(Request $request, $invoiceId, $receptionId): JsonResponse
+    {
+        $validated = $request->validate([
+            'warehouse_id' => ['required', 'integer', 'exists:warehouses,id'],
+            'quantity' => ['required', 'numeric', 'min:0.01', 'decimal:0,2'],
+            'over_received_reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $reception = $this->service->updateGeneralReception((int) $invoiceId, (int) $receptionId, $validated);
+
+            return response()->json([
+                'message' => 'Recepción corregida correctamente.',
+                'data' => $reception,
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'No se pudo corregir la recepción.',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (ModelNotFoundException $e) {
+            return response()->json(['message' => 'Factura o recepción no encontrada.'], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error al corregir la recepción: '.$e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function approveReception($invoiceId)
     {
         try {
@@ -1383,9 +1431,14 @@ class FabricRollController extends Controller
                 ['actor' => request()->user(), 'creator' => $invoice->creator]
             );
 
+            // Advertencia contable (no bloquea la recepción): la factura no pudo contabilizarse.
+            $accountingWarning = $invoice->getAttribute('accounting_warning');
+            $invoice->makeHidden('accounting_warning');
+
             return response()->json([
                 'message' => 'Recepción aprobada correctamente',
                 'data' => $invoice,
+                'accounting_warning' => $accountingWarning,
             ]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -1407,10 +1460,13 @@ class FabricRollController extends Controller
     {
         $validated = $request->validate([
             'reason' => ['required', 'string', 'max:1000'],
+            'evidence' => ['required', 'string'],
+        ], [
+            'evidence.required' => 'Adjunta una evidencia (imagen) de la diferencia.',
         ]);
 
         try {
-            $invoice = $this->service->reportReceptionDifference($invoiceId, $validated['reason']);
+            $invoice = $this->service->reportReceptionDifference($invoiceId, $validated['reason'], $validated['evidence']);
 
             return response()->json([
                 'message' => 'Diferencia registrada. Queda pendiente de aprobación; el inventario no se carga hasta entonces.',
@@ -1460,13 +1516,53 @@ class FabricRollController extends Controller
         }
     }
 
+    public function approveRollDifference(Request $request, FabricRoll $roll): JsonResponse
+    {
+        $validated = $request->validate([
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        try {
+            $roll = $this->service->approveRollDifference($roll->id, $validated['notes'] ?? null);
+
+            return response()->json([
+                'message' => 'Diferencia del rollo aprobada correctamente.',
+                'data' => (new FabricRollReceptionResource($roll))->resolve(),
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => collect($e->errors())->flatten()->first() ?: 'No se pudo aprobar la diferencia del rollo.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+    }
+
+    public function rejectRoll(Request $request, FabricRoll $roll): JsonResponse
+    {
+        $validated = $request->validate([
+            'rejection_reason' => ['required', 'string', 'max:1000'],
+        ], [
+            'rejection_reason.required' => 'Indica el motivo del rechazo del rollo.',
+        ]);
+
+        try {
+            $roll = $this->service->rejectRoll($roll->id, $validated['rejection_reason']);
+
+            return response()->json([
+                'message' => 'Rollo rechazado correctamente.',
+                'data' => (new FabricRollReceptionResource($roll))->resolve(),
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => collect($e->errors())->flatten()->first() ?: 'No se pudo rechazar el rollo.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+    }
+
     public function storeFromReception(StoreFabricRollRequest $request)
     {
         $data = $request->validated();
-
-        if ($error = $this->validateActualOutput((float) $data['quantity'], (float) ($data['actual_output'] ?? 0))) {
-            return $error;
-        }
 
         try {
             $fabricRoll = $this->service->storeFromReception($data);
@@ -1501,7 +1597,11 @@ class FabricRollController extends Controller
             'item_id' => ['required', 'integer', 'exists:items,id'],
         ]);
 
-        $updatedRoll = $this->service->relinkMainFabric($fabricRoll, (int) $validated['item_id']);
+        try {
+            $updatedRoll = $this->service->relinkMainFabric($fabricRoll, (int) $validated['item_id']);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => $e->getMessage(), 'errors' => $e->errors()], 422);
+        }
         $updatedItem = $updatedRoll->item;
 
         return response()->json([
@@ -1531,23 +1631,6 @@ class FabricRollController extends Controller
         $rolls = $this->service->getByInvoiceItem($itemId);
 
         return response()->json(FabricRollReceptionResource::collection($rolls)->resolve());
-    }
-
-    protected function validateActualOutput(float $quantity, float $actualOutput): ?JsonResponse
-    {
-        if ($actualOutput > $quantity) {
-            return $this->actualOutputErrorResponse();
-        }
-
-        return null;
-    }
-
-    protected function actualOutputErrorResponse(): JsonResponse
-    {
-        return response()->json([
-            'message' => 'La salida real no puede ser mayor que la cantidad del rollo',
-            'errors' => ['actual_output' => ['La salida real no puede ser mayor que la cantidad del rollo']],
-        ], 422);
     }
 
     protected function resolveReceptionScope(mixed $scope): string

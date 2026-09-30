@@ -7,8 +7,10 @@ class DischargeManualRollRequest extends \App\Http\Requests\Inventory\InventoryF
     public function rules(): array
     {
         return [
-            'quantity' => ['required', 'numeric', 'min:0.01'],
+            // 0 solo es válido al dar el rollo por terminado sin consumo adicional (lo valida el servicio).
+            'quantity' => ['required', 'numeric', 'min:0', 'decimal:0,2'],
             'reason' => ['nullable', 'string', 'max:500'],
+            'finish_roll' => ['nullable', 'boolean'],
         ];
     }
 
@@ -16,7 +18,8 @@ class DischargeManualRollRequest extends \App\Http\Requests\Inventory\InventoryF
     {
         return [
             'quantity.required' => 'La cantidad es obligatoria.',
-            'quantity.min' => 'La cantidad debe ser mayor a 0.01.',
+            'quantity.min' => 'La cantidad no puede ser negativa.',
+            'quantity.decimal' => 'La cantidad admite máximo 2 decimales.',
         ];
     }
 }

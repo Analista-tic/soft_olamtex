@@ -8,7 +8,7 @@ class DischargeFabricRollRequest extends \App\Http\Requests\Inventory\InventoryF
     {
         return [
             'type' => ['required', 'in:salida,entrada'],
-            'quantity' => ['required', 'numeric', 'min:0.01'],
+            'quantity' => ['required', 'numeric', 'min:0.01', 'decimal:0,2'],
             'reason' => ['required', 'string', 'max:500'],
             'production_order_id' => ['nullable', 'integer', 'exists:production_orders,id'],
             'credit_note' => ['nullable', 'string', 'max:100'],

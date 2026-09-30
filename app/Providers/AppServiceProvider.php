@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
+use App\Models\Expenses\PurchaseDocumentItemReception;
 use App\Models\Expenses\PurchaseDocumentReceptionEvent;
 use App\Models\Expenses\PurchaseRequest;
 use App\Models\Finance\Retention;
@@ -49,6 +50,7 @@ use App\Models\Settings\User;
 use App\Models\Settings\Role;
 use App\Models\Settings\Setting;
 use App\Models\Textil\FabricRoll;
+use App\Models\Textil\FabricRollLengthDifference;
 use App\Observers\AuditObserver;
 use App\Observers\Textil\FabricRollObserver;
 use Illuminate\Database\Eloquent\Model;
@@ -143,6 +145,7 @@ class AppServiceProvider extends ServiceProvider
             PurchaseRequest::class,
             PurchaseDocument::class,
             PurchaseDocumentItem::class,
+            PurchaseDocumentItemReception::class,
             PurchaseDocumentReceptionEvent::class,
             // Inventory
             Warehouse::class,
@@ -175,6 +178,7 @@ class AppServiceProvider extends ServiceProvider
             ProductSheetCuttingPiece::class,
             // Textil
             FabricRoll::class,
+            FabricRollLengthDifference::class,
         ];
 
         foreach ($auditedModels as $modelClass) {
