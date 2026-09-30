@@ -152,3 +152,43 @@ test('a pending_receipt invoice can be deleted', function (string $base) {
     expect($invoice->canEditInvoice())->toBeTrue();
     $this->actingAs($user)->deleteJson("$base/{$invoice->id}")->assertOk();
 })->with('invoice endpoints');
+
+// ---------- Páginas de creación y edición ----------
+
+test('the create page for requests, orders and invoices (normal and fabric) responds ok', function () {
+    $user = lockUser([
+        'ver propios solicitudes compra', 'crear solicitudes compra',
+        'ver ordenes compra', 'crear ordenes compra',
+        'ver facturas compra', 'crear facturas compra',
+    ]);
+
+    $this->actingAs($user)->get('/gastos/solicitudes-compra/crear')->assertOk();
+    $this->actingAs($user)->get('/gastos/ordenes-compra/crear')->assertOk();
+    $this->actingAs($user)->get('/gastos/facturas-compra/crear')->assertOk();
+    $this->actingAs($user)->get('/gastos/facturas-compra-tela/crear')->assertOk();
+});
+
+test('a draft request edit page responds ok and a non-draft one is forbidden', function () {
+    $user = lockUser(['ver propios solicitudes compra', 'editar solicitudes compra']);
+    $draft = lockRequest($user, 'draft');
+    $pending = lockRequest($user, 'pending');
+
+    $this->actingAs($user)->get("/gastos/solicitudes-compra/{$draft->id}/editar")->assertOk();
+    $this->actingAs($user)->get("/gastos/solicitudes-compra/{$pending->id}/editar")->assertForbidden();
+});
+
+test('a pending order edit page responds ok', function () {
+    $user = lockUser(['ver ordenes compra', 'ver todos ordenes compra', 'editar ordenes compra']);
+    $pending = lockDoc('purchase_order', 'pending');
+
+    $this->actingAs($user)->get("/gastos/ordenes-compra/{$pending->id}/editar")->assertOk();
+});
+
+test('the invoice edit page responds ok when pending receipt and forbidden with a pending difference', function (string $base) {
+    $user = lockUser(['ver facturas compra', 'ver todos facturas compra', 'editar facturas compra']);
+    $editable = lockDoc('purchase_invoice', 'pending_receipt');
+    $locked = lockDoc('purchase_invoice', 'pending_receipt', 'pending_difference_approval');
+
+    $this->actingAs($user)->get("$base/{$editable->id}/editar")->assertOk();
+    $this->actingAs($user)->get("$base/{$locked->id}/editar")->assertForbidden();
+})->with('invoice endpoints');

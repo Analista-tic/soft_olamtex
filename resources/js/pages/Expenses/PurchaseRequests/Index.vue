@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import HoverTooltip from '@/components/common/HoverTooltip.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import ConfirmWithInputDialog from '@/components/common/ConfirmWithInputDialog.vue';
@@ -25,7 +26,7 @@ import { getPurchaseRequestStatus } from '@/domain/Expenses/statuses';
 import { canDeleteRequest as canDeleteRequestRule, canEditRequest as canEditRequestRule } from '@/domain/Expenses/rules';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useAuthStore } from '@/stores/auth';
-import { Head, usePage } from '@inertiajs/vue3';
+import { Head, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { CheckCircle, MessageSquareWarning, PlusCircle, Send, X, XCircle } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -121,10 +122,7 @@ function closeDialog() {
 }
 
 function openCreateRequest() {
-    dialogType.value = 'create';
-    dialogForm.value = {};
-    dialogReadonly.value = false;
-    isDialogOpen.value = true;
+    router.visit('/gastos/solicitudes-compra/crear');
 }
 
 function viewRequest(request: PurchaseRequest) {
@@ -143,10 +141,7 @@ function editRequest(request: PurchaseRequest) {
         return;
     }
 
-    dialogType.value = 'edit';
-    dialogForm.value = { ...request };
-    dialogReadonly.value = false;
-    isDialogOpen.value = true;
+    router.visit(`/gastos/solicitudes-compra/${request.id}/editar`);
 }
 
 function confirmDeleteRequest(request: PurchaseRequest) {
@@ -452,17 +447,13 @@ watch(
                     </template>
                     <template #actions="{ row: request }">
                         <TableRowActions>
-                            <ViewButton :onClick="() => viewRequest(request)" title="Ver detalles" />
-                            <EditButton
-                                v-if="canEditRequest(request)"
-                                :onClick="() => editRequest(request)"
-                                title="Editar solicitud"
-                            />
-                            <DeleteButton
-                                v-if="canDeleteRequestRule(request.status) && hasDeletePermission"
-                                @click="confirmDeleteRequest(request)"
-                                title="Eliminar solicitud"
-                            />
+                            <HoverTooltip text="Ver detalles"><ViewButton :onClick="() => viewRequest(request)" /></HoverTooltip>
+                            <HoverTooltip v-if="canEditRequest(request)" text="Editar solicitud"><EditButton
+                               
+                                :onClick="() => editRequest(request)" /></HoverTooltip>
+                            <HoverTooltip v-if="canDeleteRequestRule(request.status) && hasDeletePermission" text="Eliminar solicitud"><DeleteButton
+                               
+                                @click="confirmDeleteRequest(request)" /></HoverTooltip>
                             <TableActionsMenu
                                 v-if="canSendToApproval(request) || canApprove(request) || canReject(request) || canCancel(request)"
                                 trigger-class="h-8 w-8"

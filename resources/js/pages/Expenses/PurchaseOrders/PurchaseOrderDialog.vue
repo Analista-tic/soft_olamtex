@@ -13,6 +13,7 @@ import TextareaField from '@/components/TextareaField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import StatusBanner from '@/components/common/StatusBanner.vue';
 import PurchaseInvoiceSummary from '../PurchaseInvoices/PurchaseInvoiceSummary.vue';
+import PurchaseTraceability from '../PurchaseTraceability.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import Label from '@/components/ui/label/Label.vue';
@@ -22,12 +23,10 @@ import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import type { PurchaseOrder } from '@/domain/Expenses';
 import { canEditOrder as canEditOrderRule } from '@/domain/Expenses/rules';
 import type { Contact } from '@/domain/MasterData';
-import type { Option } from '@/domain/shared';
-import { formatRequiredFieldsMessage } from '@/lib/alert-format';
+import { formatPersonNameDisplay } from '@/lib/textNormalizer';
 import axios from 'axios';
-import { LockKeyhole, Plus, X } from 'lucide-vue-next';
+import { LockKeyhole } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
-import ContactDialog from '@/pages/MasterData/Contact/ContactDialog.vue';
 import PurchaseOrderItemsTable from './PurchaseOrderItemsTable.vue';
 
 const props = defineProps<{
@@ -50,21 +49,8 @@ const contactsHasMore = ref(false);
 const isLoadingContacts = ref(false);
 const isLoadingMoreContacts = ref(false);
 const CONTACTS_PER_PAGE = 30;
-const isContactDialogOpen = ref(false);
-const contactDialogError = ref('');
-const contactDialogForm = ref<Partial<Contact>>({ groups: [] });
-const purchaseRequests = ref<any[]>([]);
-const selectedPurchaseRequestId = ref<number | null>(null);
-const selectedPurchaseRequest = ref<any | null>(null); // Solicitud completa seleccionada para mostrar sugerencia
-const isLoading = ref(false);
-const isLoadingPurchaseRequests = ref(false);
-const isSubmittingDialog = ref(false);
-const fieldErrors = ref({ contactId: false, deliveryDate: false, supplierOrderNumber: false });
-const nextOrderId = ref<number | null>(null);
-const isLoadingOrderId = ref(false);
-const isSendingMail = ref(false);
+const selectedPurchaseRequest = ref<any | null>(null); // Solicitud completa asociada a la orden, solo para mostrarla
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
-const originalFormSnapshot = ref<string>('');
 const itemsTableRef = ref<{ addItem: () => void; openItemDialog: () => void; validateFabricFields: () => string | null; itemTypedNames: Record<number, string> } | null>(null);
 const { isBootstrapping, isHydrating, isBlockingLoading, canRenderForm, startLoadingRun, isCurrentLoadingRun, cancelLoadingRun } =
     useDialogLoadingState(dialogOpen);
@@ -86,61 +72,6 @@ const valuesLocked = computed(() => isReadOnly.value || hasInvoices.value);
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + Math.max(Number(item.total) || 0, 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + Math.max(Number(item.total_tax) || 0, 0), 0));
 const total = computed(() => Math.max(subtotal.value, 0) + Math.max(iva.value, 0));
-
-// Recorta nombres de persona a "Nombre Apellido" para que quepan en el label del selector.
-function shortenPersonName(name: string, maxLength = 22): string {
-    const trimmed = String(name || '').trim();
-    if (!trimmed) return '';
-    if (trimmed.length <= maxLength) return trimmed;
-    const parts = trimmed.split(/\s+/);
-    if (parts.length >= 2) {
-        const shortened = `${parts[0]} ${parts[1]}`;
-        if (shortened.length <= maxLength) return shortened;
-        return parts[0];
-    }
-    return trimmed.slice(0, maxLength);
-}
-
-const pendingPurchaseRequestOptions = computed<Option[]>(() => {
-    return purchaseRequests.value.map((request) => {
-        const rawId = request?.id ?? '';
-        const numericId = Number(rawId);
-        const optionId = Number.isNaN(numericId) ? rawId : numericId;
-        // request_number ya incluye "SOL-", no duplicar
-        let requestNumber = request?.request_number || '';
-        if (requestNumber && !requestNumber.startsWith('SOL-')) {
-            requestNumber = `SOL-${requestNumber}`;
-        }
-        if (!requestNumber) {
-            requestNumber = String(request?.id ?? '');
-        }
-        const providerName = request?.provider_name || '';
-        const requesterName = shortenPersonName(request?.requester_name || request?.requester?.name || '');
-        const labelParts = [requestNumber];
-        if (providerName) {
-            labelParts.push(providerName);
-        }
-        if (requesterName) {
-            labelParts.push(`Sol.: ${requesterName}`);
-        }
-        return {
-            id: optionId,
-            name: labelParts.join(' · '),
-        };
-    });
-});
-
-const selectedPurchaseRequestValue = computed<Option['id'] | ''>({
-    get: () => selectedPurchaseRequestId.value ?? '',
-    set: (value) => {
-        if (value === '' || value === null) {
-            selectedPurchaseRequestId.value = null;
-            return;
-        }
-        const numeric = Number(value);
-        selectedPurchaseRequestId.value = Number.isNaN(numeric) ? null : numeric;
-    },
-});
 
 const selectedContactDetails = ref<{ id_number?: string; phone?: string } | null>(null);
 
@@ -197,16 +128,7 @@ const orderDocumentNumber = computed(() => {
     const localDocNumber = localForm.value.document_number;
     const docNumber = formDocNumber || localDocNumber;
 
-    if (props.dialogType === 'edit') {
-        return docNumber || '';
-    }
-    if (docNumber) {
-        return docNumber;
-    }
-    if (isLoadingOrderId.value) return 'Cargando...';
-    if (nextOrderId.value == null) return '';
-
-    return `ORD-${String(nextOrderId.value).padStart(3, '0')}`;
+    return docNumber || '';
 });
 
 function normalizeRequestItems(rawItems: unknown): any[] {
@@ -233,10 +155,6 @@ function getAssociatedPurchaseRequestId(source: unknown = localForm.value): numb
 }
 
 const effectivePurchaseRequestId = computed<number | null>(() => {
-    if (selectedPurchaseRequestId.value) {
-        return Number(selectedPurchaseRequestId.value);
-    }
-
     const selectedId = Number(selectedPurchaseRequest.value?.id);
     if (Number.isFinite(selectedId) && selectedId > 0) {
         return selectedId;
@@ -255,7 +173,7 @@ const requestItemsForTable = computed(() => {
 
 async function ensureAssociatedPurchaseRequestLoaded() {
     const requestId = effectivePurchaseRequestId.value;
-    if (!requestId || selectedPurchaseRequestId.value === requestId) {
+    if (!requestId) {
         return;
     }
 
@@ -266,12 +184,6 @@ async function ensureAssociatedPurchaseRequestLoaded() {
     const embeddedRequest = (localForm.value as any)?.purchase_request;
     if (embeddedRequest && Number(embeddedRequest.id) === requestId) {
         selectedPurchaseRequest.value = embeddedRequest;
-        return;
-    }
-
-    const optionRequest = purchaseRequests.value.find((request) => Number(request?.id) === requestId);
-    if (optionRequest) {
-        selectedPurchaseRequest.value = optionRequest;
         return;
     }
 
@@ -288,23 +200,14 @@ async function initializeDialog() {
     isBootstrapping.value = true;
     isHydrating.value = props.dialogType === 'edit';
     try {
-        // Limpiar solicitud asociada al abrir en modo creacion
-        if (props.dialogType === 'create') {
-            selectedPurchaseRequest.value = null;
-            selectedPurchaseRequestId.value = null;
-        }
         resetForm();
-        await Promise.all([fetchContacts(), fetchPendingPurchaseRequests()]);
+        await fetchContacts();
         if (props.dialogType === 'edit' && props.form?.id) {
             const { data } = await axios.get(`/gastos/ordenes-compra/${props.form.id}`);
             if (isCurrentLoadingRun(currentRun)) {
                 resetForm(data?.data || props.form);
                 await ensureAssociatedPurchaseRequestLoaded();
             }
-        }
-        if (props.dialogType === 'create') {
-            nextOrderId.value = null;
-            void fetchNextOrderId();
         }
         // fetchContacts() ya resolvió y pudo pisar el contacto inyectado por el watch de
         // contact_id (race): se re-asegura aquí, después de que todo lo demás asentó.
@@ -361,29 +264,39 @@ function resetForm(source: Partial<PurchaseOrder> = props.form) {
     if (!Array.isArray(localForm.value.items) || localForm.value.items.length === 0) {
         localForm.value.items = [createEmptyItem()];
     }
-    fieldErrors.value = { contactId: false, deliveryDate: false, supplierOrderNumber: false };
     clearAlerts();
-    originalFormSnapshot.value = stableStringify(localForm.value);
 }
 
-async function fetchContacts(page = 1) {
+let contactSearchTerm = '';
+let contactsRequestId = 0;
+
+async function fetchContacts(page = 1, search = contactSearchTerm) {
+    const currentRequest = ++contactsRequestId;
+    const selectedContactId = Number(localForm.value.contact_id ?? 0);
+    const preservedContact =
+        page === 1 && selectedContactId > 0 ? (contacts.value.find((c) => Number(c.id) === selectedContactId) ?? null) : null;
     if (page === 1) {
+        contactSearchTerm = search;
         isLoadingContacts.value = true;
-        contacts.value = [];
+        contacts.value = preservedContact ? [preservedContact] : [];
         contactsPage.value = 1;
     } else {
         isLoadingMoreContacts.value = true;
     }
     try {
+        const params = (type: string) => ({ contact_type: type, per_page: CONTACTS_PER_PAGE, page, ...(contactSearchTerm ? { search: contactSearchTerm } : {}) });
         const [res1, res2] = await Promise.all([
-            axios.get('/contactos/data', { params: { contact_type: 'proveedor', per_page: CONTACTS_PER_PAGE, page } }),
-            axios.get('/contactos/data', { params: { contact_type: 'cliente_proveedor', per_page: CONTACTS_PER_PAGE, page } }),
+            axios.get('/contactos/data', { params: params('proveedor') }),
+            axios.get('/contactos/data', { params: params('cliente_proveedor') }),
         ]);
+        if (currentRequest !== contactsRequestId) return; // respuesta obsoleta
         const p1: any[] = res1.data?.data ?? [];
         const p2: any[] = res2.data?.data ?? [];
         const newItems = [...p1, ...p2];
         if (page === 1) {
-            contacts.value = newItems as Contact[];
+            contacts.value = (
+                preservedContact && !newItems.some((c: any) => Number(c.id) === selectedContactId) ? [preservedContact, ...newItems] : newItems
+            ) as Contact[];
         } else {
             const seen = new Set(contacts.value.map((c) => c.id));
             contacts.value = [...contacts.value, ...(newItems.filter((c: any) => !seen.has(c.id)) as Contact[])];
@@ -392,385 +305,27 @@ async function fetchContacts(page = 1) {
         const total2: number = res2.data?.total ?? 0;
         contactsHasMore.value = page * CONTACTS_PER_PAGE < total1 || page * CONTACTS_PER_PAGE < total2;
     } catch (e) {
-        if (page === 1) contacts.value = [];
+        if (currentRequest !== contactsRequestId) return;
+        if (page === 1) contacts.value = preservedContact ? [preservedContact] : [];
         contactsHasMore.value = false;
         console.error('Error fetching contacts:', e);
     } finally {
-        isLoadingContacts.value = false;
-        isLoadingMoreContacts.value = false;
+        if (currentRequest === contactsRequestId) {
+            isLoadingContacts.value = false;
+            isLoadingMoreContacts.value = false;
+        }
     }
+}
+
+/** Búsqueda en servidor por nombre, RUC, teléfono o email (el debounce lo aplica SelectField). */
+function handleContactSearch(term: string) {
+    void fetchContacts(1, term.trim());
 }
 
 async function loadMoreContacts() {
     if (!contactsHasMore.value || isLoadingMoreContacts.value) return;
     contactsPage.value++;
     await fetchContacts(contactsPage.value);
-}
-
-function openContactDialog() {
-    contactDialogForm.value = { groups: [] };
-    isContactDialogOpen.value = true;
-}
-
-function handleContactFormUpdate(updatedContact: Partial<Contact>) {
-    contactDialogForm.value = updatedContact;
-}
-
-async function handleContactDialogSubmit(contactData: Partial<Contact>) {
-    try {
-        const { data } = await axios.post('/contactos', contactData);
-        isContactDialogOpen.value = false;
-
-        const created = data?.data;
-        if (created?.id) {
-            contacts.value = [created, ...contacts.value.filter((c) => Number(c.id) !== Number(created.id))];
-            localForm.value.contact_id = Number(created.id);
-        }
-        showSuccess(data?.message || 'Contacto creado correctamente.');
-    } catch (error: any) {
-        const validationErrors = error?.response?.data?.errors;
-        if (validationErrors) {
-            const messages = Object.values(validationErrors)
-                .flat()
-                .join(' ');
-            contactDialogError.value = messages;
-        } else {
-            contactDialogError.value = 'Ocurrió un error al guardar el contacto.';
-        }
-    }
-}
-
-async function fetchNextOrderId() {
-    isLoadingOrderId.value = true;
-    try {
-        const { data } = await axios.get('/gastos/ordenes-compra/data', {
-            params: { per_page: 1, order_by: 'id', order_direction: 'desc' },
-        });
-        const lastId = Array.isArray(data.data) && data.data.length > 0 ? Number(data.data[0].id) : 0;
-        nextOrderId.value = lastId + 1;
-    } catch (e) {
-        nextOrderId.value = 1;
-        console.error('Error fetching next order ID:', e);
-    } finally {
-        isLoadingOrderId.value = false;
-    }
-}
-
-async function fetchPendingPurchaseRequests(search = '') {
-    isLoadingPurchaseRequests.value = true;
-    try {
-        const response = await axios.get('/gastos/solicitudes-compra/data', {
-            params: {
-                fast_select: true,
-                limit: 200,
-                search: search.trim(),
-            },
-        });
-
-        // Manejar diferentes formatos de respuesta
-        let allRequests: any[] = [];
-        if (Array.isArray(response.data?.data)) {
-            allRequests = response.data.data;
-        } else if (Array.isArray(response.data)) {
-            allRequests = response.data;
-        }
-
-        purchaseRequests.value = allRequests;
-    } catch (e) {
-        purchaseRequests.value = [];
-        console.error('Error fetching purchase requests:', e);
-        if ((e as any)?.response) {
-            console.error('Response error:', (e as any).response.data);
-        }
-    } finally {
-        isLoadingPurchaseRequests.value = false;
-    }
-}
-
-function handlePurchaseRequestSearch(term: string) {
-    void fetchPendingPurchaseRequests(term);
-}
-
-async function loadRequestToOrder(requestId: number) {
-    const request = purchaseRequests.value.find((req) => Number(req?.id) === Number(requestId));
-    if (!request) return;
-
-    // Guardar la solicitud completa para mostrar como sugerencia
-    selectedPurchaseRequest.value = request;
-
-    // Cargar contactos si no están cargados
-
-    // Aplicar automáticamente los datos de la solicitud
-    if (!contacts.value.length) await fetchContacts();
-    await applyRequestSuggestion();
-
-    selectedPurchaseRequestId.value = Number(requestId);
-}
-
-const normalizeContactName = (value: unknown) => String(value ?? '').toLowerCase().trim();
-
-// El proveedor puede no estar en la página de contactos ya cargada: se busca puntualmente por nombre.
-async function findProviderContact(providerName: string): Promise<Contact | null> {
-    const target = normalizeContactName(providerName);
-    if (!target) return null;
-
-    const loaded = contacts.value.find((c) => normalizeContactName(c.full_name) === target);
-    if (loaded) return loaded;
-
-    try {
-        const responses = await Promise.all(
-            ['proveedor', 'cliente_proveedor'].map((contact_type) =>
-                axios.get('/contactos/data', { params: { contact_type, search: providerName.trim(), per_page: 20 } }),
-            ),
-        );
-        const found = responses
-            .flatMap((res) => (res.data?.data ?? []) as Contact[])
-            .find((c) => normalizeContactName(c.full_name) === target);
-
-        if (found && !contacts.value.some((c) => c.id === found.id)) {
-            contacts.value = [...contacts.value, found];
-        }
-
-        return found ?? null;
-    } catch (e) {
-        console.error('Error buscando el proveedor de la solicitud:', e);
-        return null;
-    }
-}
-
-async function applyRequestSuggestion() {
-    if (!selectedPurchaseRequest.value) return;
-
-    const request = selectedPurchaseRequest.value;
-
-    const foundContact = await findProviderContact(request.provider_name || '');
-
-    // La solicitud pudo cambiar mientras se buscaba el contacto
-    if (selectedPurchaseRequest.value !== request) return;
-
-    // Aplicar datos de la solicitud al formulario
-    if (foundContact) {
-        localForm.value.contact_id = Number(foundContact.id);
-    }
-
-    localForm.value.description = request.description || '';
-    // NO sobrescribir la fecha de creación - siempre debe ser la fecha actual
-    // localForm.value.date se mantiene con la fecha actual establecida en createDefaultForm
-    localForm.value.delivery_date = normalizeIsoDate(request.delivery_date, null) || '';
-    // Mapear items de la solicitud a items de la orden
-    const requestItems = normalizeRequestItems(request.items);
-
-    if (requestItems.length > 0) {
-        localForm.value.items = requestItems.map((item: any) => ({
-            item_id: item.item_id || null,
-            price: Number(item.price) || 0,
-            tax: item.tax || 0,
-            quantity: Number(item.quantity) || 1,
-            description: item.description || item.name || '',
-            total: Number(item.total) || 0,
-            total_tax: Number(item.total_tax) || 0,
-            supplier_code: item.supplier_code || '',
-            supplier_color: item.supplier_color || '',
-            order_width: Number(item.order_width) || 0,
-            image_url: item.image_url || null,
-        }));
-    }
-
-    originalFormSnapshot.value = stableStringify(localForm.value);
-}
-
-function formatCurrency(value: number) {
-    return Number(value || 0).toLocaleString('es-CO', {
-        style: 'currency',
-        currency: 'COP',
-        minimumFractionDigits: 0,
-    });
-}
-
-const scrollToDialogTop = () => {
-    const dialogEl = document.querySelector('[role="dialog"]');
-    dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
-};
-
-const setErrorMessage = (msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'error') => {
-    showError(msg, type);
-    scrollToDialogTop();
-};
-
-function resolvePurchaseOrderSaveErrorMessage(error: unknown): string {
-    const responseData = (error as any)?.response?.data;
-    const validationErrors = responseData?.errors as Record<string, string[] | string> | undefined;
-
-    if (validationErrors) {
-        const hasInvalidItemError = Object.keys(validationErrors).some((key) => /^items\.\d+\.item_id$/.test(key));
-        if (hasInvalidItemError) {
-            return 'El ítem seleccionado no existe en el catálogo. Créalo primero o selecciona un ítem existente de la lista.';
-        }
-    }
-
-    return (
-        responseData?.message ||
-        Object.values(validationErrors || {})?.flat?.()?.[0] ||
-        'Error al guardar la orden. Por favor intente nuevamente.'
-    );
-}
-
-const stableStringify = (value: any): string => {
-    const normalize = (val: any): any => {
-        if (Array.isArray(val)) return val.map((v) => normalize(v));
-        if (val && typeof val === 'object') {
-            return Object.keys(val)
-                .sort()
-                .reduce(
-                    (acc: any, key) => {
-                        acc[key] = normalize(val[key]);
-                        return acc;
-                    },
-                    {} as Record<string, unknown>,
-                );
-        }
-        return val;
-    };
-    return JSON.stringify(normalize(value));
-};
-
-function handleAddLine() {
-    itemsTableRef.value?.addItem();
-}
-
-async function handleSubmit(sendMail = false) {
-    clearAlerts();
-    if (!validateForm()) return;
-    if (props.dialogType === 'edit' && stableStringify(localForm.value) === originalFormSnapshot.value) {
-        return;
-    }
-    isLoading.value = true;
-    isSubmittingDialog.value = true;
-    isSendingMail.value = sendMail;
-    const formToSend: any = { ...localForm.value };
-    // Asegurar que todos los campos se incluyan, incluso los readonly
-    formToSend.date = normalizeIsoDate(localForm.value.date, getLocalIsoDate()) || getLocalIsoDate();
-    formToSend.delivery_date = normalizeIsoDate(localForm.value.delivery_date, null) || '';
-    formToSend.contact_id = formToSend.contact_id ? Number(formToSend.contact_id) : null;
-    // Si se seleccionó una solicitud, incluir su ID para relacionar la orden con la solicitud
-    if (selectedPurchaseRequestId.value) {
-        formToSend.purchase_request_id = Number(selectedPurchaseRequestId.value);
-    }
-    formToSend.items = Array.isArray(localForm.value.items)
-        ? localForm.value.items.map((item: any) => ({
-              ...item,
-              item_id: item.item_id ? Number(item.item_id) : null,
-              price: Number(item.price) || 0,
-              quantity: Number(item.quantity) || 0,
-              tax: Number(item.tax) || 0,
-              order_width: item.order_width === undefined || item.order_width === null || item.order_width === '' ? '' : String(item.order_width),
-          }))
-        : [];
-    if ('status' in formToSend) delete formToSend.status;
-    if (props.dialogType === 'create') delete formToSend.id;
-    const url = props.dialogType === 'create' ? '/gastos/ordenes-compra' : `/gastos/ordenes-compra/${localForm.value.id}`;
-    const method = props.dialogType === 'create' ? 'POST' : 'PUT';
-    try {
-        const { data } = await axios({ method, url, data: formToSend });
-        if (sendMail) {
-            await axios.post(`/gastos/ordenes-compra/${data.data.id}/enviar-correo-pdf`);
-            const msg = 'Orden guardada y enviada por correo correctamente.';
-            emit('refresh', msg);
-        } else {
-            const msg = props.dialogType === 'create' ? 'Orden creada correctamente.' : 'Orden actualizada correctamente.';
-            emit('refresh', msg);
-            const createdId = Number(data?.data?.id);
-            if (!Number.isNaN(createdId)) {
-                nextOrderId.value = createdId + 1;
-            }
-        }
-        dialogOpen.value = false;
-    } catch (e) {
-        const serverMessage = resolvePurchaseOrderSaveErrorMessage(e);
-        setErrorMessage(serverMessage);
-        emit('error', serverMessage);
-        console.error('Error guardando orden:', e);
-    } finally {
-        isLoading.value = false;
-        isSendingMail.value = false;
-        isSubmittingDialog.value = false;
-    }
-}
-
-function validateForm(): boolean {
-    const missingFields: string[] = [];
-    fieldErrors.value = { contactId: false, deliveryDate: false, supplierOrderNumber: false };
-
-    if (!localForm.value.contact_id) {
-        missingFields.push('Proveedor');
-        fieldErrors.value.contactId = true;
-    }
-    if (!localForm.value.date) {
-        missingFields.push('Fecha de orden');
-    }
-    if (!localForm.value.delivery_date) {
-        missingFields.push('Fecha de entrega');
-        fieldErrors.value.deliveryDate = true;
-    }
-    if (!localForm.value.supplier_order_number || !localForm.value.supplier_order_number.toString().trim()) {
-        missingFields.push('# Pedido Proveedor');
-        fieldErrors.value.supplierOrderNumber = true;
-    }
-
-    if (missingFields.length) {
-        setErrorMessage(formatRequiredFieldsMessage('Por favor completa todos los campos obligatorios', missingFields), 'warning');
-        return false;
-    }
-
-    const items = localForm.value.items || [];
-    if (!items.length) {
-        setErrorMessage('La orden debe contener al menos un ítem.', 'warning');
-        return false;
-    }
-
-    function isValidItemId(id: any): boolean {
-        if (id == null) return false;
-        const n = Number(id);
-        return Number.isInteger(n) && n > 0;
-    }
-
-    const invalidItemIndex = items.findIndex((item) => {
-        const priceInvalid = !item.price || Number(item.price) <= 0;
-        const quantityInvalid = !item.quantity || Number(item.quantity) <= 0;
-        const itemInvalid = !isValidItemId(item.item_id);
-        return priceInvalid || quantityInvalid || itemInvalid;
-    });
-
-    if (invalidItemIndex !== -1) {
-        const invalidItem = items[invalidItemIndex];
-        const itemIdInvalid = !isValidItemId(invalidItem.item_id);
-
-        if (itemIdInvalid) {
-            const typedName =
-                (typeof (invalidItem.item_id as any) === 'string' && (invalidItem.item_id as any).trim()) ||
-                (itemsTableRef.value?.itemTypedNames?.[invalidItemIndex] || '').trim();
-
-            const msg = typedName
-                ? `El ítem '${typedName}' no existe en el catálogo. Créalo primero o selecciona un ítem existente de la lista.`
-                : 'El ítem seleccionado no existe en el catálogo. Créalo primero o selecciona un ítem existente de la lista.';
-            setErrorMessage(msg, 'error');
-            return false;
-        }
-
-        const missingItemFields: string[] = [];
-        if (!invalidItem.price || Number(invalidItem.price) <= 0) missingItemFields.push('Precio SIN Impuesto');
-        if (!invalidItem.quantity || Number(invalidItem.quantity) <= 0) missingItemFields.push('Cantidad');
-        setErrorMessage(formatRequiredFieldsMessage('Cada ítem debe tener los siguientes campos', missingItemFields), 'warning');
-        return false;
-    }
-
-    const fabricError = itemsTableRef.value?.validateFabricFields?.();
-    if (fabricError) {
-        setErrorMessage(fabricError, 'warning');
-        return false;
-    }
-
-    return true;
 }
 
 async function syncSelectedContact(val: unknown) {
@@ -805,26 +360,14 @@ watch(
         if (isOpen) {
             await initializeDialog();
         } else {
-            isSubmittingDialog.value = false;
             cancelLoadingRun();
         }
     },
 );
 watch(dialogOpen, (isOpen) => {
     if (!isOpen) {
-        isSubmittingDialog.value = false;
         cancelLoadingRun();
         emit('close');
-    }
-});
-
-watch(selectedPurchaseRequestId, async (requestId) => {
-    // Solo limpiar si el valor es null o '' (no seleccionado)
-    if (requestId === null || (typeof requestId === 'string' && requestId === '')) {
-        selectedPurchaseRequest.value = null;
-        resetForm();
-    } else if (requestId) {
-        await loadRequestToOrder(requestId);
     }
 });
 </script>
@@ -840,35 +383,6 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                             Orden de Compra
                         </DialogTitle>
                         <DialogDescription> Completa los campos y añade los ítems de la orden. </DialogDescription>
-                    </div>
-                    <div v-if="!isReadOnly" class="w-full shrink-0 sm:w-[340px]">
-                        <div class="space-y-1">
-                            <label class="text-sm font-medium leading-none text-foreground">Cargar desde solicitud aprobada</label>
-                            <div class="flex items-center gap-2">
-                                <div class="flex-1 min-w-0">
-                                    <SelectField
-                                        v-model="selectedPurchaseRequestValue"
-                                        :options="pendingPurchaseRequestOptions"
-                                        label=""
-                                        placeholder="Selecciona una solicitud aprobada para autocompletar"
-                                        :disabled="isReadOnly || dialogType === 'edit'"
-                                        :searchable="true"
-                                        :loading="isLoadingPurchaseRequests"
-                                        search-placeholder="Buscar solicitud..."
-                                        @search="handlePurchaseRequestSearch"
-                                    />
-                                </div>
-                                <button
-                                    type="button"
-                                    class="flex-shrink-0 h-7 w-7 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
-                                    :disabled="!selectedPurchaseRequestId || isReadOnly || dialogType === 'edit'"
-                                    title="Limpiar selección"
-                                    @click="selectedPurchaseRequestId = null; resetForm()"
-                                >
-                                    <X class="h-3.5 w-3.5" />
-                                </button>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </FormDialogHeader>
@@ -894,16 +408,14 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                     :active="isBlockingLoading"
                     :delay-ms="0"
                     message="Cargando orden de compra..."
-                    description="Preparando proveedores, solicitudes aprobadas y datos iniciales."
+                    description="Preparando proveedor y datos de la orden."
                 />
 
                 <template v-if="canRenderForm">
-                    <form
-                        @submit.prevent="handleSubmit()"
-                        :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingOrderId }"
-                        class="space-y-6 pb-4"
-                    >
+                    <form class="space-y-6 pb-4">
                         <div class="space-y-6">
+                            <PurchaseTraceability :url="localForm.id ? `/gastos/ordenes-compra/${localForm.id}/trazabilidad` : null" />
+
                             <!-- Información de solicitud seleccionada -->
                             <div v-if="selectedPurchaseRequest" class="rounded-lg border border-border bg-muted/30 p-4">
                                 <div class="mb-3 flex items-center justify-between">
@@ -942,9 +454,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                             label="N° Orden de Compra"
                                             :modelValue="orderDocumentNumber"
                                             readonly
-                                            v-if="dialogType === 'edit' || (dialogType === 'create' && !isLoadingOrderId && orderDocumentNumber)"
                                         />
-                                        <span v-else-if="dialogType === 'create' && isLoadingOrderId" class="text-muted-foreground">Cargando...</span>
                                     </div>
                                     <div class="relative flex h-full items-center justify-center rounded p-4">
                                         <img :src="logoUrl" alt="Logotipo de la empresa" class="max-h-24 w-auto max-w-[160px] object-contain" />
@@ -982,22 +492,19 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                             label=""
                                             :options="
                                             contacts
-                                                .map((c) => ({ id: c.id, name: c.full_name }))
+                                                .map((c) => ({ id: c.id, name: formatPersonNameDisplay(c.full_name, c.person_type) }))
                                                 .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
                                         "
                                             :disabled="valuesLocked || !canEdit"
                                             :searchable="true"
+                                            :server-search="true"
                                             :loading="isLoadingContacts"
                                             :has-more="contactsHasMore"
                                             :loading-more="isLoadingMoreContacts"
-                                            :action-label="(!valuesLocked && canEdit) ? 'Nuevo contacto' : undefined"
-                                            :action-disabled="valuesLocked || !canEdit"
-                                            :invalid="fieldErrors.contactId"
                                             error-message="Selecciona un proveedor."
                                             required
-                                            @action="openContactDialog"
+                                            @search="handleContactSearch"
                                             @load-more="loadMoreContacts"
-                                            @update:model-value="fieldErrors.contactId = false"
                                         />
                                     </div>
                                     <InputField
@@ -1050,9 +557,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                             :disabled="!canEdit || isReadOnly"
                                             :clearable="true"
                                             :show-today="true"
-                                            :error="fieldErrors.deliveryDate"
                                             required
-                                            @update:model-value="fieldErrors.deliveryDate = false"
                                         />
                                     </div>
                                     <div class="flex flex-col gap-1">
@@ -1071,9 +576,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                             label=""
                                             :disabled="isReadOnly"
                                             :readonly="isReadOnly"
-                                            :error="fieldErrors.supplierOrderNumber"
                                             required
-                                            @update:model-value="fieldErrors.supplierOrderNumber = false"
                                         />
                                     </div>
                                 </div>
@@ -1088,22 +591,6 @@ watch(selectedPurchaseRequestId, async (requestId) => {
 
                                 <!-- Items -->
                                 <InventoryDetailTableLayout :show-create-line-button="false">
-                                    <template #actions>
-                                        <div class="flex items-center gap-2">
-                                            <Button
-                                                v-if="!valuesLocked"
-                                                type="button"
-                                                dusk="btn-agregar-item-orden"
-                                                variant="outline"
-                                                size="pill"
-                                                class="border-primary/40 bg-background text-primary hover:bg-primary/10 hover:text-primary"
-                                                @click="handleAddLine"
-                                            >
-                                                <Plus class="h-2 w-2" />
-                                                Agregar ítem
-                                            </Button>
-                                        </div>
-                                    </template>
                                     <PurchaseOrderItemsTable
                                         ref="itemsTableRef"
                                         :items="localForm.items || []"
@@ -1151,38 +638,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
 
             <FormDialogFooter class="justify-end gap-4 bg-background">
                 <Button variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
-                <Button
-                    v-if="!isReadOnly"
-                    type="button"
-                    variant="default"
-                    size="pill"
-                    dusk="btn-guardar-orden"
-                    :disabled="isLoading || isSendingMail || isBlockingLoading"
-                    @click.prevent="handleSubmit(false)"
-                >
-                    {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
-                </Button>
-                <Button
-                    v-if="!isReadOnly"
-                    type="button"
-                    variant="default"
-                    size="pill"
-                    :disabled="isLoading || isSendingMail || isBlockingLoading"
-                    @click.prevent="handleSubmit(true)"
-                >
-                    {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
-                </Button>
             </FormDialogFooter>
         </FormDialogContent>
     </Dialog>
-    <ContactDialog
-        v-if="isContactDialogOpen"
-        :isOpen="isContactDialogOpen"
-        dialog-type="create"
-        :contactData="contactDialogForm"
-        :externalError="contactDialogError"
-        @close="isContactDialogOpen = false; contactDialogError = ''"
-        @submit="handleContactDialogSubmit"
-        @update:contactData="handleContactFormUpdate"
-    />
 </template>

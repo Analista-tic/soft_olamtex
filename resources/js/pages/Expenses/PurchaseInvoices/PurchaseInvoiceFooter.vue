@@ -47,7 +47,7 @@ defineEmits<{
                 :total="total"
                 :total-pagar="totalPagar"
                 :withholdings="withholdings"
-                :get-withholding-amount="getWithholdingAmount"
+                :get-withholding-amount="(w) => getWithholdingAmount(w as PurchaseInvoiceWithholding)"
             />
         </div>
 

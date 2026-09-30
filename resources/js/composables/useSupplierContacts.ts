@@ -8,47 +8,69 @@ interface ContactLike {
 }
 
 /**
- * Proveedores para los selectores de factura de compra, cargados de a `perPage` (30 por defecto) para no
+ * Proveedores para los selectores de compras (facturas), cargados de a `perPage` (30 por defecto) para no
  * traer todo el catálogo de una vez. Incluye contactos de tipo proveedor y cliente-proveedor.
+ * La búsqueda (`search`) se resuelve en el servidor (nombre, RUC, teléfono, email), no sobre lo ya cargado.
+ * `getSelectedId` devuelve el contacto elegido en el formulario: se conserva en la lista al recargar/buscar
+ * para que el selector nunca pierda su etiqueta ni sus datos (RUC, teléfono).
  * Compartido por las facturas de compra normal y de tela.
  */
-export function useSupplierContacts<T extends ContactLike>(perPage = 30) {
+export function useSupplierContacts<T extends ContactLike>(perPage = 30, getSelectedId: () => number | string | null | undefined = () => null) {
     const contacts = ref<T[]>([]);
     const isLoadingContacts = ref(false);
     const isLoadingMoreContacts = ref(false);
     const contactsHasMore = ref(false);
     const contactsPage = ref(1);
+    let searchTerm = '';
+    let requestId = 0;
 
-    /** Carga la página indicada; la 1 reemplaza la lista y las siguientes se agregan sin duplicar. */
-    async function fetchContacts(page = 1): Promise<void> {
+    /** Carga la página indicada; la 1 reemplaza la lista (conservando el seleccionado) y las siguientes se agregan sin duplicar. */
+    async function fetchContacts(page = 1, search = searchTerm): Promise<void> {
+        const currentRequest = ++requestId;
         if (page === 1) {
+            searchTerm = search;
             isLoadingContacts.value = true;
-            contacts.value = [];
             contactsPage.value = 1;
         } else {
             isLoadingMoreContacts.value = true;
         }
+        const selectedId = Number(getSelectedId() ?? 0);
+        const preserved = page === 1 && selectedId > 0 ? (contacts.value.find((contact) => Number(contact.id) === selectedId) ?? null) : null;
         try {
             const responses = await Promise.all(
                 SUPPLIER_TYPES.map((contactType) =>
-                    axios.get<{ data: T[]; total: number }>('/contactos/data', { params: { contact_type: contactType, per_page: perPage, page } }),
+                    axios.get<{ data: T[]; total: number }>('/contactos/data', {
+                        params: { contact_type: contactType, per_page: perPage, page, ...(searchTerm ? { search: searchTerm } : {}) },
+                    }),
                 ),
             );
+            if (currentRequest !== requestId) return; // respuesta obsoleta: hay una búsqueda más reciente en curso
             const received = responses.flatMap((response) => response.data?.data ?? []);
             if (page === 1) {
-                contacts.value = received;
+                contacts.value = preserved && !received.some((contact) => Number(contact.id) === selectedId) ? [preserved, ...received] : received;
             } else {
                 const seen = new Set(contacts.value.map((contact) => Number(contact.id)));
                 contacts.value = [...contacts.value, ...received.filter((contact) => !seen.has(Number(contact.id)))];
             }
             contactsHasMore.value = responses.some((response) => page * perPage < (response.data?.total ?? 0));
+            if (page === 1 && selectedId > 0 && !contacts.value.some((contact) => Number(contact.id) === selectedId)) {
+                void fetchContactById(selectedId);
+            }
         } catch {
-            if (page === 1) contacts.value = [];
+            if (currentRequest !== requestId) return;
+            if (page === 1) contacts.value = preserved ? [preserved] : [];
             contactsHasMore.value = false;
         } finally {
-            isLoadingContacts.value = false;
-            isLoadingMoreContacts.value = false;
+            if (currentRequest === requestId) {
+                isLoadingContacts.value = false;
+                isLoadingMoreContacts.value = false;
+            }
         }
+    }
+
+    /** Búsqueda en servidor (el debounce ya lo aplica SelectField). Vacío vuelve a la primera página completa. */
+    function searchContacts(term: string): Promise<void> {
+        return fetchContacts(1, term.trim());
     }
 
     async function loadMoreContacts(): Promise<void> {
@@ -72,5 +94,5 @@ export function useSupplierContacts<T extends ContactLike>(perPage = 30) {
         }
     }
 
-    return { contacts, isLoadingContacts, isLoadingMoreContacts, contactsHasMore, fetchContacts, loadMoreContacts, fetchContactById };
+    return { contacts, isLoadingContacts, isLoadingMoreContacts, contactsHasMore, fetchContacts, searchContacts, loadMoreContacts, fetchContactById };
 }

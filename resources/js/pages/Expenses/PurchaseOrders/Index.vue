@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import HoverTooltip from '@/components/common/HoverTooltip.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import {
@@ -22,8 +23,9 @@ import TableRowActions from '@/components/common/TableRowActions.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import ViewButton from '@/components/common/ViewButton.vue';
 import { getPurchaseOrderStatus } from '@/domain/Expenses/statuses';
-import { canDeleteOrder as canDeleteOrderRule, canEditOrder as canEditOrderRule } from '@/domain/Expenses/rules';
+import { canDeleteOrder as canDeleteOrderRule, canEditOrder as canEditOrderRule, canSendOrderByEmail } from '@/domain/Expenses/rules';
 import { formatCurrency, formatDate } from '@/domain/Expenses/format';
+import { formatPersonNameDisplay } from '@/lib/textNormalizer';
 import { useAlertStack } from '@/composables/useAlert';
 import AccountingDateRangePicker from '@/components/AccountingDateRangePicker.vue';
 import FilterBar from '@/components/FilterBar.vue';
@@ -76,7 +78,8 @@ const canApproveOrder = computed(() => authStore.can('aprobar orden compra'));
 const canCreateInvoice = computed(() => authStore.can('crear facturas compra'));
 
 const canApproveRow = (order: PurchaseOrder) => canApproveOrder.value && order.status === 'pending';
-const canInvoiceRow = (order: PurchaseOrder) => canCreateInvoice.value && ['approved', 'partially_invoiced'].includes(String(order.status));
+const canInvoiceRow = (order: PurchaseOrder) =>
+    canCreateInvoice.value && ['approved', 'partially_invoiced'].includes(String(order.status)) && order.has_pending_to_invoice !== false;
 
 
 const { successMessage, errorMessage, errorType, clearSuccess, clearError, showError, showWarning } = useAlertStack();
@@ -89,7 +92,7 @@ const setErrorMessage = (msg: string) => (warningMatcher(msg) ? showWarning(msg)
 const statusFilter = ref<string | null>(null);
 const providerFilter = ref<number | string | null>(null);
 const dateFilter = ref<{ from: string | null; to: string | null }>({ from: null, to: null });
-const providers = ref<{ id: number; full_name: string }[]>([]);
+const providers = ref<{ id: number; full_name: string; person_type?: string | null; id_number?: string | null }[]>([]);
 
 const columns: ListColumn[] = [
     { key: 'document_number', label: 'N° Orden' },
@@ -136,9 +139,11 @@ const computeOrderTotal = (order: PurchaseOrder) => {
 
 
 async function fetchProviders() {
-    // Consumir correctamente los contactos como proveedores
-    const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
-    providers.value = response.data.data;
+    const [providerResponse, sharedResponse] = await Promise.all([
+        axios.get('/contactos/data', { params: { contact_type: 'proveedor', per_page: 1000 } }),
+        axios.get('/contactos/data', { params: { contact_type: 'cliente_proveedor', per_page: 1000 } }),
+    ]);
+    providers.value = [...(providerResponse.data?.data ?? []), ...(sharedResponse.data?.data ?? [])];
 }
 
 function closeDialog() {
@@ -283,7 +288,16 @@ onMounted(async () => {
     await authStore.fetchUser(true);
     fetchOrders();
     fetchProviders();
+    openFromViewParam();
 });
+
+// Enlace desde la cadena de documentos: /gastos/ordenes-compra?ver=<id> abre la orden en solo lectura.
+function openFromViewParam() {
+    const id = Number(new URLSearchParams(window.location.search).get('ver'));
+    if (!Number.isInteger(id) || id <= 0) return;
+    window.history.replaceState(window.history.state, '', window.location.pathname);
+    viewOrder({ id } as PurchaseOrder);
+}
 
 
 function confirmDeleteOrder(order: PurchaseOrder) {
@@ -416,7 +430,10 @@ function handleDialogError(message?: string) {
                         label=""
                         :options="
                             providers
-                                .map((prov) => ({ id: String(prov.id), name: prov.full_name }))
+                                .map((prov) => ({
+                                    id: String(prov.id),
+                                    name: `${formatPersonNameDisplay(prov.full_name, prov.person_type)}${prov.id_number ? ` (${prov.id_number})` : ''}`,
+                                }))
                                 .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
                         "
                         placeholder="Proveedor"
@@ -448,12 +465,9 @@ function handleDialogError(message?: string) {
                 <template #cell-delivery_date="{ row: order }">
                     <div class="flex flex-col items-center gap-1">
                         <span>{{ formatDate(order.delivery_date) }}</span>
-                        <TableStatusBadge
-                            v-if="getDeliveryAlert(order)"
-                            :label="getDeliveryAlert(order)!.label"
-                            :tone="getDeliveryAlert(order)!.tone"
-                            :title="getDeliveryAlert(order)!.title"
-                        />
+                        <HoverTooltip v-if="getDeliveryAlert(order)" :text="getDeliveryAlert(order)!.title">
+                            <TableStatusBadge :label="getDeliveryAlert(order)!.label" :tone="getDeliveryAlert(order)!.tone" />
+                        </HoverTooltip>
                     </div>
                 </template>
                 <template #cell-supplier="{ row: order }">{{ order.supplier?.full_name || order.contact?.full_name || '-' }}</template>
@@ -471,20 +485,16 @@ function handleDialogError(message?: string) {
                 <template #cell-status="{ row: order }">
                     <div class="flex flex-col items-center gap-1">
                         <TableStatusBadge :dusk="`estado-orden-${order.id}`" :label="getPurchaseOrderStatus(order.status).label" :tone="getPurchaseOrderStatus(order.status).tone" />
-                        <span
-                            v-if="(order as any).sent_at"
-                            class="text-xs text-muted-foreground"
-                            :title="`Enviada al proveedor el ${formatDate((order as any).sent_at)}`"
-                        >
+                        <span v-if="(order as any).sent_at" class="text-xs text-muted-foreground">
                             Enviada {{ formatDate((order as any).sent_at) }}
                         </span>
                     </div>
                 </template>
                 <template #actions="{ row: order }">
                             <TableRowActions>
-                                <ViewButton :onClick="() => viewOrder(order)" title="Ver orden" />
-                                <EditButton v-if="canEditOrder && canEditOrderRule(order.status)" title="Editar orden" @click="router.visit('/gastos/ordenes-compra/' + order.id + '/editar')" />
-                                <DeleteButton v-if="canDeleteOrder && canDeleteOrderRule(order.status)" @click="confirmDeleteOrder(order)" title="Eliminar orden" />
+                                <HoverTooltip text="Ver orden"><ViewButton :onClick="() => viewOrder(order)" /></HoverTooltip>
+                                <HoverTooltip v-if="canEditOrder && canEditOrderRule(order.status)" text="Editar orden"><EditButton @click="router.visit('/gastos/ordenes-compra/' + order.id + '/editar')" /></HoverTooltip>
+                                <HoverTooltip v-if="canDeleteOrder && canDeleteOrderRule(order.status)" text="Eliminar orden"><DeleteButton @click="confirmDeleteOrder(order)" /></HoverTooltip>
                                 <TableActionsMenu trigger-class="h-8 w-8" title="Más acciones">
                                     <DropdownMenuItem
                                         v-if="canApproveRow(order)"
@@ -514,7 +524,7 @@ function handleDialogError(message?: string) {
                                         <Printer class="mr-2 h-4 w-4" />
                                         Imprimir orden
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem v-if="canEditOrder" @click="sendOrderByEmail(order)">
+                                    <DropdownMenuItem v-if="canEditOrder && canSendOrderByEmail(order.status)" @click="sendOrderByEmail(order)">
                                         <Mail class="mr-2 h-4 w-4" />
                                         Enviar orden por correo al proveedor
                                     </DropdownMenuItem>

@@ -97,7 +97,7 @@ async function doPrint() {
           <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;color:#888">{{ (idx as number) + 1 }}</td>
           <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-weight:500">{{ item.item?.name || '—' }}</td>
           <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;color:#555">{{ item.description || '—' }}</td>
-          <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:right;font-variant-numeric:tabular-nums">{{ Number(item.quantity).toLocaleString('es-CO') }}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:right;font-variant-numeric:tabular-nums">{{ Number(item.quantity).toLocaleString('es-CO', { maximumFractionDigits: 2 }) }}</td>
           <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:right;font-variant-numeric:tabular-nums">{{ fmtCOP(item.price) }}</td>
           <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:right;color:#888">{{ Math.round(Number(item.tax ?? 0)) }}%</td>
           <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:right;font-variant-numeric:tabular-nums">{{ fmtCOP(item.total) }}</td>

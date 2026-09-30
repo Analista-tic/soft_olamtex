@@ -105,6 +105,21 @@ test('sending the order to the supplier marks it as sent without changing its st
         ->and($fresh->status->value ?? $fresh->status)->toBe('approved');
 });
 
+test('a pending or rejected order is not sent to the supplier', function () {
+    \Illuminate\Support\Facades\Mail::fake();
+    $supplier = \App\Models\MasterData\Contact::factory()->create(['email' => 'proveedor@example.com']);
+    $user = userWithPermissions(['ver ordenes compra', 'ver todos ordenes compra', 'editar ordenes compra']);
+
+    foreach (['pending', 'rejected'] as $status) {
+        $order = makePurchaseDocument('purchase_order', $status);
+        $order->forceFill(['contact_id' => $supplier->id])->save();
+
+        $this->actingAs($user)->postJson("/gastos/ordenes-compra/{$order->id}/enviar-correo-pdf")->assertStatus(422);
+        expect($order->fresh()->sent_at)->toBeNull();
+    }
+    \Illuminate\Support\Facades\Mail::assertNothingSent();
+});
+
 test('legacy payment routes require voucher permissions', function () {
     $user = User::factory()->create();
     $invoice = makePurchaseDocument('purchase_invoice', 'pending_receipt');

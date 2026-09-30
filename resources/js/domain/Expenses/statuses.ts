@@ -22,15 +22,23 @@ const PURCHASE_ORDER_STATUSES: Record<string, StatusMeta> = {
     rejected: { label: 'Rechazada', tone: 'red' },
 };
 
-const PURCHASE_INVOICE_STATUSES: Record<string, StatusMeta> = {
-    pending_receipt: { label: 'Pendiente de recepción', tone: 'yellow' },
-    pending: { label: 'Pendiente de recepción', tone: 'yellow' },
-    received: { label: 'Recepcionada', tone: 'green' },
-    approved: { label: 'Recepcionada', tone: 'green' },
+/**
+ * Estado único que ve el usuario en una factura (4 opciones, mutuamente excluyentes). Resume `status` y
+ * `approval_status` en "lo que falta por hacer"; el detalle (qué se rechazó, si hubo diferencia) va en la ayuda.
+ */
+export type PurchaseInvoiceStatusKey = 'pending_receipt' | 'pending_difference_approval' | 'received' | 'rejected';
+
+const PURCHASE_INVOICE_STATUSES: Record<PurchaseInvoiceStatusKey, StatusMeta> = {
+    pending_receipt: { label: 'Por recibir', tone: 'yellow' },
+    pending_difference_approval: { label: 'Requiere aprobación', tone: 'amber' },
+    received: { label: 'Recibida', tone: 'green' },
     rejected: { label: 'Rechazada', tone: 'red' },
-    pending_difference_approval: { label: 'Aprobación pendiente', tone: 'yellow' },
-    difference_rejected: { label: 'Diferencia rechazada', tone: 'red' },
 };
+
+/** Opciones del filtro "Estado" de facturas; el `id` se envía como `invoice_status` al backend. */
+export const PURCHASE_INVOICE_STATUS_OPTIONS: { id: PurchaseInvoiceStatusKey; name: string }[] = (
+    Object.keys(PURCHASE_INVOICE_STATUSES) as PurchaseInvoiceStatusKey[]
+).map((id) => ({ id, name: PURCHASE_INVOICE_STATUSES[id].label }));
 
 function unknownStatus(status?: string | null): StatusMeta {
     return { label: status || 'Sin estado', tone: 'gray' };
@@ -44,10 +52,66 @@ export function getPurchaseOrderStatus(status?: string | null): StatusMeta {
     return PURCHASE_ORDER_STATUSES[status ?? ''] ?? unknownStatus(status);
 }
 
-/** Estado de factura/recepción; `approvalStatus` (aprobación de diferencias) tiene prioridad sobre `status`. */
+/**
+ * Estado único de una factura a partir de `status` y `approval_status`.
+ * Precedencia (igual a PurchaseDocumentService::applyInvoiceStatusFilter):
+ * rechazada (recepción o diferencia) > requiere aprobación > recibida > por recibir.
+ * `approved` (recepción de tela) equivale a `received`; vacío/`pending` heredados equivalen a `pending_receipt`.
+ */
+export function resolvePurchaseInvoiceStatusKey(status?: string | null, approvalStatus?: string | null): PurchaseInvoiceStatusKey {
+    const s = String(status ?? '')
+        .trim()
+        .toLowerCase();
+    const a = String(approvalStatus ?? '')
+        .trim()
+        .toLowerCase();
+    if (s === 'rejected' || s === 'difference_rejected' || a === 'difference_rejected') return 'rejected';
+    if (a === 'pending_difference_approval') return 'pending_difference_approval';
+    if (s === 'received' || s === 'approved') return 'received';
+    return 'pending_receipt';
+}
+
+/** Estado de factura/recepción (etiqueta y color) según `resolvePurchaseInvoiceStatusKey`. */
 export function getPurchaseInvoiceStatus(status?: string | null, approvalStatus?: string | null): StatusMeta {
-    if (approvalStatus === 'pending_difference_approval' || approvalStatus === 'difference_rejected') {
-        return PURCHASE_INVOICE_STATUSES[approvalStatus];
+    return PURCHASE_INVOICE_STATUSES[resolvePurchaseInvoiceStatusKey(status, approvalStatus)];
+}
+
+/** Una diferencia ya aprobada no es un estado: es historia de la factura y se muestra como ícono informativo. */
+export function hasApprovedDifference(approvalStatus?: string | null, hasDifference?: boolean | null): boolean {
+    return (
+        String(approvalStatus ?? '')
+            .trim()
+            .toLowerCase() === 'approved' && Boolean(hasDifference)
+    );
+}
+
+/** Texto de ayuda del estado (al pasar el mouse): aclara qué se rechazó o qué falta. */
+export function getPurchaseInvoiceStatusHint(status?: string | null, approvalStatus?: string | null): string {
+    const s = String(status ?? '')
+        .trim()
+        .toLowerCase();
+    const a = String(approvalStatus ?? '')
+        .trim()
+        .toLowerCase();
+    switch (resolvePurchaseInvoiceStatusKey(status, approvalStatus)) {
+        case 'rejected':
+            return s === 'rejected' ? 'Se rechazó la recepción de la mercancía.' : 'Se rechazó la diferencia facturada frente a la orden.';
+        case 'pending_difference_approval':
+            return 'Hay una diferencia esperando que la apruebe o rechace quien tenga permiso.';
+        case 'received':
+            return a === 'approved' ? 'Mercancía recibida (con una diferencia aprobada).' : 'Mercancía recibida.';
+        default:
+            return a === 'approved' ? 'Aún no llega la mercancía (tiene una diferencia aprobada).' : 'Aún no llega la mercancía.';
     }
-    return PURCHASE_INVOICE_STATUSES[status ?? ''] ?? unknownStatus(status);
+}
+
+const FABRIC_ROLL_TOLERANCE_STATUSES: Record<string, StatusMeta> = {
+    pending_review: { label: 'En revisión', tone: 'yellow' },
+    approved_with_difference: { label: 'Aprobado con diferencia', tone: 'blue' },
+    rejected: { label: 'Rechazado', tone: 'red' },
+};
+
+/** Estado de tolerancia de un rollo de recepción; `null` cuando no tiene marca (`none`) y no se muestra badge. */
+export function getFabricRollToleranceStatus(status?: string | null): StatusMeta | null {
+    return FABRIC_ROLL_TOLERANCE_STATUSES[status ?? ''] ?? null;
 }

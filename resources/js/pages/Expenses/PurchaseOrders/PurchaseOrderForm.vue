@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import HoverTooltip from '@/components/common/HoverTooltip.vue';
 import { formatPersonNameDisplay } from '@/lib/textNormalizer';
 import AppLayout from '@/layouts/AppLayout.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
@@ -44,8 +45,6 @@ const contactsPage = ref(1);
 const contactsHasMore = ref(false);
 const isLoadingMoreContacts = ref(false);
 const CONTACTS_PER_PAGE = 30;
-const nextDocumentNumber = ref<string>('');
-const isLoadingDocumentNumber = ref(false);
 const isContactDialogOpen = ref(false);
 const contactDialogError = ref('');
 const contactDialogForm = ref<any>({ groups: [] });
@@ -58,7 +57,9 @@ const isSubmitting = ref(false);
 const smartLoading = useSmartLoading();
 smartLoading.reset();
 const pageLoadTaskId = smartLoading.start({ label: 'Cargando orden de compra...' });
-const deliveryDateError = ref(false);
+// Errores por campo del encabezado (se pintan en rojo); se limpian al llenar el campo.
+const REQUIRED_FIELD_MESSAGE = 'Este campo es obligatorio.';
+const fieldErrors = ref<Record<string, string>>({});
 const isLoadingRequest = ref(false);
 const isLoadingPurchaseRequests = ref(false);
 const isLoadingContacts = ref(false);
@@ -124,9 +125,6 @@ function daysAgo(isoDate: string | null): { label: string; urgent: boolean } {
     return { label: `hace ${diff} días`, urgent: diff >= 7 };
 }
 
-function formatCurrency(value: number) {
-    return Number(value || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
-}
 
 function getLocalIsoDate() {
     const today = new Date();
@@ -195,9 +193,10 @@ const requestItemsForTable = computed(() => {
 });
 
 let contactSearchTerm = '';
-let contactSearchTimer: ReturnType<typeof setTimeout> | undefined;
+let contactsRequestId = 0;
 
 async function fetchContacts(page = 1, search = '') {
+    const currentRequestId = ++contactsRequestId;
     // Guardar contacto seleccionado ANTES de limpiar la lista
     const selectedContactId = Number(localForm.value.contact_id ?? 0);
     const preservedContact = page === 1 && selectedContactId > 0
@@ -205,6 +204,7 @@ async function fetchContacts(page = 1, search = '') {
         : null;
 
     if (page === 1) {
+        contactSearchTerm = search.trim();
         isLoadingContacts.value = true;
         contacts.value = preservedContact ? [preservedContact] : [];
         contactsPage.value = 1;
@@ -212,11 +212,12 @@ async function fetchContacts(page = 1, search = '') {
         isLoadingMoreContacts.value = true;
     }
     try {
-        const params = (type: string) => ({ contact_type: type, per_page: CONTACTS_PER_PAGE, page, ...(search ? { search } : {}) });
+        const params = (type: string) => ({ contact_type: type, per_page: CONTACTS_PER_PAGE, page, ...(contactSearchTerm ? { search: contactSearchTerm } : {}) });
         const [res1, res2] = await Promise.all([
             axios.get('/contactos/data', { params: params('proveedor') }),
             axios.get('/contactos/data', { params: params('cliente_proveedor') }),
         ]);
+        if (currentRequestId !== contactsRequestId) return;
         const p1: any[] = res1.data?.data ?? [];
         const p2: any[] = res2.data?.data ?? [];
         const newItems = [...p1, ...p2];
@@ -236,21 +237,21 @@ async function fetchContacts(page = 1, search = '') {
             void fetchContactDetail(contactId);
         }
     } catch (e) {
-        if (page === 1) contacts.value = [];
+        if (currentRequestId !== contactsRequestId) return;
+        if (page === 1) contacts.value = preservedContact ? [preservedContact] : [];
         contactsHasMore.value = false;
         console.error(e);
     } finally {
-        isLoadingContacts.value = false;
-        isLoadingMoreContacts.value = false;
+        if (currentRequestId === contactsRequestId) {
+            isLoadingContacts.value = false;
+            isLoadingMoreContacts.value = false;
+        }
     }
 }
 
 function handleContactSearch(term: string) {
     contactSearchTerm = term;
-    if (contactSearchTimer) clearTimeout(contactSearchTimer);
-    contactSearchTimer = setTimeout(() => {
-        void fetchContacts(1, contactSearchTerm);
-    }, 300);
+    void fetchContacts(1, term.trim());
 }
 
 async function loadMoreContacts() {
@@ -292,26 +293,6 @@ async function fetchPendingPurchaseRequests(search = '') {
 
 function handlePurchaseRequestSearch(term: string) {
     void fetchPendingPurchaseRequests(term);
-}
-
-async function fetchNextDocumentNumber() {
-    isLoadingDocumentNumber.value = true;
-    try {
-        const { data } = await axios.get('/gastos/ordenes-compra/data', {
-            params: { per_page: 1, order_by: 'id', order_direction: 'desc' },
-        });
-
-        const last: string = Array.isArray(data.data) && data.data.length > 0
-            ? (data.data[0].document_number || '')
-            : '';
-        const lastNum = last ? parseInt(String(last).replace('ORD-', ''), 10) : 0;
-        const next = Number.isNaN(lastNum) ? 1 : lastNum + 1;
-        nextDocumentNumber.value = `ORD-${String(next).padStart(4, '0')}`;
-    } catch {
-        nextDocumentNumber.value = 'ORD-0001';
-    } finally {
-        isLoadingDocumentNumber.value = false;
-    }
 }
 
 function openContactDialog(prefillName = '') {
@@ -395,14 +376,36 @@ async function handleSubmit(sendMail = false) {
     }
 }
 
+function clearFieldError(field: string) {
+    delete fieldErrors.value[field];
+}
+
+(['contact_id', 'delivery_date', 'supplier_order_number'] as const).forEach((field) => {
+    watch(
+        () => localForm.value?.[field],
+        () => clearFieldError(field),
+    );
+});
+
 function validateForm(): boolean {
     const missingFields: string[] = [];
+    const errors: Record<string, string> = {};
 
-    if (!localForm.value.contact_id) missingFields.push('Proveedor');
+    if (!localForm.value.contact_id) {
+        missingFields.push('Proveedor');
+        errors.contact_id = REQUIRED_FIELD_MESSAGE;
+    }
     if (!localForm.value.date) missingFields.push('Fecha de creación');
-    deliveryDateError.value = !localForm.value.delivery_date;
-    if (!localForm.value.delivery_date) missingFields.push('Fecha de entrega');
-    if (!String(localForm.value.supplier_order_number || '').trim()) missingFields.push('N° Orden proveedor');
+    if (!localForm.value.delivery_date) {
+        missingFields.push('Fecha de entrega');
+        errors.delivery_date = REQUIRED_FIELD_MESSAGE;
+    }
+    if (!String(localForm.value.supplier_order_number || '').trim()) {
+        missingFields.push('N° Orden proveedor');
+        errors.supplier_order_number = REQUIRED_FIELD_MESSAGE;
+    }
+
+    fieldErrors.value = errors;
 
     if (missingFields.length > 0) {
         showError(`Completa los campos obligatorios: ${missingFields.join(', ')}.`);
@@ -410,7 +413,7 @@ function validateForm(): boolean {
     }
 
     if (localForm.value.date && localForm.value.delivery_date && localForm.value.delivery_date < localForm.value.date) {
-        deliveryDateError.value = true;
+        fieldErrors.value.delivery_date = 'La fecha de entrega no puede ser anterior a la fecha de creación.';
         showError('La fecha de entrega no puede ser anterior a la fecha de creación.');
         return false;
     }
@@ -477,9 +480,6 @@ onMounted(async () => {
     isLoading.value = true;
     try {
         await Promise.all([fetchContacts(), canViewPurchaseRequests.value ? fetchPendingPurchaseRequests() : Promise.resolve()]);
-        if (mode.value === 'create') {
-            await fetchNextDocumentNumber();
-        }
         if (mode.value === 'edit' && props.form) {
             initializeFromForm();
         }
@@ -729,13 +729,13 @@ watch(myRequestsOnly, () => {
                                     />
                                 </div>
                                 <DatePickerField
+                                    dusk="input-fecha-entrega"
                                     v-model="localForm.delivery_date"
                                     label=""
                                     :clearable="true"
                                     :show-today="true"
-                                    :error="deliveryDateError"
+                                    :error="fieldErrors.delivery_date"
                                     required
-                                    @update:model-value="deliveryDateError = false"
                                 />
                             </div>
                         </div>
@@ -756,8 +756,7 @@ watch(myRequestsOnly, () => {
                             <div style="width: 160px;">
                                 <InputField
                                     label=""
-                                    :modelValue="mode === 'create' ? nextDocumentNumber : (localForm.document_number || '')"
-                                    :placeholder="isLoadingDocumentNumber ? 'Generando...' : ''"
+                                    :modelValue="mode === 'create' ? 'Se asigna al guardar' : (localForm.document_number || '')"
                                     readonly
                                     class="text-center"
                                 />
@@ -771,6 +770,7 @@ watch(myRequestsOnly, () => {
                         <!-- Fila 1: Proveedor | N° identificación | Teléfono -->
                         <div>
                             <SelectField
+                                dusk="select-proveedor"
                                 v-model="localForm.contact_id"
                                 label="Proveedor"
                                 :options="
@@ -790,28 +790,34 @@ watch(myRequestsOnly, () => {
                                 @load-more="loadMoreContacts"
                                 @search="handleContactSearch"
                                 required
+                                :invalid="!!fieldErrors.contact_id"
+                                :error-message="fieldErrors.contact_id"
                             />
                             <div
                                 v-if="suggestedProviderName && !localForm.contact_id"
                                 class="mt-1 flex items-center justify-between gap-2"
                             >
-                                <button
-                                    type="button"
-                                    class="flex min-w-0 flex-1 items-center gap-1 rounded px-1 py-0.5 text-left text-xs text-muted-foreground transition hover:bg-accent hover:text-accent-foreground"
-                                    title="Buscar este proveedor en contactos"
-                                    @click="handleContactSearch(suggestedProviderName)"
-                                >
-                                    <Lightbulb class="h-3.5 w-3.5 shrink-0 text-amber-400" />
-                                    <span class="min-w-0 flex-1 truncate">{{ suggestedProviderName }}</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-primary transition hover:bg-accent hover:text-accent-foreground"
-                                    title="Nuevo contacto"
-                                    @click="openContactDialog(suggestedProviderName)"
-                                >
-                                    <PlusCircle class="h-4 w-4" />
-                                </button>
+                                <HoverTooltip text="Buscar este proveedor en contactos" class="min-w-0 flex-1">
+                                    <button
+                                        type="button"
+                                        class="flex min-w-0 flex-1 items-center gap-1 rounded px-1 py-0.5 text-left text-xs text-muted-foreground transition hover:bg-accent hover:text-accent-foreground"
+                                        aria-label="Buscar este proveedor en contactos"
+                                        @click="handleContactSearch(suggestedProviderName)"
+                                    >
+                                        <Lightbulb class="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                                        <span class="min-w-0 flex-1 truncate">{{ suggestedProviderName }}</span>
+                                    </button>
+                                </HoverTooltip>
+                                <HoverTooltip text="Nuevo contacto">
+                                    <button
+                                        type="button"
+                                        class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-primary transition hover:bg-accent hover:text-accent-foreground"
+                                        aria-label="Nuevo contacto"
+                                        @click="openContactDialog(suggestedProviderName)"
+                                    >
+                                        <PlusCircle class="h-4 w-4" />
+                                    </button>
+                                </HoverTooltip>
                             </div>
                         </div>
 
@@ -828,7 +834,7 @@ watch(myRequestsOnly, () => {
                                 <Label class="text-sm font-medium">N° Orden proveedor<span class="text-destructive">*</span></Label>
                                 <HelpTooltip text="Número de orden de compra asignado por el proveedor para seguimiento." aria-label="Ayuda sobre orden proveedor" />
                             </div>
-                            <InputField v-model="localForm.supplier_order_number" label="" required />
+                            <InputField dusk="input-supplier-order" v-model="localForm.supplier_order_number" label="" required :error="fieldErrors.supplier_order_number" />
                         </div>
                     </div>
 
@@ -876,7 +882,7 @@ watch(myRequestsOnly, () => {
             <!-- Footer de acciones -->
             <div class="flex justify-end gap-2 pt-2">
                 <Button variant="outline" size="pill" @click="cancel">{{ isReadOnly ? 'Volver' : 'Cancelar' }}</Button>
-                <Button v-if="!isReadOnly" variant="default" size="pill" :disabled="isSubmitting" @click.prevent="handleSubmit(false)">
+                <Button v-if="!isReadOnly" dusk="btn-guardar-orden" variant="default" size="pill" :disabled="isSubmitting" @click.prevent="handleSubmit(false)">
                     {{ mode === 'create' ? 'Guardar orden' : 'Actualizar' }}
                 </Button>
             </div>

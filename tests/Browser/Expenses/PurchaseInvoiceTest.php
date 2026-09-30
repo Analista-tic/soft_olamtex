@@ -89,10 +89,12 @@ class PurchaseInvoiceTest extends DuskTestCase
         $this->browse(function (Browser $browser) use ($proveedorNombre, $itemNombre, $fechaFactura, $fechaEntrega) {
             AuthHelper::loginWithRole($browser, 'admin');
 
+            // "Nueva Factura" ahora navega a /gastos/facturas-compra/crear (página, ya no diálogo).
             $browser->visit('/gastos/facturas-compra')
                 ->waitFor('[dusk="btn-nueva-factura"]', 15)
                 ->click('[dusk="btn-nueva-factura"]')
-                ->waitUntilMissingText('Cargando factura de compra', 15)
+                ->waitForLocation('/gastos/facturas-compra/crear', 15)
+                ->waitFor('[dusk="factura-select-proveedor"]', 15)
                 ->pause(500);
 
             $browser->click('[dusk="factura-select-proveedor"]');
@@ -160,8 +162,10 @@ class PurchaseInvoiceTest extends DuskTestCase
 
             $browser->screenshot('debug-c05-form-completo');
 
+            // Al guardar, la página redirige al listado (mismo patrón que PurchaseOrderForm): no hay
+            // alerta local que sobreviva a la navegación, así que se verifica la llegada al listado.
             $browser->click('[dusk="btn-guardar-factura"]');
-            $browser->waitForText('creada correctamente', 10);
+            $browser->waitForLocation('/gastos/facturas-compra', 15);
             $browser->screenshot('debug-c05-guardada');
 
             $browser->waitUntilMissingText('Cargando');

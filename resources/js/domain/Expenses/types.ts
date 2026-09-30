@@ -20,6 +20,7 @@ export interface PurchaseOrderItem {
 }
 export interface PurchaseOrder {
     id?: number;
+    has_pending_to_invoice?: boolean;
     document_number?: string | null;
     contact_id?: number | null;
     contact?: Contact | null;
@@ -114,6 +115,32 @@ export interface PurchaseInvoice {
     rejection_reason?: string | null;
     rejection_notes?: string | null;
     rejection_evidence_image?: string | null;
+    /** Rollos rechazados en recepción sin nota crédito aprobada (solo facturas de tela). */
+    pending_credit_note_rolls_count?: number;
+    /** Monto (con impuesto) de esos rollos: lo que queda retenido del pago. */
+    pending_credit_note_amount?: number;
+}
+
+/** Cadena solicitud → órdenes → facturas (con recepción). `url` es null si el usuario no puede abrir ese documento. */
+export interface PurchaseChainLink {
+    id: number;
+    number: string | null;
+    status: string | null;
+    date: string | null;
+    created_at: string | null;
+    url: string | null;
+}
+
+export interface PurchaseDocumentChain {
+    current: { type: 'request' | 'order' | 'invoice'; id: number };
+    request: PurchaseChainLink | null;
+    orders: (PurchaseChainLink & { delivery_date: string | null })[];
+    invoices: (PurchaseChainLink & {
+        order_id: number | null;
+        approval_status: string | null;
+        has_difference: boolean;
+        received_at: string | null;
+    })[];
 }
 
 export interface PurchaseRequestItem {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import HoverTooltip from '@/components/common/HoverTooltip.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -372,7 +373,7 @@ function validateFabricFields(): string | null {
         }
         const width = item.order_width;
         if (width === undefined || width === null || (typeof width === 'string' && String(width).trim() === '') || Number(width) <= 0) {
-            return `El ítem "${name}" es tela: el ancho pedido (cm) es obligatorio. En recepción se compara el ancho real del rollo con este valor para validar tolerancias.`;
+            return `El ítem "${name}" es tela: el ancho pedido (m) es obligatorio. En recepción se compara el ancho real del rollo con este valor para validar tolerancias.`;
         }
     }
     return null;
@@ -446,21 +447,12 @@ function setTaxFromItem(item: PurchaseOrderItem) {
     item.tax = Number(taxPercentage) || 0;
 }
 
-function getItemUid(item: any, idx: number): string {
-    return `item-${idx}-${item.item_id ?? 'new'}`;
-}
-
 function openLightbox(url?: string | null) {
     if (!url) {
         return;
     }
     lightboxUrl.value = url;
     showLightbox.value = true;
-}
-
-function closeLightbox() {
-    showLightbox.value = false;
-    lightboxUrl.value = null;
 }
 
 function setDescriptionFromItem(item: any) {
@@ -692,12 +684,16 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                     <TableRow v-for="(item, idx) in localItems" :key="idx">
                         <TableCell class="w-[52px] p-1 text-center align-middle">
                             <div class="flex items-center justify-center">
-                                <button v-if="item.image_url" type="button" class="block h-10 w-10 overflow-hidden rounded-md" title="Ver imagen" @click.stop="openLightbox(item.image_url)">
-                                    <img :src="item.image_url" alt="Imagen del ítem" class="h-full w-full rounded-md object-cover" />
-                                </button>
-                                <span v-else class="inline-flex h-10 w-10 items-center justify-center text-muted-foreground" title="Sin imagen">
-                                    <Image class="h-5 w-5 opacity-30" />
-                                </span>
+                                <HoverTooltip v-if="item.image_url" text="Ver imagen">
+                                    <button type="button" class="block h-10 w-10 overflow-hidden rounded-md" aria-label="Ver imagen" @click.stop="openLightbox(item.image_url)">
+                                        <img :src="item.image_url" alt="Imagen del ítem" class="h-full w-full rounded-md object-cover" />
+                                    </button>
+                                </HoverTooltip>
+                                <HoverTooltip v-else text="Sin imagen">
+                                    <span class="inline-flex h-10 w-10 items-center justify-center text-muted-foreground" aria-label="Sin imagen">
+                                        <Image class="h-5 w-5 opacity-30" />
+                                    </span>
+                                </HoverTooltip>
                             </div>
                         </TableCell>
                         <TableCell class="w-[320px] p-1 text-left align-top">
@@ -738,23 +734,27 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                                     v-if="!isReadOnly && shouldShowRequestCreateAction(item, idx)"
                                     class="mt-1 flex items-center justify-between gap-2"
                                 >
-                                    <button
-                                        type="button"
-                                        class="flex min-w-0 flex-1 items-center gap-1 rounded px-1 py-0.5 text-left text-xs text-muted-foreground transition hover:bg-accent hover:text-accent-foreground"
-                                        title="Seleccionar este ítem en la fila"
-                                        @click.stop="selectSuggestedItemInRow(idx)"
-                                    >
-                                        <Lightbulb class="h-3.5 w-3.5 shrink-0 text-amber-400" />
-                                        <span class="min-w-0 flex-1 truncate">{{ getSuggestedItemLabel(idx) }}</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-primary transition hover:bg-accent hover:text-accent-foreground"
-                                        title="Nuevo ítem"
-                                        @click.stop="openCreateItemDialogForRow(idx)"
-                                    >
-                                        <PlusCircle class="h-4 w-4" />
-                                    </button>
+                                    <HoverTooltip text="Seleccionar este ítem en la fila" class="min-w-0 flex-1">
+                                        <button
+                                            type="button"
+                                            class="flex min-w-0 flex-1 items-center gap-1 rounded px-1 py-0.5 text-left text-xs text-muted-foreground transition hover:bg-accent hover:text-accent-foreground"
+                                            aria-label="Seleccionar este ítem en la fila"
+                                            @click.stop="selectSuggestedItemInRow(idx)"
+                                        >
+                                            <Lightbulb class="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                                            <span class="min-w-0 flex-1 truncate">{{ getSuggestedItemLabel(idx) }}</span>
+                                        </button>
+                                    </HoverTooltip>
+                                    <HoverTooltip text="Nuevo ítem">
+                                        <button
+                                            type="button"
+                                            class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-primary transition hover:bg-accent hover:text-accent-foreground"
+                                            aria-label="Nuevo ítem"
+                                            @click.stop="openCreateItemDialogForRow(idx)"
+                                        >
+                                            <PlusCircle class="h-4 w-4" />
+                                        </button>
+                                    </HoverTooltip>
                                 </div>
                             </div>
                         </TableCell>
@@ -829,7 +829,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                                 v-model="item.order_width"
                                 type="number"
                                 label=""
-                                placeholder="Ancho pedido (cm) *"
+                                placeholder="Ancho pedido (m) *"
                                 step="any"
                                 class="h-10 w-full"
                                 :disabled="isReadOnly"

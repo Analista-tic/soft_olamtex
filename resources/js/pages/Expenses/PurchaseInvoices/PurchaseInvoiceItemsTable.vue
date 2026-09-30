@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatQuantity } from '@/domain/Expenses/format';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
@@ -9,6 +10,7 @@ import { useItemsCatalog } from '@/composables/useItemsCatalog';
 import type { PurchaseInvoiceItem } from '@/domain/Expenses';
 import type { Tax } from '@/domain/Finance';
 import type { Item } from '@/domain/MasterData';
+import { formatDecimalInput } from '@/lib/decimalFormat';
 import { broadcastCatalogInvalidated, onCatalogInvalidatedElsewhere } from '@/lib/crossTabSync';
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
@@ -120,8 +122,8 @@ const tableClasses = computed(() => [
 
 function normalizeOrderWidth(value: string | number | null | undefined) {
     if (value === null || value === undefined) return '';
-    if (typeof value === 'string') return value;
-    return String(value);
+    // El backend serializa decimal:3 ("50.000"); se muestra con coma y dos decimales ("50,00").
+    return formatDecimalInput(value, 2);
 }
 
 function normalizeIncomingItem(item: PurchaseInvoiceItem): PurchaseInvoiceItem {
@@ -441,12 +443,7 @@ function setFieldsFromOrder(item: PurchaseInvoiceItem) {
     if (item.original_order_item) {
         item.supplier_code = item.original_order_item.supplier_code || '';
         item.supplier_color = item.original_order_item.supplier_color || '';
-        item.order_width =
-            typeof item.original_order_item.order_width === 'string'
-                ? item.original_order_item.order_width
-                : item.original_order_item.order_width !== undefined && item.original_order_item.order_width !== null
-                  ? String(item.original_order_item.order_width)
-                  : '';
+        item.order_width = normalizeOrderWidth(item.original_order_item.order_width);
     }
 }
 
@@ -519,7 +516,7 @@ function getQuantityDifferenceTooltip(item: PurchaseInvoiceItem): string {
         return 'La cantidad del ítem difiere de la orden de compra.';
     }
 
-    return `${label}: ${Number(suggested).toLocaleString('es-CO')}. Cantidad actual: ${Number(item.quantity || 0).toLocaleString('es-CO')}.`;
+    return `${label}: ${formatQuantity(suggested)}. Cantidad actual: ${formatQuantity(item.quantity || 0)}.`;
 }
 
 defineExpose({ addItem });
@@ -557,7 +554,7 @@ defineExpose({ addItem });
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[110px] text-left"
                             ><span class="inline-flex items-center gap-1"
                                 >Ancho pedido <span class="text-red-600">*</span
-                                ><HelpTooltip text="Ancho de la tela en centímetros según lo pactado en la orden de compra." /></span
+                                ><HelpTooltip text="Ancho de la tela en metros (ej. 1,50) según lo pactado en la orden de compra." /></span
                         ></TableHead>
                         <TableHead class="min-w-[90px] text-left">Total</TableHead>
                         <TableHead v-if="showActionsColumn" class="w-[60px]"></TableHead>
@@ -684,12 +681,12 @@ defineExpose({ addItem });
                                     <template v-if="getSuggestedQuantity(item) !== null">
                                         <template v-if="Number(item.original_order_item?.already_invoiced_qty) > 0">
                                             <span class="text-amber-600 font-medium">
-                                                Pendiente: {{ Math.max(0, Number(item.original_order_item?.quantity) - Number(item.original_order_item?.already_invoiced_qty)).toLocaleString('es-CO') }} de {{ Number(item.original_order_item?.quantity).toLocaleString('es-CO') }}
+                                                Pendiente: {{ formatQuantity(Math.max(0, Number(item.original_order_item?.quantity) - Number(item.original_order_item?.already_invoiced_qty))) }} de {{ formatQuantity(item.original_order_item?.quantity) }}
                                             </span>
-                                            <span class="ml-1 text-gray-400">(Facturado: {{ Number(item.original_order_item?.already_invoiced_qty).toLocaleString('es-CO') }})</span>
+                                            <span class="ml-1 text-gray-400">(Facturado: {{ formatQuantity(item.original_order_item?.already_invoiced_qty) }})</span>
                                         </template>
                                         <template v-else>
-                                            Cantidad: {{ Number(getSuggestedQuantity(item)).toLocaleString('es-CO') }}
+                                            Cantidad: {{ formatQuantity(getSuggestedQuantity(item)) }}
                                         </template>
                                     </template>
                                 </div>
@@ -718,6 +715,7 @@ defineExpose({ addItem });
                                     class="h-10 w-full"
                                     :readonly="isReadOnly || !isTela(item)"
                                     :disabled="!isTela(item)"
+                                    :dusk="`factura-item-${idx}-codigo-proveedor`"
                                 />
                                 <div class="min-h-[20px]"></div>
                             </div>
@@ -732,6 +730,7 @@ defineExpose({ addItem });
                                     class="h-10 w-full"
                                     :readonly="isReadOnly || !isTela(item)"
                                     :disabled="!isTela(item)"
+                                    :dusk="`factura-item-${idx}-color-proveedor`"
                                 />
                                 <div class="min-h-[20px]"></div>
                             </div>
@@ -743,7 +742,7 @@ defineExpose({ addItem });
                                     v-model="item.order_width"
                                     type="text"
                                     label=""
-                                    :placeholder="isTela(item) ? 'Ancho (cm) *' : 'Ancho pedido'"
+                                    :placeholder="isTela(item) ? 'Ancho (m) *' : 'Ancho pedido'"
                                     class="h-10 w-full"
                                     :readonly="isReadOnly || !isTela(item)"
                                     :disabled="!isTela(item)"

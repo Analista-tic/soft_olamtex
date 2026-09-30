@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import HoverTooltip from '@/components/common/HoverTooltip.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import SearchInput from '@/components/common/SearchInput.vue';
@@ -19,14 +20,20 @@ import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { PurchaseInvoice } from '@/domain/Expenses';
 import { formatCurrency, formatDate } from '@/domain/Expenses/format';
-import { getPurchaseInvoiceStatus } from '@/domain/Expenses/statuses';
-import { canCreateInvoiceNote, canDeleteInvoice as canDeleteInvoiceRule, canEditInvoice as canEditInvoiceRule } from '@/domain/Expenses/rules';
+import { getPurchaseInvoiceStatus, getPurchaseInvoiceStatusHint, hasApprovedDifference, PURCHASE_INVOICE_STATUS_OPTIONS } from '@/domain/Expenses/statuses';
+import { formatPersonNameDisplay } from '@/lib/textNormalizer';
+import {
+    canCreateInvoiceNote,
+    canDeleteInvoice as canDeleteInvoiceRule,
+    canEditInvoice as canEditInvoiceRule,
+    invoiceLockReason,
+} from '@/domain/Expenses/rules';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
 import { useAuthStore } from '@/stores/auth';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Eye, Mail, MinusCircle, Package, PlusCircle, Printer, ShieldCheck } from 'lucide-vue-next';
+import { Eye, Info, Mail, MinusCircle, Package, PlusCircle, Printer, ShieldCheck } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceCreditDebitNotesDialog, {
     type PurchaseInvoiceAssociatedNote,
@@ -99,16 +106,9 @@ const statusFilter = ref<string | null>(null);
 const providerFilter = ref<number | string | null>(null);
 const subgroupFilter = ref<number | string | null>(null);
 const dateFilter = ref<{ from: string | null; to: string | null }>({ from: null, to: null });
-const providers = ref<{ id: number; full_name: string }[]>([]);
+const providers = ref<{ id: number; full_name: string; person_type?: string | null; id_number?: string | null }[]>([]);
 const subgroups = ref<{ id: number; name: string }[]>([]);
-const statusOptions = [
-    { id: 'status_pending', name: 'Pendiente' },
-    { id: 'status_approved', name: 'Recepcionada' },
-    { id: 'status_rejected', name: 'Rechazada' },
-    { id: 'approval_pending_difference', name: 'Aprobación pendiente' },
-    { id: 'approval_approved', name: 'Diferencia aprobada' },
-    { id: 'approval_difference_rejected', name: 'Diferencia rechazada' },
-];
+const statusOptions = PURCHASE_INVOICE_STATUS_OPTIONS;
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value != null);
@@ -161,8 +161,11 @@ function invoiceHasNotes(invoice: PurchaseInvoiceWithChildren): boolean {
 
 async function fetchProviders() {
     try {
-        const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
-        providers.value = response.data.data;
+        const [providerResponse, sharedResponse] = await Promise.all([
+            axios.get('/contactos/data', { params: { contact_type: 'proveedor', per_page: 1000 } }),
+            axios.get('/contactos/data', { params: { contact_type: 'cliente_proveedor', per_page: 1000 } }),
+        ]);
+        providers.value = [...(providerResponse.data?.data ?? []), ...(sharedResponse.data?.data ?? [])];
     } catch (e) {
         console.log('Error al cargar proveedores:', e);
         providers.value = [];
@@ -180,16 +183,11 @@ async function fetchSubgroups() {
 }
 
 function openCreateDialog(orderId: number | null = null) {
-    dialogType.value = 'create';
-    isDialogReadOnly.value = false;
-    form.value = {};
-    preselectedOrderId.value = orderId;
-    clearAlerts();
-    isDialogOpen.value = true;
+    router.visit(orderId ? `/gastos/facturas-compra/crear?orden=${orderId}` : '/gastos/facturas-compra/crear');
 }
 
-async function openEditDialog(invoice: PurchaseInvoice) {
-    await loadInvoiceIntoDialog(invoice, false);
+function openEditDialog(invoice: PurchaseInvoice) {
+    router.visit(`/gastos/facturas-compra/${invoice.id}/editar`);
 }
 
 function closeDialog() {
@@ -198,9 +196,9 @@ function closeDialog() {
 }
 
 function confirmDeleteInvoice(invoice: PurchaseInvoice) {
-    // Evitar petición al servidor si la factura ya está aprobada
-    if (invoice.status === 'received') {
-        showError('No se puede eliminar una factura que ya fue recibida.');
+    // Evitar petición al servidor si la factura ya no es eliminable por su estado
+    if (!canDeleteInvoiceRule(invoice.status, invoice.approval_status)) {
+        showError('Solo se puede eliminar una factura pendiente de recepción y sin diferencia en curso.');
         return;
     }
     invoiceToDelete.value = invoice;
@@ -241,14 +239,7 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
             sort_by: sortBy.value,
             sort_dir: sortDir.value,
         };
-        if (statusFilter.value != null) {
-            if (statusFilter.value === 'status_pending') params.status = 'pending_receipt,pending';
-            else if (statusFilter.value === 'status_approved') params.status = 'received,approved';
-            else if (statusFilter.value === 'status_rejected') params.status = 'rejected';
-            else if (statusFilter.value === 'approval_pending_difference') params.approval_status = 'pending_difference_approval';
-            else if (statusFilter.value === 'approval_approved') params.approval_status = 'approved';
-            else if (statusFilter.value === 'approval_difference_rejected') params.approval_status = 'difference_rejected';
-        }
+        if (statusFilter.value != null) params.invoice_status = statusFilter.value;
         if (providerFilter.value != null) {
             params.provider_id = isNaN(Number(providerFilter.value)) ? providerFilter.value : Number(providerFilter.value);
         }
@@ -282,6 +273,14 @@ function openCreateFromOrderShortcut() {
     openCreateDialog(orderId);
 }
 
+// Enlace desde la cadena de documentos: ?ver=<id> abre la factura en solo lectura.
+function openFromViewParam() {
+    const id = Number(new URLSearchParams(window.location.search).get('ver'));
+    if (!Number.isInteger(id) || id <= 0) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    viewInvoiceDetails({ id } as PurchaseInvoice);
+}
+
 onMounted(async () => {
     try {
         await authStore.fetchUser();
@@ -292,6 +291,7 @@ onMounted(async () => {
     fetchProviders();
     fetchSubgroups();
     openCreateFromOrderShortcut();
+    openFromViewParam();
 });
 
 async function openPrintDialog(invoice: PurchaseInvoice) {
@@ -568,7 +568,10 @@ async function handleDifferenceDecision() {
                         label=""
                         :options="
                             providers
-                                .map((prov) => ({ id: String(prov.id), name: prov.full_name }))
+                                .map((prov) => ({
+                                    id: String(prov.id),
+                                    name: `${formatPersonNameDisplay(prov.full_name, prov.person_type)}${prov.id_number ? ` (${prov.id_number})` : ''}`,
+                                }))
                                 .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
                         "
                         placeholder="Proveedor"
@@ -614,33 +617,57 @@ async function handleDifferenceDecision() {
                 <template #cell-delivery_date="{ row: invoice }">{{ formatDate(invoice.delivery_date) }}</template>
                 <template #cell-supplier="{ row: invoice }">{{ invoice.supplier?.full_name || invoice.contact?.full_name || '-' }}</template>
                 <template #cell-description="{ row: invoice }">{{ invoice.description || '-' }}</template>
-                <template #cell-total="{ row: invoice }">{{ formatCurrency(computeInvoiceTotal(invoice)) }}</template>
+                <template #cell-total="{ row: invoice }">
+                    <span class="inline-flex items-center gap-1">
+                        {{ formatCurrency(computeInvoiceTotal(invoice)) }}
+                        <HoverTooltip
+                            v-if="hasApprovedDifference(invoice.approval_status, invoice.has_difference)"
+                            text="Tiene una diferencia frente a la orden, ya aprobada"
+                        >
+                            <Info class="h-3.5 w-3.5 cursor-help text-sky-600" aria-label="Tiene una diferencia frente a la orden, ya aprobada" />
+                        </HoverTooltip>
+                    </span>
+                </template>
                 <template #cell-status="{ row: invoice }">
-                    <button
-                        v-if="hasDifferenceDetail(invoice)"
-                        type="button"
-                        class="cursor-pointer rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                        title="Ver detalle de la diferencia"
-                        @click.stop="openApprovalDialog(invoice, $event)"
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <HoverTooltip
+                        :text="
+                            getPurchaseInvoiceStatusHint(invoice.status, invoice.approval_status) +
+                            (hasDifferenceDetail(invoice) ? ' Clic para ver el detalle de la diferencia.' : '')
+                        "
                     >
+                        <button
+                            v-if="hasDifferenceDetail(invoice)"
+                            type="button"
+                            class="cursor-pointer rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            aria-label="Ver detalle de la diferencia"
+                            @click.stop="openApprovalDialog(invoice, $event)"
+                        >
+                            <TableStatusBadge
+                                :label="getPurchaseInvoiceStatus(invoice.status, invoice.approval_status).label"
+                                :tone="getPurchaseInvoiceStatus(invoice.status, invoice.approval_status).tone"
+                                :dusk="`estado-factura-${invoice.id}`"
+                            />
+                        </button>
                         <TableStatusBadge
+                            v-else
                             :label="getPurchaseInvoiceStatus(invoice.status, invoice.approval_status).label"
                             :tone="getPurchaseInvoiceStatus(invoice.status, invoice.approval_status).tone"
                             :dusk="`estado-factura-${invoice.id}`"
                         />
-                    </button>
-                    <TableStatusBadge
-                        v-else
-                        :label="getPurchaseInvoiceStatus(invoice.status, invoice.approval_status).label"
-                        :tone="getPurchaseInvoiceStatus(invoice.status, invoice.approval_status).tone"
-                        :dusk="`estado-factura-${invoice.id}`"
-                    />
+                    </HoverTooltip>
+                  </div>
                 </template>
                 <template #actions="{ row: invoice }">
                                     <TableRowActions>
-                                        <ViewButton :onClick="() => viewInvoiceDetails(invoice)" title="Ver detalles" />
-                                        <EditButton v-if="canEdit && canEditInvoiceRule(invoice.status, invoice.approval_status)" :onClick="() => openEditDialog(invoice)" title="Editar factura" />
-                                        <DeleteButton v-if="canDelete && canDeleteInvoiceRule(invoice.status, invoice.approval_status)" @click="confirmDeleteInvoice(invoice)" title="Eliminar factura" />
+                                        <HoverTooltip text="Ver detalles"><ViewButton :onClick="() => viewInvoiceDetails(invoice)" /></HoverTooltip>
+                                        <HoverTooltip v-if="canEdit && canEditInvoiceRule(invoice.status, invoice.approval_status)" text="Editar factura"><EditButton :onClick="() => openEditDialog(invoice)" /></HoverTooltip>
+                                        <HoverTooltip v-else-if="canEdit" :text="invoiceLockReason(invoice.status, invoice.approval_status)">
+                                            <span class="inline-flex cursor-not-allowed">
+                                                <EditButton disabled class="pointer-events-none opacity-40" />
+                                            </span>
+                                        </HoverTooltip>
+                                        <HoverTooltip v-if="canDelete && canDeleteInvoiceRule(invoice.status, invoice.approval_status)" text="Eliminar factura"><DeleteButton @click="confirmDeleteInvoice(invoice)" /></HoverTooltip>
 
                                         <!-- Más acciones -->
                                         <TableActionsMenu title="Más acciones" trigger-class="h-8 w-8" content-class="w-56">
