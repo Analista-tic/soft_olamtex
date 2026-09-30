@@ -32,7 +32,6 @@ function callRequestMethod(string $method, array $requestData, array $methodArgs
 {
     $request = makeWovenRequest($requestData);
     $ref = new ReflectionMethod($request, $method);
-    $ref->setAccessible(true);
     return $ref->invokeArgs($request, $methodArgs);
 }
 
