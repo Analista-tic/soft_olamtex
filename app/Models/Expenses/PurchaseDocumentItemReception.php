@@ -23,7 +23,7 @@ class PurchaseDocumentItemReception extends Model
     ];
 
     protected $casts = [
-        'quantity'     => 'decimal:3',
+        'quantity'     => 'decimal:2',
         'unit_price'   => 'decimal:2',
         'received_at'  => 'datetime',
     ];

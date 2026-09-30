@@ -308,6 +308,22 @@ class PurchaseDocument extends Model implements HasAuditLabel
         return $this->canEditInvoice();
     }
 
+    /** Solo se envía al proveedor una orden aprobada (o ya en facturación); nunca pendiente ni rechazada. */
+    public function canSendOrderToSupplier(): bool
+    {
+        $status = $this->status instanceof \BackedEnum ? $this->status->value : (string) $this->status;
+
+        return $this->isOrder() && in_array($status, ['approved', 'partially_invoiced', 'invoiced'], true);
+    }
+
+    /** Una factura rechazada o con diferencia rechazada ya no se envía por correo. */
+    public function canSendInvoiceByEmail(): bool
+    {
+        return $this->isInvoice()
+            && $this->status !== 'rejected'
+            && $this->approval_status !== self::APPROVAL_DIFFERENCE_REJECTED;
+    }
+
     public function canRejectInvoice(): bool
     {
         return $this->isInvoice() && $this->status === 'pending_receipt';

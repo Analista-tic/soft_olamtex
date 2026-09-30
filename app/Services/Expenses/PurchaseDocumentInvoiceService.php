@@ -26,6 +26,53 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
         private \App\Services\Inventory\WarehouseResolver $warehouseResolver,
     ) {}
 
+    public function paginateDocuments(string $documentType, array $filters = [], int $perPage = 20, $request = null, ?\App\Models\Settings\User $user = null): LengthAwarePaginator
+    {
+        $paginator = parent::paginateDocuments($documentType, $filters, $perPage, $request, $user);
+
+        if ($documentType === PurchaseDocument::TYPE_INVOICE) {
+            $this->attachPendingCreditNoteSummary($paginator->getCollection());
+        }
+
+        return $paginator;
+    }
+
+    public function loadWithRelations(PurchaseDocument $document): PurchaseDocument
+    {
+        $document = parent::loadWithRelations($document);
+
+        if ($document->document_type === PurchaseDocument::TYPE_INVOICE) {
+            $this->attachPendingCreditNoteSummary(collect([$document]));
+        }
+
+        return $document;
+    }
+
+    /**
+     * Expone en cada factura los rollos rechazados sin nota crédito aprobada
+     * (`pending_credit_note_rolls_count` y `pending_credit_note_amount`), en una sola consulta por lote.
+     *
+     * @param  iterable<int, PurchaseDocument>  $invoices
+     */
+    protected function attachPendingCreditNoteSummary(iterable $invoices): void
+    {
+        $invoices = collect($invoices);
+        if ($invoices->isEmpty()) {
+            return;
+        }
+
+        $summaries = app(\App\Services\Textil\FabricRollCreditNoteService::class)
+            ->disputedSummaries($invoices->pluck('id')->all());
+
+        foreach ($invoices as $invoice) {
+            $summary = $summaries[(int) $invoice->id] ?? ['amount' => 0.0, 'rolls' => 0];
+            $invoice->setAttribute('pending_credit_note_rolls_count', (int) $summary['rolls']);
+            $invoice->setAttribute('pending_credit_note_amount', round((float) $summary['amount'], 2));
+            // Son valores calculados (no columnas): se marcan como sincronizados para que un save() posterior no intente escribirlos.
+            $invoice->syncOriginalAttributes(['pending_credit_note_rolls_count', 'pending_credit_note_amount']);
+        }
+    }
+
     public function paginateAccountsPayable(array $filters = [], int $perPage = 20): LengthAwarePaginator
     {
         $rawDebtStatus = trim((string) ($filters['debt_status'] ?? 'all'));
@@ -137,9 +184,16 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
             ->orderByDesc('id')
             ->paginate(max(1, $perPage));
 
+        // Retención por rollos rechazados sin nota crédito aprobada (una sola consulta para la página).
+        $disputedByInvoice = app(\App\Services\Textil\FabricRollCreditNoteService::class)
+            ->disputedSummaries($paginator->getCollection()->pluck('id')->all());
+
         $paginator->setCollection(
             $paginator->getCollection()
-                ->map(fn (PurchaseDocument $invoice) => $this->mapAccountsPayableRow($invoice))
+                ->map(fn (PurchaseDocument $invoice) => $this->mapAccountsPayableRow(
+                    $invoice,
+                    $disputedByInvoice[(int) $invoice->id] ?? null,
+                ))
                 ->values()
         );
 
@@ -239,6 +293,10 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
                     throw new \RuntimeException('Solo se pueden crear facturas desde órdenes aprobadas o parcialmente facturadas.');
                 }
 
+                if (! $this->hasPendingToInvoice($parentOrder)) {
+                    throw new \RuntimeException('La orden ya no tiene cantidades pendientes por facturar.');
+                }
+
                 // Facturar más de lo pendiente se permite solo con motivo; la diferencia la aprueba alguien con permiso.
                 $overInvoiced = $this->overInvoicedItems($parentOrder, $items);
                 if (count($overInvoiced) > 0) {
@@ -251,9 +309,8 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
                 }
             }
 
-            if (empty($data['document_number'])) {
-                $data['document_number'] = $this->generateInvoiceNumber();
-            }
+            // Solo el servidor asigna el consecutivo (serie FAC, o la que indique el controlador: FAC-T).
+            $data['document_number'] = $this->generateDocumentNumber($data['number_prefix'] ?? 'FAC', PurchaseDocument::TYPE_INVOICE);
             $base = $this->buildBaseData($data, PurchaseDocument::TYPE_INVOICE);
 
             // Heredar buyer_user_id de la orden padre, o usar el usuario autenticado
@@ -562,8 +619,12 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
         return round($amount, 2);
     }
 
-    protected function mapAccountsPayableRow(PurchaseDocument $invoice): array
+    /**
+     * @param  array{amount: float, rolls: int}|null  $disputed  rollos rechazados sin resolver (monto retenido)
+     */
+    protected function mapAccountsPayableRow(PurchaseDocument $invoice, ?array $disputed = null): array
     {
+        $disputedAmount = round((float) ($disputed['amount'] ?? 0), 2);
         $summary = $this->getInvoiceNotesSummary($invoice);
         $paymentsTotal = $this->invoicePaymentsTotal($invoice);
         $currentBalance = round(((float) ($summary['balance_after_notes'] ?? 0)) - $paymentsTotal, 2);
@@ -583,6 +644,9 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
             'debit_notes_total' => (float) ($summary['debit_total'] ?? 0),
             'payments_total' => $paymentsTotal,
             'current_balance' => $currentBalance,
+            'disputed_amount' => $disputedAmount,
+            'disputed_rolls_count' => (int) ($disputed['rolls'] ?? 0),
+            'payable_balance' => max(0.0, round($currentBalance - $disputedAmount, 2)),
             'debt_status' => $debtStatus['code'],
             'debt_status_label' => $debtStatus['label'],
             'debt_status_tone' => $debtStatus['tone'],

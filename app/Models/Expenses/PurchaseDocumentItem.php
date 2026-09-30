@@ -27,12 +27,12 @@ class PurchaseDocumentItem extends Model
     ];
 
     protected $casts = [
-        'quantity'    => 'decimal:3',
+        'quantity'    => 'decimal:2',
         'price'       => 'decimal:2',
         'tax'         => 'decimal:2',
         'total'       => 'decimal:2',
         'total_tax'   => 'decimal:2',
-        'order_width' => 'decimal:3',
+        'order_width' => 'decimal:2',
     ];
 
     public function document()

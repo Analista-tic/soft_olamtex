@@ -6,6 +6,7 @@ use App\Helpers\ScopeHelper;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Settings\User;
 use App\Notifications\PurchaseInvoiceDifferenceNotification;
+use App\Support\DocumentSequence;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -55,7 +56,7 @@ class PurchaseDocumentService
         return $query->orderByDesc('date')->orderByDesc('id')->paginate($perPage);
     }
 
-    private function applyScopeForDocumentType(Builder $query, string $documentType, ?User $user): void
+    public function applyScopeForDocumentType(Builder $query, string $documentType, ?User $user): void
     {
         if ($documentType === PurchaseDocument::TYPE_ORDER) {
             if ($user === null) {
@@ -129,6 +130,7 @@ class PurchaseDocumentService
             'creator:id,name',
             'executor:id,name',
             'rejectedBy:id,name',
+            'approvedBy:id,name',
             'parent:id,document_number',
             'children:id,parent_document_id,document_type',
         ])
@@ -176,6 +178,9 @@ class PurchaseDocumentService
             ->when($this->shouldApplyFilter($filters['approval_status'] ?? null), fn (Builder $builder) =>
                 $builder->where('approval_status', $filters['approval_status'])
             )
+            ->when($this->shouldApplyFilter($filters['invoice_status'] ?? null), fn (Builder $builder) =>
+                $this->applyInvoiceStatusFilter($builder, (string) $filters['invoice_status'])
+            )
             ->when(!empty($filters['exclude_difference_rejected']), fn (Builder $builder) =>
                 $builder->where(function (Builder $sub) {
                     $sub->whereNull('approval_status')
@@ -210,6 +215,33 @@ class PurchaseDocumentService
             );
 
         return $this->applyFabricFilter($query, $filters);
+    }
+
+    /**
+     * Filtra facturas por el estado único que muestra la lista (4 opciones, mutuamente excluyentes).
+     * Precedencia igual a `resolvePurchaseInvoiceStatusKey` del frontend:
+     * rechazada (recepción o diferencia) > requiere aprobación > recibida > por recibir.
+     */
+    protected function applyInvoiceStatusFilter(Builder $query, string $key): Builder
+    {
+        $received = ['received', 'approved'];
+        $differenceStates = [
+            PurchaseDocument::APPROVAL_DIFFERENCE_REJECTED,
+            PurchaseDocument::APPROVAL_PENDING_DIFFERENCE,
+        ];
+        $notRejected = fn (Builder $q) => $q->where(fn (Builder $s) => $s->whereNull('status')->orWhere('status', '!=', 'rejected'));
+        $noDifference = fn (Builder $q) => $q->where(fn (Builder $s) => $s->whereNull('approval_status')
+            ->orWhereNotIn('approval_status', $differenceStates));
+
+        return match ($key) {
+            'rejected' => $query->where(fn (Builder $s) => $s->where('status', 'rejected')
+                ->orWhere('approval_status', PurchaseDocument::APPROVAL_DIFFERENCE_REJECTED)),
+            'pending_difference_approval' => $notRejected($query)->where('approval_status', PurchaseDocument::APPROVAL_PENDING_DIFFERENCE),
+            'received' => $noDifference($query->whereIn('status', $received)),
+            'pending_receipt' => $noDifference($query->where(fn (Builder $s) => $s->whereNull('status')
+                ->orWhereNotIn('status', array_merge(['rejected'], $received)))),
+            default => $query,
+        };
     }
 
     protected function shouldApplyFilter(mixed $value): bool
@@ -503,6 +535,27 @@ class PurchaseDocumentService
             }, []);
     }
 
+    /** Marca en cada ítem de la orden cuánto cubren ya sus facturas válidas (misma regla que el pendiente y el estado). */
+    public function attachInvoicedQuantities(PurchaseDocument $order): PurchaseDocument
+    {
+        $order->loadMissing('items');
+        $invoiced = $this->invoicedQuantitiesByKey($this->validInvoicesForOrder($order)->pluck('id')->all());
+
+        $order->items->each(function ($item) use ($invoiced) {
+            $key = $item->item_id ? 'id:'.$item->item_id : 'name:'.strtolower(trim((string) ($item->item_name ?? '')));
+            $item->already_invoiced_qty = round((float) ($invoiced[$key] ?? 0), 2);
+        });
+
+        return $order;
+    }
+
+    public function hasPendingToInvoice(PurchaseDocument $order): bool
+    {
+        $order->loadMissing('items');
+
+        return ! $this->invoicesCoverOrder($order, $this->validInvoicesForOrder($order)->pluck('id')->all());
+    }
+
     protected function invoicesCoverOrder(PurchaseDocument $order, array $invoiceIds): bool
     {
         $invoiced = $this->invoicedQuantitiesByKey($invoiceIds);
@@ -552,6 +605,7 @@ class PurchaseDocumentService
             'creator',
             'executor',
             'rejectedBy',
+            'approvedBy',
             'parent',
             'children',
         ]);
@@ -699,19 +753,19 @@ class PurchaseDocumentService
 
     protected function nextDocumentSequence(string $documentType, string $prefix): int
     {
-        $last = PurchaseDocument::withTrashed()
-            ->where('document_type', $documentType)
-            ->where('document_number', 'like', $prefix . '-%')
-            ->orderByDesc('id')
-            ->value('document_number');
-
-        if (!$last) {
-            return 1;
-        }
-
-        $parts = explode('-', $last);
-        $number = (int) end($parts);
-        return $number + 1;
+        // Contador atómico por serie (bloqueo de fila): dos usuarios simultáneos nunca reciben el mismo número.
+        // El piso es el máximo del prefijo EXACTO (`FAC-0007`, no `FAC-T-0003`) incluyendo borrados: un número
+        // eliminado no se reutiliza. Tomar el último por id mezclaba prefijos y generaba FAC-0002 repetido.
+        return DocumentSequence::next(
+            "purchase_documents:{$documentType}:{$prefix}",
+            fn () => DocumentSequence::maxFromNumbers(
+                PurchaseDocument::withTrashed()
+                    ->where('document_type', $documentType)
+                    ->where('document_number', 'like', $prefix . '-%')
+                    ->pluck('document_number'),
+                $prefix
+            )
+        );
     }
 
     protected function normalizeInvoicePayload(array $data): array

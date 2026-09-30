@@ -92,6 +92,28 @@ class PurchaseInvoiceController extends PurchaseDocumentController
         return $this->indexView('Expenses/PurchaseInvoices/Index');
     }
 
+    public function create()
+    {
+        return Inertia::render('Expenses/PurchaseInvoices/PurchaseInvoiceForm', [
+            'mode' => 'create',
+        ]);
+    }
+
+    public function edit(PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
+
+        if (! $purchaseDocument->canEditInvoice()) {
+            abort(403, PurchaseDocument::INVOICE_LOCKED_MESSAGE);
+        }
+
+        return Inertia::render('Expenses/PurchaseInvoices/PurchaseInvoiceForm', [
+            'mode' => 'edit',
+            'form' => $purchaseDocument,
+        ]);
+    }
+
     public function getData(Request $request)
     {
 
@@ -242,6 +264,10 @@ class PurchaseInvoiceController extends PurchaseDocumentController
         $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
 
         try {
+            if (! $purchaseDocument->canSendInvoiceByEmail()) {
+                throw new \RuntimeException('Una factura rechazada no se puede enviar por correo.');
+            }
+
             $invoice = $this->service->loadWithRelations($purchaseDocument);
             $email = $invoice->supplier?->email;
 
@@ -281,7 +307,7 @@ class PurchaseInvoiceController extends PurchaseDocumentController
 
     protected function buildFilters(Request $request): array
     {
-        $filters = $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id', 'contact_id', 'approval_status', 'exclude_difference_rejected']);
+        $filters = $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id', 'contact_id', 'approval_status', 'invoice_status', 'exclude_difference_rejected']);
 
         $contactId = (int) ($request->input('contact_id') ?? 0);
         if ($contactId > 0) {

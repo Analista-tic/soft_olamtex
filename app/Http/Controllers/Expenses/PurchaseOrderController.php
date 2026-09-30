@@ -64,25 +64,24 @@ class PurchaseOrderController extends PurchaseDocumentController
         ], 201);
     }
 
-    public function show(PurchaseDocument $purchaseDocument)
+    public function traceability(PurchaseDocument $purchaseDocument)
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
         $order = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
 
-        // Calcular cantidades ya facturadas por ítem
-        $invoicedQtyByItemId = \App\Models\Expenses\PurchaseDocumentItem::whereIn(
-            'purchase_document_id',
-            \App\Models\Expenses\PurchaseDocument::where('parent_document_id', $order->id)
-                ->where('document_type', \App\Models\Expenses\PurchaseDocument::TYPE_INVOICE)
-                ->whereNull('deleted_at')
-                ->pluck('id')
-        )->get()->groupBy('item_id')->map(fn($g) => $g->sum(fn($i) => (float) $i->quantity));
+        return response()->json(['data' => [
+            'chain' => app(\App\Services\Expenses\PurchaseDocumentChainService::class)->forDocument($order, request()->user()),
+        ]]);
+    }
 
-        $order->items->each(function ($item) use ($invoicedQtyByItemId) {
-            $item->already_invoiced_qty = (float) ($invoicedQtyByItemId[$item->item_id] ?? 0);
-        });
+    public function show(PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+        $order = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
+        // La solicitud origen va embebida: quien ve la orden no necesariamente puede ver esa solicitud.
+        $order->load('purchaseRequest.requester:id,name');
 
-        return response()->json(['data' => $order]);
+        return response()->json(['data' => $this->service->attachInvoicedQuantities($order)]);
     }
 
     public function update(Request $request, PurchaseDocument $purchaseDocument)
@@ -116,6 +115,10 @@ class PurchaseOrderController extends PurchaseDocumentController
         $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
 
         try {
+            if (! $purchaseDocument->canSendOrderToSupplier()) {
+                throw new \RuntimeException('Solo se pueden enviar al proveedor órdenes aprobadas.');
+            }
+
             $order = $this->service->loadWithRelations($purchaseDocument);
             $email = $order->supplier?->email;
 
@@ -150,25 +153,6 @@ class PurchaseOrderController extends PurchaseDocumentController
         return Inertia::render('Expenses/PurchaseOrders/PurchaseOrderPrint', [
             'order' => $order,
         ]);
-    }
-
-    public function convertToInvoice(PurchaseDocument $purchaseDocument)
-    {
-        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
-        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
-
-        try {
-            $invoice = $this->service->convertOrderToInvoice($purchaseDocument);
-            return response()->json([
-                'message' => 'Purchase order successfully converted to invoice.',
-                'data' => $invoice,
-            ]);
-        } catch (\RuntimeException $e) {
-            return response()->json([
-                'message' => $e->getMessage(),
-                'error_code' => 'ORDER_ALREADY_INVOICED',
-            ], 422);
-        }
     }
 
     public function approve(PurchaseDocument $purchaseDocument)

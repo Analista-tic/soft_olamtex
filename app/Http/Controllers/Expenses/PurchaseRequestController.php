@@ -21,6 +21,27 @@ class PurchaseRequestController extends Controller
         return Inertia::render('Expenses/PurchaseRequests/Index');
     }
 
+    public function create()
+    {
+        return Inertia::render('Expenses/PurchaseRequests/PurchaseRequestForm', [
+            'mode' => 'create',
+        ]);
+    }
+
+    public function edit(PurchaseRequest $purchaseRequest)
+    {
+        $purchaseRequest = $this->service->findAccessibleOrFail($purchaseRequest, request()->user());
+
+        if (! $purchaseRequest->canEdit()) {
+            abort(403, 'Solo se pueden editar solicitudes en estado borrador.');
+        }
+
+        return Inertia::render('Expenses/PurchaseRequests/PurchaseRequestForm', [
+            'mode' => 'edit',
+            'form' => $purchaseRequest,
+        ]);
+    }
+
     public function getData(Request $request)
     {
 
@@ -83,9 +104,13 @@ class PurchaseRequestController extends Controller
         }
     }
 
-    public function nextNumber()
+    public function traceability(PurchaseRequest $purchaseRequest)
     {
-        return response()->json(['request_number' => $this->service->peekNextRequestNumber()]);
+        $purchaseRequest = $this->service->findAccessibleOrFail($purchaseRequest, request()->user());
+
+        return response()->json(['data' => [
+            'chain' => app(\App\Services\Expenses\PurchaseDocumentChainService::class)->forRequest($purchaseRequest, request()->user()),
+        ]]);
     }
 
     public function show(PurchaseRequest $purchaseRequest)
@@ -297,8 +322,8 @@ class PurchaseRequestController extends Controller
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => 'nullable',
             'items.*.name' => 'nullable|string',
-            'items.*.price' => 'nullable|numeric|min:0',
-            'items.*.quantity' => 'nullable|numeric|min:0',
+            'items.*.price' => 'nullable|numeric|min:0|decimal:0,2',
+            'items.*.quantity' => 'nullable|numeric|min:0|decimal:0,2',
             'items.*.description' => 'nullable|string',
             'items.*.total' => 'nullable|numeric|min:0',
             'items.*.total_tax' => 'nullable|numeric|min:0',

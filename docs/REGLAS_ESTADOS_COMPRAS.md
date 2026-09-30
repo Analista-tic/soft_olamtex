@@ -1,6 +1,6 @@
 # Reglas de estado del módulo de Compras
 
-**Última actualización:** 2026-09-26
+**Última actualización:** 2026-09-29
 **Para qué sirve:** define qué se puede hacer con cada documento de compra según su estado, dónde se impone la regla y cómo mantenerla sincronizada entre backend y frontend.
 
 Flujo: **Solicitud → Orden → Factura → Recepción**. La recepción no tiene modelo propio: es una vista sobre la factura (`status` y `approval_status`).
@@ -50,6 +50,8 @@ Estados: `pending`, `approved`, `partially_invoiced`, `invoiced`, `rejected`. No
 - Editar y eliminar responden **422** con mensaje en español fuera de `pending`; la página `/ordenes-compra/{id}/editar` responde **403**.
 - Aunque la orden esté `pending`, si ya tiene facturas el formulario queda de solo lectura (no se pueden cambiar ítems ni proveedor).
 - Aprobar y rechazar comparten el permiso `aprobar orden compra`. Cerrar y enviar por correo usan `editar ordenes compra`.
+- Enviar por correo al proveedor solo con la orden `approved`, `partially_invoiced` o `invoiced` (`canSendOrderToSupplier`); una orden pendiente o rechazada responde 422.
+- "Crear factura" se oculta cuando la orden ya no tiene cantidades pendientes (ver sección 4).
 
 ## 4. Factura de compra (normal y de tela)
 
@@ -62,7 +64,26 @@ Estados (`status`): `pending_receipt`, `received`, `rejected`. La recepción de 
 | Notas crédito / débito | no | sí | no | no | según `status` |
 | Aprobar / rechazar diferencia | solo con `approval_status = pending_difference_approval` y permiso `gestionar diferencias factura compra` | | | | |
 
+**Estado que ve el usuario (uno solo).** Internamente la factura tiene dos campos (`status` y `approval_status`), pero en pantalla se resumen en **4 estados** que dicen qué falta por hacer. La etiqueta de la lista, el filtro "Estado", la trazabilidad y la recepción usan el mismo criterio, con esta precedencia:
+
+| Estado en pantalla | Cuándo (campos internos) | Ayuda al pasar el mouse |
+|---|---|---|
+| **Rechazada** (rojo) | `status = rejected` **o** `approval_status = difference_rejected` | Dice si se rechazó la recepción o la diferencia |
+| **Requiere aprobación** (ámbar) | `approval_status = pending_difference_approval` | Alguien con `gestionar diferencias factura compra` debe decidir |
+| **Recibida** (verde) | `status` `received` o `approved` (tela) | Indica si tuvo diferencia aprobada |
+| **Por recibir** (amarillo) | el resto (incl. `pending`/vacío heredados) | Indica si tuvo diferencia aprobada |
+
+Frontend: `resolvePurchaseInvoiceStatusKey`, `getPurchaseInvoiceStatusHint` y `PURCHASE_INVOICE_STATUS_OPTIONS` (`statuses.ts`); backend: parámetro `invoice_status` de `PurchaseDocumentService::applyInvoiceStatusFilter`. Cada factura aparece en exactamente una opción del filtro (test en `PurchaseFlowStateTest`). Si cambias la precedencia, cámbiala en ambos lados.
+
+- **Diferencia aprobada** no es un estado: es historia. Se muestra como un ícono ⓘ junto al total (`hasApprovedDifference`).
+- **Por qué no se puede editar:** en vez de un candado junto al estado, el botón Editar aparece deshabilitado y al pasar el mouse muestra el motivo (`invoiceLockReason` en `rules.ts`).
+
 - Se puede editar o eliminar solo si `status` es `pending_receipt` (o vacío/`pending` heredado) **y** `approval_status` no es `pending_difference_approval`, `difference_rejected` ni `approved`. Es el mismo helper para factura normal y de tela.
+- No se puede crear una factura desde una orden sin cantidades pendientes (`PurchaseDocumentService::hasPendingToInvoice`), aunque la orden siga "parcialmente facturada" por una diferencia pendiente. La lista de órdenes oculta "Crear factura" con `has_pending_to_invoice`.
+- **Factura rechazada libera su cantidad:** una factura rechazada (o con diferencia rechazada) no cuenta como facturada. La orden vuelve a tener pendiente y se puede registrar la factura correcta. El "Facturado / Pendiente" que muestra el formulario usa la misma regla (`attachInvoicedQuantities`).
+- **Atajo desde la orden:** "Crear factura de esta orden" abre la factura con la orden precargada (`/gastos/facturas-compra?orden=ID`). No hay conversión automática orden → factura en el backend (se eliminó `convert-to-invoice`, que nadie usaba y copiaba la orden sin número de factura del proveedor).
+- **Enviar por correo:** solo facturas no rechazadas (`canSendInvoiceByEmail`).
+- Cantidades y precios de compra y recepción: máximo 2 decimales (columnas `decimal(…,2)` y validación `decimal:0,2`).
 - Fuera de ese caso, editar y eliminar responden **422**.
 - Al eliminar una factura se recalcula el estado de la orden y, si aplica, de la solicitud.
 
@@ -74,10 +95,25 @@ Sobre la factura, en `Reception.vue` y `FabricRollController`:
 |---|---|---|---|---|
 | Registrar recepción y aprobar | sí (aprobar exige diferencias aprobadas o dentro de tolerancia) | no | no | no |
 | Rechazar (motivo obligatorio) | sí | no | no | no |
-| Añadir rollos | sí, con `crear telas rollos` | solo con `ajustar telas rollos` | no | no |
-| Editar / borrar rollos | sí | no | no | no |
+| Añadir rollos | sí, con `crear telas rollos` | solo con `agregar rollos recepcion aprobada` (solo admin y superadmin), con motivo y sin salir de la tolerancia | no | no |
+| Corregir rondas de ítems generales | sí | no (ajuste de inventario) | no | no |
+| Aprobar diferencia / rechazar un rollo (motivo obligatorio al rechazar) | sí, rollo a rollo | no | no | no |
+| Editar / borrar rollos (edición en la tabla "Rollos recibidos": clic en la celda) | sí | no | no | no |
 
 No existe reapertura de una recepción rechazada.
+
+Guardas del servidor (además de lo que oculta la pantalla):
+- Una recepción ya aprobada no se vuelve a aprobar ni admite más rondas de ítems generales (no duplica inventario).
+- No se puede rechazar la recepción mientras la factura tenga una diferencia **Requiere aprobación**; primero se decide la diferencia.
+- Corregir una recepción de ítem general revierte el movimiento de inventario y crea uno nuevo numerado `<factura> [R<id>-C<n>]`; se puede corregir varias veces, **solo antes de aprobar** la recepción. Después, la corrección va por ajuste de inventario (`updateGeneralReception` responde 422).
+- Añadir un rollo con la recepción aprobada (permiso `agregar rollos recepcion aprobada`) exige `post_approval_reason` (se guarda como evento `roll_added_after_approval`) y no puede dejar la línea fuera de ±30 mts salvo que acerque lo recibido a lo facturado (`FabricRollService::ensureRollAdditionAfterApprovalAllowed`).
+- **Tolerancia:** solo la recepción de **tela** tiene tolerancia (±30 mts por ítem y ancho máx. 0,05 m por debajo). La factura no tiene tolerancia y los ítems generales no tienen validación de tolerancia: recibir de más pide motivo y recibir de menos se permite.
+
+La aprobación de la recepción exige haber resuelto antes cada rollo en revisión. El detalle de la tolerancia por rollo, los rollos restringidos, la nota crédito enlazada, la retención de pago y el asiento contable está en [RECEPCION_ROLLOS_TOLERANCIA_Y_NOTAS_CREDITO.md](RECEPCION_ROLLOS_TOLERANCIA_Y_NOTAS_CREDITO.md).
+
+## 5.1 Trazabilidad (cadena de documentos)
+
+Solicitud, orden y factura muestran el mismo panel (`pages/Expenses/PurchaseTraceability.vue`) con la cadena solicitud → órdenes → facturas → recepción, el estado y las fechas de cada eslabón, y el documento actual marcado. Endpoints: `GET …/solicitudes-compra/{id}/trazabilidad`, `…/ordenes-compra/{id}/trazabilidad`, `…/facturas-compra(-tela)/{id}/trazabilidad` (`PurchaseDocumentChainService`). Cada eslabón abre en una pestaña nueva con `?ver=<id>` (la lista abre ese documento en solo lectura). Si el usuario no tiene permiso o alcance sobre un eslabón, se muestra sin enlace.
 
 ## 6. Permisos usados en las listas
 
@@ -86,7 +122,7 @@ No existe reapertura de una recepción rechazada.
 | Solicitud | `crear`, `editar`, `eliminar`, `aprobar`, `rechazar`, `cancelar solicitudes compra` (enviar a aprobación usa `editar`) |
 | Orden | `crear`, `editar`, `eliminar ordenes compra`; `aprobar orden compra`; `crear facturas compra` (crear factura desde la orden) |
 | Factura | `crear`, `editar`, `eliminar facturas compra`; `gestionar diferencias factura compra`; `crear notas credito debito`; `ver notas credito debito`; `ver recepcion telas` |
-| Recepción | `aprobar recepcion tela`, `rechazar recepcion tela`, `crear telas rollos`, `ajustar telas rollos` |
+| Recepción | `aprobar recepcion tela`, `rechazar recepcion tela`, `crear telas rollos`, `ajustar telas rollos`, `agregar rollos recepcion aprobada` (súper: solo admin y superadmin) |
 
 "Imprimir" y "Ver" en órdenes y facturas no tienen permiso propio: la ruta solo exige el permiso de ver.
 
@@ -99,9 +135,6 @@ No existe reapertura de una recepción rechazada.
 
 ## 8. Pendientes conocidos
 
-- Enviar por correo (orden y factura) no valida el estado: se puede enviar una orden `pending`/`rejected` o una factura `rejected`/`pending_receipt`.
 - Ninguna pantalla produce el estado `received`; la recepción real deja `approved`. La ruta `recibir` y `receiveInvoice` solo se alcanzan por API.
-- `show`, `print`, `approveDifference` y `rejectDifference` de factura de tela no comprueban el alcance del usuario.
-- Recepción: rechazar no queda bloqueado con `pending_difference_approval`, y el backend no impide registrar recepción o aprobar de nuevo sobre una factura `approved`.
-- `convertOrderToInvoice` rechaza órdenes con cualquier factura previa y el frontend nunca lo llama (posible código muerto).
-- Faltan reaperturas: solicitud rechazada/cancelada, orden cerrada y recepción rechazada.
+- Faltan reaperturas: solicitud rechazada/cancelada, orden cerrada y recepción rechazada (decisión de negocio pendiente; hoy se crea un documento nuevo).
+- Devoluciones al proveedor: funcionalidad pendiente (hoy se cubren con nota crédito, sin registrar la devolución física).

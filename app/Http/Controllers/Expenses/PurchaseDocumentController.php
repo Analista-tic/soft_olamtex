@@ -31,6 +31,12 @@ class PurchaseDocumentController extends Controller
         // Pasar $request como cuarto parámetro solo si se provee (para sort)
         $documents = $this->service->paginateDocuments($documentType, $filters, $perPage, $request, $request->user());
 
+        if ($documentType === PurchaseDocument::TYPE_ORDER) {
+            foreach ($documents->items() as $order) {
+                $order->setAttribute('has_pending_to_invoice', $order->canInvoiceOrder() && $this->service->hasPendingToInvoice($order));
+            }
+        }
+
         return response()->json([
             'data' => $documents->items(),
             'total' => $documents->total(),
@@ -112,9 +118,9 @@ class PurchaseDocumentController extends Controller
             'items' => $isUpdate ? 'sometimes|array' : 'required|array|min:1',
             'items.*.item_id' => 'nullable|integer|exists:items,id',
             'items.*.item_name' => 'required_without:items.*.item_id|string|max:255',
-            'items.*.price' => 'nullable|numeric',
+            'items.*.price' => 'nullable|numeric|decimal:0,2',
             'items.*.tax' => 'nullable|numeric',
-            'items.*.quantity' => 'required_with:items|numeric',
+            'items.*.quantity' => 'required_with:items|numeric|decimal:0,2',
             'items.*.description' => 'nullable|string',
             'items.*.supplier_code' => 'nullable|string',
             'items.*.supplier_color' => 'nullable|string',
@@ -141,9 +147,9 @@ class PurchaseDocumentController extends Controller
             'purchase_request_id' => 'nullable|exists:purchase_requests,id',
             'items' => 'required|array|min:1',
             'items.*.item_id' => 'required|exists:items,id',
-            'items.*.price' => 'required|numeric',
+            'items.*.price' => 'required|numeric|decimal:0,2',
             'items.*.tax' => 'required|numeric',
-            'items.*.quantity' => 'required|numeric',
+            'items.*.quantity' => 'required|numeric|decimal:0,2',
             'items.*.description' => 'nullable|string',
             'items.*.supplier_code' => 'nullable|string',
             'items.*.supplier_color' => 'nullable|string',
@@ -201,6 +207,8 @@ class PurchaseDocumentController extends Controller
             }
             if (! is_numeric($item['order_width'] ?? null) || (float) $item['order_width'] <= 0) {
                 $errors["items.$index.order_width"] = ['El ancho pedido es obligatorio en ítems de tela y debe ser mayor a 0.'];
+            } elseif ((float) $item['order_width'] > 10) {
+                $errors["items.$index.order_width"] = ['El ancho pedido se expresa en metros (ej. 1,50) y no puede superar 10 m.'];
             }
         }
 
@@ -261,6 +269,7 @@ class PurchaseDocumentController extends Controller
                 'date' => $invoice->date?->toDateString(),
                 'created_at' => $invoice->created_at?->toIso8601String(),
             ],
+            'chain' => app(\App\Services\Expenses\PurchaseDocumentChainService::class)->forDocument($invoice, request()->user()),
         ]]);
     }
 }
