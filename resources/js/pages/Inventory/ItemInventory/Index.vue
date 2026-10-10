@@ -213,6 +213,7 @@ onMounted(() => {
                         <TableRow>
                             <TableHead class="text-start">Ítem</TableHead>
                             <TableHead>Referencia</TableHead>
+                            <TableHead>Bodega</TableHead>
                             <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('quantity')">
                                 <span class="inline-flex items-center gap-1">
                                     Cantidad
@@ -260,14 +261,14 @@ onMounted(() => {
                     <TableBody>
                         <template v-if="isLoading">
                             <TableRow>
-                                <TableCell :colspan="7" class="py-6 text-center text-sm text-muted-foreground">
+                                <TableCell :colspan="8" class="py-6 text-center text-sm text-muted-foreground">
                                     Cargando inventario de items...
                                 </TableCell>
                             </TableRow>
                         </template>
                         <template v-else-if="items.length === 0">
                             <TableRow>
-                                <TableCell :colspan="7" class="text-center text-muted-foreground">
+                                <TableCell :colspan="8" class="text-center text-muted-foreground">
                                     No hay items con stock actual en el inventario.
                                 </TableCell>
                             </TableRow>
@@ -276,6 +277,7 @@ onMounted(() => {
                             <TableRow v-for="item in items" :key="item.id">
                                 <TableCell class="text-start">{{ item.item_name }}</TableCell>
                                 <TableCell class="text-center">{{ item.reference ?? '-' }}</TableCell>
+                                <TableCell class="text-center">{{ item.warehouse_name ?? '-' }}</TableCell>
                                 <TableCell class="text-right font-medium tabular-nums">
                                     <div class="inline-flex items-center justify-end gap-2">
                                         <span>{{ formatQuantity(item.quantity) }}</span>
