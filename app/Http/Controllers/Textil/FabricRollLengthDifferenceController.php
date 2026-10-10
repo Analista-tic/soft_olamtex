@@ -34,7 +34,7 @@ class FabricRollLengthDifferenceController extends Controller
 
         $query = FabricRollLengthDifference::query()
             ->with([
-                'roll:id,roll_number,quantity,received_quantity,actual_output,description,purchase_document_item_id',
+                'roll:id,roll_number,quantity,received_quantity,length_adjustment_meters,actual_output,description,purchase_document_item_id',
                 'roll.purchaseDocumentItem:id,purchase_document_id,item_name',
                 'roll.purchaseDocumentItem.document:id,document_number,contact_id,provider_name',
                 'roll.purchaseDocumentItem.document.supplier:id,full_name',
@@ -78,6 +78,7 @@ class FabricRollLengthDifferenceController extends Controller
                 'roll_number' => $roll?->roll_number,
                 'roll_received_quantity' => $roll ? (float) ($roll->received_quantity ?? $roll->quantity) : null,
                 'roll_quantity' => $roll ? (float) $roll->quantity : null,
+                'roll_length_adjustment_meters' => $roll ? (float) $roll->length_adjustment_meters : null,
                 'fabric' => $roll?->purchaseDocumentItem?->item_name ?? $roll?->description,
                 'invoice_number' => $document?->document_number,
                 'provider' => $document?->supplier?->full_name ?? $document?->provider_name,

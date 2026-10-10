@@ -57,7 +57,7 @@ class AuditRollBalancesCommand extends Command
             $expected = FabricRollBalance::meters($committed[$roll->id] ?? 0.0);
 
             if ($real < -FabricRollBalance::EPSILON) {
-                $negative[] = [$roll->roll_number, (float) $roll->quantity, (float) $roll->actual_output, $real];
+                $negative[] = [$roll->roll_number, FabricRollBalance::length($roll), (float) $roll->actual_output, $real];
             }
             if (abs($partial - $expected) > FabricRollBalance::EPSILON) {
                 $partialMismatch[] = [$roll->roll_number, $partial, $expected, FabricRollBalance::meters($partial - $expected), $roll->id];
@@ -67,7 +67,7 @@ class AuditRollBalancesCommand extends Command
             }
         }
 
-        $this->section('1. Consumo mayor al metraje (real negativo)', ['Rollo', 'Cantidad', 'Consumido', 'Real'], $negative);
+        $this->section('1. Consumo mayor al metraje (real negativo)', ['Rollo', 'Metraje vigente', 'Consumido', 'Real'], $negative);
         $this->section('2. Reserva distinta de lo comprometido por programaciones', ['Rollo', 'partial_output', 'Comprometido', 'Diferencia'], array_map(fn ($r) => array_slice($r, 0, 4), $partialMismatch));
         $this->section('3. Reserva mayor que la disponibilidad real', ['Rollo', 'Reservado', 'Real'], $overReserved);
 

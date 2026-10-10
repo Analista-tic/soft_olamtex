@@ -21,6 +21,7 @@ class FabricRollAdjustment extends Model
         'actual_output_after',
         'reason',
         'reference',
+        'production_order_code',
         'corrects_adjustment_id',
         'inventory_movement_id',
     ];

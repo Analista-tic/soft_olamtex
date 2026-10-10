@@ -133,6 +133,27 @@ it('imports a legacy roll from a semicolon-delimited csv', function () {
         ->and((float) $roll->quantity)->toBe(100.0);
 });
 
+it('rejects a legacy row whose partial output exceeds the real availability instead of creating an impossible roll', function () {
+    // CANTIDAD INGRESADA=50, SALIDA PARCIAL=60, CANTIDAD SALIDA=0: reservar 60 de un real
+    // disponible de 50 deja el rollo descuadrado desde su creación (lo mismo que detecta
+    // AuditRollBalancesCommand más tarde, pero evitado aquí en el origen del dato).
+    $row = [...legacyRollDataRow('RL-CSV-OVERPARTIAL', '04/07/2022')];
+    $row[9] = '50';
+    $row[10] = '60';
+    $row[12] = '0';
+    $content = implode(',', LEGACY_ROLL_HEADERS)."\n".implode(',', $row);
+    $file = UploadedFile::fake()->createWithContent('historico.csv', $content);
+
+    $response = $this->postJson(route('kardex-telas.inventario-rollos.importar-csv'), ['file' => $file]);
+
+    $response->assertStatus(422);
+    expect($response->json('inserted'))->toBe(0)
+        ->and($response->json('skipped'))->toBe(1)
+        ->and($response->json('errors.0.message'))->toContain('supera la disponibilidad real');
+
+    expect(FabricRoll::where('roll_number', 'RL-CSV-OVERPARTIAL')->exists())->toBeFalse();
+});
+
 it('rejects a file extension that is neither csv/txt nor xlsx/xls', function () {
     $file = UploadedFile::fake()->create('historico.pdf', 10, 'application/pdf');
 

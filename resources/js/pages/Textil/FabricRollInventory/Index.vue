@@ -276,7 +276,7 @@ function handleQuantityCorrected(payload: { rollId: number; newQuantity: number 
         const newQty = payload.newQuantity;
         const actualOutput = roll.exit_quantity_value ?? 0;
         const partialOutput = roll.partial_output_value ?? 0;
-        const realAvail = newQty - actualOutput;
+        const realAvail = newQty + (roll.length_adjustment_meters ?? 0) - actualOutput;
         const partialAvail = Math.max(0, realAvail - partialOutput);
         rolls.value[idx] = {
             ...roll,

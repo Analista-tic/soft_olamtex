@@ -11,7 +11,7 @@ import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } fr
 import Input from '@/components/ui/input/Input.vue';
 import type { ManualRollProgrammingHistoryEntry, ManualRollProgrammingLine } from '@/domain/Textil';
 import { useAuthStore } from '@/stores/auth';
-import { Pencil, TriangleAlert } from 'lucide-vue-next';
+import { History, Pencil, TriangleAlert } from 'lucide-vue-next';
 
 const props = withDefaults(
     defineProps<{
@@ -26,6 +26,8 @@ const emit = defineEmits<{
     (event: 'success', message: string): void;
 }>();
 
+const EPSILON = 0.001;
+
 const authStore = useAuthStore();
 const canCorrectDischarge = computed(() => authStore.can('corregir descargue telas orden'));
 
@@ -38,16 +40,20 @@ const isLoadingHistory = ref(false);
 
 const editingEntryId = ref<number | null>(null);
 const correction = reactive({ quantity: '', reason: '' });
-const correctionError = ref('');
+const correctionErrors = reactive({ quantity: '', reason: '' });
 const isCorrecting = ref(false);
 
 const numFmt = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 const fmt = (v: number | null | undefined) => (v === null || v === undefined ? '-' : `${numFmt.format(v)} m`);
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
+const programmed = computed(() => props.line?.programmed_meters ?? 0);
+const consumed = computed(() => props.line?.consumed_meters ?? 0);
 const pending = computed(() => props.line?.remaining_meters ?? 0);
+const overconsumed = computed(() => props.line?.overconsumed_meters ?? 0);
 const rollReal = computed(() => props.line?.roll_real_meters ?? 0);
 const rollFree = computed(() => props.line?.roll_free_meters ?? 0);
+const progressPercent = computed(() => (programmed.value > 0 ? Math.min(100, Math.round((consumed.value / programmed.value) * 100)) : 0));
 
 /**
  * Vista previa del descargue, con las mismas reglas del servidor (FabricRollService::dischargeManual):
@@ -67,44 +73,72 @@ const preview = computed(() => {
 
 const reasonRequired = computed(() => preview.value.excess > 0 || form.finishRoll);
 
+/**
+ * Misma regla del servidor (FabricRollService::correctManualDischarge): la corrección exige motivo
+ * cuando deja el consumo de la línea por encima de lo programado o supera el metraje del rollo.
+ * Se calcula en pantalla para pedir el motivo antes de guardar y no después de un error.
+ */
+function correctionNeedsReason(entry: ManualRollProgrammingHistoryEntry): boolean {
+    const line = props.line;
+    const next = Number(correction.quantity);
+    if (!line || correction.quantity === '' || Number.isNaN(next)) return false;
+
+    const delta = round2(next - Number(entry.quantity ?? 0));
+    if (delta <= EPSILON) return false;
+
+    const consumedAfter = consumed.value + delta;
+    const overBefore = Math.max(0, consumed.value - programmed.value);
+    const overAfter = Math.max(0, consumedAfter - programmed.value);
+    if (overAfter > overBefore + EPSILON) return true;
+
+    const reservedAfter = Math.max(0, programmed.value - consumedAfter - (line.released_meters ?? 0));
+    const needFromFree = delta - Math.max(0, pending.value - reservedAfter);
+    return needFromFree - rollFree.value > EPSILON;
+}
+
 function startCorrection(entry: ManualRollProgrammingHistoryEntry) {
     editingEntryId.value = entry.id;
     correction.quantity = String(entry.quantity ?? '');
     correction.reason = '';
-    correctionError.value = '';
+    correctionErrors.quantity = '';
+    correctionErrors.reason = '';
 }
 
 function cancelCorrection() {
     editingEntryId.value = null;
     correction.quantity = '';
     correction.reason = '';
-    correctionError.value = '';
+    correctionErrors.quantity = '';
+    correctionErrors.reason = '';
 }
 
 async function saveCorrection(entry: ManualRollProgrammingHistoryEntry) {
     if (!props.line || isCorrecting.value) return;
 
     const quantity = Number(correction.quantity);
-    if (correction.quantity === '' || Number.isNaN(quantity) || quantity < 0) {
-        correctionError.value = 'Ingresa una cantidad válida (0 o mayor).';
-        return;
-    }
+    correctionErrors.quantity =
+        correction.quantity === '' || Number.isNaN(quantity) || quantity < 0 ? 'Ingresa una cantidad válida (0 o mayor).' : '';
+    correctionErrors.reason =
+        correctionNeedsReason(entry) && !correction.reason.trim() ? 'Indica el motivo: la corrección supera lo programado.' : '';
+    if (correctionErrors.quantity || correctionErrors.reason) return;
 
     isCorrecting.value = true;
-    correctionError.value = '';
 
     try {
         const { data } = await axios.patch(`/kardex-telas/descargue-orden/manual/${props.line.id}/descargues/${entry.id}`, {
             quantity,
             reason: correction.reason.trim() || null,
         });
-        editingEntryId.value = null;
+        cancelCorrection();
         await fetchHistory();
         emit('success', data?.message || 'Descargue corregido correctamente.');
     } catch (error: any) {
         const fieldErrors = error?.response?.data?.errors ?? {};
-        correctionError.value =
-            fieldErrors.reason?.[0] ?? fieldErrors.quantity?.[0] ?? error?.response?.data?.message ?? 'No se pudo corregir el descargue.';
+        correctionErrors.quantity = fieldErrors.quantity?.[0] ?? '';
+        correctionErrors.reason = fieldErrors.reason?.[0] ?? '';
+        if (!correctionErrors.quantity && !correctionErrors.reason) {
+            correctionErrors.quantity = error?.response?.data?.message ?? 'No se pudo corregir el descargue.';
+        }
     } finally {
         isCorrecting.value = false;
     }
@@ -192,164 +226,194 @@ async function submitDischarge() {
 
 <template>
     <Dialog :open="props.modelValue" modal @update:open="handleOpenChange">
-        <FormDialogContent class="flex max-h-[90vh] max-w-lg flex-col px-2 py-2">
+        <FormDialogContent size="md" class="flex max-h-[90vh] flex-col px-2 py-2">
             <AlertBox v-if="alertMessage" type="error" :message="alertMessage" @close="alertMessage = ''" />
 
             <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle>Descargar rollo {{ props.line?.roll_number ?? '' }}</DialogTitle>
                 <DialogDescription>
-                    Registra el consumo real. Puedes descargar en varias veces y superar lo programado indicando el motivo.
+                    Orden {{ props.line?.manual_order_code ?? '' }}: registra los metros que realmente se consumieron. Puedes descargar en varias
+                    veces.
                 </DialogDescription>
             </DialogHeader>
 
             <div class="flex-1 space-y-5 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
+                <!-- Resumen de la programación -->
                 <div v-if="props.line" class="space-y-3 rounded-2xl border border-border bg-muted/20 p-4">
                     <div class="grid grid-cols-3 gap-4 text-center text-sm">
                         <div>
                             <p class="text-xs text-muted-foreground">Programado</p>
-                            <p class="font-semibold">{{ fmt(props.line.programmed_meters) }}</p>
+                            <p class="text-base font-semibold">{{ fmt(programmed) }}</p>
                         </div>
                         <div>
                             <p class="text-xs text-muted-foreground">Consumido</p>
-                            <p class="font-semibold">{{ fmt(props.line.consumed_meters) }}</p>
+                            <p class="text-base font-semibold">{{ fmt(consumed) }}</p>
                         </div>
                         <div>
                             <p class="text-xs text-muted-foreground">Pendiente</p>
-                            <p class="font-semibold">{{ fmt(pending) }}</p>
+                            <p class="text-base font-semibold">{{ fmt(pending) }}</p>
                         </div>
                     </div>
-                    <div class="grid grid-cols-3 gap-4 border-t border-border pt-3 text-center text-sm">
-                        <div>
-                            <p class="text-xs text-muted-foreground">Real del rollo</p>
-                            <p class="font-semibold">{{ fmt(rollReal) }}</p>
+                    <div class="h-2 overflow-hidden rounded-full bg-muted">
+                        <div
+                            class="h-full rounded-full transition-all"
+                            :class="overconsumed > 0 ? 'bg-amber-500' : 'bg-primary'"
+                            :style="{ width: `${progressPercent}%` }"
+                        />
+                    </div>
+                    <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                        <span
+                            >Disponible en el rollo: <span class="font-semibold text-foreground">{{ fmt(rollReal) }}</span></span
+                        >
+                        <Badge v-if="overconsumed > 0" variant="outline" class="border-amber-400 text-amber-700 dark:text-amber-300">
+                            Sobreconsumo {{ fmt(overconsumed) }}
+                        </Badge>
+                    </div>
+                </div>
+
+                <div class="grid gap-6 md:grid-cols-2">
+                    <!-- Nuevo descargue -->
+                    <section class="space-y-4">
+                        <h3 class="text-sm font-semibold">Nuevo descargue</h3>
+
+                        <div class="space-y-1">
+                            <p class="text-xs font-semibold text-muted-foreground">
+                                Cantidad a descargar (m) <span class="text-destructive">*</span>
+                            </p>
+                            <Input
+                                v-model="form.quantity"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="Ej. 10"
+                                :invalid="Boolean(errors.quantity)"
+                                :error-message="errors.quantity"
+                            />
                         </div>
-                        <div>
-                            <p class="text-xs text-muted-foreground">Libre del rollo</p>
-                            <p class="font-semibold">{{ fmt(rollFree) }}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-muted-foreground">Sobreconsumo</p>
-                            <p class="font-semibold" :class="props.line.overconsumed_meters > 0 ? 'text-amber-600 dark:text-amber-400' : ''">
-                                {{ fmt(props.line.overconsumed_meters) }}
+
+                        <label class="flex cursor-pointer items-start gap-2 rounded-xl border border-border px-3 py-2.5 text-sm">
+                            <Checkbox
+                                :model-value="form.finishRoll"
+                                class="mt-0.5"
+                                @update:model-value="(v: boolean | 'indeterminate') => (form.finishRoll = v === true)"
+                            />
+                            <span>
+                                <span class="font-medium">El rollo se terminó</span>
+                                <span class="block text-xs text-muted-foreground"
+                                    >Registra lo que sobre como faltante y libera las reservas restantes.</span
+                                >
+                            </span>
+                        </label>
+
+                        <div
+                            v-if="preview.excess > 0 || form.finishRoll"
+                            class="space-y-1 rounded-xl border border-amber-300/70 bg-amber-50 px-3 py-2.5 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200"
+                        >
+                            <p class="flex items-center gap-1.5 font-semibold"><TriangleAlert class="h-3.5 w-3.5" /> Se registrará</p>
+                            <p v-if="preview.excess > 0">Sobreconsumo de {{ fmt(preview.excess) }} sobre lo programado.</p>
+                            <p v-if="preview.surplus > 0">Sobrante de metraje de {{ fmt(preview.surplus) }}, pendiente de revisión.</p>
+                            <p v-if="form.finishRoll && preview.shortage > 0">
+                                Faltante de metraje de {{ fmt(preview.shortage) }}, pendiente de revisión.
+                            </p>
+                            <p v-if="form.finishRoll && props.line && props.line.other_reservations_count > 0">
+                                Se liberan {{ props.line.other_reservations_count }} reserva(s) de otras órdenes ({{
+                                    fmt(props.line.other_reservations_meters)
+                                }}).
                             </p>
                         </div>
-                    </div>
-                </div>
 
-                <div class="space-y-1">
-                    <p class="text-xs font-semibold text-muted-foreground">Cantidad a descargar (m) <span class="text-destructive">*</span></p>
-                    <Input
-                        v-model="form.quantity"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="Ej. 10"
-                        :invalid="Boolean(errors.quantity)"
-                        :error-message="errors.quantity"
-                    />
-                </div>
-
-                <label class="flex cursor-pointer items-start gap-2 rounded-xl border border-border px-3 py-2.5 text-sm">
-                    <Checkbox
-                        :model-value="form.finishRoll"
-                        class="mt-0.5"
-                        @update:model-value="(v: boolean | 'indeterminate') => (form.finishRoll = v === true)"
-                    />
-                    <span>
-                        <span class="font-medium">Rollo terminado (se acabó)</span>
-                        <span class="block text-xs text-muted-foreground">
-                            Lo que el sistema todavía tenga del rollo se registra como faltante de metraje y se liberan las reservas que quedaban.
-                        </span>
-                    </span>
-                </label>
-
-                <div
-                    v-if="preview.excess > 0 || preview.surplus > 0 || form.finishRoll"
-                    class="space-y-1.5 rounded-xl border border-amber-300/70 bg-amber-50 px-3 py-2.5 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200"
-                >
-                    <p class="flex items-center gap-1.5 font-semibold"><TriangleAlert class="h-3.5 w-3.5" /> Se registrará</p>
-                    <p v-if="preview.excess > 0">Sobreconsumo de {{ fmt(preview.excess) }} sobre lo programado.</p>
-                    <p v-if="preview.surplus > 0">
-                        Sobrante de metraje de {{ fmt(preview.surplus) }}: el rollo trae más tela de la registrada. Queda pendiente de revisión.
-                    </p>
-                    <p v-if="form.finishRoll && preview.shortage > 0">
-                        Faltante de metraje de {{ fmt(preview.shortage) }}: el rollo se acabó antes de lo registrado. Queda pendiente de revisión.
-                    </p>
-                    <p v-if="form.finishRoll && props.line && props.line.other_reservations_count > 0">
-                        Se liberarán {{ props.line.other_reservations_count }} reserva(s) de otras órdenes ({{
-                            fmt(props.line.other_reservations_meters)
-                        }}).
-                    </p>
-                </div>
-
-                <div class="space-y-1">
-                    <p class="text-xs font-semibold text-muted-foreground">Motivo <span v-if="reasonRequired" class="text-destructive">*</span></p>
-                    <Input
-                        v-model="form.reason"
-                        data-no-uppercase
-                        :placeholder="reasonRequired ? 'Obligatorio' : 'Opcional'"
-                        :invalid="Boolean(errors.reason)"
-                        :error-message="errors.reason"
-                    />
-                </div>
-
-                <div class="space-y-1">
-                    <p class="text-xs font-semibold text-muted-foreground">Historial de descargues</p>
-                    <div v-if="isLoadingHistory" class="text-xs text-muted-foreground">Cargando...</div>
-                    <p v-else-if="history.length === 0" class="text-xs text-muted-foreground">Sin descargues registrados aún.</p>
-                    <div v-else class="max-h-52 divide-y divide-border overflow-y-auto rounded-md border border-border text-sm">
-                        <div v-for="entry in history" :key="entry.id" class="px-3 py-2">
-                            <div v-if="editingEntryId === entry.id" class="space-y-2">
-                                <div class="flex items-center gap-2">
-                                    <Input
-                                        v-model="correction.quantity"
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        class="h-8 w-24"
-                                        :invalid="Boolean(correctionError)"
-                                    />
-                                    <Input v-model="correction.reason" data-no-uppercase class="h-8 flex-1" placeholder="Motivo de la corrección" />
-                                </div>
-                                <div class="flex justify-end gap-2">
-                                    <Button size="sm" variant="outline" class="h-8" :disabled="isCorrecting" @click="cancelCorrection"
-                                        >Cancelar</Button
-                                    >
-                                    <Button size="sm" class="h-8" :disabled="isCorrecting" @click="saveCorrection(entry)">Guardar</Button>
-                                </div>
-                            </div>
-                            <div v-else class="flex items-center justify-between gap-2">
-                                <div class="min-w-0">
-                                    <p class="truncate">{{ entry.reason || 'Sin motivo' }}</p>
-                                    <p class="text-xs text-muted-foreground">
-                                        {{ entry.user_name ?? '-' }} ·
-                                        {{ entry.created_at ? new Date(entry.created_at).toLocaleString('es-CO') : '-' }}
-                                    </p>
-                                </div>
-                                <div class="flex shrink-0 items-center gap-1.5">
-                                    <Badge
-                                        v-if="entry.corrections_count > 0"
-                                        variant="outline"
-                                        class="text-[0.65rem]"
-                                        title="Cantidad vigente tras sus correcciones"
-                                    >
-                                        Corregido {{ entry.corrections_count }}×
-                                    </Badge>
-                                    <span class="font-semibold">{{ fmt(entry.quantity) }}</span>
-                                    <button
-                                        v-if="canCorrectDischarge"
-                                        type="button"
-                                        class="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                                        title="Corregir cantidad de este descargue"
-                                        @click="startCorrection(entry)"
-                                    >
-                                        <Pencil class="h-3.5 w-3.5" />
-                                    </button>
-                                </div>
-                            </div>
-                            <p v-if="editingEntryId === entry.id && correctionError" class="mt-1 text-xs text-destructive">{{ correctionError }}</p>
+                        <div v-if="reasonRequired || form.reason" class="space-y-1">
+                            <p class="text-xs font-semibold text-muted-foreground">
+                                Motivo <span v-if="reasonRequired" class="text-destructive">*</span>
+                            </p>
+                            <Input
+                                v-model="form.reason"
+                                data-no-uppercase
+                                :placeholder="reasonRequired ? 'Obligatorio' : 'Opcional'"
+                                :invalid="Boolean(errors.reason)"
+                                :error-message="errors.reason"
+                            />
                         </div>
-                    </div>
+                    </section>
+
+                    <!-- Historial -->
+                    <section class="space-y-2">
+                        <h3 class="flex items-center gap-1.5 text-sm font-semibold">
+                            <History class="h-4 w-4 text-muted-foreground" /> Historial de descargues
+                        </h3>
+                        <div v-if="isLoadingHistory" class="text-xs text-muted-foreground">Cargando...</div>
+                        <p
+                            v-else-if="history.length === 0"
+                            class="rounded-xl border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground"
+                        >
+                            Aún no hay descargues registrados.
+                        </p>
+                        <div v-else class="max-h-72 divide-y divide-border overflow-y-auto rounded-xl border border-border text-sm">
+                            <div v-for="entry in history" :key="entry.id" class="px-3 py-2">
+                                <div v-if="editingEntryId === entry.id" class="space-y-2">
+                                    <div class="space-y-1">
+                                        <p class="text-xs font-semibold text-muted-foreground">Cantidad corregida (m)</p>
+                                        <Input
+                                            v-model="correction.quantity"
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            :invalid="Boolean(correctionErrors.quantity)"
+                                            :error-message="correctionErrors.quantity"
+                                        />
+                                    </div>
+                                    <div class="space-y-1">
+                                        <p class="text-xs font-semibold text-muted-foreground">
+                                            Motivo
+                                            <span v-if="correctionNeedsReason(entry)" class="text-destructive">*</span>
+                                        </p>
+                                        <Input
+                                            v-model="correction.reason"
+                                            data-no-uppercase
+                                            :placeholder="correctionNeedsReason(entry) ? 'Obligatorio: supera lo programado' : 'Opcional'"
+                                            :invalid="Boolean(correctionErrors.reason)"
+                                            :error-message="correctionErrors.reason"
+                                        />
+                                    </div>
+                                    <div class="flex justify-end gap-2">
+                                        <Button size="sm" variant="outline" class="h-8" :disabled="isCorrecting" @click="cancelCorrection"
+                                            >Cancelar</Button
+                                        >
+                                        <Button size="sm" class="h-8" :disabled="isCorrecting" @click="saveCorrection(entry)">Guardar</Button>
+                                    </div>
+                                </div>
+                                <div v-else class="flex items-center justify-between gap-2">
+                                    <div class="min-w-0">
+                                        <p class="truncate">{{ entry.reason || 'Sin motivo' }}</p>
+                                        <p class="text-xs text-muted-foreground">
+                                            {{ entry.user_name ?? '-' }} ·
+                                            {{ entry.created_at ? new Date(entry.created_at).toLocaleString('es-CO') : '-' }}
+                                        </p>
+                                    </div>
+                                    <div class="flex shrink-0 items-center gap-1.5">
+                                        <Badge
+                                            v-if="entry.corrections_count > 0"
+                                            variant="outline"
+                                            class="text-[0.65rem]"
+                                            title="Cantidad vigente tras sus correcciones"
+                                        >
+                                            Corregido {{ entry.corrections_count }}×
+                                        </Badge>
+                                        <span class="font-semibold">{{ fmt(entry.quantity) }}</span>
+                                        <button
+                                            v-if="canCorrectDischarge"
+                                            type="button"
+                                            class="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                                            title="Corregir cantidad de este descargue"
+                                            @click="startCorrection(entry)"
+                                        >
+                                            <Pencil class="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
                 </div>
             </div>
 

@@ -168,7 +168,10 @@ it('records a traceable surplus when the discharge exceeds the roll real stock, 
     $discharge = FabricRollAdjustment::where('type', 'salida')->where('fabric_roll_id', $roll->id)->firstOrFail();
 
     expect((float) $roll->received_quantity)->toEqual(100.0)
-        ->and((float) $roll->quantity)->toEqual(103.0)
+        ->and((float) $roll->quantity)->toEqual(100.0)
+        ->and((float) $roll->length_adjustment_meters)->toEqual(3.0)
+        ->and((float) $difference->quantity_before)->toEqual(100.0)
+        ->and((float) $difference->quantity_after)->toEqual(103.0)
         ->and((float) $roll->actual_output)->toEqual(103.0)
         ->and(FabricRollBalance::real($roll))->toEqual(0.0)
         ->and($roll->length_review_status)->toBe(FabricRoll::LENGTH_REVIEW_PENDING)
@@ -211,7 +214,8 @@ it('finishes a roll: records the remaining stock as shortage and releases every 
     $shortage = FabricRollLengthDifference::where('type', FabricRollLengthDifference::TYPE_SHORTAGE)->firstOrFail();
 
     expect((float) $roll->actual_output)->toEqual(30.0)
-        ->and((float) $roll->quantity)->toEqual(30.0)
+        ->and((float) $roll->quantity)->toEqual(100.0)
+        ->and((float) $roll->length_adjustment_meters)->toEqual(-70.0)
         ->and((float) $roll->received_quantity)->toEqual(100.0)
         ->and((float) $roll->partial_output)->toEqual(0.0)
         ->and(FabricRollBalance::real($roll))->toEqual(0.0)
@@ -290,6 +294,7 @@ it('reverses the surplus a discharge had recorded when a correction lowers its c
     expect((float) $reversal->meters)->toEqual(3.0)
         ->and($reversal->type)->toBe(FabricRollLengthDifference::TYPE_SHORTAGE)
         ->and((float) $roll->quantity)->toEqual(100.0)
+        ->and((float) $roll->length_adjustment_meters)->toEqual(0.0)
         ->and((float) $roll->actual_output)->toEqual(100.0)
         ->and((float) $stock->fresh()->quantity)->toEqual(900.0);
 });
@@ -433,7 +438,8 @@ it('saves cut consumption idempotently, releasing the sheet reservation once fro
     // Último descargue: lo que el sistema todavía tiene es faltante.
     $this->putJson($url, ['lines' => [flowCutLine($roll, 40, true)]])->assertOk();
     $roll->refresh();
-    expect((float) $roll->quantity)->toEqual(40.0)
+    expect((float) $roll->quantity)->toEqual(100.0)
+        ->and((float) $roll->length_adjustment_meters)->toEqual(-60.0)
         ->and(FabricRollBalance::real($roll))->toEqual(0.0)
         ->and((float) FabricRollLengthDifference::where('type', 'faltante')->value('meters'))->toEqual(60.0);
 });
@@ -515,4 +521,98 @@ it('repairs, with a traceable adjustment, a discharge that the old code correcte
     // Idempotente: una segunda pasada no repara otra vez.
     $this->artisan('textil:audit-roll-balances', ['--apply' => true])->assertSuccessful();
     expect((float) $roll->fresh()->actual_output)->toEqual(18.0);
+});
+
+// ─── La cantidad del rollo no cambia al descargar (sobrante/faltante aparte) ──
+
+it('keeps quantity untouched and stores the over-discharge in length_adjustment_meters, with a coherent kardex and balances', function () {
+    [$roll, $stock] = flowRoll('RL-FLOW-QTY-1', 100);
+    $line = flowProgram($roll, 100);
+
+    // Primer descargue dentro de lo registrado, segundo con sobreconsumo de 11 m.
+    $this->service->dischargeManual($line, 90);
+    $this->service->dischargeManual($line, 21, 'Rollo más largo');
+
+    $roll->refresh();
+    $entradas = (float) \App\Models\Inventory\InventoryMovement::where('type', 'entrada')
+        ->where('source_type', FabricRoll::class)->where('source_id', $roll->id)->sum('quantity');
+
+    expect((float) $roll->quantity)->toEqual(100.0)
+        ->and((float) $roll->length_adjustment_meters)->toEqual(11.0)
+        ->and((float) $roll->actual_output)->toEqual(111.0)
+        // real = quantity + ajuste − consumido
+        ->and(FabricRollBalance::real($roll))->toEqual(0.0)
+        ->and(FabricRollBalance::free($roll))->toEqual(0.0)
+        ->and(FabricRollBalance::length($roll))->toEqual(111.0)
+        ->and($entradas)->toEqual(11.0)
+        // Kardex: +11 de sobrante − 111 de consumo.
+        ->and((float) $stock->fresh()->quantity)->toEqual(900.0);
+
+    // El evento de ajuste y la diferencia guardan el metraje vigente (cantidad + ajuste).
+    $adjustment = FabricRollAdjustment::where('type', 'salida')->where('fabric_roll_id', $roll->id)->orderByDesc('id')->firstOrFail();
+    expect((float) $adjustment->quantity_before)->toEqual(100.0)
+        ->and((float) $adjustment->quantity_after)->toEqual(111.0);
+});
+
+it('lets the sums of the roll balance include the adjustment in SQL and in the inventory listing', function () {
+    [$roll] = flowRoll('RL-FLOW-QTY-2', 100);
+    $line = flowProgram($roll, 100);
+    $this->service->dischargeManual($line, 105, 'Rollo más largo');
+
+    $row = \Illuminate\Support\Facades\DB::table('fabric_rolls')->selectRaw(FabricRollBalance::sqlReal().' AS real_m, '.FabricRollBalance::sqlFree().' AS free_m')->where('id', $roll->id)->first();
+    expect((float) $row->real_m)->toEqual(0.0)
+        ->and((float) $row->free_m)->toEqual(0.0);
+
+    // Un faltante deja libre/real consistentes con el ajuste negativo.
+    [$roll2] = flowRoll('RL-FLOW-QTY-3', 100);
+    $line2 = flowProgram($roll2, 50, 'OP-QTY-3');
+    $this->service->dischargeManual($line2, 50, 'Último', true);
+    $roll2->refresh();
+
+    expect((float) $roll2->quantity)->toEqual(100.0)
+        ->and((float) $roll2->length_adjustment_meters)->toEqual(-50.0)
+        ->and(FabricRollBalance::real($roll2))->toEqual(0.0)
+        ->and(FabricRollBalance::realFromValues(100.0, 50.0, -50.0))->toEqual(0.0);
+});
+
+it('corrects a discharge up and down without ever changing the roll quantity (surplus and its reversal)', function () {
+    [$roll, $stock] = flowRoll('RL-FLOW-QTY-4', 100);
+    $line = flowProgram($roll, 100);
+    $this->service->dischargeManual($line, 100);
+    $discharge = FabricRollAdjustment::where('type', 'salida')->where('fabric_roll_id', $roll->id)->firstOrFail();
+
+    // Hacia arriba: 100 -> 107 excede el rollo en 7 m.
+    $this->service->correctManualDischarge($discharge, 107, 'Se cortó de más', $line);
+    $roll->refresh();
+    expect((float) $roll->quantity)->toEqual(100.0)
+        ->and((float) $roll->length_adjustment_meters)->toEqual(7.0)
+        ->and(FabricRollBalance::real($roll))->toEqual(0.0);
+
+    // Hacia abajo: 107 -> 102 revierte 5 m del sobrante.
+    $this->service->correctManualDischarge($discharge->fresh(), 102, null, $line);
+    $roll->refresh();
+    expect((float) $roll->quantity)->toEqual(100.0)
+        ->and((float) $roll->length_adjustment_meters)->toEqual(2.0)
+        ->and(FabricRollBalance::real($roll))->toEqual(0.0);
+
+    // Hasta 100: el sobrante desaparece por completo.
+    $this->service->correctManualDischarge($discharge->fresh(), 100, null, $line);
+    $roll->refresh();
+    expect((float) $roll->quantity)->toEqual(100.0)
+        ->and((float) $roll->length_adjustment_meters)->toEqual(0.0)
+        ->and((float) $roll->actual_output)->toEqual(100.0)
+        ->and((float) $stock->fresh()->quantity)->toEqual(900.0);
+});
+
+it('exposes length_adjustment_meters in the inventory endpoint and keeps the quantity as received', function () {
+    [$roll] = flowRoll('RL-FLOW-QTY-5', 100);
+    $line = flowProgram($roll, 100);
+    $this->service->dischargeManual($line, 104, 'Rollo más largo');
+
+    $data = $this->getJson(route('kardex-telas.inventario-rollos.data', ['search' => 'RL-FLOW-QTY-5']))->assertOk()->json('data');
+
+    expect($data)->toHaveCount(1)
+        ->and((float) $data[0]['roll_qty_value'])->toEqual(100.0)
+        ->and((float) $data[0]['length_adjustment_meters'])->toEqual(4.0)
+        ->and((float) $data[0]['real_availability_value'])->toEqual(0.0);
 });

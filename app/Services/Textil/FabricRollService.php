@@ -157,9 +157,9 @@ class FabricRollService
 
         if (isset($filters['status']) && $filters['status'] !== '') {
             if ($filters['status'] === 'available') {
-                $query->whereRaw('quantity > actual_output');
+                $query->whereRaw(FabricRollBalance::sqlReal().' > 0');
             } elseif ($filters['status'] === 'depleted') {
-                $query->whereRaw('quantity <= actual_output');
+                $query->whereRaw(FabricRollBalance::sqlReal().' <= 0');
             }
         }
 
@@ -458,8 +458,18 @@ class FabricRollService
                 'created_by_user_id' => Auth::id(),
             ]);
         } catch (\InvalidArgumentException|\RuntimeException $e) {
+            $message = $e->getMessage();
+
+            // "Stock actual" en ese mensaje es el agregado del ítem en la bodega (todos los
+            // rollos de esa tela/color juntos), no el saldo de este rollo — sin esta
+            // aclaración parece un error de este rollo cuando en realidad es un descuadre
+            // entre rollos y el kardex del ítem.
+            if (str_contains($message, 'No hay suficiente stock disponible')) {
+                $message .= " Ese stock es el agregado de \"{$item->name}\" en bodega (todos los rollos de esa tela/color), no el saldo propio de este rollo. Si el rollo sí tiene ese metraje, hay un descuadre entre rollos y el kardex del ítem: ejecute \"php artisan inventory:check-fabric-integrity\" para confirmarlo.";
+            }
+
             throw ValidationException::withMessages([
-                'quantity' => ["Kardex del rollo #{$roll->roll_number}: ".$e->getMessage()],
+                'quantity' => ["Kardex del rollo #{$roll->roll_number}: ".$message],
             ]);
         }
     }
@@ -535,8 +545,8 @@ class FabricRollService
             $this->recordAdjustmentWithMovement(
                 $roll,
                 'correction',
-                (float) $roll->quantity,
-                (float) $roll->quantity,
+                FabricRollBalance::length($roll),
+                FabricRollBalance::length($roll),
                 'Cambio de ítem vinculado (anterior: '.($previousItem?->id ?? 'ninguno').', nuevo: '.$itemId.')',
                 inventoryMovementId: $movement?->id,
                 actualOutputBefore: (float) $roll->actual_output,
@@ -611,6 +621,18 @@ class FabricRollService
 
             if ($quantity <= 0) {
                 $errors[] = ['row' => $rowNum, 'message' => "Rollo '{$rollNumber}': cantidad debe ser mayor a 0."];
+                $skipped++;
+
+                continue;
+            }
+
+            // Mismo guardia que importQuantities(): una reserva mayor a lo físicamente
+            // disponible deja el rollo en un estado imposible (partial_output > real) que
+            // luego el kardex del ítem no puede respaldar — el mismo tipo de descuadre que
+            // detecta AuditRollBalancesCommand.
+            $realAvailable = FabricRollBalance::meters($quantity - $actualOutput);
+            if ($partialOutput > $realAvailable + FabricRollBalance::EPSILON) {
+                $errors[] = ['row' => $rowNum, 'message' => "Rollo '{$rollNumber}': la salida parcial ({$partialOutput} m) supera la disponibilidad real ({$realAvailable} m)."];
                 $skipped++;
 
                 continue;
@@ -701,10 +723,13 @@ class FabricRollService
             }
 
             $actualOutput = (float) $roll->actual_output;
+            $lengthAdjustment = (float) $roll->length_adjustment_meters;
+            $lengthBefore = FabricRollBalance::length($roll);
+            // El metraje vigente (cantidad + sobrante/faltante) no puede quedar por debajo de lo consumido + reservado.
             $reservedFloor = FabricRollBalance::meters($actualOutput + (float) $roll->partial_output);
-            if ($newQuantity < $reservedFloor - FabricRollBalance::EPSILON) {
+            if ($newQuantity + $lengthAdjustment < $reservedFloor - FabricRollBalance::EPSILON) {
                 throw ValidationException::withMessages([
-                    'new_quantity' => ['La nueva cantidad no puede ser menor que lo ya consumido más lo reservado ('.$reservedFloor.' mts).'],
+                    'new_quantity' => ['La nueva cantidad (más el sobrante/faltante de metraje) no puede ser menor que lo ya consumido más lo reservado ('.$reservedFloor.' mts).'],
                 ]);
             }
 
@@ -721,8 +746,8 @@ class FabricRollService
             $this->recordAdjustmentWithMovement(
                 $roll,
                 'correction',
-                $currentQty,
-                $newQuantity,
+                $lengthBefore,
+                FabricRollBalance::length($roll),
                 $reason,
                 inventoryMovementId: $movement?->id,
                 actualOutputBefore: $actualOutput,
@@ -742,14 +767,23 @@ class FabricRollService
      *
      * @throws ValidationException
      */
-    public function discharge(FabricRoll $fabricRoll, string $type, float $quantity, string $reason, ?int $productionOrderId, ?string $reference): FabricRoll
+    public function discharge(FabricRoll $fabricRoll, string $type, float $quantity, string $reason, ?string $productionOrderCode, ?string $reference): FabricRoll
     {
-        return DB::transaction(function () use ($fabricRoll, $type, $quantity, $reason, $productionOrderId, $reference) {
+        return DB::transaction(function () use ($fabricRoll, $type, $quantity, $reason, $productionOrderCode, $reference) {
             $roll = FabricRoll::with(['item', 'purchaseDocumentItem.item'])->lockForUpdate()->findOrFail($fabricRoll->id);
             $this->ensureRollOperable($roll);
 
+            // El código de orden es texto libre: el usuario lo escribe o lo elige de una
+            // sugerencia, pero el lote físico puede no tener todavía su ProductionOrder
+            // formal en el sistema. Se guarda siempre; el id solo si hay una orden real
+            // con ese op_code.
+            $productionOrderCode = $this->normalizeOrderCode($productionOrderCode);
+            $productionOrderId = $productionOrderCode
+                ? ProductionOrder::where('op_code', $productionOrderCode)->value('id')
+                : null;
+
             $quantity = FabricRollBalance::meters($quantity);
-            $quantityBefore = (float) $roll->quantity;
+            $quantityBefore = FabricRollBalance::length($roll);
             $actualOutputBefore = (float) $roll->actual_output;
 
             if ($type === 'salida') {
@@ -777,16 +811,17 @@ class FabricRollService
                     $roll,
                     'salida',
                     $quantityBefore,
-                    (float) $roll->quantity,
+                    FabricRollBalance::length($roll),
                     $reason,
                     reference: $reference,
                     inventoryMovementId: $movement?->id,
                     actualOutputBefore: $actualOutputBefore,
                     actualOutputAfter: (float) $roll->actual_output,
                     quantity: $quantity,
+                    productionOrderCode: $productionOrderCode,
                 );
 
-                $this->recordRollConsumption($roll, $quantity, $productionOrderId, ProductionRollConsumption::SOURCE_ADJUSTMENT, $adjustment->id);
+                $this->recordRollConsumption($roll, $quantity, $productionOrderId, ProductionRollConsumption::SOURCE_ADJUSTMENT, $adjustment->id, $productionOrderCode);
             } else {
                 $movement = $this->createRollMovement(
                     $roll,
@@ -802,13 +837,14 @@ class FabricRollService
                     $roll,
                     'entrada',
                     $quantityBefore,
-                    (float) $roll->quantity,
+                    FabricRollBalance::length($roll),
                     $reason,
                     reference: $reference,
                     inventoryMovementId: $movement?->id,
                     actualOutputBefore: $actualOutputBefore,
                     actualOutputAfter: $actualOutputBefore,
                     quantity: $quantity,
+                    productionOrderCode: $productionOrderCode,
                 );
             }
 
@@ -888,8 +924,8 @@ class FabricRollService
         $this->recordAdjustmentWithMovement(
             $roll,
             'correction',
-            (float) $roll->quantity,
-            (float) $roll->quantity,
+            FabricRollBalance::length($roll),
+            FabricRollBalance::length($roll),
             $notes ?: "Programación manual {$manualOrderCode}: {$programmedMeters} m reservados",
             reference: "manual_programming::{$line->id}",
             partialBefore: $currentPartial,
@@ -953,8 +989,8 @@ class FabricRollService
             $this->recordAdjustmentWithMovement(
                 $roll,
                 'correction',
-                (float) $roll->quantity,
-                (float) $roll->quantity,
+                FabricRollBalance::length($roll),
+                FabricRollBalance::length($roll),
                 "Edición de programación manual {$line->manual_order_code}: {$oldProgrammed} m -> {$newProgrammedMeters} m",
                 reference: "manual_programming::{$line->id}",
                 partialBefore: $currentPartial,
@@ -1101,7 +1137,7 @@ class FabricRollService
                 ]);
             }
 
-            $quantityBefore = (float) $roll->quantity;
+            $quantityBefore = FabricRollBalance::length($roll);
             $partialBefore = (float) $roll->partial_output;
             $actualOutputBefore = (float) $roll->actual_output;
 
@@ -1114,7 +1150,7 @@ class FabricRollService
                     $surplus,
                     "Sobrante de metraje rollo #{$roll->roll_number} — Código {$line->manual_order_code}. {$reason}",
                 );
-                $roll->quantity = FabricRollBalance::meters($quantityBefore + $surplus);
+                $roll->length_adjustment_meters = FabricRollBalance::meters((float) $roll->length_adjustment_meters + $surplus);
             }
 
             $movement = $this->createRollMovement(
@@ -1142,7 +1178,7 @@ class FabricRollService
                     $roll,
                     'salida',
                     $quantityBefore,
-                    (float) $roll->quantity,
+                    FabricRollBalance::length($roll),
                     $reason ?? "Descargue manual {$line->manual_order_code}: {$quantity} m",
                     reference: "manual_programming::{$line->id}",
                     inventoryMovementId: $movement?->id,
@@ -1243,7 +1279,7 @@ class FabricRollService
             $reservedBefore = $line->remaining_meters;
             $reservedAfter = max(0.0, round($programmed - $consumedAfter - (float) $line->released_meters, 6));
 
-            $quantityBefore = (float) $roll->quantity;
+            $quantityBefore = FabricRollBalance::length($roll);
             $partialBefore = (float) $roll->partial_output;
             $actualOutputBefore = (float) $roll->actual_output;
             $surplus = 0.0;
@@ -1261,7 +1297,7 @@ class FabricRollService
                         ]);
                     }
                     $surplusMovement = $this->createRollMovement($roll, 'entrada', $surplus, "Sobrante de metraje rollo #{$roll->roll_number} (corrección de descargue #{$adjustment->id}). {$reason}");
-                    $roll->quantity = FabricRollBalance::meters($quantityBefore + $surplus);
+                    $roll->length_adjustment_meters = FabricRollBalance::meters((float) $roll->length_adjustment_meters + $surplus);
                     $roll->length_review_status = FabricRoll::LENGTH_REVIEW_PENDING;
                 }
 
@@ -1281,7 +1317,7 @@ class FabricRollService
                 $roll,
                 'correction',
                 $quantityBefore,
-                (float) $roll->quantity,
+                FabricRollBalance::length($roll),
                 "Corrección de descargue #{$adjustment->id}: {$oldQuantity} m -> {$newQuantity} m".($reason !== null ? ". Motivo: {$reason}" : ''),
                 reference: "manual_programming::{$line->id}",
                 inventoryMovementId: $movement?->id,
@@ -1349,8 +1385,8 @@ class FabricRollService
             $this->recordAdjustmentWithMovement(
                 $roll,
                 'correction',
-                (float) $roll->quantity,
-                (float) $roll->quantity,
+                FabricRollBalance::length($roll),
+                FabricRollBalance::length($roll),
                 "Se elimina programación manual {$line->manual_order_code}",
                 reference: "manual_programming::{$line->id}",
                 partialBefore: $currentPartial,
@@ -1486,7 +1522,7 @@ class FabricRollService
                     $this->ensureRollOperable($roll);
                 }
 
-                $quantityBefore = (float) $roll->quantity;
+                $quantityBefore = FabricRollBalance::length($roll);
                 $partialBefore = (float) $roll->partial_output;
                 $actualOutputBefore = (float) $roll->actual_output;
 
@@ -1507,7 +1543,7 @@ class FabricRollService
                     $surplusMovement = null;
                     if ($surplus > FabricRollBalance::EPSILON) {
                         $surplusMovement = $this->createRollMovement($roll, 'entrada', $surplus, "Sobrante de metraje rollo #{$roll->roll_number} — consumo de corte {$opLabel}", ProductionOrder::class, $order->id);
-                        $roll->quantity = FabricRollBalance::meters($quantityBefore + $surplus);
+                        $roll->length_adjustment_meters = FabricRollBalance::meters((float) $roll->length_adjustment_meters + $surplus);
                         $roll->length_review_status = FabricRoll::LENGTH_REVIEW_PENDING;
                     }
 
@@ -1519,7 +1555,7 @@ class FabricRollService
                         $roll,
                         'salida',
                         $quantityBefore,
-                        (float) $roll->quantity,
+                        FabricRollBalance::length($roll),
                         "Descargue corte {$opLabel}: {$delta} m",
                         reference: "cut_consumption::{$order->id}",
                         inventoryMovementId: $movement?->id,
@@ -1552,7 +1588,7 @@ class FabricRollService
                         $roll,
                         'correction',
                         $quantityBefore,
-                        (float) $roll->quantity,
+                        FabricRollBalance::length($roll),
                         "Corrección descargue corte {$opLabel}: ".FabricRollBalance::meters($newMeters - $delta)." m -> {$newMeters} m",
                         reference: "cut_consumption::{$order->id}",
                         inventoryMovementId: $movement?->id,
@@ -1628,7 +1664,7 @@ class FabricRollService
             ]);
         }
 
-        $quantityBefore = (float) $roll->quantity;
+        $quantityBefore = FabricRollBalance::length($roll);
         $partialBefore = (float) $roll->partial_output;
         $movement = null;
 
@@ -1639,7 +1675,7 @@ class FabricRollService
                 $remaining,
                 "Faltante de metraje rollo #{$roll->roll_number} (rollo terminado). {$reason}",
             );
-            $roll->quantity = FabricRollBalance::meters($quantityBefore - $remaining);
+            $roll->length_adjustment_meters = FabricRollBalance::meters((float) $roll->length_adjustment_meters - $remaining);
             $roll->length_review_status = FabricRoll::LENGTH_REVIEW_PENDING;
         }
 
@@ -1654,7 +1690,7 @@ class FabricRollService
             $roll,
             'correction',
             $quantityBefore,
-            (float) $roll->quantity,
+            FabricRollBalance::length($roll),
             'Rollo terminado'.($remaining > FabricRollBalance::EPSILON ? ": faltante de {$remaining} m" : '').". {$reason}{$releasedText}",
             reference: $manualLine ? "manual_programming::{$manualLine->id}" : ($productionOrderId ? "cut_consumption::{$productionOrderId}" : null),
             inventoryMovementId: $movement?->id,
@@ -1674,7 +1710,7 @@ class FabricRollService
             FabricRollLengthDifference::TYPE_SHORTAGE,
             $remaining,
             $quantityBefore,
-            (float) $roll->quantity,
+            FabricRollBalance::length($roll),
             $reason,
             $sourceAdjustmentId,
             $movement,
@@ -1757,9 +1793,9 @@ class FabricRollService
                 continue;
             }
 
-            $quantityBefore = (float) $roll->quantity;
+            $quantityBefore = FabricRollBalance::length($roll);
             $movement = $this->createRollMovement($roll, 'salida', $toReverse, "Reversión de sobrante de metraje rollo #{$roll->roll_number} (corrección de descargue #{$discharge->id})");
-            $roll->quantity = FabricRollBalance::meters($quantityBefore - $toReverse);
+            $roll->length_adjustment_meters = FabricRollBalance::meters((float) $roll->length_adjustment_meters - $toReverse);
             $roll->length_review_status = FabricRoll::LENGTH_REVIEW_PENDING;
             $roll->save();
 
@@ -1768,7 +1804,7 @@ class FabricRollService
                 FabricRollLengthDifference::TYPE_SHORTAGE,
                 $toReverse,
                 $quantityBefore,
-                (float) $roll->quantity,
+                FabricRollBalance::length($roll),
                 "Corrección del descargue #{$discharge->id}: se consumió menos, el sobrante registrado no existió.",
                 $correctionId,
                 $movement,
@@ -1782,6 +1818,9 @@ class FabricRollService
     }
 
     /**
+     * quantity_before/quantity_after son el metraje vigente (quantity + length_adjustment_meters) antes/después
+     * de aplicar la diferencia; la cantidad del rollo (quantity) no cambia.
+     *
      * @param  list<array{source:string, id:int, code:?string, meters:float}>  $releasedReservations
      */
     protected function recordLengthDifference(
@@ -1875,8 +1914,8 @@ class FabricRollService
             $this->recordAdjustmentWithMovement(
                 $roll,
                 'correction',
-                (float) $roll->quantity,
-                (float) $roll->quantity,
+                FabricRollBalance::length($roll),
+                FabricRollBalance::length($roll),
                 $reason,
                 partialBefore: $partialBefore,
                 partialAfter: (float) $roll->partial_output,
@@ -1902,7 +1941,7 @@ class FabricRollService
             $roll = FabricRoll::with(['item', 'purchaseDocumentItem.item'])->lockForUpdate()->findOrFail($line->fabric_roll_id);
 
             $excess = FabricRollBalance::meters($excess);
-            $quantityBefore = (float) $roll->quantity;
+            $quantityBefore = FabricRollBalance::length($roll);
             $partialBefore = (float) $roll->partial_output;
             $actualOutputBefore = (float) $roll->actual_output;
 
@@ -1931,7 +1970,7 @@ class FabricRollService
                 $roll,
                 'correction',
                 $quantityBefore,
-                (float) $roll->quantity,
+                FabricRollBalance::length($roll),
                 "Auditoría de saldos: se revierte un desvío de {$excess} m del descargue #{$discharge->id} (correcciones aplicadas contra la cantidad original).",
                 reference: $discharge->reference,
                 inventoryMovementId: $movement?->id,
@@ -1958,6 +1997,10 @@ class FabricRollService
      * Centraliza la creación del registro de auditoría de ajuste de rollo (fabric_roll_adjustments),
      * enlazando siempre el InventoryMovement creado en el mismo flujo (nunca por búsqueda de texto).
      * $quantity es la cantidad vigente del evento (descargue, entrada, corrección).
+     *
+     * quantity_before/quantity_after son el METRAJE VIGENTE del rollo (quantity + length_adjustment_meters)
+     * antes/después del evento: `quantity` solo cambia por correcciones explícitas de cantidad, nunca
+     * por descargues; el sobrante/faltante vive en length_adjustment_meters.
      */
     protected function recordAdjustmentWithMovement(
         FabricRoll $roll,
@@ -1973,6 +2016,7 @@ class FabricRollService
         ?float $actualOutputAfter = null,
         ?float $quantity = null,
         ?int $correctsAdjustmentId = null,
+        ?string $productionOrderCode = null,
     ): FabricRollAdjustment {
         return FabricRollAdjustment::create([
             'fabric_roll_id' => $roll->id,
@@ -1987,19 +2031,32 @@ class FabricRollService
             'actual_output_after' => $actualOutputAfter,
             'reason' => $reason ?? '',
             'reference' => $reference,
+            'production_order_code' => $productionOrderCode,
             'corrects_adjustment_id' => $correctsAdjustmentId,
             'inventory_movement_id' => $inventoryMovementId,
         ]);
     }
 
     /**
+     * Resuelve el código de orden tal como lo escribió o eligió el usuario: sin forzar
+     * mayúsculas ni formato, solo recorta espacios. Vacío se guarda como null.
+     */
+    protected function normalizeOrderCode(?string $code): ?string
+    {
+        $code = trim((string) $code);
+
+        return $code !== '' ? $code : null;
+    }
+
+    /**
      * Trazabilidad rollo/orden del consumo. No depende de tener un ítem vinculado: se
      * registra siempre, aunque el movimiento de kardex todavía no exista.
      */
-    protected function recordRollConsumption(FabricRoll $roll, float $meters, ?int $productionOrderId, string $source, ?int $adjustmentId): ProductionRollConsumption
+    protected function recordRollConsumption(FabricRoll $roll, float $meters, ?int $productionOrderId, string $source, ?int $adjustmentId, ?string $productionOrderCode = null): ProductionRollConsumption
     {
         return ProductionRollConsumption::create([
             'production_order_id' => $productionOrderId,
+            'production_order_code' => $productionOrderCode,
             'fabric_roll_id' => $roll->id,
             'meters_consumed' => $meters,
             'source' => $source,
@@ -2210,6 +2267,7 @@ class FabricRollService
                 'fr.location',
                 'fr.quantity',
                 'fr.received_quantity',
+                'fr.length_adjustment_meters',
                 'fr.length_review_status',
                 'fr.roll_width',
                 DB::raw(FabricRollBalance::sqlFree('fr').' as partial_availability_value'),
@@ -2328,7 +2386,7 @@ class FabricRollService
             'purchaseDocumentItem.document.supplier',
             'purchaseDocumentItem.document.creator',
         ])
-            ->whereColumn('quantity', '>', 'actual_output')
+            ->whereRaw(FabricRollBalance::sqlReal().' > 0')
             ->orderBy('entry_date', 'desc')
             ->get();
     }
@@ -3309,6 +3367,11 @@ class FabricRollService
      */
     public function updatePrice(FabricRoll $fabricRoll, float $pricePerMeter): FabricRoll
     {
+        // El precio de un rollo recepcionado por factura es un dato de la factura, no del
+        // inventario: igual que el resto de la edición directa, se bloquea en cuanto la
+        // recepción queda aprobada (ver update()). Un rollo sin factura (legacy/importado)
+        // no tiene este candado.
+        $this->ensureInvoiceNotYetReceptionApprovedForRoll($fabricRoll);
         $this->ensureRollEditable($fabricRoll);
 
         $fabricRoll->update(['price_per_meter' => round($pricePerMeter, 4)]);

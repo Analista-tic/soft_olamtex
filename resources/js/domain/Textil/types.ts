@@ -51,6 +51,8 @@ export interface FabricRoll {
     tolerance_status?: string | null;
     partial_output: number;
     actual_output: number;
+    /** Sobrante (+) / faltante (−) de metraje neto; quantity no cambia al descargar. */
+    length_adjustment_meters?: number;
     entry_date: string;
     available_quantity: number; // Computed attribute
     is_depleted: boolean; // Computed attribute
@@ -120,8 +122,10 @@ export interface ManualRollProgrammingLine {
     notes: string | null;
     has_item: boolean;
     roll_quantity: number | null;
+    /** Sobrante (+) / faltante (−) neto de metraje del rollo; no altera roll_quantity. */
+    roll_length_adjustment_meters?: number | null;
     roll_received_quantity: number | null;
-    /** Metraje real del rollo: cantidad − consumido. */
+    /** Metraje real del rollo: cantidad + sobrante/faltante − consumido. */
     roll_real_meters: number | null;
     /** Disponible libre del rollo: real − reservas (de esta y otras órdenes). */
     roll_free_meters: number | null;
@@ -172,6 +176,8 @@ export interface FabricRollLengthDifference {
     roll_number: string | null;
     roll_received_quantity: number | null;
     roll_quantity: number | null;
+    /** Sobrante (+) / faltante (−) neto de metraje del rollo; no altera roll_quantity. */
+    roll_length_adjustment_meters?: number | null;
     fabric: string | null;
     invoice_number: string | null;
     provider: string | null;

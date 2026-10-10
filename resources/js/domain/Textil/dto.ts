@@ -38,8 +38,10 @@ export interface FabricRollViewDto {
     width_value: number | null;
     roll_qty: string;
     roll_qty_value: number | null;
-    /** Metraje recibido (no cambia tras la recepción); roll_qty es el metraje vigente. */
+    /** Metraje recibido (no cambia tras la recepción); roll_qty es la cantidad del rollo. */
     received_quantity_value?: number | null;
+    /** Sobrante (+) / faltante (−) de metraje neto; roll_qty (la cantidad) no cambia al descargar. */
+    length_adjustment_meters?: number | null;
     /** Con descargues el rollo queda bloqueado para edición directa (solo ajustes trazables). */
     has_discharges?: boolean;
     length_review_status?: 'none' | 'pending' | 'reviewed';

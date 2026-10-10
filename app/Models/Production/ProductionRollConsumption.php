@@ -16,6 +16,7 @@ class ProductionRollConsumption extends Model
 
     protected $fillable = [
         'production_order_id',
+        'production_order_code',
         'fabric_roll_id',
         'meters_consumed',
         'source',

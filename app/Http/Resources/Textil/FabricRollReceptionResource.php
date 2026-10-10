@@ -14,6 +14,7 @@ class FabricRollReceptionResource extends JsonResource
             'purchase_document_item_id' => $this->purchase_document_item_id,
             'item_id' => $this->item_id,
             'quantity' => $this->toFloat($this->quantity),
+            'length_adjustment_meters' => $this->toFloat($this->length_adjustment_meters),
             'roll_width' => $this->toFloat($this->roll_width),
             'location' => $this->location,
             'description' => $this->description,

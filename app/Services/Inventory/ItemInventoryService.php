@@ -32,7 +32,7 @@ class ItemInventoryService
         $rollSubquery = DB::table('fabric_rolls as fr')
             ->selectRaw('COALESCE(fr.item_id, pdi.item_id) AS item_id')
             ->selectRaw(
-                'SUM(CASE WHEN fr.approval_status = ? THEN fr.quantity - fr.actual_output ELSE 0 END) AS roll_quantity',
+                'SUM(CASE WHEN fr.approval_status = ? THEN fr.quantity + fr.length_adjustment_meters - fr.actual_output ELSE 0 END) AS roll_quantity',
                 [FabricRoll::APPROVAL_APPROVED],
             )
             ->selectRaw(

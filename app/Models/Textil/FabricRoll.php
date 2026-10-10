@@ -50,6 +50,7 @@ class FabricRoll extends Model
         'location',
         'quantity',
         'received_quantity',
+        'length_adjustment_meters',
         'roll_width',
         'price_per_meter',
         'description',
@@ -74,6 +75,7 @@ class FabricRoll extends Model
         'item_id'                   => 'integer',
         'quantity'                  => 'decimal:2',
         'received_quantity'         => 'decimal:2',
+        'length_adjustment_meters'  => 'decimal:2',
         'roll_width'                => 'decimal:2',
         'price_per_meter'           => 'decimal:4',
         'partial_output'            => 'decimal:2',
@@ -122,7 +124,7 @@ class FabricRoll extends Model
         return $this->belongsTo(Item::class, 'item_id');
     }
 
-    // Disponibilidad real: metraje vigente menos lo consumido (sin descontar reservas).
+    // Disponibilidad real: cantidad + sobrante/faltante de metraje, menos lo consumido (sin descontar reservas).
     public function getAvailableQuantityAttribute()
     {
         return FabricRollBalance::real($this);

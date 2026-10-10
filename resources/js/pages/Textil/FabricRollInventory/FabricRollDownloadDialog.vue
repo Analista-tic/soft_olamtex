@@ -1,17 +1,18 @@
 <script setup lang="ts">
-import axios from 'axios';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
+import type { Option } from '@/domain/shared';
 import type { FabricRollView } from '@/domain/Textil';
+import axios from 'axios';
 import { reactive, ref, watch } from 'vue';
 
 type DischargeForm = {
     type: string;
     quantity: string;
-    productionOrderId: string;
+    productionOrderCode: Option['id'] | null;
     creditNote: string;
     reason: string;
 };
@@ -20,7 +21,7 @@ type FormErrors = {
     type: string;
     quantity: string;
     reason: string;
-    production_order_id: string;
+    production_order_code: string;
     credit_note: string;
 };
 
@@ -57,7 +58,7 @@ const emit = defineEmits<{
 const form = reactive<DischargeForm>({
     type: '',
     quantity: '',
-    productionOrderId: '',
+    productionOrderCode: null,
     creditNote: '',
     reason: '',
 });
@@ -66,24 +67,43 @@ const errors = reactive<FormErrors>({
     type: '',
     quantity: '',
     reason: '',
-    production_order_id: '',
+    production_order_code: '',
     credit_note: '',
 });
 
 const isSubmitting = ref(false);
+const opOptions = ref<Option[]>([]);
+const isLoadingOpOptions = ref(false);
+
+async function loadOpOptions(search = '') {
+    isLoadingOpOptions.value = true;
+    try {
+        const response = await axios.get('/produccion/ficha-tecnica/opciones', { params: { search: search || undefined } });
+        opOptions.value = (response.data ?? [])
+            .filter((option: { op_code?: string | null }) => Boolean(option.op_code))
+            .map((option: { op_code: string; reference_label?: string | null }) => ({
+                id: option.op_code,
+                name: option.reference_label ? `${option.op_code} - ${option.reference_label}` : option.op_code,
+            }));
+    } catch {
+        opOptions.value = [];
+    } finally {
+        isLoadingOpOptions.value = false;
+    }
+}
 
 function clearErrors() {
     errors.type = '';
     errors.quantity = '';
     errors.reason = '';
-    errors.production_order_id = '';
+    errors.production_order_code = '';
     errors.credit_note = '';
 }
 
 function resetForm() {
     form.type = '';
     form.quantity = '';
-    form.productionOrderId = '';
+    form.productionOrderCode = null;
     form.creditNote = '';
     form.reason = '';
     clearErrors();
@@ -154,7 +174,7 @@ async function submitDischarge() {
             type: form.type,
             quantity: Number(form.quantity),
             reason: form.reason.trim(),
-            production_order_id: form.productionOrderId ? Number(form.productionOrderId) : null,
+            production_order_code: form.productionOrderCode ? String(form.productionOrderCode).trim() : null,
             credit_note: form.creditNote.trim() || null,
         };
 
@@ -175,7 +195,7 @@ async function submitDischarge() {
         errors.type = getServerFieldError('type', error);
         errors.quantity = getServerFieldError('quantity', error);
         errors.reason = getServerFieldError('reason', error);
-        errors.production_order_id = getServerFieldError('production_order_id', error);
+        errors.production_order_code = getServerFieldError('production_order_code', error);
         errors.credit_note = getServerFieldError('credit_note', error);
 
         const message =
@@ -183,7 +203,7 @@ async function submitDischarge() {
             errors.quantity ||
             errors.reason ||
             errors.type ||
-            errors.production_order_id ||
+            errors.production_order_code ||
             errors.credit_note ||
             'No se pudo procesar el ajuste del rollo.';
 
@@ -228,9 +248,7 @@ async function submitDischarge() {
 
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div class="space-y-1">
-                            <p class="text-xs font-semibold text-muted-foreground">
-                                Tipo de ajuste <span class="text-destructive">*</span>
-                            </p>
+                            <p class="text-xs font-semibold text-muted-foreground">Tipo de ajuste <span class="text-destructive">*</span></p>
                             <SelectField
                                 v-model="form.type"
                                 :options="adjustmentTypeOptions"
@@ -242,9 +260,7 @@ async function submitDischarge() {
                             />
                         </div>
                         <div class="space-y-1">
-                            <p class="text-xs font-semibold text-muted-foreground">
-                                Cantidad (m) <span class="text-destructive">*</span>
-                            </p>
+                            <p class="text-xs font-semibold text-muted-foreground">Cantidad (m) <span class="text-destructive">*</span></p>
                             <Input
                                 v-model="form.quantity"
                                 type="number"
@@ -259,10 +275,9 @@ async function submitDischarge() {
 
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div class="space-y-1">
-                            <p class="text-xs font-semibold text-muted-foreground">
-                                Motivo <span class="text-destructive">*</span>
-                            </p>
-                            <Input data-no-uppercase
+                            <p class="text-xs font-semibold text-muted-foreground">Motivo <span class="text-destructive">*</span></p>
+                            <Input
+                                data-no-uppercase
                                 v-model="form.reason"
                                 placeholder="Describe el motivo del ajuste"
                                 :invalid="Boolean(errors.reason)"
@@ -271,14 +286,21 @@ async function submitDischarge() {
                         </div>
                         <div class="space-y-1">
                             <p class="text-xs font-semibold text-muted-foreground">Orden de producción</p>
-                            <Input
-                                v-model="form.productionOrderId"
-                                type="number"
-                                min="1"
-                                step="1"
-                                placeholder="ID de la OP"
-                                :invalid="Boolean(errors.production_order_id)"
-                                :error-message="errors.production_order_id"
+                            <SelectField
+                                v-model="form.productionOrderCode"
+                                :options="opOptions"
+                                label=""
+                                placeholder="Ej. MF-5005 (opcional)"
+                                search-placeholder="Buscar por código de OP..."
+                                class="w-full"
+                                :searchable="true"
+                                :allow-custom="true"
+                                custom-option-label='Usar "{value}" (orden aún no registrada)'
+                                :loading="isLoadingOpOptions"
+                                :clearable="true"
+                                :invalid="Boolean(errors.production_order_code)"
+                                :error-message="errors.production_order_code"
+                                @search="loadOpOptions"
                             />
                         </div>
                     </div>

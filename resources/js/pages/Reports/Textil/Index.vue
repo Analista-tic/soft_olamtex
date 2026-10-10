@@ -120,7 +120,7 @@ async function exportPdf() {
 }
 
 const availableQuantity = (roll: any) =>
-    Math.max(0, Number(roll.quantity) - Number(roll.actual_output));
+    Math.max(0, Number(roll.quantity) + Number(roll.length_adjustment_meters ?? 0) - Number(roll.actual_output));
 
 const approvalBadge = (status: string) => {
     const map: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {

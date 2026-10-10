@@ -10,12 +10,16 @@ use Illuminate\Support\Facades\DB;
 /**
  * Única fuente de las fórmulas de saldo de un rollo de tela.
  *
- * - quantity        metraje vigente (recibido + sobrantes − faltantes + ajustes).
+ * - quantity        cantidad del rollo (recibida, + correcciones explícitas de cantidad). Nunca
+ *                   cambia por descargar: es la base de la trazabilidad.
+ * - length_adjustment_meters  sobrante (+) / faltante (−) de metraje detectado al descargar,
+ *                   neto de reversos. Va aparte para no alterar quantity.
  * - actual_output   metros ya consumidos (descargados).
  * - partial_output  metros reservados por programaciones pendientes (ficha técnica + manual).
  *
- * real  = quantity − actual_output                  (lo que físicamente queda en el rollo)
- * libre = quantity − actual_output − partial_output (lo que se puede tomar sin tocar reservas)
+ * metraje vigente = quantity + length_adjustment_meters
+ * real  = metraje vigente − actual_output                  (lo que físicamente queda en el rollo)
+ * libre = metraje vigente − actual_output − partial_output (lo que se puede tomar sin tocar reservas)
  *
  * Listado, Resource, reporte, validaciones y comandos usan estas funciones: antes había
  * cuatro cálculos distintos (uno olvidaba actual_output y otro ignoraba partial_output).
@@ -30,9 +34,15 @@ final class FabricRollBalance
         return round($value, 2);
     }
 
+    /** Metraje vigente del rollo: cantidad + sobrante/faltante de metraje. */
+    public static function length(FabricRoll $roll): float
+    {
+        return self::meters((float) $roll->quantity + (float) $roll->length_adjustment_meters);
+    }
+
     public static function real(FabricRoll $roll): float
     {
-        return self::meters((float) $roll->quantity - (float) $roll->actual_output);
+        return self::meters(self::length($roll) - (float) $roll->actual_output);
     }
 
     /**
@@ -42,29 +52,34 @@ final class FabricRollBalance
     public static function free(FabricRoll $roll, float $ownReserved = 0.0): float
     {
         return max(0.0, self::meters(
-            (float) $roll->quantity - (float) $roll->actual_output - (float) $roll->partial_output + $ownReserved
+            self::length($roll) - (float) $roll->actual_output - (float) $roll->partial_output + $ownReserved
         ));
     }
 
     /** Igual que free(), para filas planas (listados con JOIN). */
-    public static function freeFromValues(float $quantity, float $actualOutput, float $partialOutput, float $ownReserved = 0.0): float
+    public static function freeFromValues(float $quantity, float $actualOutput, float $partialOutput, float $ownReserved = 0.0, float $lengthAdjustment = 0.0): float
     {
-        return max(0.0, self::meters($quantity - $actualOutput - $partialOutput + $ownReserved));
+        return max(0.0, self::meters($quantity + $lengthAdjustment - $actualOutput - $partialOutput + $ownReserved));
     }
 
-    public static function realFromValues(float $quantity, float $actualOutput): float
+    public static function realFromValues(float $quantity, float $actualOutput, float $lengthAdjustment = 0.0): float
     {
-        return self::meters($quantity - $actualOutput);
+        return self::meters($quantity + $lengthAdjustment - $actualOutput);
+    }
+
+    public static function sqlLength(string $alias = 'fabric_rolls'): string
+    {
+        return "({$alias}.quantity + {$alias}.length_adjustment_meters)";
     }
 
     public static function sqlReal(string $alias = 'fabric_rolls'): string
     {
-        return "({$alias}.quantity - {$alias}.actual_output)";
+        return '('.self::sqlLength($alias)." - {$alias}.actual_output)";
     }
 
     public static function sqlFree(string $alias = 'fabric_rolls'): string
     {
-        return "GREATEST(0, {$alias}.quantity - {$alias}.actual_output - {$alias}.partial_output)";
+        return 'GREATEST(0, '.self::sqlLength($alias)." - {$alias}.actual_output - {$alias}.partial_output)";
     }
 
     /**

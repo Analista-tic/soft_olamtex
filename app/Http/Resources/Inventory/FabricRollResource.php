@@ -38,6 +38,7 @@ class FabricRollResource extends JsonResource
             'width_value' => $this->roll_width,
             'roll_qty' => $this->formatMeters($this->quantity),
             'roll_qty_value' => $this->quantity,
+            'length_adjustment_meters' => (float) ($this->length_adjustment_meters ?? 0),
             'received_quantity_value' => $this->received_quantity ?? $this->quantity,
             'length_review_status' => $this->length_review_status ?? FabricRoll::LENGTH_REVIEW_NONE,
             'partial_output' => $this->formatMeters($this->partial_output),

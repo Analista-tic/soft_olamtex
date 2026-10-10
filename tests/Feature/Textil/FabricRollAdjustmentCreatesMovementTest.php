@@ -162,3 +162,29 @@ it('eager loads the linked inventory movement in the adjustments history report'
     expect($row['inventory_movement'])->not->toBeNull()
         ->and((float) $row['inventory_movement']['quantity'])->toBe(10.0);
 });
+
+it('finds adjustments by a partial roll number, like every other roll search in the module', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo(Permission::findOrCreate('ver telas rollos', 'web'));
+    $this->actingAs($user);
+
+    $item = createRollTestItemWithoutWarehouse('history-partial');
+    $warehouse = Warehouse::create(['name' => 'Bodega History Partial Test', 'observation' => 'Bodega de prueba']);
+    WarehouseItem::create(['warehouse_id' => $warehouse->id, 'item_id' => $item->id, 'quantity' => 1000]);
+
+    $roll = FabricRoll::create([
+        'roll_number' => 'RL-HIST-PARTIAL-99',
+        'item_id' => $item->id,
+        'quantity' => 50,
+        'actual_output' => 0,
+        'entry_date' => now()->toDateString(),
+        'approval_status' => FabricRoll::APPROVAL_APPROVED,
+    ]);
+
+    $this->service->discharge($roll, 'salida', 10, 'salida para historial parcial', null, null);
+
+    $response = $this->getJson(route('kardex-telas.reportes.historial-ajustes', ['roll_number' => 'PARTIAL-99']));
+
+    $response->assertOk();
+    expect(collect($response->json('data')))->toHaveCount(1);
+});

@@ -62,6 +62,10 @@ async function fetchLines() {
     try {
         const { data } = await axios.get(`/kardex-telas/descargue-orden/${encodeURIComponent(props.manualOrderCode)}/lineas`);
         lines.value = Array.isArray(data?.data) ? data.data : [];
+        // El diálogo de descargue sigue abierto tras corregir un descargue: se le pasa la línea fresca.
+        if (selectedLine.value) {
+            selectedLine.value = lines.value.find((l) => l.id === selectedLine.value?.id) ?? selectedLine.value;
+        }
     } catch {
         lines.value = [];
         error('No se pudo cargar el detalle de esta orden de producción.');

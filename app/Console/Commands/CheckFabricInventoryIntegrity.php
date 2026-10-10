@@ -28,7 +28,7 @@ class CheckFabricInventoryIntegrity extends Command
 
         $rollSums = DB::table('fabric_rolls as fr')
             ->selectRaw('COALESCE(fr.item_id, pdi.item_id) AS item_id')
-            ->selectRaw('SUM(fr.quantity - fr.actual_output) AS roll_quantity')
+            ->selectRaw('SUM(fr.quantity + fr.length_adjustment_meters - fr.actual_output) AS roll_quantity')
             ->leftJoin('purchase_document_items as pdi', 'pdi.id', '=', 'fr.purchase_document_item_id')
             ->whereNull('fr.deleted_at')
             ->where('fr.approval_status', FabricRoll::APPROVAL_APPROVED)
@@ -92,7 +92,7 @@ class CheckFabricInventoryIntegrity extends Command
             ->whereNull('deleted_at')
             ->where('roll_number', 'like', '%-DUP%')
             ->orderBy('roll_number')
-            ->get(['id', 'roll_number', 'quantity', 'actual_output']);
+            ->get(['id', 'roll_number', 'quantity', 'length_adjustment_meters', 'actual_output']);
 
         if ($duplicatedRolls->isNotEmpty()) {
             $issues[] = [
@@ -119,7 +119,7 @@ class CheckFabricInventoryIntegrity extends Command
             $this->warn('Rollos con sufijo -DUP (decidir caso por caso, el comando no los toca):');
             $this->table(
                 ['ID', 'N° Rollo', 'Cantidad', 'Consumido'],
-                $duplicatedRolls->map(fn ($r) => [$r->id, $r->roll_number, $r->quantity, $r->actual_output])->toArray()
+                $duplicatedRolls->map(fn ($r) => [$r->id, $r->roll_number, (float) $r->quantity + (float) $r->length_adjustment_meters, $r->actual_output])->toArray()
             );
         }
 

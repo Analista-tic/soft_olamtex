@@ -54,6 +54,7 @@ class ReportController extends Controller
                 'internal_color_name',
                 'internal_color_code',
                 'quantity',
+                'length_adjustment_meters',
                 'partial_output',
                 'actual_output',
                 'approval_status',
@@ -64,10 +65,10 @@ class ReportController extends Controller
             ]);
 
         if ($report === 'sin_movimiento') {
-            $query->whereRaw('(quantity - actual_output) > 0')
+            $query->whereRaw('(quantity + length_adjustment_meters - actual_output) > 0')
                 ->where('updated_at', '<', now()->subDays(30));
         } elseif ($report === 'agotados') {
-            $query->whereRaw('(quantity - actual_output) <= 0');
+            $query->whereRaw('(quantity + length_adjustment_meters - actual_output) <= 0');
         }
 
         if ($search = $request->input('search')) {
@@ -97,10 +98,10 @@ class ReportController extends Controller
         $rolls = $all ? $query->get() : $query->paginate($perPage);
 
         $totalRolls = FabricRoll::count();
-        $availableMeters = (float) FabricRoll::selectRaw('SUM(quantity - actual_output) as total')
-            ->whereRaw('(quantity - actual_output) > 0')
+        $availableMeters = (float) FabricRoll::selectRaw('SUM(quantity + length_adjustment_meters - actual_output) as total')
+            ->whereRaw('(quantity + length_adjustment_meters - actual_output) > 0')
             ->value('total');
-        $noMovement = FabricRoll::whereRaw('(quantity - actual_output) > 0')
+        $noMovement = FabricRoll::whereRaw('(quantity + length_adjustment_meters - actual_output) > 0')
             ->where('updated_at', '<', now()->subDays(30))
             ->count();
 

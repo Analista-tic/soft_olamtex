@@ -217,6 +217,10 @@ onMounted(() => fetchRows(1));
                                 <TableCell class="text-right text-sm font-semibold">{{ fmtMeters(row.meters) }}</TableCell>
                                 <TableCell class="whitespace-nowrap text-right text-sm text-muted-foreground">
                                     {{ fmtMeters(row.roll_received_quantity) }} → {{ fmtMeters(row.roll_quantity) }}
+                                    <p v-if="Number(row.roll_length_adjustment_meters ?? 0) !== 0" class="text-xs">
+                                        {{ Number(row.roll_length_adjustment_meters) > 0 ? 'Sobrante' : 'Faltante' }} de metraje:
+                                        {{ fmtMeters(Math.abs(Number(row.roll_length_adjustment_meters))) }}
+                                    </p>
                                 </TableCell>
                                 <TableCell class="text-sm">
                                     {{ row.order_code ?? '-' }}

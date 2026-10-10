@@ -144,7 +144,7 @@ class FabricRollController extends Controller
     {
         $query = FabricRollProgrammingLine::query()
             ->with([
-                'fabricRoll:id,roll_number,quantity,actual_output,location',
+                'fabricRoll:id,roll_number,quantity,length_adjustment_meters,actual_output,location',
                 'technicalSheet:id,production_order_id',
                 'technicalSheet.productionOrder:id,op_code',
             ]);
@@ -171,7 +171,7 @@ class FabricRollController extends Controller
 
         $lines = $query->get();
 
-        $manualQuery = ManualRollProgramming::query()->with('fabricRoll:id,roll_number,quantity,actual_output,location');
+        $manualQuery = ManualRollProgramming::query()->with('fabricRoll:id,roll_number,quantity,length_adjustment_meters,actual_output,location');
         if ($request->filled('op_code')) {
             $manualQuery->where('manual_order_code', 'like', '%'.$request->input('op_code').'%');
         }
@@ -203,7 +203,7 @@ class FabricRollController extends Controller
             $available = null;
             if ($roll) {
                 $totalCommitted = (float) ($committedByRoll[$roll->id] ?? 0.0);
-                $available = max(0.0, (float) $roll->quantity - (float) $roll->actual_output - $totalCommitted);
+                $available = max(0.0, FabricRollBalance::length($roll) - (float) $roll->actual_output - $totalCommitted);
             }
 
             $consumedReal = 0.0;
@@ -239,7 +239,7 @@ class FabricRollController extends Controller
             $available = null;
             if ($roll) {
                 $totalCommitted = (float) ($committedByRoll[$roll->id] ?? 0.0);
-                $available = max(0.0, (float) $roll->quantity - (float) $roll->actual_output - $totalCommitted);
+                $available = max(0.0, FabricRollBalance::length($roll) - (float) $roll->actual_output - $totalCommitted);
             }
 
             $programmed = (float) $line->programmed_meters;
@@ -341,7 +341,7 @@ class FabricRollController extends Controller
         $lines = ManualRollProgramming::query()
             ->where('manual_order_code', $manualOrderCode)
             ->with([
-                'fabricRoll:id,roll_number,location,quantity,received_quantity,actual_output,partial_output,item_id,description,internal_color_name,batch,length_review_status',
+                'fabricRoll:id,roll_number,location,quantity,received_quantity,length_adjustment_meters,actual_output,partial_output,item_id,description,internal_color_name,batch,length_review_status',
                 'fabricRoll.item:id,fabric_name_id,color_id,category_sub_group_id',
                 'fabricRoll.item.fabricName:id,nombre',
                 'fabricRoll.item.color:id,name',
@@ -386,6 +386,7 @@ class FabricRollController extends Controller
                     'notes' => $line->notes,
                     'has_item' => $item !== null,
                     'roll_quantity' => $roll ? (float) $roll->quantity : null,
+                    'roll_length_adjustment_meters' => $roll ? (float) $roll->length_adjustment_meters : null,
                     'roll_received_quantity' => $roll ? (float) ($roll->received_quantity ?? $roll->quantity) : null,
                     'roll_real_meters' => $roll ? max(0.0, FabricRollBalance::real($roll)) : null,
                     'roll_free_meters' => $roll ? FabricRollBalance::free($roll) : null,
@@ -580,7 +581,7 @@ class FabricRollController extends Controller
         $paginator = $this->service->inventoryWithFilters($filters, $perPage, $sortBy, $sortDirection);
 
         // Disponibilidad parcial = lo que NO está consumido NI reservado:
-        // quantity - actual_output - partial_output. partial_output es la única fuente
+        // (quantity + length_adjustment_meters) - actual_output - partial_output. partial_output es la única fuente
         // de verdad de "cuánto está reservado" (la mantienen sincronizada por igual el
         // motor de Corte vía TechnicalDataSheetRollsController::saveAll() y la
         // programación manual vía FabricRollService::applyProgramManual()/dischargeManual(),
@@ -603,9 +604,10 @@ class FabricRollController extends Controller
             $qty = (float) ($row['quantity'] ?? 0);
             $partial = (float) ($row['partial_output'] ?? 0);
             $actual = (float) ($row['actual_output'] ?? 0);
+            $lengthAdjustment = (float) ($row['length_adjustment_meters'] ?? 0);
             $ownCommitted = (float) ($ownCommittedByRollId[(int) $row['id']] ?? 0.0);
-            $partialAvailability = FabricRollBalance::freeFromValues($qty, $actual, $partial, $ownCommitted);
-            $realAvailability = max(0.0, FabricRollBalance::realFromValues($qty, $actual));
+            $partialAvailability = FabricRollBalance::freeFromValues($qty, $actual, $partial, $ownCommitted, $lengthAdjustment);
+            $realAvailability = max(0.0, FabricRollBalance::realFromValues($qty, $actual, $lengthAdjustment));
             $color = $row['internal_color_name'] ?? $row['supplier_color'] ?? null;
             $colorName = $row['item_color_name'] ?? $color ?? null;
             $colorHex = isset($row['item_color_hex']) && $row['item_color_hex'] !== ''
@@ -625,6 +627,7 @@ class FabricRollController extends Controller
                 'width_value' => (float) ($row['roll_width'] ?? 0),
                 'roll_qty' => $this->fmtMeters($qty),
                 'roll_qty_value' => $qty,
+                'length_adjustment_meters' => $lengthAdjustment,
                 'received_quantity_value' => isset($row['received_quantity']) ? (float) $row['received_quantity'] : $qty,
                 'partial_output' => $this->fmtMeters($partial),
                 'partial_output_value' => $partial,
@@ -830,7 +833,7 @@ class FabricRollController extends Controller
                 $roll->price_per_meter !== null ? (float) $roll->price_per_meter : '',
                 $roll->quantity !== null ? (float) $roll->quantity : '',
                 $roll->partial_output !== null ? (float) $roll->partial_output : '',
-                max(0.0, (float) $roll->quantity - (float) $roll->actual_output),
+                max(0.0, FabricRollBalance::real($roll)),
                 $document?->supplier?->full_name
                     ?? $document?->provider_name
                     ?? '',
@@ -1282,11 +1285,11 @@ class FabricRollController extends Controller
         $type = (string) $data['type'];
         $quantity = (float) $data['quantity'];
         $reason = (string) ($data['reason'] ?? '');
-        $productionOrderId = isset($data['production_order_id']) ? (int) $data['production_order_id'] : null;
+        $productionOrderCode = isset($data['production_order_code']) ? (string) $data['production_order_code'] : null;
         $creditNote = isset($data['credit_note']) ? (string) $data['credit_note'] : null;
 
         try {
-            $fabricRoll = $this->service->discharge($fabricRoll, $type, $quantity, $reason, $productionOrderId, $creditNote);
+            $fabricRoll = $this->service->discharge($fabricRoll, $type, $quantity, $reason, $productionOrderCode, $creditNote);
         } catch (ValidationException $e) {
             return response()->json([
                 'message' => $e->getMessage(),
@@ -1311,6 +1314,7 @@ class FabricRollController extends Controller
     {
         return [
             'roll_qty_value' => (float) $fabricRoll->quantity,
+            'length_adjustment_meters' => (float) $fabricRoll->length_adjustment_meters,
             'received_quantity_value' => (float) ($fabricRoll->received_quantity ?? $fabricRoll->quantity),
             'exit_quantity_value' => (float) $fabricRoll->actual_output,
             'partial_output_value' => (float) $fabricRoll->partial_output,
@@ -2110,7 +2114,7 @@ class FabricRollController extends Controller
             'user:id,name',
             'inventoryMovement:id,type,quantity,unit_price,notes,created_at',
         ])
-            ->when($request->query('roll_number'), fn ($q, $rn) => $q->whereHas('roll', fn ($r) => $r->where('roll_number', $rn)))
+            ->when($request->query('roll_number'), fn ($q, $rn) => $q->whereHas('roll', fn ($r) => $r->where('roll_number', 'like', "%{$rn}%")))
             ->when($request->query('type'), fn ($q, $t) => $q->where('type', $t))
             ->when($request->query('from'), fn ($q, $f) => $q->whereDate('created_at', '>=', $f))
             ->when($request->query('to'), fn ($q, $t) => $q->whereDate('created_at', '<=', $t))
