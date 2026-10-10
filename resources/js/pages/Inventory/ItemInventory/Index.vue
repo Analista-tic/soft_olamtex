@@ -23,6 +23,7 @@ type InventoryViewItem = {
     item_id: number;
     item_name: string;
     reference?: string | null;
+    warehouse_name?: string | null;
     quantity: number;
     reserved_quantity: number;
     /** Metros de rollos rechazados en recepción con nota crédito pendiente (no incluidos en `quantity`). */
