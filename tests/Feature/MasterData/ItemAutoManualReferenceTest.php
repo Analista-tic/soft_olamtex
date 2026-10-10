@@ -226,3 +226,22 @@ it('defaults to automatic reference when reference_mode is omitted, even for a u
         ->and(substr($reference, 7, 2))->toBe('05')
         ->and(substr($reference, 9, 3))->toBe('077');
 });
+
+it('generates an automatic reference for items with the NO APLICA color and leaves it out of the name', function () {
+    $notApplicable = Color::where('code', Color::NOT_APPLICABLE_CODE)->firstOrFail();
+
+    $response = $this->postJson(route('item.store'), [
+        'category_sub_group_id' => $this->subGroup->id,
+        'color_id' => $notApplicable->id,
+        'reference_mode' => 'auto',
+        'description' => 'Item sin color',
+        'tax' => 0,
+        'negative_movement' => false,
+        'item_type' => 'product',
+    ]);
+
+    $response->assertCreated();
+
+    expect(substr($response->json('reference'), 9, 3))->toBe('000')
+        ->and($response->json('name'))->not->toContain('NO APLICA');
+});

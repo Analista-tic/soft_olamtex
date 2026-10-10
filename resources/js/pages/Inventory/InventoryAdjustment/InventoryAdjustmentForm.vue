@@ -15,8 +15,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useItemsCatalog } from '@/composables/useItemsCatalog';
 import type { Tax } from '@/domain/Finance';
+import type { InventoryAdjustmentPrefill, Warehouse } from '@/domain/inventory';
 import type { Item } from '@/domain/MasterData';
-import type { Warehouse } from '@/domain/Inventory';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 import axios from 'axios';
@@ -26,6 +26,8 @@ const props = defineProps<{
     isOpen: boolean;
     dialogType: 'create' | 'edit';
     adjustment: any | null;
+    /** Solo en create: abre el ajuste con la primera línea apuntando a este ítem y bodega (p. ej. desde la ficha del ítem). */
+    prefill?: InventoryAdjustmentPrefill | null;
 }>();
 
 const emit = defineEmits<{
@@ -77,6 +79,7 @@ const errorMessage = ref('');
 const alertDetails = ref<string[]>([]);
 const errorType = ref<'error' | 'info' | 'warning'>('error');
 const isSubmitting = ref(false);
+const showRequiredErrors = ref(false);
 
 const lines = ref<Line[]>([
     {
@@ -122,6 +125,23 @@ const warehouseSelectOptions = computed(() =>
         }))
         .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 );
+
+/** Única fuente de verdad de "campo faltante": la usan el mensaje general y el resaltado de cada campo. */
+function headerGaps() {
+    return {
+        warehouse: !selectedWarehouseId.value,
+        date: !date.value,
+    };
+}
+
+function lineGaps(line: Line) {
+    return {
+        item: !line.itemId,
+        quantity: !line.quantity || line.quantity <= 0,
+        price: line.price === null || line.price === undefined || Number.isNaN(line.price) || line.price < 0,
+        description: !(line.description ?? '').trim(),
+    };
+}
 
 async function fetchTaxes() {
     try {
@@ -261,12 +281,12 @@ watch(
     () => props.isOpen,
     async (open) => {
         if (!open) return;
-        fetchTaxes();
-        fetchItems();
+        const catalogsLoaded = Promise.all([fetchTaxes(), fetchItems()]);
         fetchWarehouses();
         errorMessage.value = '';
         successMessage.value = '';
         alertDetails.value = [];
+        showRequiredErrors.value = false;
         if (props.dialogType === 'edit' && props.adjustment?.id) {
             try {
                 const { data } = await axios.get(`/ajustes-inventario/${props.adjustment.id}`);
@@ -279,10 +299,25 @@ watch(
             }
         } else {
             resetForm();
-            await loadDocumentNumber();
+            loadDocumentNumber();
+            if (props.prefill) {
+                await applyPrefill(props.prefill, catalogsLoaded);
+            }
         }
     },
 );
+
+async function applyPrefill(prefill: InventoryAdjustmentPrefill, catalogsLoaded: Promise<unknown>) {
+    selectedWarehouseId.value = prefill.warehouseId;
+    const line = lines.value[0];
+    line.warehouseId = prefill.warehouseId;
+    line.itemId = prefill.itemId;
+    // El impuesto por defecto sale del ítem, así que espera a que carguen ítems e impuestos.
+    await catalogsLoaded;
+    if (lines.value[0] === line) {
+        handleItemChange(prefill.itemId, line);
+    }
+}
 
 function addLine() {
     const nextId = lines.value.length ? Math.max(...lines.value.map((l) => l.id)) + 1 : 1;
@@ -306,12 +341,12 @@ function removeLine(id: number) {
 
 function handleItemChange(selectedItemId: any, line: Line) {
     if (!selectedItemId) return;
-    const selectedItem = items.value.find(item => String(item.id) === String(selectedItemId));
+    const selectedItem = items.value.find((item) => String(item.id) === String(selectedItemId));
     if (selectedItem) {
         const itemTaxId = selectedItem.tax_id;
         if (itemTaxId) {
             line.taxId = Number(itemTaxId);
-            const selectedTax = taxes.value.find(t => String(t.id) === String(itemTaxId));
+            const selectedTax = taxes.value.find((t) => String(t.id) === String(itemTaxId));
             line.tax = selectedTax ? Number(selectedTax.percentage) : 0;
         } else {
             line.taxId = 0;
@@ -368,33 +403,31 @@ async function handleSubmit() {
     alertDetails.value = [];
     const requiredErrors: string[] = [];
 
-    if (!date.value) {
+    const header = headerGaps();
+    if (header.date) {
         requiredErrors.push('Fecha');
     }
-    if (!selectedWarehouseId.value) {
+    if (header.warehouse) {
         requiredErrors.push('Bodega');
     }
     if (!lines.value.length) {
         requiredErrors.push('Al menos una línea de detalle');
     } else {
         lines.value.forEach((line) => {
-            if (!line.itemId) {
+            const gaps = lineGaps(line);
+            if (gaps.item) {
                 requiredErrors.push('Ítem');
             }
-            if (!line.warehouseId && !selectedWarehouseId.value) {
-                requiredErrors.push('Bodega');
-            }
-            if (!line.quantity || line.quantity <= 0) {
+            if (gaps.quantity) {
                 requiredErrors.push('Cantidad');
             }
-            if (line.price === null || line.price === undefined || line.price < 0) {
+            if (gaps.price) {
                 requiredErrors.push('Precio SIN Impuesto');
             }
-            const trimmedDescription = (line.description ?? '').trim();
-            if (!trimmedDescription) {
+            if (gaps.description) {
                 requiredErrors.push('Descripción');
-            } else if (trimmedDescription !== line.description) {
-                line.description = trimmedDescription;
+            } else {
+                line.description = line.description.trim();
             }
             if (!line.movementReason) {
                 line.movementReason = defaultMovementReason;
@@ -402,6 +435,7 @@ async function handleSubmit() {
         });
     }
 
+    showRequiredErrors.value = requiredErrors.length > 0;
     if (requiredErrors.length > 0) {
         const unique = Array.from(new Set(requiredErrors));
         errorType.value = 'warning';
@@ -437,7 +471,7 @@ async function handleSubmit() {
         lines: lines.value.map((line) => ({
             item_id: line.itemId,
             warehouse_id: line.warehouseId || selectedWarehouseId.value,
-            movement_reason: (line.movementReason === 'salida' ? 'exit_regularization' : 'entry_regularization'),
+            movement_reason: line.movementReason === 'salida' ? 'exit_regularization' : 'entry_regularization',
             price: line.price ?? 0,
             tax: line.tax ?? 0,
             tax_id: line.taxId ?? null,
@@ -543,6 +577,8 @@ async function handleSubmit() {
                                     :options="warehouseSelectOptions"
                                     placeholder="Selecciona bodega"
                                     :searchable="false"
+                                    :invalid="showRequiredErrors && headerGaps().warehouse"
+                                    error-message="Requerido"
                                     required
                                 />
                             </div>
@@ -552,6 +588,7 @@ async function handleSubmit() {
                                     v-model="date"
                                     label="Fecha"
                                     helpText="Registra la fecha real del ajuste para que los reportes del inventario y las conciliaciones coincidan."
+                                    :error="showRequiredErrors && headerGaps().date ? 'Requerido' : false"
                                     required
                                     class="w-full"
                                 />
@@ -607,6 +644,8 @@ async function handleSubmit() {
                                                 label=""
                                                 :searchable="true"
                                                 placeholder="Buscar ítem..."
+                                                :invalid="showRequiredErrors && lineGaps(line).item"
+                                                error-message="Requerido"
                                                 class="w-full"
                                                 @update:modelValue="(val) => handleItemChange(val, line)"
                                             />
@@ -623,7 +662,15 @@ async function handleSubmit() {
                                         </TableCell>
 
                                         <TableCell class="p-1">
-                                            <Input data-no-uppercase v-model="line.description" placeholder="Descripción" required class="h-10 w-full" />
+                                            <Input
+                                                data-no-uppercase
+                                                v-model="line.description"
+                                                placeholder="Descripción"
+                                                required
+                                                :invalid="showRequiredErrors && lineGaps(line).description"
+                                                error-message="Requerido"
+                                                class="h-10 w-full"
+                                            />
                                         </TableCell>
 
                                         <TableCell class="p-1">
@@ -635,6 +682,7 @@ async function handleSubmit() {
                                                 :step="0.01"
                                                 :decimals="2"
                                                 placeholder="0.00"
+                                                :error="showRequiredErrors && lineGaps(line).price ? 'Requerido' : false"
                                                 class="h-10 w-full"
                                                 @input="normalizeDecimalInput"
                                             />
@@ -664,6 +712,8 @@ async function handleSubmit() {
                                                 min="1"
                                                 step="1"
                                                 placeholder="0"
+                                                :invalid="showRequiredErrors && lineGaps(line).quantity"
+                                                error-message="Requerido"
                                                 class="h-10 w-full"
                                             />
                                         </TableCell>

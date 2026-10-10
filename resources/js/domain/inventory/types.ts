@@ -12,6 +12,9 @@ export interface Warehouse {
 // Tipos compartidos para bodegas
 export type WarehouseOption = { id: number; name: string };
 
+/** Precarga de un ajuste de inventario nuevo: primera línea con este ítem y esta bodega. */
+export type InventoryAdjustmentPrefill = { itemId: number; warehouseId: number };
+
 export interface InventoryMovement {
     id: number;
     document_number?: string | null;

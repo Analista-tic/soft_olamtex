@@ -698,7 +698,7 @@ defineExpose({ closeInlineFromParent });
                                 !isSearchEnabled ? 'cursor-default' : '',
                                 buttonClass,
                                 multiple ? 'pl-28' : '',
-                                invalid ? 'border-destructive focus-visible:ring-destructive/40' : '',
+                                invalid ? 'border-destructive ring-1 ring-destructive/40 focus-visible:ring-destructive/40' : '',
                             ]"
                             :aria-invalid="invalid ? 'true' : undefined"
                             :data-invalid="invalid ? 'true' : undefined"

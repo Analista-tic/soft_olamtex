@@ -17,6 +17,8 @@ class Color extends Model
         'description' => 'freeText',
     ];
 
+    public const NOT_APPLICABLE_CODE = '000';
+
     protected $fillable = ['code', 'name', 'rgb', 'hexadecimal', 'description'];
 
     public function items(): HasMany

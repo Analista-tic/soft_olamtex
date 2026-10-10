@@ -66,6 +66,7 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'habilitar item',
             'crear referencia manual item',
             'ver catalogo items',
+            ...InventoryAdjustmentPermissionSeeder::PERMISSIONS,
         ];
 
         foreach ($permissions as $permissionName) {
@@ -312,6 +313,7 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
                 'eliminar transferencias bodegas',
                 'ver todos transferencias bodegas',
                 'recibir factura compra',
+                ...InventoryAdjustmentPermissionSeeder::PERMISSIONS,
                 // Producción ya tenía esto habilitado; se preserva para no
                 // regresionar el flujo real al desplegar esta matriz.
                 'crear facturas compra',

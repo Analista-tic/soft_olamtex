@@ -110,6 +110,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'editar transferencias bodegas',
             'eliminar transferencias bodegas',
 
+            // Inventario: ajustes de inventario (único camino manual para cambiar el saldo de un ítem)
+            ...InventoryAdjustmentPermissionSeeder::PERMISSIONS,
+
             // Ingresos / Ventas
             'ver ingresos',
 

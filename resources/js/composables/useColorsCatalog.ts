@@ -12,6 +12,8 @@ export type CatalogColor = {
 
 const CATALOG_KEY = 'colors';
 
+export const NOT_APPLICABLE_COLOR_CODE = '000';
+
 // Ver el comentario de useItemsCatalog.ts: este Map vive en un módulo .ts real, así
 // que sí se comparte entre todos los componentes que lo importan (a diferencia de un
 // `let` dentro de <script setup>, que el compilador reinicia en cada montaje).

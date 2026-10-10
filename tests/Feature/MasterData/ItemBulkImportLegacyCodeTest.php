@@ -4,6 +4,7 @@ use App\Models\Inventory\Warehouse;
 use App\Models\Inventory\WarehouseItem;
 use App\Models\MasterData\CategoryGroup;
 use App\Models\MasterData\CategorySubGroup;
+use App\Models\MasterData\Color;
 use App\Models\MasterData\Item;
 use App\Services\MasterData\ItemExcelService;
 use App\Services\MasterData\ItemService;
@@ -42,7 +43,7 @@ function buildBulkImportRows(array $overrides = []): array
         'MOVIMIENTO NEGATIVO' => 'NO',
         'CAMPOS ADICIONALES' => '',
         'VALORES ADICIONALES' => '',
-        'COLOR' => '',
+        'COLOR' => 'COLOR BULK TEST',
         'BASE TELA' => '',
         'BASE HILAZA' => '',
         'ESTADO' => 'Activo',
@@ -60,6 +61,7 @@ function buildBulkImportRows(array $overrides = []): array
 }
 
 beforeEach(function () {
+    Color::create(['code' => 'T01', 'name' => 'COLOR BULK TEST']);
     $this->group = CategoryGroup::create(['name' => 'Grupo Bulk Legacy Test']);
     $this->subGroup = CategorySubGroup::create(['name' => 'Subgrupo Bulk Legacy Test', 'category_group_id' => $this->group->id]);
 });
@@ -230,4 +232,63 @@ it('an empty fields_to_update list means no field is applied to a matched update
 
     expect($result['updated'])->toBe(1)
         ->and($item->fresh()->description)->toBe('DESCRIPCION QUE PERMANECE');
+});
+
+it('registers the second warehouse of a multi-row import as an initial balance movement', function () {
+    $this->actingAs(App\Models\Settings\User::factory()->create());
+
+    $warehouseA = Warehouse::create(['name' => 'Bodega A Kardex Bulk Test', 'observation' => '']);
+    $warehouseB = Warehouse::create(['name' => 'Bodega B Kardex Bulk Test', 'observation' => '']);
+
+    foreach ([[$warehouseA, '10', '100'], [$warehouseB, '5', '50']] as [$warehouse, $quantity, $price]) {
+        app(ItemService::class)->processBulkUploadArray(buildBulkImportRows([
+            'SUBGRUPO' => $this->subGroup->name,
+            'REFERENCIA' => 'REF-KARDEX-BULK',
+            'BODEGA' => $warehouse->name,
+            'CANTIDAD' => $quantity,
+            'PRECIO' => $price,
+            'CODIGO SISTEMA ANTERIOR' => 'OLD-700',
+        ]));
+    }
+
+    $item = Item::where('legacy_code', 'OLD-700')->firstOrFail();
+    $movement = App\Models\Inventory\InventoryMovement::where('item_id', $item->id)->where('warehouse_id', $warehouseB->id)->sole();
+
+    expect($movement->type)->toBe('entrada')
+        ->and((float) $movement->quantity)->toBe(5.0)
+        ->and((float) $movement->unit_price)->toBe(50.0);
+});
+
+it('does not overwrite the stock of a warehouse that already has balance and reports it', function () {
+    $warehouse = Warehouse::create(['name' => 'Bodega Saldo Bulk Test', 'observation' => '']);
+    $item = Item::create([
+        'category_sub_group_id' => $this->subGroup->id,
+        'name' => 'Item Con Saldo Bulk',
+        'reference' => 'REF-SALDO-BULK',
+        'legacy_code' => 'OLD-800',
+        'description' => 'DESCRIPCION',
+        'status' => true,
+        'item_type' => 'product',
+    ]);
+    WarehouseItem::create([
+        'item_id' => $item->id,
+        'warehouse_id' => $warehouse->id,
+        'quantity' => 10,
+        'stock_min' => 1,
+        'stock_max' => 100,
+    ]);
+
+    $result = app(ItemService::class)->processBulkUploadArray(buildBulkImportRows([
+        'SUBGRUPO' => $this->subGroup->name,
+        'REFERENCIA' => 'REF-SALDO-BULK',
+        'BODEGA' => $warehouse->name,
+        'CANTIDAD' => '999',
+        'PRECIO' => '50',
+        'CODIGO SISTEMA ANTERIOR' => 'OLD-800',
+    ]), ['bodega_stock']);
+
+    expect($result['updated'])->toBe(1)
+        ->and((float) WarehouseItem::where('item_id', $item->id)->value('quantity'))->toBe(10.0)
+        ->and($result['errors'])->toHaveCount(1)
+        ->and($result['errors'][0])->toContain('Bodega Saldo Bulk Test');
 });

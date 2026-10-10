@@ -24,8 +24,10 @@ const props = withDefaults(
         label?: string;
         required?: boolean;
         disabled?: boolean;
+        invalid?: boolean;
+        errorMessage?: string;
     }>(),
-    { label: 'Color', required: false, disabled: false },
+    { label: 'Color', required: false, disabled: false, invalid: false, errorMessage: 'Requerido' },
 );
 
 const emit = defineEmits<{
@@ -384,6 +386,7 @@ onBeforeUnmount(stopFloatingUpdates);
                             'focus-visible:ring-offset-background',
                             'disabled:cursor-not-allowed disabled:opacity-60',
                             selectedColorData ? 'pl-8' : 'pl-3',
+                            invalid ? 'border-destructive ring-1 ring-destructive/40 focus-visible:ring-destructive/40' : '',
                         ]"
                         placeholder="Selecciona un color"
                         :displayValue="displayColorName"
@@ -568,5 +571,6 @@ onBeforeUnmount(stopFloatingUpdates);
                 </div>
             </template>
         </Combobox>
+        <p v-if="invalid && errorMessage" class="text-xs text-destructive">{{ errorMessage }}</p>
     </div>
 </template>

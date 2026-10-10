@@ -5,6 +5,7 @@ use App\Models\MasterData\CategoryGroup;
 use App\Models\MasterData\CategorySubGroup;
 use App\Models\MasterData\Item;
 use App\Models\Settings\User;
+use Spatie\Permission\Models\Permission;
 
 /**
  * Un ítem de tipo Tela no tiene inventario propio: su disponibilidad depende de los
@@ -13,7 +14,11 @@ use App\Models\Settings\User;
  * — ese ajuste debe hacerse desde Inventario tela por rollos.
  */
 beforeEach(function () {
-    $this->actingAs(User::factory()->create());
+    $user = User::factory()->create();
+    foreach (['ver ajustes inventario', 'crear ajustes inventario'] as $permission) {
+        $user->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+    }
+    $this->actingAs($user);
 
     $group = CategoryGroup::firstOrCreate(['name' => 'MATERIA PRIMA ADJUSTMENT TEST']);
 

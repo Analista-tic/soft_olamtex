@@ -6,6 +6,7 @@ use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Finance\Tax;
 use App\Models\Inventory\InventoryAdjustmentLine;
+use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\Warehouse;
 use App\Models\Inventory\WarehouseItem;
 use App\Models\MasterData\CategorySubGroup;
@@ -242,10 +243,15 @@ class ItemService
     public function update(Item $item, array $data, ?array $warehouses = null, bool $replaceWarehouses = true): Item
     {
         $payload = $this->buildUpdatePayload($item, $data);
-        $item->update($payload);
-        if ($warehouses !== null) {
-            $this->syncWarehouses($item, $warehouses, $replaceWarehouses);
-        }
+
+        // Una sola transacción: si se rechaza la sincronización de bodegas (p. ej. quitar una
+        // bodega con saldo), tampoco deben quedar guardados los demás cambios del ítem.
+        DB::transaction(function () use ($item, $payload, $warehouses, $replaceWarehouses) {
+            $item->update($payload);
+            if ($warehouses !== null) {
+                $this->syncWarehouses($item, $warehouses, $replaceWarehouses);
+            }
+        });
 
         return $item;
     }
@@ -640,6 +646,18 @@ class ItemService
                 }
                 // ── Fin resolver color_id ──────────────────────────────────────────────
 
+                // El color es obligatorio (igual que en el formulario). Una actualización
+                // que no toca el color (fieldsToUpdate sin 'color') no lo exige.
+                $updatesColor = $fieldsToUpdate === null || in_array('color', $fieldsToUpdate, true);
+                $isKnownUpdate = $fileHasItemIdColumn && $this->extractItemIdFromRow($rowData) !== null;
+                if (! $resolvedColorId && ($updatesColor || ! $isKnownUpdate)) {
+                    $errors[] = $colorValue !== ''
+                        ? "Fila $rowNum: El color '$colorValue' no existe en el catálogo de colores."
+                        : "Fila $rowNum: El color es obligatorio.";
+
+                    continue;
+                }
+
                 // Antes armaba el nombre a mano aquí (subgrupo + extras + color), en
                 // paralelo a buildName() — un ítem de tela cargado por Excel quedaba
                 // con nombre distinto de uno creado a mano, porque esta copia nunca
@@ -755,7 +773,7 @@ class ItemService
                         // buildWarehousePayloadFromRow) — reemplazar el set completo
                         // borraría el stock de las bodegas puestas por otras filas del
                         // mismo ítem (una fila por ítem+bodega es el patrón esperado).
-                        $this->update($existingItem, $updateData, $updateWarehouses ?: null, false);
+                        $this->updateImportedItem($existingItem, $updateData, $updateWarehouses, $importBatchId, (int) $rowNum, $errors);
                         $updated++;
 
                         continue;
@@ -768,7 +786,7 @@ class ItemService
                     $existingByLegacyCode = Item::where('legacy_code', $legacyCodeValue)->first();
                     if ($existingByLegacyCode) {
                         [$updateData, $updateWarehouses] = $this->filterItemDataForBulkUpdate($itemData, $warehouses, $fieldsToUpdate);
-                        $this->update($existingByLegacyCode, $updateData, $updateWarehouses ?: null, false);
+                        $this->updateImportedItem($existingByLegacyCode, $updateData, $updateWarehouses, $importBatchId, (int) $rowNum, $errors);
                         $updated++;
 
                         continue;
@@ -1231,7 +1249,12 @@ class ItemService
         return $this->warehouseNameMapCache[$normalized] ?? null;
     }
 
-    public function resolveWarehousePayload(mixed $payload): array
+    /**
+     * @param  bool  $requireQuantity  true al crear (la cantidad es el saldo inicial). false al
+     *                                 editar: ahí la cantidad se ignora porque el saldo solo cambia
+     *                                 por movimientos de inventario.
+     */
+    public function resolveWarehousePayload(mixed $payload, bool $requireQuantity = true): array
     {
         if (is_string($payload)) {
             $decoded = json_decode($payload, true);
@@ -1270,7 +1293,11 @@ class ItemService
                 ? (float) $warehouse['unit_price']
                 : null;
 
-            foreach (['quantity' => 'cantidad', 'stock_min' => 'cantidad mínima', 'stock_max' => 'cantidad máxima'] as $key => $label) {
+            $requiredNumbers = ['stock_min' => 'cantidad mínima', 'stock_max' => 'cantidad máxima'];
+            if ($requireQuantity) {
+                $requiredNumbers = ['quantity' => 'cantidad'] + $requiredNumbers;
+            }
+            foreach ($requiredNumbers as $key => $label) {
                 if (! array_key_exists($key, $warehouse) || ! is_numeric($warehouse[$key])) {
                     throw ValidationException::withMessages([
                         'warehouses' => ["La {$label} es obligatoria en cada detalle de inventario y puede ser 0."],
@@ -1284,9 +1311,17 @@ class ItemService
                 ]);
             }
 
-            if (array_key_exists('unit_price', $warehouse) && ! is_numeric($warehouse['unit_price'])) {
+            if ($requireQuantity && (float) $warehouse['quantity'] < 0) {
                 throw ValidationException::withMessages([
-                    'warehouses' => ['El costo unitario es obligatorio y puede ser 0.'],
+                    'warehouses' => ['La cantidad inicial no puede ser negativa.'],
+                ]);
+            }
+
+            // Vacío es válido (sin saldo inicial); syncWarehousesOnCreate exige costo > 0 solo si la cantidad es > 0.
+            $rawUnitPrice = $warehouse['unit_price'] ?? null;
+            if ($rawUnitPrice !== null && $rawUnitPrice !== '' && ! is_numeric($rawUnitPrice)) {
+                throw ValidationException::withMessages([
+                    'warehouses' => ['El costo unitario inicial debe ser un número.'],
                 ]);
             }
             $initialDate = isset($warehouse['initial_date']) && $warehouse['initial_date'] !== ''
@@ -1578,7 +1613,9 @@ class ItemService
         $subGroupName = optional(CategorySubGroup::find($subGroupId))->name ?? '';
         $materialSegment = $this->buildMaterialNameSegment($fabricNameId, $yarnNameId);
         $extrasString = $this->buildExtraFieldsNameSegment($extraFields);
-        $colorName = ! empty($colorId) ? trim((string) (Color::find($colorId)?->name ?? '')) : '';
+        // El color "NO APLICA" solo entra en la referencia automática, no en el nombre (igual que el formulario).
+        $color = ! empty($colorId) ? Color::find($colorId) : null;
+        $colorName = $color !== null && $color->code !== Color::NOT_APPLICABLE_CODE ? trim((string) $color->name) : '';
 
         $name = '';
         foreach ([$subGroupName, $materialSegment, $extrasString, $colorName] as $segment) {
@@ -1741,29 +1778,137 @@ class ItemService
         throw ValidationException::withMessages($errors);
     }
 
+    /**
+     * Sincroniza la configuración por bodega de un ítem existente: mínimo, máximo y ubicación.
+     *
+     * Nunca toca quantity ni los costos, porque el saldo solo cambia por movimientos de
+     * inventario (recepciones, ajustes, traslados). Una bodega nueva entra con saldo 0, y una
+     * bodega solo se puede quitar si su saldo es 0, para no perder existencias ni su costo promedio.
+     */
     protected function syncWarehouses(
         Item $item,
         array $warehouses,
         bool $replace = false
     ): void {
+        $existing = WarehouseItem::where('item_id', $item->id)->lockForUpdate()->get()->keyBy('warehouse_id');
+        $incomingIds = array_map(fn (array $warehouse) => (int) $warehouse['warehouse_id'], $warehouses);
+
         if ($replace) {
+            $toRemove = $existing->reject(fn (WarehouseItem $row) => in_array((int) $row->warehouse_id, $incomingIds, true));
+
+            $withStock = $toRemove->filter(fn (WarehouseItem $row) => (float) $row->quantity != 0.0);
+            if ($withStock->isNotEmpty()) {
+                $names = Warehouse::whereIn('id', $withStock->pluck('warehouse_id'))->orderBy('name')->pluck('name')->implode(', ');
+
+                throw ValidationException::withMessages([
+                    'warehouses' => ["No se puede quitar la bodega {$names} porque tiene saldo. Llévalo a 0 con un ajuste de inventario o un traslado antes de quitarla."],
+                ]);
+            }
+
             // Por instancia para que el AuditObserver registre cada bodega desasignada.
-            WarehouseItem::where('item_id', $item->id)->get()->each->delete();
+            $toRemove->each->delete();
         }
 
         foreach ($warehouses as $warehouse) {
-            WarehouseItem::updateOrCreate(
-                [
+            $settings = [
+                'stock_min' => $warehouse['stock_min'] ?? 0,
+                'stock_max' => $warehouse['stock_max'] ?? 0,
+                'location_id' => $warehouse['location_id'] ?? null,
+            ];
+
+            $row = $existing->get((int) $warehouse['warehouse_id']);
+            if ($row !== null) {
+                // Por instancia para que el AuditObserver registre el cambio de configuración.
+                $row->update($settings);
+
+                continue;
+            }
+
+            WarehouseItem::create([
+                'item_id' => $item->id,
+                'warehouse_id' => (int) $warehouse['warehouse_id'],
+                'quantity' => 0,
+                ...$settings,
+            ]);
+        }
+    }
+
+    /**
+     * Actualiza desde la carga masiva un ítem que ya existe.
+     *
+     * La configuración por bodega se sincroniza igual que en la ficha (syncWarehouses, sin tocar
+     * saldos). La cantidad del archivo solo se aplica como saldo inicial (movimiento en el kárdex)
+     * en una bodega que todavía no tiene saldo ni movimientos: es el caso de "una fila por
+     * ítem+bodega" al migrar. Si la bodega ya tiene saldo o movimientos, la cantidad no se aplica
+     * y la fila lo reporta, porque ese saldo solo debe cambiar con un ajuste de inventario.
+     *
+     * @param  array<int, string>  $errors
+     */
+    protected function updateImportedItem(
+        Item $item,
+        array $updateData,
+        array $warehouses,
+        string $importBatchId,
+        int $rowNum,
+        array &$errors
+    ): void {
+        $skipped = [];
+
+        DB::transaction(function () use ($item, $updateData, $warehouses, $importBatchId, $rowNum, &$skipped) {
+            $this->update($item, $updateData, $warehouses ?: null, false);
+
+            foreach ($warehouses as $warehouse) {
+                $warehouseId = (int) $warehouse['warehouse_id'];
+                $quantity = (float) ($warehouse['quantity'] ?? 0);
+
+                $balance = WarehouseItem::where('item_id', $item->id)->where('warehouse_id', $warehouseId)->lockForUpdate()->first();
+                $currentQuantity = (float) ($balance?->quantity ?? 0);
+                $hasMovements = InventoryMovement::where('item_id', $item->id)->where('warehouse_id', $warehouseId)->exists();
+
+                if ($currentQuantity != 0.0 || $hasMovements) {
+                    if ($quantity != $currentQuantity) {
+                        $skipped[] = $warehouseId;
+                    }
+
+                    continue;
+                }
+
+                if ($quantity <= 0) {
+                    continue;
+                }
+
+                $unitPrice = isset($warehouse['unit_price']) ? (float) $warehouse['unit_price'] : 0.0;
+                if ($unitPrice <= 0) {
+                    throw new \InvalidArgumentException(
+                        "El saldo inicial requiere costo unitario mayor a 0 para la bodega #{$warehouseId}."
+                    );
+                }
+
+                $this->inventoryMovementService->createInitialBalanceMovement([
                     'item_id' => $item->id,
-                    'warehouse_id' => $warehouse['warehouse_id'],
-                ],
-                [
-                    'quantity' => $warehouse['quantity'] ?? 0,
-                    'stock_min' => $warehouse['stock_min'] ?? 0,
-                    'stock_max' => $warehouse['stock_max'] ?? 0,
-                    'location_id' => $warehouse['location_id'] ?? null,
-                ]
-            );
+                    'warehouse_id' => $warehouseId,
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'date' => now()->toDateString(),
+                    'source_reference' => $importBatchId,
+                    'notes' => "Saldo inicial importado desde plantilla de items (fila {$rowNum})",
+                ]);
+
+                // Reaplicar límites después del movimiento, por instancia para el AuditObserver.
+                WarehouseItem::where('item_id', $item->id)
+                    ->where('warehouse_id', $warehouseId)
+                    ->get()
+                    ->each
+                    ->update([
+                        'stock_min' => $warehouse['stock_min'] ?? 0,
+                        'stock_max' => $warehouse['stock_max'] ?? 0,
+                    ]);
+            }
+        });
+
+        if (! empty($skipped)) {
+            $names = Warehouse::whereIn('id', $skipped)->orderBy('name')->pluck('name')->implode(', ');
+            $errors[] = "Fila {$rowNum}: la bodega {$names} ya tiene saldo o movimientos; la cantidad del archivo no se aplicó. Usa un ajuste de inventario para cambiarla.";
         }
     }
 

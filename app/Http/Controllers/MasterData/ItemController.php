@@ -317,10 +317,11 @@ class ItemController extends Controller
         ]));
     }
 
-    private function resolveWarehouses(Request $request): array
+    private function resolveWarehouses(Request $request, bool $isCreate): array
     {
-        // Delegar la resolución de payloads de bodegas al servicio
-        return $this->service->resolveWarehousePayload($request->input('warehouses'));
+        // Delegar la resolución de payloads de bodegas al servicio. La cantidad solo se
+        // exige al crear: en edición el saldo no se toca desde la ficha del ítem.
+        return $this->service->resolveWarehousePayload($request->input('warehouses'), $isCreate);
     }
 
     /**
@@ -449,7 +450,7 @@ class ItemController extends Controller
         }
 
         $this->handleImageUploadIfPresent($request, $data, 'items');
-        $warehouses = $this->resolveWarehouses($request);
+        $warehouses = $this->resolveWarehouses($request, $item === null);
 
         return [
             'data' => $data,

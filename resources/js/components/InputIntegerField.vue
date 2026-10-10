@@ -12,6 +12,7 @@ interface Props {
     allowNegative?: boolean;
     allowDecimal?: boolean;
     currency?: boolean;
+    invalid?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -106,7 +107,7 @@ watch(localModelValue, (newValue) => emit('update:modelValue', newValue));
 
 <template>
     <div class="grid w-full items-center gap-1.5">
-        <Label> {{ label }}<span v-if="required" class="text-red-500">*</span> </Label>
+        <Label> {{ label }}<span v-if="required" class="text-destructive">*</span> </Label>
         <div class="relative">
             <Input
                 :id="label"
@@ -115,7 +116,8 @@ watch(localModelValue, (newValue) => emit('update:modelValue', newValue));
                 :placeholder="placeholder"
                 :readonly="readonly"
                 inputmode="numeric"
-                class="h-10 w-full pr-5"
+                :class="['h-10 w-full pr-5', invalid && 'border-destructive ring-1 ring-destructive/40 focus-visible:ring-destructive/40']"
+                :aria-invalid="invalid ? 'true' : undefined"
                 @input="handleInput"
                 @blur="handleBlur"
             />

@@ -28,14 +28,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     {
         label: 'Datos Básicos',
         tokens: ['empresa', 'perfil', 'personalizacion'],
-        permissions: [
-            'ver empresa',
-            'editar empresa',
-            'ver perfil',
-            'editar perfil',
-            'ver personalizacion',
-            'editar personalizacion',
-        ],
+        permissions: ['ver empresa', 'editar empresa', 'ver perfil', 'editar perfil', 'ver personalizacion', 'editar personalizacion'],
         category: 'Configuración',
     },
     {
@@ -166,12 +159,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     {
         label: 'Inventario de Telas',
         tokens: ['inventario telas'],
-        permissions: [
-            'ver inventario telas',
-            'crear inventario telas',
-            'editar inventario telas',
-            'eliminar inventario telas',
-        ],
+        permissions: ['ver inventario telas', 'crear inventario telas', 'editar inventario telas', 'eliminar inventario telas'],
         category: 'Textil Pack',
     },
     {
@@ -233,13 +221,15 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         category: 'Inventario',
     },
     {
+        label: 'Ajustes de Inventario',
+        tokens: ['ajustes inventario'],
+        permissions: ['ver ajustes inventario', 'crear ajustes inventario', 'editar ajustes inventario', 'eliminar ajustes inventario'],
+        category: 'Inventario',
+    },
+    {
         label: 'Movimientos de Inventario',
         tokens: ['movimientos inventario', 'movimiento inventario'],
-        permissions: [
-            'ver propios movimientos inventario',
-            'ver todos movimientos inventario',
-            'eliminar movimiento inventario',
-        ],
+        permissions: ['ver propios movimientos inventario', 'ver todos movimientos inventario', 'eliminar movimiento inventario'],
         category: 'Inventario',
     },
 
@@ -353,22 +343,13 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     {
         label: 'Documentos de Compra',
         tokens: ['documentos compra'],
-        permissions: [
-            'ver propios documentos compra',
-            'ver area documentos compra',
-            'ver todos documentos compra',
-        ],
+        permissions: ['ver propios documentos compra', 'ver area documentos compra', 'ver todos documentos compra'],
         category: 'Gastos',
     },
     {
         label: 'Comprobantes de Egreso',
         tokens: ['comprobantes egreso'],
-        permissions: [
-            'ver comprobantes egreso',
-            'crear comprobantes egreso',
-            'editar comprobantes egreso',
-            'anular comprobantes egreso',
-        ],
+        permissions: ['ver comprobantes egreso', 'crear comprobantes egreso', 'editar comprobantes egreso', 'anular comprobantes egreso'],
         category: 'Gastos',
     },
 
@@ -376,23 +357,13 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     {
         label: 'Catálogo de Cuentas',
         tokens: ['catalogo cuentas', 'movimientos cuenta contable'],
-        permissions: [
-            'ver catalogo cuentas',
-            'crear catalogo cuentas',
-            'editar catalogo cuentas',
-            'ver movimientos cuenta contable',
-        ],
+        permissions: ['ver catalogo cuentas', 'crear catalogo cuentas', 'editar catalogo cuentas', 'ver movimientos cuenta contable'],
         category: 'Financiero',
     },
     {
         label: 'Notas Crédito/Débito',
         tokens: ['notas credito debito'],
-        permissions: [
-            'ver notas credito debito',
-            'crear notas credito debito',
-            'editar notas credito debito',
-            'eliminar notas credito debito',
-        ],
+        permissions: ['ver notas credito debito', 'crear notas credito debito', 'editar notas credito debito', 'eliminar notas credito debito'],
         category: 'Financiero',
     },
     {
@@ -440,12 +411,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     {
         label: 'Campos Adicionales',
         tokens: ['campos adicionales'],
-        permissions: [
-            'ver campos adicionales',
-            'crear campos adicionales',
-            'editar campos adicionales',
-            'eliminar campos adicionales',
-        ],
+        permissions: ['ver campos adicionales', 'crear campos adicionales', 'editar campos adicionales', 'eliminar campos adicionales'],
         category: 'Datos Maestros',
     },
 ];
@@ -464,15 +430,9 @@ export const PERMISSION_CATEGORIES: string[] = [
 /**
  * Mapa plano label → permissions[], para uso en RoleDialog.
  */
-export const PERMISSIONS_BY_MODULE: Record<string, string[]> = Object.fromEntries(
-    PERMISSION_MODULES.map((m) => [m.label, m.permissions]),
-);
+export const PERMISSIONS_BY_MODULE: Record<string, string[]> = Object.fromEntries(PERMISSION_MODULES.map((m) => [m.label, m.permissions]));
 
-const normalize = (text: string): string =>
-    text
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[̀-ͯ]/g, '');
+const normalize = (text: string): string => text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 /**
  * Etiquetas visibles de permisos cuya acción sola sería ambigua dentro de su módulo.

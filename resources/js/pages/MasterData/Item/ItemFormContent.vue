@@ -12,11 +12,13 @@ let cachedYarnNameOptions: CachedMaterialNameOption[] | null = null;
 </script>
 
 <script setup lang="ts">
+// organize-imports-ignore -- prettier-plugin-organize-imports corrompe los imports de este archivo
+// (tiene dos bloques <script>): duplica letras ("iimport") y quita espacios tras las comas.
 import axios from 'axios';
 import { ExternalLink, Image, Plus, Trash } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-
 import AlertStack from '@/components/common/AlertStack.vue';
+import ColorPickerSelect from '@/components/ColorPickerSelect.vue';
 import CreatableSelectField from '@/components/CreatableSelectField.vue';
 import FormHeader from '@/components/FormHeader.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
@@ -25,27 +27,17 @@ import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import InputField from '@/components/InputField.vue';
 import InputIntegerField from '@/components/InputIntegerField.vue';
 import SelectField from '@/components/SelectField.vue';
-
+import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { DialogFooter } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-
-import ColorPickerSelect from '@/components/ColorPickerSelect.vue';
-import TextareaField from '@/components/TextareaField.vue';
-import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
-import WarehouseLocationDialog from '@/pages/Inventory/WarehouseLocation/WarehouseLocationDialog.vue';
-import AdditionalFieldDialog from '@/pages/MasterData/AdditionalFields/AdditionalFieldDialog.vue';
-import ExtraFieldsForm from '@/pages/MasterData/Item/ExtraFieldsForm.vue';
-
-import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
-import { broadcastCatalogInvalidated, onCatalogInvalidatedElsewhere } from '@/lib/crossTabSync';
-import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
-
+import { NOT_APPLICABLE_COLOR_CODE } from '@/composables/useColorsCatalog';
+import unitMeasureData from '@/data/unitMeasures.json';
 import type { Tax } from '@/domain/Finance';
-import type { Warehouse } from '@/domain/inventory';
+import type { InventoryAdjustmentPrefill, Warehouse } from '@/domain/inventory';
 import type {
     AdditionalField,
     AdditionalFieldPayload,
@@ -56,12 +48,17 @@ import type {
     Item,
 } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared/types';
-
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
+import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
+import { broadcastCatalogInvalidated, onCatalogInvalidatedElsewhere } from '@/lib/crossTabSync';
+import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
+import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
+import InventoryAdjustmentForm from '@/pages/Inventory/InventoryAdjustment/InventoryAdjustmentForm.vue';
+import WarehouseLocationDialog from '@/pages/Inventory/WarehouseLocation/WarehouseLocationDialog.vue';
+import AdditionalFieldDialog from '@/pages/MasterData/AdditionalFields/AdditionalFieldDialog.vue';
+import ExtraFieldsForm from '@/pages/MasterData/Item/ExtraFieldsForm.vue';
 import { useAuthStore } from '@/stores/auth';
-
-import unitMeasureData from '@/data/unitMeasures.json';
 
 type DialogType = 'create' | 'edit' | 'view';
 type SaveMode = Exclude<DialogType, 'view'>;
@@ -132,6 +129,7 @@ type ItemWarehouseStockSource = {
 
 type ItemColorSource = {
     id?: number | string | null;
+    code?: string | null;
     name?: string | null;
     rgb?: string | null;
 };
@@ -237,6 +235,36 @@ const imagePreview = ref<string | undefined>(undefined);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
 const errors = ref<Record<string, string[]>>({});
+// Se activa al intentar guardar: marca en rojo los campos obligatorios vacíos del detalle de inventario.
+const showInventoryErrors = ref(false);
+// Se activa al primer intento de guardar: marca en rojo todos los campos obligatorios vacíos del formulario.
+const submitAttempted = ref(false);
+
+function isBlankNumber(value: unknown): boolean {
+    return value === null || value === undefined || String(value).trim() === '' || !Number.isFinite(Number(value));
+}
+
+// Campos obligatorios vacíos de una fila del detalle de inventario (0 es un valor válido).
+// Cantidad y costo inicial solo existen al crear: después el saldo solo cambia con movimientos
+// de inventario (ajustes, recepciones, traslados) y no se edita desde la ficha.
+function inventoryRowGaps(ws: {
+    warehouse_id?: unknown;
+    quantity?: unknown;
+    stock_min?: unknown;
+    stock_max?: unknown;
+    unit_price?: unknown;
+    location_id?: unknown;
+}) {
+    const isCreate = props.dialogType === 'create';
+    return {
+        warehouse: !Number(ws.warehouse_id),
+        quantity: isCreate && isBlankNumber(ws.quantity),
+        stock_min: isBlankNumber(ws.stock_min),
+        stock_max: isBlankNumber(ws.stock_max),
+        unit_price: isCreate && Number(ws.quantity) > 0 && !(Number(ws.unit_price) > 0),
+        location: !Number(ws.location_id),
+    };
+}
 const errorMessage = ref('');
 const errorType = ref<'error' | 'info' | 'warning'>('error');
 
@@ -263,8 +291,18 @@ type WarehouseStockEntry = {
     location_id: number | string | null;
     unit_price?: number;
     initial_date?: string | null;
+    /** true si la bodega ya está guardada para el ítem (su saldo viene del servidor). */
+    persisted?: boolean;
 };
 const warehouseStocks = ref<WarehouseStockEntry[]>([]);
+
+// Una bodega guardada con saldo no se puede quitar ni cambiar: primero hay que llevar el saldo a 0
+// con un ajuste o traslado. El backend aplica la misma regla (ItemService::syncWarehouses).
+function isWarehouseRowLocked(ws: WarehouseStockEntry): boolean {
+    return props.dialogType !== 'create' && Boolean(ws.persisted) && Number(ws.quantity) !== 0;
+}
+
+const quantityFormatter = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 4 });
 
 const taxes = ref<Tax[]>([]);
 const isTaxDialogOpen = ref(false);
@@ -348,6 +386,7 @@ const canCreateTaxes = computed(() => authStore.can('crear impuestos'));
 const canCreateManualReference = computed(() => authStore.can('crear referencia manual item'));
 const canCreateAdditionalFields = computed(() => authStore.can('crear campos adicionales'));
 const canCreateWarehouses = computed(() => authStore.can('crear bodegas'));
+const canCreateInventoryAdjustments = computed(() => authStore.can('crear ajustes inventario'));
 
 const groupOptions = computed(() =>
     categoryGroups.value.map((group) => ({
@@ -650,8 +689,14 @@ function updateNameField(orderedFields?: Record<string, string>): void {
     localForm.value.name = nameField.value;
 }
 
+// El color "NO APLICA" (código 000) existe solo para la referencia; no va en el nombre.
+function colorNameSegment(color: ItemColorSource | null | undefined): string {
+    if (!color?.name || color.code === NOT_APPLICABLE_COLOR_CODE) return '';
+    return String(color.name).trim();
+}
+
 function handleSelectedColor(color: ItemColorSource | null) {
-    selectedColorName.value = color?.name ? String(color.name).trim() : '';
+    selectedColorName.value = colorNameSegment(color);
 }
 
 function syncGroupFromSubgroup() {
@@ -668,7 +713,7 @@ function applyFormData(source: ItemFormSource) {
     localForm.value = mapItemToFormState(source);
     referenceMode.value = 'auto';
     unitMeasure.value = getInitialUnitMeasure(source);
-    selectedColorName.value = source.color?.name ? String(source.color.name).trim() : '';
+    selectedColorName.value = colorNameSegment(source.color);
     fillExtraFields(source.extra_fields);
     warehouseStocks.value = normalizeWarehouseStocksFromSource(source);
 
@@ -705,8 +750,7 @@ async function fetchWarehouseLocations() {
     try {
         const { data } = await axios.get(catalogLookupRoutes.warehouseLocations, { params: { per_page: 1000, status_active: true } });
         const locations = (data.data ?? []) as Array<{ id: number; name: string }>;
-        warehouseLocations.value = locations
-            .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+        warehouseLocations.value = locations.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
     } catch (error) {
         console.error('Error al obtener las ubicaciones:', error);
     }
@@ -783,10 +827,7 @@ async function fetchMaterialNameOptions(force = false) {
     }
 
     try {
-        const responses = await Promise.allSettled([
-            axios.get(route('nombres-tela.options')),
-            axios.get(route('nombres-hilaza.options')),
-        ]);
+        const responses = await Promise.allSettled([axios.get(route('nombres-tela.options')), axios.get(route('nombres-hilaza.options'))]);
         const [fabricResponse, yarnResponse] = responses;
         cachedFabricNameOptions = fabricResponse.status === 'fulfilled' && Array.isArray(fabricResponse.value.data) ? fabricResponse.value.data : [];
         cachedYarnNameOptions = yarnResponse.status === 'fulfilled' && Array.isArray(yarnResponse.value.data) ? yarnResponse.value.data : [];
@@ -911,22 +952,30 @@ async function fetchAdditionalFields(force = false) {
     }
 }
 
-async function fetchWarehouseStocks(itemId: number) {
+/**
+ * Trae los saldos actuales del ítem tras un ajuste de inventario y actualiza solo la cantidad de
+ * cada bodega, para no descartar cambios sin guardar en mínimo, máximo o ubicación.
+ */
+async function refreshWarehouseStocksForCurrentItem(itemId?: number) {
+    const resolvedItemId = Number(itemId ?? props.form.id);
+    if (!resolvedItemId) return;
+
     try {
-        const { data } = await axios.get<ItemFormSource>(`/item/${itemId}`);
-        warehouseStocks.value = normalizeWarehouseStocksFromSource(data);
+        const { data } = await axios.get<ItemFormSource>(`/item/${resolvedItemId}`);
+        const fresh = normalizeWarehouseStocksFromSource(data);
+        fresh.forEach((freshRow) => {
+            const current = warehouseStocks.value.find((row) => Number(row.warehouse_id) === Number(freshRow.warehouse_id));
+            if (current) {
+                current.quantity = freshRow.quantity;
+                current.unit_price = freshRow.unit_price;
+                current.persisted = true;
+            } else {
+                warehouseStocks.value.push(freshRow);
+            }
+        });
     } catch (e) {
         console.error('Error fetching warehouse stocks:', e);
     }
-}
-
-async function refreshWarehouseStocksForCurrentItem(itemId?: number) {
-    const resolvedItemId = Number(itemId ?? props.form.id);
-    if (!resolvedItemId) {
-        warehouseStocks.value = [];
-        return;
-    }
-    await fetchWarehouseStocks(resolvedItemId);
 }
 
 let catalogsLoadPromise: Promise<void> | null = null;
@@ -938,7 +987,12 @@ function loadFormCatalogs(forceCategories = false): Promise<void> {
 
     if (!catalogsLoadPromise) {
         isCatalogBootstrapLoading.value = true;
-        catalogsLoadPromise = Promise.all([fetchCategorySubGroups(forceCategories),fetchTaxes(), fetchAdditionalFields(), fetchMaterialNameOptions()])
+        catalogsLoadPromise = Promise.all([
+            fetchCategorySubGroups(forceCategories),
+            fetchTaxes(),
+            fetchAdditionalFields(),
+            fetchMaterialNameOptions(),
+        ])
             .then(() => undefined)
             .finally(() => {
                 isCatalogBootstrapLoading.value = false;
@@ -1021,6 +1075,7 @@ function normalizeWarehouseStocksFromSource(source: ItemFormSource | null | unde
                         : row.weighted_average_price !== undefined && row.weighted_average_price !== null
                           ? toNumericValue(row.weighted_average_price)
                           : undefined,
+                persisted: true,
             } satisfies WarehouseStockEntry;
         })
         .filter((row) => row.warehouse_id !== null);
@@ -1353,6 +1408,7 @@ function mapFormStateToPayload(orderedExtraFields: Record<string, string>): Reco
 }
 
 async function handleSubmit() {
+    submitAttempted.value = true;
     resetErrors();
     errorMessage.value = '';
     errorType.value = 'error';
@@ -1373,20 +1429,25 @@ async function handleSubmit() {
     if (props.showAdvancedSections && !localForm.value.income_account_id) requiredErrors.push('Cuenta de ingreso');
 
     const hasInventoryDetail = warehouseStocks.value.length > 0;
-    const incompleteInventoryDetail = warehouseStocks.value.some(
-        (warehouseStock) =>
-            !Number(warehouseStock.warehouse_id) ||
-            !Number.isFinite(Number(warehouseStock.quantity)) ||
-            !Number.isFinite(Number(warehouseStock.stock_min)) ||
-            !Number.isFinite(Number(warehouseStock.stock_max)) ||
-            warehouseStock.unit_price === null ||
-            warehouseStock.unit_price === undefined ||
-            !Number.isFinite(Number(warehouseStock.unit_price)) ||
-            !Number(warehouseStock.location_id),
-    );
+    const incompleteInventoryRows = warehouseStocks.value
+        .map((warehouseStock, index) => {
+            const gaps = inventoryRowGaps(warehouseStock);
+            const missing: string[] = [];
+            if (gaps.warehouse) missing.push('bodega');
+            if (gaps.quantity) missing.push('cantidad');
+            if (gaps.stock_min) missing.push('cantidad mín.');
+            if (gaps.stock_max) missing.push('cantidad máx.');
+            if (gaps.unit_price) missing.push('costo');
+            if (gaps.location) missing.push('ubicación');
 
-    if (hasInventoryDetail && incompleteInventoryDetail) {
-        requiredErrors.push('Detalle de inventario completo (bodega, cantidades, costo y ubicación)');
+            return missing.length > 0 ? `${warehouseStock.name || `Bodega ${index + 1}`}: falta ${missing.join(', ')}` : null;
+        })
+        .filter((row): row is string => row !== null);
+
+    showInventoryErrors.value = hasInventoryDetail && incompleteInventoryRows.length > 0;
+
+    if (hasInventoryDetail && incompleteInventoryRows.length > 0) {
+        requiredErrors.push(`Detalle de inventario incompleto (${incompleteInventoryRows.join('; ')})`);
     }
 
     const isAutoReference = props.dialogType === 'create' && referenceMode.value === 'auto';
@@ -1484,9 +1545,9 @@ async function handleSubmit() {
     const warehousesPayload = warehouseStocks.value
         .filter((w) => Number(w.warehouse_id))
         .map((w) => {
+            // En edición no se envía la cantidad: el saldo solo cambia por movimientos de inventario.
             const base = {
                 warehouse_id: Number(w.warehouse_id),
-                quantity: Number(w.quantity),
                 stock_min: Number(w.stock_min),
                 stock_max: Number(w.stock_max),
                 location_id:
@@ -1495,7 +1556,8 @@ async function handleSubmit() {
             if (isCreate) {
                 return {
                     ...base,
-                    unit_price: w.unit_price != null ? Number(w.unit_price) : null,
+                    quantity: Number(w.quantity),
+                    unit_price: w.unit_price != null && String(w.unit_price).trim() !== '' ? Number(w.unit_price) : null,
                     initial_date: w.initial_date ?? new Date().toISOString().split('T')[0],
                 };
             }
@@ -1738,6 +1800,8 @@ watch(
     () => props.isOpen,
     async (value) => {
         if (value) {
+            showInventoryErrors.value = false;
+            submitAttempted.value = false;
             await authStore.fetchUser(true);
             await fetchAdditionalFields(true);
             await hydrateOpenForm();
@@ -1770,6 +1834,31 @@ const handleInventoryAdjustmentSaved = (event: Event) => {
 
     void refreshWarehouseStocksForCurrentItem(currentItemId);
 };
+
+// Ajuste de inventario abierto desde la ficha: es el camino para cambiar el saldo de una bodega ya guardada.
+const isAdjustmentDialogOpen = ref(false);
+const adjustmentPrefill = ref<InventoryAdjustmentPrefill | null>(null);
+
+function canAdjustWarehouseRow(ws: WarehouseStockEntry): boolean {
+    return props.dialogType === 'edit' && Boolean(ws.persisted) && canCreateInventoryAdjustments.value && materialKind.value !== 'fabric';
+}
+
+async function openWarehouseAdjustment(ws: WarehouseStockEntry) {
+    const itemId = Number(props.form.id);
+    const warehouseId = Number(ws.warehouse_id);
+    if (!itemId || !warehouseId) return;
+    // El dialog se monta con la primera precarga (evita cargar sus catálogos en cada apertura de la ficha)
+    // y se abre en el siguiente tick para que su watcher de apertura aplique la precarga.
+    adjustmentPrefill.value = { itemId, warehouseId };
+    await nextTick();
+    isAdjustmentDialogOpen.value = true;
+}
+
+function handleWarehouseAdjustmentSaved() {
+    // El saldo se refresca con el evento global 'inventory-adjustment-saved' (handleInventoryAdjustmentSaved).
+    errorType.value = 'info';
+    errorMessage.value = 'Ajuste de inventario guardado. El saldo de la bodega se actualizó.';
+}
 
 watch(selectedGroupId, (newVal, oldVal) => {
     // Solo limpiar si el cambio viene del usuario, no de la inicialización
@@ -1947,6 +2036,8 @@ onBeforeUnmount(() => {
                                         :key="subGroupsRefreshKey"
                                         v-model="localForm.category_sub_group_id"
                                         label="Subgrupo"
+                                        :invalid="submitAttempted && !localForm.category_sub_group_id"
+                                        error-message="Requerido"
                                         :options="subGroupOptions"
                                         :disabled="!selectedGroupId"
                                         :placeholder="selectedGroupId ? 'Selecciona un subgrupo' : 'Selecciona un grupo primero'"
@@ -1965,6 +2056,11 @@ onBeforeUnmount(() => {
                                     <SelectField
                                         v-model="localForm.tax_id"
                                         label="Impuesto"
+                                        :invalid="
+                                            submitAttempted &&
+                                            (localForm.tax_id === undefined || localForm.tax_id === null || String(localForm.tax_id).trim() === '')
+                                        "
+                                        error-message="Requerido"
                                         :options="taxOptions"
                                         option-label="name"
                                         option-value="id"
@@ -2010,6 +2106,7 @@ onBeforeUnmount(() => {
                                             v-if="referenceMode === 'manual' || props.dialogType !== 'create'"
                                             v-model="localForm.reference"
                                             label=""
+                                            :error="submitAttempted && !String(localForm.reference ?? '').trim() ? 'Requerido' : false"
                                             required
                                         />
                                         <p v-else class="rounded-md border border-dashed bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
@@ -2148,7 +2245,11 @@ onBeforeUnmount(() => {
                                 <p class="flex items-center gap-1 text-sm font-semibold">
                                     <span>Detalle de Inventario</span>
                                     <HelpTooltip
-                                        text="Selecciona las bodegas y cantidades donde se almacenará este ítem para llevar control de stock."
+                                        :text="
+                                            props.dialogType === 'create'
+                                                ? 'Selecciona las bodegas donde se almacenará este ítem. La cantidad que ingreses queda registrada como saldo inicial en el kárdex.'
+                                                : 'El saldo de cada bodega solo cambia con ajustes de inventario, recepciones de compra o traslados. Aquí solo se edita la cantidad mínima, la máxima y la ubicación.'
+                                        "
                                     />
                                 </p>
 
@@ -2171,14 +2272,16 @@ onBeforeUnmount(() => {
                                         'grid grid-cols-1 gap-2 sm:items-end',
                                         props.dialogType === 'create'
                                             ? 'sm:grid-cols-[minmax(140px,1.2fr)_repeat(2,minmax(70px,1fr))_minmax(110px,1fr)_minmax(100px,1fr)_minmax(120px,1fr)_auto]'
-                                            : 'sm:grid-cols-[minmax(160px,1.2fr)_repeat(3,minmax(80px,1fr))_minmax(140px,1fr)_auto]',
+                                            : 'sm:grid-cols-[minmax(160px,1.2fr)_minmax(150px,1.2fr)_repeat(2,minmax(80px,1fr))_minmax(140px,1fr)_auto]',
                                     ]"
                                 >
                                     <div class="space-y-1">
-                                        <Label class="text-xs">Bodega</Label>
+                                        <Label class="text-xs">Bodega <span class="text-destructive">*</span></Label>
                                         <SelectField
                                             v-model="ws.warehouse_id"
                                             label=""
+                                            :invalid="showInventoryErrors && inventoryRowGaps(ws).warehouse"
+                                            error-message="Requerida"
                                             :options="
                                                 availableWarehouses(idx).map((w) => ({
                                                     id: String(w.id ?? ''),
@@ -2189,6 +2292,7 @@ onBeforeUnmount(() => {
                                             class="w-full"
                                             placeholder="Bodega"
                                             :searchable="false"
+                                            :disabled="isViewMode || isWarehouseRowLocked(ws)"
                                         >
                                             <template v-if="canCreateWarehouses" #header>
                                                 <Button
@@ -2205,15 +2309,15 @@ onBeforeUnmount(() => {
                                         </SelectField>
                                     </div>
 
-                                    <div class="space-y-1">
-                                        <Label class="text-xs">Cantidad</Label>
+                                    <div v-if="props.dialogType === 'create'" class="space-y-1">
+                                        <Label class="text-xs">Cantidad inicial <span class="text-destructive">*</span></Label>
                                         <InputIntegerField
                                             v-model="ws.quantity"
                                             label=""
+                                            :invalid="showInventoryErrors && inventoryRowGaps(ws).quantity"
                                             type="number"
                                             class="w-full"
                                             placeholder="Cantidad"
-                                            :allowNegative="true"
                                             :allowDecimal="true"
                                             @focus="
                                                 (e: FocusEvent) => {
@@ -2223,16 +2327,43 @@ onBeforeUnmount(() => {
                                             "
                                         />
                                     </div>
+                                    <div v-else class="space-y-1">
+                                        <Label class="text-xs">Saldo actual</Label>
+                                        <div class="flex items-center gap-1">
+                                            <div
+                                                class="flex h-10 min-w-0 flex-1 items-center rounded-md border border-input bg-muted px-3 text-sm tabular-nums"
+                                                :title="
+                                                    ws.persisted
+                                                        ? 'El saldo solo cambia con ajustes, recepciones o traslados'
+                                                        : 'Bodega nueva: entra con saldo 0'
+                                                "
+                                            >
+                                                {{ quantityFormatter.format(Number(ws.quantity) || 0) }}
+                                            </div>
+                                            <Button
+                                                v-if="canAdjustWarehouseRow(ws)"
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                class="h-10 shrink-0 px-2 text-xs"
+                                                title="Registrar un ajuste de inventario para esta bodega"
+                                                @click="openWarehouseAdjustment(ws)"
+                                            >
+                                                Ajustar
+                                            </Button>
+                                        </div>
+                                    </div>
 
                                     <template v-if="props.dialogType === 'create'">
                                         <div class="space-y-1">
                                             <Label class="text-xs">
                                                 Costo unitario inicial
-                                                <span v-if="ws.quantity > 0" class="text-destructive">*</span>
+                                                <span class="text-destructive">*</span>
                                             </Label>
                                             <InputIntegerField
                                                 v-model="ws.unit_price"
                                                 label=""
+                                                :invalid="showInventoryErrors && inventoryRowGaps(ws).unit_price"
                                                 type="number"
                                                 class="w-full"
                                                 placeholder="$0"
@@ -2245,17 +2376,18 @@ onBeforeUnmount(() => {
                                                     }
                                                 "
                                             />
-                                            <p v-if="ws.quantity > 0 && !(ws.unit_price && ws.unit_price > 0)" class="text-xs text-destructive">
+                                            <p v-if="inventoryRowGaps(ws).unit_price" class="text-xs text-destructive">
                                                 Requerido si cantidad &gt; 0
                                             </p>
                                         </div>
                                     </template>
 
                                     <div class="space-y-1">
-                                        <Label class="text-xs">Cantidad Min</Label>
+                                        <Label class="text-xs">Cantidad Min <span class="text-destructive">*</span></Label>
                                         <InputIntegerField
                                             v-model="ws.stock_min"
                                             label=""
+                                            :invalid="showInventoryErrors && inventoryRowGaps(ws).stock_min"
                                             type="number"
                                             class="w-full"
                                             placeholder="Min"
@@ -2270,10 +2402,11 @@ onBeforeUnmount(() => {
                                     </div>
 
                                     <div class="space-y-1">
-                                        <Label class="text-xs">Cantidad Max</Label>
+                                        <Label class="text-xs">Cantidad Max <span class="text-destructive">*</span></Label>
                                         <InputIntegerField
                                             v-model="ws.stock_max"
                                             label=""
+                                            :invalid="showInventoryErrors && inventoryRowGaps(ws).stock_max"
                                             type="number"
                                             class="w-full"
                                             placeholder="Max"
@@ -2288,10 +2421,12 @@ onBeforeUnmount(() => {
                                     </div>
 
                                     <div class="space-y-1">
-                                        <Label class="text-xs">Ubicación</Label>
+                                        <Label class="text-xs">Ubicación <span class="text-destructive">*</span></Label>
                                         <SelectField
                                             v-model="ws.location_id"
                                             label=""
+                                            :invalid="showInventoryErrors && inventoryRowGaps(ws).location"
+                                            error-message="Requerida"
                                             :options="warehouseLocations.map((l) => ({ id: String(l.id), name: l.name }))"
                                             placeholder="Sin ubicación"
                                             :searchable="true"
@@ -2319,9 +2454,14 @@ onBeforeUnmount(() => {
                                         <button
                                             v-if="!isViewMode"
                                             type="button"
-                                            class="rounded-full p-2 transition hover:bg-red-100 dark:hover:bg-red-900"
+                                            class="rounded-full p-2 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent dark:hover:bg-red-900"
+                                            :disabled="isWarehouseRowLocked(ws)"
                                             @click="removeWarehouseStock(idx)"
-                                            title="Quitar"
+                                            :title="
+                                                isWarehouseRowLocked(ws)
+                                                    ? 'No se puede quitar: la bodega tiene saldo. Llévalo a 0 con un ajuste o traslado.'
+                                                    : 'Quitar'
+                                            "
                                         >
                                             <Trash class="h-4 w-4 text-red-500" />
                                         </button>
@@ -2347,6 +2487,8 @@ onBeforeUnmount(() => {
                                 <SelectField
                                     v-model="unitMeasure"
                                     label="Unidad de Medida"
+                                    :invalid="submitAttempted && !unitMeasure"
+                                    error-message="Requerido"
                                     :options="unitMeasures"
                                     option-label="name"
                                     option-value="id"
@@ -2359,6 +2501,7 @@ onBeforeUnmount(() => {
                             <ColorPickerSelect
                                 v-model="colorModel"
                                 label="Color"
+                                :invalid="submitAttempted && !colorModel"
                                 required
                                 :disabled="isViewMode"
                                 @selected-color="handleSelectedColor"
@@ -2430,6 +2573,7 @@ onBeforeUnmount(() => {
                             @create-additional-field="openAdditionalFieldDialog"
                             :field-options="additionalFieldOptions"
                             :additional-fields-meta="additionalFieldsMeta"
+                            :show-errors="submitAttempted"
                             :show-label="false"
                         />
                     </div>
@@ -2448,6 +2592,8 @@ onBeforeUnmount(() => {
                             <SelectField
                                 v-model="localForm.income_account_id"
                                 label="Cuenta de ingreso *"
+                                :invalid="submitAttempted && !localForm.income_account_id"
+                                error-message="Requerido"
                                 :options="accountingIncomeOptions"
                                 option-label="name"
                                 option-value="id"
@@ -2521,6 +2667,16 @@ onBeforeUnmount(() => {
 
     <WarehouseLocationDialog :open="isLocationDialogOpen" @update:open="isLocationDialogOpen = $event" @created="handleLocationCreated" />
 
+    <InventoryAdjustmentForm
+        v-if="adjustmentPrefill"
+        :is-open="isAdjustmentDialogOpen"
+        dialog-type="create"
+        :adjustment="null"
+        :prefill="adjustmentPrefill"
+        @close="isAdjustmentDialogOpen = false"
+        @saved="handleWarehouseAdjustmentSaved"
+    />
+
     <TaxDialog
         v-model:open="isTaxDialogOpen"
         dialog-type="create"
@@ -2540,10 +2696,5 @@ onBeforeUnmount(() => {
         @cancel="closeAdditionalFieldDialog"
     />
 
-    <ImagePreviewDialog
-        v-model:open="isImageZoomOpen"
-        :src="imagePreview ?? null"
-        title="Imagen del ítem"
-        alt="Imagen del ítem"
-    />
+    <ImagePreviewDialog v-model:open="isImageZoomOpen" :src="imagePreview ?? null" title="Imagen del ítem" alt="Imagen del ítem" />
 </template>

@@ -11,7 +11,6 @@ use App\Http\Controllers\Inventory\WarehouseTransferController;
 use App\Http\Controllers\MasterData\AdditionalFieldController;
 use App\Http\Controllers\MasterData\ItemController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 // === LOOKUPS DE CATALOGOS PARA REFERENCIA ===
 Route::get('catalogos/campos-adicionales/options', [AdditionalFieldController::class, 'options'])->name('catalogos.additional-fields.options');
@@ -51,10 +50,9 @@ Route::prefix('transferencias-bodegas')->name('warehouse-transfers.')->middlewar
 Route::get('inventario/item', [ItemController::class, 'listView'])->name('listado');
 Route::get('inventario/item/formulario-avanzado', [ItemController::class, 'advancedForm'])
     ->name('inventario.item.formulario-avanzado');
-Route::get('inventario/ajuste-inventario', [ItemController::class, 'adjustmentView'])->name('inventario.ajuste-inventario');
-Route::get('inventario/ajuste-inventario/crear', function () {
-    return Inertia::render('Inventory/Articles/InventoryAdjustmentForm');
-})->name('inventario.ajuste-inventario.create');
+Route::get('inventario/ajuste-inventario', [ItemController::class, 'adjustmentView'])
+    ->name('inventario.ajuste-inventario')
+    ->middleware('permission:ver ajustes inventario');
 
 // === SOLICITUDES INTERNAS ===
 Route::prefix('inventario/solicitudes-internas')->name('inventory-requests.')->group(function () {
@@ -87,14 +85,14 @@ Route::prefix('campos-adicionales')->name('inventory.additional-fields.')->middl
 });
 
 // === AJUSTES DE INVENTARIO ===
-Route::prefix('ajustes-inventario')->name('ajustes-inventario.')->group(function () {
+Route::prefix('ajustes-inventario')->name('ajustes-inventario.')->middleware('permission:ver ajustes inventario')->group(function () {
     Route::get('/data', [InventoryAdjustmentController::class, 'getData'])->name('data');
     Route::get('/', [InventoryAdjustmentController::class, 'index'])->name('index');
     Route::get('/movement-reasons', [InventoryAdjustmentController::class, 'movementReasons'])->name('movement-reasons');
     Route::get('/{id}', [InventoryAdjustmentController::class, 'show'])->name('show');
-    Route::post('/', [InventoryAdjustmentController::class, 'store'])->name('store');
-    Route::put('/{id}', [InventoryAdjustmentController::class, 'update'])->name('update');
-    Route::delete('/{id}', [InventoryAdjustmentController::class, 'destroy'])->name('destroy');
+    Route::post('/', [InventoryAdjustmentController::class, 'store'])->name('store')->middleware('permission:crear ajustes inventario');
+    Route::put('/{id}', [InventoryAdjustmentController::class, 'update'])->name('update')->middleware('permission:editar ajustes inventario');
+    Route::delete('/{id}', [InventoryAdjustmentController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar ajustes inventario');
 });
 
 // === MOVIMIENTOS DE INVENTARIO ===
