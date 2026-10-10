@@ -45,6 +45,8 @@ type Line = {
     tax: number;
     quantity: number;
     description: string;
+    /** true cuando el usuario escribió el precio (o viene de un ajuste guardado): no se pisa con el sugerido. */
+    priceEdited?: boolean;
 };
 
 const defaultMovementReason: 'entrada' | 'salida' = 'entrada';
@@ -197,6 +199,7 @@ watch(selectedWarehouseId, (val) => {
         ...line,
         warehouseId: line.warehouseId === previous ? (val ?? null) : line.warehouseId,
     }));
+    lines.value.filter((line) => line.itemId && line.warehouseId === (val ?? null)).forEach((line) => void suggestPrice(line.id));
 
     lastSelectedWarehouseId.value = val ?? null;
 });
@@ -261,6 +264,7 @@ function fillFromAdjustment(data: any) {
               tax: Number(line.tax) || 0,
               quantity: Number(line.quantity) || 0,
               description: line.description || '',
+              priceEdited: true,
           }))
         : [
               {
@@ -339,6 +343,24 @@ function removeLine(id: number) {
     lines.value = lines.value.filter((l) => l.id !== id);
 }
 
+async function suggestPrice(lineId: number) {
+    const line = lines.value.find((l) => l.id === lineId);
+    if (!line || line.priceEdited || !line.itemId) return;
+    const itemId = line.itemId;
+    const warehouseId = line.warehouseId || selectedWarehouseId.value;
+    try {
+        const { data } = await axios.get('/movimientos-inventario/weighted-price', {
+            params: { item_id: itemId, warehouse_id: warehouseId || undefined },
+        });
+        const current = lines.value.find((l) => l.id === lineId);
+        if (current && !current.priceEdited && current.itemId === itemId) {
+            current.price = Math.round(Number(data?.weighted_price ?? 0) * 100) / 100;
+        }
+    } catch {
+        // Sin sugerido el usuario escribe el precio a mano.
+    }
+}
+
 function handleItemChange(selectedItemId: any, line: Line) {
     if (!selectedItemId) return;
     const selectedItem = items.value.find((item) => String(item.id) === String(selectedItemId));
@@ -353,6 +375,7 @@ function handleItemChange(selectedItemId: any, line: Line) {
             line.tax = 0;
         }
     }
+    void suggestPrice(line.id);
 }
 
 const lineTotal = (line: Line) => {
@@ -682,7 +705,12 @@ async function handleSubmit() {
                                                 placeholder="0.00"
                                                 :error="showRequiredErrors && lineGaps(line).price ? 'Requerido' : false"
                                                 class="h-10 w-full"
-                                                @input="normalizeDecimalInput"
+                                                @input="
+                                                    (e: Event) => {
+                                                        normalizeDecimalInput(e);
+                                                        line.priceEdited = true;
+                                                    }
+                                                "
                                             />
                                         </TableCell>
 

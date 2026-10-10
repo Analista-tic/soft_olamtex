@@ -6,6 +6,7 @@ use App\Models\Inventory\InventoryAdjustment;
 use App\Models\Inventory\InventoryAdjustmentLine;
 use App\Support\DocumentSequence;
 use App\Models\MasterData\Item;
+use App\Models\Finance\AccountingAccount;
 use App\Services\Finance\AccountingPostingService;
 use App\Services\Inventory\InventoryMovementService;
 use App\Services\Inventory\WarehouseResolver;
@@ -171,6 +172,7 @@ class InventoryAdjustmentService
     private function persistAdjustment(array $data, Collection $items, ?InventoryAdjustment $adjustment = null): InventoryAdjustment
     {
         $movementReasons = $this->movementReasons();
+        $this->assertItemsHavePostingAccounts($data, $items);
 
         return DB::transaction(function () use ($data, $items, $adjustment, $movementReasons) {
             // El número lo decide siempre el servidor; el que envíe el cliente se ignora al crear.
@@ -224,6 +226,43 @@ class InventoryAdjustmentService
 
             return $adjustment->load('lines.item');
         });
+    }
+
+    /**
+     * Las salidas y las regularizaciones positivas generan asiento contable: falla antes de tocar el kardex
+     * y dice qué ítem configurar, en vez de un error genérico a mitad del guardado.
+     */
+    private function assertItemsHavePostingAccounts(array $data, Collection $items): void
+    {
+        if ($data['type'] !== 'salida' && ($data['movement_reason'] ?? null) !== 'entry_regularization') {
+            return;
+        }
+
+        $accountIds = $items->flatMap(fn ($item) => [$item->inventory_account_id, $item->cost_of_sale_account_id])->filter()->unique();
+        $postable = AccountingAccount::query()->active()->allowsEntries()->whereIn('id', $accountIds)->pluck('id')->all();
+
+        $messages = [];
+        foreach (collect($data['lines'])->pluck('item_id')->unique() as $itemId) {
+            $item = $items->get($itemId);
+            if (! $item || ! $item->tracks_inventory) {
+                continue;
+            }
+
+            $missing = [];
+            if (! in_array($item->inventory_account_id, $postable, true)) {
+                $missing[] = 'cuenta de inventario';
+            }
+            if (! in_array($item->cost_of_sale_account_id, $postable, true)) {
+                $missing[] = 'cuenta de costo/gasto directo';
+            }
+            if ($missing !== []) {
+                $messages[] = 'El ítem "'.$item->name.'" no tiene '.implode(' ni ', $missing).' válida. Configúrala en la ficha del ítem y vuelve a guardar.';
+            }
+        }
+
+        if ($messages !== []) {
+            throw ValidationException::withMessages(['lines' => $messages]);
+        }
     }
 
     private function syncLinesAndStock(InventoryAdjustment $adjustment, array $lines, Collection $items, array $movementReasons): Collection
