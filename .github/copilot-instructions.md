@@ -96,6 +96,16 @@
 - **Responsive primero:** en desktop usar proporciones equilibradas; en pantallas menores apilar sin perder legibilidad ni ocultar campos importantes.
 - **Consistencia de espaciado:** usar paddings, gaps y alturas visuales consistentes dentro del dialog; evitar bloques que se vean comprimidos o sobredimensionados frente a otros del mismo modal.
 
+### Regla obligatoria: validación visible en formularios y dialogs
+Aplica a todo formulario nuevo o modificado (crear, editar, importar), no solo al que se está tocando.
+- **Todo campo obligatorio debe verse obligatorio y marcarse cuando falta.** Asterisco rojo en la etiqueta + borde rojo (`invalid` / `error`) + mensaje corto ("Requerido") bajo el campo. Un mensaje general arriba sin marcar el campo concreto no cumple la regla.
+- **Se marca al intentar guardar** (flag `submitAttempted`, se reinicia al abrir el dialog) y se limpia en vivo cuando el campo se completa. No marcar en rojo un formulario recién abierto.
+- **Una sola fuente de verdad por validación:** la función/computed que decide "falta este campo" es la misma que arma el mensaje general y la que pinta el campo (ej. `inventoryRowGaps()` en `ItemFormContent.vue`). Prohibido duplicar la condición en `handleSubmit` y en el template.
+- **Cubrir todos los campos de la lista de obligatorios**, incluidos los dinámicos (campos adicionales, filas repetibles como detalle de inventario) y los que usan componentes propios. Si un componente (`SelectField`, `CreatableSelectField`, `InputField`, `InputIntegerField`, `ColorPickerSelect`, `ExtraFieldsForm`…) no soporta `invalid`/`error`, agrégaselo al componente en vez de dejar el campo sin marcar.
+- **Vacío no es cero:** un campo numérico vacío (`''`, `null`) es faltante; `0` es un valor válido. No usar `Number.isFinite(Number(v))` solo, porque `Number('') === 0`.
+- **Alinear con el backend:** la regla del frontend debe ser igual a la del backend (FormRequest/servicio). Si el backend exige un campo, el frontend lo marca; si no, no.
+- **Editar datos antiguos:** al abrir un registro existente, los campos que hoy son obligatorios pero vienen vacíos (datos previos a la regla) deben ser editables en ese formulario; nunca dejar un campo obligatorio oculto o de solo lectura en edición.
+
 ### Client Routing
 - Use `route('usuarios.index')` etc. via Ziggy (`ziggy-js` alias). Keep names in [routes/web.php](routes/web.php) aligned with component locations under `resources/js`.
 
