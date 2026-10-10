@@ -69,6 +69,7 @@ Route::prefix('inventario/solicitudes-internas')->name('inventory-requests.')->g
 Route::prefix('inventario-item')->name('inventario-item.')->group(function () {
     Route::get('/', [ItemInventoryController::class, 'index'])->name('index');
     Route::get('/data', [ItemInventoryController::class, 'getData'])->name('data');
+    Route::get('/exportar-excel', [ItemInventoryController::class, 'exportExcel'])->name('exportar-excel');
 });
 Route::get('/warehouse-items', [WarehouseItemStockController::class, 'index']);
 

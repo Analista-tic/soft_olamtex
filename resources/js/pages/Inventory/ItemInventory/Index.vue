@@ -7,15 +7,16 @@ import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import Input from '@/components/ui/input/Input.vue';
+import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { Warehouse } from '@/domain/Inventory';
+import type { Warehouse } from '@/domain/inventory';
 import type { Option } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useWarehousesStore } from '@/stores/inventory/warehouses';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Search } from 'lucide-vue-next';
+import { Download, Search } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 
 type InventoryViewItem = {
@@ -108,6 +109,14 @@ function toggleSort(column: string) {
     void fetchItems(1);
 }
 
+function exportExcel() {
+    const params = new URLSearchParams({ sort_by: sortBy.value, sort_dir: sortDir.value });
+    if (searchQuery.value.trim()) params.set('search', searchQuery.value.trim());
+    if (selectedWarehouseId.value) params.set('warehouse_id', String(selectedWarehouseId.value));
+    if (resolvedStatusFilter.value !== undefined) params.set('status', String(resolvedStatusFilter.value));
+    window.open(`/inventario-item/exportar-excel?${params.toString()}`, '_blank');
+}
+
 async function fetchItems(page = 1) {
     isLoading.value = true;
     const params: Record<string, unknown> = {
@@ -148,7 +157,7 @@ async function fetchWarehouses() {
                 id: warehouse.id!,
                 name: warehouse.name,
             }))
-            .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+            .sort((a: Option, b: Option) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
     } catch (error) {
         console.error('Error al cargar bodegas', error);
     }
@@ -174,6 +183,9 @@ onMounted(() => {
                     <h1 class="text-lg font-bold">Inventario de Items</h1>
                     <p class="text-sm text-muted-foreground">Visualiza el stock actual, su costo promedio y el valor total.</p>
                 </div>
+                <Button variant="outline" class="gap-2" :disabled="isLoading || totalItems === 0" @click="exportExcel">
+                    <Download class="h-4 w-4" /> Exportar Excel
+                </Button>
             </div>
 
             <FilterBar align="start" gap="gap-4">
@@ -214,7 +226,7 @@ onMounted(() => {
                         <TableRow>
                             <TableHead class="text-start">Ítem</TableHead>
                             <TableHead>Referencia</TableHead>
-                            <TableHead>Bodega</TableHead>
+                            <TableHead>{{ isWarehouseActive ? 'Bodega' : 'Bodegas' }}</TableHead>
                             <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('quantity')">
                                 <span class="inline-flex items-center gap-1">
                                     Cantidad
