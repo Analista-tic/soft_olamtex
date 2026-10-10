@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Finance\AccountingAccount;
+use App\Models\Finance\JournalEntry;
 use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\Warehouse;
 use App\Models\MasterData\CategoryGroup;
@@ -71,29 +72,31 @@ function accountsTestPayload(int $itemId, int $warehouseId, string $type = 'entr
     ];
 }
 
-it('rejects a positive regularization when the item has no accounting accounts, naming the item', function () {
+it('saves the stock adjustment without a journal entry when the item has no accounting accounts', function () {
     $item = accountsTestItem($this->subGroup->id);
 
     $response = $this->postJson(route('ajustes-inventario.store'), accountsTestPayload($item->id, $this->warehouse->id));
 
-    $response->assertStatus(422);
-    expect($response->json('errors.lines.0'))
+    $response->assertCreated();
+    expect($response->json('data.accounting_warning'))
         ->toContain('BOLSA UNICO')
         ->toContain('cuenta de inventario')
         ->toContain('cuenta de costo/gasto directo');
-    expect(InventoryMovement::where('item_id', $item->id)->count())->toBe(0);
+    expect(InventoryMovement::where('item_id', $item->id)->count())->toBe(1);
+    expect(JournalEntry::count())->toBe(0);
 });
 
-it('rejects the adjustment when the configured accounts do not allow entries', function () {
+it('also skips the journal entry when the configured accounts do not allow entries', function () {
     $item = accountsTestItem($this->subGroup->id, [
         'inventory_account_id' => accountsTestAccount('14', 'asset', false)->id,
         'cost_of_sale_account_id' => accountsTestAccount('61', 'cost', false)->id,
     ]);
 
     $this->postJson(route('ajustes-inventario.store'), accountsTestPayload($item->id, $this->warehouse->id))
-        ->assertStatus(422);
+        ->assertCreated()
+        ->assertJsonPath('data.accounting_warning', fn ($w) => is_string($w));
 
-    expect(InventoryMovement::where('item_id', $item->id)->count())->toBe(0);
+    expect(JournalEntry::count())->toBe(0);
 });
 
 it('saves the positive regularization once the item has postable accounts', function () {
@@ -106,6 +109,7 @@ it('saves the positive regularization once the item has postable accounts', func
         ->assertCreated();
 
     expect(InventoryMovement::where('item_id', $item->id)->count())->toBe(1);
+    expect(JournalEntry::count())->toBe(1);
 });
 
 it('suggests the weighted average price of the warehouse', function () {

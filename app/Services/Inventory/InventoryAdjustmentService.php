@@ -13,6 +13,7 @@ use App\Services\Inventory\WarehouseResolver;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
@@ -172,9 +173,9 @@ class InventoryAdjustmentService
     private function persistAdjustment(array $data, Collection $items, ?InventoryAdjustment $adjustment = null): InventoryAdjustment
     {
         $movementReasons = $this->movementReasons();
-        $this->assertItemsHavePostingAccounts($data, $items);
+        $accountingGaps = $this->itemsWithoutPostingAccounts($data, $items);
 
-        return DB::transaction(function () use ($data, $items, $adjustment, $movementReasons) {
+        return DB::transaction(function () use ($data, $items, $adjustment, $movementReasons, $accountingGaps) {
             // El número lo decide siempre el servidor; el que envíe el cliente se ignora al crear.
             $documentNumber = $adjustment->document_number ?? $this->allocateNumber();
 
@@ -212,7 +213,11 @@ class InventoryAdjustmentService
 
             $createdMovements = $this->syncLinesAndStock($adjustment, $data['lines'], $items, $movementReasons);
 
-            if ($adjustment->type === 'salida') {
+            if ($accountingGaps !== []) {
+                // La contabilidad aún no está completa: el kardex se actualiza igual y se avisa que no hubo asiento.
+                Log::warning("Ajuste de inventario {$adjustment->document_number} guardado sin asiento contable.", ['motivos' => $accountingGaps]);
+                $adjustment->setAttribute('accounting_warning', 'No se generó asiento contable: '.implode(' ', $accountingGaps));
+            } elseif ($adjustment->type === 'salida') {
                 $this->accountingPostingService->postInventoryAdjustmentOutflow(
                     $adjustment->fresh('lines.item'),
                     $createdMovements,
@@ -229,13 +234,13 @@ class InventoryAdjustmentService
     }
 
     /**
-     * Las salidas y las regularizaciones positivas generan asiento contable: falla antes de tocar el kardex
-     * y dice qué ítem configurar, en vez de un error genérico a mitad del guardado.
+     * Las salidas y las regularizaciones positivas generan asiento contable solo si el ítem tiene cuentas válidas.
+     * Devuelve los motivos por los que no se puede contabilizar; el ajuste de kardex se guarda de todos modos.
      */
-    private function assertItemsHavePostingAccounts(array $data, Collection $items): void
+    private function itemsWithoutPostingAccounts(array $data, Collection $items): array
     {
         if ($data['type'] !== 'salida' && ($data['movement_reason'] ?? null) !== 'entry_regularization') {
-            return;
+            return [];
         }
 
         $accountIds = $items->flatMap(fn ($item) => [$item->inventory_account_id, $item->cost_of_sale_account_id])->filter()->unique();
@@ -256,13 +261,11 @@ class InventoryAdjustmentService
                 $missing[] = 'cuenta de costo/gasto directo';
             }
             if ($missing !== []) {
-                $messages[] = 'El ítem "'.$item->name.'" no tiene '.implode(' ni ', $missing).' válida. Configúrala en la ficha del ítem y vuelve a guardar.';
+                $messages[] = 'El ítem "'.$item->name.'" no tiene '.implode(' ni ', $missing).' válida. Configúrala en la ficha del ítem para contabilizar.';
             }
         }
 
-        if ($messages !== []) {
-            throw ValidationException::withMessages(['lines' => $messages]);
-        }
+        return $messages;
     }
 
     private function syncLinesAndStock(InventoryAdjustment $adjustment, array $lines, Collection $items, array $movementReasons): Collection
