@@ -4,7 +4,11 @@ namespace App\Http\Controllers\MasterData;
 
 use App\Helpers\NitHelper;
 use App\Http\Controllers\Controller;
+use App\Models\Expenses\ExpenseVoucher;
 use App\Models\Expenses\PurchaseDocument;
+use App\Models\Finance\CashReceipt;
+use App\Models\Finance\JournalEntryLine;
+use App\Models\Income\SaleDocument;
 use App\Models\MasterData\Contact;
 use App\Services\MasterData\ContactBulkImportService;
 use App\Services\MasterData\ContactExcelService;
@@ -240,7 +244,7 @@ class ContactController extends Controller
         if ($this->hasActiveAssociations($contact)) {
             return response()->json(
                 [
-                    'message' => 'No se puede eliminar el contacto porque tiene facturas u órdenes activas asociadas.',
+                    'message' => 'No se puede eliminar el contacto porque tiene documentos o movimientos asociados.',
                 ],
                 409,
             );
@@ -259,9 +263,13 @@ class ContactController extends Controller
 
     private function hasActiveAssociations(Contact $contact): bool
     {
-        return PurchaseDocument::where('contact_id', $contact->id)
-            ->whereNull('deleted_at')
-            ->exists();
+        $id = $contact->id;
+
+        return PurchaseDocument::where('contact_id', $id)->whereNull('deleted_at')->exists()
+            || SaleDocument::where('contact_id', $id)->whereNull('deleted_at')->exists()
+            || ExpenseVoucher::where('contact_id', $id)->whereNull('deleted_at')->exists()
+            || CashReceipt::where('contact_id', $id)->whereNull('deleted_at')->exists()
+            || JournalEntryLine::where('contact_id', $id)->exists();
     }
 
     private function validateNitDv(Request $request, array $validated): void
@@ -285,8 +293,8 @@ class ContactController extends Controller
 
     private function rules(?Contact $contact = null): array
     {
-        $idNumberUnique = Rule::unique('contacts', 'id_number');
-        $emailUnique = Rule::unique('contacts', 'email');
+        $idNumberUnique = Rule::unique('contacts', 'id_number')->whereNull('deleted_at');
+        $emailUnique = Rule::unique('contacts', 'email')->whereNull('deleted_at');
 
         if ($contact) {
             $idNumberUnique = $idNumberUnique->ignore($contact->id);
@@ -300,7 +308,7 @@ class ContactController extends Controller
             'dv' => ['nullable', 'string', 'max:10'],
             'full_name' => ['required', 'string', 'max:255'],
             'person_type' => ['required', Rule::in(Contact::PERSON_TYPES)],
-            'groups' => ['nullable', 'array'],
+            'groups' => [Rule::requiredIf(fn () => request()->input('contact_type') === 'proveedor'), 'array'],
             'groups.*' => ['exists:category_groups,id'],
             'municipality' => ['nullable', 'string', 'max:255'],
             'department' => ['nullable', 'string', 'max:255'],

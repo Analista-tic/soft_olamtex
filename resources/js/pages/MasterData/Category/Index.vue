@@ -16,7 +16,7 @@ import type { CategoryGroup, CategorySubGroup } from '@/domain/MasterData';
 import type { BreadcrumbItem, Option } from '@/domain/shared'; // Importar los tipos centralizados
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
-import axios from 'axios';
+import axios, { type AxiosError } from 'axios';
 import { ExternalLink, PlusCircle, Search } from 'lucide-vue-next';
 import { broadcastCatalogInvalidated, onCatalogInvalidatedElsewhere } from '@/lib/crossTabSync';
 import { computed, onMounted, ref, watch, onBeforeUnmount } from 'vue';
@@ -145,7 +145,7 @@ async function deleteSubGroup(): Promise<void> {
         errorMessage.value = '';
     } catch (error) {
         console.error('Error al eliminar el subgrupo:', error);
-        errorMessage.value = 'Error al eliminar el subgrupo.';
+        errorMessage.value = (error as AxiosError<{ message?: string }>)?.response?.data?.message ?? 'Error al eliminar el subgrupo.';
         successMessage.value = '';
     }
 }

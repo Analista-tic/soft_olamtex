@@ -45,7 +45,13 @@ class AdditionalFieldController extends Controller
     public function destroy($id)
     {
         $field = $this->service->find($id);
-        $this->service->delete($field);
+
+        try {
+            $this->service->delete($field);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 409);
+        }
+
         $this->service->clearOptionsCache();
 
         return response()->noContent();

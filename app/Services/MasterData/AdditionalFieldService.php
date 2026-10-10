@@ -2,6 +2,7 @@
 
 namespace App\Services\MasterData;
 
+use App\Models\MasterData\Item;
 use App\Models\Settings\Setting;
 use App\Services\Audit\AuditLogService;
 use App\Support\TextNormalizer;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class AdditionalFieldService
 {
@@ -83,7 +85,19 @@ class AdditionalFieldService
 
     public function delete(Setting $field): void
     {
+        if ($this->hasItemValues($field)) {
+            throw new RuntimeException("No se puede eliminar el campo adicional '{$field->label}' porque tiene valores registrados en ítems.");
+        }
+
         $field->delete();
+    }
+
+    protected function hasItemValues(Setting $field): bool
+    {
+        return Item::withTrashed()
+            ->whereNotNull('extra_fields')
+            ->lazy(500)
+            ->contains(fn (Item $item) => array_key_exists($field->label, $item->extra_fields ?? []));
     }
 
     public function reorder(array $order): void

@@ -229,7 +229,9 @@ const getMissingRequiredFields = () => {
         return false;
     };
 
-    return requiredFieldKeys.filter((field) => isEmptyValue((form.value as any)[field]));
+    const requiredKeys = form.value.contact_type === 'proveedor' ? requiredFieldKeys : requiredFieldKeys.filter((field) => field !== 'groups');
+
+    return requiredKeys.filter((field) => isEmptyValue((form.value as any)[field]));
 };
 
 const clearFieldError = (field: string) => {

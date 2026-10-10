@@ -7,6 +7,7 @@ use App\Http\Requests\MasterData\StoreCategorySubGroupRequest;
 use App\Http\Requests\MasterData\UpdateCategorySubGroupRequest;
 use App\Models\MasterData\CategoryGroup;
 use App\Models\MasterData\CategorySubGroup;
+use App\Models\MasterData\Item;
 use App\Services\MasterData\CategorySubGroupService;
 use App\Support\MasterData\MaterialClassifier;
 use App\Support\TextNormalizer;
@@ -107,6 +108,13 @@ class CategorySubGroupController extends Controller
 
     public function destroy(CategorySubGroup $subgroup)
     {
+        if (Item::withTrashed()->where('category_sub_group_id', $subgroup->id)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se puede eliminar el subgrupo porque tiene ítems asociados.',
+            ], 409);
+        }
+
         try {
             $subgroup->delete();
             MaterialClassifier::forgetCache();

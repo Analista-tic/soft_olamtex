@@ -18,7 +18,7 @@ import type { AdditionalField, AdditionalFieldPayload } from '@/domain/MasterDat
 import type { BreadcrumbItem } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
-import axios from 'axios';
+import axios, { type AxiosError } from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AdditionalFieldDialog from './AdditionalFieldDialog.vue';
@@ -283,8 +283,9 @@ async function deleteField() {
         successMessage.value = 'Campo adicional eliminado correctamente.';
         setError('');
         fetchAdditionalFields(currentPage.value, searchQuery.value);
-    } catch {
-        setError('No se pudo eliminar el campo adicional.');
+    } catch (error) {
+        const serverMessage = (error as AxiosError<{ message?: string }>)?.response?.data?.message;
+        setError(serverMessage ?? 'No se pudo eliminar el campo adicional.', serverMessage ? 'warning' : 'error');
     } finally {
         isDeleteDialogOpen.value = false;
         fieldToDelete.value = null;

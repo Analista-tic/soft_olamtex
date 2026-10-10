@@ -66,9 +66,10 @@ class ContactBulkImportService
                 }
 
                 $idNumber = $payload['id_number'];
-                $existing = DB::table('contacts')->where('id_number', $idNumber)->first();
+                $existing = DB::table('contacts')->whereNull('deleted_at')->where('id_number', $idNumber)->first();
 
                 $emailOwnedByOther = DB::table('contacts')
+                    ->whereNull('deleted_at')
                     ->where('email', $payload['email'])
                     ->where('id_number', '!=', $idNumber)
                     ->exists();
@@ -81,7 +82,7 @@ class ContactBulkImportService
 
                 if ($existing) {
                     $payload['updated_at'] = now();
-                    DB::table('contacts')->where('id_number', $idNumber)->update($payload);
+                    DB::table('contacts')->whereNull('deleted_at')->where('id_number', $idNumber)->update($payload);
                     $updatedIds[] = $existing->id;
                     $updatedIdNumbers[] = $idNumber;
                     $updated++;

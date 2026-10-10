@@ -239,7 +239,7 @@ const locationValue = computed({
             label="Categoría proveedor/cliente"
             :options="masterDataStore.groups"
             placeholder="Selecciona categorías"
-            required
+            :required="internalForm.contact_type === 'proveedor'"
             :searchable="true"
             :error="errors.groups?.[0]"
         />
