@@ -20,7 +20,7 @@ import type { Item } from '@/domain/MasterData';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 import axios from 'axios';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -181,11 +181,11 @@ async function fetchWarehouses() {
     }
 }
 
-onMounted(() => {
-    fetchTaxes();
-    fetchItems();
-    fetchWarehouses();
-});
+// Abierto desde la ficha del ítem queda anidado dentro de otro dialog: el de ajuste es el último del DOM.
+function scrollDialogToTop() {
+    const dialogs = document.querySelectorAll('[role="dialog"]');
+    dialogs[dialogs.length - 1]?.scrollTo({ top: 0, behavior: 'smooth' });
+}
 
 watch(selectedWarehouseId, (val) => {
     const previous = lastSelectedWarehouseId.value;
@@ -442,8 +442,7 @@ async function handleSubmit() {
         errorMessage.value = formatRequiredFieldsMessage('Por favor completa todos los campos obligatorios', unique);
         successMessage.value = '';
         alertDetails.value = [];
-        const dialogEl = document.querySelector('[role="dialog"]');
-        dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
+        scrollDialogToTop();
         return;
     }
 
@@ -517,8 +516,7 @@ async function handleSubmit() {
         errorMessage.value = mergedErrors.length ? `${responseMessage}: ${mergedErrors.join(', ')}` : responseMessage;
         successMessage.value = '';
         alertDetails.value = [];
-        const dialogEl = document.querySelector('[role="dialog"]');
-        dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
+        scrollDialogToTop();
     } finally {
         isSubmitting.value = false;
     }

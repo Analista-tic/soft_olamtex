@@ -266,6 +266,7 @@ function inventoryRowGaps(ws: {
     };
 }
 const errorMessage = ref('');
+const successMessage = ref('');
 const errorType = ref<'error' | 'info' | 'warning'>('error');
 
 const extraFieldNames = ref<string[]>([]);
@@ -291,15 +292,21 @@ type WarehouseStockEntry = {
     location_id: number | string | null;
     unit_price?: number;
     initial_date?: string | null;
-    /** true si la bodega ya está guardada para el ítem (su saldo viene del servidor). */
-    persisted?: boolean;
+    /** Bodega con la que la fila está guardada en el servidor (null si la fila es nueva). */
+    persisted_warehouse_id?: number | null;
 };
 const warehouseStocks = ref<WarehouseStockEntry[]>([]);
+
+// La fila refleja una bodega ya guardada solo si no se le cambió la bodega en el formulario:
+// si una fila con saldo 0 se cambia a otra bodega, esa otra bodega todavía no existe para el ítem.
+function isPersistedWarehouseRow(ws: WarehouseStockEntry): boolean {
+    return ws.persisted_warehouse_id != null && Number(ws.persisted_warehouse_id) === Number(ws.warehouse_id);
+}
 
 // Una bodega guardada con saldo no se puede quitar ni cambiar: primero hay que llevar el saldo a 0
 // con un ajuste o traslado. El backend aplica la misma regla (ItemService::syncWarehouses).
 function isWarehouseRowLocked(ws: WarehouseStockEntry): boolean {
-    return props.dialogType !== 'create' && Boolean(ws.persisted) && Number(ws.quantity) !== 0;
+    return props.dialogType !== 'create' && isPersistedWarehouseRow(ws) && Number(ws.quantity) !== 0;
 }
 
 const quantityFormatter = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 4 });
@@ -968,8 +975,10 @@ async function refreshWarehouseStocksForCurrentItem(itemId?: number) {
             if (current) {
                 current.quantity = freshRow.quantity;
                 current.unit_price = freshRow.unit_price;
-                current.persisted = true;
-            } else {
+                current.persisted_warehouse_id = freshRow.persisted_warehouse_id;
+            } else if (freshRow.quantity !== 0) {
+                // Una bodega con saldo debe verse (no se puede quitar). Las de saldo 0 que el usuario
+                // quitó en el formulario sin guardar no se vuelven a agregar.
                 warehouseStocks.value.push(freshRow);
             }
         });
@@ -1075,7 +1084,7 @@ function normalizeWarehouseStocksFromSource(source: ItemFormSource | null | unde
                         : row.weighted_average_price !== undefined && row.weighted_average_price !== null
                           ? toNumericValue(row.weighted_average_price)
                           : undefined,
-                persisted: true,
+                persisted_warehouse_id: Number.isFinite(parsedWarehouseId) ? parsedWarehouseId : null,
             } satisfies WarehouseStockEntry;
         })
         .filter((row) => row.warehouse_id !== null);
@@ -1411,6 +1420,7 @@ async function handleSubmit() {
     submitAttempted.value = true;
     resetErrors();
     errorMessage.value = '';
+    successMessage.value = '';
     errorType.value = 'error';
 
     const requiredErrors: string[] = [];
@@ -1802,6 +1812,7 @@ watch(
         if (value) {
             showInventoryErrors.value = false;
             submitAttempted.value = false;
+            successMessage.value = '';
             await authStore.fetchUser(true);
             await fetchAdditionalFields(true);
             await hydrateOpenForm();
@@ -1840,7 +1851,7 @@ const isAdjustmentDialogOpen = ref(false);
 const adjustmentPrefill = ref<InventoryAdjustmentPrefill | null>(null);
 
 function canAdjustWarehouseRow(ws: WarehouseStockEntry): boolean {
-    return props.dialogType === 'edit' && Boolean(ws.persisted) && canCreateInventoryAdjustments.value && materialKind.value !== 'fabric';
+    return props.dialogType === 'edit' && isPersistedWarehouseRow(ws) && canCreateInventoryAdjustments.value && materialKind.value !== 'fabric';
 }
 
 async function openWarehouseAdjustment(ws: WarehouseStockEntry) {
@@ -1856,8 +1867,8 @@ async function openWarehouseAdjustment(ws: WarehouseStockEntry) {
 
 function handleWarehouseAdjustmentSaved() {
     // El saldo se refresca con el evento global 'inventory-adjustment-saved' (handleInventoryAdjustmentSaved).
-    errorType.value = 'info';
-    errorMessage.value = 'Ajuste de inventario guardado. El saldo de la bodega se actualizó.';
+    errorMessage.value = '';
+    successMessage.value = 'Ajuste de inventario guardado. El saldo de la bodega se actualizó.';
 }
 
 watch(selectedGroupId, (newVal, oldVal) => {
@@ -1899,7 +1910,13 @@ onBeforeUnmount(() => {
 
 <template>
     <div :class="['flex flex-col', { 'min-h-0 flex-1': !props.isFullPage }]">
-        <AlertStack :error-message="errorMessage" :error-type="errorType" @close-error="errorMessage = ''" />
+        <AlertStack
+            :success-message="successMessage"
+            :error-message="errorMessage"
+            :error-type="errorType"
+            @close-success="successMessage = ''"
+            @close-error="errorMessage = ''"
+        />
 
         <form :class="['flex flex-col', { 'min-h-0 flex-1': !props.isFullPage }]" @submit.prevent="handleSubmit">
             <FormHeader
@@ -2333,7 +2350,7 @@ onBeforeUnmount(() => {
                                             <div
                                                 class="flex h-10 min-w-0 flex-1 items-center rounded-md border border-input bg-muted px-3 text-sm tabular-nums"
                                                 :title="
-                                                    ws.persisted
+                                                    isPersistedWarehouseRow(ws)
                                                         ? 'El saldo solo cambia con ajustes, recepciones o traslados'
                                                         : 'Bodega nueva: entra con saldo 0'
                                                 "
