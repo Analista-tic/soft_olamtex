@@ -16,7 +16,6 @@ import SelectField from '@/components/SelectField.vue';
 
 import ServerPagination from '@/components/common/ServerPagination.vue';
 import Button from '@/components/ui/button/Button.vue';
-import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -525,7 +524,7 @@ onBeforeUnmount(() => {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    class="gap-1 rounded-full border-emerald-600 text-emerald-700 hover:bg-emerald-50"
+                                    class="gap-1 rounded-full border-emerald-600 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-500/15 dark:hover:text-emerald-300"
                                     :disabled="!canEnableItems"
                                     @click="openBulkStatusDialog(true)"
                                 >
@@ -539,7 +538,7 @@ onBeforeUnmount(() => {
                     <Button
                         variant="outline"
                         size="sm"
-                        class="gap-1 rounded-full border-red-600 text-red-700 hover:bg-red-50"
+                        class="gap-1 rounded-full border-red-600 text-red-700 hover:bg-red-50 hover:text-red-800 dark:text-red-400 dark:hover:bg-red-500/15 dark:hover:text-red-300"
                         @click="openBulkStatusDialog(false)"
                     >
                         <Ban class="h-4 w-4" /> Deshabilitar
@@ -555,10 +554,13 @@ onBeforeUnmount(() => {
                         <TableHeader>
                             <TableRow>
                                 <TableHead class="w-10">
-                                    <Checkbox
-                                        :model-value="allOnPageSelected ? true : someOnPageSelected ? 'indeterminate' : false"
+                                    <input
+                                        type="checkbox"
+                                        class="size-4 cursor-pointer accent-primary"
+                                        :checked="allOnPageSelected"
+                                        :indeterminate.prop="someOnPageSelected && !allOnPageSelected"
                                         aria-label="Seleccionar todos los ítems de esta página"
-                                        @update:model-value="(v: boolean | 'indeterminate') => toggleSelectAllOnPage(v === true)"
+                                        @change="toggleSelectAllOnPage(($event.target as HTMLInputElement).checked)"
                                     />
                                 </TableHead>
                                 <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('id')">
@@ -609,10 +611,12 @@ onBeforeUnmount(() => {
                                     ]"
                                 >
                                     <TableCell class="w-10">
-                                        <Checkbox
-                                            :model-value="isItemSelected(item)"
+                                        <input
+                                            type="checkbox"
+                                            class="size-4 cursor-pointer accent-primary"
+                                            :checked="isItemSelected(item)"
                                             :aria-label="`Seleccionar ítem ${item.id}`"
-                                            @update:model-value="(v: boolean | 'indeterminate') => toggleItemSelected(item, v === true)"
+                                            @change="toggleItemSelected(item, ($event.target as HTMLInputElement).checked)"
                                         />
                                     </TableCell>
                                     <TableCell>{{ item.id }}</TableCell>

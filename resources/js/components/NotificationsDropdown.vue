@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import AlertStack from '@/components/common/AlertStack.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useGlobalAlert } from '@/composables/useGlobalAlert';
 import { useNotifications } from '@/composables/useNotifications';
 import type { NotificationRow } from '@/domain/Settings';
 import { router } from '@inertiajs/vue3';
@@ -26,19 +28,12 @@ const {
     clearNewNotifications,
 } = useNotifications();
 
-const showNewBanner = ref(false);
-const newBannerCount = ref(0);
-let bannerTimer: ReturnType<typeof setTimeout> | null = null;
+const { errorMessage, errorType, info, clear } = useGlobalAlert();
 
 watch(newNotificationsCount, (count) => {
     if (count <= 0) return;
-    newBannerCount.value = count;
-    showNewBanner.value = true;
-    if (bannerTimer) clearTimeout(bannerTimer);
-    bannerTimer = setTimeout(() => {
-        showNewBanner.value = false;
-        clearNewNotifications();
-    }, 5000);
+    info(count === 1 ? 'Tienes 1 nueva notificación' : `Tienes ${count} nuevas notificaciones`);
+    clearNewNotifications();
 });
 
 const badgeCount = computed(() => {
@@ -115,33 +110,7 @@ onUnmounted(() => {
 
 <template>
     <!-- Banner de nuevas notificaciones -->
-    <Transition
-        enter-active-class="transition-all duration-300 ease-out"
-        enter-from-class="opacity-0 -translate-y-2"
-        enter-to-class="opacity-100 translate-y-0"
-        leave-active-class="transition-all duration-200 ease-in"
-        leave-from-class="opacity-100 translate-y-0"
-        leave-to-class="opacity-0 -translate-y-2"
-    >
-        <div
-            v-if="showNewBanner"
-            class="fixed right-4 top-4 z-[200] flex items-center gap-3 rounded-xl border border-primary/20 bg-primary px-4 py-3 text-primary-foreground shadow-lg"
-        >
-            <Bell class="h-4 w-4 shrink-0" />
-            <span class="text-sm font-medium">
-                {{ newBannerCount === 1 ? 'Tienes 1 nueva notificación' : `Tienes ${newBannerCount} nuevas notificaciones` }}
-            </span>
-            <button
-                type="button"
-                class="ml-1 rounded p-0.5 opacity-70 transition-opacity hover:opacity-100"
-                @click="showNewBanner = false; clearNewNotifications();"
-            >
-                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
-        </div>
-    </Transition>
+    <AlertStack :error-message="errorMessage" :error-type="errorType" error-title="Notificaciones" @close-error="clear" />
 
     <Popover :open="isOpen" :modal="false" @update:open="onOpenChange">
         <PopoverTrigger as-child>

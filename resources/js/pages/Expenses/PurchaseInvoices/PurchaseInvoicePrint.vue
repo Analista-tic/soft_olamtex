@@ -56,7 +56,7 @@ async function doPrint() {
           <th style="border:1px solid #ddd;padding:6px;text-align:right">Cantidad</th>
           <th style="border:1px solid #ddd;padding:6px;text-align:right">Precio</th>
           <th style="border:1px solid #ddd;padding:6px;text-align:right">IVA</th>
-          <th style="border:1px solid #ddd;padding:6px;text-align:right">Total</th>
+          <th style="border:1px solid #ddd;padding:6px;text-align:right">Subtotal</th>
         </tr>
       </thead>
       <tbody>

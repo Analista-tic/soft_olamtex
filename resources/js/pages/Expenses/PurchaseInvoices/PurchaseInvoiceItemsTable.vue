@@ -556,7 +556,7 @@ defineExpose({ addItem });
                                 >Ancho pedido <span class="text-red-600">*</span
                                 ><HelpTooltip text="Ancho de la tela en metros (ej. 1,50) según lo pactado en la orden de compra." /></span
                         ></TableHead>
-                        <TableHead class="min-w-[90px] text-left">Total</TableHead>
+                        <TableHead class="min-w-[90px] text-left">Subtotal</TableHead>
                         <TableHead v-if="showActionsColumn" class="w-[60px]"></TableHead>
                     </TableRow>
                 </TableHeader>

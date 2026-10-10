@@ -675,7 +675,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                         <TableHead v-if="shouldShowFabricColumns" class="w-[120px] text-left">Código proveedor</TableHead>
                         <TableHead v-if="shouldShowFabricColumns" class="w-[120px] text-left">Color proveedor</TableHead>
                         <TableHead v-if="shouldShowFabricColumns" class="w-[110px] text-left">Ancho pedido</TableHead>
-                        <TableHead class="w-[110px] text-left">Total</TableHead>
+                        <TableHead class="w-[110px] text-left">Subtotal</TableHead>
                         <TableHead v-if="showActionsColumn" class="w-[60px]"></TableHead>
                     </TableRow>
                 </TableHeader>

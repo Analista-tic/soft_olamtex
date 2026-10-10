@@ -159,7 +159,7 @@ function formatItemTaxPercentage(tax: number | null | undefined): number {
                             <th class="border border-gray-200 px-2 py-2 text-right">Cantidad</th>
                             <th class="border border-gray-200 px-2 py-2 text-right">Precio s/imp.</th>
                             <th class="border border-gray-200 px-2 py-2 text-right">IVA</th>
-                            <th class="border border-gray-200 px-2 py-2 text-right">Total</th>
+                            <th class="border border-gray-200 px-2 py-2 text-right">Subtotal</th>
                         </tr>
                     </thead>
                     <tbody>

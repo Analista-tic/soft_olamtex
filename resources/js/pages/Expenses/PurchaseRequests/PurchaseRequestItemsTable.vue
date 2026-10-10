@@ -311,7 +311,7 @@ defineExpose({ addItem });
                         <TableHead class="min-w-[110px] px-1 text-left">Cantidad</TableHead>
                         <TableHead class="min-w-[160px] px-1 text-left">Descripción</TableHead>
                         <TableHead class="w-20 px-1 text-center"><span class="inline-flex items-center justify-center gap-1">Imagen <HelpTooltip text="Imagen de referencia opcional para el ítem. Ayuda al proveedor a identificar exactamente lo que se necesita." /></span></TableHead>
-                        <TableHead class="min-w-[90px] px-1 text-left">Total</TableHead>
+                        <TableHead class="min-w-[90px] px-1 text-left">Subtotal</TableHead>
                         <TableHead class="w-[60px]"></TableHead>
                     </TableRow>
                 </TableHeader>

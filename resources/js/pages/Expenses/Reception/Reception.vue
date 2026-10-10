@@ -1360,7 +1360,7 @@ function onFabricRollSuccess() {
                                             </template>
                                             <TableHead class="py-2 text-right">Precio</TableHead>
                                             <TableHead class="py-2 text-right">IVA</TableHead>
-                                            <TableHead class="py-2 text-right">Total</TableHead>
+                                            <TableHead class="py-2 text-right">Subtotal</TableHead>
                                             <TableHead v-if="isTelasList" class="py-2 text-center">Rollos</TableHead>
                                             <template v-if="!isTelasList">
                                                 <TableHead class="py-2 text-right">Recibido</TableHead>
