@@ -197,7 +197,6 @@ export const PERMISSION_MODULES: PermissionModule[] = [
         permissions: [
             'ver solicitudes insumos',
             'crear solicitudes insumos',
-            'atender solicitudes insumos',
             'entregar solicitudes insumos',
             'rechazar solicitudes insumos',
             'ver propios solicitudes insumos',
@@ -301,6 +300,8 @@ export const PERMISSION_MODULES: PermissionModule[] = [
             'ver propios solicitudes compra',
             'ver area solicitudes compra',
             'ver todos solicitudes compra',
+            'ver solicitudes compra a gerencia',
+            'ver solicitudes compra a logistica',
             'aprobar solicitudes compra',
             'rechazar solicitudes compra',
             'cancelar solicitudes compra',
@@ -472,7 +473,11 @@ const PERMISSION_LABEL_OVERRIDES: Record<string, string> = {
     // Ingresos
     'convertir cotizacion a pedido': 'Convertir a pedido',
     'convertir pedido a factura venta': 'Convertir a factura',
+    // Inventario
+    'ver solicitudes insumos': 'Acceder al módulo',
     // Gastos
+    'ver solicitudes compra a gerencia': 'Ver las dirigidas a Gerencia',
+    'ver solicitudes compra a logistica': 'Ver las dirigidas a Logística',
     'gestionar diferencias factura compra': 'Gestionar diferencias',
     // Financiero
     'ver movimientos cuenta contable': 'Ver movimientos contables',

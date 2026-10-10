@@ -471,7 +471,8 @@ class PurchaseRequestService
 
     /**
      * Reglas de visibilidad (ver docs/compras/solicitudes-visibilidad.md):
-     *  1. Alcance normal por permisos (propios / area / todos) + filtro "solicitado a".
+     *  1. Alcance solo por permisos (propios / area / todos) + destino "solicitado a"
+     *     también por permisos (ver SOLICITED_TO_PERMISSIONS).
      *  2. Los borradores solo los ve su solicitante (quien la creó).
      */
     public function applyVisibility(Builder $query, ?User $user): void
@@ -485,48 +486,45 @@ class PurchaseRequestService
         });
     }
 
+    /** Destino ("solicitado a") => permiso que habilita ver las solicitudes dirigidas a él. */
+    private const SOLICITED_TO_PERMISSIONS = [
+        'gerencia' => 'ver solicitudes compra a gerencia',
+        'logistica' => 'ver solicitudes compra a logistica',
+    ];
+
+    /**
+     * Con alcance "ver todos", limita las solicitudes de otros a los destinos
+     * para los que el usuario tiene permiso (más las propias y las sin destino).
+     * Sin ningún permiso de destino, o con todos, no se restringe.
+     */
     private function applySolicitedToFilter(Builder $query, ?User $user): void
     {
-        if ($user === null) {
+        if ($user === null || ! $this->userCan($user, 'ver todos solicitudes compra')) {
             return;
         }
 
+        $allowed = array_keys(array_filter(
+            self::SOLICITED_TO_PERMISSIONS,
+            fn (string $permission) => $this->userCan($user, $permission),
+        ));
+
+        if ($allowed === [] || count($allowed) === count(self::SOLICITED_TO_PERMISSIONS)) {
+            return;
+        }
+
+        $query->where(function (Builder $q) use ($user, $allowed) {
+            $q->where('requester_user_id', $user->id)
+              ->orWhereNull('solicited_to')
+              ->orWhereIn('solicited_to', $allowed);
+        });
+    }
+
+    private function userCan(User $user, string $permission): bool
+    {
         try {
-            if (!$user->hasPermissionTo('ver todos solicitudes compra')) {
-                return;
-            }
+            return $user->hasPermissionTo($permission);
         } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist) {
-            return;
-        }
-
-        $userId = $user->id;
-
-        if ($user->hasRole('logistica')) {
-            $query->where(function (Builder $q) use ($userId) {
-                // Siempre ve las propias (cualquier estado)
-                $q->where('requester_user_id', $userId)
-                // O las dirigidas a logistica de otros, solo si no son borrador
-                  ->orWhere(function (Builder $sub) use ($userId) {
-                      $sub->where('requester_user_id', '!=', $userId)
-                          ->where(function (Builder $s) {
-                              $s->where('solicited_to', 'logistica')->orWhereNull('solicited_to');
-                          })
-                          ->where('status', '!=', 'draft');
-                  });
-            });
-        } elseif ($user->hasRole('admin')) {
-            $query->where(function (Builder $q) use ($userId) {
-                // Siempre ve las propias (cualquier estado)
-                $q->where('requester_user_id', $userId)
-                // O las dirigidas a gerencia de otros, solo si no son borrador
-                  ->orWhere(function (Builder $sub) use ($userId) {
-                      $sub->where('requester_user_id', '!=', $userId)
-                          ->where(function (Builder $s) {
-                              $s->where('solicited_to', 'gerencia')->orWhereNull('solicited_to');
-                          })
-                          ->where('status', '!=', 'draft');
-                  });
-            });
+            return false;
         }
     }
 

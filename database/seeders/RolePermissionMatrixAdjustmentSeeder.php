@@ -24,6 +24,8 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'aprobar solicitudes compra',
             'rechazar solicitudes compra',
             'cancelar solicitudes compra',
+            'ver solicitudes compra a gerencia',
+            'ver solicitudes compra a logistica',
             'aprobar orden compra',
             'recibir factura compra',
             'anular factura compra',
@@ -303,7 +305,6 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             $purchaseOrderManage,
             $purchaseInvoiceViewAll,
             [
-                'atender solicitudes insumos',
                 'entregar solicitudes insumos',
                 'rechazar solicitudes insumos',
                 'ver todos solicitudes insumos',
@@ -313,6 +314,7 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
                 'eliminar transferencias bodegas',
                 'ver todos transferencias bodegas',
                 'recibir factura compra',
+                'ver solicitudes compra a logistica',
                 ...InventoryAdjustmentPermissionSeeder::PERMISSIONS,
                 // Producción ya tenía esto habilitado; se preserva para no
                 // regresionar el flujo real al desplegar esta matriz.
@@ -352,6 +354,7 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             $purchaseInvoiceViewAll,
             $incomeManagementViewPermissions,
             [
+                'ver solicitudes compra a gerencia',
                 'aprobar orden compra',
                 'ver auditoria',
                 // Habilitar un ítem deshabilitado requiere este permiso aparte de

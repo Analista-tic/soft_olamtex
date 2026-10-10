@@ -56,55 +56,54 @@ class PurchaseDocumentService
         return $query->orderByDesc('date')->orderByDesc('id')->paginate($perPage);
     }
 
+    /**
+     * Alcance de visibilidad de órdenes y facturas de compra (parametrizable por rol):
+     *  - ver todos <doc>   → sin restricción
+     *  - ver area <doc>    → documentos creados por, o con comprador de, usuarios de su área
+     *  - ver propios <doc> → documentos creados por el usuario o donde es el comprador
+     *  - ninguno           → vacío
+     */
     public function applyScopeForDocumentType(Builder $query, string $documentType, ?User $user): void
     {
-        if ($documentType === PurchaseDocument::TYPE_ORDER) {
-            if ($user === null) {
-                $query->where('buyer_user_id', -1);
-                return;
-            }
+        $suffix = match ($documentType) {
+            PurchaseDocument::TYPE_ORDER => 'ordenes compra',
+            PurchaseDocument::TYPE_INVOICE => 'facturas compra',
+            default => null,
+        };
 
-            try {
-                if ($user->hasPermissionTo('ver todos ordenes compra')) {
-                    return;
-                }
-            } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist) {
-                // no permission defined → restrict
-            }
-
-            $query->where('buyer_user_id', $user->id);
+        if ($suffix === null) {
             return;
         }
 
-        if ($documentType === PurchaseDocument::TYPE_INVOICE) {
-            if ($user === null) {
-                $query->where('buyer_user_id', -1);
-                return;
-            }
-
-            try {
-                if ($user->hasPermissionTo('ver todos facturas compra')) {
-                    if ($user->hasRole('admin')) {
-                        return; // admin ve todo
-                    }
-
-                    // contabilidad: ve todas excepto las de logística
-                    $logisticaUserIds = User::role('logistica')->pluck('id')->toArray();
-                    if (!empty($logisticaUserIds)) {
-                        $query->where(function (Builder $q) use ($logisticaUserIds) {
-                            $q->whereNull('buyer_user_id')
-                              ->orWhereNotIn('buyer_user_id', $logisticaUserIds);
-                        });
-                    }
-                    return;
-                }
-            } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist) {
-                // no permission defined → restrict
-            }
-
-            $query->where('buyer_user_id', $user->id);
+        if ($user === null) {
+            $query->whereRaw('1 = 0');
             return;
         }
+
+        $can = function (string $permission) use ($user): bool {
+            try {
+                return $user->hasPermissionTo($permission);
+            } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist) {
+                return false;
+            }
+        };
+
+        if ($can("ver todos {$suffix}")) {
+            return;
+        }
+
+        $userIds = [$user->id];
+        if ($can("ver area {$suffix}") && $user->area_id) {
+            $userIds = User::where('area_id', $user->area_id)->pluck('id')->all();
+        } elseif (! $can("ver propios {$suffix}")) {
+            $query->whereRaw('1 = 0');
+            return;
+        }
+
+        $query->where(function (Builder $q) use ($userIds) {
+            $q->whereIn('created_by_user_id', $userIds)
+                ->orWhereIn('buyer_user_id', $userIds);
+        });
     }
 
     public function findAccessibleDocumentOrFail(PurchaseDocument $document, ?User $user): PurchaseDocument

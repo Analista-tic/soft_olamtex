@@ -87,3 +87,40 @@ it('returns a 422 with field errors instead of a generic 500 on invalid payload'
 
     $response->assertStatus(422)->assertJsonValidationErrors(['provider_name']);
 });
+
+/**
+ * El destino "solicitado a" se controla por permisos: con un solo permiso de
+ * destino el usuario ve solo ese destino (más propias y sin destino); con
+ * ninguno o con todos, no se restringe.
+ */
+function visibleIdsForSolicitedTo(array $permissions): array
+{
+    $viewer = User::factory()->create();
+    foreach (array_merge(['ver todos solicitudes compra'], $permissions) as $permission) {
+        $viewer->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+    }
+
+    $other = User::factory()->create();
+    $ids = [];
+    foreach (['gerencia', 'logistica', null] as $destination) {
+        $ids[$destination ?? 'sin'] = PurchaseRequest::create([
+            'requester_user_id' => $other->id,
+            'date' => now()->toDateString(),
+            'status' => 'pending',
+            'solicited_to' => $destination,
+        ])->id;
+    }
+
+    $visible = collect(app(PurchaseRequestService::class)->paginate([], 50, null, $viewer)->items())->pluck('id');
+
+    return array_keys(array_filter($ids, fn ($id) => $visible->contains($id)));
+}
+
+it('limits "ver todos" to the destinations the user has permission for', function (array $permissions, array $expected) {
+    expect(visibleIdsForSolicitedTo($permissions))->toEqualCanonicalizing($expected);
+})->with([
+    'solo gerencia' => [['ver solicitudes compra a gerencia'], ['gerencia', 'sin']],
+    'solo logistica' => [['ver solicitudes compra a logistica'], ['logistica', 'sin']],
+    'ambos' => [['ver solicitudes compra a gerencia', 'ver solicitudes compra a logistica'], ['gerencia', 'logistica', 'sin']],
+    'ninguno' => [[], ['gerencia', 'logistica', 'sin']],
+]);

@@ -92,7 +92,7 @@ class InventoryRequestService
             return $this->findOrFail($request->id);
         });
 
-        // Enviar notificación a usuarios con permiso atender solicitudes insumos
+        // Enviar notificación a usuarios que gestionan solicitudes insumos
         $this->notifyInventoryRequestCreated($inventoryRequest, $user);
 
         return $inventoryRequest;

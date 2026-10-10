@@ -104,7 +104,6 @@ class RolesAndPermissionsSeeder extends Seeder
             // Inventario: solicitudes de insumos
             'ver solicitudes insumos',
             'crear solicitudes insumos',
-            'atender solicitudes insumos',
             'ver transferencias bodegas',
             'crear transferencias bodegas',
             'editar transferencias bodegas',
@@ -395,7 +394,6 @@ class RolesAndPermissionsSeeder extends Seeder
 
             'ver solicitudes insumos',
             'crear solicitudes insumos',
-            'atender solicitudes insumos',
             'ver area solicitudes insumos',
             'ver todos documentos compra',
             'ver transferencias bodegas',

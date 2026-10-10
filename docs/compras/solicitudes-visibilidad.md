@@ -11,9 +11,16 @@ Otros campos: `solicited_to` (área que aprueba: `gerencia` / `logistica`) y `bu
 | Estado | Solicitante | Otros usuarios |
 |---|---|---|
 | Borrador | Sí | **No**, ni con `ver todos` |
-| Pendiente en adelante | Según su alcance | Según alcance (`ver propios` / `ver area` / `ver todos`) y `solicited_to` |
+| Pendiente en adelante | Según su alcance | Según alcance (`ver propios` / `ver area` / `ver todos`) |
 
-`admin` y `logistica` con `ver todos` solo ven solicitudes de otros dirigidas a su área (o sin área) y que no sean borrador.
+La visibilidad depende solo de permisos, sin filtros por nombre de rol.
+
+### Destino (`solicited_to`)
+Con alcance `ver todos`, los permisos de destino limitan qué solicitudes de otros se ven:
+- `ver solicitudes compra a gerencia`: ve las dirigidas a gerencia.
+- `ver solicitudes compra a logistica`: ve las dirigidas a logística.
+
+Con un solo permiso de destino solo se ven esas (más las propias y las sin destino). Con ambos, o con ninguno, no se restringe.
 
 ## Flujo
 Borrador → Pendiente (enviar a aprobación) → Aprobada → Procesada (orden de compra generada). Desde Borrador o Pendiente se puede Cancelar; desde Pendiente, Rechazar.
