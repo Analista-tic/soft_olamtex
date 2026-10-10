@@ -159,6 +159,10 @@ class ItemService
     {
         $payload = $this->buildCreatePayload($data);
 
+        if ($message = $this->fabricOpeningStockMessage((int) $payload['category_sub_group_id'], $warehouses)) {
+            throw ValidationException::withMessages(['warehouses' => [$message]]);
+        }
+
         // La validación de duplicado del controlador es "consultar y luego insertar": dos usuarios creando el mismo
         // ítem a la vez pasaban ambos. Se serializa por nombre y se repite la comprobación dentro del bloqueo.
         $lockKey = 'item-create:' . sha1($this->normalizeForComparison((string) ($payload['name'] ?? '')));
@@ -174,6 +178,20 @@ class ItemService
 
             return $item;
         });
+    }
+
+    /**
+     * Una tela no tiene saldo propio: sus metros salen de los rollos (recepción, ajustes de rollos).
+     * Un saldo inicial manual dejaría kardex de ítem y kardex de rollos descuadrados.
+     */
+    protected function fabricOpeningStockMessage(int $subGroupId, array $warehouses): ?string
+    {
+        $hasStock = collect($warehouses)->contains(fn ($row) => (float) ($row['quantity'] ?? 0) > 0);
+        if (! $hasStock || ! MaterialClassifier::isFabricSubgroup(CategorySubGroup::find($subGroupId))) {
+            return null;
+        }
+
+        return 'Las telas no llevan saldo inicial manual: sus metros entran por la recepción de rollos. Deja la cantidad en 0.';
     }
 
     protected function syncWarehousesOnCreate(Item $item, array $warehouses): void
@@ -1852,6 +1870,10 @@ class ItemService
         int $rowNum,
         array &$errors
     ): void {
+        if ($message = $this->fabricOpeningStockMessage((int) $item->category_sub_group_id, $warehouses)) {
+            throw new InvalidArgumentException("Fila {$rowNum}: {$message}");
+        }
+
         $skipped = [];
 
         DB::transaction(function () use ($item, $updateData, $warehouses, $importBatchId, $rowNum, &$skipped) {
@@ -1918,6 +1940,10 @@ class ItemService
         string $importBatchId,
         int $rowNum
     ): Item {
+        if ($message = $this->fabricOpeningStockMessage((int) ($itemData['category_sub_group_id'] ?? 0), $warehouses)) {
+            throw new InvalidArgumentException("Fila {$rowNum}: {$message}");
+        }
+
         return DB::transaction(function () use ($itemData, $warehouses, $importBatchId, $rowNum) {
             $item = Item::create($this->buildCreatePayload($itemData));
 

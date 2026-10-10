@@ -258,7 +258,7 @@ function inventoryRowGaps(ws: {
     const isCreate = props.dialogType === 'create';
     return {
         warehouse: !Number(ws.warehouse_id),
-        quantity: isCreate && isBlankNumber(ws.quantity),
+        quantity: isCreate && materialKind.value !== 'fabric' && isBlankNumber(ws.quantity),
         stock_min: isBlankNumber(ws.stock_min),
         stock_max: isBlankNumber(ws.stock_max),
         unit_price: isCreate && Number(ws.quantity) > 0 && !(Number(ws.unit_price) > 0),
@@ -1566,8 +1566,9 @@ async function handleSubmit() {
             if (isCreate) {
                 return {
                     ...base,
-                    quantity: Number(w.quantity),
-                    unit_price: w.unit_price != null && String(w.unit_price).trim() !== '' ? Number(w.unit_price) : null,
+                    // La tela no tiene saldo propio: sus metros entran por recepción de rollos.
+                    quantity: materialKind.value === 'fabric' ? 0 : Number(w.quantity),
+                    unit_price: materialKind.value !== 'fabric' && w.unit_price != null && String(w.unit_price).trim() !== '' ? Number(w.unit_price) : null,
                     initial_date: w.initial_date ?? new Date().toISOString().split('T')[0],
                 };
             }
@@ -2326,7 +2327,7 @@ onBeforeUnmount(() => {
                                         </SelectField>
                                     </div>
 
-                                    <div v-if="props.dialogType === 'create'" class="space-y-1">
+                                    <div v-if="props.dialogType === 'create' && materialKind !== 'fabric'" class="space-y-1">
                                         <Label class="text-xs">Cantidad inicial <span class="text-destructive">*</span></Label>
                                         <InputIntegerField
                                             v-model="ws.quantity"
@@ -2343,6 +2344,15 @@ onBeforeUnmount(() => {
                                                 }
                                             "
                                         />
+                                    </div>
+                                    <div v-else-if="props.dialogType === 'create'" class="space-y-1">
+                                        <Label class="text-xs">Saldo inicial</Label>
+                                        <div
+                                            class="flex h-10 items-center rounded-md border border-input bg-muted px-3 text-xs text-muted-foreground"
+                                            title="Los metros de una tela entran por la recepción de rollos"
+                                        >
+                                            Se registra por rollos
+                                        </div>
                                     </div>
                                     <div v-else class="space-y-1">
                                         <Label class="text-xs">Saldo actual</Label>

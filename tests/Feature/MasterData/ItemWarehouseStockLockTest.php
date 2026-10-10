@@ -203,3 +203,28 @@ it('removes a warehouse without stock when editing', function () {
     expect(stockLockBalance($itemId, $this->otherWarehouse->id))->toBeNull()
         ->and(stockLockBalance($itemId, $this->warehouse->id))->not->toBeNull();
 });
+
+it('rejects an initial quantity for a fabric-type item: its meters come from rolls', function () {
+    $fabricSubGroup = CategorySubGroup::create([
+        'name' => 'Tela Stock Lock Test',
+        'category_group_id' => $this->subGroup->category_group_id,
+        'material_kind' => 'fabric',
+    ]);
+    \App\Support\MasterData\MaterialClassifier::forgetCache();
+
+    $response = $this->postJson(route('item.store'), stockLockItemPayload([
+        stockLockWarehouseRow($this->warehouse->id, $this->location->id, [
+            'quantity' => 10,
+            'unit_price' => 2500,
+            'initial_date' => now()->toDateString(),
+        ]),
+    ], ['category_sub_group_id' => $fabricSubGroup->id]));
+
+    $response->assertStatus(422)->assertJsonValidationErrors(['warehouses']);
+    expect(InventoryMovement::count())->toBe(0);
+
+    // Con cantidad 0 sí se puede crear la ficha de la tela.
+    $this->postJson(route('item.store'), stockLockItemPayload([
+        stockLockWarehouseRow($this->warehouse->id, $this->location->id),
+    ], ['category_sub_group_id' => $fabricSubGroup->id]))->assertCreated();
+});
