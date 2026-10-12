@@ -158,7 +158,8 @@ class ProductionOrderService
                 ->forceDelete();
 
             return $operations->map(function ($psOp) use ($order, $technicalSheet, $quantityLote) {
-                $samTotalOperacion = (float) ($psOp->sam_total_operacion ?? $psOp->sam_total_unitario * ($psOp->quantity ?? 1));
+                $operationQuantity = \App\Models\Production\ProductOperationList::quantityOf($psOp->operation?->quantity);
+                $samTotalOperacion = (float) ($psOp->sam_total_operacion ?? $psOp->sam_total_unitario * $operationQuantity);
                 $samTotalLote = round($samTotalOperacion * $quantityLote, 4);
 
                 return TechnicalSheetOperation::create([
@@ -167,7 +168,7 @@ class ProductionOrderService
                     'sequence' => $psOp->sequence,
                     'operation_id' => $psOp->operation_id,
                     'machine_id' => $psOp->machine_id,
-                    'quantity' => $psOp->quantity ?? 1,
+                    'quantity' => $operationQuantity,
                     'sam_base' => $psOp->sam_base ?? $psOp->sam ?? $psOp->optimal_time ?? 0,
                     'machine_supplement_factor' => $psOp->machine_supplement_factor ?? 1.0,
                     'fabric_base_factor' => $psOp->fabric_base_factor ?? 1.0,

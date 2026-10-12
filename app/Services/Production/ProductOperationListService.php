@@ -301,6 +301,12 @@ class ProductOperationListService
         ];
     }
 
+    /** Repeticiones por pieza de la operación base: el SAM de la operación las multiplica. */
+    private function operationQuantity(int $operationId): int
+    {
+        return ProductOperationList::quantityOf(Operation::query()->whereKey($operationId)->value('quantity'));
+    }
+
     /**
      * Crea una nueva operación en el listado con snapshot de factores.
      * Calcula sam_base, sam_total_unitario, sam_total_operacion y production_time.
@@ -326,8 +332,10 @@ class ProductOperationListService
                 $samBase * $data['machine_supplement_factor'] * $data['fabric_base_factor'] * $data['operator_efficiency_factor'],
                 4
             );
-            // quantity es solo informativo, no multiplica el SAM
-            $data['sam_total_operacion'] = $data['sam_total_unitario'];
+            $data['sam_total_operacion'] = round(
+                $data['sam_total_unitario'] * $this->operationQuantity((int) $data['operation_id']),
+                4
+            );
 
             $data['production_time'] = $this->calculateProductionTime(
                 (float) ($data['optimal_time'] ?? $samBase),
@@ -392,8 +400,10 @@ class ProductOperationListService
                     $samBase * $data['machine_supplement_factor'] * $data['fabric_base_factor'] * $data['operator_efficiency_factor'],
                     4
                 );
-                // quantity es solo informativo, no multiplica el SAM
-                $data['sam_total_operacion'] = $data['sam_total_unitario'];
+                $data['sam_total_operacion'] = round(
+                    $data['sam_total_unitario'] * $this->operationQuantity($operationId),
+                    4
+                );
 
                 $data['production_time'] = $this->calculateProductionTime(
                     (float) ($data['optimal_time'] ?? $samBase),

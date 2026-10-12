@@ -442,8 +442,10 @@ class TechnicalDataSheetController extends Controller
                 $machineId    = $operation?->machine_id_reference ?? null;
                 $fabricFactor = $this->resolveFabricFactor($order);
 
+                $opQuantity        = \App\Models\Production\ProductOperationList::quantityOf($operation?->quantity);
                 $samTotalUnitario  = round($samBase * $machineSupplement * $fabricFactor * $opEfficiency, 4);
-                $samTotalLote      = round($samTotalUnitario * $quantityLote, 4);
+                $samTotalOperacion = round($samTotalUnitario * $opQuantity, 4);
+                $samTotalLote      = round($samTotalOperacion * $quantityLote, 4);
 
                 $itemId = isset($data['id']) && $data['id'] !== null ? (int) $data['id'] : null;
 
@@ -457,8 +459,9 @@ class TechnicalDataSheetController extends Controller
                         'operator_efficiency_factor' => $opEfficiency,
                         'machine_supplement_factor'  => $machineSupplement,
                         'fabric_base_factor'         => $fabricFactor,
+                        'quantity'                   => $opQuantity,
                         'sam_total_unitario'         => $samTotalUnitario,
-                        'sam_total_operacion'        => $samTotalUnitario,
+                        'sam_total_operacion'        => $samTotalOperacion,
                         'sam_total_lote'             => $samTotalLote,
                     ]);
                     $processedIds[] = $itemId;
@@ -468,13 +471,13 @@ class TechnicalDataSheetController extends Controller
                         'sequence'                   => $sequence,
                         'operation_id'               => $operationId,
                         'machine_id'                 => $machineId,
-                        'quantity'                   => 1,
+                        'quantity'                   => $opQuantity,
                         'sam_base'                   => $samBase,
                         'operator_efficiency_factor' => $opEfficiency,
                         'machine_supplement_factor'  => $machineSupplement,
                         'fabric_base_factor'         => $fabricFactor,
                         'sam_total_unitario'         => $samTotalUnitario,
-                        'sam_total_operacion'        => $samTotalUnitario,
+                        'sam_total_operacion'        => $samTotalOperacion,
                         'sam_total_lote'             => $samTotalLote,
                         'quantity_progressed'        => 0,
                         'status'                     => EstatusOperacionOrden::PENDIENTE,
