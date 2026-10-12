@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Production;
 
 use App\Http\Controllers\Controller;
 use App\Models\Production\ProductOperationList;
+use App\Models\Production\ProductSheet;
 use App\Models\Production\ProductSheetOperationHistory;
+use App\Services\Production\ProductSheetStatusService;
+use Illuminate\Validation\ValidationException;
 use App\Services\Production\ProductOperationListService;
 use App\Services\Production\OperationService;
 use App\Services\Production\OperationCatalogService;
@@ -106,7 +109,8 @@ class ProductOperationListController extends Controller
         $lists = $this->service->listBySheet((int) $request->input('product_sheet_id'));
 
         return response()->json([
-            'data' => ProductOperationListResource::collection($lists)->resolve()
+            'data' => ProductOperationListResource::collection($lists)->resolve(),
+            'completion' => $this->completionPayload(ProductSheet::query()->findOrFail((int) $request->input('product_sheet_id'))),
         ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
             ->header('Pragma', 'no-cache')
             ->header('Expires', '0');
@@ -421,5 +425,49 @@ class ProductOperationListController extends Controller
             : collect();
 
         return response()->json(['data' => $history, 'operation_changes' => $operationChanges]);
+    }
+
+    /**
+     * Marca el listado operacional de la sábana como completo (acción propia, distinta de guardar).
+     * POST /produccion/listados-operacionales/sabana/{productSheet}/completar
+     */
+    public function complete(ProductSheet $productSheet, ProductSheetStatusService $statusService): JsonResponse
+    {
+        try {
+            $sheet = $statusService->markOperationalListCompleted($productSheet, (int) auth()->id());
+        } catch (ValidationException $e) {
+            return response()->json(['message' => $e->validator->errors()->first(), 'errors' => $e->errors()], 422);
+        }
+
+        return response()->json([
+            'message' => 'Listado operacional marcado como completo.',
+            'data' => $this->completionPayload($sheet),
+        ]);
+    }
+
+    /**
+     * Quita la marca de completo para seguir editando el listado.
+     * DELETE /produccion/listados-operacionales/sabana/{productSheet}/completar
+     */
+    public function reopen(ProductSheet $productSheet, ProductSheetStatusService $statusService): JsonResponse
+    {
+        $sheet = $statusService->reopenOperationalList($productSheet);
+
+        return response()->json([
+            'message' => 'Listado operacional reabierto.',
+            'data' => $this->completionPayload($sheet),
+        ]);
+    }
+
+    private function completionPayload(ProductSheet $sheet): array
+    {
+        return [
+            'product_sheet_id' => $sheet->id,
+            'completed' => $sheet->operational_list_completed_at !== null,
+            'completed_at' => $sheet->operational_list_completed_at,
+            'completed_by' => $sheet->operational_list_completed_by_user_id
+                ? \App\Models\Settings\User::query()->whereKey($sheet->operational_list_completed_by_user_id)->value('name')
+                : null,
+        ];
     }
 }

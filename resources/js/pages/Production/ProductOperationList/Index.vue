@@ -203,6 +203,11 @@ function reloadFromDatabase(showSuccessAlert = true) {
     });
 }
 
+function handleCompletionChanged(message: string) {
+    showSuccess(message);
+    void fetchOperationSummaries();
+}
+
 async function handleDialogSave(payloads: ProductOperationPayload[]) {
     isSavingAndRefreshing.value = true;
     try {
@@ -686,6 +691,7 @@ watch(productSheets, () => {
                 @edit="handleEditFromView"
                 @deleted="handleViewDeleted"
                 @delete-error="showError"
+                @completion-changed="handleCompletionChanged"
             />
 
             <ConfirmDialog

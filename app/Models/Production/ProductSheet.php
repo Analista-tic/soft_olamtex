@@ -47,6 +47,8 @@ class ProductSheet extends Model
         'parent_id',
         'garment_type',
         'is_enabled',
+        'operational_list_completed_at',
+        'operational_list_completed_by_user_id',
     ];
 
     protected $guarded = [
@@ -69,6 +71,8 @@ class ProductSheet extends Model
         'garment_type' => 'string',
         'is_enabled' => 'boolean',
         'costo' => 'float',
+        'operational_list_completed_at' => 'datetime',
+        'operational_list_completed_by_user_id' => 'integer',
     ];
 
     // Relaciones eliminadas: section, group, brand, world, yarnBase, fabricBase
