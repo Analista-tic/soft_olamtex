@@ -136,3 +136,19 @@ it('suggests the weighted average price of the warehouse', function () {
         ->assertJsonPath('weighted_price', 1000)
         ->assertJsonPath('current_stock', 5);
 });
+
+it('values an outflow adjustment at the weighted average whatever price the client sends', function () {
+    $item = accountsTestItem($this->subGroup->id);
+
+    $this->postJson(route('ajustes-inventario.store'), accountsTestPayload($item->id, $this->warehouse->id))->assertCreated();
+
+    $payload = accountsTestPayload($item->id, $this->warehouse->id, 'salida', 'exit_regularization');
+    $payload['lines'][0]['price'] = 1;
+    $payload['lines'][0]['quantity'] = 2;
+
+    $response = $this->postJson(route('ajustes-inventario.store'), $payload)->assertCreated();
+
+    $line = \App\Models\Inventory\InventoryAdjustmentLine::where('inventory_adjustment_id', $response->json('data.id'))->first();
+    expect((float) $line->price)->toBe(1000.0);
+    expect(InventoryMovement::where('item_id', $item->id)->where('type', 'salida')->value('total_cost'))->toEqual(2000);
+});

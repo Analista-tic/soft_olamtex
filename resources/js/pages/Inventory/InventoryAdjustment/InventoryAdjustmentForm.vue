@@ -342,9 +342,12 @@ function removeLine(id: number) {
     lines.value = lines.value.filter((l) => l.id !== id);
 }
 
-async function suggestPrice(lineId: number) {
+/** En una salida el costo es siempre el promedio vigente (el servidor ignora cualquier otro valor), así que no se edita. */
+const isOutflowLine = (line: Line) => line.movementReason === 'salida';
+
+async function suggestPrice(lineId: number, force = false) {
     const line = lines.value.find((l) => l.id === lineId);
-    if (!line || line.priceEdited || !line.itemId) return;
+    if (!line || (line.priceEdited && !force) || !line.itemId) return;
     const itemId = line.itemId;
     const warehouseId = line.warehouseId || selectedWarehouseId.value;
     try {
@@ -352,11 +355,18 @@ async function suggestPrice(lineId: number) {
             params: { item_id: itemId, warehouse_id: warehouseId || undefined },
         });
         const current = lines.value.find((l) => l.id === lineId);
-        if (current && !current.priceEdited && current.itemId === itemId) {
+        if (current && (force || !current.priceEdited) && current.itemId === itemId) {
             current.price = Math.round(Number(data?.weighted_price ?? 0) * 100) / 100;
         }
     } catch {
         // Sin sugerido el usuario escribe el precio a mano.
+    }
+}
+
+function handleMovementReasonChange(line: Line) {
+    if (isOutflowLine(line)) {
+        line.priceEdited = false;
+        void suggestPrice(line.id, true);
     }
 }
 
@@ -374,7 +384,7 @@ function handleItemChange(selectedItemId: any, line: Line) {
             line.tax = 0;
         }
     }
-    void suggestPrice(line.id);
+    void suggestPrice(line.id, isOutflowLine(line));
 }
 
 const lineTotal = (line: Line) => {
@@ -674,6 +684,7 @@ async function handleSubmit() {
                                                 label=""
                                                 placeholder="Selecciona"
                                                 class="w-full"
+                                                @update:modelValue="() => handleMovementReasonChange(line)"
                                             />
                                         </TableCell>
 
@@ -695,6 +706,8 @@ async function handleSubmit() {
                                                 :step="0.01"
                                                 :decimals="2"
                                                 placeholder="0.00"
+                                                :disabled="isOutflowLine(line)"
+                                                :title="isOutflowLine(line) ? 'La salida se valora al costo promedio vigente' : undefined"
                                                 :error="showRequiredErrors && lineGaps(line).price ? 'Requerido' : false"
                                                 class="h-10 w-full"
                                                 @input="

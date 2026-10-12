@@ -312,6 +312,13 @@ class InventoryAdjustmentService
             }
 
             $price = (float) ($line['price'] ?? 0);
+            if ($lineType === 'salida') {
+                // La salida se valora siempre al costo promedio vigente; el precio enviado no cuenta.
+                $averagePrice = $this->movementService->getCurrentWeightedPrice((int) $line['item_id'], $warehouseId);
+                if ($averagePrice > 0) {
+                    $price = round($averagePrice, 2);
+                }
+            }
             $qty   = (int) ($line['quantity'] ?? 0);
             $tax   = (float) ($line['tax'] ?? 0);
             $base = $price * $qty;
