@@ -1302,6 +1302,9 @@ watch(
             resetForm();
         } else {
             errorMessage.value = '';
+            // El diálogo queda montado en la página: sin esto las sábanas creadas después de abrirlo la primera vez
+            // no aparecían en "Plantilla" hasta recargar.
+            templatesLoaded.value = false;
             void initializeDialog();
         }
     },
