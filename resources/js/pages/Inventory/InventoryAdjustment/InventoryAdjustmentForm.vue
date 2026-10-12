@@ -141,7 +141,6 @@ function lineGaps(line: Line) {
         item: !line.itemId,
         quantity: !line.quantity || line.quantity <= 0,
         price: line.price === null || line.price === undefined || Number.isNaN(line.price) || line.price < 0,
-        description: !(line.description ?? '').trim(),
     };
 }
 
@@ -447,11 +446,7 @@ async function handleSubmit() {
             if (gaps.price) {
                 requiredErrors.push('Precio SIN Impuesto');
             }
-            if (gaps.description) {
-                requiredErrors.push('Descripción');
-            } else {
-                line.description = line.description.trim();
-            }
+            line.description = (line.description ?? '').trim();
             if (!line.movementReason) {
                 line.movementReason = defaultMovementReason;
             }
@@ -645,7 +640,7 @@ async function handleSubmit() {
                                             </span>
                                         </TableHead>
                                         <TableHead class="min-w-[160px] text-left">Tipo de ajuste <span class="text-destructive">*</span></TableHead>
-                                        <TableHead class="min-w-[160px] text-left"> Descripción <span class="text-destructive">*</span> </TableHead>
+                                        <TableHead class="min-w-[160px] text-left">Descripción</TableHead>
                                         <TableHead class="min-w-[120px] text-left"
                                             >Precio SIN Impuesto <span class="text-destructive">*</span></TableHead
                                         >
@@ -687,9 +682,6 @@ async function handleSubmit() {
                                                 data-no-uppercase
                                                 v-model="line.description"
                                                 placeholder="Descripción"
-                                                required
-                                                :invalid="showRequiredErrors && lineGaps(line).description"
-                                                error-message="Requerido"
                                                 class="h-10 w-full"
                                             />
                                         </TableCell>

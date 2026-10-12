@@ -86,6 +86,17 @@ it('saves the stock adjustment without a journal entry when the item has no acco
     expect(JournalEntry::count())->toBe(0);
 });
 
+it('saves the adjustment when the line description is empty', function () {
+    $item = accountsTestItem($this->subGroup->id);
+    $payload = accountsTestPayload($item->id, $this->warehouse->id);
+    $payload['lines'][0]['description'] = null;
+
+    $this->postJson(route('ajustes-inventario.store'), $payload)->assertCreated();
+
+    $payload['lines'][0]['description'] = '';
+    $this->postJson(route('ajustes-inventario.store'), $payload)->assertCreated();
+});
+
 it('also skips the journal entry when the configured accounts do not allow entries', function () {
     $item = accountsTestItem($this->subGroup->id, [
         'inventory_account_id' => accountsTestAccount('14', 'asset', false)->id,

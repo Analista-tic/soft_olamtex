@@ -224,7 +224,7 @@ class InventoryAdjustmentController extends Controller
             'lines.*.tax' => 'nullable|numeric|min:0',
             'lines.*.quantity' => 'required|integer|min:1',
             'lines.*.movement_reason' => ['required', Rule::in(array_keys($movementReasons))],
-            'lines.*.description' => 'required|string|min:1',
+            'lines.*.description' => 'nullable|string',
         ];
 
         return $request->validate($rules);
