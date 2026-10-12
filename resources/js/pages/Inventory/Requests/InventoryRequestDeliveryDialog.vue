@@ -75,7 +75,7 @@ async function fetchWarehouses() {
             id: Number(warehouse.id),
             name: warehouse.name,
         }))
-        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+        .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 }
 
 async function ensureItemWarehouseStock(itemId: number | null) {

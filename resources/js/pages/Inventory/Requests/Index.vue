@@ -385,7 +385,7 @@ onMounted(() => {
                         v-model:current-page="currentPage"
                         v-model:page-size="itemsPerPage"
                         :total-items="totalItems"
-                        @fetch-data="() => fetchRequests(currentPage.value, searchQuery.value)"
+                        @fetch-data="() => fetchRequests(currentPage, searchQuery)"
                     />
                 </div>
             </div>
