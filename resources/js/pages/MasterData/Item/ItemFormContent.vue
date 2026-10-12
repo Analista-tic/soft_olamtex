@@ -1866,10 +1866,11 @@ async function openWarehouseAdjustment(ws: WarehouseStockEntry) {
     isAdjustmentDialogOpen.value = true;
 }
 
-function handleWarehouseAdjustmentSaved() {
+function handleWarehouseAdjustmentSaved(accountingWarning?: string | null) {
     // El saldo se refresca con el evento global 'inventory-adjustment-saved' (handleInventoryAdjustmentSaved).
     errorMessage.value = '';
-    successMessage.value = 'Ajuste de inventario guardado. El saldo de la bodega se actualizó.';
+    const saved = 'Ajuste de inventario guardado. El saldo de la bodega se actualizó.';
+    successMessage.value = accountingWarning ? `${saved} ${accountingWarning}` : saved;
 }
 
 watch(selectedGroupId, (newVal, oldVal) => {

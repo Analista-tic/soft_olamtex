@@ -144,10 +144,12 @@ function openEditAdjustment(adjustment: InventoryAdjustment) {
     isAdjustmentFormOpen.value = true;
 }
 
-function handleAdjustmentSaved() {
+function handleAdjustmentSaved(accountingWarning?: string | null) {
     isAdjustmentFormOpen.value = false;
     fetchAdjustments(currentPage.value, searchQuery.value);
-    successMessage.value = dialogType.value === 'create' ? 'El ajuste se creó correctamente.' : 'El ajuste se actualizó correctamente.';
+    const saved = dialogType.value === 'create' ? 'El ajuste se creó correctamente.' : 'El ajuste se actualizó correctamente.';
+    // El kardex quedó actualizado; si faltan cuentas contables se avisa que no hubo asiento.
+    successMessage.value = accountingWarning ? `${saved} ${accountingWarning}` : saved;
     errorMessage.value = '';
 }
 

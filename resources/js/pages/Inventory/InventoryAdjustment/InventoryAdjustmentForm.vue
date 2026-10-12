@@ -32,7 +32,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     (e: 'close'): void;
-    (e: 'saved'): void;
+    /** accountingWarning: el ajuste se guardó pero sin asiento contable (cuentas del ítem incompletas). */
+    (e: 'saved', accountingWarning?: string | null): void;
 }>();
 
 type Line = {
@@ -533,7 +534,7 @@ async function handleSubmit() {
             notifyInventoryAdjustmentSaved(itemIds);
         }
         alertDetails.value = [];
-        emit('saved');
+        emit('saved', response?.data?.data?.accounting_warning ?? null);
         emit('close');
     } catch (error: any) {
         const responseMessage = error?.response?.data?.message || 'No se pudo guardar el ajuste.';
