@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import type { Warehouse } from '@/domain/Inventory';
+import type { Warehouse } from '@/domain/inventory';
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{

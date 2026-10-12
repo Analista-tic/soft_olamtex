@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { defineStore } from 'pinia';
 
-import type { Warehouse } from '@/domain/Inventory';
+import type { Warehouse } from '@/domain/inventory';
 import { broadcastCatalogInvalidated, onCatalogInvalidatedElsewhere } from '@/lib/crossTabSync';
 
 type WarehousesResponse = Warehouse[];

@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 // Tooltip UI removed for actions column
 import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { InventoryMovement, Warehouse } from '@/domain/Inventory';
+import type { InventoryMovement, Warehouse } from '@/domain/inventory';
 import type { Option } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useWarehousesStore } from '@/stores/inventory/warehouses';

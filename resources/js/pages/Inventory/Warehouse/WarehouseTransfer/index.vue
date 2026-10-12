@@ -20,7 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
-import type { Warehouse, WarehouseOption } from '@/domain/Inventory';
+import type { Warehouse, WarehouseOption } from '@/domain/inventory';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 import { useAuthStore } from '@/stores/auth';
