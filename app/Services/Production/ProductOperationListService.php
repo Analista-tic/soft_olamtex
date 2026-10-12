@@ -154,6 +154,7 @@ class ProductOperationListService
 
         $operations = $this->model
             ->newQuery()
+            ->with('operation.section')
             ->where('product_sheet_id', $productSheetId)
             ->get();
 
@@ -314,6 +315,7 @@ class ProductOperationListService
     {
         return DB::transaction(function () use ($operation, $motivo) {
             $samBase = (float) ($operation->sam_base ?? 0);
+            $operation->loadMissing('section');
             $lines = $this->model->newQuery()->where('operation_id', $operation->id)->get();
 
             foreach ($lines as $line) {
@@ -538,8 +540,10 @@ class ProductOperationListService
         }
 
         return DB::transaction(function () use ($productSheetId, $operations) {
+            // Con la operación y su sección cargadas: el hook `saving` las consulta en cada línea.
             $existingItems = $this->model
                 ->newQuery()
+                ->with('operation.section')
                 ->where('product_sheet_id', $productSheetId)
                 ->get()
                 ->keyBy('id');
