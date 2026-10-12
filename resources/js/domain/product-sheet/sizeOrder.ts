@@ -21,7 +21,9 @@ const LETTER_RANK: Record<string, number> = {
 };
 
 function sizeKey(size: string): [number, number | string] {
-    const label = String(size ?? '').trim().toUpperCase();
+    const label = String(size ?? '')
+        .trim()
+        .toUpperCase();
 
     if (label in LETTER_RANK) return [0, LETTER_RANK[label]];
     if (label !== '' && Number.isFinite(Number(label))) return [1, Number(label)];

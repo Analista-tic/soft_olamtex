@@ -698,12 +698,7 @@ async function handleSubmit() {
                                         </TableCell>
 
                                         <TableCell class="p-1">
-                                            <Input
-                                                data-no-uppercase
-                                                v-model="line.description"
-                                                placeholder="Descripción"
-                                                class="h-10 w-full"
-                                            />
+                                            <Input data-no-uppercase v-model="line.description" placeholder="Descripción" class="h-10 w-full" />
                                         </TableCell>
 
                                         <TableCell class="p-1">
@@ -759,9 +754,14 @@ async function handleSubmit() {
                                             <p
                                                 v-if="line.itemId && line.currentStock != null"
                                                 class="mt-1 text-xs"
-                                                :class="isOutflowLine(line) && Number(line.quantity) > line.currentStock ? 'text-destructive' : 'text-muted-foreground'"
+                                                :class="
+                                                    isOutflowLine(line) && Number(line.quantity) > line.currentStock
+                                                        ? 'text-destructive'
+                                                        : 'text-muted-foreground'
+                                                "
                                             >
-                                                Stock actual: {{ line.currentStock }}<span v-if="line.averagePrice"> · Costo prom.: {{ formatCurrency(line.averagePrice) }}</span>
+                                                Stock actual: {{ line.currentStock
+                                                }}<span v-if="line.averagePrice"> · Costo prom.: {{ formatCurrency(line.averagePrice) }}</span>
                                             </p>
                                         </TableCell>
 

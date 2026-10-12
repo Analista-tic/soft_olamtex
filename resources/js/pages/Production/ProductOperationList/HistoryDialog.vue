@@ -103,8 +103,18 @@ const lineRows = computed<ChangeRow[]>(() =>
     history.value.flatMap((entry) => {
         const fields: { label: string; before: unknown; after: unknown; format: (v: any) => string }[] = [
             { label: 'SAM base', before: entry.sam_base_anterior, after: entry.sam_base_nuevo, format: formatValue },
-            { label: 'Factor operario (%)', before: entry.operator_efficiency_factor_anterior, after: entry.operator_efficiency_factor_nuevo, format: formatOperatorPercent },
-            { label: 'Suplemento máquina', before: entry.machine_supplement_factor_anterior, after: entry.machine_supplement_factor_nuevo, format: formatValue },
+            {
+                label: 'Factor operario (%)',
+                before: entry.operator_efficiency_factor_anterior,
+                after: entry.operator_efficiency_factor_nuevo,
+                format: formatOperatorPercent,
+            },
+            {
+                label: 'Suplemento máquina',
+                before: entry.machine_supplement_factor_anterior,
+                after: entry.machine_supplement_factor_nuevo,
+                format: formatValue,
+            },
             { label: 'Factor tela', before: entry.fabric_base_factor_anterior, after: entry.fabric_base_factor_nuevo, format: formatValue },
             { label: 'SAM unitario', before: entry.sam_total_unitario_anterior, after: entry.sam_total_unitario_nuevo, format: formatValue },
             { label: 'SAM de la operación', before: entry.sam_total_operacion_anterior, after: entry.sam_total_operacion_nuevo, format: formatValue },
@@ -178,10 +188,13 @@ const isEmpty = computed(() => lineRows.value.length === 0 && operationRows.valu
                     No hay registros de cambios para esta operación.
                 </div>
                 <div v-else class="space-y-4 overflow-y-auto" style="scrollbar-width: thin">
-                    <section v-for="section in [
-                        { title: 'En este listado', rows: lineRows },
-                        { title: 'En la operación base', rows: operationRows },
-                    ]" :key="section.title">
+                    <section
+                        v-for="section in [
+                            { title: 'En este listado', rows: lineRows },
+                            { title: 'En la operación base', rows: operationRows },
+                        ]"
+                        :key="section.title"
+                    >
                         <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{{ section.title }}</h3>
                         <p v-if="section.rows.length === 0" class="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">Sin cambios.</p>
                         <div v-else class="rounded-lg border">
@@ -203,7 +216,9 @@ const isEmpty = computed(() => lineRows.value.length === 0 && operationRows.valu
                                         <TableCell>{{ row.change }}</TableCell>
                                         <TableCell class="text-right font-mono text-muted-foreground">{{ row.before }}</TableCell>
                                         <TableCell class="text-right font-mono font-medium">{{ row.after }}</TableCell>
-                                        <TableCell class="max-w-[160px] truncate text-muted-foreground" :title="row.reason">{{ row.reason }}</TableCell>
+                                        <TableCell class="max-w-[160px] truncate text-muted-foreground" :title="row.reason">{{
+                                            row.reason
+                                        }}</TableCell>
                                     </TableRow>
                                 </TableBody>
                             </Table>

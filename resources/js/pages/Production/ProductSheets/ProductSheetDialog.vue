@@ -999,7 +999,6 @@ const checkingSampleOperationalList = ref(false);
 
 const sizeGroups = ref<Record<string, string[]>>(buildSizeGroupsFromNames(DEFAULT_SIZE_OPTIONS));
 
-const parsedSizes = computed<Record<string, boolean>>(() => parseBooleanRecord(form.value.sizes));
 
 const currentProductSheetId = computed<number | null>(() => {
     const id = props.productSheet?.id ?? form.value.id;
