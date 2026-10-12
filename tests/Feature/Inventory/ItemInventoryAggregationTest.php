@@ -54,3 +54,22 @@ it('exports the same filtered rows to Excel', function () {
     $response->assertOk();
     expect($response->headers->get('content-disposition'))->toContain('.xlsx');
 });
+
+it('treats as fabric only subgroups with the fabric material kind, not any name containing "tela"', function () {
+    $entretela = Item::create([
+        'category_sub_group_id' => CategorySubGroup::create([
+            'name' => 'ENTRETELA Agregado',
+            'category_group_id' => CategoryGroup::firstOrCreate(['name' => 'INSUMOS AGREGADO TEST'])->id,
+        ])->id,
+        'name' => 'ENTRETELA AGREGADO',
+        'description' => 'Item de prueba',
+        'status' => true,
+        'tracks_inventory' => true,
+    ]);
+    WarehouseItem::create(['item_id' => $entretela->id, 'warehouse_id' => $this->bodegaA->id, 'quantity' => 7, 'stock_min' => 0, 'stock_max' => 0, 'weighted_average_price' => 100, 'total_cost' => 700]);
+
+    $rows = collect($this->getJson(route('inventario-item.data', ['search' => 'ENTRETELA AGREGADO']))->json('data'));
+
+    expect($rows)->toHaveCount(1);
+    expect((float) $rows[0]['quantity'])->toBe(7.0)->and((bool) $rows[0]['is_fabric'])->toBeFalse();
+});

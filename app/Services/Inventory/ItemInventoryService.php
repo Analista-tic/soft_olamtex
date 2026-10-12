@@ -39,7 +39,7 @@ class ItemInventoryService
      */
     protected function buildQuery(array $filters)
     {
-        $isFabricSql = "LOWER(COALESCE(category_sub_groups.name,'')) LIKE '%tela%'";
+        $isFabricSql = "COALESCE(category_sub_groups.material_kind,'') = 'fabric'";
 
         // roll_quantity / reserved_quantity cuentan solo rollos aprobados (stock disponible).
         // restricted_quantity suma los rollos rechazados en recepción y aún sin resolver
@@ -142,10 +142,10 @@ class ItemInventoryService
         // quede oculta; su `quantity` disponible será 0).
         $query->where(function ($q) {
             $q->where(function ($inner) {
-                $inner->whereRaw("LOWER(COALESCE(category_sub_groups.name,'')) NOT LIKE '%tela%'")
+                $inner->whereRaw("COALESCE(category_sub_groups.material_kind,'') <> 'fabric'")
                       ->where('warehouse_items.quantity', '<>', 0);
             })->orWhere(function ($inner) {
-                $inner->whereRaw("LOWER(COALESCE(category_sub_groups.name,'')) LIKE '%tela%'")
+                $inner->whereRaw("COALESCE(category_sub_groups.material_kind,'') = 'fabric'")
                       ->whereRaw('(COALESCE(roll_inv.roll_quantity, 0) <> 0 OR COALESCE(roll_inv.restricted_quantity, 0) <> 0)');
             });
         });
