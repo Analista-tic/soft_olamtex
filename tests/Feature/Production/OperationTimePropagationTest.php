@@ -111,3 +111,18 @@ it('updates order copies still in I&D without progress and keeps the ones that a
         ->and((float) $released->fresh()->sam_base)->toEqual(0.55)
         ->and((float) $released->fresh()->sam_total_lote)->toEqual(5.5);
 });
+
+it('shows in the line history the change made to the base operation, with its reason', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo(\Spatie\Permission\Models\Permission::findOrCreate('ver listados operacionales', 'web'));
+    $this->actingAs($user);
+    $line = propagationLine(propagationSheet('H'), $this->operation);
+
+    app(OperationService::class)->update($this->operation, ['sam_base' => 0.40], 'Cronómetro nuevo');
+
+    $response = $this->getJson(route('produccion.listados-operacionales.history', $line->id))->assertOk();
+
+    expect($response->json('data'))->toHaveCount(1)
+        ->and(collect($response->json('operation_changes'))->firstWhere('field_changed', 'sam_base'))
+        ->toMatchArray(['old_value' => '0.5500', 'new_value' => '0.4', 'motivo' => 'Cronómetro nuevo']);
+});

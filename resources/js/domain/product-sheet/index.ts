@@ -14,6 +14,7 @@ export type {
     CostParameters,
     FabricBaseOption,
     MachineOption,
+    OperationBaseChangeEntry,
     ProductOperationDialogInitialData,
     ProductOperationDialogRow,
     ProductOperationDialogRowInput,

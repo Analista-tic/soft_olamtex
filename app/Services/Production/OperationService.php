@@ -492,6 +492,46 @@ class OperationService
     }
 
     /**
+     * Historial de cambios de la operación base (tiempo, cantidad, medida, etc.), del más reciente al más antiguo.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function auditTrail(Operation $operation): Collection
+    {
+        return AuditLog::query()
+            ->where('auditable_type', Operation::class)
+            ->where('auditable_id', $operation->id)
+            ->where('action', 'updated')
+            ->with('user:id,name')
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(function (AuditLog $log) use ($operation) {
+                $oldValues = is_array($log->old_values) ? $log->old_values : [];
+                $newValues = is_array($log->new_values) ? $log->new_values : [];
+                $field = array_key_first($newValues) ?? array_key_first($oldValues) ?? null;
+
+                $motivo = null;
+                if (is_string($log->description) && preg_match('/Motivo:\s*(.*)$/u', $log->description, $matches) === 1) {
+                    $motivo = trim($matches[1]) ?: null;
+                }
+
+                return [
+                    'id' => $log->id,
+                    'operation_id' => $operation->id,
+                    'field_changed' => $field,
+                    'old_value' => $field ? ($oldValues[$field] ?? null) : null,
+                    'new_value' => $field ? ($newValues[$field] ?? null) : null,
+                    'motivo' => $motivo,
+                    'changed_by' => $log->user_id,
+                    'changed_by_user' => $log->user ? ['id' => $log->user->id, 'name' => $log->user->name] : null,
+                    'created_at' => $log->created_at,
+                    'updated_at' => $log->updated_at,
+                ];
+            })
+            ->values();
+    }
+
+    /**
      * Elimina (soft delete) una operación
      */
     public function delete(Operation $operation): bool

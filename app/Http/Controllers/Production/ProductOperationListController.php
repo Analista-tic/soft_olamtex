@@ -415,6 +415,11 @@ class ProductOperationListController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return response()->json(['data' => $history]);
+        // Cambios de la operación base (tiempo, cantidad…) que también mueven el SAM de esta línea.
+        $operationChanges = $listItem->operation
+            ? $this->operationService->auditTrail($listItem->operation)
+            : collect();
+
+        return response()->json(['data' => $history, 'operation_changes' => $operationChanges]);
     }
 }

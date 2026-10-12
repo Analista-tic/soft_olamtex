@@ -3,9 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { ProductOperationHistoryEntry } from '@/domain/product-sheet/types';
+import type { OperationBaseChangeEntry, ProductOperationHistoryEntry } from '@/domain/product-sheet/types';
 import axios from 'axios';
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const props = withDefaults(
     defineProps<{
@@ -22,8 +22,19 @@ const emit = defineEmits<{
     (event: 'close'): void;
 }>();
 
+type ChangeRow = {
+    key: string;
+    date?: string;
+    user: string;
+    change: string;
+    before: string;
+    after: string;
+    reason: string;
+};
+
 const localOpen = ref(props.open);
 const history = ref<ProductOperationHistoryEntry[]>([]);
+const operationChanges = ref<OperationBaseChangeEntry[]>([]);
 const isLoading = ref(false);
 
 watch(
@@ -31,7 +42,10 @@ watch(
     (value) => {
         localOpen.value = value;
         if (value && props.operationId) fetchHistory();
-        else history.value = [];
+        else {
+            history.value = [];
+            operationChanges.value = [];
+        }
     },
 );
 
@@ -45,38 +59,26 @@ async function fetchHistory() {
     try {
         const { data } = await axios.get(`/produccion/listados-operacionales/${props.operationId}/history`);
         history.value = Array.isArray(data?.data) ? data.data : [];
+        operationChanges.value = Array.isArray(data?.operation_changes) ? data.operation_changes : [];
     } catch (error) {
         console.error('Error al cargar historial:', error);
         history.value = [];
+        operationChanges.value = [];
     } finally {
         isLoading.value = false;
     }
 }
 
-function formatValue(v: number | undefined): string {
-    if (v === undefined || v === null) return '-';
-    return Number(v).toFixed(2);
+function formatValue(v: number | string | null | undefined): string {
+    if (v === undefined || v === null || v === '') return '-';
+    const n = Number(v);
+    return Number.isFinite(n) ? n.toFixed(2) : String(v);
 }
 
-function formatOperatorPercent(v: number | undefined): string {
+/** El factor del operario se guarda como fracción de eficiencia; se muestra como porcentaje. */
+function formatOperatorPercent(v: number | null | undefined): string {
     if (v === undefined || v === null || Number(v) <= 0) return '-';
     return `${(100 / Number(v)).toFixed(2)}%`;
-}
-
-function getBeforeValue(entry: ProductOperationHistoryEntry): string {
-    if (entry.operator_efficiency_factor_anterior !== undefined && entry.operator_efficiency_factor_anterior !== null) {
-        return formatOperatorPercent(entry.operator_efficiency_factor_anterior);
-    }
-
-    return formatValue(entry.machine_supplement_factor_anterior ?? entry.fabric_base_factor_anterior ?? entry.sam_base_anterior);
-}
-
-function getAfterValue(entry: ProductOperationHistoryEntry): string {
-    if (entry.operator_efficiency_factor_nuevo !== undefined && entry.operator_efficiency_factor_nuevo !== null) {
-        return formatOperatorPercent(entry.operator_efficiency_factor_nuevo);
-    }
-
-    return formatValue(entry.machine_supplement_factor_nuevo ?? entry.fabric_base_factor_nuevo ?? entry.sam_base_nuevo);
 }
 
 function formatDate(d: string | undefined): string {
@@ -91,22 +93,64 @@ function formatDate(d: string | undefined): string {
     });
 }
 
-function getChangeDescription(entry: ProductOperationHistoryEntry): string {
-    const parts: string[] = [];
-    if (entry.operator_efficiency_factor_anterior !== entry.operator_efficiency_factor_nuevo) {
-        parts.push('Factor operario (%)');
-    }
-    if (entry.machine_supplement_factor_anterior !== entry.machine_supplement_factor_nuevo) {
-        parts.push('Suplemento máquina');
-    }
-    if (entry.fabric_base_factor_anterior !== entry.fabric_base_factor_nuevo) {
-        parts.push('Factor tela');
-    }
-    if (entry.sam_base_anterior !== entry.sam_base_nuevo) {
-        parts.push('SAM base');
-    }
-    return parts.length > 0 ? parts.join(', ') : 'Cambios varios';
-}
+const differs = (before: unknown, after: unknown) => {
+    if (before === null || before === undefined || after === null || after === undefined) return before !== after;
+    return Math.abs(Number(before) - Number(after)) > 0.0001;
+};
+
+/** Una fila por campo realmente cambiado, con su propio antes/después (antes mostraba siempre el factor del operario). */
+const lineRows = computed<ChangeRow[]>(() =>
+    history.value.flatMap((entry) => {
+        const fields: { label: string; before: unknown; after: unknown; format: (v: any) => string }[] = [
+            { label: 'SAM base', before: entry.sam_base_anterior, after: entry.sam_base_nuevo, format: formatValue },
+            { label: 'Factor operario (%)', before: entry.operator_efficiency_factor_anterior, after: entry.operator_efficiency_factor_nuevo, format: formatOperatorPercent },
+            { label: 'Suplemento máquina', before: entry.machine_supplement_factor_anterior, after: entry.machine_supplement_factor_nuevo, format: formatValue },
+            { label: 'Factor tela', before: entry.fabric_base_factor_anterior, after: entry.fabric_base_factor_nuevo, format: formatValue },
+            { label: 'SAM unitario', before: entry.sam_total_unitario_anterior, after: entry.sam_total_unitario_nuevo, format: formatValue },
+            { label: 'SAM de la operación', before: entry.sam_total_operacion_anterior, after: entry.sam_total_operacion_nuevo, format: formatValue },
+        ];
+
+        return fields
+            .filter((field) => differs(field.before, field.after))
+            .map((field) => ({
+                key: `${entry.id}-${field.label}`,
+                date: entry.created_at,
+                user: entry.usuario?.name ?? '-',
+                change: field.label,
+                before: field.format(field.before),
+                after: field.format(field.after),
+                reason: entry.motivo ?? '-',
+            }));
+    }),
+);
+
+const OPERATION_FIELD_LABELS: Record<string, string> = {
+    sam_base: 'Tiempo (SAM base)',
+    quantity: 'Cantidad',
+    measure: 'Medida',
+    factor_operario: 'Factor operario (%)',
+    action: 'Acción',
+    garment_part: 'Parte de prenda',
+    anexo: 'Anexo',
+    section_id: 'Sección',
+    machine_id_reference: 'Máquina',
+    location: 'Ubicación',
+    is_active: 'Activa',
+};
+
+const operationRows = computed<ChangeRow[]>(() =>
+    operationChanges.value.map((entry) => ({
+        key: `op-${entry.id}`,
+        date: entry.created_at,
+        user: entry.changed_by_user?.name ?? '-',
+        change: OPERATION_FIELD_LABELS[entry.field_changed ?? ''] ?? entry.field_changed ?? 'Cambio',
+        before: formatValue(entry.old_value),
+        after: formatValue(entry.new_value),
+        reason: entry.motivo ?? '-',
+    })),
+);
+
+const isEmpty = computed(() => lineRows.value.length === 0 && operationRows.value.length === 0);
 </script>
 
 <template>
@@ -128,42 +172,43 @@ function getChangeDescription(entry: ProductOperationHistoryEntry): string {
                     <Skeleton class="h-10 w-full" />
                 </div>
                 <div
-                    v-else-if="history.length === 0"
+                    v-else-if="isEmpty"
                     class="flex flex-1 items-center justify-center rounded-lg border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground"
                 >
                     No hay registros de cambios para esta operación.
                 </div>
-                <div v-else class="overflow-y-auto rounded-lg border" style="scrollbar-width: thin">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead class="w-[140px]">Fecha</TableHead>
-                                <TableHead>Usuario</TableHead>
-                                <TableHead>Cambio</TableHead>
-                                <TableHead class="text-right">Antes</TableHead>
-                                <TableHead class="text-right">Después</TableHead>
-                                <TableHead class="max-w-[160px]">Motivo</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            <TableRow v-for="entry in history" :key="entry.id" class="text-sm">
-                                <TableCell class="text-muted-foreground">
-                                    {{ formatDate(entry.created_at) }}
-                                </TableCell>
-                                <TableCell>{{ entry.usuario?.name ?? '-' }}</TableCell>
-                                <TableCell>{{ getChangeDescription(entry) }}</TableCell>
-                                <TableCell class="text-right font-mono text-muted-foreground">
-                                    {{ getBeforeValue(entry) }}
-                                </TableCell>
-                                <TableCell class="text-right font-mono font-medium">
-                                    {{ getAfterValue(entry) }}
-                                </TableCell>
-                                <TableCell class="max-w-[160px] truncate text-muted-foreground" :title="entry.motivo ?? ''">
-                                    {{ entry.motivo ?? '-' }}
-                                </TableCell>
-                            </TableRow>
-                        </TableBody>
-                    </Table>
+                <div v-else class="space-y-4 overflow-y-auto" style="scrollbar-width: thin">
+                    <section v-for="section in [
+                        { title: 'En este listado', rows: lineRows },
+                        { title: 'En la operación base', rows: operationRows },
+                    ]" :key="section.title">
+                        <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{{ section.title }}</h3>
+                        <p v-if="section.rows.length === 0" class="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">Sin cambios.</p>
+                        <div v-else class="rounded-lg border">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead class="w-[140px]">Fecha</TableHead>
+                                        <TableHead>Usuario</TableHead>
+                                        <TableHead>Cambio</TableHead>
+                                        <TableHead class="text-right">Antes</TableHead>
+                                        <TableHead class="text-right">Después</TableHead>
+                                        <TableHead class="max-w-[160px]">Motivo</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    <TableRow v-for="row in section.rows" :key="row.key" class="text-sm">
+                                        <TableCell class="text-muted-foreground">{{ formatDate(row.date) }}</TableCell>
+                                        <TableCell>{{ row.user }}</TableCell>
+                                        <TableCell>{{ row.change }}</TableCell>
+                                        <TableCell class="text-right font-mono text-muted-foreground">{{ row.before }}</TableCell>
+                                        <TableCell class="text-right font-mono font-medium">{{ row.after }}</TableCell>
+                                        <TableCell class="max-w-[160px] truncate text-muted-foreground" :title="row.reason">{{ row.reason }}</TableCell>
+                                    </TableRow>
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </section>
                 </div>
             </div>
 

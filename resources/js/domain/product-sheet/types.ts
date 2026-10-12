@@ -283,6 +283,17 @@ export interface ProductOperationHistoryEntry {
     usuario?: { id: number; name: string };
 }
 
+/** Cambio de la operación base (tiempo, cantidad, medida…) tomado de su auditoría. */
+export interface OperationBaseChangeEntry {
+    id: number;
+    field_changed: string | null;
+    old_value: string | number | null;
+    new_value: string | number | null;
+    motivo?: string | null;
+    changed_by_user?: { id: number; name: string } | null;
+    created_at?: string;
+}
+
 export interface ProductOperationGroupedRow {
     section_id: number | null;
     operation_id: number | null;
