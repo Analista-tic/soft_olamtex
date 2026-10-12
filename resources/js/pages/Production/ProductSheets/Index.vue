@@ -722,7 +722,11 @@ onUnmounted(() => {
                                     <TableStatusBadge
                                         :label="product.status === 'complete' ? 'Completo' : 'Incompleto'"
                                         :tone="product.status === 'complete' ? 'green' : 'red'"
+                                        :title="product.missing_for_completion?.length ? `Falta: ${product.missing_for_completion.join(', ')}` : undefined"
                                     />
+                                    <p v-if="product.status !== 'complete' && product.missing_for_completion?.length" class="mt-1 max-w-[180px] text-xs text-muted-foreground">
+                                        Falta: {{ product.missing_for_completion.join(', ') }}
+                                    </p>
                                 </TableCell>
                                 <TableCell class="text-center">
                                     <div class="flex items-center justify-center gap-1">

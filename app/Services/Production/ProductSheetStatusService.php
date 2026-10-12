@@ -3,7 +3,6 @@
 namespace App\Services\Production;
 
 use App\Models\Production\ProductSheet;
-use App\Services\Audit\AuditLogService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -13,33 +12,78 @@ class ProductSheetStatusService
     private const STATUS_INCOMPLETE = 'incomplete';
 
     /**
-     * Promueve a completas solo las fichas incompletas que ya tienen operaciones.
+     * Lo que le falta a una sábana para quedar completa. Es la única regla: la usan el servidor al guardar y
+     * la pantalla (que muestra esta lista en el estado "Incompleto"). Vacío = completa.
+     *
+     * @return array<int, string>
+     */
+    public function missingForCompletion(ProductSheet $sheet): array
+    {
+        $missing = [];
+
+        $reference = $sheet->type === 'muestra' ? $sheet->sample_reference : $sheet->product_reference;
+        if (trim((string) $reference) === '') {
+            $missing[] = $sheet->type === 'muestra' ? 'Referencia de muestra' : 'Referencia de producto';
+        }
+
+        if ((float) $sheet->selling_price <= 0) {
+            $missing[] = 'Precio de venta';
+        }
+
+        if (! $this->hasSelectedSize($sheet->sizes)) {
+            $missing[] = 'Tallas';
+        }
+
+        if (trim((string) $sheet->flat_sketch_path) === '') {
+            $missing[] = 'Foto';
+        }
+
+        if ($sheet->operational_list_completed_at === null) {
+            $missing[] = 'Listado operacional completo';
+        }
+
+        return $missing;
+    }
+
+    /** Las tallas se guardan como {talla: bool}; también se acepta una lista de nombres. */
+    private function hasSelectedSize(mixed $sizes): bool
+    {
+        if (! is_array($sizes)) {
+            return false;
+        }
+
+        foreach ($sizes as $key => $value) {
+            if ($value === true || $value === 1 || $value === '1') {
+                return true;
+            }
+            if (is_int($key) && is_string($value) && trim($value) !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Promueve a completas las fichas incompletas que ya cumplen la regla completa (nunca degrada ninguna).
      */
     public function promoteIncompleteWithOperations(): int
     {
-        $query = ProductSheet::query()
+        $sheets = ProductSheet::query()
             ->where('status', self::STATUS_INCOMPLETE)
-            ->whereExists(function ($query) {
-                $query->select(DB::raw(1))
-                    ->from('product_sheet_operations')
-                    ->whereColumn('product_sheet_operations.product_sheet_id', 'product_sheets.id')
-                    ->whereNull('product_sheet_operations.deleted_at');
-            });
+            ->whereNotNull('operational_list_completed_at')
+            ->get();
 
-        $ids = (clone $query)->pluck('id')->all();
+        $promoted = 0;
+        foreach ($sheets as $sheet) {
+            if ($this->missingForCompletion($sheet) === []) {
+                // Por instancia para que el AuditObserver registre el cambio de estado.
+                $sheet->update(['status' => self::STATUS_COMPLETE]);
+                $promoted++;
+            }
+        }
 
-        $updated = $query->update(['status' => self::STATUS_COMPLETE]);
-
-        // El update masivo no dispara el AuditObserver: se registra un resumen.
-        app(AuditLogService::class)->logBulk(
-            ProductSheet::class,
-            'updated',
-            $ids,
-            ['status' => self::STATUS_COMPLETE],
-            'Promoción automática de fichas incompletas con operaciones',
-        );
-
-        return $updated;
+        return $promoted;
     }
 
     /**
@@ -62,6 +106,7 @@ class ProductSheetStatusService
             'operational_list_completed_at' => now(),
             'operational_list_completed_by_user_id' => $userId,
         ]);
+        $this->refreshStatus($sheet);
 
         return $sheet->fresh();
     }
@@ -73,43 +118,47 @@ class ProductSheetStatusService
             'operational_list_completed_at' => null,
             'operational_list_completed_by_user_id' => null,
         ]);
+        $this->refreshStatus($sheet);
 
         return $sheet->fresh();
     }
 
     /**
-     * Sincroniza estado de una ficha según existencia de operaciones activas.
-     * Cualquier cambio en las líneas del listado le quita la marca de completo: el "completo" vale para el contenido que se revisó.
+     * Cambió el contenido del listado operacional: se quita la marca de completo (valía para lo que se revisó)
+     * y se recalcula el estado.
      */
     public function syncForSheet(int $productSheetId): bool
     {
-        $completedSheet = ProductSheet::query()
-            ->whereKey($productSheetId)
-            ->whereNotNull('operational_list_completed_at')
-            ->first();
-        $completedSheet?->update([
-            'operational_list_completed_at' => null,
-            'operational_list_completed_by_user_id' => null,
-        ]);
-
-        $hasOperations = DB::table('product_sheet_operations')
-            ->where('product_sheet_id', $productSheetId)
-            ->whereNull('deleted_at')
-            ->exists();
-
-        $targetStatus = $hasOperations ? self::STATUS_COMPLETE : self::STATUS_INCOMPLETE;
-
-        // Por instancia para que el AuditObserver registre el cambio de estado.
-        $sheet = ProductSheet::query()
-            ->whereKey($productSheetId)
-            ->where('status', '!=', $targetStatus)
-            ->first();
-
+        $sheet = ProductSheet::query()->find($productSheetId);
         if (! $sheet) {
             return false;
         }
 
-        $sheet->update(['status' => $targetStatus]);
+        if ($sheet->operational_list_completed_at !== null) {
+            $sheet->update([
+                'operational_list_completed_at' => null,
+                'operational_list_completed_by_user_id' => null,
+            ]);
+        }
+
+        return $this->refreshStatus($sheet);
+    }
+
+    /**
+     * Recalcula el estado (completo/incompleto) con la regla única, sin tocar la marca de listado completo.
+     *
+     * @return bool true si el estado cambió
+     */
+    public function refreshStatus(ProductSheet $sheet): bool
+    {
+        $sheet->refresh();
+        $target = $this->missingForCompletion($sheet) === [] ? self::STATUS_COMPLETE : self::STATUS_INCOMPLETE;
+
+        if ($sheet->status === $target) {
+            return false;
+        }
+
+        $sheet->update(['status' => $target]);
 
         return true;
     }

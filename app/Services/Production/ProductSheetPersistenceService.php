@@ -95,6 +95,9 @@ class ProductSheetPersistenceService
     {
         $data = $productSheet->toArray();
         $data['flat_sketch_path'] = $productSheet->flat_sketch_path ?? null;
+        $data['missing_for_completion'] = $productSheet->status === 'complete'
+            ? []
+            : app(ProductSheetStatusService::class)->missingForCompletion($productSheet);
 
         return $data;
     }

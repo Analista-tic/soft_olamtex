@@ -16,6 +16,7 @@ use App\Services\Production\ProductSheetBulkImportService;
 use App\Services\Production\ProductSheetCreationService;
 use App\Services\Production\ProductSheetExcelService;
 use App\Services\Production\ProductSheetPersistenceService;
+use App\Services\Production\ProductSheetStatusService;
 use App\Services\Production\YarnBaseService;
 use App\Services\Settings\SettingService;
 use Illuminate\Http\JsonResponse;
@@ -107,14 +108,14 @@ class ProductSheetController extends Controller
         $validatedData = $this->productSheetPersistenceService->prepareFlatSketchUpload($request, $validatedData, $sabana);
         $validatedData = $this->productSheetCreationService->sanitizeAttributes($validatedData);
 
-        if (($validatedData['status'] ?? null) === 'complete' && ! $this->hasOperationalListRegistered($sabana->id)) {
-            $validatedData['status'] = 'incomplete';
-        }
+        // El estado no lo decide el cliente: se recalcula con la regla única al terminar de guardar.
+        unset($validatedData['status']);
 
         $oldFabricBaseId = $sabana->fabric_base_id;
         $newFabricBaseId = $validatedData['fabric_base_id'] ?? $oldFabricBaseId;
 
         $sabana->update($validatedData);
+        app(ProductSheetStatusService::class)->refreshStatus($sabana);
 
         if ((int) $oldFabricBaseId !== (int) $newFabricBaseId) {
             $this->operationListService->recalculateFabricFactorForSheet($sabana->id, $newFabricBaseId);
@@ -274,6 +275,10 @@ class ProductSheetController extends Controller
             'yarn_base_id',
             'flat_sketch_path',
             'woven_product',
+            // Para decir qué le falta a una sábana incompleta (no se envían al cliente).
+            'selling_price',
+            'sizes',
+            'operational_list_completed_at',
         ]);
 
         if ($request->filled('search')) {
@@ -341,6 +346,10 @@ class ProductSheetController extends Controller
             $product->yarn_base = $product->yarn_base_id ? $yarnBases->get($product->yarn_base_id, ['id' => $product->yarn_base_id, 'name' => 'N/A']) : null;
             $product->flat_sketch_path = $this->resolveExistingFlatSketchPath($product->flat_sketch_path);
             $product->has_production_orders = ($product->production_orders_count ?? 0) > 0;
+            $product->missing_for_completion = $product->status === 'complete'
+                ? []
+                : app(ProductSheetStatusService::class)->missingForCompletion($product);
+            $product->makeHidden(['sizes', 'operational_list_completed_at']);
 
             return $product;
         });
@@ -496,14 +505,6 @@ class ProductSheetController extends Controller
             ->map(fn (Collection $c) => ['id' => $c->id, 'name' => $c->name]);
 
         return $catalogs;
-    }
-
-    private function hasOperationalListRegistered(int $productSheetId): bool
-    {
-        return DB::table('product_sheet_operations')
-            ->where('product_sheet_id', $productSheetId)
-            ->whereNull('deleted_at')
-            ->exists();
     }
 
     public function parameters(Request $request): JsonResponse

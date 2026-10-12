@@ -422,14 +422,9 @@ export function useProductSheetForm(params: UseProductSheetFormParams) {
     }
 
     // ── Status ────────────────────────────────────────────────────────────────
-    function determineStatus(hasOperationalList: boolean): void {
-        const hasSelectedSize = Object.values(parsedSizes.value).some(Boolean);
-        const isComplete =
-            Boolean(form.value.reference) &&
-            Boolean(form.value.selling_price) &&
-            hasSelectedSize &&
-            hasOperationalList;
-        form.value.status = isComplete ? 'complete' : 'incomplete';
+    // El estado lo decide el servidor al guardar; aquí solo se conserva el que ya tenía la ficha.
+    function determineStatus(): void {
+        form.value.status = form.value.status === 'complete' ? 'complete' : 'incomplete';
     }
 
     // ── Reset ─────────────────────────────────────────────────────────────────

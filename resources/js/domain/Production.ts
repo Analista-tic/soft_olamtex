@@ -51,6 +51,8 @@ export type ProductSheet = {
     reference?: string | null;
     type: 'muestra' | 'producto';
     garment_type?: 'superior' | 'inferior' | null;
+    /** Lo que falta para que la sábana quede completa (vacío si ya lo está); lo calcula el servidor. */
+    missing_for_completion?: string[];
     sample_reference?: string | null;
     product_reference?: string | null;
     product_reference_2?: string | null;

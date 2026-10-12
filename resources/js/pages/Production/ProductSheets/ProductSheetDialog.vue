@@ -970,11 +970,6 @@ const currentProductSheetId = computed<number | null>(() => {
     return typeof id === 'number' && id > 0 ? id : null;
 });
 
-const overallStatus = computed<boolean>(() => {
-    const hasSelectedSize = Object.values(parsedSizes.value).some((value) => value === true);
-    return Boolean(form.value.reference) && Boolean(form.value.selling_price) && hasSelectedSize;
-});
-
 // Alineado con config/product-sheet.php (batch_control_processes)
 const allProcesses = ref([
     'I&D',
@@ -1437,8 +1432,12 @@ async function submitConvertDialog(productReference: string) {
     }
 }
 
+/**
+ * El estado lo decide el servidor al guardar (referencia, precio, tallas, foto y listado operacional completo);
+ * aquí solo se conserva el que ya tiene la ficha.
+ */
 function determineStatus() {
-    form.value.status = overallStatus.value ? 'complete' : 'incomplete';
+    form.value.status = props.productSheet?.status === 'complete' ? 'complete' : 'incomplete';
 }
 
 function appendField(formData: FormData, key: string, value: unknown) {
