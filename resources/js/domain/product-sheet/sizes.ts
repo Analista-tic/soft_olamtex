@@ -1,3 +1,5 @@
+import { sortSizes } from './sizeOrder';
+
 export type SizesValue = string | string[] | Record<string, boolean> | null | undefined;
 
 function mapArrayToRecord(value: string[]): Record<string, boolean> | null {
@@ -56,15 +58,19 @@ export function sizesToList(value: SizesValue): string[] {
     }
 
     if (typeof normalized === 'string') {
-        return normalized
-            .split(',')
-            .map((size) => size.trim())
-            .filter((size) => size !== '');
+        return sortSizes(
+            normalized
+                .split(',')
+                .map((size) => size.trim())
+                .filter((size) => size !== ''),
+        );
     }
 
-    return Object.entries(normalized)
-        .filter(([, enabled]) => Boolean(enabled))
-        .map(([size]) => size);
+    return sortSizes(
+        Object.entries(normalized)
+            .filter(([, enabled]) => Boolean(enabled))
+            .map(([size]) => size),
+    );
 }
 
 export function sizesToLabel(value: SizesValue, emptyLabel = 'Sin tallas'): string {

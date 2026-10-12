@@ -3,6 +3,7 @@ import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputField from '@/components/InputField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { sortSizeEntries } from '@/domain/product-sheet/sizeOrder';
 import { computed, ref } from 'vue';
 
 // Props recibidos desde el componente padre
@@ -80,7 +81,7 @@ const parsedSizes = computed(() => {
 
 // Filtra las tallas habilitadas (si es necesario)
 const filteredSizes = computed(() => {
-    return Object.entries(parsedSizes.value);
+    return sortSizeEntries(Object.entries(parsedSizes.value));
 });
 
 // Inicializa las cantidades de tallas al abrir el diálogo

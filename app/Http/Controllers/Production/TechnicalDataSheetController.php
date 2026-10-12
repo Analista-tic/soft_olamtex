@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Production;
 
+use App\Support\Production\SizeOrder;
 use App\Helpers\MonthLabel;
 use App\Helpers\SeasonParser;
 use App\Http\Controllers\Controller;
@@ -1143,7 +1144,7 @@ class TechnicalDataSheetController extends Controller
         };
 
         if (is_array($sizes)) {
-            return $extractFromArray($sizes);
+            return SizeOrder::sort($extractFromArray($sizes));
         }
 
         if (is_string($sizes)) {
@@ -1154,13 +1155,13 @@ class TechnicalDataSheetController extends Controller
 
             $decoded = json_decode($trimmed, true);
             if (is_array($decoded)) {
-                return $extractFromArray($decoded);
+                return SizeOrder::sort($extractFromArray($decoded));
             }
 
-            return array_values(array_filter(
+            return SizeOrder::sort(array_values(array_filter(
                 array_map('trim', explode(',', $trimmed)),
                 static fn($item) => $item !== ''
-            ));
+            )));
         }
 
         return [];

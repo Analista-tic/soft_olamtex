@@ -9,6 +9,7 @@ export {
     stringifyJsonRecord,
 } from './helpers';
 export { mapProductSheetDto, mapProductionOrderDto, mapProgrammerDto } from './mappers';
+export { compareSizes, sortSizeEntries, sortSizes } from './sizeOrder';
 export { normalizeSizes, sizesToLabel, sizesToList, type SizesValue } from './sizes';
 export type {
     CostParameters,

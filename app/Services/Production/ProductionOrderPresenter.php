@@ -2,6 +2,7 @@
 
 namespace App\Services\Production;
 
+use App\Support\Production\SizeOrder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Storage;
@@ -133,7 +134,7 @@ class ProductionOrderPresenter
         };
 
         if (is_array($sizes)) {
-            return $extractFromArray($sizes);
+            return SizeOrder::sort($extractFromArray($sizes));
         }
 
         if (is_string($sizes)) {
@@ -144,13 +145,13 @@ class ProductionOrderPresenter
 
             $decoded = json_decode($trimmed, true);
             if (is_array($decoded)) {
-                return $extractFromArray($decoded);
+                return SizeOrder::sort($extractFromArray($decoded));
             }
 
-            return array_values(array_filter(
+            return SizeOrder::sort(array_values(array_filter(
                 array_map('trim', explode(',', $trimmed)),
                 static fn($item) => $item !== ''
-            ));
+            )));
         }
 
         return [];
