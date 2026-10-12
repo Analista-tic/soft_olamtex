@@ -35,7 +35,7 @@ beforeEach(function () {
     }
 });
 
-function requestPayload(int $itemId, float $quantity): array
+function inventoryRequestStockPayload(int $itemId, float $quantity): array
 {
     return [
         'date' => now()->toDateString(),
@@ -45,32 +45,32 @@ function requestPayload(int $itemId, float $quantity): array
 }
 
 it('accepts a request up to the total stock across warehouses', function () {
-    $this->postJson(route('inventory-requests.store'), requestPayload($this->item->id, 2))->assertCreated();
+    $this->postJson(route('inventory-requests.store'), inventoryRequestStockPayload($this->item->id, 2))->assertCreated();
 });
 
 it('refuses a request above the total stock and says what to do with the rest', function () {
-    $response = $this->postJson(route('inventory-requests.store'), requestPayload($this->item->id, 3))->assertUnprocessable();
+    $response = $this->postJson(route('inventory-requests.store'), inventoryRequestStockPayload($this->item->id, 3))->assertUnprocessable();
 
     expect($response->json('errors.items.0'))->toContain('Solo hay 2')->toContain('solicitud de compra');
     expect(InventoryRequest::count())->toBe(0);
 });
 
 it('adds repeated lines of the same item before comparing against the stock', function () {
-    $payload = requestPayload($this->item->id, 2);
+    $payload = inventoryRequestStockPayload($this->item->id, 2);
     $payload['items'][] = ['item_id' => $this->item->id, 'quantity' => 1];
 
     $this->postJson(route('inventory-requests.store'), $payload)->assertUnprocessable();
 });
 
 it('does not limit free-text items that have no stock to compare', function () {
-    $payload = requestPayload($this->item->id, 1);
+    $payload = inventoryRequestStockPayload($this->item->id, 1);
     $payload['items'] = [['item_name' => 'Cinta rara sin catálogo', 'quantity' => 50]];
 
     $this->postJson(route('inventory-requests.store'), $payload)->assertCreated();
 });
 
 it('returns the rejection reason, who rejected and when in the request detail', function () {
-    $created = $this->postJson(route('inventory-requests.store'), requestPayload($this->item->id, 1))->assertCreated();
+    $created = $this->postJson(route('inventory-requests.store'), inventoryRequestStockPayload($this->item->id, 1))->assertCreated();
     $id = $created->json('data.id');
 
     $this->postJson(route('inventory-requests.reject', $id), ['reason' => 'No hay presupuesto este mes'])->assertOk();

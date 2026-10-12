@@ -26,10 +26,11 @@ beforeEach(function () {
 function restrictedFabricItem(string $suffix): Item
 {
     $group = CategoryGroup::firstOrCreate(['name' => 'MATERIA PRIMA RESTRINGIDOS TEST']);
+    // Tela se decide por el tipo de material del subgrupo (como en el catálogo real), no por el nombre.
     $subGroup = CategorySubGroup::firstOrCreate([
         'name' => 'Tela Restringidos Test',
         'category_group_id' => $group->id,
-    ]);
+    ], ['material_kind' => 'fabric']);
 
     return Item::create([
         'category_sub_group_id' => $subGroup->id,
