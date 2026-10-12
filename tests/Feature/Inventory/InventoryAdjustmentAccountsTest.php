@@ -152,3 +152,14 @@ it('values an outflow adjustment at the weighted average whatever price the clie
     expect((float) $line->price)->toBe(1000.0);
     expect(InventoryMovement::where('item_id', $item->id)->where('type', 'salida')->value('total_cost'))->toEqual(2000);
 });
+
+it('ignores a document number sent by the client when creating, so a repeated number never fails', function () {
+    $item = accountsTestItem($this->subGroup->id);
+    $payload = accountsTestPayload($item->id, $this->warehouse->id);
+
+    $first = $this->postJson(route('ajustes-inventario.store'), $payload)->assertCreated();
+    $payload['document_number'] = $first->json('data.document_number');
+    $second = $this->postJson(route('ajustes-inventario.store'), $payload)->assertCreated();
+
+    expect($second->json('data.document_number'))->not->toBe($first->json('data.document_number'));
+});

@@ -47,6 +47,9 @@ type Line = {
     description: string;
     /** true cuando el usuario escribió el precio (o viene de un ajuste guardado): no se pisa con el sugerido. */
     priceEdited?: boolean;
+    /** Referencia informativa del ítem en la bodega al elegirlo (no se envía al guardar). */
+    currentStock?: number | null;
+    averagePrice?: number | null;
 };
 
 const defaultMovementReason: 'entrada' | 'salida' = 'entrada';
@@ -278,6 +281,7 @@ function fillFromAdjustment(data: any) {
                   description: '',
               },
           ];
+    lines.value.filter((line) => line.itemId).forEach((line) => void suggestPrice(line.id));
 }
 
 watch(
@@ -347,7 +351,7 @@ const isOutflowLine = (line: Line) => line.movementReason === 'salida';
 
 async function suggestPrice(lineId: number, force = false) {
     const line = lines.value.find((l) => l.id === lineId);
-    if (!line || (line.priceEdited && !force) || !line.itemId) return;
+    if (!line || !line.itemId) return;
     const itemId = line.itemId;
     const warehouseId = line.warehouseId || selectedWarehouseId.value;
     try {
@@ -355,8 +359,12 @@ async function suggestPrice(lineId: number, force = false) {
             params: { item_id: itemId, warehouse_id: warehouseId || undefined },
         });
         const current = lines.value.find((l) => l.id === lineId);
-        if (current && (force || !current.priceEdited) && current.itemId === itemId) {
-            current.price = Math.round(Number(data?.weighted_price ?? 0) * 100) / 100;
+        if (!current || current.itemId !== itemId) return;
+        // Referencia informativa del ítem en la bodega; el precio solo se sugiere si el usuario no lo escribió.
+        current.currentStock = Number(data?.current_stock ?? 0);
+        current.averagePrice = Math.round(Number(data?.weighted_price ?? 0) * 100) / 100;
+        if (force || !current.priceEdited) {
+            current.price = current.averagePrice;
         }
     } catch {
         // Sin sugerido el usuario escribe el precio a mano.
@@ -747,6 +755,13 @@ async function handleSubmit() {
                                                 error-message="Requerido"
                                                 class="h-10 w-full"
                                             />
+                                            <p
+                                                v-if="line.itemId && line.currentStock != null"
+                                                class="mt-1 text-xs"
+                                                :class="isOutflowLine(line) && Number(line.quantity) > line.currentStock ? 'text-destructive' : 'text-muted-foreground'"
+                                            >
+                                                Stock actual: {{ line.currentStock }}<span v-if="line.averagePrice"> · Costo prom.: {{ formatCurrency(line.averagePrice) }}</span>
+                                            </p>
                                         </TableCell>
 
                                         <TableCell class="p-1">

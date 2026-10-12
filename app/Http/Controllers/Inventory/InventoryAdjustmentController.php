@@ -101,6 +101,8 @@ class InventoryAdjustmentController extends Controller
     public function store(Request $request)
     {
         $this->decodeLinesJson($request);
+        // El consecutivo lo asigna el servidor; un número viejo que llegue del formulario no debe provocar "ya existe".
+        $request->merge(['document_number' => null]);
 
         try {
             $data = $this->validateAdjustment($request, $this->service->movementReasons());
