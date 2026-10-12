@@ -3,28 +3,15 @@ import type {
     MachineOption,
     OperationOption,
     OperationSection,
+    ProductOperationDialogInitialData,
     ProductOperationPayload,
     ProductSheetDialogOption,
 } from '@/domain/product-sheet/types';
 import axios from 'axios';
 import { ref } from 'vue';
 
-export type ListadoDialogInitialData = {
-    productSheetId: number | null;
-    operations: {
-        section_id: number | null;
-        operation_id: number | null;
-        machine_id: number | null;
-        optimal_time: string;
-        quantity: number;
-        fabric_base_id: number | string | null;
-        operator_efficiency_factor: number;
-        grupo_preparacion?: string | null;
-        row_notes?: string;
-    }[];
-    operatorEfficiencyFactor: number;
-    notes: string;
-};
+/** Mismos datos iniciales que usa la página de Listados operacionales (con el id de cada línea). */
+export type ListadoDialogInitialData = ProductOperationDialogInitialData;
 
 export function useListadoOperacionalEdit(options?: { onSaved?: () => void; onError?: (msg: string) => void }) {
     const editOpsOpen = ref(false);
@@ -85,21 +72,24 @@ export function useListadoOperacionalEdit(options?: { onSaved?: () => void; onEr
                     : [];
             const sorted = [...rows].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
 
+            const efficiencyToPercent = (factor: unknown) => {
+                const value = Number(factor ?? 1) || 1;
+                return value > 0 ? Number((100 / value).toFixed(2)) : 100;
+            };
             opsInitialData.value = {
                 productSheetId,
                 operations: sorted.map((row) => ({
-                    section_id: row.operation_section_id ?? null,
+                    // Sin el id, guardar recrearía cada línea (y chocaría con la operación que ya existe).
+                    id: row.id ?? null,
+                    section_id: row.operation_section_id ?? row.section_id ?? null,
                     operation_id: row.operation_id ?? null,
-                    machine_id: row.machine_id ?? null,
-                    optimal_time: Number(row.sam_base ?? row.optimal_time ?? 0).toFixed(4),
-                    quantity: row.quantity ?? 1,
-                    fabric_base_id: row.fabric_base_id ?? null,
-                    operator_efficiency_factor: Number(row.operator_efficiency_factor ?? 1) || 1,
+                    optimal_time: Number(row.optimal_time ?? row.sam ?? row.sam_base ?? 0).toFixed(4),
+                    factor_operario: efficiencyToPercent(row.operator_efficiency_factor),
                     grupo_preparacion: row.grupo_preparacion ?? null,
                     row_notes: row.notes ?? '',
                 })),
-                operatorEfficiencyFactor: 1,
-                notes: '',
+                operatorEfficiencyFactor: efficiencyToPercent(sorted[0]?.operator_efficiency_factor),
+                notes: sorted[0]?.notes ?? '',
             };
             editOpsOpen.value = true;
         } catch (e) {
@@ -113,40 +103,32 @@ export function useListadoOperacionalEdit(options?: { onSaved?: () => void; onEr
     async function handleSaveOps(payload: ProductOperationPayload[], productSheetId: number) {
         isSavingOps.value = true;
         try {
-            // 1. Obtener IDs existentes
-            const existingRes = await axios.get('/produccion/listados-operacionales/data', {
-                params: { product_sheet_id: productSheetId },
-            });
-            const existingIds: number[] = (existingRes.data?.data ?? []).map((r: any) => r.id).filter(Boolean);
-
-            // 2. Eliminar existentes
-            if (existingIds.length > 0) {
-                await axios.post('/produccion/listados-operacionales/bulk-delete', {
+            const operations = payload
+                .filter((p) => p.operation_id)
+                .map((p) => ({
+                    id: p.id ?? null,
                     product_sheet_id: productSheetId,
-                    operation_ids: existingIds,
-                });
+                    operation_id: p.operation_id,
+                    sequence: p.sequence,
+                    optimal_time: Number(p.optimal_time),
+                    operator_efficiency_factor: p.operator_efficiency_factor,
+                    machine_supplement_factor: p.machine_supplement_factor,
+                    grupo_preparacion: p.grupo_preparacion ?? null,
+                    notes: p.notes ?? null,
+                }));
+
+            // Nunca sincronizar vacío: borraría todo el listado.
+            if (operations.length === 0) {
+                options?.onError?.('El listado operacional no puede quedar vacío.');
+                return;
             }
 
-            // 3. Crear nuevas
-            const valid = payload.filter((p) => p.product_sheet_id && p.section_id && p.operation_id && p.machine_id);
-            if (valid.length > 0) {
-                await axios.post('/produccion/listados-operacionales/bulk', {
-                    operations: valid.map((p) => ({
-                        product_sheet_id: productSheetId,
-                        operation_id: p.operation_id,
-                        machine_id: p.machine_id,
-                        operation_section_id: p.section_id,
-                        sequence: p.sequence,
-                        optimal_time: Number(p.optimal_time),
-                        operator_efficiency_factor: p.operator_efficiency_factor,
-                        machine_supplement_factor: p.machine_supplement_factor,
-                        grupo_preparacion: p.grupo_preparacion ?? null,
-                        notes: p.notes ?? null,
-                        quantity: p.quantity ?? 1,
-                        fabric_base_id: p.fabric_base_id ?? null,
-                    })),
-                });
-            }
+            // Mismo guardado que la página de Listados: actualiza por id, crea las nuevas y quita solo las retiradas.
+            // (Antes borraba todo y solo recreaba filas con campos que el diálogo no envía, dejando el listado vacío.)
+            await axios.post('/produccion/listados-operacionales/sync', {
+                product_sheet_id: productSheetId,
+                operations,
+            });
 
             editOpsOpen.value = false;
             options?.onSaved?.();
