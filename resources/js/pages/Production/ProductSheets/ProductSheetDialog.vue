@@ -451,7 +451,11 @@ async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig
             return;
         }
 
-        const updated = [...currentOptions, { id: createdId, name: createdName }];
+        // Las secciones traen su tipo de prenda: con él la sábana fija o deja elegir superior/inferior.
+        const updated = [
+            ...currentOptions,
+            { id: createdId, name: createdName, ...(created?.allowed_garment_type ? { allowed_garment_type: created.allowed_garment_type } : {}) },
+        ];
         config.setOptions(updated);
         config.assign(createdId);
         setError(`${config.successLabel} agregada y seleccionada.`, 'info');
@@ -469,8 +473,40 @@ async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig
     }
 }
 
+// Toda sección nueva debe decir si es de prenda superior, inferior o ambas (antes nacía siempre en "ambos").
+type SectionGarmentType = 'superior' | 'inferior' | 'ambos';
+const sectionGarmentDialogOpen = ref(false);
+const sectionGarmentDialogName = ref('');
+let sectionGarmentDialogResolve: ((type: SectionGarmentType) => void) | null = null;
+let sectionGarmentDialogReject: (() => void) | null = null;
+
+function requestSectionGarmentType(name: string): Promise<SectionGarmentType> {
+    sectionGarmentDialogName.value = name;
+    sectionGarmentDialogOpen.value = true;
+
+    return new Promise((resolve, reject) => {
+        sectionGarmentDialogResolve = resolve;
+        sectionGarmentDialogReject = reject;
+    });
+}
+
+function confirmSectionGarmentType(type: SectionGarmentType) {
+    sectionGarmentDialogOpen.value = false;
+    sectionGarmentDialogResolve?.(type);
+    sectionGarmentDialogResolve = null;
+    sectionGarmentDialogReject = null;
+}
+
+function cancelSectionGarmentType() {
+    sectionGarmentDialogOpen.value = false;
+    sectionGarmentDialogReject?.();
+    sectionGarmentDialogResolve = null;
+    sectionGarmentDialogReject = null;
+}
+
 async function onCreateSection(name: string): Promise<Option> {
-    await createCatalogOption('sections', name);
+    const allowedGarmentType = await requestSectionGarmentType(name);
+    await createCatalogOption('sections', name, { allowed_garment_type: allowedGarmentType });
     const created = sectionOptions.value.find((o) => String(o.name).trim().toLowerCase() === name.trim().toLowerCase());
     if (!created) throw new Error('No se pudo crear la sección');
     return { id: String(created.id), name: String(created.name) };
@@ -2260,6 +2296,30 @@ function handleClose() {
             <DialogFooter class="flex flex-wrap items-center justify-end gap-2 border-t px-6 py-4">
                 <Button variant="outline" size="sm" @click="cancelFabricBaseFactorDialog">Cancelar</Button>
                 <Button size="sm" @click="confirmFabricBaseFactorDialog">Crear</Button>
+            </DialogFooter>
+        </FormDialogContent>
+    </Dialog>
+
+    <Dialog
+        :open="sectionGarmentDialogOpen"
+        @update:open="
+            (value) => {
+                if (!value) cancelSectionGarmentType();
+            }
+        "
+    >
+        <FormDialogContent size="lg" class="max-w-xl overflow-hidden p-0">
+            <DialogHeader class="border-b px-6 py-4 text-left">
+                <DialogTitle>Nueva sección: {{ sectionGarmentDialogName }}</DialogTitle>
+                <DialogDescription>
+                    ¿Es de prenda superior, inferior o ambas? Superior o inferior fija el tipo de prenda en la sábana; "Ambos" deja elegirlo.
+                </DialogDescription>
+            </DialogHeader>
+            <DialogFooter class="flex flex-wrap items-center justify-end gap-2 px-6 py-4">
+                <Button variant="outline" size="sm" @click="cancelSectionGarmentType">Cancelar</Button>
+                <Button size="sm" @click="confirmSectionGarmentType('superior')">Superior</Button>
+                <Button size="sm" @click="confirmSectionGarmentType('inferior')">Inferior</Button>
+                <Button size="sm" variant="secondary" @click="confirmSectionGarmentType('ambos')">Ambos</Button>
             </DialogFooter>
         </FormDialogContent>
     </Dialog>

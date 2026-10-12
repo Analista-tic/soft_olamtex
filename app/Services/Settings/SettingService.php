@@ -201,7 +201,7 @@ class SettingService
      *
      * @return array{id: int, name: string} La opción creada
      */
-    public function addCatalogOption(string $key, string $name): array
+    public function addCatalogOption(string $key, string $name, ?string $allowedGarmentType = null): array
     {
         $canonical = $this->canonicalKey($key);
 
@@ -241,9 +241,11 @@ class SettingService
 
         $newOption = ['id' => $newId, 'name' => trim($name)];
 
-        // Secciones de producto: incluir allowed_garment_type por defecto
+        // Secciones de producto: el tipo de prenda elegido; "ambos" solo cuando no se indica (carga masiva).
         if ($canonical === 'sections') {
-            $newOption['allowed_garment_type'] = 'ambos';
+            $newOption['allowed_garment_type'] = in_array($allowedGarmentType, ['superior', 'inferior', 'ambos'], true)
+                ? $allowedGarmentType
+                : 'ambos';
         }
 
         $current[] = $newOption;

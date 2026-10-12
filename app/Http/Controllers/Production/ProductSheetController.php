@@ -598,7 +598,15 @@ class ProductSheetController extends Controller
         }
 
         try {
-            $created = $this->settingService->addCatalogOption($key, $name);
+            // Una sección nueva debe decir su tipo de prenda; sin él la sábana la dejaría "abierta".
+            $garmentType = null;
+            if ($key === 'sections') {
+                $garmentType = $request->validate([
+                    'allowed_garment_type' => ['required', 'in:superior,inferior,ambos'],
+                ])['allowed_garment_type'];
+            }
+
+            $created = $this->settingService->addCatalogOption($key, $name, $garmentType);
 
             return response()->json([
                 'success' => true,
