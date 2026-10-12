@@ -163,3 +163,21 @@ it('ignores a document number sent by the client when creating, so a repeated nu
 
     expect($second->json('data.document_number'))->not->toBe($first->json('data.document_number'));
 });
+
+it('computes the header totals from the saved line prices, not the ones the client sends', function () {
+    $item = accountsTestItem($this->subGroup->id);
+    $this->postJson(route('ajustes-inventario.store'), accountsTestPayload($item->id, $this->warehouse->id))->assertCreated();
+
+    $payload = accountsTestPayload($item->id, $this->warehouse->id, 'salida', 'exit_regularization');
+    $payload['lines'][0]['price'] = 1;
+    $payload['lines'][0]['quantity'] = 2;
+    $payload['subtotal'] = 2;
+    $payload['total'] = 2;
+
+    $adjustment = \App\Models\Inventory\InventoryAdjustment::find(
+        $this->postJson(route('ajustes-inventario.store'), $payload)->assertCreated()->json('data.id')
+    );
+
+    expect((float) $adjustment->subtotal)->toEqual(2000.0)
+        ->and((float) $adjustment->total)->toEqual(2000.0);
+});

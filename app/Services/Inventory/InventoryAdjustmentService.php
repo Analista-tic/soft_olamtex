@@ -213,6 +213,12 @@ class InventoryAdjustmentService
 
             $createdMovements = $this->syncLinesAndStock($adjustment, $data['lines'], $items, $movementReasons);
 
+            // Totales del encabezado con los precios realmente guardados (en una salida es el costo promedio, no lo que mande el cliente).
+            [$subtotal, $iva] = $this->calculateTotals(
+                $adjustment->lines()->get(['price', 'quantity', 'tax'])->map(fn ($line) => $line->only(['price', 'quantity', 'tax']))->all()
+            );
+            $adjustment->update(['subtotal' => $subtotal, 'iva' => $iva, 'total' => $subtotal + $iva]);
+
             if ($accountingGaps !== []) {
                 // La contabilidad aún no está completa: el kardex se actualiza igual y se avisa que no hubo asiento.
                 Log::warning("Ajuste de inventario {$adjustment->document_number} guardado sin asiento contable.", ['motivos' => $accountingGaps]);
