@@ -73,3 +73,17 @@ it('treats as fabric only subgroups with the fabric material kind, not any name 
     expect($rows)->toHaveCount(1);
     expect((float) $rows[0]['quantity'])->toBe(7.0)->and((bool) $rows[0]['is_fabric'])->toBeFalse();
 });
+
+it('writes the aggregated rows with their headers and numbers in the Excel file', function () {
+    $response = $this->get(route('inventario-item.exportar-excel', ['search' => 'BOLSA AGREGADO']))->assertOk();
+
+    $sheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($response->getFile()->getPathname())->getActiveSheet();
+
+    expect($sheet->rangeToArray('A1:H1')[0])->toBe(['Ítem', 'Referencia', 'Bodega', 'Cantidad', 'Restringido', 'Estado', 'Costo promedio', 'Costo total'])
+        ->and($sheet->getCell('A2')->getValue())->toBe('BOLSA AGREGADO')
+        ->and($sheet->getCell('C2')->getValue())->toBe('Bodega A Agregado, Bodega B Agregado')
+        ->and((float) $sheet->getCell('D2')->getValue())->toBe(40.0)
+        ->and((float) $sheet->getCell('G2')->getValue())->toBe(17500.0)
+        ->and((float) $sheet->getCell('H2')->getValue())->toBe(700000.0)
+        ->and($sheet->getHighestRow())->toBe(2);
+});

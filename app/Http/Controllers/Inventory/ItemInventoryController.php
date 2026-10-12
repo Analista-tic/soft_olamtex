@@ -58,7 +58,10 @@ class ItemInventoryController extends Controller
         foreach (range('A', 'H') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
-        $sheet->getStyle("G2:H{$line}")->getNumberFormat()->setFormatCode('#,##0.00');
+        $lastRow = $line - 1;
+        if ($lastRow >= 2) {
+            $sheet->getStyle("G2:H{$lastRow}")->getNumberFormat()->setFormatCode('#,##0.00');
+        }
 
         $tempFile = tempnam(sys_get_temp_dir(), 'inv_items_').'.xlsx';
         (new Xlsx($spreadsheet))->save($tempFile);
