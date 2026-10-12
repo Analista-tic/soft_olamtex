@@ -298,8 +298,50 @@ class InventoryRequestService
         return $this->findOrFail($request->id);
     }
 
+    /**
+     * Una solicitud no puede pedir más de lo que hay en inventario (suma de todas las bodegas): lo que falte
+     * se pide por solicitud de compra. Los ítems escritos a mano (sin item_id) no tienen stock que comparar.
+     */
+    protected function assertWithinAvailableStock(array $items): void
+    {
+        $requestedByItem = [];
+        foreach ($items as $item) {
+            $itemId = $item['item_id'] ?? null;
+            $quantity = (float) ($item['quantity'] ?? $item['requested_quantity'] ?? 0);
+            if ($itemId && $quantity > 0) {
+                $requestedByItem[(int) $itemId] = ($requestedByItem[(int) $itemId] ?? 0) + $quantity;
+            }
+        }
+
+        if ($requestedByItem === []) {
+            return;
+        }
+
+        $available = \App\Models\Inventory\WarehouseItem::query()
+            ->whereIn('item_id', array_keys($requestedByItem))
+            ->selectRaw('item_id, SUM(quantity) as total')
+            ->groupBy('item_id')
+            ->pluck('total', 'item_id');
+        $names = \App\Models\MasterData\Item::whereIn('id', array_keys($requestedByItem))->pluck('name', 'id');
+
+        $messages = [];
+        foreach ($requestedByItem as $itemId => $requested) {
+            $stock = (float) ($available[$itemId] ?? 0);
+            if ($requested > $stock + 0.0001) {
+                $messages[] = 'Solo hay '.rtrim(rtrim(number_format($stock, 4, '.', ''), '0'), '.').' disponible de "'.($names[$itemId] ?? "#{$itemId}").'" y pides '
+                    .rtrim(rtrim(number_format($requested, 4, '.', ''), '0'), '.').'. Solicita lo que hay y pide el resto por solicitud de compra.';
+            }
+        }
+
+        if ($messages !== []) {
+            throw ValidationException::withMessages(['items' => $messages]);
+        }
+    }
+
     protected function syncItems(InventoryRequest $request, array $items): void
     {
+        $this->assertWithinAvailableStock($items);
+
         // Por instancia para que el AuditObserver registre cada línea eliminada.
         $request->items()->get()->each->delete();
 

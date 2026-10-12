@@ -32,6 +32,9 @@ type InventoryRequestForm = {
     observation?: string | null;
     items: RequestItem[];
     status?: string | null;
+    rejection_reason?: string | null;
+    rejected_at?: string | null;
+    rejected_by_name?: string | null;
 };
 
 type InitialDraftItem = {
@@ -65,7 +68,14 @@ const isLoading = ref(false);
 const isHydrationLoading = ref(false);
 const isSubmittingDialog = ref(false);
 const { successMessage, errorMessage, errorType, showSuccess, showWarning, showError, clearSuccess, clearError } = useAlertStack();
-const itemsTableRef = ref<{ addItem: () => void } | null>(null);
+const itemsTableRef = ref<{ addItem: () => void; exceededItems: () => string[] } | null>(null);
+
+const rejectedAtLabel = computed(() => {
+    const value = localForm.value.rejected_at;
+    if (!value) return '';
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? '' : parsed.toLocaleString('es-CO');
+});
 
 const isReadonly = computed(() => props.dialogType === 'view');
 const shouldBlockBody = computed(() => dialogOpen.value && isHydrationLoading.value);
@@ -171,6 +181,9 @@ async function fetchRequest(id: number) {
             delivery_date: payload.delivery_date ? formatDateValue(payload.delivery_date) : '',
             observation: payload.observation ?? '',
             status: payload.status ?? null,
+            rejection_reason: payload.rejection_reason ?? null,
+            rejected_at: payload.rejected_at ?? null,
+            rejected_by_name: payload.rejected_by?.name ?? payload.rejectedBy?.name ?? null,
             items:
                 Array.isArray(payload.items) && payload.items.length
                     ? payload.items.map((item: any) => ({
@@ -295,12 +308,28 @@ function validateForm(): boolean {
         return false;
     }
 
+    const exceeded = itemsTableRef.value?.exceededItems() ?? [];
+    if (exceeded.length > 0) {
+        showWarning(`Pides más de lo disponible en: ${exceeded.join(', ')}. Solicita lo que hay y pide el resto por solicitud de compra.`);
+        return false;
+    }
+
     if (!localForm.value.observation?.trim()) {
         showWarning('La observación o motivo de la solicitud es obligatoria.');
         return false;
     }
 
     return true;
+}
+
+/** Mensaje del servidor (ej. stock insuficiente) cuando existe; si no, el genérico. */
+function saveErrorMessage(error: any): string {
+    const errors = error?.response?.data?.errors;
+    if (errors && typeof errors === 'object') {
+        const first = Object.values(errors).flat()[0];
+        if (typeof first === 'string' && first.trim() !== '') return first;
+    }
+    return 'Ocurrió un error al guardar la solicitud. Intenta de nuevo.';
 }
 
 async function handleSubmit() {
@@ -369,8 +398,8 @@ async function handleSubmit() {
         showSuccess(msg);
         emit('saved', msg, savedId);
         dialogOpen.value = false;
-    } catch {
-        showError('Ocurrió un error al guardar la solicitud. Intenta de nuevo.');
+    } catch (error) {
+        showError(saveErrorMessage(error));
     } finally {
         isLoading.value = false;
         isSubmittingDialog.value = false;
@@ -467,6 +496,19 @@ watch(dialogOpen, (isOpen) => {
                                     :disabled="true"
                                     :class="localForm.status === 'entregado' ? '' : 'col-span-2'"
                                 />
+                            </div>
+
+                            <div
+                                v-if="localForm.status === 'rechazado'"
+                                class="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm"
+                            >
+                                <p class="font-medium text-destructive">Solicitud rechazada</p>
+                                <p class="mt-1 whitespace-pre-line">{{ localForm.rejection_reason || 'Sin motivo registrado.' }}</p>
+                                <p v-if="localForm.rejected_by_name || rejectedAtLabel" class="mt-1 text-xs text-muted-foreground">
+                                    <span v-if="localForm.rejected_by_name">Por {{ localForm.rejected_by_name }}</span>
+                                    <span v-if="localForm.rejected_by_name && rejectedAtLabel"> · </span>
+                                    <span v-if="rejectedAtLabel">{{ rejectedAtLabel }}</span>
+                                </p>
                             </div>
 
                             <InventoryDetailTableLayout
