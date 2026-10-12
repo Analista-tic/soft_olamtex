@@ -188,7 +188,7 @@ class OperationController extends Controller
             'anexo'        => ['nullable', 'string', 'max:255'],
             'codigo'       => ['nullable', 'string', 'max:50'],
             'section_id'   => ['required', 'integer', 'exists:operation_sections,id'],
-            'measure'      => ['nullable', 'numeric', 'min:0'],
+            'measure'      => ['required', 'numeric', 'min:0'], // 0 = la medida no aplica
             'quantity'     => ['nullable', 'integer', 'min:1'],
             'description'  => ['nullable', 'string'],
             'sam_base'     => ['required', 'numeric', 'min:0.001'],
@@ -272,7 +272,7 @@ class OperationController extends Controller
             'garment_part' => ['sometimes', 'string', 'max:255'],
             'anexo'        => ['nullable', 'string', 'max:255'],
             'section_id'   => ['nullable', 'integer', 'exists:operation_sections,id'],
-            'measure'      => ['nullable', 'numeric', 'min:0'],
+            'measure'      => ['sometimes', 'required', 'numeric', 'min:0'], // 0 = la medida no aplica
             'quantity'     => ['nullable', 'integer', 'min:1'],
             'sam_base'     => ['nullable', 'numeric', 'min:0'],
             'factor_operario' => ['sometimes', 'numeric', 'min:0.01'],

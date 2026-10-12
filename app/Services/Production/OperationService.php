@@ -220,8 +220,9 @@ class OperationService
             $parts[] = strtoupper($normalizedAnexo);
         }
 
-        if ($measure !== null && $measure !== '' && is_numeric($measure)) {
-            $parts[] = rtrim(rtrim((string) $measure, '0'), '.') . ' CM';
+        $measureLabel = Operation::formatMeasure($measure);
+        if ($measureLabel !== null) {
+            $parts[] = $measureLabel . ' CM';
         }
 
         if ($quantity !== null && $quantity !== '' && is_numeric($quantity)) {

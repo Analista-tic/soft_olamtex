@@ -249,12 +249,19 @@ const selectedProductSheetName = computed(() => {
     return ps?.name ?? '-';
 });
 
+/** Vacío ≠ 0: la medida es obligatoria y se escribe 0 cuando no aplica. */
+const isMeasureMissing = () =>
+    form.value.measure === null || form.value.measure === undefined || (form.value.measure as unknown) === '' || Number.isNaN(Number(form.value.measure));
+const showRequiredErrors = ref(false);
+
 function validate(): string | null {
+    showRequiredErrors.value = true;
     if (!form.value.action?.trim()) return 'La acción es obligatoria.';
     if (form.value.garment_part === null || form.value.garment_part === undefined) return 'La parte de prenda es obligatoria.';
     if (!form.value.section_id && !isEditing.value) return 'La sección es obligatoria.';
     if (!form.value.product_sheet_id_reference) return 'La sábana de producto es obligatoria.';
-    if (form.value.measure != null && form.value.measure !== '' && Number(form.value.measure) < 0) return 'La medida debe ser mayor o igual a 0.';
+    if (isMeasureMissing()) return 'La medida es obligatoria (escribe 0 si no aplica).';
+    if (Number(form.value.measure) < 0) return 'La medida debe ser mayor o igual a 0.';
 
     if (!isEditing.value) {
         const sam = form.value.sam_base ?? 0;
@@ -282,7 +289,7 @@ function submit() {
         garment_part: (form.value.garment_part ?? '').trim().toUpperCase(),
         anexo: form.value.anexo?.trim().toUpperCase() || null,
         section_id: form.value.section_id,
-        measure: form.value.measure ?? null,
+        measure: Number(form.value.measure),
         quantity: form.value.quantity ?? 1,
         sam_base: form.value.sam_base ?? null,
         factor_operario: form.value.factor_operario ?? 100,
@@ -404,9 +411,17 @@ defineExpose({ submit, validate });
             </p>
             <div class="grid grid-cols-2 gap-4">
                 <div class="space-y-1">
-                    <Label class="text-sm">Medida (cm)</Label>
-                    <InputField v-model.number="form.measure" label="" type="number" step="0.01" min="0" placeholder="0.00" />
-                    <p class="text-[10px] text-muted-foreground">Longitud de costura</p>
+                    <Label class="text-sm">Medida (cm) <span class="text-destructive">*</span></Label>
+                    <InputField
+                        v-model.number="form.measure"
+                        label=""
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        :error="showRequiredErrors && isMeasureMissing() ? 'Requerido' : false"
+                    />
+                    <p class="text-[10px] text-muted-foreground">Longitud de costura; 0 si no aplica</p>
                 </div>
                 <div class="space-y-1">
                     <Label class="text-sm">Cantidad</Label>
