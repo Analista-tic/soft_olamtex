@@ -473,8 +473,19 @@ class OperationService
                 }
             }
 
+            $timeChanged = array_key_exists('sam_base', $data) && (float) $operation->sam_base !== (float) $data['sam_base'];
+            $quantityChanged = array_key_exists('quantity', $data) && (int) $operation->quantity !== (int) $data['quantity'];
+
             $operation->fill($data);
             $operation->saveQuietly();
+
+            // El tiempo o la cantidad cambian el SAM de todos los listados que usan esta operación.
+            if ($timeChanged || $quantityChanged) {
+                app(ProductOperationListService::class)->syncFromOperation(
+                    $operation,
+                    $motivo ?: 'Cambio del tiempo o la cantidad de la operación '.$operation->codigo
+                );
+            }
 
             return $operation->fresh();
         });
@@ -510,29 +521,10 @@ class OperationService
             $operation->fill(['sam_base' => $newSamBase]);
             $operation->saveQuietly();
 
-            $listIds = $operation->productOperationLists()->pluck('id')->all();
-
-            $operation->productOperationLists()->update([
-                'optimal_time' => $newSamBase,
-                'sam' => $newSamBase,
-                'updated_at' => now(),
-            ]);
-
-            // El update masivo no dispara el AuditObserver: se registra un resumen.
-            app(AuditLogService::class)->logBulk(
-                ProductOperationList::class,
-                'updated',
-                $listIds,
-                ['operation_id' => $operation->id, 'optimal_time' => $newSamBase, 'sam' => $newSamBase],
-                $motivo ?? 'Actualización de SAM base de la operación',
+            app(ProductOperationListService::class)->syncFromOperation(
+                $operation,
+                $motivo ?? 'Actualización de SAM base de la operación'
             );
-
-            $operation->productOperationLists()->each(function ($list) {
-                $productionTime = $list->optimal_time
-                    * ($list->operator_efficiency_factor ?? 1.0)
-                    * ($list->machine_supplement_factor ?? 1.0);
-                $list->update(['production_time' => round($productionTime, 4)]);
-            });
 
             return $operation->fresh();
         });
