@@ -1428,10 +1428,12 @@ class FabricRollController extends Controller
         }
     }
 
-    public function approveReception($invoiceId)
+    public function approveReception(Request $request, $invoiceId)
     {
+        $warehouseId = $request->validate(['warehouse_id' => 'nullable|integer|exists:warehouses,id'])['warehouse_id'] ?? null;
+
         try {
-            $invoice = $this->service->approveReception($invoiceId);
+            $invoice = $this->service->approveReception($invoiceId, $warehouseId !== null ? (int) $warehouseId : null);
 
             $number = $invoice->document_number ?? (string) $invoice->id;
             app(\App\Services\Settings\NotificationDispatcher::class)->dispatch(

@@ -209,20 +209,58 @@ it('does not create a movement for a service item that does not track inventory'
     expect(PurchaseDocumentItemReception::where('purchase_document_item_id', $line->id)->count())->toBe(0);
 });
 
-it('closes a general invoice with pending balance without blocking, same as today', function () {
+it('receives the pending balance into the chosen warehouse when closing the invoice', function () {
     $item = createGeneralReceptionTestItem('close-pending');
     $warehouse = Warehouse::create(['name' => 'Bodega recepción close-pending', 'observation' => 'Test']);
-    [$invoice, $line] = createGeneralReceptionTestInvoice($item, quantity: 100);
+    $closingWarehouse = Warehouse::create(['name' => 'Bodega cierre close-pending', 'observation' => 'Test']);
+    [$invoice, $line] = createGeneralReceptionTestInvoice($item, quantity: 100, price: 250);
 
     $this->service->registerGeneralReception($invoice->id, [
         ['purchase_document_item_id' => $line->id, 'warehouse_id' => $warehouse->id, 'quantity' => 40],
     ]);
 
-    $closed = $this->service->approveReception($invoice->id);
+    $closed = $this->service->approveReception($invoice->id, $closingWarehouse->id);
 
     expect($closed->status)->toBe('approved');
-    expect(WarehouseItem::where('item_id', $item->id)->where('warehouse_id', $warehouse->id)->first()->quantity)
-        ->toEqual(40.0);
+    expect(WarehouseItem::where('item_id', $item->id)->where('warehouse_id', $warehouse->id)->first()->quantity)->toEqual(40.0);
+    $pending = WarehouseItem::where('item_id', $item->id)->where('warehouse_id', $closingWarehouse->id)->first();
+    expect($pending->quantity)->toEqual(60.0)
+        ->and((float) $pending->weighted_average_price)->toEqual(250.0);
+    expect(PurchaseDocumentItemReception::where('purchase_document_item_id', $line->id)->sum('quantity'))->toEqual(100.0);
+});
+
+it('does not close an invoice with a pending balance when no warehouse is given', function () {
+    $item = createGeneralReceptionTestItem('close-no-warehouse');
+    [$invoice] = createGeneralReceptionTestInvoice($item, quantity: 10);
+
+    expect(fn () => $this->service->approveReception($invoice->id))->toThrow(ValidationException::class);
+
+    expect($invoice->fresh()->status)->toBe('pending_receipt')
+        ->and(InventoryMovement::where('item_id', $item->id)->count())->toBe(0);
+});
+
+it('closes a fully received invoice without asking for a warehouse', function () {
+    $item = createGeneralReceptionTestItem('close-complete');
+    $warehouse = Warehouse::create(['name' => 'Bodega recepción close-complete', 'observation' => 'Test']);
+    [$invoice, $line] = createGeneralReceptionTestInvoice($item, quantity: 10);
+
+    $this->service->registerGeneralReception($invoice->id, [
+        ['purchase_document_item_id' => $line->id, 'warehouse_id' => $warehouse->id, 'quantity' => 10],
+    ]);
+
+    expect($this->service->approveReception($invoice->id)->status)->toBe('approved');
+});
+
+it('refuses a purchase entry whose line has no price', function () {
+    $item = createGeneralReceptionTestItem('no-price');
+    $warehouse = Warehouse::create(['name' => 'Bodega recepción no-price', 'observation' => 'Test']);
+    [$invoice, $line] = createGeneralReceptionTestInvoice($item, quantity: 10, price: 0);
+
+    expect(fn () => $this->service->registerGeneralReception($invoice->id, [
+        ['purchase_document_item_id' => $line->id, 'warehouse_id' => $warehouse->id, 'quantity' => 10],
+    ]))->toThrow(ValidationException::class);
+
+    expect(InventoryMovement::where('item_id', $item->id)->count())->toBe(0);
 });
 
 it('rejects a warehouse that does not exist through the HTTP endpoint', function () {

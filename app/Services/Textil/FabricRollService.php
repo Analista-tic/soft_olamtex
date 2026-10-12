@@ -2464,36 +2464,104 @@ class FabricRollService
 
                 $warehouseId = $this->warehouseResolver->resolveWarehouseId($item, (int) $payloadLine['warehouse_id']);
 
-                $reception = PurchaseDocumentItemReception::create([
-                    'purchase_document_item_id' => $line->id,
-                    'warehouse_id' => $warehouseId,
-                    'quantity' => $quantity,
-                    'unit_price' => $line->price,
-                    'over_received_reason' => $reason,
-                    'received_by_user_id' => (int) $responsibleUserId,
-                    'received_at' => now(),
-                ]);
-
-                $movement = $this->movementService->createMovement([
-                    'document_number' => $this->movementNumberWithSuffix($documentNumber, ' [R'.$reception->id.']'),
-                    'item_id' => $item->id,
-                    'warehouse_id' => $warehouseId,
-                    'type' => 'entrada',
-                    'quantity' => $quantity,
-                    'unit_price' => (float) $line->price,
-                    'date' => now()->toDateString(),
-                    'source_type' => PurchaseDocument::class,
-                    'source_id' => $lockedInvoice->id,
-                    'source_reference' => 'reception-'.$reception->id,
-                    'notes' => 'Recepción de "'.($item->name ?? $line->item_name).'" de factura '.$documentNumber,
-                    'created_by_user_id' => (int) $responsibleUserId,
-                ]);
-
-                $reception->update(['inventory_movement_id' => $movement->id]);
+                $this->receiveGeneralLine($lockedInvoice, $line, $item, $quantity, $warehouseId, $reason, $documentNumber, (int) $responsibleUserId);
             }
 
             return $lockedInvoice->fresh();
         });
+    }
+
+    /**
+     * Registra la recepción de una línea general y su entrada al kardex. Una entrada de compra sin precio
+     * valoraría el stock en 0 y arrastraría el costo promedio, así que se exige precio mayor a 0.
+     */
+    protected function receiveGeneralLine(
+        PurchaseDocument $invoice,
+        PurchaseDocumentItem $line,
+        Item $item,
+        float $quantity,
+        int $warehouseId,
+        ?string $reason,
+        string $documentNumber,
+        int $responsibleUserId,
+    ): void {
+        if ((float) $line->price <= 0) {
+            throw ValidationException::withMessages([
+                "lines.{$line->id}.price" => ['La línea de "'.($item->name ?? $line->item_name).'" no tiene precio: una entrada sin costo deja el promedio del inventario en 0. Corrige el precio de la factura.'],
+            ]);
+        }
+
+        $reception = PurchaseDocumentItemReception::create([
+            'purchase_document_item_id' => $line->id,
+            'warehouse_id' => $warehouseId,
+            'quantity' => $quantity,
+            'unit_price' => $line->price,
+            'over_received_reason' => $reason,
+            'received_by_user_id' => $responsibleUserId,
+            'received_at' => now(),
+        ]);
+
+        $movement = $this->movementService->createMovement([
+            'document_number' => $this->movementNumberWithSuffix($documentNumber, ' [R'.$reception->id.']'),
+            'item_id' => $item->id,
+            'warehouse_id' => $warehouseId,
+            'type' => 'entrada',
+            'quantity' => $quantity,
+            'unit_price' => (float) $line->price,
+            'date' => now()->toDateString(),
+            'source_type' => PurchaseDocument::class,
+            'source_id' => $invoice->id,
+            'source_reference' => 'reception-'.$reception->id,
+            'notes' => 'Recepción de "'.($item->name ?? $line->item_name).'" de factura '.$documentNumber,
+            'created_by_user_id' => $responsibleUserId,
+        ]);
+
+        $reception->update(['inventory_movement_id' => $movement->id]);
+    }
+
+    /**
+     * Da entrada, en la bodega indicada, a lo que falta recibir de las líneas generales (no tela) que controlan inventario.
+     * Sin bodega y con saldo pendiente, no se puede cerrar: esas unidades quedarían fuera del inventario para siempre.
+     */
+    protected function receivePendingGeneralLines(PurchaseDocument $invoice, ?int $warehouseId): void
+    {
+        $invoice->loadMissing(['items.item.categorySubGroup']);
+
+        $pending = [];
+        foreach ($invoice->items as $line) {
+            $item = $line->item;
+            if (! $item || ! $item->tracks_inventory || MaterialClassifier::isFabricItem($item)) {
+                continue;
+            }
+            $received = (float) PurchaseDocumentItemReception::where('purchase_document_item_id', $line->id)->sum('quantity');
+            $missing = (float) $line->quantity - $received;
+            if ($missing > 0.0001) {
+                $pending[] = [$line, $item, $missing];
+            }
+        }
+
+        if ($pending === []) {
+            return;
+        }
+
+        if (! $warehouseId) {
+            throw ValidationException::withMessages([
+                'warehouse_id' => ['Quedan unidades sin recibir: indica la bodega donde entran para poder cerrar la factura.'],
+            ]);
+        }
+
+        $documentNumber = trim((string) ($invoice->document_number ?? '')) !== ''
+            ? trim((string) $invoice->document_number)
+            : 'Factura #'.$invoice->id;
+        $responsibleUserId = Auth::id() ?? $invoice->approved_by_user_id ?? $invoice->created_by_user_id;
+        if (empty($responsibleUserId)) {
+            throw new \RuntimeException('No se pudo resolver el usuario responsable de la recepción.');
+        }
+
+        foreach ($pending as [$line, $item, $missing]) {
+            $resolvedWarehouseId = $this->warehouseResolver->resolveWarehouseId($item, $warehouseId);
+            $this->receiveGeneralLine($invoice, $line, $item, $missing, $resolvedWarehouseId, null, $documentNumber, (int) $responsibleUserId);
+        }
     }
 
     /**
@@ -2631,7 +2699,10 @@ class FabricRollService
         ]);
     }
 
-    public function approveReception($invoiceId)
+    /**
+     * @param  int|null  $pendingWarehouseId  bodega donde entra lo que falte recibir de las líneas no-tela al cerrar.
+     */
+    public function approveReception($invoiceId, ?int $pendingWarehouseId = null)
     {
         $invoice = PurchaseDocument::with(['items', 'items.item.categorySubGroup'])
             ->where('document_type', PurchaseDocument::TYPE_INVOICE)
@@ -2641,13 +2712,14 @@ class FabricRollService
         $this->ensureReceptionNotApproved($invoice);
         $this->ensureReceptionDifferencesApproved($invoice);
 
-        $approvedInvoice = DB::transaction(function () use ($invoice) {
+        $approvedInvoice = DB::transaction(function () use ($invoice, $pendingWarehouseId) {
             $lockedInvoice = PurchaseDocument::query()
                 ->where('document_type', PurchaseDocument::TYPE_INVOICE)
                 ->lockForUpdate()
                 ->findOrFail($invoice->id);
 
             $this->ensureNoRollsPendingReview($lockedInvoice);
+            $this->receivePendingGeneralLines($lockedInvoice, $pendingWarehouseId);
 
             $pendingRolls = FabricRoll::with([
                 'item',

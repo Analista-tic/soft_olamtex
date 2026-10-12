@@ -284,9 +284,11 @@ function firstValidationMessage(errors: unknown): string {
     return '';
 }
 
-async function approveReception(invoice: PurchaseInvoice) {
+async function approveReception(invoice: PurchaseInvoice, pendingWarehouseId?: number) {
     try {
-        const { data: approveResponse } = await axios.patch(`/kardex-telas/recepcion/${invoice.id}/aprobar`);
+        const { data: approveResponse } = await axios.patch(`/kardex-telas/recepcion/${invoice.id}/aprobar`, {
+            warehouse_id: pendingWarehouseId ?? null,
+        });
         if (showInvoicesList.value) {
             await fetchInvoices(currentPage.value, searchQuery.value);
         } else {
@@ -311,6 +313,11 @@ async function approveReception(invoice: PurchaseInvoice) {
             firstValidationMessage(errors) ||
             e?.response?.data?.message ||
             `Error al aprobar la recepción de la factura #${invoice?.id ?? 'N/A'}`;
+        if (errors?.warehouse_id && !pendingWarehouseId) {
+            // Quedan unidades sin recibir: se pide la bodega donde entran para poder cerrar.
+            openClosePendingDialog(invoice);
+            return;
+        }
         if (errors?.difference_required) {
             // Fuera de ±30 mts: se pide el motivo para que otra persona con permiso apruebe la diferencia.
             invoiceForDifference.value = invoice;
@@ -819,19 +826,34 @@ function invoiceHasPendingGeneralReception(inv: PurchaseInvoice | null | undefin
     return (inv.items || []).some((item: any) => requiresGeneralReception(item) && pendingQuantity(item) > 0.0001);
 }
 
+/** Bodega donde entra lo que falte recibir al cerrar la factura (obligatoria si queda saldo pendiente). */
+const closeWarehouseId = ref<string | null>(null);
+const closeWarehouseInvalid = ref(false);
+
+function openClosePendingDialog(invoice: PurchaseInvoice) {
+    invoiceToClose.value = invoice;
+    closeWarehouseId.value = null;
+    closeWarehouseInvalid.value = false;
+    if (warehouseOptions.value.length === 0) void fetchWarehouseOptions();
+    isClosePendingConfirmOpen.value = true;
+}
+
 function handleCloseInvoiceClick(invoice: PurchaseInvoice) {
     if (!isTelasList.value && invoiceHasPendingGeneralReception(invoice)) {
-        invoiceToClose.value = invoice;
-        isClosePendingConfirmOpen.value = true;
+        openClosePendingDialog(invoice);
         return;
     }
     void approveReception(invoice);
 }
 
 function confirmCloseWithPending() {
+    if (!closeWarehouseId.value) {
+        closeWarehouseInvalid.value = true;
+        return;
+    }
     isClosePendingConfirmOpen.value = false;
     if (invoiceToClose.value) {
-        void approveReception(invoiceToClose.value);
+        void approveReception(invoiceToClose.value, Number(closeWarehouseId.value));
     }
     invoiceToClose.value = null;
 }
@@ -1886,9 +1908,21 @@ function onFabricRollSuccess() {
                                 <DialogTitle class="text-base font-semibold">Quedan unidades pendientes de recibir</DialogTitle>
                             </DialogHeader>
                             <DialogDescription class="mt-1 text-sm text-muted-foreground">
-                                Una o más líneas de esta factura no han recibido la cantidad completa facturada. ¿Cerrar la factura de todas
-                                formas? Lo que falte no volverá a poder recibirse por este medio.
+                                Una o más líneas de esta factura no han recibido la cantidad completa facturada. Al cerrarla, lo que falte entra
+                                al inventario en la bodega que elijas, al precio de la factura; después ya no se podrá recibir por este medio.
                             </DialogDescription>
+                            <div class="mt-3 space-y-1">
+                                <label class="text-sm font-medium">Bodega de entrada <span class="text-destructive">*</span></label>
+                                <SelectField
+                                    v-model="closeWarehouseId"
+                                    label=""
+                                    :options="warehouseOptions"
+                                    placeholder="Selecciona la bodega"
+                                    :searchable="false"
+                                    :invalid="closeWarehouseInvalid && !closeWarehouseId"
+                                    error-message="Requerido"
+                                />
+                            </div>
                         </div>
                     </div>
                     <DialogFooter class="mt-6 gap-2 sm:justify-end">
