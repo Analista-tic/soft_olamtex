@@ -41,7 +41,7 @@ test('blocks removing a section option that is still used by a product sheet', f
         'kind' => 'parameter',
         'key' => 'sections',
         'label' => 'Secciones',
-        'value' => [['id' => 1, 'name' => 'JOGGER']],
+        'value' => [['id' => 1, 'name' => 'JOGGER', 'allowed_garment_type' => 'superior']],
         'status' => true,
     ]);
 
@@ -51,7 +51,7 @@ test('blocks removing a section option that is still used by a product sheet', f
         ->toThrow(ParameterInUseException::class);
 
     $setting->refresh();
-    expect($setting->value)->toBe([['id' => 1, 'name' => 'JOGGER']]);
+    expect($setting->value)->toBe([['id' => 1, 'name' => 'JOGGER', 'allowed_garment_type' => 'superior']]);
 });
 
 test('allows removing a section option that is not used by any product sheet', function () {
@@ -59,13 +59,13 @@ test('allows removing a section option that is not used by any product sheet', f
         'kind' => 'parameter',
         'key' => 'sections',
         'label' => 'Secciones',
-        'value' => [['id' => 1, 'name' => 'JOGGER'], ['id' => 2, 'name' => 'CAMISETA']],
+        'value' => [['id' => 1, 'name' => 'JOGGER', 'allowed_garment_type' => 'superior'], ['id' => 2, 'name' => 'CAMISETA', 'allowed_garment_type' => 'superior']],
         'status' => true,
     ]);
 
     parameterGuardTestProductSheet(sectionId: 1);
 
-    $updated = $this->service->update($setting->id, ['value' => [['id' => 1, 'name' => 'JOGGER']]]);
+    $updated = $this->service->update($setting->id, ['value' => [['id' => 1, 'name' => 'JOGGER', 'allowed_garment_type' => 'superior']]]);
 
     // ParameterService::normalizeValue() aplica title-case a los nombres al
     // guardar (comportamiento existente, ajeno a este cambio) — solo importa
@@ -79,14 +79,14 @@ test('allows adding or renaming options without removing any id', function () {
         'kind' => 'parameter',
         'key' => 'sections',
         'label' => 'Secciones',
-        'value' => [['id' => 1, 'name' => 'JOGGER']],
+        'value' => [['id' => 1, 'name' => 'JOGGER', 'allowed_garment_type' => 'superior']],
         'status' => true,
     ]);
 
     parameterGuardTestProductSheet(sectionId: 1);
 
     $updated = $this->service->update($setting->id, [
-        'value' => [['id' => 1, 'name' => 'JOGGER RENOMBRADO'], ['id' => 2, 'name' => 'NUEVA SECCION']],
+        'value' => [['id' => 1, 'name' => 'JOGGER RENOMBRADO', 'allowed_garment_type' => 'superior'], ['id' => 2, 'name' => 'NUEVA SECCION', 'allowed_garment_type' => 'superior']],
     ]);
 
     expect($updated->value)->toHaveCount(2)
@@ -101,14 +101,14 @@ test('assigns a fresh id to a newly added option that arrives without one, keepi
         'kind' => 'parameter',
         'key' => 'sections',
         'label' => 'Secciones',
-        'value' => [['id' => 1, 'name' => 'JOGGER'], ['id' => 5, 'name' => 'CAMISETA']],
+        'value' => [['id' => 1, 'name' => 'JOGGER', 'allowed_garment_type' => 'superior'], ['id' => 5, 'name' => 'CAMISETA', 'allowed_garment_type' => 'superior']],
         'status' => true,
     ]);
 
     parameterGuardTestProductSheet(sectionId: 1);
 
     $updated = $this->service->update($setting->id, [
-        'value' => [['id' => 1, 'name' => 'JOGGER'], ['id' => 5, 'name' => 'CAMISETA'], ['name' => 'NUEVA SECCION']],
+        'value' => [['id' => 1, 'name' => 'JOGGER', 'allowed_garment_type' => 'superior'], ['id' => 5, 'name' => 'CAMISETA', 'allowed_garment_type' => 'superior'], ['name' => 'NUEVA SECCION', 'allowed_garment_type' => 'superior']],
     ]);
 
     expect(collect($updated->value)->pluck('id')->all())->toBe([1, 5, 6]);

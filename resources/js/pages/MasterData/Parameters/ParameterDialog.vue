@@ -6,6 +6,7 @@ import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormDialogFooter from '@/components/FormDialogFooter.vue';
 import FormDialogHeader from '@/components/FormDialogHeader.vue';
 import InputField from '@/components/InputField.vue';
+import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { mapParameterToDialogForm } from '@/domain/MasterData';
 import type { ParameterDialogFormState } from '@/domain/MasterData';
@@ -47,6 +48,15 @@ const valueList = ref<string[]>([]);
 // guardar volvería a escribir cada opción como {name} sin id, perdiendo la relación
 // con lo que ya la referencia (ej. product_sheets.section_id) y sus campos extra.
 const originalEntries = ref<Record<string, unknown>[]>([]);
+/** Las secciones de producto exigen decir si son de prenda superior, inferior o ambas. */
+const GARMENT_TYPE_OPTIONS = [
+    { id: 'superior', name: 'Superior' },
+    { id: 'inferior', name: 'Inferior' },
+    { id: 'ambos', name: 'Ambos' },
+];
+const isSectionsParameter = computed(() => localForm.value.key === 'sections');
+const garmentTypeByEntry = ref<Record<string, string | null>>({});
+const showRequiredErrors = ref(false);
 const isInitializingDialog = ref(false);
 const isViewMode = computed(() => props.dialogType === 'view');
 const shouldEmitLoadingState = computed(() => props.open && isInitializingDialog.value);
@@ -66,6 +76,8 @@ watch(
         }
 
         localForm.value = mapParameterToDialogForm(value);
+        garmentTypeByEntry.value = {};
+        showRequiredErrors.value = false;
         valueList.value = normalizeUniqueChipList(parseValueList(localForm.value.value), undefined, 'title-case');
         originalEntries.value = Array.isArray(localForm.value.value)
             ? (localForm.value.value as unknown[]).filter((entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null)
@@ -150,12 +162,29 @@ function displayEntry(entry: unknown): string {
     return String(entry);
 }
 
+function syncGarmentTypes() {
+    const next: Record<string, string | null> = {};
+    valueList.value.forEach((entry) => {
+        const key = normalizeChipKey(entry);
+        const original = originalEntries.value.find((candidate) => normalizeChipKey(displayEntry(candidate)) === key);
+        next[key] = garmentTypeByEntry.value[key] ?? (original?.allowed_garment_type as string | undefined) ?? null;
+    });
+    garmentTypeByEntry.value = next;
+}
+
+watch([valueList, originalEntries, isSectionsParameter], () => isSectionsParameter.value && syncGarmentTypes(), { deep: true, immediate: true });
+
+/** Única función que decide qué secciones no tienen tipo: la usan el mensaje de guardado y el template. */
+const sectionsMissingGarmentType = () =>
+    isSectionsParameter.value ? valueList.value.filter((entry) => !garmentTypeByEntry.value[normalizeChipKey(entry)]) : [];
+
 function buildPayloadValue() {
     return valueList.value.map((entry) => {
         const entryKey = normalizeChipKey(entry);
         const original = originalEntries.value.find((candidate) => normalizeChipKey(displayEntry(candidate)) === entryKey);
+        const base = original ? { ...original, name: entry } : { name: entry };
 
-        return original ? { ...original, name: entry } : { name: entry };
+        return isSectionsParameter.value ? { ...base, allowed_garment_type: garmentTypeByEntry.value[entryKey] } : base;
     });
 }
 
@@ -165,6 +194,11 @@ function handleClose() {
 }
 
 function handleSubmit() {
+    showRequiredErrors.value = true;
+    if (sectionsMissingGarmentType().length > 0) {
+        return;
+    }
+
     emit('submit', {
         ...localForm.value,
         value: buildPayloadValue(),
@@ -214,6 +248,30 @@ function handleSubmit() {
                             :disabled="isViewMode"
                             case-mode="title-case"
                         />
+                        <div v-if="isSectionsParameter && valueList.length > 0" class="space-y-2 rounded-lg border p-3">
+                            <p class="text-sm font-medium">
+                                Tipo de prenda de cada sección <span class="text-destructive">*</span>
+                            </p>
+                            <p class="text-xs text-muted-foreground">
+                                En la sábana, una sección superior o inferior fija el tipo de prenda; "Ambos" deja elegirlo.
+                            </p>
+                            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                <div v-for="entry in valueList" :key="entry" class="flex items-center justify-between gap-2">
+                                    <span class="truncate text-sm">{{ entry }}</span>
+                                    <SelectField
+                                        v-model="garmentTypeByEntry[normalizeChipKey(entry)]"
+                                        label=""
+                                        class="w-36"
+                                        placeholder="Selecciona"
+                                        :options="GARMENT_TYPE_OPTIONS"
+                                        :searchable="false"
+                                        :disabled="isViewMode"
+                                        :invalid="showRequiredErrors && sectionsMissingGarmentType().includes(entry)"
+                                        error-message="Requerido"
+                                    />
+                                </div>
+                            </div>
+                        </div>
                         <TextareaField
                             v-model="localForm.description" data-no-uppercase
                             label="Descripción"

@@ -8,6 +8,7 @@ use App\Support\TextNormalizer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ParameterService
 {
@@ -44,6 +45,7 @@ class ParameterService
         $data['kind'] = Setting::KIND_PARAMETER;
         $data['key'] = $this->determineKey($data);
         $data['value'] = $this->normalizeValue($data['value'] ?? null);
+        $this->assertSectionsHaveGarmentType((string) $data['key'], $data['value']);
 
         return Setting::create($data);
     }
@@ -60,6 +62,7 @@ class ParameterService
             if (is_array($data['value'])) {
                 $this->usageService->assertNoRemovedOptionsInUse($setting, $data['value']);
             }
+            $this->assertSectionsHaveGarmentType((string) $setting->key, $data['value']);
         }
 
         $setting->fill($data);
@@ -91,6 +94,31 @@ class ParameterService
     public function getDeletionCheck(int $id): array
     {
         return $this->usageService->inspect($this->find($id));
+    }
+
+    /**
+     * Cada sección de producto debe decir si es de prenda superior, inferior o ambas: con eso la sábana
+     * bloquea o deja elegir el tipo de prenda. Sin este dato la sección queda "abierta" por omisión.
+     */
+    protected function assertSectionsHaveGarmentType(string $key, mixed $value): void
+    {
+        if ($key !== 'sections' || ! is_array($value)) {
+            return;
+        }
+
+        $invalid = [];
+        foreach ($value as $section) {
+            $type = is_array($section) ? ($section['allowed_garment_type'] ?? null) : null;
+            if (! in_array($type, ['superior', 'inferior', 'ambos'], true)) {
+                $invalid[] = is_array($section) ? (string) ($section['name'] ?? '') : (string) $section;
+            }
+        }
+
+        if ($invalid !== []) {
+            throw ValidationException::withMessages([
+                'value' => ['Indica el tipo de prenda (superior, inferior o ambos) de: '.implode(', ', $invalid).'.'],
+            ]);
+        }
     }
 
     protected function normalizeValue(mixed $value): mixed
