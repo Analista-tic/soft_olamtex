@@ -56,6 +56,17 @@ final class FabricRollBalance
         ));
     }
 
+    /**
+     * Metros de un consumo que no caben físicamente en el rollo (real = metraje vigente − consumido).
+     * Un consumo puede salir de la reserva propia (que no cuenta contra el libre) y aun así dejar el rollo
+     * en negativo si la reserva quedó mayor que lo que el rollo tenía: ese exceso es sobrante de metraje,
+     * nunca saldo negativo.
+     */
+    public static function beyondReal(FabricRoll $roll, float $consumed): float
+    {
+        return max(0.0, self::meters($consumed - max(0.0, self::real($roll))));
+    }
+
     /** Igual que free(), para filas planas (listados con JOIN). */
     public static function freeFromValues(float $quantity, float $actualOutput, float $partialOutput, float $ownReserved = 0.0, float $lengthAdjustment = 0.0): float
     {

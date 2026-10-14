@@ -21,13 +21,14 @@ use Illuminate\Console\Command;
  *     línea y el kardex quedaron desviados por Σ(nueva_i − original) de las correcciones previas
  *     a la última.
  *
- * Por defecto solo reporta. Con --apply corrige 2 y 4 con ajustes (y movimientos de kardex)
- * trazables; 1 y 3 se reportan para revisión manual.
+ * Por defecto solo reporta. Con --apply corrige 1, 2 y 4 con ajustes (y movimientos de kardex)
+ * trazables: el consumo mayor al metraje se registra como sobrante de metraje (regla del descargue:
+ * la tela puede traer más de lo registrado), pendiente de revisión; 3 se reporta para revisión manual.
  */
 class AuditRollBalancesCommand extends Command
 {
     protected $signature = 'textil:audit-roll-balances
-        {--apply : Corrige reservas descuadradas y correcciones aplicadas dos veces, con ajustes trazables}
+        {--apply : Corrige consumos mayores al metraje, reservas descuadradas y correcciones aplicadas dos veces, con ajustes trazables}
         {--roll= : Número de rollo específico}';
 
     protected $description = 'Audita los saldos de cada rollo de tela (consumo, reserva, correcciones duplicadas) y opcionalmente los corrige de forma trazable';
@@ -80,6 +81,14 @@ class AuditRollBalancesCommand extends Command
 
         if (! $apply) {
             return self::SUCCESS;
+        }
+
+        foreach ($negative as [$number, , , $real]) {
+            $roll = FabricRoll::where('roll_number', $number)->firstOrFail();
+            $difference = $service->regularizeOverConsumption($roll, 'Auditoría de saldos: el consumo superó el metraje registrado; se registra el excedente como sobrante de metraje');
+            if ($difference) {
+                $this->line("Rollo {$number}: real {$real} m -> sobrante de {$difference->meters} m registrado (pendiente de revisión)");
+            }
         }
 
         foreach ($partialMismatch as [$number, $partial, $expected, $difference, $rollId]) {

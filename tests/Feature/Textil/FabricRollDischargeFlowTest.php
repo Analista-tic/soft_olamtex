@@ -616,3 +616,52 @@ it('exposes length_adjustment_meters in the inventory endpoint and keeps the qua
         ->and((float) $data[0]['length_adjustment_meters'])->toEqual(4.0)
         ->and((float) $data[0]['real_availability_value'])->toEqual(0.0);
 });
+
+it('regularizes a roll consumed beyond its meters as a surplus, leaving it at zero and in the kardex', function () {
+    // Dato heredado: 24 m vigentes con 43 m consumidos (real -19).
+    [$roll, $stock] = flowRoll('RL-NEG-AUD', 24);
+    $roll->update(['actual_output' => 43]);
+
+    expect(FabricRollBalance::real($roll->fresh()))->toBe(-19.0);
+
+    $difference = $this->service->regularizeOverConsumption($roll->fresh(), 'Auditoría de saldos');
+
+    $roll = $roll->fresh();
+    expect(FabricRollBalance::real($roll))->toBe(0.0)
+        ->and((float) $roll->length_adjustment_meters)->toBe(19.0)
+        ->and((float) $roll->quantity)->toBe(24.0)
+        ->and($roll->length_review_status)->toBe(FabricRoll::LENGTH_REVIEW_PENDING)
+        ->and($difference->type)->toBe(FabricRollLengthDifference::TYPE_SURPLUS)
+        ->and((float) $difference->meters)->toBe(19.0)
+        ->and($difference->inventory_movement_id)->not->toBeNull();
+
+    // Repetirlo no vuelve a sumar: ya no hay real negativo.
+    expect($this->service->regularizeOverConsumption($roll, 'otra vez'))->toBeNull()
+        ->and((float) $roll->fresh()->length_adjustment_meters)->toBe(19.0);
+});
+
+it('applies the roll audit so negative rolls are regularized by the rule, not by hand', function () {
+    [$roll] = flowRoll('RL-NEG-CMD', 10);
+    $roll->update(['actual_output' => 14]);
+
+    $this->artisan('textil:audit-roll-balances', ['--roll' => 'RL-NEG-CMD'])->assertSuccessful();
+    expect(FabricRollBalance::real($roll->fresh()))->toBe(-4.0);
+
+    $this->artisan('textil:audit-roll-balances', ['--roll' => 'RL-NEG-CMD', '--apply' => true])->assertSuccessful();
+    expect(FabricRollBalance::real($roll->fresh()))->toBe(0.0)
+        ->and(FabricRollLengthDifference::where('fabric_roll_id', $roll->id)->count())->toBe(1);
+});
+
+it('records a surplus when a manual discharge takes reserved meters the roll no longer physically has', function () {
+    // Rollo de 24 m con 22 ya consumidos (quedan 2) pero 20 m aún reservados por una programación manual:
+    // la reserva quedó mayor que lo real (caso que dejó el rollo en -19 antes de esta regla).
+    [$roll] = flowRoll('RL-RESERVA-FANTASMA', 24);
+    $line = flowProgram($roll, 20, 'OP-FANTASMA');
+    $roll->refresh()->update(['actual_output' => 22]);
+
+    $this->service->dischargeManual($line, 10, 'Descargue contra reserva sin tela física');
+
+    $roll = $roll->fresh();
+    expect(FabricRollBalance::real($roll))->toBeGreaterThanOrEqual(0.0)
+        ->and(FabricRollLengthDifference::where('fabric_roll_id', $roll->id)->where('type', FabricRollLengthDifference::TYPE_SURPLUS)->exists())->toBeTrue();
+});

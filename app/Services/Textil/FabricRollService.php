@@ -1141,7 +1141,7 @@ class FabricRollService
             $partialBefore = (float) $roll->partial_output;
             $actualOutputBefore = (float) $roll->actual_output;
 
-            $surplus = FabricRollBalance::meters(max(0.0, $excess - FabricRollBalance::free($roll)));
+            $surplus = FabricRollBalance::meters(max(0.0, $excess - FabricRollBalance::free($roll), FabricRollBalance::beyondReal($roll, $quantity)));
             $surplusMovement = null;
             if ($surplus > FabricRollBalance::EPSILON) {
                 $surplusMovement = $this->createRollMovement(
@@ -1288,7 +1288,7 @@ class FabricRollService
 
             if ($delta > 0) {
                 $needFromFree = FabricRollBalance::meters($delta - max(0.0, $reservedBefore - $reservedAfter));
-                $surplus = FabricRollBalance::meters(max(0.0, $needFromFree - FabricRollBalance::free($roll)));
+                $surplus = FabricRollBalance::meters(max(0.0, $needFromFree - FabricRollBalance::free($roll), FabricRollBalance::beyondReal($roll, $delta)));
 
                 if ($surplus > FabricRollBalance::EPSILON) {
                     if ($reason === null) {
@@ -1539,7 +1539,7 @@ class FabricRollService
                 $opLabel = "OP {$order->op_code}";
 
                 if ($delta > FabricRollBalance::EPSILON) {
-                    $surplus = FabricRollBalance::meters(max(0.0, $delta - FabricRollBalance::free($roll)));
+                    $surplus = FabricRollBalance::meters(max(0.0, $delta - FabricRollBalance::free($roll), FabricRollBalance::beyondReal($roll, $delta)));
                     $surplusMovement = null;
                     if ($surplus > FabricRollBalance::EPSILON) {
                         $surplusMovement = $this->createRollMovement($roll, 'entrada', $surplus, "Sobrante de metraje rollo #{$roll->roll_number} — consumo de corte {$opLabel}", ProductionOrder::class, $order->id);
@@ -1924,6 +1924,59 @@ class FabricRollService
             );
 
             return $roll;
+        });
+    }
+
+    /**
+     * Regulariza un rollo cuyo consumo superó su metraje (real negativo) con la misma regla del descargue:
+     * la tela trae más metros de los registrados, así que el exceso se registra como sobrante de metraje
+     * (entrada de kardex + evento pendiente de revisión) y el rollo queda en cero, nunca negativo.
+     * Es idempotente: sin real negativo no hace nada.
+     */
+    public function regularizeOverConsumption(FabricRoll $fabricRoll, string $reason): ?FabricRollLengthDifference
+    {
+        return DB::transaction(function () use ($fabricRoll, $reason) {
+            $roll = FabricRoll::with(['item', 'purchaseDocumentItem.item'])->lockForUpdate()->findOrFail($fabricRoll->id);
+
+            $surplus = FabricRollBalance::meters(-FabricRollBalance::real($roll));
+            if ($surplus <= FabricRollBalance::EPSILON) {
+                return null;
+            }
+
+            $quantityBefore = FabricRollBalance::length($roll);
+            $movement = $this->createRollMovement(
+                $roll,
+                'entrada',
+                $surplus,
+                "Sobrante de metraje rollo #{$roll->roll_number} — regularización de consumo mayor al metraje. {$reason}",
+            );
+
+            $roll->length_adjustment_meters = FabricRollBalance::meters((float) $roll->length_adjustment_meters + $surplus);
+            $roll->length_review_status = FabricRoll::LENGTH_REVIEW_PENDING;
+            $roll->save();
+
+            $adjustment = $this->recordAdjustmentWithMovement(
+                $roll,
+                'correction',
+                $quantityBefore,
+                FabricRollBalance::length($roll),
+                $reason,
+                inventoryMovementId: $movement?->id,
+                actualOutputBefore: (float) $roll->actual_output,
+                actualOutputAfter: (float) $roll->actual_output,
+                quantity: $surplus,
+            );
+
+            return $this->recordLengthDifference(
+                $roll,
+                FabricRollLengthDifference::TYPE_SURPLUS,
+                $surplus,
+                $quantityBefore,
+                FabricRollBalance::length($roll),
+                $reason,
+                $adjustment->id,
+                $movement,
+            );
         });
     }
 
