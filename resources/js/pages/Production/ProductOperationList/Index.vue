@@ -130,7 +130,10 @@ function formatOptimalTime(value: unknown): string {
     return String(value);
 }
 
+let summariesRequestSeq = 0;
+
 async function fetchOperationSummaries() {
+    const requestId = ++summariesRequestSeq;
     if (productSheets.value.length === 0) {
         operationSummaries.value = [];
         return;
@@ -153,6 +156,9 @@ async function fetchOperationSummaries() {
             },
         });
 
+
+        // Si hubo otra carga después de esta, la respuesta vieja no debe pisar la lista.
+        if (requestId !== summariesRequestSeq) return;
 
         const rows = Array.isArray(data?.data) ? data.data : [];
 
@@ -186,11 +192,12 @@ async function fetchOperationSummaries() {
 
         totalItems.value = operationSummaries.value.length;
     } catch (error) {
+        if (requestId !== summariesRequestSeq) return;
         console.error('Error al cargar resúmenes de operaciones:', error);
         operationSummaries.value = [];
         totalItems.value = 0;
     } finally {
-        isLoading.value = false;
+        if (requestId === summariesRequestSeq) isLoading.value = false;
     }
 }
 
@@ -206,6 +213,17 @@ function reloadFromDatabase(showSuccessAlert = true) {
     });
 }
 
+/** Recarga las props de la página y luego la lista, en orden (una sola vez). */
+async function refreshAfterSave() {
+    await new Promise<void>((resolve) => {
+        router.reload({
+            only: ['sections', 'operations', 'machines', 'productSheets', 'actions', 'garmentParts', 'fabric_bases', 'preparation_groups', 'costParameters'],
+            onFinish: () => resolve(),
+        });
+    });
+    await fetchOperationSummaries();
+}
+
 function handleCompletionChanged(message: string) {
     showSuccess(message);
     void fetchOperationSummaries();
@@ -213,6 +231,8 @@ function handleCompletionChanged(message: string) {
 
 async function handleDialogSave(payloads: ProductOperationPayload[], options?: ProductOperationSaveOptions) {
     isSavingAndRefreshing.value = true;
+    // El dialog se cierra (y vuelve a modo 'create') apenas emite: se guarda el modo antes de los await.
+    const wasEditing = dialogMode.value === 'edit';
     try {
         const validPayloads = payloads.filter((payload) => payload.product_sheet_id && payload.operation_id);
 
@@ -254,7 +274,7 @@ async function handleDialogSave(payloads: ProductOperationPayload[], options?: P
                 notes: payload.notes,
             }));
 
-            if (dialogMode.value === 'edit') {
+            if (wasEditing) {
                 await axios.post('/produccion/listados-operacionales/sync', {
                     product_sheet_id: targetSheetId,
                     operations: operationsPayload,
@@ -266,7 +286,7 @@ async function handleDialogSave(payloads: ProductOperationPayload[], options?: P
             }
 
             let successText =
-                dialogMode.value === 'edit'
+                wasEditing
                     ? 'Operaciones actualizadas correctamente.'
                     : `${operationsPayload.length} operación(es) guardada(s) correctamente.`;
 
@@ -285,12 +305,7 @@ async function handleDialogSave(payloads: ProductOperationPayload[], options?: P
 
             showSuccess(successText);
 
-            if (hasValidTargetSheet) {
-                selectedProductSheetId.value = targetSheetId;
-            }
-
-            await fetchOperationSummaries();
-            reloadFromDatabase(false);
+            await refreshAfterSave();
 
             setTimeout(() => {
                 clearSuccess();

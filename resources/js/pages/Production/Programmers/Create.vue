@@ -639,7 +639,7 @@ watch(
             />
 
             <TooltipProvider>
-                <div ref="dialogInnerRef" class="relative min-h-0 flex-1 overflow-y-auto scroll-smooth px-6 py-4" style="scrollbar-width: thin">
+                <div ref="dialogInnerRef" class="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden scroll-smooth px-6 py-4" style="scrollbar-width: thin">
                     <FormLoadingOverlay :active="isFormInitializing" message="Preparando formulario..." :delay-ms="100" />
 
                     <div v-if="canRenderForm" class="grid grid-cols-1 gap-4">
@@ -693,8 +693,8 @@ watch(
                         <section v-if="selectedProductSheet" class="rounded-xl border border-border/70 bg-background p-4">
                             <h3 class="mb-2 text-base font-bold">Detalles de la Ficha de Producto</h3>
 
-                            <div class="overflow-x-auto rounded-lg border border-border/70">
-                                <table class="w-full min-w-[980px] text-left text-sm">
+                            <div class="overflow-hidden rounded-lg border border-border/70">
+                                <table class="w-full table-fixed break-words text-left text-sm">
                                     <tbody>
                                         <tr>
                                             <td class="bg-muted/40 px-3 py-1.5 font-semibold">Referencia:</td>
@@ -752,21 +752,34 @@ watch(
                     <section v-if="lotsForm.length > 0" class="mt-4 rounded-xl border border-border/70 bg-background p-4">
                         <h3 class="mb-2 text-base font-bold">Lotes Generados:</h3>
 
-                        <div class="overflow-x-auto overflow-y-hidden rounded-lg border border-border/70 shadow-sm">
-                            <table class="w-full min-w-[1500px] text-center text-sm">
+                        <div class="overflow-hidden rounded-lg border border-border/70 shadow-sm">
+                            <table class="w-full table-fixed text-center text-sm">
+                                <colgroup>
+                                    <col style="width: 6%" />
+                                    <col style="width: 8%" />
+                                    <col style="width: 12%" />
+                                    <col style="width: 12%" />
+                                    <col style="width: 13%" />
+                                    <col style="width: 8%" />
+                                    <col style="width: 12%" />
+                                    <col style="width: 11%" />
+                                    <col style="width: 5%" />
+                                    <col style="width: 8%" />
+                                    <col v-if="lotsForm.some((lot) => lot.isEcommerce)" />
+                                </colgroup>
                                 <thead>
                                     <tr class="bg-muted/50">
-                                        <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">Lote</th>
-                                        <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">Referencia</th>
-                                        <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">Temporada (Mes Año)</th>
-                                        <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">Mes despacho (Mes Año)</th>
-                                        <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">Destino</th>
-                                        <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">Prioridad</th>
-                                        <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">Fecha entrega estimada</th>
-                                        <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">Nota</th>
-                                        <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">E-commerce (opcional)</th>
-                                        <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">Unidades</th>
-                                        <th v-if="lotsForm.some((lot) => lot.isEcommerce)" class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">
+                                        <th class="border border-border/60 bg-muted/50 px-2 py-2 font-semibold">Lote</th>
+                                        <th class="border border-border/60 bg-muted/50 px-2 py-2 font-semibold">Referencia</th>
+                                        <th class="border border-border/60 bg-muted/50 px-2 py-2 font-semibold">Temporada (Mes Año)</th>
+                                        <th class="border border-border/60 bg-muted/50 px-2 py-2 font-semibold">Mes despacho (Mes Año)</th>
+                                        <th class="border border-border/60 bg-muted/50 px-2 py-2 font-semibold">Destino</th>
+                                        <th class="border border-border/60 bg-muted/50 px-2 py-2 font-semibold">Prioridad</th>
+                                        <th class="border border-border/60 bg-muted/50 px-2 py-2 font-semibold">Fecha entrega estimada</th>
+                                        <th class="border border-border/60 bg-muted/50 px-2 py-2 font-semibold">Nota</th>
+                                        <th class="border border-border/60 bg-muted/50 px-2 py-2 font-semibold">E-commerce (opcional)</th>
+                                        <th class="border border-border/60 bg-muted/50 px-2 py-2 font-semibold">Unidades</th>
+                                        <th v-if="lotsForm.some((lot) => lot.isEcommerce)" class="border border-border/60 bg-muted/50 px-2 py-2 font-semibold">
                                             Cant. E-commerce
                                         </th>
                                     </tr>
@@ -774,15 +787,15 @@ watch(
 
                                 <tbody>
                                     <tr v-for="(lot, index) in lotsForm" :key="index" class="hover:bg-muted/30">
-                                        <td class="whitespace-nowrap border border-border/60 px-3 py-2 font-mono text-sm text-muted-foreground">
+                                        <td class="whitespace-nowrap border border-border/60 px-2 py-2 font-mono text-sm text-muted-foreground">
                                             {{ nextOpCodes[index] ?? '—' }}
                                         </td>
 
-                                        <td class="border border-border/60 px-3 py-2">
+                                        <td class="border border-border/60 px-2 py-2">
                                             {{ getDisplayReference(lot.product_sheet_id) }}
                                         </td>
 
-                                        <td class="border border-border/60 px-3 py-2" style="min-width: 220px">
+                                        <td class="border border-border/60 px-2 py-2">
                                             <SelectField
                                                 v-model="lot.season"
                                                 :options="monthOptions"
@@ -799,7 +812,7 @@ watch(
                                             />
                                         </td>
 
-                                        <td class="border border-border/60 px-3 py-2" style="min-width: 220px">
+                                        <td class="border border-border/60 px-2 py-2">
                                             <SelectField
                                                 v-model="lot.dispatch_month"
                                                 :options="monthOptions"
@@ -814,7 +827,7 @@ watch(
                                             />
                                         </td>
 
-                                        <td class="border border-border/60 px-3 py-2" style="min-width: 260px">
+                                        <td class="border border-border/60 px-2 py-2">
                                             <SelectField
                                                 v-model="lot.destination_id"
                                                 :options="destinationOptions"
@@ -825,7 +838,7 @@ watch(
                                             />
                                         </td>
 
-                                        <td class="border border-border/60 px-3 py-2" style="min-width: 150px">
+                                        <td class="border border-border/60 px-2 py-2">
                                             <SelectField
                                                 v-model="lot.priority"
                                                 :options="priorityOptions"
@@ -841,7 +854,7 @@ watch(
                                             />
                                         </td>
 
-                                        <td class="border border-border/60 px-3 py-2" style="min-width: 210px">
+                                        <td class="border border-border/60 px-2 py-2">
                                             <DatePickerField
                                                 v-model="lot.estimated_delivery_date"
                                                 label=""
@@ -850,7 +863,7 @@ watch(
                                             />
                                         </td>
 
-                                        <td class="border border-border/60 px-3 py-2" style="min-width: 260px">
+                                        <td class="border border-border/60 px-2 py-2">
                                             <InputField data-no-uppercase
                                                 v-model="lot.notes"
                                                 label=""
@@ -859,7 +872,7 @@ watch(
                                             />
                                         </td>
 
-                                        <td class="border border-border/60 px-3 py-2 text-center">
+                                        <td class="border border-border/60 px-2 py-2 text-center">
                                             <input
                                                 type="checkbox"
                                                 v-model="lot.isEcommerce"
@@ -873,7 +886,7 @@ watch(
                                             />
                                         </td>
 
-                                        <td class="border border-border/60 px-3 py-2" style="min-width: 180px">
+                                        <td class="border border-border/60 px-2 py-2">
                                             <InputField
                                                 :model-value="lot.unitsInput ?? ''"
                                                 inputmode="numeric"
@@ -895,7 +908,7 @@ watch(
                                             />
                                         </td>
 
-                                        <td v-if="lotsForm.some((item) => item.isEcommerce)" class="border border-border/60 px-3 py-2 text-center">
+                                        <td v-if="lotsForm.some((item) => item.isEcommerce)" class="border border-border/60 px-2 py-2 text-center">
                                             <EcommerceSizesDialog
                                                 v-if="lot.isEcommerce"
                                                 :productSheet="getDialogProductSheet(selectedProductSheet)"

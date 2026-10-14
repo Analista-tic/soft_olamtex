@@ -1112,7 +1112,7 @@ function resetForm() {
                     <Button
                         type="button"
                         variant="outline"
-                        class="rounded-full border-emerald-500/60 px-5 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400"
+                        class="rounded-full border-emerald-600 bg-emerald-600 px-5 text-white hover:bg-emerald-700 hover:text-white dark:border-emerald-500 dark:bg-emerald-600 dark:text-white dark:hover:bg-emerald-500"
                         :disabled="operationList.length === 0"
                         @click="saveOperations(true)"
                     >
