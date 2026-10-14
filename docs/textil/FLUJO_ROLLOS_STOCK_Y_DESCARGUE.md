@@ -83,6 +83,7 @@ La cantidad registrada de un rollo (la que llegó o la que se creó) no es confi
 | Descarga ≤ lo pendiente de la línea | Sale de la reserva de la línea | — |
 | Descarga > lo pendiente (**sobreconsumo**) | El exceso sale del disponible **libre** del rollo. **Nunca** de reservas de otras órdenes. | Motivo obligatorio |
 | El libre no alcanza (**sobrante**) | El rollo trae más tela de la registrada: se crea el evento `sobrante` con su entrada de kardex, sube `quantity` y **no cambia** `received_quantity` | Motivo obligatorio |
+| **Consumo mayor a lo que el rollo tiene físicamente** (real < 0) | Aunque salga de una reserva propia, lo que no cabe en el metraje real es sobrante: mismo evento `sobrante`. **Un rollo nunca queda con saldo negativo.** | Motivo obligatorio (en el descargue por orden) |
 | **Rollo terminado** (check en el descargue) | Tras descargar, lo que el sistema todavía tiene es `faltante`: salida de kardex, `quantity` baja y real = 0. Se liberan todas las reservas del rollo (quedan listadas en el evento). El faltante **no** es consumo de la orden. | Motivo obligatorio |
 
 ```mermaid
@@ -151,6 +152,16 @@ Se hace en la pantalla **Kardex de Telas → Diferencias de metraje** (`/kardex-
 - La lista muestra rollo, tela, recibido → vigente, orden, factura/proveedor, motivo y quién lo registró. Sirve para reclamar al proveedor.
 - La revisión **no revierte** nada: si hubo un error, se corrige el descargue, y esa corrección genera su propio evento.
 - El evento es inmutable. El modelo impide editarlo o borrarlo, salvo los campos de la revisión.
+
+---
+
+### Regla: el saldo de un rollo nunca es negativo
+
+En tela es normal consumir más de lo registrado (la tela se estira, el metraje de recepción es aproximado). Eso **no se corrige a mano** ni se deja en negativo: el exceso se vuelve un `sobrante` de metraje con entrada de kardex y queda pendiente de revisión de un supervisor.
+
+- Se aplica en los tres caminos que consumen: descargue manual, corrección de un descargue manual y consumo de corte (`FabricRollBalance::beyondReal()` compara el consumo contra el real, no solo contra el libre).
+- Si aun así aparece un rollo con real negativo (datos anteriores a esta regla, o una reserva mayor que lo real), `php artisan textil:audit-roll-balances --apply` lo regulariza con la misma regla (`FabricRollService::regularizeOverConsumption()`): sobrante por el excedente, rollo en cero, trazable y sin editar nada a mano. Es idempotente.
+- La pantalla de Inventario de ítems valora la tela con el precio por metro de sus rollos disponibles; solo cuentan los metros positivos de cada rollo.
 
 ---
 
@@ -248,7 +259,7 @@ La bodega de un movimiento es la primera asignada al ítem, la misma que eligió
 | Comando | Qué hace |
 |---|---|
 | `php artisan textil:audit-roll-balances` | Reporta rollos con real negativo, reserva distinta de lo comprometido, reserva mayor que el real y descargues dañados por F1 |
-| `php artisan textil:audit-roll-balances --apply` | Corrige la reserva y el desvío de F1 con ajustes (y kardex) trazables. Es idempotente. |
+| `php artisan textil:audit-roll-balances --apply` | Regulariza los rollos con real negativo como sobrante de metraje y corrige la reserva y el desvío de F1, siempre con ajustes (y kardex) trazables. Es idempotente. |
 | `php artisan inventory:reconcile-fabric-rolls --dry-run` | Compara el kardex por ítem con la suma del saldo real de los rollos |
 | `php artisan rolls:recalibrar-partial` | Recalcula `partial_output` desde las programaciones, sin dejar ajuste en el historial. Para producción, preferir `--apply` del comando de auditoría, que sí lo deja. |
 
