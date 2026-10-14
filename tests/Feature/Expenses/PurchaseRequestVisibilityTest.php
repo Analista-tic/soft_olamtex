@@ -89,14 +89,14 @@ it('returns a 422 with field errors instead of a generic 500 on invalid payload'
 });
 
 /**
- * El destino "solicitado a" se controla por permisos: con un solo permiso de
- * destino el usuario ve solo ese destino (más propias y sin destino); con
- * ninguno o con todos, no se restringe.
+ * El destino "solicitado a" SUMA visibilidad: "ver solicitudes compra a X"
+ * agrega las solicitudes dirigidas a X a lo que el usuario ya ve por alcance
+ * (propios / área). "Ver todos" ve todo, sin importar los permisos de destino.
  */
 function visibleIdsForSolicitedTo(array $permissions): array
 {
     $viewer = User::factory()->create();
-    foreach (array_merge(['ver todos solicitudes compra'], $permissions) as $permission) {
+    foreach ($permissions as $permission) {
         $viewer->givePermissionTo(Permission::findOrCreate($permission, 'web'));
     }
 
@@ -110,17 +110,69 @@ function visibleIdsForSolicitedTo(array $permissions): array
             'solicited_to' => $destination,
         ])->id;
     }
+    $ids['propia'] = PurchaseRequest::create([
+        'requester_user_id' => $viewer->id,
+        'date' => now()->toDateString(),
+        'status' => 'pending',
+        'solicited_to' => 'gerencia',
+    ])->id;
 
     $visible = collect(app(PurchaseRequestService::class)->paginate([], 50, null, $viewer)->items())->pluck('id');
 
     return array_keys(array_filter($ids, fn ($id) => $visible->contains($id)));
 }
 
-it('limits "ver todos" to the destinations the user has permission for', function (array $permissions, array $expected) {
+it('adds the requests directed to a destination to the user scope', function (array $permissions, array $expected) {
     expect(visibleIdsForSolicitedTo($permissions))->toEqualCanonicalizing($expected);
 })->with([
-    'solo gerencia' => [['ver solicitudes compra a gerencia'], ['gerencia', 'sin']],
-    'solo logistica' => [['ver solicitudes compra a logistica'], ['logistica', 'sin']],
-    'ambos' => [['ver solicitudes compra a gerencia', 'ver solicitudes compra a logistica'], ['gerencia', 'logistica', 'sin']],
-    'ninguno' => [[], ['gerencia', 'logistica', 'sin']],
+    'propios + a logistica (rol logistica)' => [
+        ['ver propios solicitudes compra', 'ver solicitudes compra a logistica'], ['logistica', 'propia'],
+    ],
+    'propios + a gerencia' => [
+        ['ver propios solicitudes compra', 'ver solicitudes compra a gerencia'], ['gerencia', 'propia'],
+    ],
+    'propios + ambos destinos' => [
+        ['ver propios solicitudes compra', 'ver solicitudes compra a gerencia', 'ver solicitudes compra a logistica'],
+        ['gerencia', 'logistica', 'propia'],
+    ],
+    'solo a logistica (sin alcance)' => [['ver solicitudes compra a logistica'], ['logistica']],
+    'solo propios' => [['ver propios solicitudes compra'], ['propia']],
+    'ver todos' => [['ver todos solicitudes compra'], ['gerencia', 'logistica', 'sin', 'propia']],
+    'ver todos + a logistica no restringe' => [
+        ['ver todos solicitudes compra', 'ver solicitudes compra a logistica'], ['gerencia', 'logistica', 'sin', 'propia'],
+    ],
 ]);
+
+it('keeps other users drafts hidden even when directed to a permitted destination', function () {
+    $viewer = User::factory()->create();
+    $viewer->givePermissionTo(Permission::findOrCreate('ver solicitudes compra a logistica', 'web'));
+
+    $draft = PurchaseRequest::create([
+        'requester_user_id' => User::factory()->create()->id,
+        'date' => now()->toDateString(),
+        'status' => 'draft',
+        'solicited_to' => 'logistica',
+    ]);
+
+    $ids = collect(app(PurchaseRequestService::class)->paginate([], 50, null, $viewer)->items())->pluck('id');
+
+    expect($ids)->not->toContain($draft->id);
+});
+
+it('lets a user with only a destination permission open the module and the request', function () {
+    $viewer = User::factory()->create();
+    $viewer->givePermissionTo(Permission::findOrCreate('ver solicitudes compra a logistica', 'web'));
+
+    $request = PurchaseRequest::create([
+        'requester_user_id' => User::factory()->create()->id,
+        'date' => now()->toDateString(),
+        'status' => 'pending',
+        'solicited_to' => 'logistica',
+    ]);
+
+    $this->actingAs($viewer)->getJson(route('gastos.purchase-requests.getData'))
+        ->assertOk()
+        ->assertJsonPath('data.0.id', $request->id);
+
+    $this->actingAs($viewer)->getJson(route('gastos.purchase-requests.show', $request))->assertOk();
+});

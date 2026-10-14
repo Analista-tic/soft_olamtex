@@ -16,11 +16,21 @@ Otros campos: `solicited_to` (área que aprueba: `gerencia` / `logistica`) y `bu
 La visibilidad depende solo de permisos, sin filtros por nombre de rol.
 
 ### Destino (`solicited_to`)
-Con alcance `ver todos`, los permisos de destino limitan qué solicitudes de otros se ven:
-- `ver solicitudes compra a gerencia`: ve las dirigidas a gerencia.
-- `ver solicitudes compra a logistica`: ve las dirigidas a logística.
+Los permisos de destino **suman** visibilidad, nunca la quitan:
+- `ver solicitudes compra a gerencia`: además de su alcance, ve las dirigidas a gerencia.
+- `ver solicitudes compra a logistica`: además de su alcance, ve las dirigidas a logística.
 
-Con un solo permiso de destino solo se ven esas (más las propias y las sin destino). Con ambos, o con ninguno, no se restringe.
+Regla: **alcance (propios / área) OR destino permitido**. Con `ver todos` se ve todo, sin importar los permisos de destino.
+
+Un permiso de destino basta para entrar al módulo (middleware de `routes/expenses.php`, menú lateral) aunque el usuario no tenga ningún alcance. En ese caso ve solo las solicitudes de ese destino.
+
+| Permisos del usuario | Ve |
+|---|---|
+| `ver propios` + `a logistica` (rol logística) | Sus propias + todas las dirigidas a logística |
+| solo `a logistica` | Solo las dirigidas a logística |
+| `ver todos` (con o sin destinos) | Todas |
+
+Los borradores de otros siguen ocultos aunque vayan a un destino permitido. Cubierto por `tests/Feature/Expenses/PurchaseRequestVisibilityTest.php`.
 
 ## Flujo
 Borrador → Pendiente (enviar a aprobación) → Aprobada → Procesada (orden de compra generada). Desde Borrador o Pendiente se puede Cancelar; desde Pendiente, Rechazar.

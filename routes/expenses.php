@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Route;
 // === GASTOS (AGRUPADO) ===
 Route::prefix('gastos')->name('gastos.')->group(function () {
     // === SOLICITUD DE COMPRA ===
-    Route::prefix('solicitudes-compra')->name('purchase-requests.')->middleware('permission:ver propios solicitudes compra|ver area solicitudes compra|ver todos solicitudes compra')->group(function () {
+    Route::prefix('solicitudes-compra')->name('purchase-requests.')->middleware('permission:ver propios solicitudes compra|ver area solicitudes compra|ver todos solicitudes compra|ver solicitudes compra a gerencia|ver solicitudes compra a logistica')->group(function () {
         Route::get('/', [PurchaseRequestController::class, 'index'])->name('index');
         Route::get('/crear', [PurchaseRequestController::class, 'create'])->name('create')->middleware('permission:crear solicitudes compra');
         Route::get('/{purchaseRequest}/editar', [PurchaseRequestController::class, 'edit'])->name('edit')->middleware('permission:editar solicitudes compra');

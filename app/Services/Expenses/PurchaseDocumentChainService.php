@@ -113,7 +113,8 @@ class PurchaseDocumentChainService
     {
         $canRoute = $this->can($user, 'ver propios solicitudes compra')
             || $this->can($user, 'ver area solicitudes compra')
-            || $this->can($user, 'ver todos solicitudes compra');
+            || $this->can($user, 'ver todos solicitudes compra')
+            || collect(PurchaseRequestService::SOLICITED_TO_PERMISSIONS)->contains(fn (string $p) => $this->can($user, $p));
         if (! $canRoute) {
             return false;
         }

@@ -83,7 +83,13 @@ const moduleSections: ModuleSection[] = [
                     {
                         title: 'Solicitud de compra',
                         href: '/gastos/solicitudes-compra',
-                        permission: ['ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra'],
+                        permission: [
+                            'ver propios solicitudes compra',
+                            'ver area solicitudes compra',
+                            'ver todos solicitudes compra',
+                            'ver solicitudes compra a gerencia',
+                            'ver solicitudes compra a logistica',
+                        ],
                     },
                     { title: 'Orden de compra', href: '/gastos/ordenes-compra', permission: 'ver ordenes compra' },
                     { title: 'Factura de compra', href: '/gastos/facturas-compra', permission: 'ver facturas compra' },
@@ -207,6 +213,8 @@ const sectionPermissions: Partial<Record<ModuleSection['title'], PermissionRequi
         'ver todos documentos compra',
         'ver facturas compra',
         'ver propios solicitudes compra',
+        'ver solicitudes compra a gerencia',
+        'ver solicitudes compra a logistica',
         'crear solicitudes compra',
     ],
     Financiero: 'ver financiero',

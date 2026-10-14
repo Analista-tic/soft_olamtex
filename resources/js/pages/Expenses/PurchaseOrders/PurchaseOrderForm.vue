@@ -30,7 +30,13 @@ const canSeeAllRequests = computed(() => authStore.can('ver todos ordenes compra
 // Sin alguno de estos permisos, GET /gastos/solicitudes-compra/data devuelve 403:
 // se oculta el selector en vez de mostrarlo vacío/roto.
 const canViewPurchaseRequests = computed(() =>
-    authStore.canAny(['ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra']),
+    authStore.canAny([
+        'ver propios solicitudes compra',
+        'ver area solicitudes compra',
+        'ver todos solicitudes compra',
+        'ver solicitudes compra a gerencia',
+        'ver solicitudes compra a logistica',
+    ]),
 );
 const myRequestsOnly = ref(false);
 const ContactDialog = defineAsyncComponent(() => import('@/pages/MasterData/Contact/ContactDialog.vue'));

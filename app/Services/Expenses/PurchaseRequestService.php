@@ -49,8 +49,7 @@ class PurchaseRequestService
                     ->whereNull('pd.deleted_at');
             });
 
-        ScopeHelper::apply($query, $user, 'ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra', 'purchase_requests.requester_user_id');
-        $this->applySolicitedToFilter($query, $user);
+        $this->applyScope($query, $user, 'purchase_requests');
 
         if ($myRequestsOnly && $user !== null) {
             $query->where('purchase_requests.requester_user_id', $user->id);
@@ -471,14 +470,14 @@ class PurchaseRequestService
 
     /**
      * Reglas de visibilidad (ver docs/compras/solicitudes-visibilidad.md):
-     *  1. Alcance solo por permisos (propios / area / todos) + destino "solicitado a"
-     *     también por permisos (ver SOLICITED_TO_PERMISSIONS).
-     *  2. Los borradores solo los ve su solicitante (quien la creó).
+     *  1. Alcance por permisos (propios / area / todos). "Ver todos" ve todo.
+     *  2. El destino "solicitado a" SUMA visibilidad: "ver solicitudes compra a X"
+     *     agrega las dirigidas a X a lo que el usuario ya ve (SOLICITED_TO_PERMISSIONS).
+     *  3. Los borradores solo los ve su solicitante (quien la creó).
      */
     public function applyVisibility(Builder $query, ?User $user): void
     {
-        ScopeHelper::apply($query, $user, 'ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra', 'requester_user_id');
-        $this->applySolicitedToFilter($query, $user);
+        $this->applyScope($query, $user);
 
         $userId = $user?->id ?? -1;
         $query->where(function (Builder $q) use ($userId) {
@@ -487,35 +486,35 @@ class PurchaseRequestService
     }
 
     /** Destino ("solicitado a") => permiso que habilita ver las solicitudes dirigidas a él. */
-    private const SOLICITED_TO_PERMISSIONS = [
+    public const SOLICITED_TO_PERMISSIONS = [
         'gerencia' => 'ver solicitudes compra a gerencia',
         'logistica' => 'ver solicitudes compra a logistica',
     ];
 
     /**
-     * Con alcance "ver todos", limita las solicitudes de otros a los destinos
-     * para los que el usuario tiene permiso (más las propias y las sin destino).
-     * Sin ningún permiso de destino, o con todos, no se restringe.
+     * Alcance (propios / área / todos) OR destinos permitidos.
+     * Con "ver todos" no se restringe; los permisos de destino nunca restan.
      */
-    private function applySolicitedToFilter(Builder $query, ?User $user): void
+    private function applyScope(Builder $query, ?User $user, string $table = ''): void
     {
-        if ($user === null || ! $this->userCan($user, 'ver todos solicitudes compra')) {
+        if ($user !== null && $this->userCan($user, 'ver todos solicitudes compra')) {
             return;
         }
 
-        $allowed = array_keys(array_filter(
+        $prefix = $table !== '' ? "{$table}." : '';
+        $destinations = $user === null ? [] : array_keys(array_filter(
             self::SOLICITED_TO_PERMISSIONS,
             fn (string $permission) => $this->userCan($user, $permission),
         ));
 
-        if ($allowed === [] || count($allowed) === count(self::SOLICITED_TO_PERMISSIONS)) {
-            return;
-        }
+        $query->where(function (Builder $q) use ($user, $destinations, $prefix) {
+            $q->where(function (Builder $scope) use ($user, $prefix) {
+                ScopeHelper::apply($scope, $user, 'ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra', "{$prefix}requester_user_id");
+            });
 
-        $query->where(function (Builder $q) use ($user, $allowed) {
-            $q->where('requester_user_id', $user->id)
-              ->orWhereNull('solicited_to')
-              ->orWhereIn('solicited_to', $allowed);
+            if ($destinations !== []) {
+                $q->orWhereIn("{$prefix}solicited_to", $destinations);
+            }
         });
     }
 
