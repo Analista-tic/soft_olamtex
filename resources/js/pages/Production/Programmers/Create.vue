@@ -622,7 +622,7 @@ watch(
             </Button>
         </DialogTrigger>
 
-        <FormDialogContent class="flex w-[96vw] max-w-[1500px] flex-col overflow-hidden p-0">
+        <FormDialogContent class="flex w-[calc(100vw-2rem)] max-w-[1800px] flex-col overflow-hidden p-0">
             <DialogHeader class="flex-shrink-0 border-b px-6 pb-4 pt-6">
                 <DialogTitle>Crear Nuevo Programador</DialogTitle>
                 <DialogDescription> Completa los campos para crear un programador. Haz clic en guardar cuando termines. </DialogDescription>
@@ -753,7 +753,7 @@ watch(
                         <h3 class="mb-2 text-base font-bold">Lotes Generados:</h3>
 
                         <div class="overflow-x-auto overflow-y-hidden rounded-lg border border-border/70 shadow-sm">
-                            <table class="w-full min-w-[1200px] text-center text-sm">
+                            <table class="w-full min-w-[1500px] text-center text-sm">
                                 <thead>
                                     <tr class="bg-muted/50">
                                         <th class="border border-border/60 bg-muted/50 px-3 py-2 font-semibold">Lote</th>
@@ -782,7 +782,7 @@ watch(
                                             {{ getDisplayReference(lot.product_sheet_id) }}
                                         </td>
 
-                                        <td class="border border-border/60 px-3 py-2" style="min-width: 180px">
+                                        <td class="border border-border/60 px-3 py-2" style="min-width: 220px">
                                             <SelectField
                                                 v-model="lot.season"
                                                 :options="monthOptions"
@@ -799,7 +799,7 @@ watch(
                                             />
                                         </td>
 
-                                        <td class="border border-border/60 px-3 py-2" style="min-width: 180px">
+                                        <td class="border border-border/60 px-3 py-2" style="min-width: 220px">
                                             <SelectField
                                                 v-model="lot.dispatch_month"
                                                 :options="monthOptions"
@@ -814,7 +814,7 @@ watch(
                                             />
                                         </td>
 
-                                        <td class="border border-border/60 px-3 py-2" style="min-width: 200px">
+                                        <td class="border border-border/60 px-3 py-2" style="min-width: 260px">
                                             <SelectField
                                                 v-model="lot.destination_id"
                                                 :options="destinationOptions"
@@ -850,7 +850,7 @@ watch(
                                             />
                                         </td>
 
-                                        <td class="border border-border/60 px-3 py-2" style="min-width: 220px">
+                                        <td class="border border-border/60 px-3 py-2" style="min-width: 260px">
                                             <InputField data-no-uppercase
                                                 v-model="lot.notes"
                                                 label=""
