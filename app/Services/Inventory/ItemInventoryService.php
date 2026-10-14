@@ -53,8 +53,14 @@ class ItemInventoryService
             )
             // Valor de los metros disponibles: la tela se valora por sus rollos (precio por metro, o el de la línea
             // de compra si el rollo no lo trae), no por el costo de la bodega, que en telas suele estar vacío.
+            // Solo cuentan los metros positivos de cada rollo: uno con más consumo que metros (dato inconsistente)
+            // no debe restar valor ni dejar un costo promedio negativo.
             ->selectRaw(
-                'SUM(CASE WHEN fr.approval_status = ? THEN (fr.quantity + fr.length_adjustment_meters - fr.actual_output) * COALESCE(fr.price_per_meter, pdi.price, 0) ELSE 0 END) AS roll_value',
+                'SUM(CASE WHEN fr.approval_status = ? THEN GREATEST(fr.quantity + fr.length_adjustment_meters - fr.actual_output, 0) * COALESCE(fr.price_per_meter, pdi.price, 0) ELSE 0 END) AS roll_value',
+                [FabricRoll::APPROVAL_APPROVED],
+            )
+            ->selectRaw(
+                'SUM(CASE WHEN fr.approval_status = ? THEN GREATEST(fr.quantity + fr.length_adjustment_meters - fr.actual_output, 0) ELSE 0 END) AS roll_priced_quantity',
                 [FabricRoll::APPROVAL_APPROVED],
             )
             ->selectRaw(
@@ -78,7 +84,7 @@ class ItemInventoryService
         $stockUnits = 'SUM(warehouse_items.quantity)';
         $warehouseAverageCost = "COALESCE({$stockValue} / NULLIF({$stockUnits}, 0), MAX(COALESCE(warehouse_items.weighted_average_price, 0)), 0)";
         // Telas: promedio ponderado de los rollos disponibles; sin rollos con metros, el de la bodega.
-        $averageCost = "CASE WHEN {$isFabricSql} AND COALESCE(MAX(roll_inv.roll_quantity), 0) > 0 THEN MAX(roll_inv.roll_value) / MAX(roll_inv.roll_quantity) ELSE {$warehouseAverageCost} END";
+        $averageCost = "CASE WHEN {$isFabricSql} AND COALESCE(MAX(roll_inv.roll_priced_quantity), 0) > 0 THEN MAX(roll_inv.roll_value) / MAX(roll_inv.roll_priced_quantity) ELSE {$warehouseAverageCost} END";
 
         $query = DB::table('warehouse_items')
             ->join('items', 'items.id', '=', 'warehouse_items.item_id')

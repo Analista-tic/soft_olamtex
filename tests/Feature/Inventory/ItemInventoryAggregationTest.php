@@ -120,3 +120,30 @@ it('values a fabric item from its available rolls even when the warehouse has no
         ->and((float) $row['total_cost'])->toBe(280000.0)
         ->and(round((float) $row['average_cost'], 2))->toBe(2153.85);
 });
+
+it('does not let a roll consumed beyond its meters make the fabric cost negative', function () {
+    $fabricGroup = CategorySubGroup::firstOrCreate(
+        ['name' => 'Tela Costo Rollos', 'category_group_id' => CategoryGroup::firstOrCreate(['name' => 'INSUMOS AGREGADO TEST'])->id],
+        ['material_kind' => 'fabric'],
+    );
+    $fabric = Item::create([
+        'category_sub_group_id' => $fabricGroup->id, 'name' => 'TELA CONSUMO EXCEDIDO',
+        'description' => 'Item de prueba', 'status' => true, 'tracks_inventory' => true,
+    ]);
+    WarehouseItem::create(['item_id' => $fabric->id, 'warehouse_id' => $this->bodegaA->id, 'quantity' => 0, 'stock_min' => 0, 'stock_max' => 0]);
+
+    // Un rollo de 24 m con 43 m consumidos (-19) y otro sano de 90 m a $8.500.
+    foreach ([['RL-NEG-1', 23, 1, 43, 200000], ['RL-NEG-2', 100, 0, 10, 8500]] as [$number, $meters, $adjustment, $used, $price]) {
+        \App\Models\Textil\FabricRoll::create([
+            'roll_number' => $number, 'item_id' => $fabric->id, 'quantity' => $meters, 'length_adjustment_meters' => $adjustment,
+            'price_per_meter' => $price, 'actual_output' => $used, 'entry_date' => now()->toDateString(),
+            'approval_status' => \App\Models\Textil\FabricRoll::APPROVAL_APPROVED,
+            'tolerance_status' => \App\Models\Textil\FabricRoll::TOLERANCE_NONE,
+        ]);
+    }
+
+    $row = collect($this->getJson(route('inventario-item.data', ['search' => 'TELA CONSUMO EXCEDIDO']))->assertOk()->json('data'))->first();
+
+    expect((float) $row['average_cost'])->toBe(8500.0)
+        ->and((float) $row['total_cost'])->toBe(765000.0);
+});
