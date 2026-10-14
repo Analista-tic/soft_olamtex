@@ -87,3 +87,36 @@ it('writes the aggregated rows with their headers and numbers in the Excel file'
         ->and((float) $sheet->getCell('H2')->getValue())->toBe(700000.0)
         ->and($sheet->getHighestRow())->toBe(2);
 });
+
+it('values a fabric item from its available rolls even when the warehouse has no cost', function () {
+    $fabricGroup = CategorySubGroup::create([
+        'name' => 'Tela Costo Rollos',
+        'category_group_id' => CategoryGroup::firstOrCreate(['name' => 'INSUMOS AGREGADO TEST'])->id,
+        'material_kind' => 'fabric',
+    ]);
+    $fabric = Item::create([
+        'category_sub_group_id' => $fabricGroup->id,
+        'name' => 'TELA COSTO ROLLOS',
+        'description' => 'Item de prueba',
+        'status' => true,
+        'tracks_inventory' => true,
+    ]);
+    // La bodega tiene metros pero ningún costo (el caso real que mostraba $ 0).
+    WarehouseItem::create(['item_id' => $fabric->id, 'warehouse_id' => $this->bodegaA->id, 'quantity' => 71, 'stock_min' => 0, 'stock_max' => 0]);
+
+    foreach ([['RL-COSTO-1', 100, 1000, 20], ['RL-COSTO-2', 50, 4000, 0]] as [$number, $meters, $pricePerMeter, $used]) {
+        \App\Models\Textil\FabricRoll::create([
+            'roll_number' => $number, 'item_id' => $fabric->id, 'quantity' => $meters, 'price_per_meter' => $pricePerMeter,
+            'actual_output' => $used, 'entry_date' => now()->toDateString(),
+            'approval_status' => \App\Models\Textil\FabricRoll::APPROVAL_APPROVED,
+            'tolerance_status' => \App\Models\Textil\FabricRoll::TOLERANCE_NONE,
+        ]);
+    }
+
+    $row = collect($this->getJson(route('inventario-item.data', ['search' => 'TELA COSTO ROLLOS']))->assertOk()->json('data'))->first();
+
+    // Disponible: 80 m × $1.000 + 50 m × $4.000 = $280.000 sobre 130 m.
+    expect((float) $row['quantity'])->toBe(130.0)
+        ->and((float) $row['total_cost'])->toBe(280000.0)
+        ->and(round((float) $row['average_cost'], 2))->toBe(2153.85);
+});

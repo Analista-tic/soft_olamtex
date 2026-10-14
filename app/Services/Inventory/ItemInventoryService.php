@@ -51,6 +51,12 @@ class ItemInventoryService
                 'SUM(CASE WHEN fr.approval_status = ? THEN fr.quantity + fr.length_adjustment_meters - fr.actual_output ELSE 0 END) AS roll_quantity',
                 [FabricRoll::APPROVAL_APPROVED],
             )
+            // Valor de los metros disponibles: la tela se valora por sus rollos (precio por metro, o el de la línea
+            // de compra si el rollo no lo trae), no por el costo de la bodega, que en telas suele estar vacío.
+            ->selectRaw(
+                'SUM(CASE WHEN fr.approval_status = ? THEN (fr.quantity + fr.length_adjustment_meters - fr.actual_output) * COALESCE(fr.price_per_meter, pdi.price, 0) ELSE 0 END) AS roll_value',
+                [FabricRoll::APPROVAL_APPROVED],
+            )
             ->selectRaw(
                 'SUM(CASE WHEN fr.approval_status = ? THEN fr.partial_output ELSE 0 END) AS reserved_quantity',
                 [FabricRoll::APPROVAL_APPROVED],
@@ -70,7 +76,9 @@ class ItemInventoryService
         // Costo promedio del ítem = valor total de sus bodegas / unidades totales (promedio ponderado).
         $stockValue = 'SUM(warehouse_items.quantity * COALESCE(warehouse_items.weighted_average_price, 0))';
         $stockUnits = 'SUM(warehouse_items.quantity)';
-        $averageCost = "COALESCE({$stockValue} / NULLIF({$stockUnits}, 0), MAX(COALESCE(warehouse_items.weighted_average_price, 0)), 0)";
+        $warehouseAverageCost = "COALESCE({$stockValue} / NULLIF({$stockUnits}, 0), MAX(COALESCE(warehouse_items.weighted_average_price, 0)), 0)";
+        // Telas: promedio ponderado de los rollos disponibles; sin rollos con metros, el de la bodega.
+        $averageCost = "CASE WHEN {$isFabricSql} AND COALESCE(MAX(roll_inv.roll_quantity), 0) > 0 THEN MAX(roll_inv.roll_value) / MAX(roll_inv.roll_quantity) ELSE {$warehouseAverageCost} END";
 
         $query = DB::table('warehouse_items')
             ->join('items', 'items.id', '=', 'warehouse_items.item_id')
@@ -94,7 +102,7 @@ class ItemInventoryService
                 DB::raw('MAX(COALESCE(warehouse_items.last_unit_cost, warehouse_items.weighted_average_price, 0)) AS last_unit_cost'),
                 DB::raw("
                     CASE WHEN {$isFabricSql}
-                         THEN COALESCE(MAX(roll_inv.roll_quantity), 0) * {$averageCost}
+                         THEN COALESCE(MAX(roll_inv.roll_value), 0)
                          ELSE COALESCE(SUM(COALESCE(warehouse_items.total_cost, warehouse_items.quantity * COALESCE(warehouse_items.weighted_average_price, 0))), 0)
                     END AS total_cost
                 "),
