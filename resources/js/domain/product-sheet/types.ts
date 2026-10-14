@@ -220,7 +220,14 @@ export interface ProductOperationListSummary {
     total_sam_terminacion: number;
     total_cost_product: number;
     is_active: boolean;
+    /** Listado marcado como completo (product_sheets.operational_list_completed_at). */
+    operational_list_completed: boolean;
     search_text: string;
+}
+
+/** Opciones del guardado del dialog de listado operacional. */
+export interface ProductOperationSaveOptions {
+    markComplete: boolean;
 }
 
 export interface ProductOperationViewEntry {

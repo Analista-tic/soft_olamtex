@@ -212,10 +212,15 @@ class ProductOperationListService
             $query->whereIn('product_sheet_id', $productSheetIds);
         }
 
-        return $query
-            ->get()
-            ->groupBy('product_sheet_id')
-            ->map(static function (Collection $rows, int|string $sheetId): array {
+        $grouped = $query->get()->groupBy('product_sheet_id');
+
+        // Estado "completo" del listado: vive en la sábana (ProductSheetStatusService).
+        $completedAtBySheet = ProductSheet::query()
+            ->whereIn('id', $grouped->keys()->all())
+            ->pluck('operational_list_completed_at', 'id');
+
+        return $grouped
+            ->map(static function (Collection $rows, int|string $sheetId) use ($completedAtBySheet): array {
                 $totalSam = 0.0;
                 $totalSamConfeccion = 0.0;
                 $totalSamTerminacion = 0.0;
@@ -256,6 +261,10 @@ class ProductOperationListService
                     'total_sam_confeccion' => round($totalSamConfeccion, 4),
                     'total_sam_terminacion' => round($totalSamTerminacion, 4),
                     'is_active' => $isActive,
+                    'operational_list_completed' => $completedAtBySheet->get($sheetId) !== null,
+                    'operational_list_completed_at' => $completedAtBySheet->get($sheetId) !== null
+                        ? (string) $completedAtBySheet->get($sheetId)
+                        : null,
                     'search_blob' => trim(implode(' ', array_unique(array_filter($searchParts)))),
                 ];
             })

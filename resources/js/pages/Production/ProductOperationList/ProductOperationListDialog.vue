@@ -2,6 +2,7 @@
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
+import HoverTooltip from '@/components/common/HoverTooltip.vue';
 import DialogActionButtons from '@/components/common/DialogActionButtons.vue';
 import DraggableTableRow from '@/components/DraggableTableRow.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
@@ -20,6 +21,7 @@ import type {
     ProductOperationDialogRow,
     ProductOperationEntityCreatedData,
     ProductOperationPayload,
+    ProductOperationSaveOptions,
     ProductSheetDialogOption,
 } from '@/domain/product-sheet/types';
 import { CornerDownLeft, GripVertical, Lightbulb, Pencil, Plus, PlusCircle, X } from 'lucide-vue-next';
@@ -80,10 +82,15 @@ const props = defineProps({
         type: [Number, String] as PropType<number | string | null>,
         default: null,
     },
+    /** Muestra "Guardar y marcar completo"; solo si el padre maneja options.markComplete. */
+    allowMarkComplete: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const emit = defineEmits<{
-    (event: 'save', payload: ProductOperationPayload[]): void;
+    (event: 'save', payload: ProductOperationPayload[], options: ProductOperationSaveOptions): void;
     (event: 'close'): void;
 }>();
 
@@ -651,7 +658,7 @@ function initializeForm() {
     resetForm();
 }
 
-function saveOperations() {
+function saveOperations(markComplete = false) {
     if (editingRowIndex.value !== null) {
         saveEditRow(editingRowIndex.value);
         if (editingRowIndex.value !== null) return;
@@ -701,7 +708,7 @@ function saveOperations() {
     });
 
     clearValidationError();
-    emit('save', payload);
+    emit('save', payload, { markComplete });
     resetForm();
     localOpen.value = false;
 }
@@ -1101,12 +1108,23 @@ function resetForm() {
             </TooltipProvider>
 
             <FormDialogFooter class="flex items-center justify-end gap-2">
+                <HoverTooltip v-if="!readonly && allowMarkComplete" text="Guarda y deja el listado marcado como completo (listo para producción).">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        class="rounded-full border-emerald-500/60 px-5 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400"
+                        :disabled="operationList.length === 0"
+                        @click="saveOperations(true)"
+                    >
+                        Guardar y marcar completo
+                    </Button>
+                </HoverTooltip>
                 <DialogActionButtons
                     v-if="!readonly"
                     cancel-label="Cancelar"
                     :submit-label="operationList.length > 0 ? `Guardar (${operationList.length})` : 'Guardar (vaciar lista)'"
                     @cancel="localOpen = false"
-                    @submit="saveOperations"
+                    @submit="saveOperations()"
                 />
                 <Button v-else variant="outline" @click="localOpen = false">
                     Cerrar

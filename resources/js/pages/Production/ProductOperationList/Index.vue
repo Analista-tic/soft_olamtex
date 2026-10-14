@@ -15,7 +15,9 @@ import type {
     ProductOperationListPageProps,
     ProductOperationListSummary,
     ProductOperationPayload,
+    ProductOperationSaveOptions,
 } from '@/domain/product-sheet/types';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -176,6 +178,7 @@ async function fetchOperationSummaries() {
                     total_sam_terminacion: totalSamTerminacion,
                     total_cost_product: totalCostProduct,
                     is_active: Boolean(row.is_active),
+                    operational_list_completed: Boolean(row.operational_list_completed),
                     search_text: normalizeText(`${reference} ${searchBlob}`.trim()),
                 } as ProductOperationListSummary;
             })
@@ -208,7 +211,7 @@ function handleCompletionChanged(message: string) {
     void fetchOperationSummaries();
 }
 
-async function handleDialogSave(payloads: ProductOperationPayload[]) {
+async function handleDialogSave(payloads: ProductOperationPayload[], options?: ProductOperationSaveOptions) {
     isSavingAndRefreshing.value = true;
     try {
         const validPayloads = payloads.filter((payload) => payload.product_sheet_id && payload.operation_id);
@@ -262,11 +265,25 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
                 });
             }
 
-            showSuccess(
+            let successText =
                 dialogMode.value === 'edit'
                     ? 'Operaciones actualizadas correctamente.'
-                    : `${operationsPayload.length} operación(es) guardada(s) correctamente.`,
-            );
+                    : `${operationsPayload.length} operación(es) guardada(s) correctamente.`;
+
+            // Se completa DESPUÉS de guardar: el sync reabre el listado si cambió su contenido.
+            if (options?.markComplete) {
+                try {
+                    await axios.post(`/produccion/listados-operacionales/sabana/${targetSheetId}/completar`);
+                    successText += ' Listado marcado como completo.';
+                } catch (completeError: any) {
+                    showError(
+                        completeError?.response?.data?.message ??
+                            'Las operaciones se guardaron, pero no se pudo marcar el listado como completo.',
+                    );
+                }
+            }
+
+            showSuccess(successText);
 
             if (hasValidTargetSheet) {
                 selectedProductSheetId.value = targetSheetId;
@@ -589,15 +606,16 @@ watch(productSheets, () => {
                                             Costo Total Producto {{ sortBy === 'total_cost_product' ? (sortDir === 'asc' ? '↑' : '↓') : '' }}
                                         </button>
                                     </TableHead>
+                                    <TableHead class="text-center">Estado</TableHead>
                                     <TableHead class="text-center">Acciones</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 <TableRow v-if="isLoading">
-                                    <TableCell colspan="6" class="text-center text-sm text-muted-foreground">Cargando totales...</TableCell>
+                                    <TableCell colspan="7" class="text-center text-sm text-muted-foreground">Cargando totales...</TableCell>
                                 </TableRow>
                                 <TableRow v-else-if="paginatedSummaries.length === 0">
-                                    <TableCell colspan="6" class="text-center text-sm text-muted-foreground"
+                                    <TableCell colspan="7" class="text-center text-sm text-muted-foreground"
                                         >Aún no se han guardado operaciones.</TableCell
                                     >
                                 </TableRow>
@@ -609,6 +627,12 @@ watch(productSheets, () => {
                                     <TableCell class="text-center font-mono font-semibold"
                                         >$ {{ formatCurrency(summary.total_cost_product) }}</TableCell
                                     >
+                                    <TableCell class="text-center">
+                                        <TableStatusBadge
+                                            :label="summary.operational_list_completed ? 'Completo' : 'Pendiente'"
+                                            :tone="summary.operational_list_completed ? 'green' : 'amber'"
+                                        />
+                                    </TableCell>
                                     <TableCell class="text-center">
                                         <div class="flex items-center justify-center gap-2">
                                             <Tooltip>
@@ -677,6 +701,7 @@ watch(productSheets, () => {
                 :garmentParts="garmentParts"
                 :fabricBases="fabricBases"
                 :preparation-groups="preparationGroups"
+                allow-mark-complete
                 @save="handleDialogSave"
                 @close="closeDialog"
             />

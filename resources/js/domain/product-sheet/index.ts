@@ -23,6 +23,7 @@ export type {
     ProductOperationGroupedRow,
     ProductOperationHistoryEntry,
     ProductOperationListSummary,
+    ProductOperationSaveOptions,
     ProductOperationSectionInfo,
     ProductOperationViewCostParameters,
     ProductOperationViewEntry,

@@ -69,6 +69,21 @@ it('marks the listing as complete recording who and when, and can reopen it', fu
     expect($this->sheet->fresh()->operational_list_completed_at)->toBeNull();
 });
 
+it('exposes the completed state in the sheet summaries for the listing table', function () {
+    completionLine($this->sheet);
+    $service = app(ProductOperationListService::class);
+
+    $summary = $service->getSheetSummaries([$this->sheet->id])->first();
+    expect($summary['operational_list_completed'])->toBeFalse()
+        ->and($summary['operational_list_completed_at'])->toBeNull();
+
+    $this->postJson(route('produccion.listados-operacionales.complete', $this->sheet))->assertOk();
+
+    $summary = $service->getSheetSummaries([$this->sheet->id])->first();
+    expect($summary['operational_list_completed'])->toBeTrue()
+        ->and($summary['operational_list_completed_at'])->not->toBeNull();
+});
+
 it('drops the completed mark when the lines change', function () {
     $line = completionLine($this->sheet);
     $this->postJson(route('produccion.listados-operacionales.complete', $this->sheet))->assertOk();
