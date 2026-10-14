@@ -100,6 +100,7 @@ Route::prefix('ajustes-inventario')->name('ajustes-inventario.')->middleware('pe
 Route::prefix('movimientos-inventario')->name('movimientos-inventario.')->group(function () {
     Route::get('/', [InventoryMovementController::class, 'index'])->name('index');
     Route::get('/data', [InventoryMovementController::class, 'getData'])->name('data');
+    Route::get('/exportar-excel', [InventoryMovementController::class, 'exportExcel'])->name('export-excel');
     Route::get('/item/{itemId}', [InventoryMovementController::class, 'getItemMovements'])->name('item-movements');
     Route::get('/weighted-price', [InventoryMovementController::class, 'getCurrentWeightedPrice'])->name('weighted-price');
     Route::post('/transfer', [InventoryMovementController::class, 'storeTransfer'])->name('transfer');

@@ -1316,6 +1316,8 @@ class BatchControlController extends Controller
                     'date'                => now()->toDateString(),
                     'source_type'         => ProductionOrder::class,
                     'source_id'           => $order->id,
+                    // OP indexable para filtrar/exportar salidas por orden en Movimientos de inventario.
+                    'source_reference'    => $order->op_code,
                     'notes'               => 'Salida Logística OP ' . ($order->op_code ?? "#{$order->id}") . ($line['supply_name'] ? ' - ' . $line['supply_name'] : ''),
                     'created_by_user_id'  => $user?->id,
                 ]);

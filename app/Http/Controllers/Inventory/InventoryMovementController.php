@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
+use App\Services\Inventory\InventoryMovementExcelService;
 use App\Services\Inventory\InventoryMovementService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -31,7 +33,32 @@ class InventoryMovementController extends Controller
      */
     public function getData(Request $request): JsonResponse
     {
-        $filters = [
+        $filters = $this->filtersFrom($request);
+        $perPage = (int) $request->input('per_page', 20);
+        $paginator = $this->service->paginate($filters, $perPage, $request->user());
+
+        return response()->json([
+            'data' => $paginator->items(),
+            'current_page' => $paginator->currentPage(),
+            'last_page' => $paginator->lastPage(),
+            'per_page' => $paginator->perPage(),
+            'total' => $paginator->total(),
+        ]);
+    }
+
+    /** Excel con los mismos filtros y orden de la pantalla, sin paginar. */
+    public function exportExcel(Request $request, InventoryMovementExcelService $excel): BinaryFileResponse
+    {
+        $tempFile = $excel->export($this->filtersFrom($request), $request->user());
+        $prefix = $request->input('origin') === InventoryMovementService::ORIGIN_OP_SUPPLY_EXIT ? 'salidas_insumos_op_' : 'movimientos_inventario_';
+
+        return response()->download($tempFile, $prefix.now()->format('Ymd_His').'.xlsx')->deleteFileAfterSend(true);
+    }
+
+    /** @return array<string, mixed> */
+    private function filtersFrom(Request $request): array
+    {
+        return [
             'item_id'            => $request->input('item_id'),
             'warehouse_id'       => $request->input('warehouse_id'),
             'type'               => $request->input('type'),
@@ -39,6 +66,8 @@ class InventoryMovementController extends Controller
             'date_from'          => $request->input('date_from'),
             'date_to'            => $request->input('date_to'),
             'fabric_items_only'  => $request->boolean('fabric_items_only'),
+            'origin'             => $request->input('origin'),
+            'op_code'            => $request->input('op_code'),
             // rangos numéricos
             'quantity_min'       => $request->input('quantity_min'),
             'quantity_max'       => $request->input('quantity_max'),
@@ -52,17 +81,6 @@ class InventoryMovementController extends Controller
             'sort_by'        => $request->input('sort_by', 'date'),
             'sort_direction' => $request->input('sort_direction', 'desc'),
         ];
-
-        $perPage = (int) $request->input('per_page', 20);
-        $paginator = $this->service->paginate($filters, $perPage, $request->user());
-
-        return response()->json([
-            'data' => $paginator->items(),
-            'current_page' => $paginator->currentPage(),
-            'last_page' => $paginator->lastPage(),
-            'per_page' => $paginator->perPage(),
-            'total' => $paginator->total(),
-        ]);
     }
 
     /**
