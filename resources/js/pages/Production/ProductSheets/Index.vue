@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import HoverTooltip from '@/components/common/HoverTooltip.vue';
 import ServerPagination from '@/components/common/ServerPagination.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
@@ -719,14 +720,19 @@ onUnmounted(() => {
                                     <span v-else class="text-muted-foreground">—</span>
                                 </TableCell>
                                 <TableCell>
-                                    <TableStatusBadge
-                                        :label="product.status === 'complete' ? 'Completo' : 'Incompleto'"
-                                        :tone="product.status === 'complete' ? 'green' : 'red'"
-                                        :title="product.missing_for_completion?.length ? `Falta: ${product.missing_for_completion.join(', ')}` : undefined"
-                                    />
-                                    <p v-if="product.status !== 'complete' && product.missing_for_completion?.length" class="mt-1 max-w-[180px] text-xs text-muted-foreground">
-                                        Falta: {{ product.missing_for_completion.join(', ') }}
-                                    </p>
+                                    <HoverTooltip
+                                        :text="
+                                            product.status !== 'complete' && product.missing_for_completion?.length
+                                                ? `Falta: ${product.missing_for_completion.join(', ')}`
+                                                : null
+                                        "
+                                        :class="{ 'cursor-help': product.status !== 'complete' && product.missing_for_completion?.length }"
+                                    >
+                                        <TableStatusBadge
+                                            :label="product.status === 'complete' ? 'Completo' : 'Incompleto'"
+                                            :tone="product.status === 'complete' ? 'green' : 'red'"
+                                        />
+                                    </HoverTooltip>
                                 </TableCell>
                                 <TableCell class="text-center">
                                     <div class="flex items-center justify-center gap-1">
