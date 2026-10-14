@@ -26,7 +26,7 @@ export interface User {
     created_at: string;
     updated_at: string;
     area_id?: number | null;
-    area?: { id: number; nombre: string } | null;
+    area?: { id: number; name: string } | null;
 }
 export interface BreadcrumbItem {
     title: string;

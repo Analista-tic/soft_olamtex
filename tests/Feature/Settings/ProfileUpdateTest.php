@@ -35,6 +35,29 @@ test('profile information can be updated', function () {
     expect($user->email_verified_at)->toBeNull();
 });
 
+test('profile information can be updated via json from configuration page', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->patchJson('/settings/profile', [
+            'name' => 'Nombre Nuevo',
+            'email' => 'nuevo@example.com',
+        ])
+        ->assertOk()
+        ->assertJsonPath('data.name', 'Nombre Nuevo');
+
+    expect($user->refresh()->name)->toBe('Nombre Nuevo');
+});
+
+test('profile json update reports required fields', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->patchJson('/settings/profile', ['name' => '', 'email' => ''])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['name', 'email']);
+});
+
 test('email verification status is unchanged when the email address is unchanged', function () {
     $user = User::factory()->create();
 

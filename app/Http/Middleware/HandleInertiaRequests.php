@@ -83,6 +83,7 @@ class HandleInertiaRequests extends Middleware
                 if (! $user->relationLoaded('roles') || ! $user->relationLoaded('permissions')) {
                     $user->load('roles.permissions', 'permissions');
                 }
+                $user->loadMissing('area');
 
                 return [
                     'user' => [
@@ -93,6 +94,8 @@ class HandleInertiaRequests extends Middleware
                         ])->toArray(),
                         'theme_appearance' => $user->theme_appearance,
                         'theme_color' => $user->theme_color,
+                        // Solo lectura en Configuración > Perfil.
+                        'area' => $user->area ? ['id' => $user->area->id, 'name' => $user->area->name] : null,
                     ],
                     'roles' => $user->roles->pluck('name'),
                     'permissions' => $user->getAllPermissions()->pluck('name'),

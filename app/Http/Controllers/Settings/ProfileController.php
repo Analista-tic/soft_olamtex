@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\ProfileUpdateRequest;
 use App\Services\Settings\ProfileService;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,9 +30,17 @@ class ProfileController extends Controller
     /**
      * Update the user's profile information.
      */
-    public function update(ProfileUpdateRequest $request): RedirectResponse
+    public function update(ProfileUpdateRequest $request): RedirectResponse|JsonResponse
     {
-        $this->service->update($request->user(), $request->validated());
+        $user = $this->service->update($request->user(), $request->validated());
+
+        // Configuración > Perfil guarda por axios y se queda en la misma pantalla.
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Perfil actualizado correctamente.',
+                'data' => ['name' => $user->name, 'email' => $user->email],
+            ]);
+        }
 
         return to_route('profile.edit');
     }
