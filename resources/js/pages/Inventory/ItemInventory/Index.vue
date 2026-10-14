@@ -225,10 +225,10 @@ onMounted(() => {
                     <TableHeader>
                         <TableRow>
                             <TableHead class="text-start">Ítem</TableHead>
-                            <TableHead>Referencia</TableHead>
-                            <TableHead>{{ isWarehouseActive ? 'Bodega' : 'Bodegas' }}</TableHead>
-                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('quantity')">
-                                <span class="inline-flex items-center gap-1">
+                            <TableHead class="text-start">Referencia</TableHead>
+                            <TableHead class="text-start">{{ isWarehouseActive ? 'Bodega' : 'Bodegas' }}</TableHead>
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap text-right" @click="toggleSort('quantity')">
+                                <span class="inline-flex items-center justify-end gap-1">
                                     Cantidad
                                     <span class="text-muted-foreground">
                                         <template v-if="sortBy === 'quantity'">
@@ -240,10 +240,10 @@ onMounted(() => {
                                     </span>
                                 </span>
                             </TableHead>
-                            <TableHead class="whitespace-nowrap">Restringido</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('average_cost')">
-                                <span class="inline-flex items-center gap-1">
+                            <TableHead class="whitespace-nowrap text-right">Restringido</TableHead>
+                            <TableHead class="text-center">Estado</TableHead>
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap text-right" @click="toggleSort('average_cost')">
+                                <span class="inline-flex items-center justify-end gap-1">
                                     Costo promedio
                                     <span class="text-muted-foreground">
                                         <template v-if="sortBy === 'average_cost'">
@@ -255,8 +255,8 @@ onMounted(() => {
                                     </span>
                                 </span>
                             </TableHead>
-                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('total_cost')">
-                                <span class="inline-flex items-center gap-1">
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap text-right" @click="toggleSort('total_cost')">
+                                <span class="inline-flex items-center justify-end gap-1">
                                     Total
                                     <span class="text-muted-foreground">
                                         <template v-if="sortBy === 'total_cost'">
@@ -288,12 +288,9 @@ onMounted(() => {
                         </template>
                         <template v-else>
                             <TableRow v-for="item in items" :key="item.id">
-                                <TableCell class="text-start">{{ item.item_name }}</TableCell>
-                                <TableCell class="text-center">{{ item.reference ?? '-' }}</TableCell>
-                                <TableCell class="text-center">{{ item.warehouse_name ?? '-' }}</TableCell>
-                                <TableCell class="text-right font-medium tabular-nums">
-                                    <div class="inline-flex items-center justify-end gap-2">
-                                        <span>{{ formatQuantity(item.quantity) }}</span>
+                                <TableCell class="text-start">
+                                    <div class="flex items-center gap-2">
+                                        <span>{{ item.item_name }}</span>
                                         <template v-if="item.is_fabric">
                                             <TooltipProvider v-if="item.reserved_quantity > 0">
                                                 <Tooltip>
@@ -311,6 +308,9 @@ onMounted(() => {
                                         </template>
                                     </div>
                                 </TableCell>
+                                <TableCell class="text-start">{{ item.reference ?? '-' }}</TableCell>
+                                <TableCell class="text-start">{{ item.warehouse_name ?? '-' }}</TableCell>
+                                <TableCell class="text-right font-medium tabular-nums">{{ formatQuantity(item.quantity) }}</TableCell>
                                 <TableCell class="text-right tabular-nums">
                                     <TooltipProvider v-if="item.is_fabric && Number(item.restricted_quantity) > 0">
                                         <Tooltip>
@@ -331,8 +331,8 @@ onMounted(() => {
                                 <TableCell class="text-center">
                                     <StatusBadge :status="item.status" />
                                 </TableCell>
-                                <TableCell class="text-center">{{ formatCurrency(item.average_cost) }}</TableCell>
-                                <TableCell class="text-center">{{ formatCurrency(item.total_cost) }}</TableCell>
+                                <TableCell class="text-right tabular-nums">{{ formatCurrency(item.average_cost) }}</TableCell>
+                                <TableCell class="text-right tabular-nums">{{ formatCurrency(item.total_cost) }}</TableCell>
                             </TableRow>
                         </template>
                     </TableBody>
